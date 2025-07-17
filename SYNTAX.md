@@ -1,6 +1,6 @@
 Composable State Diagram Format
-==========================================
-PlantUML の状態遷移図の文法規則のサブセットです。
+===============================
+並行合成可能な状態遷移モデルの文字列表現。PlantUML の状態遷移図の文法規則のサブセットとしている。
 
 
 文法規則
@@ -8,7 +8,7 @@ PlantUML の状態遷移図の文法規則のサブセットです。
 ```abnf
 diagram = "@startuml" 1*LF 1*stateDecl *edgeDecl "@enduml" LF
 stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID SP ":" SP var LF)
-edgeDecl = stateID SP "-->" SP stateID SP ":" SP event SP ";" SP guard SP ";" SP post 1*LF
+edgeDecl = (stateID / "[*]") SP "-->" SP (stateID / "[*]") SP ":" SP event SP ";" SP guard SP ";" SP post 1*LF
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
@@ -35,52 +35,60 @@ unicode_char_except_semicolon = %x21-3A / %3C-7F / %x80-10FFFF
 --
 
 ```go
+package example
+
 type ID string
 type StateID ID
 type EventID ID
 type Var ID
 
 type Diagram struct {
-    State map[StateID]State 
-    Edges []Edge
+	State map[StateID]State
+	Edges []Edge
 }
 
 type State struct {
-    ID StateID
-    Name string
-    Vars []Var
+	ID   StateID
+	Name string
+	Vars []Var
 }
 
 type Edge struct {
-    Src   StateID
-    Dst   StateID
-    Event Event
-    Guard string
-    Post  string
+	Src   StateIDOrStartOrEnd
+	Dst   StateIDOrStartOrEnd
+	Event Event
+	Guard string
+	Post  string
+}
+
+// StateIDOrStartOrEnd は IsStartOrEnd が真なら初期状態または終了状態、それ以外の場合は ID の指す StateID を表す。
+type StateIDOrStartOrEnd struct {
+	ID           StateID
+	IsStartOrEnd bool
 }
 
 type Event struct {
-    ID EventID
-    Params []Var
+	ID     EventID
+	Params []Var
 }
 ```
 
 
 意味
 ----
-| 構文要素 | 対応する型 | 意味 |
-|:---------|:-----------|:-----|
-| `diagram` | `Diagram` | 状態遷移モデルの宣言を表す。 |
-| `stateDecl` | `State` | 状態の宣言を表す。 |
-| `edgeDecl` | `Edge` | 有向辺の宣言を表す。 |
-| `stateName` | `string` | 状態名。先頭と末尾の二重引用符は除去し、エスケープを解除した文字列を表す。 |
-| `escape_backslash` | `rune` | `\` を表す。 |
-| `escape_dquote`    | `rune` | `"` を表す。 |
-| `stateID` | `StateID`  | ID文字列を表す。 |
-| `var`     | `Var`      | 変数名を表す。   |
-| `event`   | `Event`    | イベントを表す。出現する変数の順番で Params に格納する。 |
-| `guard`   | `string`   | ガード条件の自然言語表現を表す。 |
-| `post`    | `string`   | 事後条件の自然言語表現を表す。   |
-| `id`     | `string`   | ID 文字列を表す。 |
-| `unicode_char_except_dquote_and_backslash` | `rune` | 二重引用符とバックスラッシュを除くUnicode文字を表す。 |
-| `unicode_char_except_semicolon` | `rune` | セミコロンを除くUnicode文字を表す。 |
+| 構文要素                                       | 対応する型     | 意味                                    |
+|:-------------------------------------------|:----------|:--------------------------------------|
+| `diagram`                                  | `Diagram` | 状態遷移モデルの宣言を表す。                        |
+| `stateDecl`                                | `State`   | 状態の宣言を表す。                             |
+| `edgeDecl`                                 | `Edge`    | 有向辺の宣言を表す。                            |
+| `stateName`                                | `string`  | 状態名。先頭と末尾の二重引用符は除去し、エスケープを解除した文字列を表す。 |
+| `escape_backslash`                         | `rune`    | `\` を表す。                              |
+| `escape_dquote`                            | `rune`    | `"` を表す。                              |
+| `stateID`                                  | `StateID` | ID文字列を表す。                             |
+| `var`                                      | `Var`     | 変数名を表す。                               |
+| `event`                                    | `Event`   | イベントを表す。出現する変数の順番で Params に格納する。      |
+| `guard`                                    | `string`  | ガード条件の自然言語表現を表す。                      |
+| `post`                                     | `string`  | 事後条件の自然言語表現を表す。                       |
+| `id`                                       | `string`  | ID 文字列を表す。                            |
+| `unicode_char_except_dquote_and_backslash` | `rune`    | 二重引用符とバックスラッシュを除くUnicode文字を表す。        |
+| `unicode_char_except_semicolon`            | `rune`    | セミコロンを除くUnicode文字を表す。                 |
