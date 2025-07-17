@@ -13,7 +13,7 @@ vmDropping: availableProducts
 vmDropping: product
 
 [*] --> vmIdle : availableProducts' は自販機に最初からある製品
-vmIdle --> vmIdle : showVailable(availableProducts) ; true ; availableProducts' はそのまま
+vmIdle --> vmIdle : showAvailable(availableProducts) ; true ; availableProducts' はそのまま
 vmIdle --> vmCoinsInserted : insert(coin) ; true ; coins' は {coin}、availableProducts' はそのまま
 vmCoinsInserted --> vmWaitingChoosing : showPurchasable(purchasableProducts) ; true ; availableProducts' と coins' はそのまま
 vmWaitingChoosing --> vmCoinsInserted : insert(coin) ; true ; coins' は coins に coin を足したもの、availableProducts' はそのまま
