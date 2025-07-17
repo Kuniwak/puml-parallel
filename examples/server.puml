@@ -21,11 +21,11 @@ s4 : tools
 s4 : state
 
 [*] --> s0 : server' はこのMCPサーバーの名前、tools はこのMCPサーバーの提供するツールの集合
-s0 --> s1 : start(s) / s と server が一致 / server' と tools' はそのまま、state' は初期状態
-s1 --> s2 : initialize(s) / s と server が一致 / server' と tools' と state' はすべてそのまま
-s2 --> s3 : toolsListReq(s) / s と server が一致 / server' と tools' と state' はすべてそのまま
-s3 --> s2 : toolsListRes(s, ts) / s と server が一致し、かつ ts と tools が一致 / server' と tools' と state' はすべてそのまま
-s2 --> s4 : toolsCallReq(s) / s と server が一致 / server' と tools' はいずれもそのまま、state' は何らか更新（しなくてもよい）
-s4 --> s2 : toolsCallRes(s) / s と server が一致 / server' と tools' はいずれもそのまま、state' は何らか更新（しなくてもよい）
+s0 --> s1 : start(s) ; s と server が一致 ; server' と tools' はそのまま、state' は初期状態
+s1 --> s2 : initialize(s) ; s と server が一致 ; server' と tools' と state' はすべてそのまま
+s2 --> s3 : toolsListReq(s) ; s と server が一致 ; server' と tools' と state' はすべてそのまま
+s3 --> s2 : toolsListRes(s, ts) ; s と server が一致し、かつ ts と tools が一致 ; server' と tools' と state' はすべてそのまま
+s2 --> s4 : toolsCallReq(s) ; s と server が一致 ; server' と tools' はいずれもそのまま、state' は何らか更新（しなくてもよい）
+s4 --> s2 : toolsCallRes(s) ; s と server が一致 ; server' と tools' はいずれもそのまま、state' は何らか更新（しなくてもよい）
 
 @enduml

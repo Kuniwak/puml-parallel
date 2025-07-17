@@ -5,15 +5,15 @@ state "clientReady(tools)" as c1
 state "clientProcessing(tools)" as c2
 state "clientCallingMCPServer(tools)" as c3
 [*] --> c0 : serverStateMap' = 事前登録された MCP はすべて未起動状態、tools は空集合
-c0 --> c1 : τ / serverStateMap のすべてが初期化済み / tools' はそのまま
-c0 --> c0 : start(server) / server は事前登録された MCP サーバーでかつ未起動状態 / serverStateMap' は serverStateMap の server を未初期化に変えたもの、tools' はそのまま
-c0 --> c0 : initializeReq(server) / server は事前登録された MCP サーバーでかつ未初期化 / serverStateMap' は serverStateMap の server を初期化中に変えたもの、tools' はそのまま
-c0 --> c0 : initializeRes(server) / server は事前登録された MCP サーバーでかつ初期化中 / serverStateMap' は serverStateMap の server を初期化完了に変えたもの、tools' はそのまま
-c0 --> c0 : toolsListReq(server) / server は事前登録された MCP サーバーでかつ初期化完了状態 / serverStateMap' は serverStateMap の server をツールリスト待ちに変えたもの、tools' はそのまま
-c0 --> c0 : toolsListRes(server,ts) / server は事前登録された MCP サーバーでかつ初期化完了状態 / serverStateMap' は serverStateMap の server をツールリスト完了に変えたもの、tools' は tools に ts を加えたもの
-c1 --> c2 : inputPrompt / 常に遷移可能 / tools' はそのまま
-c2 --> c1 : returnText / 常に遷移可能 / tools' はそのまま
-c2 --> c3 : toolsCallReq(tool) / tool が tools に含まれている / tools' はそのまま
-c3 --> c2 : toolsCallRes(tool,resp) / tool が tools に含まれている / tools' はそのまま
+c0 --> c1 : τ ; serverStateMap のすべてが初期化済み ; tools' はそのまま
+c0 --> c0 : start(server) ; server は事前登録された MCP サーバーでかつ未起動状態 ; serverStateMap' は serverStateMap の server を未初期化に変えたもの、tools' はそのまま
+c0 --> c0 : initializeReq(server) ; server は事前登録された MCP サーバーでかつ未初期化 ; serverStateMap' は serverStateMap の server を初期化中に変えたもの、tools' はそのまま
+c0 --> c0 : initializeRes(server) ; server は事前登録された MCP サーバーでかつ初期化中 ; serverStateMap' は serverStateMap の server を初期化完了に変えたもの、tools' はそのまま
+c0 --> c0 : toolsListReq(server) ; server は事前登録された MCP サーバーでかつ初期化完了状態 ; serverStateMap' は serverStateMap の server をツールリスト待ちに変えたもの、tools' はそのまま
+c0 --> c0 : toolsListRes(server,ts) ; server は事前登録された MCP サーバーでかつ初期化完了状態 ; serverStateMap' は serverStateMap の server をツールリスト完了に変えたもの、tools' は tools に ts を加えたもの
+c1 --> c2 : inputPrompt ; 常に遷移可能 ; tools' はそのまま
+c2 --> c1 : returnText ; 常に遷移可能 ; tools' はそのまま
+c2 --> c3 : toolsCallReq(tool) ; tool が tools に含まれている ; tools' はそのまま
+c3 --> c2 : toolsCallRes(tool,resp) ; tool が tools に含まれている ; tools' はそのまま
   
 @enduml
