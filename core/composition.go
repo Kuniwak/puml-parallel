@@ -1,413 +1,275 @@
 package core
 
-import (
-	"fmt"
-	"strings"
-)
-
-type CompositeStateID string
-
-func NewCompositeStateID(components []StateID) CompositeStateID {
-	var parts []string
-	for _, comp := range components {
-		parts = append(parts, string(comp))
-	}
-	return CompositeStateID(strings.Join(parts, "_"))
+type StatePair struct {
+	Left  State
+	Right State
 }
 
-func (c CompositeStateID) String() string {
-	return string(c)
-}
-
-type CompositeState struct {
-	ID         CompositeStateID
-	Name       string
-	Vars       map[Var]string
-	Components []StateID
-}
-
-type CompositeDiagram struct {
-	States map[CompositeStateID]CompositeState
-	Edges  []CompositeEdge
-}
-
-type CompositeEdge struct {
-	Src   CompositeStateID
-	Dst   CompositeStateID
+type Trans struct {
+	Src   StateID
+	Dst   StateID
 	Event Event
-	Guard string
-	Post  string
 }
 
-func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (*CompositeDiagram, error) {
-	if len(diagrams) == 0 {
-		return nil, fmt.Errorf("no diagrams provided")
-	}
+func (s StatePair) ID() StateID {
+	return ComposeStateIDs(s.Left.ID, s.Right.ID)
+}
 
-	syncEventSet := make(map[EventID]bool)
+func (s StatePair) State() State {
+	return State{
+		ID:   s.ID(),
+		Name: ComposeStateNames(s.Left.Name, s.Right.Name),
+		Vars: append(append([]Var{}, s.Left.Vars...), s.Right.Vars...),
+	}
+}
+
+func ComplementEdges(es []Edge, ees []EndEdge) []Edge {
+	res := make([]Edge, 0, len(es)+len(ees))
+	for _, edge := range es {
+		res = append(res, edge)
+	}
+	for _, endEdge := range ees {
+		res = append(res, Edge{
+			Src:   endEdge.Src,
+			Dst:   StateIDOmega,
+			Event: EventTick,
+			Guard: True,
+			Post:  True,
+		})
+	}
+	return res
+}
+
+func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
+	initState1 := dL.States[dL.StartEdge.Dst]
+	initState2 := dR.States[dR.StartEdge.Dst]
+
+	tsL := ComplementEdges(dL.Edges, dL.EndEdges)
+	tsR := ComplementEdges(dR.Edges, dR.EndEdges)
+
+	ss := make(map[EventID]struct{})
 	for _, event := range syncEvents {
-		syncEventSet[event] = true
+		ss[event] = struct{}{}
 	}
 
-	result := &CompositeDiagram{
-		States: make(map[CompositeStateID]CompositeState),
-		Edges:  []CompositeEdge{},
+	initStatePair := StatePair{
+		Left:  initState1,
+		Right: initState2,
 	}
 
-	allStates := generateAllCompositeStates(diagrams)
-	for _, state := range allStates {
-		result.States[state.ID] = state
+	out := Diagram{
+		States: make(map[StateID]State),
+		StartEdge: StartEdge{
+			Dst:  initStatePair.ID(),
+			Post: ComposePostConditions(dL.StartEdge.Post, dR.StartEdge.Post),
+		},
+		Edges:    make([]Edge, 0),
+		EndEdges: make([]EndEdge, 0),
 	}
 
-	for srcState := range result.States {
-		edges := generateEdgesFromState(srcState, diagrams, syncEventSet, result.States)
-		result.Edges = append(result.Edges, edges...)
+	visited := make(map[StateID]struct{})
+	queue := []StatePair{initStatePair}
+	for len(queue) > 0 {
+		if err := composeParallel2(dL, dR, tsL, tsR, &queue, &visited, ss, &out); err != nil {
+			return Diagram{}, err
+		}
 	}
-
-	return result, nil
+	return out, nil
 }
 
-func generateAllCompositeStates(diagrams []Diagram) []CompositeState {
-	var result []CompositeState
-	var components [][]StateID
-
-	for _, diagram := range diagrams {
-		var states []StateID
-		for stateID := range diagram.States {
-			states = append(states, stateID)
-		}
-		components = append(components, states)
+func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visited *map[StateID]struct{}, syncEvents map[EventID]struct{}, out *Diagram) error {
+	if len(*queue) == 0 {
+		return nil
 	}
 
-	combinations := cartesianProduct(components)
+	currentPair := (*queue)[0]
+	currentPairID := currentPair.ID()
+	*queue = (*queue)[1:]
+	if _, ok := (*visited)[currentPairID]; ok {
+		panic("already visited: " + currentPairID)
+	}
+	(*visited)[currentPairID] = struct{}{}
 
-	for _, combo := range combinations {
-		compositeID := NewCompositeStateID(combo)
-
-		var nameParts []string
-		vars := make(map[Var]string)
-
-		for i, stateID := range combo {
-			state := diagrams[i].States[stateID]
-			nameParts = append(nameParts, state.Name)
-
-			for _, v := range state.Vars {
-				vars[v] = fmt.Sprintf("diagram%d", i)
-			}
-		}
-
-		result = append(result, CompositeState{
-			ID:         compositeID,
-			Name:       strings.Join(nameParts, " || "),
-			Vars:       vars,
-			Components: combo,
+	// Para6
+	if currentPair.Left.ID == StateIDOmega && currentPair.Right.ID == StateIDOmega {
+		out.EndEdges = append(out.EndEdges, EndEdge{
+			Src:   currentPairID,
+			Event: EventTick,
 		})
+		return nil
 	}
 
-	return result
-}
-
-func generateEdgesFromState(srcState CompositeStateID, diagrams []Diagram, syncEvents map[EventID]bool, states map[CompositeStateID]CompositeState) []CompositeEdge {
-	var result []CompositeEdge
-	srcComponents := states[srcState].Components
-
-	for i, diagram := range diagrams {
-		currentStateID := srcComponents[i]
-
-		// Handle regular edges
-		for _, edge := range diagram.Edges {
-			if edge.Src != currentStateID {
-				continue
+	evs := make(map[EventID]Event)
+	evL := make(map[EventID]map[StateID][]Edge)
+	evR := make(map[EventID]map[StateID][]Edge)
+	for _, tL := range tsL {
+		if tL.Src == currentPair.Left.ID {
+			evs[tL.Event.ID] = tL.Event
+			if _, ok := evL[tL.Event.ID]; !ok {
+				evL[tL.Event.ID] = make(map[StateID][]Edge)
 			}
+			evL[tL.Event.ID][tL.Src] = append(evL[tL.Event.ID][tL.Src], tL)
+		}
+	}
 
-			if syncEvents[edge.Event.ID] {
-				syncEdges := generateSyncEdges(srcState, edge, i, diagrams, syncEvents, states)
-				result = append(result, syncEdges...)
-			} else {
-				asyncEdge := generateAsyncEdge(srcState, edge, i, states)
-				result = append(result, asyncEdge)
+	for _, tR := range tsR {
+		if tR.Src == currentPair.Right.ID {
+			evs[tR.Event.ID] = tR.Event
+			if _, ok := evR[tR.Event.ID]; !ok {
+				evR[tR.Event.ID] = make(map[StateID][]Edge)
 			}
-		}
-
-		// Handle end edges
-		for _, endEdge := range diagram.EndEdges {
-			if endEdge.Src != currentStateID {
-				continue
-			}
-
-			if syncEvents[endEdge.Event.ID] {
-				syncEdges := generateSyncEndEdges(srcState, endEdge, i, diagrams, syncEvents, states)
-				result = append(result, syncEdges...)
-			} else {
-				asyncEdge := generateAsyncEndEdge(srcState, endEdge, i, states)
-				result = append(result, asyncEdge)
-			}
+			evR[tR.Event.ID][tR.Src] = append(evR[tR.Event.ID][tR.Src], tR)
 		}
 	}
 
-	return result
-}
-
-func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex int, diagrams []Diagram, syncEvents map[EventID]bool, states map[CompositeStateID]CompositeState) []CompositeEdge {
-	var result []CompositeEdge
-	srcComponents := states[srcState].Components
-
-	var syncPartners [][]Edge
-	allHavePartners := true
-
-	for i, diagram := range diagrams {
-		if i == triggerIndex {
-			syncPartners = append(syncPartners, []Edge{triggerEdge})
-			continue
-		}
-
-		var partners []Edge
-		currentStateID := srcComponents[i]
-
-		for _, edge := range diagram.Edges {
-			if edge.Src == currentStateID && edge.Event.ID == triggerEdge.Event.ID {
-				partners = append(partners, edge)
-			}
-		}
-
-		if len(partners) == 0 {
-			allHavePartners = false
-			break
-		}
-
-		syncPartners = append(syncPartners, partners)
-	}
-
-	if !allHavePartners {
-		return result
-	}
-
-	combinations := cartesianProductEdges(syncPartners)
-
-	for _, combo := range combinations {
-		dstComponents := make([]StateID, len(combo))
-		var guards []string
-		var posts []string
-
-		for i, edge := range combo {
-			dstComponents[i] = edge.Dst
-			if edge.Guard != "" {
-				guards = append(guards, fmt.Sprintf("(%s)", edge.Guard))
-			}
-			if edge.Post != "" {
-				posts = append(posts, edge.Post)
-			}
-		}
-
-		dstState := NewCompositeStateID(dstComponents)
-
-		guard := strings.Join(guards, " && ")
-		if guard == "" {
-			guard = "true"
-		}
-
-		post := strings.Join(posts, " && ")
-
-		result = append(result, CompositeEdge{
-			Src:   srcState,
-			Dst:   dstState,
-			Event: triggerEdge.Event,
-			Guard: guard,
-			Post:  post,
-		})
-	}
-
-	return result
-}
-
-func generateAsyncEdge(srcState CompositeStateID, edge Edge, diagramIndex int, states map[CompositeStateID]CompositeState) CompositeEdge {
-	srcComponents := states[srcState].Components
-	dstComponents := make([]StateID, len(srcComponents))
-	copy(dstComponents, srcComponents)
-	dstComponents[diagramIndex] = edge.Dst
-
-	return CompositeEdge{
-		Src:   srcState,
-		Dst:   NewCompositeStateID(dstComponents),
-		Event: edge.Event,
-		Guard: edge.Guard,
-		Post:  edge.Post,
-	}
-}
-
-func cartesianProduct(components [][]StateID) [][]StateID {
-	if len(components) == 0 {
-		return [][]StateID{}
-	}
-
-	result := [][]StateID{{}}
-
-	for _, component := range components {
-		var newResult [][]StateID
-		for _, existing := range result {
-			for _, item := range component {
-				newCombination := make([]StateID, len(existing)+1)
-				copy(newCombination, existing)
-				newCombination[len(existing)] = item
-				newResult = append(newResult, newCombination)
-			}
-		}
-		result = newResult
-	}
-
-	return result
-}
-
-func generateSyncEndEdges(srcState CompositeStateID, triggerEndEdge EndEdge, triggerIndex int, diagrams []Diagram, syncEvents map[EventID]bool, states map[CompositeStateID]CompositeState) []CompositeEdge {
-	var result []CompositeEdge
-	srcComponents := states[srcState].Components
-
-	var syncPartners [][]EndEdge
-	allHavePartners := true
-
-	for i, diagram := range diagrams {
-		if i == triggerIndex {
-			syncPartners = append(syncPartners, []EndEdge{triggerEndEdge})
-			continue
-		}
-
-		var partners []EndEdge
-		currentStateID := srcComponents[i]
-
-		for _, endEdge := range diagram.EndEdges {
-			if endEdge.Src == currentStateID && endEdge.Event.ID == triggerEndEdge.Event.ID {
-				partners = append(partners, endEdge)
-			}
-		}
-
-		if len(partners) == 0 {
-			allHavePartners = false
-			break
-		}
-
-		syncPartners = append(syncPartners, partners)
-	}
-
-	if !allHavePartners {
-		return result
-	}
-
-	combinations := cartesianProductEndEdges(syncPartners)
-
-	for _, combo := range combinations {
-		var guards []string
-
-		for _, endEdge := range combo {
-			if endEdge.Guard != "" {
-				guards = append(guards, fmt.Sprintf("(%s)", endEdge.Guard))
-			}
-		}
-
-		guard := strings.Join(guards, " && ")
-		if guard == "" {
-			guard = "true"
-		}
-
-		// For end edges, the destination is a special terminal state
-		terminalStateID := NewCompositeStateID([]StateID{"[*]"})
-
-		result = append(result, CompositeEdge{
-			Src:   srcState,
-			Dst:   terminalStateID,
-			Event: triggerEndEdge.Event,
-			Guard: guard,
-			Post:  "",
-		})
-	}
-
-	return result
-}
-
-func generateAsyncEndEdge(srcState CompositeStateID, endEdge EndEdge, diagramIndex int, states map[CompositeStateID]CompositeState) CompositeEdge {
-	// For end edges, the destination is a special terminal state
-	terminalStateID := NewCompositeStateID([]StateID{"[*]"})
-
-	return CompositeEdge{
-		Src:   srcState,
-		Dst:   terminalStateID,
-		Event: endEdge.Event,
-		Guard: endEdge.Guard,
-		Post:  "",
-	}
-}
-
-func cartesianProductEdges(edgeGroups [][]Edge) [][]Edge {
-	if len(edgeGroups) == 0 {
-		return [][]Edge{}
-	}
-
-	result := [][]Edge{{}}
-
-	for _, group := range edgeGroups {
-		var newResult [][]Edge
-		for _, existing := range result {
-			for _, edge := range group {
-				newCombination := make([]Edge, len(existing)+1)
-				copy(newCombination, existing)
-				newCombination[len(existing)] = edge
-				newResult = append(newResult, newCombination)
-			}
-		}
-		result = newResult
-	}
-
-	return result
-}
-
-func cartesianProductEndEdges(endEdgeGroups [][]EndEdge) [][]EndEdge {
-	if len(endEdgeGroups) == 0 {
-		return [][]EndEdge{}
-	}
-
-	result := [][]EndEdge{{}}
-
-	for _, group := range endEdgeGroups {
-		var newResult [][]EndEdge
-		for _, existing := range result {
-			for _, endEdge := range group {
-				newCombination := make([]EndEdge, len(existing)+1)
-				copy(newCombination, existing)
-				newCombination[len(existing)] = endEdge
-				newResult = append(newResult, newCombination)
-			}
-		}
-		result = newResult
-	}
-
-	return result
-}
-
-func (cd *CompositeDiagram) String() string {
-	var sb strings.Builder
-	sb.WriteString("@startuml\n")
-
-	for _, state := range cd.States {
-		sb.WriteString(fmt.Sprintf("state \"%s\" as %s\n", state.Name, state.ID))
-		for v, source := range state.Vars {
-			sb.WriteString(fmt.Sprintf("%s: %s (%s)\n", state.ID, v, source))
-		}
-	}
-
-	for _, edge := range cd.Edges {
-		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event.ID))
-		if len(edge.Event.Params) > 0 {
-			sb.WriteString("(")
-			for i, param := range edge.Event.Params {
-				if i > 0 {
-					sb.WriteString(", ")
+	for ev := range evs {
+		if ev == EventIDTick {
+			// Para4
+			if _, ok := evL[EventIDTick]; ok {
+				nextStatePair := StatePair{
+					Left:  StateOmega,
+					Right: currentPair.Right,
 				}
-				sb.WriteString(string(param))
+				if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+					out.States[nextStatePair.ID()] = nextStatePair.State()
+					out.Edges = append(out.Edges, Edge{
+						Src:   currentPairID,
+						Dst:   nextStatePair.ID(),
+						Event: EventTau,
+						Guard: True,
+						Post:  True,
+					})
+					*queue = append(*queue, nextStatePair)
+				}
 			}
-			sb.WriteString(")")
-		}
-		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
-	}
 
-	sb.WriteString("@enduml\n")
-	return sb.String()
+			// Para5
+			if _, ok := evR[EventIDTick]; ok {
+				nextStatePair := StatePair{
+					Left:  currentPair.Left,
+					Right: StateOmega,
+				}
+				if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+					out.States[nextStatePair.ID()] = nextStatePair.State()
+					out.Edges = append(out.Edges, Edge{
+						Src:   currentPairID,
+						Dst:   nextStatePair.ID(),
+						Event: EventTau,
+						Guard: True,
+						Post:  True,
+					})
+					*queue = append(*queue, nextStatePair)
+				}
+			}
+		}
+
+		// Para3
+		if _, ok := syncEvents[ev]; ok {
+			if dstLs, ok := evL[ev]; ok {
+				if dstRs, ok := evR[ev]; ok {
+					for dstL, esL := range dstLs {
+						for dstR, esR := range dstRs {
+							for _, eL := range esL {
+								for _, eR := range esR {
+									nextStatePair := StatePair{
+										Left:  dL.States[dstL],
+										Right: dR.States[dstR],
+									}
+									if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+										out.Edges = append(out.Edges, Edge{
+											Src:   currentPairID,
+											Dst:   nextStatePair.ID(),
+											Event: Event{ID: ev},
+											Guard: ComposeGuard(eL.Guard, eR.Guard),
+											Post:  ComposePostConditions(eL.Post, eR.Post),
+										})
+										*queue = append(*queue, nextStatePair)
+									}
+								}
+							}
+						}
+					}
+				}
+			} else {
+				continue
+			}
+		} else {
+			continue
+		}
+
+		// Para1
+		if dstLs, ok := evL[ev]; ok {
+			for dstL, esL := range dstLs {
+				for _, eL := range esL {
+					nextStatePair := StatePair{
+						Left:  dL.States[dstL],
+						Right: currentPair.Right,
+					}
+					if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+						out.Edges = append(out.Edges, Edge{
+							Src:   currentPairID,
+							Dst:   nextStatePair.ID(),
+							Event: evs[ev],
+							Guard: eL.Guard,
+							Post:  eL.Post,
+						})
+						out.States[nextStatePair.ID()] = nextStatePair.State()
+						*queue = append(*queue, nextStatePair)
+					}
+				}
+			}
+		}
+
+		// Para2
+		if dstRs, ok := evR[ev]; ok {
+			for dstR, esR := range dstRs {
+				for _, eR := range esR {
+					nextStatePair := StatePair{
+						Left:  currentPair.Left,
+						Right: dR.States[dstR],
+					}
+					if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+						out.Edges = append(out.Edges, Edge{
+							Src:   currentPairID,
+							Dst:   nextStatePair.ID(),
+							Event: evs[ev],
+							Guard: eR.Guard,
+							Post:  eR.Post,
+						})
+						out.States[nextStatePair.ID()] = nextStatePair.State()
+						*queue = append(*queue, nextStatePair)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func ComposeStateIDs(s1, s2 StateID) StateID {
+	return s1 + "_" + s2
+}
+
+func ComposeStateNames(s1, s2 string) string {
+	return s1 + " || " + s2
+}
+
+func ComposeGuard(g1, g2 string) string {
+	if g1 == "" || g1 == True {
+		return g2
+	}
+	if g2 == "" || g2 == True {
+		return g1
+	}
+	return g1 + " & " + g2
+}
+
+func ComposePostConditions(p1, p2 string) string {
+	if p1 == "" || p1 == True {
+		return p2
+	}
+	if p2 == "" || p2 == True {
+		return p1
+	}
+	return p1 + " & " + p2
 }
