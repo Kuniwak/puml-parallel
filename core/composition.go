@@ -48,7 +48,6 @@ func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) 
 	}
 
 	if len(diagrams) == 1 {
-		// If there's only one diagram, return it as is.
 		return diagrams[0], nil
 	}
 
@@ -132,7 +131,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 			if _, ok := evL[tL.Event.ID]; !ok {
 				evL[tL.Event.ID] = make(map[StateID][]Edge)
 			}
-			evL[tL.Event.ID][tL.Src] = append(evL[tL.Event.ID][tL.Src], tL)
+			evL[tL.Event.ID][tL.Dst] = append(evL[tL.Event.ID][tL.Dst], tL)
 		}
 	}
 
@@ -142,7 +141,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 			if _, ok := evR[tR.Event.ID]; !ok {
 				evR[tR.Event.ID] = make(map[StateID][]Edge)
 			}
-			evR[tR.Event.ID][tR.Src] = append(evR[tR.Event.ID][tR.Src], tR)
+			evR[tR.Event.ID][tR.Dst] = append(evR[tR.Event.ID][tR.Dst], tR)
 		}
 	}
 
@@ -185,6 +184,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 					*queue = append(*queue, nextStatePair)
 				}
 			}
+			continue
 		}
 
 		// Para3
@@ -214,55 +214,52 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 							}
 						}
 					}
-				} else {
-					continue
 				}
-			} else {
-				continue
 			}
-		} else {
-			// Para1
-			if dstLs, ok := evL[ev]; ok {
-				for dstL, esL := range dstLs {
-					for _, eL := range esL {
-						nextStatePair := StatePair{
-							Left:  dL.States[dstL],
-							Right: currentPair.Right,
-						}
-						out.States[nextStatePair.ID()] = nextStatePair.State()
-						out.Edges = append(out.Edges, Edge{
-							Src:   currentPairID,
-							Dst:   nextStatePair.ID(),
-							Event: evs[ev],
-							Guard: eL.Guard,
-							Post:  eL.Post,
-						})
-						if _, ok := (*visited)[nextStatePair.ID()]; !ok {
-							*queue = append(*queue, nextStatePair)
-						}
+			continue
+		}
+
+		// Para1
+		if dstLs, ok := evL[ev]; ok {
+			for dstL, esL := range dstLs {
+				for _, eL := range esL {
+					nextStatePair := StatePair{
+						Left:  dL.States[dstL],
+						Right: currentPair.Right,
+					}
+					out.States[nextStatePair.ID()] = nextStatePair.State()
+					out.Edges = append(out.Edges, Edge{
+						Src:   currentPairID,
+						Dst:   nextStatePair.ID(),
+						Event: evs[ev],
+						Guard: eL.Guard,
+						Post:  eL.Post,
+					})
+					if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+						*queue = append(*queue, nextStatePair)
 					}
 				}
 			}
+		}
 
-			// Para2
-			if dstRs, ok := evR[ev]; ok {
-				for dstR, esR := range dstRs {
-					for _, eR := range esR {
-						nextStatePair := StatePair{
-							Left:  currentPair.Left,
-							Right: dR.States[dstR],
-						}
-						out.States[nextStatePair.ID()] = nextStatePair.State()
-						out.Edges = append(out.Edges, Edge{
-							Src:   currentPairID,
-							Dst:   nextStatePair.ID(),
-							Event: evs[ev],
-							Guard: eR.Guard,
-							Post:  eR.Post,
-						})
-						if _, ok := (*visited)[nextStatePair.ID()]; !ok {
-							*queue = append(*queue, nextStatePair)
-						}
+		// Para2
+		if dstRs, ok := evR[ev]; ok {
+			for dstR, esR := range dstRs {
+				for _, eR := range esR {
+					nextStatePair := StatePair{
+						Left:  currentPair.Left,
+						Right: dR.States[dstR],
+					}
+					out.States[nextStatePair.ID()] = nextStatePair.State()
+					out.Edges = append(out.Edges, Edge{
+						Src:   currentPairID,
+						Dst:   nextStatePair.ID(),
+						Event: evs[ev],
+						Guard: eR.Guard,
+						Post:  eR.Post,
+					})
+					if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+						*queue = append(*queue, nextStatePair)
 					}
 				}
 			}

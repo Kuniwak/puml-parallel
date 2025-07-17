@@ -17,6 +17,6 @@ userGonnaBuy --> userPaying : insert(coin) ; true ; product' はそのまま
 userPaying --> userGonnaBuy : showPurchasable(products) ; products に product が含まれていない ; product' はそのまま
 userPaying --> userChoosing : showPurchasable(products) ; products に product が含まれている ; product' はそのまま
 userChoosing --> userWaiting : choose(product)
-userWaiting --> userIdle : drop(product) / true / wanted' は空
+userWaiting --> userIdle : drop(product) ; true ; wanted' は空
 
 @enduml
