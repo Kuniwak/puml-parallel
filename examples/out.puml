@@ -2,9 +2,10 @@
 
 state "s0" as s0
 state "s1" as s1
+state "s2" as s2
 
 [*] --> s0
 s0 --> s1 : sync
-s1 --> [*] : out
+s1 --> s2 : out
 
 @enduml

@@ -1,0 +1,23 @@
+@startuml
+
+state "vmIdle" as vmIdle
+vmIdle: availableProducts
+state "vmCoinsInserted" as vmCoinsInserted
+vmCoinsInserted: availableProducts
+vmCoinsInserted: coins
+state "vmWaitingChoosing" as vmWaitingChoosing
+vmWaitingChoosing: availableProducts
+vmWaitingChoosing: coins
+state "vmDropping" as vmDropping
+vmDropping: availableProducts
+vmDropping: product
+
+[*] --> vmIdle : availableProducts' は自販機に最初からある製品
+vmIdle --> vmIdle : showVailable(availableProducts) ; true ; availableProducts' はそのまま
+vmIdle --> vmCoinsInserted : insert(coin) ; true ; coins' は {coin}、availableProducts' はそのまま
+vmCoinsInserted --> vmWaitingChoosing : showPurchasable(purchasableProducts) ; true ; availableProducts' と coins' はそのまま
+vmWaitingChoosing --> vmCoinsInserted : insert(coin) ; true ; coins' は coins に coin を足したもの、availableProducts' はそのまま
+vmWaitingChoosing --> vmDropping : choose(product) ; availableProducts に product が含まれる ; product' は product
+vmDropping --> vmIdle : drop(product) ; true ; availableProducts' は availableProducts から product を差し引く
+
+@enduml

@@ -1,0 +1,22 @@
+@startuml
+
+state "userIdle" as userIdle
+userIdle: wanted
+state "userGonnaBuy" as userGonnaBuy
+userGonnaBuy: product
+state "userPaying" as userPaying
+userPaying: product
+state "userChoosing" as userChoosing
+userChoosing: product
+state "userWaiting" as userWaiting
+
+[*] --> userIdle : wanted' は空
+userIdle --> userIdle : tau ; true ; wanted' は非空
+userIdle --> userGonnaBuy : showAvailable(products) ; products と wanted に重なりがある ; product' は products と wanted の重なりのどれか
+userGonnaBuy --> userPaying : insert(coin) ; true ; product' はそのまま
+userPaying --> userGonnaBuy : showPurchasable(products) ; products に product が含まれていない ; product' はそのまま
+userPaying --> userChoosing : showPurchasable(products) ; products に product が含まれている ; product' はそのまま
+userChoosing --> userWaiting : choose(product)
+userWaiting --> userIdle : drop(product) / true / wanted' は空
+
+@enduml
