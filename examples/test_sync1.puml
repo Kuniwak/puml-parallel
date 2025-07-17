@@ -1,0 +1,6 @@
+@startuml
+state "Ready" as r
+state "Working" as w
+r --> w : start ; ; 
+w --> r : done ; ; 
+@enduml

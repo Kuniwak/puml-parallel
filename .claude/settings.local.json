@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:plantuml.com)",
+      "Bash(go run:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": []
+  }
+}

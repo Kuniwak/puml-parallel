@@ -1,0 +1,6 @@
+@startuml
+state "Idle" as i
+state "Busy" as b
+i --> b : start ; ; 
+b --> i : done ; ; 
+@enduml

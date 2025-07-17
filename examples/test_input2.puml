@@ -1,0 +1,6 @@
+@startuml
+state "Off" as off
+state "On" as on
+off --> on : switch ; ; 
+on --> off : switch ; ; 
+@enduml
