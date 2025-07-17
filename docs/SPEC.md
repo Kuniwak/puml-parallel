@@ -1,3 +1,3 @@
-仕様
-====
-複数の Composable State Diagram 形式のファイルへのファイルパスの列および同期イベント集合を与えると、並行合成した後の状態遷移モデルを PlantUML で標準出力へ出力する。並行合成の意味は CSP の意味にしたがう。
+Specification
+=============
+Given a list of file paths to multiple Composable State Diagram format files and a set of synchronization events, output the state transition model after parallel composition to standard output in PlantUML format. The meaning of parallel composition follows CSP semantics.

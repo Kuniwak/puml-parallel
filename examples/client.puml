@@ -4,16 +4,16 @@ state "clientInitializing(serverStateMap, tools)" as c0
 state "clientReady(tools)" as c1
 state "clientProcessing(tools)" as c2
 state "clientCallingMCPServer(tools)" as c3
-[*] --> c0 : serverStateMap' = 事前登録された MCP はすべて未起動状態、tools は空集合
-c0 --> c1 : tau ; serverStateMap のすべてが初期化済み ; tools' はそのまま
-c0 --> c0 : start(server) ; server は事前登録された MCP サーバーでかつ未起動状態 ; serverStateMap' は serverStateMap の server を未初期化に変えたもの、tools' はそのまま
-c0 --> c0 : initializeReq(server) ; server は事前登録された MCP サーバーでかつ未初期化 ; serverStateMap' は serverStateMap の server を初期化中に変えたもの、tools' はそのまま
-c0 --> c0 : initializeRes(server) ; server は事前登録された MCP サーバーでかつ初期化中 ; serverStateMap' は serverStateMap の server を初期化完了に変えたもの、tools' はそのまま
-c0 --> c0 : toolsListReq(server) ; server は事前登録された MCP サーバーでかつ初期化完了状態 ; serverStateMap' は serverStateMap の server をツールリスト待ちに変えたもの、tools' はそのまま
-c0 --> c0 : toolsListRes(server,ts) ; server は事前登録された MCP サーバーでかつ初期化完了状態 ; serverStateMap' は serverStateMap の server をツールリスト完了に変えたもの、tools' は tools に ts を加えたもの
-c1 --> c2 : inputPrompt ; 常に遷移可能 ; tools' はそのまま
-c2 --> c1 : returnText ; 常に遷移可能 ; tools' はそのまま
-c2 --> c3 : toolsCallReq(tool) ; tool が tools に含まれている ; tools' はそのまま
-c3 --> c2 : toolsCallRes(tool,resp) ; tool が tools に含まれている ; tools' はそのまま
+[*] --> c0 : serverStateMap' = all pre-registered MCP are in not-running state, tools is empty set
+c0 --> c1 : tau ; all in serverStateMap are initialized ; tools' remains the same
+c0 --> c0 : start(server) ; server is a pre-registered MCP server and in not-running state ; serverStateMap' is serverStateMap with server changed to not-initialized, tools' remains the same
+c0 --> c0 : initializeReq(server) ; server is a pre-registered MCP server and not-initialized ; serverStateMap' is serverStateMap with server changed to initializing, tools' remains the same
+c0 --> c0 : initializeRes(server) ; server is a pre-registered MCP server and initializing ; serverStateMap' is serverStateMap with server changed to initialized, tools' remains the same
+c0 --> c0 : toolsListReq(server) ; server is a pre-registered MCP server and in initialized state ; serverStateMap' is serverStateMap with server changed to waiting for tools list, tools' remains the same
+c0 --> c0 : toolsListRes(server,ts) ; server is a pre-registered MCP server and in initialized state ; serverStateMap' is serverStateMap with server changed to tools list complete, tools' is tools with ts added
+c1 --> c2 : inputPrompt ; always transition possible ; tools' remains the same
+c2 --> c1 : returnText ; always transition possible ; tools' remains the same
+c2 --> c3 : toolsCallReq(tool) ; tool is included in tools ; tools' remains the same
+c3 --> c2 : toolsCallRes(tool,resp) ; tool is included in tools ; tools' remains the same
   
 @enduml

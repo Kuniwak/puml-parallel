@@ -1,10 +1,10 @@
 Composable State Diagram Format
 ===============================
-並行合成可能な状態遷移モデルの文字列表現。PlantUML の状態遷移図の文法規則のサブセットとしている。
+A string representation of composable state transition models. It is a subset of PlantUML's state diagram grammar rules.
 
 
-文法規則
---------
+Grammar Rules
+-------------
 ```abnf
 diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *(edgeDecl / endEdgeDecl) "@enduml" LF
 stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID *SP ":" *SP var LF)
@@ -25,17 +25,17 @@ unicode_char_except_dquote_and_backslash = %x21 / %x23-5B / %x5D-7F / %x80-10FFF
 unicode_char_except_semicolon = %x21-3A / %3C-7F / %x80-10FFFF
 ```
 
-次の記号は ABNF の中核規則である：
+The following symbols are ABNF core rules:
 
-* `ALPHA`: ASCII の大文字と小文字
-* `DIGIT`: 十進数字
-* `DQUOTE`: 二重引用符
-* `SP`: 空白
-* `LF`: 改行コード
+* `ALPHA`: ASCII uppercase and lowercase letters
+* `DIGIT`: Decimal digits
+* `DQUOTE`: Double quote
+* `SP`: Space
+* `LF`: Line feed
 
 
-型
---
+Types
+-----
 
 ```go
 package example
@@ -84,23 +84,23 @@ type Event struct {
 ```
 
 
-意味
-----
-| 構文要素                                       | 対応する型     | 意味                                                                                 |
+Semantics
+---------
+| Syntax Element                              | Corresponding Type | Meaning                                                                         |
 |:-------------------------------------------|:----------|:-----------------------------------------------------------------------------------|
-| `diagram`                                  | `Diagram` | 状態遷移モデルの宣言を表す。                                                                     |
-| `stateDecl`                                | `State`   | 状態の宣言を表す。                                                                          |
-| `startEdgeDecl`                            | `Edge`    | 初期状態への遷移の宣言を表す。                                                                    |
-| `edgeDecl`                                 | `Edge`    | 有向辺の宣言を表す。                                                                         |
-| `endEdgeDecl`                              | `EndEdge` | 終了状態への遷移の宣言を表す。                                                                    |
-| `stateName`                                | `string`  | 状態名。先頭と末尾の二重引用符は除去し、エスケープを解除した文字列を表す。                                              |
-| `escape_backslash`                         | `rune`    | `\` を表す。                                                                           |
-| `escape_dquote`                            | `rune`    | `"` を表す。                                                                           |
-| `stateID`                                  | `StateID` | ID文字列を表す。                                                                          |
-| `var`                                      | `Var`     | 変数名を表す。                                                                            |
-| `event`                                    | `Event`   | イベントを表す。出現する変数の順番で Params に格納する。イベントIDが `tau` のときは内部遷移である。そのため Params は空でなければならない。 |
-| `guard`                                    | `string`  | ガード条件の自然言語表現を表す。                                                                   |
-| `post`                                     | `string`  | 事後条件の自然言語表現を表す。                                                                    |
-| `id`                                       | `string`  | ID 文字列を表す。                                                                         |
-| `unicode_char_except_dquote_and_backslash` | `rune`    | 二重引用符とバックスラッシュを除くUnicode文字を表す。                                                     |
-| `unicode_char_except_semicolon`            | `rune`    | セミコロンを除くUnicode文字を表す。                                                              |
+| `diagram`                                  | `Diagram` | Represents a declaration of a state transition model.                          |
+| `stateDecl`                                | `State`   | Represents a state declaration.                                                 |
+| `startEdgeDecl`                            | `Edge`    | Represents a declaration of transition to the initial state.                   |
+| `edgeDecl`                                 | `Edge`    | Represents a declaration of a directed edge.                                   |
+| `endEdgeDecl`                              | `EndEdge` | Represents a declaration of transition to the end state.                       |
+| `stateName`                                | `string`  | State name. Represents a string with leading and trailing double quotes removed and escapes resolved. |
+| `escape_backslash`                         | `rune`    | Represents `\`.                                                                |
+| `escape_dquote`                            | `rune`    | Represents `"`.                                                                |
+| `stateID`                                  | `StateID` | Represents an ID string.                                                        |
+| `var`                                      | `Var`     | Represents a variable name.                                                     |
+| `event`                                    | `Event`   | Represents an event. Variables are stored in Params in the order they appear. When the event ID is `tau`, it is an internal transition. Therefore, Params must be empty. |
+| `guard`                                    | `string`  | Represents a natural language expression of guard conditions.                   |
+| `post`                                     | `string`  | Represents a natural language expression of post-conditions.                    |
+| `id`                                       | `string`  | Represents an ID string.                                                        |
+| `unicode_char_except_dquote_and_backslash` | `rune`    | Represents Unicode characters except double quotes and backslashes.            |
+| `unicode_char_except_semicolon`            | `rune`    | Represents Unicode characters except semicolons.                               |

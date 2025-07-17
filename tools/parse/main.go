@@ -8,14 +8,14 @@ import (
 )
 
 func main() {
-	// 標準入力から読み取り
+	// Read from standard input
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
 		os.Exit(1)
 	}
 
-	// パーサーで解析
+	// Parse with parser
 	parser := core.NewParser(string(input))
 	diagram, err := parser.Parse()
 	if err != nil {
@@ -23,7 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 解析結果を出力
+	// Output parse result
 	fmt.Println("=== Parse Result ===")
 	fmt.Printf("States: %d\n", len(diagram.States))
 	for id, state := range diagram.States {

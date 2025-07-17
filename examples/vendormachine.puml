@@ -12,12 +12,12 @@ state "vmDropping" as vmDropping
 vmDropping: availableProducts
 vmDropping: product
 
-[*] --> vmIdle : availableProducts' は自販機に最初からある製品
-vmIdle --> vmIdle : showAvailable(availableProducts) ; true ; availableProducts' はそのまま
-vmIdle --> vmCoinsInserted : insert(coin) ; true ; coins' は {coin}、availableProducts' はそのまま
-vmCoinsInserted --> vmWaitingChoosing : showPurchasable(purchasableProducts) ; true ; availableProducts' と coins' はそのまま
-vmWaitingChoosing --> vmCoinsInserted : insert(coin) ; true ; coins' は coins に coin を足したもの、availableProducts' はそのまま
-vmWaitingChoosing --> vmDropping : choose(product) ; availableProducts に product が含まれる ; product' は product
-vmDropping --> vmIdle : drop(product) ; true ; availableProducts' は availableProducts から product を差し引く
+[*] --> vmIdle : availableProducts' are products initially in the vending machine
+vmIdle --> vmIdle : showAvailable(availableProducts) ; true ; availableProducts' remains the same
+vmIdle --> vmCoinsInserted : insert(coin) ; true ; coins' is {coin}, availableProducts' remains the same
+vmCoinsInserted --> vmWaitingChoosing : showPurchasable(purchasableProducts) ; true ; availableProducts' and coins' remain the same
+vmWaitingChoosing --> vmCoinsInserted : insert(coin) ; true ; coins' is coins with coin added, availableProducts' remains the same
+vmWaitingChoosing --> vmDropping : choose(product) ; availableProducts contains product ; product' is product
+vmDropping --> vmIdle : drop(product) ; true ; availableProducts' is availableProducts minus product
 
 @enduml

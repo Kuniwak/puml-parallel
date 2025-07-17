@@ -1,4 +1,4 @@
-要求
-====
+Requirements
+============
 
-複数の状態遷移図からそれらを指定した同期イベントで並行合成した後の状態遷移図を得たい。
+We want to obtain a state transition diagram after parallel composition of multiple state transition diagrams with specified synchronization events.

@@ -1,8 +1,8 @@
-用語集
-======
+Glossary
+========
 
 Composable State Diagram Format
 -------------------------------
-状態遷移図の表現形式。
-文法規則は SYNTAX.md を参照。
-PlantUML の状態遷移図記法のサブセットになっている。
+A representation format for state transition diagrams.
+Refer to SYNTAX.md for grammar rules.
+It is a subset of PlantUML's state diagram notation.
