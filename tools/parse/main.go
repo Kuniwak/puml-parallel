@@ -1,0 +1,53 @@
+package main
+
+import (
+	"fmt"
+	"io"
+	"os"
+)
+
+func main() {
+	// 標準入力から読み取り
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
+		os.Exit(1)
+	}
+
+	// パーサーで解析
+	parser := NewParser(string(input))
+	diagram, err := parser.Parse()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 解析結果を出力
+	fmt.Println("=== Parse Result ===")
+	fmt.Printf("States: %d\n", len(diagram.States))
+	for id, state := range diagram.States {
+		fmt.Printf("  State %s: \"%s\"\n", id, state.Name)
+		for _, v := range state.Vars {
+			fmt.Printf("    var: %s\n", v)
+		}
+	}
+	
+	fmt.Printf("\nEdges: %d\n", len(diagram.Edges))
+	for i, edge := range diagram.Edges {
+		fmt.Printf("  Edge %d: %s --> %s\n", i+1, edge.Src.String(), edge.Dst.String())
+		fmt.Printf("    Event: %s", edge.Event.ID)
+		if len(edge.Event.Params) > 0 {
+			fmt.Printf("(")
+			for j, param := range edge.Event.Params {
+				if j > 0 {
+					fmt.Printf(", ")
+				}
+				fmt.Printf("%s", param)
+			}
+			fmt.Printf(")")
+		}
+		fmt.Printf("\n")
+		fmt.Printf("    Guard: \"%s\"\n", edge.Guard)
+		fmt.Printf("    Post: \"%s\"\n", edge.Post)
+	}
+}
