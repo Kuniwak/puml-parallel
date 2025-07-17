@@ -6,9 +6,9 @@ PlantUML の状態遷移図の文法規則のサブセットです。
 文法規則
 --------
 ```abnf
-diagram = "@startuml" LF 1*stateDecl *edgeDecl "@enduml" LF
-stateDecl = "state" SP stateName SP "as" SP stateID LF *(stateID SP ":" SP var LF)
-edgeDecl = stateID SP "-->" SP stateID SP ":" SP event SP ";" SP guard SP ";" SP post LF
+diagram = "@startuml" 1*LF 1*stateDecl *edgeDecl "@enduml" LF
+stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID SP ":" SP var LF)
+edgeDecl = stateID SP "-->" SP stateID SP ":" SP event SP ";" SP guard SP ";" SP post 1*LF
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
