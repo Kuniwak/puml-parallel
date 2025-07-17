@@ -5,7 +5,7 @@ state "clientReady(tools)" as c1
 state "clientProcessing(tools)" as c2
 state "clientCallingMCPServer(tools)" as c3
 [*] --> c0 : serverStateMap' = 事前登録された MCP はすべて未起動状態、tools は空集合
-c0 --> c1 : τ ; serverStateMap のすべてが初期化済み ; tools' はそのまま
+c0 --> c1 : tau ; serverStateMap のすべてが初期化済み ; tools' はそのまま
 c0 --> c0 : start(server) ; server は事前登録された MCP サーバーでかつ未起動状態 ; serverStateMap' は serverStateMap の server を未初期化に変えたもの、tools' はそのまま
 c0 --> c0 : initializeReq(server) ; server は事前登録された MCP サーバーでかつ未初期化 ; serverStateMap' は serverStateMap の server を初期化中に変えたもの、tools' はそのまま
 c0 --> c0 : initializeRes(server) ; server は事前登録された MCP サーバーでかつ初期化中 ; serverStateMap' は serverStateMap の server を初期化完了に変えたもの、tools' はそのまま
