@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"fmt"
@@ -30,7 +30,7 @@ func (p *Parser) Parse() (*Diagram, error) {
 	if !p.expectString("@startuml") {
 		return nil, fmt.Errorf("expected @startuml at line %d, col %d", p.line, p.col)
 	}
-	
+
 	if !p.expectNewlines() {
 		return nil, fmt.Errorf("expected newline after @startuml at line %d, col %d", p.line, p.col)
 	}
@@ -252,18 +252,18 @@ func (p *Parser) parseStateIDOrStartOrEnd() (StateIDOrStartOrEnd, error) {
 		p.expectString("[*]")
 		return StateIDOrStartOrEnd{IsStartOrEnd: true}, nil
 	}
-	
+
 	id, err := p.parseID()
 	if err != nil {
 		return StateIDOrStartOrEnd{}, err
 	}
-	
+
 	return StateIDOrStartOrEnd{ID: StateID(id), IsStartOrEnd: false}, nil
 }
 
 func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
-	
+
 	if p.isAtEnd() || !p.isIDChar(p.peek()) {
 		return "", fmt.Errorf("expected identifier at line %d, col %d", p.line, p.col)
 	}
@@ -302,24 +302,24 @@ func (p *Parser) isStateIDOrStartOrEnd() bool {
 	saved := p.pos
 	savedLine := p.line
 	savedCol := p.col
-	
+
 	defer func() {
 		p.pos = saved
 		p.line = savedLine
 		p.col = savedCol
 	}()
-	
+
 	if p.peekString("[*]") {
 		p.expectString("[*]")
 		p.skipSpaces()
 		return p.peekString("-->")
 	}
-	
+
 	_, err := p.parseID()
 	if err != nil {
 		return false
 	}
-	
+
 	p.skipSpaces()
 	return p.peekString("-->")
 }

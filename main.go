@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"plantuml-parallel-composition/core"
 	"strings"
 )
 
@@ -13,13 +14,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	var syncEvents []EventID
+	var syncEvents []core.EventID
 	args := os.Args[1:]
 
 	if len(args) >= 2 && args[0] == "--sync" {
 		eventList := strings.Split(args[1], ",")
 		for _, event := range eventList {
-			syncEvents = append(syncEvents, EventID(strings.TrimSpace(event)))
+			syncEvents = append(syncEvents, core.EventID(strings.TrimSpace(event)))
 		}
 		args = args[2:]
 	}
@@ -29,7 +30,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var diagrams []Diagram
+	var diagrams []core.Diagram
 	for _, filename := range args {
 		content, err := ioutil.ReadFile(filename)
 		if err != nil {
@@ -37,7 +38,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		parser := NewParser(string(content))
+		parser := core.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filename, err)
@@ -50,7 +51,7 @@ func main() {
 	if len(diagrams) == 1 {
 		fmt.Print(diagrams[0].String())
 	} else {
-		composite, err := ComposeParallel(diagrams, syncEvents)
+		composite, err := core.ComposeParallel(diagrams, syncEvents)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error composing diagrams: %v\n", err)
 			os.Exit(1)

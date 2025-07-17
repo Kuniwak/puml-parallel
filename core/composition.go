@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"fmt"
@@ -80,22 +80,22 @@ func generateAllCompositeStates(diagrams []Diagram) []CompositeState {
 	}
 
 	combinations := cartesianProduct(components)
-	
+
 	for _, combo := range combinations {
 		compositeID := NewCompositeStateID(combo)
-		
+
 		var nameParts []string
 		vars := make(map[Var]string)
-		
+
 		for i, stateID := range combo {
 			state := diagrams[i].States[stateID]
 			nameParts = append(nameParts, state.Name)
-			
+
 			for _, v := range state.Vars {
 				vars[v] = fmt.Sprintf("diagram%d", i)
 			}
 		}
-		
+
 		result = append(result, CompositeState{
 			ID:         compositeID,
 			Name:       strings.Join(nameParts, " || "),
@@ -103,22 +103,22 @@ func generateAllCompositeStates(diagrams []Diagram) []CompositeState {
 			Components: combo,
 		})
 	}
-	
+
 	return result
 }
 
 func generateEdgesFromState(srcState CompositeStateID, diagrams []Diagram, syncEvents map[EventID]bool, states map[CompositeStateID]CompositeState) []CompositeEdge {
 	var result []CompositeEdge
 	srcComponents := states[srcState].Components
-	
+
 	for i, diagram := range diagrams {
 		currentStateID := srcComponents[i]
-		
+
 		for _, edge := range diagram.Edges {
 			if !edge.Src.IsState(currentStateID) {
 				continue
 			}
-			
+
 			if syncEvents[edge.Event.ID] {
 				syncEdges := generateSyncEdges(srcState, edge, i, diagrams, syncEvents, states)
 				result = append(result, syncEdges...)
@@ -128,51 +128,51 @@ func generateEdgesFromState(srcState CompositeStateID, diagrams []Diagram, syncE
 			}
 		}
 	}
-	
+
 	return result
 }
 
 func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex int, diagrams []Diagram, syncEvents map[EventID]bool, states map[CompositeStateID]CompositeState) []CompositeEdge {
 	var result []CompositeEdge
 	srcComponents := states[srcState].Components
-	
+
 	var syncPartners [][]Edge
 	allHavePartners := true
-	
+
 	for i, diagram := range diagrams {
 		if i == triggerIndex {
 			syncPartners = append(syncPartners, []Edge{triggerEdge})
 			continue
 		}
-		
+
 		var partners []Edge
 		currentStateID := srcComponents[i]
-		
+
 		for _, edge := range diagram.Edges {
 			if edge.Src.IsState(currentStateID) && edge.Event.ID == triggerEdge.Event.ID {
 				partners = append(partners, edge)
 			}
 		}
-		
+
 		if len(partners) == 0 {
 			allHavePartners = false
 			break
 		}
-		
+
 		syncPartners = append(syncPartners, partners)
 	}
-	
+
 	if !allHavePartners {
 		return result
 	}
-	
+
 	combinations := cartesianProductEdges(syncPartners)
-	
+
 	for _, combo := range combinations {
 		dstComponents := make([]StateID, len(combo))
 		var guards []string
 		var posts []string
-		
+
 		for i, edge := range combo {
 			if !edge.Dst.IsStartOrEnd {
 				dstComponents[i] = edge.Dst.ID
@@ -186,16 +186,16 @@ func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex
 				posts = append(posts, edge.Post)
 			}
 		}
-		
+
 		dstState := NewCompositeStateID(dstComponents)
-		
+
 		guard := strings.Join(guards, " && ")
 		if guard == "" {
 			guard = "true"
 		}
-		
+
 		post := strings.Join(posts, " && ")
-		
+
 		result = append(result, CompositeEdge{
 			Src:   srcState,
 			Dst:   dstState,
@@ -204,7 +204,7 @@ func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex
 			Post:  post,
 		})
 	}
-	
+
 	return result
 }
 
@@ -212,11 +212,11 @@ func generateAsyncEdge(srcState CompositeStateID, edge Edge, diagramIndex int, s
 	srcComponents := states[srcState].Components
 	dstComponents := make([]StateID, len(srcComponents))
 	copy(dstComponents, srcComponents)
-	
+
 	if !edge.Dst.IsStartOrEnd {
 		dstComponents[diagramIndex] = edge.Dst.ID
 	}
-	
+
 	return CompositeEdge{
 		Src:   srcState,
 		Dst:   NewCompositeStateID(dstComponents),
@@ -230,9 +230,9 @@ func cartesianProduct(components [][]StateID) [][]StateID {
 	if len(components) == 0 {
 		return [][]StateID{}
 	}
-	
+
 	result := [][]StateID{{}}
-	
+
 	for _, component := range components {
 		var newResult [][]StateID
 		for _, existing := range result {
@@ -245,7 +245,7 @@ func cartesianProduct(components [][]StateID) [][]StateID {
 		}
 		result = newResult
 	}
-	
+
 	return result
 }
 
@@ -253,9 +253,9 @@ func cartesianProductEdges(edgeGroups [][]Edge) [][]Edge {
 	if len(edgeGroups) == 0 {
 		return [][]Edge{}
 	}
-	
+
 	result := [][]Edge{{}}
-	
+
 	for _, group := range edgeGroups {
 		var newResult [][]Edge
 		for _, existing := range result {
@@ -268,21 +268,21 @@ func cartesianProductEdges(edgeGroups [][]Edge) [][]Edge {
 		}
 		result = newResult
 	}
-	
+
 	return result
 }
 
 func (cd *CompositeDiagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")
-	
+
 	for _, state := range cd.States {
 		sb.WriteString(fmt.Sprintf("state \"%s\" as %s\n", state.Name, state.ID))
 		for v, source := range state.Vars {
 			sb.WriteString(fmt.Sprintf("%s: %s (%s)\n", state.ID, v, source))
 		}
 	}
-	
+
 	for _, edge := range cd.Edges {
 		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event.ID))
 		if len(edge.Event.Params) > 0 {
@@ -297,7 +297,7 @@ func (cd *CompositeDiagram) String() string {
 		}
 		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
 	}
-	
+
 	sb.WriteString("@enduml\n")
 	return sb.String()
 }
