@@ -1,5 +1,7 @@
 package core
 
+import "fmt"
+
 type StatePair struct {
 	Left  State
 	Right State
@@ -40,6 +42,32 @@ func ComplementEdges(es []Edge, ees []EndEdge) []Edge {
 	return res
 }
 
+func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) {
+	if len(diagrams) < 1 {
+		return Diagram{}, fmt.Errorf("at least one diagrams are required for parallel composition")
+	}
+
+	if len(diagrams) == 1 {
+		// If there's only one diagram, return it as is.
+		return diagrams[0], nil
+	}
+
+	dL := diagrams[0]
+	dR := diagrams[1]
+
+	if len(diagrams) > 2 {
+		for _, d := range diagrams[2:] {
+			var err error
+			dL, err = ComposeParallel2(dL, d, syncEvents)
+			if err != nil {
+				return Diagram{}, err
+			}
+		}
+	}
+
+	return ComposeParallel2(dL, dR, syncEvents)
+}
+
 func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
 	initState1 := dL.States[dL.StartEdge.Dst]
 	initState2 := dR.States[dR.StartEdge.Dst]
@@ -78,10 +106,6 @@ func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
 }
 
 func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visited *map[StateID]struct{}, syncEvents map[EventID]struct{}, out *Diagram) error {
-	if len(*queue) == 0 {
-		return nil
-	}
-
 	currentPair := (*queue)[0]
 	currentPairID := currentPair.ID()
 	*queue = (*queue)[1:]
@@ -130,15 +154,15 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 					Left:  StateOmega,
 					Right: currentPair.Right,
 				}
+				out.States[nextStatePair.ID()] = nextStatePair.State()
+				out.Edges = append(out.Edges, Edge{
+					Src:   currentPairID,
+					Dst:   nextStatePair.ID(),
+					Event: EventTau,
+					Guard: True,
+					Post:  True,
+				})
 				if _, ok := (*visited)[nextStatePair.ID()]; !ok {
-					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
-						Src:   currentPairID,
-						Dst:   nextStatePair.ID(),
-						Event: EventTau,
-						Guard: True,
-						Post:  True,
-					})
 					*queue = append(*queue, nextStatePair)
 				}
 			}
@@ -149,15 +173,15 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 					Left:  currentPair.Left,
 					Right: StateOmega,
 				}
+				out.States[nextStatePair.ID()] = nextStatePair.State()
+				out.Edges = append(out.Edges, Edge{
+					Src:   currentPairID,
+					Dst:   nextStatePair.ID(),
+					Event: EventTau,
+					Guard: True,
+					Post:  True,
+				})
 				if _, ok := (*visited)[nextStatePair.ID()]; !ok {
-					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
-						Src:   currentPairID,
-						Dst:   nextStatePair.ID(),
-						Event: EventTau,
-						Guard: True,
-						Post:  True,
-					})
 					*queue = append(*queue, nextStatePair)
 				}
 			}
@@ -175,37 +199,37 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 										Left:  dL.States[dstL],
 										Right: dR.States[dstR],
 									}
+									out.States[nextStatePair.ID()] = nextStatePair.State()
+									out.Edges = append(out.Edges, Edge{
+										Src:   currentPairID,
+										Dst:   nextStatePair.ID(),
+										Event: Event{ID: ev},
+										Guard: ComposeGuard(eL.Guard, eR.Guard),
+										Post:  ComposePostConditions(eL.Post, eR.Post),
+									})
 									if _, ok := (*visited)[nextStatePair.ID()]; !ok {
-										out.Edges = append(out.Edges, Edge{
-											Src:   currentPairID,
-											Dst:   nextStatePair.ID(),
-											Event: Event{ID: ev},
-											Guard: ComposeGuard(eL.Guard, eR.Guard),
-											Post:  ComposePostConditions(eL.Post, eR.Post),
-										})
 										*queue = append(*queue, nextStatePair)
 									}
 								}
 							}
 						}
 					}
+				} else {
+					continue
 				}
 			} else {
 				continue
 			}
 		} else {
-			continue
-		}
-
-		// Para1
-		if dstLs, ok := evL[ev]; ok {
-			for dstL, esL := range dstLs {
-				for _, eL := range esL {
-					nextStatePair := StatePair{
-						Left:  dL.States[dstL],
-						Right: currentPair.Right,
-					}
-					if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+			// Para1
+			if dstLs, ok := evL[ev]; ok {
+				for dstL, esL := range dstLs {
+					for _, eL := range esL {
+						nextStatePair := StatePair{
+							Left:  dL.States[dstL],
+							Right: currentPair.Right,
+						}
+						out.States[nextStatePair.ID()] = nextStatePair.State()
 						out.Edges = append(out.Edges, Edge{
 							Src:   currentPairID,
 							Dst:   nextStatePair.ID(),
@@ -213,22 +237,22 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 							Guard: eL.Guard,
 							Post:  eL.Post,
 						})
-						out.States[nextStatePair.ID()] = nextStatePair.State()
-						*queue = append(*queue, nextStatePair)
+						if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+							*queue = append(*queue, nextStatePair)
+						}
 					}
 				}
 			}
-		}
 
-		// Para2
-		if dstRs, ok := evR[ev]; ok {
-			for dstR, esR := range dstRs {
-				for _, eR := range esR {
-					nextStatePair := StatePair{
-						Left:  currentPair.Left,
-						Right: dR.States[dstR],
-					}
-					if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+			// Para2
+			if dstRs, ok := evR[ev]; ok {
+				for dstR, esR := range dstRs {
+					for _, eR := range esR {
+						nextStatePair := StatePair{
+							Left:  currentPair.Left,
+							Right: dR.States[dstR],
+						}
+						out.States[nextStatePair.ID()] = nextStatePair.State()
 						out.Edges = append(out.Edges, Edge{
 							Src:   currentPairID,
 							Dst:   nextStatePair.ID(),
@@ -236,8 +260,9 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, visit
 							Guard: eR.Guard,
 							Post:  eR.Post,
 						})
-						out.States[nextStatePair.ID()] = nextStatePair.State()
-						*queue = append(*queue, nextStatePair)
+						if _, ok := (*visited)[nextStatePair.ID()]; !ok {
+							*queue = append(*queue, nextStatePair)
+						}
 					}
 				}
 			}

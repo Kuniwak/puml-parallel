@@ -7,8 +7,17 @@ import (
 
 type ID string
 type StateID ID
+
+const StateIDOmega StateID = "Ω"
+
 type EventID ID
+
+const EventIDTau EventID = "τ"
+const EventIDTick EventID = "✔"
+
 type Var ID
+
+const True = "true"
 
 type Diagram struct {
 	States    map[StateID]State
@@ -21,6 +30,11 @@ type State struct {
 	ID   StateID
 	Name string
 	Vars []Var
+}
+
+var StateOmega = State{
+	ID:   StateIDOmega,
+	Name: "Ω",
 }
 
 type StartEdge struct {
@@ -47,6 +61,14 @@ type Event struct {
 	Params []Var
 }
 
+var EventTau = Event{
+	ID: EventIDTau,
+}
+
+var EventTick = Event{
+	ID: EventIDTick,
+}
+
 func (d *Diagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")
@@ -57,9 +79,13 @@ func (d *Diagram) String() string {
 			sb.WriteString(fmt.Sprintf("%s: %s\n", state.ID, v))
 		}
 	}
-	
+
 	// StartEdge
-	sb.WriteString(fmt.Sprintf("[*] --> %s : %s\n", d.StartEdge.Dst, d.StartEdge.Post))
+	if d.StartEdge.Post == "" || d.StartEdge.Post == True {
+		sb.WriteString(fmt.Sprintf("[*] --> %s\n", d.StartEdge.Dst))
+	} else {
+		sb.WriteString(fmt.Sprintf("[*] --> %s : %s\n", d.StartEdge.Dst, d.StartEdge.Post))
+	}
 
 	// Regular edges
 	for _, edge := range d.Edges {
@@ -74,9 +100,17 @@ func (d *Diagram) String() string {
 			}
 			sb.WriteString(")")
 		}
+		if edge.Post == "" || edge.Post == True {
+			sb.WriteString("\n")
+			continue
+		}
+		if edge.Guard == "" || edge.Guard == True {
+			sb.WriteString(fmt.Sprintf(" ; %s\n", edge.Post))
+			continue
+		}
 		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
 	}
-	
+
 	// EndEdges
 	for _, endEdge := range d.EndEdges {
 		sb.WriteString(fmt.Sprintf("%s --> [*] : %s", endEdge.Src, endEdge.Event.ID))
@@ -89,6 +123,10 @@ func (d *Diagram) String() string {
 				sb.WriteString(string(param))
 			}
 			sb.WriteString(")")
+		}
+		if endEdge.Guard == "" || endEdge.Guard == True {
+			sb.WriteString("\n")
+			continue
 		}
 		sb.WriteString(fmt.Sprintf(" ; %s\n", endEdge.Guard))
 	}

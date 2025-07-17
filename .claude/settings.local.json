@@ -6,7 +6,8 @@
       "Bash(mkdir:*)",
       "Bash(diff:*)",
       "Bash(git rm:*)",
-      "Bash(git clean:*)"
+      "Bash(git clean:*)",
+      "Bash(echo:*)"
     ],
     "deny": [
       "Bash(cp:*)",

@@ -33,6 +33,7 @@ unicode_char_except_semicolon = %x21-3A / %3C-7F / %x80-10FFFF
 * `SP`: 空白
 * `LF`: 改行コード
 
+
 型
 --
 

@@ -4,25 +4,24 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Kuniwak/plantuml-parallel-composition/core"
-	"io/ioutil"
 	"os"
 	"strings"
 )
 
 func main() {
-	syncFlag := flag.String("sync", "", "Comma-separated list of synchronization events")
+	syncFlag := flag.String("sync", "", "Semicolon-separated list of synchronization events")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [--sync event1,event2,...] <file1.puml> [file2.puml] ...\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s [--sync event1;event2;...] <file1.puml> [file2.puml] ...\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
 	var syncEvents []core.EventID
 	if *syncFlag != "" {
-		eventList := strings.Split(*syncFlag, ",")
+		eventList := strings.Split(*syncFlag, ";")
 		for _, event := range eventList {
 			trimmed := strings.TrimSpace(event)
 			if trimmed != "" {
@@ -33,7 +32,7 @@ func main() {
 
 	var diagrams []core.Diagram
 	for _, filename := range args {
-		content, err := ioutil.ReadFile(filename)
+		content, err := os.ReadFile(filename)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filename, err)
 			os.Exit(1)
