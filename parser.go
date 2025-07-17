@@ -30,7 +30,10 @@ func (p *Parser) Parse() (*Diagram, error) {
 	if !p.expectString("@startuml") {
 		return nil, fmt.Errorf("expected @startuml at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	
+	if !p.expectNewlines() {
+		return nil, fmt.Errorf("expected newline after @startuml at line %d, col %d", p.line, p.col)
+	}
 
 	for !p.isAtEnd() && !p.peekString("@enduml") {
 		if p.peekString("state") {
@@ -62,18 +65,18 @@ func (p *Parser) parseState() (State, error) {
 	if !p.expectString("state") {
 		return State{}, fmt.Errorf("expected 'state' at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	name, err := p.parseStateName()
 	if err != nil {
 		return State{}, err
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	if !p.expectString("as") {
 		return State{}, fmt.Errorf("expected 'as' at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	id, err := p.parseID()
 	if err != nil {
@@ -86,18 +89,22 @@ func (p *Parser) parseState() (State, error) {
 		Vars: []Var{},
 	}
 
-	p.skipWhitespace()
+	if !p.expectNewlines() {
+		return State{}, fmt.Errorf("expected newline after state declaration at line %d, col %d", p.line, p.col)
+	}
 
 	for !p.isAtEnd() && !p.peekString("@enduml") && !p.peekString("state") && !p.isStateID() {
 		if p.peekString(string(state.ID) + ":") {
 			p.expectString(string(state.ID) + ":")
-			p.skipWhitespace()
+			p.skipSpaces()
 			varName, err := p.parseID()
 			if err != nil {
 				return State{}, err
 			}
 			state.Vars = append(state.Vars, Var(varName))
-			p.skipWhitespace()
+			if !p.expectNewlines() {
+				return State{}, fmt.Errorf("expected newline after variable declaration at line %d, col %d", p.line, p.col)
+			}
 		} else {
 			break
 		}
@@ -145,44 +152,48 @@ func (p *Parser) parseEdge() (Edge, error) {
 	if err != nil {
 		return Edge{}, err
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	if !p.expectString("-->") {
 		return Edge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	dst, err := p.parseID()
 	if err != nil {
 		return Edge{}, err
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	if !p.expectChar(':') {
 		return Edge{}, fmt.Errorf("expected ':' at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	event, err := p.parseEvent()
 	if err != nil {
 		return Edge{}, err
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	if !p.expectChar(';') {
 		return Edge{}, fmt.Errorf("expected ';' at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	guard := p.parseUntilSemicolon()
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	if !p.expectChar(';') {
 		return Edge{}, fmt.Errorf("expected ';' at line %d, col %d", p.line, p.col)
 	}
-	p.skipWhitespace()
+	p.skipSpaces()
 
 	post := p.parseUntilNewline()
+
+	if !p.expectNewlines() {
+		return Edge{}, fmt.Errorf("expected newline after edge declaration at line %d, col %d", p.line, p.col)
+	}
 
 	return Edge{
 		Src:   StateID(src),
@@ -206,7 +217,7 @@ func (p *Parser) parseEvent() (Event, error) {
 
 	if p.peek() == '(' {
 		p.advance()
-		p.skipWhitespace()
+		p.skipSpaces()
 
 		if p.peek() != ')' {
 			param, err := p.parseID()
@@ -214,17 +225,17 @@ func (p *Parser) parseEvent() (Event, error) {
 				return Event{}, err
 			}
 			event.Params = append(event.Params, Var(param))
-			p.skipWhitespace()
+			p.skipSpaces()
 
 			for p.peek() == ',' {
 				p.advance()
-				p.skipWhitespace()
+				p.skipSpaces()
 				param, err := p.parseID()
 				if err != nil {
 					return Event{}, err
 				}
 				event.Params = append(event.Params, Var(param))
-				p.skipWhitespace()
+				p.skipSpaces()
 			}
 		}
 
@@ -289,7 +300,7 @@ func (p *Parser) isStateID() bool {
 		return false
 	}
 	
-	p.skipWhitespace()
+	p.skipSpaces()
 	return p.peekString("-->")
 }
 
@@ -351,6 +362,23 @@ func (p *Parser) skipWhitespace() {
 	for !p.isAtEnd() && (p.peek() == ' ' || p.peek() == '\t' || p.peek() == '\n' || p.peek() == '\r') {
 		p.advance()
 	}
+}
+
+func (p *Parser) skipSpaces() {
+	for !p.isAtEnd() && (p.peek() == ' ' || p.peek() == '\t') {
+		p.advance()
+	}
+}
+
+func (p *Parser) expectNewlines() bool {
+	count := 0
+	for !p.isAtEnd() && (p.peek() == '\n' || p.peek() == '\r') {
+		if p.peek() == '\n' {
+			count++
+		}
+		p.advance()
+	}
+	return count > 0
 }
 
 func (p *Parser) skipLine() {
