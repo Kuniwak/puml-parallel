@@ -114,8 +114,9 @@ func generateEdgesFromState(srcState CompositeStateID, diagrams []Diagram, syncE
 	for i, diagram := range diagrams {
 		currentStateID := srcComponents[i]
 
+		// Handle regular edges
 		for _, edge := range diagram.Edges {
-			if !edge.Src.IsState(currentStateID) {
+			if edge.Src != currentStateID {
 				continue
 			}
 
@@ -124,6 +125,21 @@ func generateEdgesFromState(srcState CompositeStateID, diagrams []Diagram, syncE
 				result = append(result, syncEdges...)
 			} else {
 				asyncEdge := generateAsyncEdge(srcState, edge, i, states)
+				result = append(result, asyncEdge)
+			}
+		}
+
+		// Handle end edges
+		for _, endEdge := range diagram.EndEdges {
+			if endEdge.Src != currentStateID {
+				continue
+			}
+
+			if syncEvents[endEdge.Event.ID] {
+				syncEdges := generateSyncEndEdges(srcState, endEdge, i, diagrams, syncEvents, states)
+				result = append(result, syncEdges...)
+			} else {
+				asyncEdge := generateAsyncEndEdge(srcState, endEdge, i, states)
 				result = append(result, asyncEdge)
 			}
 		}
@@ -149,7 +165,7 @@ func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex
 		currentStateID := srcComponents[i]
 
 		for _, edge := range diagram.Edges {
-			if edge.Src.IsState(currentStateID) && edge.Event.ID == triggerEdge.Event.ID {
+			if edge.Src == currentStateID && edge.Event.ID == triggerEdge.Event.ID {
 				partners = append(partners, edge)
 			}
 		}
@@ -174,11 +190,7 @@ func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex
 		var posts []string
 
 		for i, edge := range combo {
-			if !edge.Dst.IsStartOrEnd {
-				dstComponents[i] = edge.Dst.ID
-			} else {
-				dstComponents[i] = srcComponents[i]
-			}
+			dstComponents[i] = edge.Dst
 			if edge.Guard != "" {
 				guards = append(guards, fmt.Sprintf("(%s)", edge.Guard))
 			}
@@ -212,10 +224,7 @@ func generateAsyncEdge(srcState CompositeStateID, edge Edge, diagramIndex int, s
 	srcComponents := states[srcState].Components
 	dstComponents := make([]StateID, len(srcComponents))
 	copy(dstComponents, srcComponents)
-
-	if !edge.Dst.IsStartOrEnd {
-		dstComponents[diagramIndex] = edge.Dst.ID
-	}
+	dstComponents[diagramIndex] = edge.Dst
 
 	return CompositeEdge{
 		Src:   srcState,
@@ -249,6 +258,84 @@ func cartesianProduct(components [][]StateID) [][]StateID {
 	return result
 }
 
+func generateSyncEndEdges(srcState CompositeStateID, triggerEndEdge EndEdge, triggerIndex int, diagrams []Diagram, syncEvents map[EventID]bool, states map[CompositeStateID]CompositeState) []CompositeEdge {
+	var result []CompositeEdge
+	srcComponents := states[srcState].Components
+
+	var syncPartners [][]EndEdge
+	allHavePartners := true
+
+	for i, diagram := range diagrams {
+		if i == triggerIndex {
+			syncPartners = append(syncPartners, []EndEdge{triggerEndEdge})
+			continue
+		}
+
+		var partners []EndEdge
+		currentStateID := srcComponents[i]
+
+		for _, endEdge := range diagram.EndEdges {
+			if endEdge.Src == currentStateID && endEdge.Event.ID == triggerEndEdge.Event.ID {
+				partners = append(partners, endEdge)
+			}
+		}
+
+		if len(partners) == 0 {
+			allHavePartners = false
+			break
+		}
+
+		syncPartners = append(syncPartners, partners)
+	}
+
+	if !allHavePartners {
+		return result
+	}
+
+	combinations := cartesianProductEndEdges(syncPartners)
+
+	for _, combo := range combinations {
+		var guards []string
+
+		for _, endEdge := range combo {
+			if endEdge.Guard != "" {
+				guards = append(guards, fmt.Sprintf("(%s)", endEdge.Guard))
+			}
+		}
+
+		guard := strings.Join(guards, " && ")
+		if guard == "" {
+			guard = "true"
+		}
+
+		// For end edges, the destination is a special terminal state
+		terminalStateID := NewCompositeStateID([]StateID{"[*]"})
+
+		result = append(result, CompositeEdge{
+			Src:   srcState,
+			Dst:   terminalStateID,
+			Event: triggerEndEdge.Event,
+			Guard: guard,
+			Post:  "",
+		})
+	}
+
+	return result
+}
+
+func generateAsyncEndEdge(srcState CompositeStateID, endEdge EndEdge, diagramIndex int, states map[CompositeStateID]CompositeState) CompositeEdge {
+	// For end edges, the destination is a special terminal state
+	terminalStateID := NewCompositeStateID([]StateID{"[*]"})
+
+	return CompositeEdge{
+		Src:   srcState,
+		Dst:   terminalStateID,
+		Event: endEdge.Event,
+		Guard: endEdge.Guard,
+		Post:  "",
+	}
+}
+
 func cartesianProductEdges(edgeGroups [][]Edge) [][]Edge {
 	if len(edgeGroups) == 0 {
 		return [][]Edge{}
@@ -263,6 +350,29 @@ func cartesianProductEdges(edgeGroups [][]Edge) [][]Edge {
 				newCombination := make([]Edge, len(existing)+1)
 				copy(newCombination, existing)
 				newCombination[len(existing)] = edge
+				newResult = append(newResult, newCombination)
+			}
+		}
+		result = newResult
+	}
+
+	return result
+}
+
+func cartesianProductEndEdges(endEdgeGroups [][]EndEdge) [][]EndEdge {
+	if len(endEdgeGroups) == 0 {
+		return [][]EndEdge{}
+	}
+
+	result := [][]EndEdge{{}}
+
+	for _, group := range endEdgeGroups {
+		var newResult [][]EndEdge
+		for _, existing := range result {
+			for _, endEdge := range group {
+				newCombination := make([]EndEdge, len(existing)+1)
+				copy(newCombination, existing)
+				newCombination[len(existing)] = endEdge
 				newResult = append(newResult, newCombination)
 			}
 		}

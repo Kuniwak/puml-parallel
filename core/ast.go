@@ -11,8 +11,10 @@ type EventID ID
 type Var ID
 
 type Diagram struct {
-	States map[StateID]State
-	Edges  []Edge
+	States    map[StateID]State
+	StartEdge StartEdge
+	Edges     []Edge
+	EndEdges  []EndEdge
 }
 
 type State struct {
@@ -21,34 +23,28 @@ type State struct {
 	Vars []Var
 }
 
+type StartEdge struct {
+	Dst  StateID
+	Post string
+}
+
 type Edge struct {
-	Src   StateIDOrStartOrEnd
-	Dst   StateIDOrStartOrEnd
+	Src   StateID
+	Dst   StateID
 	Event Event
 	Guard string
 	Post  string
 }
 
-// StateIDOrStartOrEnd は IsStartOrEnd が真なら初期状態または終了状態、それ以外の場合は ID の指す StateID を表す。
-type StateIDOrStartOrEnd struct {
-	ID           StateID
-	IsStartOrEnd bool
+type EndEdge struct {
+	Src   StateID
+	Event Event
+	Guard string
 }
 
 type Event struct {
 	ID     EventID
 	Params []Var
-}
-
-func (s StateIDOrStartOrEnd) String() string {
-	if s.IsStartOrEnd {
-		return "[*]"
-	}
-	return string(s.ID)
-}
-
-func (s StateIDOrStartOrEnd) IsState(stateID StateID) bool {
-	return !s.IsStartOrEnd && s.ID == stateID
 }
 
 func (d *Diagram) String() string {
@@ -61,11 +57,13 @@ func (d *Diagram) String() string {
 			sb.WriteString(fmt.Sprintf("%s: %s\n", state.ID, v))
 		}
 	}
+	
+	// StartEdge
+	sb.WriteString(fmt.Sprintf("[*] --> %s : %s\n", d.StartEdge.Dst, d.StartEdge.Post))
 
+	// Regular edges
 	for _, edge := range d.Edges {
-		srcStr := edge.Src.String()
-		dstStr := edge.Dst.String()
-		sb.WriteString(fmt.Sprintf("%s --> %s : %s", srcStr, dstStr, edge.Event.ID))
+		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event.ID))
 		if len(edge.Event.Params) > 0 {
 			sb.WriteString("(")
 			for i, param := range edge.Event.Params {
@@ -77,6 +75,22 @@ func (d *Diagram) String() string {
 			sb.WriteString(")")
 		}
 		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
+	}
+	
+	// EndEdges
+	for _, endEdge := range d.EndEdges {
+		sb.WriteString(fmt.Sprintf("%s --> [*] : %s", endEdge.Src, endEdge.Event.ID))
+		if len(endEdge.Event.Params) > 0 {
+			sb.WriteString("(")
+			for i, param := range endEdge.Event.Params {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+				sb.WriteString(string(param))
+			}
+			sb.WriteString(")")
+		}
+		sb.WriteString(fmt.Sprintf(" ; %s\n", endEdge.Guard))
 	}
 
 	sb.WriteString("@enduml\n")

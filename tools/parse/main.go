@@ -33,9 +33,13 @@ func main() {
 		}
 	}
 
+	fmt.Printf("\nStart Edge:\n")
+	fmt.Printf("  [*] --> %s\n", diagram.StartEdge.Dst)
+	fmt.Printf("    Post: \"%s\"\n", diagram.StartEdge.Post)
+
 	fmt.Printf("\nEdges: %d\n", len(diagram.Edges))
 	for i, edge := range diagram.Edges {
-		fmt.Printf("  Edge %d: %s --> %s\n", i+1, edge.Src.String(), edge.Dst.String())
+		fmt.Printf("  Edge %d: %s --> %s\n", i+1, edge.Src, edge.Dst)
 		fmt.Printf("    Event: %s", edge.Event.ID)
 		if len(edge.Event.Params) > 0 {
 			fmt.Printf("(")
@@ -50,5 +54,23 @@ func main() {
 		fmt.Printf("\n")
 		fmt.Printf("    Guard: \"%s\"\n", edge.Guard)
 		fmt.Printf("    Post: \"%s\"\n", edge.Post)
+	}
+
+	fmt.Printf("\nEnd Edges: %d\n", len(diagram.EndEdges))
+	for i, endEdge := range diagram.EndEdges {
+		fmt.Printf("  End Edge %d: %s --> [*]\n", i+1, endEdge.Src)
+		fmt.Printf("    Event: %s", endEdge.Event.ID)
+		if len(endEdge.Event.Params) > 0 {
+			fmt.Printf("(")
+			for j, param := range endEdge.Event.Params {
+				if j > 0 {
+					fmt.Printf(", ")
+				}
+				fmt.Printf("%s", param)
+			}
+			fmt.Printf(")")
+		}
+		fmt.Printf("\n")
+		fmt.Printf("    Guard: \"%s\"\n", endEdge.Guard)
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/Kuniwak/plantuml-parallel-composition/core"
 	"io/ioutil"
@@ -9,25 +10,25 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
+	syncFlag := flag.String("sync", "", "Comma-separated list of synchronization events")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "Usage: %s [--sync event1,event2,...] <file1.puml> [file2.puml] ...\n", os.Args[0])
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
 	var syncEvents []core.EventID
-	args := os.Args[1:]
-
-	if len(args) >= 2 && args[0] == "--sync" {
-		eventList := strings.Split(args[1], ",")
+	if *syncFlag != "" {
+		eventList := strings.Split(*syncFlag, ",")
 		for _, event := range eventList {
-			syncEvents = append(syncEvents, core.EventID(strings.TrimSpace(event)))
+			trimmed := strings.TrimSpace(event)
+			if trimmed != "" {
+				syncEvents = append(syncEvents, core.EventID(trimmed))
+			}
 		}
-		args = args[2:]
-	}
-
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "No input files provided\n")
-		os.Exit(1)
 	}
 
 	var diagrams []core.Diagram

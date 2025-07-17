@@ -23,8 +23,9 @@ func NewParser(input string) *Parser {
 
 func (p *Parser) Parse() (*Diagram, error) {
 	diagram := &Diagram{
-		States: make(map[StateID]State),
-		Edges:  []Edge{},
+		States:   make(map[StateID]State),
+		Edges:    []Edge{},
+		EndEdges: []EndEdge{},
 	}
 
 	if !p.expectString("@startuml") {
@@ -35,19 +36,49 @@ func (p *Parser) Parse() (*Diagram, error) {
 		return nil, fmt.Errorf("expected newline after @startuml at line %d, col %d", p.line, p.col)
 	}
 
+	// Parse states first
+	for !p.isAtEnd() && !p.peekString("@enduml") && p.peekString("state") {
+		state, err := p.parseState()
+		if err != nil {
+			return nil, err
+		}
+		diagram.States[state.ID] = state
+		p.skipWhitespace()
+	}
+
+	// Skip any additional whitespace before start edge
+	p.skipWhitespace()
+
+	// Parse startEdge (required)
+	if p.peekString("[*]") {
+		startEdge, err := p.parseStartEdge()
+		if err != nil {
+			return nil, err
+		}
+		diagram.StartEdge = startEdge
+		p.skipWhitespace()
+	} else {
+		return nil, fmt.Errorf("expected start edge [*] --> state at line %d, col %d", p.line, p.col)
+	}
+
+	// Parse edges and endEdges
 	for !p.isAtEnd() && !p.peekString("@enduml") {
-		if p.peekString("state") {
-			state, err := p.parseState()
-			if err != nil {
-				return nil, err
+		if p.isStateID() {
+			// Check if it's an end edge (state --> [*])
+			if p.isEndEdge() {
+				endEdge, err := p.parseEndEdge()
+				if err != nil {
+					return nil, err
+				}
+				diagram.EndEdges = append(diagram.EndEdges, endEdge)
+			} else {
+				// Regular edge (state --> state)
+				edge, err := p.parseEdge()
+				if err != nil {
+					return nil, err
+				}
+				diagram.Edges = append(diagram.Edges, edge)
 			}
-			diagram.States[state.ID] = state
-		} else if p.isStateIDOrStartOrEnd() {
-			edge, err := p.parseEdge()
-			if err != nil {
-				return nil, err
-			}
-			diagram.Edges = append(diagram.Edges, edge)
 		} else {
 			p.skipLine()
 		}
@@ -93,9 +124,17 @@ func (p *Parser) parseState() (State, error) {
 		return State{}, fmt.Errorf("expected newline after state declaration at line %d, col %d", p.line, p.col)
 	}
 
-	for !p.isAtEnd() && !p.peekString("@enduml") && !p.peekString("state") && !p.isStateIDOrStartOrEnd() {
-		if p.peekString(string(state.ID) + ":") {
-			p.expectString(string(state.ID) + ":")
+	for !p.isAtEnd() && !p.peekString("@enduml") && !p.peekString("state") && !p.isStateID() {
+		if p.peekString(string(state.ID)) {
+			// Parse stateID : var
+			_, err := p.parseID() // Should match state.ID
+			if err != nil {
+				return State{}, err
+			}
+			p.skipSpaces()
+			if !p.expectChar(':') {
+				return State{}, fmt.Errorf("expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
+			}
 			p.skipSpaces()
 			varName, err := p.parseID()
 			if err != nil {
@@ -147,8 +186,42 @@ func (p *Parser) parseStateName() (string, error) {
 	return result.String(), nil
 }
 
+func (p *Parser) parseStartEdge() (StartEdge, error) {
+	if !p.expectString("[*]") {
+		return StartEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	if !p.expectString("-->") {
+		return StartEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	dst, err := p.parseID()
+	if err != nil {
+		return StartEdge{}, err
+	}
+	p.skipSpaces()
+
+	post := "true" // Default value when post is omitted
+	if p.peek() == ':' {
+		p.advance() // consume ':'
+		p.skipSpaces()
+		post = p.parseUntilNewline()
+	}
+
+	if !p.expectNewlines() {
+		return StartEdge{}, fmt.Errorf("expected newline after start edge declaration at line %d, col %d", p.line, p.col)
+	}
+
+	return StartEdge{
+		Dst:  StateID(dst),
+		Post: post,
+	}, nil
+}
+
 func (p *Parser) parseEdge() (Edge, error) {
-	src, err := p.parseStateIDOrStartOrEnd()
+	src, err := p.parseID()
 	if err != nil {
 		return Edge{}, err
 	}
@@ -159,7 +232,7 @@ func (p *Parser) parseEdge() (Edge, error) {
 	}
 	p.skipSpaces()
 
-	dst, err := p.parseStateIDOrStartOrEnd()
+	dst, err := p.parseID()
 	if err != nil {
 		return Edge{}, err
 	}
@@ -176,31 +249,78 @@ func (p *Parser) parseEdge() (Edge, error) {
 	}
 	p.skipSpaces()
 
-	if !p.expectChar(';') {
-		return Edge{}, fmt.Errorf("expected ';' at line %d, col %d", p.line, p.col)
+	guard := "true" // Default value when guard is omitted
+	post := "true"  // Default value when post is omitted
+
+	if p.peek() == ';' {
+		p.advance() // consume first ';'
+		p.skipSpaces()
+		guard = p.parseUntilSemicolon()
+		p.skipSpaces()
+
+		if p.peek() == ';' {
+			p.advance() // consume second ';'
+			p.skipSpaces()
+			post = p.parseUntilNewline()
+		}
 	}
-	p.skipSpaces()
-
-	guard := p.parseUntilSemicolon()
-	p.skipSpaces()
-
-	if !p.expectChar(';') {
-		return Edge{}, fmt.Errorf("expected ';' at line %d, col %d", p.line, p.col)
-	}
-	p.skipSpaces()
-
-	post := p.parseUntilNewline()
 
 	if !p.expectNewlines() {
 		return Edge{}, fmt.Errorf("expected newline after edge declaration at line %d, col %d", p.line, p.col)
 	}
 
 	return Edge{
-		Src:   src,
-		Dst:   dst,
+		Src:   StateID(src),
+		Dst:   StateID(dst),
 		Event: event,
 		Guard: guard,
 		Post:  post,
+	}, nil
+}
+
+func (p *Parser) parseEndEdge() (EndEdge, error) {
+	src, err := p.parseID()
+	if err != nil {
+		return EndEdge{}, err
+	}
+	p.skipSpaces()
+
+	if !p.expectString("-->") {
+		return EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	if !p.expectString("[*]") {
+		return EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	if !p.expectChar(':') {
+		return EndEdge{}, fmt.Errorf("expected ':' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	event, err := p.parseEvent()
+	if err != nil {
+		return EndEdge{}, err
+	}
+	p.skipSpaces()
+
+	guard := "true" // Default value when guard is omitted
+	if p.peek() == ';' {
+		p.advance() // consume ';'
+		p.skipSpaces()
+		guard = p.parseUntilNewline()
+	}
+
+	if !p.expectNewlines() {
+		return EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
+	}
+
+	return EndEdge{
+		Src:   StateID(src),
+		Event: event,
+		Guard: guard,
 	}, nil
 }
 
@@ -247,19 +367,6 @@ func (p *Parser) parseEvent() (Event, error) {
 	return event, nil
 }
 
-func (p *Parser) parseStateIDOrStartOrEnd() (StateIDOrStartOrEnd, error) {
-	if p.peekString("[*]") {
-		p.expectString("[*]")
-		return StateIDOrStartOrEnd{IsStartOrEnd: true}, nil
-	}
-
-	id, err := p.parseID()
-	if err != nil {
-		return StateIDOrStartOrEnd{}, err
-	}
-
-	return StateIDOrStartOrEnd{ID: StateID(id), IsStartOrEnd: false}, nil
-}
 
 func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
@@ -298,7 +405,7 @@ func (p *Parser) isIDChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
 }
 
-func (p *Parser) isStateIDOrStartOrEnd() bool {
+func (p *Parser) isStateID() bool {
 	saved := p.pos
 	savedLine := p.line
 	savedCol := p.col
@@ -309,12 +416,6 @@ func (p *Parser) isStateIDOrStartOrEnd() bool {
 		p.col = savedCol
 	}()
 
-	if p.peekString("[*]") {
-		p.expectString("[*]")
-		p.skipSpaces()
-		return p.peekString("-->")
-	}
-
 	_, err := p.parseID()
 	if err != nil {
 		return false
@@ -322,6 +423,31 @@ func (p *Parser) isStateIDOrStartOrEnd() bool {
 
 	p.skipSpaces()
 	return p.peekString("-->")
+}
+
+func (p *Parser) isEndEdge() bool {
+	saved := p.pos
+	savedLine := p.line
+	savedCol := p.col
+
+	defer func() {
+		p.pos = saved
+		p.line = savedLine
+		p.col = savedCol
+	}()
+
+	_, err := p.parseID()
+	if err != nil {
+		return false
+	}
+
+	p.skipSpaces()
+	if !p.peekString("-->") {
+		return false
+	}
+	p.expectString("-->")
+	p.skipSpaces()
+	return p.peekString("[*]")
 }
 
 func (p *Parser) peek() byte {
