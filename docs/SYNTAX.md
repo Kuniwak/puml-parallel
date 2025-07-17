@@ -7,10 +7,10 @@ Composable State Diagram Format
 --------
 ```abnf
 diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *(edgeDecl / endEdgeDecl) "@enduml" LF
-stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID SP ":" SP var LF)
-startEdgeDecl = "[*]" SP "-->" SP stateID SP ":" SP post 1*LF
-edgeDecl = stateID SP "-->" SP stateID SP ":" SP event SP ";" SP guard SP ";" SP post 1*LF
-endEdgeDecl = stateID SP "-->" SP "[*]" SP ":" SP event SP ";" SP guard 1*LF
+stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID *SP ":" *SP var LF)
+startEdgeDecl = "[*]" SP "-->" SP stateID 0*1(*SP ":" SP post) *SP 1*LF
+edgeDecl = stateID SP "-->" SP stateID *SP ":" *SP event 0*1(*SP ";" *SP guard 0*1(*SP ";" *SP post)) *SP 1*LF
+endEdgeDecl = stateID SP "-->" SP "[*]" *SP ":" *SP event 0*1(*SP ";" *SP guard 1*LF)
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
