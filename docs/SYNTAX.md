@@ -6,7 +6,7 @@ Composable State Diagram Format
 文法規則
 --------
 ```abnf
-diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *edgeDecl *endEdgeDecl "@enduml" LF
+diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *(edgeDecl / endEdgeDecl) "@enduml" LF
 stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID SP ":" SP var LF)
 startEdgeDecl = "[*]" SP "-->" SP stateID SP ":" SP post 1*LF
 edgeDecl = stateID SP "-->" SP stateID SP ":" SP event SP ";" SP guard SP ";" SP post 1*LF
@@ -74,12 +74,6 @@ type EndEdge struct {
     Src   StateID
     Event Event
     Guard string
-}
-
-// StateIDOrStartOrEnd は IsStartOrEnd が真なら初期状態または終了状態、それ以外の場合は ID の指す StateID を表す。
-type StateIDOrStartOrEnd struct {
-	ID           StateID
-	IsStartOrEnd bool
 }
 
 type Event struct {
