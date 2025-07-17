@@ -42,7 +42,7 @@ func (p *Parser) Parse() (*Diagram, error) {
 				return nil, err
 			}
 			diagram.States[state.ID] = state
-		} else if p.isStateID() {
+		} else if p.isStateIDOrStartOrEnd() {
 			edge, err := p.parseEdge()
 			if err != nil {
 				return nil, err
@@ -93,7 +93,7 @@ func (p *Parser) parseState() (State, error) {
 		return State{}, fmt.Errorf("expected newline after state declaration at line %d, col %d", p.line, p.col)
 	}
 
-	for !p.isAtEnd() && !p.peekString("@enduml") && !p.peekString("state") && !p.isStateID() {
+	for !p.isAtEnd() && !p.peekString("@enduml") && !p.peekString("state") && !p.isStateIDOrStartOrEnd() {
 		if p.peekString(string(state.ID) + ":") {
 			p.expectString(string(state.ID) + ":")
 			p.skipSpaces()
@@ -148,7 +148,7 @@ func (p *Parser) parseStateName() (string, error) {
 }
 
 func (p *Parser) parseEdge() (Edge, error) {
-	src, err := p.parseID()
+	src, err := p.parseStateIDOrStartOrEnd()
 	if err != nil {
 		return Edge{}, err
 	}
@@ -159,7 +159,7 @@ func (p *Parser) parseEdge() (Edge, error) {
 	}
 	p.skipSpaces()
 
-	dst, err := p.parseID()
+	dst, err := p.parseStateIDOrStartOrEnd()
 	if err != nil {
 		return Edge{}, err
 	}
@@ -196,8 +196,8 @@ func (p *Parser) parseEdge() (Edge, error) {
 	}
 
 	return Edge{
-		Src:   StateID(src),
-		Dst:   StateID(dst),
+		Src:   src,
+		Dst:   dst,
 		Event: event,
 		Guard: guard,
 		Post:  post,
@@ -247,6 +247,20 @@ func (p *Parser) parseEvent() (Event, error) {
 	return event, nil
 }
 
+func (p *Parser) parseStateIDOrStartOrEnd() (StateIDOrStartOrEnd, error) {
+	if p.peekString("[*]") {
+		p.expectString("[*]")
+		return StateIDOrStartOrEnd{IsStartOrEnd: true}, nil
+	}
+	
+	id, err := p.parseID()
+	if err != nil {
+		return StateIDOrStartOrEnd{}, err
+	}
+	
+	return StateIDOrStartOrEnd{ID: StateID(id), IsStartOrEnd: false}, nil
+}
+
 func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
 	
@@ -284,7 +298,7 @@ func (p *Parser) isIDChar(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
 }
 
-func (p *Parser) isStateID() bool {
+func (p *Parser) isStateIDOrStartOrEnd() bool {
 	saved := p.pos
 	savedLine := p.line
 	savedCol := p.col
@@ -294,6 +308,12 @@ func (p *Parser) isStateID() bool {
 		p.line = savedLine
 		p.col = savedCol
 	}()
+	
+	if p.peekString("[*]") {
+		p.expectString("[*]")
+		p.skipSpaces()
+		return p.peekString("-->")
+	}
 	
 	_, err := p.parseID()
 	if err != nil {

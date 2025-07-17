@@ -115,7 +115,7 @@ func generateEdgesFromState(srcState CompositeStateID, diagrams []Diagram, syncE
 		currentStateID := srcComponents[i]
 		
 		for _, edge := range diagram.Edges {
-			if edge.Src != currentStateID {
+			if !edge.Src.IsState(currentStateID) {
 				continue
 			}
 			
@@ -149,7 +149,7 @@ func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex
 		currentStateID := srcComponents[i]
 		
 		for _, edge := range diagram.Edges {
-			if edge.Src == currentStateID && edge.Event.ID == triggerEdge.Event.ID {
+			if edge.Src.IsState(currentStateID) && edge.Event.ID == triggerEdge.Event.ID {
 				partners = append(partners, edge)
 			}
 		}
@@ -174,7 +174,11 @@ func generateSyncEdges(srcState CompositeStateID, triggerEdge Edge, triggerIndex
 		var posts []string
 		
 		for i, edge := range combo {
-			dstComponents[i] = edge.Dst
+			if !edge.Dst.IsStartOrEnd {
+				dstComponents[i] = edge.Dst.ID
+			} else {
+				dstComponents[i] = srcComponents[i]
+			}
 			if edge.Guard != "" {
 				guards = append(guards, fmt.Sprintf("(%s)", edge.Guard))
 			}
@@ -208,7 +212,10 @@ func generateAsyncEdge(srcState CompositeStateID, edge Edge, diagramIndex int, s
 	srcComponents := states[srcState].Components
 	dstComponents := make([]StateID, len(srcComponents))
 	copy(dstComponents, srcComponents)
-	dstComponents[diagramIndex] = edge.Dst
+	
+	if !edge.Dst.IsStartOrEnd {
+		dstComponents[diagramIndex] = edge.Dst.ID
+	}
 	
 	return CompositeEdge{
 		Src:   srcState,

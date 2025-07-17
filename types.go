@@ -22,16 +22,33 @@ type State struct {
 }
 
 type Edge struct {
-	Src   StateID
-	Dst   StateID
+	Src   StateIDOrStartOrEnd
+	Dst   StateIDOrStartOrEnd
 	Event Event
 	Guard string
 	Post  string
 }
 
+// StateIDOrStartOrEnd は IsStartOrEnd が真なら初期状態または終了状態、それ以外の場合は ID の指す StateID を表す。
+type StateIDOrStartOrEnd struct {
+	ID           StateID
+	IsStartOrEnd bool
+}
+
 type Event struct {
 	ID     EventID
 	Params []Var
+}
+
+func (s StateIDOrStartOrEnd) String() string {
+	if s.IsStartOrEnd {
+		return "[*]"
+	}
+	return string(s.ID)
+}
+
+func (s StateIDOrStartOrEnd) IsState(stateID StateID) bool {
+	return !s.IsStartOrEnd && s.ID == stateID
 }
 
 func (d *Diagram) String() string {
@@ -46,7 +63,9 @@ func (d *Diagram) String() string {
 	}
 	
 	for _, edge := range d.Edges {
-		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event.ID))
+		srcStr := edge.Src.String()
+		dstStr := edge.Dst.String()
+		sb.WriteString(fmt.Sprintf("%s --> %s : %s", srcStr, dstStr, edge.Event.ID))
 		if len(edge.Event.Params) > 0 {
 			sb.WriteString("(")
 			for i, param := range edge.Event.Params {
