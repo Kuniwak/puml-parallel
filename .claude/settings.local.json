@@ -3,8 +3,13 @@
     "allow": [
       "WebFetch(domain:plantuml.com)",
       "Bash(go run:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(diff:*)",
+      "Bash(git rm:*)",
+      "Bash(git clean:*)"
     ],
-    "deny": []
+    "deny": [
+      "Bash(rm:*)"
+    ]
   }
 }

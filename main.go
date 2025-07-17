@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"github.com/Kuniwak/plantuml-parallel-composition/core"
 	"io/ioutil"
 	"os"
-	"plantuml-parallel-composition/core"
 	"strings"
 )
 

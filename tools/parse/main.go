@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/Kuniwak/plantuml-parallel-composition/core"
 	"io"
 	"os"
 )
@@ -15,7 +16,7 @@ func main() {
 	}
 
 	// パーサーで解析
-	parser := NewParser(string(input))
+	parser := core.NewParser(string(input))
 	diagram, err := parser.Parse()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
@@ -31,7 +32,7 @@ func main() {
 			fmt.Printf("    var: %s\n", v)
 		}
 	}
-	
+
 	fmt.Printf("\nEdges: %d\n", len(diagram.Edges))
 	for i, edge := range diagram.Edges {
 		fmt.Printf("  Edge %d: %s --> %s\n", i+1, edge.Src.String(), edge.Dst.String())

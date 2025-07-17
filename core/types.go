@@ -1,1 +1,0 @@
-// This file is left empty as types have been moved to ast.go
