@@ -65,25 +65,4 @@ checksum:
   name_template: "checksums.txt"
 
 release:
-  github:
-    owner: Kuniwak
-    name: puml-parallel
-  discussion_category_name: General
   prerelease: auto
-  mode: replace
-  header: |
-    ## PlantUML Parallel Composition {{ .Tag }}
-
-    This release contains the following tools:
-    - `puml-parallel`: Main tool for interface parallel of PlantUML state diagrams
-    - `puml-parse`: Parser tool for analyzing PlantUML files
-    - `puml-events`: Events extraction tool for listing events from PlantUML files
-
-    Download the appropriate archive for your platform and extract the binaries.
-
-  footer: |
-    ## Checksums
-
-    All binaries are available with checksums for verification.
-    
-    **Full Changelog**: https://github.com/Kuniwak/puml-parallel/compare/{{ .PreviousTag }}...{{ .Tag }}
