@@ -31,33 +31,38 @@ func (p *Parser) Parse() (*Diagram, error) {
 		return nil, fmt.Errorf("expected @startuml at line %d, col %d", p.line, p.col)
 	}
 
-	if !p.expectNewlines() {
-		return nil, fmt.Errorf("expected newline after @startuml at line %d, col %d", p.line, p.col)
-	}
-
-	// Parse states first
-	for !p.isAtEnd() && !p.peekString("@enduml") && p.peekString("state") {
-		state, err := p.parseState()
-		if err != nil {
-			return nil, err
-		}
-		diagram.States[state.ID] = state
-		p.skipWhitespace()
-	}
-
-	// Skip any additional whitespace before start edge
 	p.skipWhitespace()
 
-	// Parse startEdge (required)
-	if p.peekString("[*]") {
-		startEdge, err := p.parseStartEdge()
-		if err != nil {
-			return nil, err
-		}
-		diagram.StartEdge = startEdge
+	// Parse all content until @enduml
+	for !p.isAtEnd() && !p.peekString("@enduml") {
 		p.skipWhitespace()
-	} else {
-		return nil, fmt.Errorf("expected start edge [*] --> state at line %d, col %d", p.line, p.col)
+		if p.isAtEnd() || p.peekString("@enduml") {
+			break
+		}
+
+		if p.peekString("state") {
+			state, err := p.parseState()
+			if err != nil {
+				return nil, err
+			}
+			diagram.States[state.ID] = state
+		} else if p.peekString("[*]") {
+			startEdge, err := p.parseStartEdge()
+			if err != nil {
+				return nil, err
+			}
+			diagram.StartEdge = startEdge
+		} else if p.isStateID() {
+			edge, err := p.parseEdge()
+			if err != nil {
+				return nil, err
+			}
+			diagram.Edges = append(diagram.Edges, edge)
+		} else {
+			// Skip unknown lines
+			p.skipLine()
+		}
+		p.skipWhitespace()
 	}
 
 	if !p.expectString("@enduml") {

@@ -7,7 +7,8 @@
       "Bash(diff:*)",
       "Bash(git rm:*)",
       "Bash(git clean:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(go test:*)"
     ],
     "deny": [
       "Bash(cp:*)",

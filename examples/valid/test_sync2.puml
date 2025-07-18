@@ -1,6 +1,7 @@
 @startuml
 state "Idle" as i
 state "Busy" as b
+[*] --> i
 i --> b : start ; ; 
 b --> i : done ; ; 
 @enduml
