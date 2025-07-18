@@ -1,3 +1,3 @@
-module github.com/Kuniwak/plantuml-parallel-composition
+module github.com/Kuniwak/puml-parallel
 
 go 1.24.2

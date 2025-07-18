@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Kuniwak/plantuml-parallel-composition/core"
+	"github.com/Kuniwak/puml-parallel/core"
 	"os"
 	"strings"
 )

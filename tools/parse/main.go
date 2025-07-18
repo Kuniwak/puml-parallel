@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/Kuniwak/plantuml-parallel-composition/core"
+	"github.com/Kuniwak/puml-parallel/core"
 	"io"
 	"os"
 )

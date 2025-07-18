@@ -29,7 +29,7 @@ func (s StatePair) State() State {
 
 func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) {
 	if len(diagrams) < 1 {
-		return Diagram{}, fmt.Errorf("at least one diagrams are required for parallel composition")
+		return Diagram{}, fmt.Errorf("at least one diagrams are required for interface parallel")
 	}
 
 	if len(diagrams) == 1 {
