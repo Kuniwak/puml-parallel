@@ -10,8 +10,6 @@ type StateID ID
 
 type EventID ID
 
-const EventIDTau EventID = "τ"
-
 type Var ID
 
 const True = "true"
@@ -45,7 +43,6 @@ type Event struct {
 	ID     EventID
 	Params []Var
 }
-
 
 func (d *Diagram) String() string {
 	var sb strings.Builder
