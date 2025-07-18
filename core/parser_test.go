@@ -49,3 +49,36 @@ func TestParseValidExamples(t *testing.T) {
 		}
 	}
 }
+
+func TestParseInvalidExamples(t *testing.T) {
+	examplesDir := "../examples/invalid"
+	
+	files, err := ioutil.ReadDir(examplesDir)
+	if err != nil {
+		t.Fatalf("Failed to read examples directory: %v", err)
+	}
+	
+	for _, file := range files {
+		if filepath.Ext(file.Name()) == ".puml" {
+			t.Run(file.Name(), func(t *testing.T) {
+				filePath := filepath.Join(examplesDir, file.Name())
+				content, err := ioutil.ReadFile(filePath)
+				if err != nil {
+					t.Fatalf("Failed to read file %s: %v", filePath, err)
+				}
+				
+				parser := NewParser(string(content))
+				diagram, err := parser.Parse()
+				
+				if err == nil {
+					t.Errorf("Expected parse error for invalid file %s, but parsing succeeded", file.Name())
+					return
+				}
+				
+				if diagram != nil {
+					t.Errorf("Expected nil diagram for invalid file %s, but got non-nil diagram", file.Name())
+				}
+			})
+		}
+	}
+}
