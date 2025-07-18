@@ -1,0 +1,3 @@
+state "Test" as t1
+[*] --> t1
+@enduml

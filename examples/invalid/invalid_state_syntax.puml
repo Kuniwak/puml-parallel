@@ -1,0 +1,4 @@
+@startuml
+state "Test" t1
+[*] --> t1
+@enduml

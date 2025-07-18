@@ -59,8 +59,8 @@ func (p *Parser) Parse() (*Diagram, error) {
 			}
 			diagram.Edges = append(diagram.Edges, edge)
 		} else {
-			// Skip unknown lines
-			p.skipLine()
+			// Unknown syntax - report error
+			return nil, fmt.Errorf("unexpected syntax at line %d, col %d", p.line, p.col)
 		}
 		p.skipWhitespace()
 	}
@@ -179,7 +179,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 
 	dst, err := p.parseID()
 	if err != nil {
-		return StartEdge{}, err
+		return StartEdge{}, fmt.Errorf("expected destination state ID after '-->' in start edge at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
@@ -261,7 +261,7 @@ func (p *Parser) parseEdge() (Edge, error) {
 func (p *Parser) parseEvent() (Event, error) {
 	eventID, err := p.parseID()
 	if err != nil {
-		return Event{}, err
+		return Event{}, fmt.Errorf("expected event ID after ':' in edge at line %d, col %d", p.line, p.col)
 	}
 
 	event := Event{

@@ -1,0 +1,6 @@
+@startuml
+state "Test1" as t1
+state "Test2" as t2
+[*] --> t1
+t1 --> t2 event
+@enduml
