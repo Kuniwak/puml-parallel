@@ -52,23 +52,17 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
 archives:
-  - id: default
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files:
-      - README.md
-      - LICENSE*
-      - docs/**/*
-      - examples/**/*
+  - id: binary
+    name_template: >-
+      {{ .Binary }}-
+      {{- if eq .Os "Darwin" }}darwin-
+      {{- else if eq .Os "Linux" }}linux-
+      {{- else }}{{ .Os }}{{ end }}-{{ .Arch }}
+    # https://goreleaser.com/errors/multiple-binaries-archive/
+    allow_different_binary_count: true
 
 checksum:
   name_template: "checksums.txt"
-
-snapshot:
-  name_template: "{{ incpatch .Version }}-next"
 
 release:
   github:
