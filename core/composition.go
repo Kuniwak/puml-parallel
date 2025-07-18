@@ -63,8 +63,11 @@ func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
 		Right: dR.States[dR.StartEdge.Dst],
 	}
 
+	states := make(map[StateID]State)
+	states[initStatePair.ID()] = initStatePair.State()
+
 	out := Diagram{
-		States: make(map[StateID]State),
+		States: states,
 		StartEdge: StartEdge{
 			Dst:  initStatePair.ID(),
 			Post: ComposePostConditions(dL.StartEdge.Post, dR.StartEdge.Post),

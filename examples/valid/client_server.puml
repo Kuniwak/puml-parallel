@@ -1,0 +1,86 @@
+@startuml
+state "clientReady(tools) || serverCallingToolsList" as c1_s4
+c1_s4: server
+c1_s4: tools
+c1_s4: state
+state "clientInitializing(serverStateMap, tools) || serverNotInitialized" as c0_s1
+c0_s1: server
+c0_s1: tools
+c0_s1: state
+state "clientReady(tools) || serverNotInitialized" as c1_s1
+c1_s1: server
+c1_s1: tools
+c1_s1: state
+state "clientInitializing(serverStateMap, tools) || serverInitialized" as c0_s3
+c0_s3: server
+c0_s3: tools
+c0_s3: state
+state "clientReady(tools) || serverInitialized" as c1_s3
+c1_s3: server
+c1_s3: tools
+c1_s3: state
+state "clientProcessing(tools) || serverCallingToolsList" as c2_s4
+c2_s4: server
+c2_s4: tools
+c2_s4: state
+state "clientProcessing(tools) || serverNotRunning" as c2_s0
+c2_s0: server
+c2_s0: tools
+state "clientInitializing(serverStateMap, tools) || serverInitializing" as c0_s2
+c0_s2: server
+c0_s2: tools
+c0_s2: state
+state "clientProcessing(tools) || serverInitialized" as c2_s3
+c2_s3: server
+c2_s3: tools
+c2_s3: state
+state "clientProcessing(tools) || serverInitializing" as c2_s2
+c2_s2: server
+c2_s2: tools
+c2_s2: state
+state "clientInitializing(serverStateMap, tools) || serverNotRunning" as c0_s0
+c0_s0: server
+c0_s0: tools
+state "clientReady(tools) || serverNotRunning" as c1_s0
+c1_s0: server
+c1_s0: tools
+state "clientProcessing(tools) || serverNotInitialized" as c2_s1
+c2_s1: server
+c2_s1: tools
+c2_s1: state
+state "clientReady(tools) || serverInitializing" as c1_s2
+c1_s2: server
+c1_s2: tools
+c1_s2: state
+state "clientCallingMCPServer(tools) || serverCallingToolsCall" as c3_s5
+c3_s5: server
+c3_s5: tools
+c3_s5: state
+state "clientInitializing(serverStateMap, tools) || serverCallingToolsList" as c0_s4
+c0_s4: server
+c0_s4: tools
+c0_s4: state
+[*] --> c0_s0 : serverStateMap' = all pre-registered MCP are in not-running state, tools is empty set & server' is the name of this MCP server, tools is the set of tools provided by this MCP server
+c0_s0 --> c1_s0 : tau ; all in serverStateMap are initialized ; tools' remains the same
+c0_s0 --> c0_s1 : start ; server is a pre-registered MCP server and in not-running state & s and server match ; serverStateMap' is serverStateMap with server changed to not-initialized, tools' remains the same & server' and tools' remain the same, state' is initial state
+c1_s0 --> c2_s0 : inputPrompt ; always transition possible ; tools' remains the same
+c0_s1 --> c1_s1 : tau ; all in serverStateMap are initialized ; tools' remains the same
+c0_s1 --> c0_s2 : initializeReq ; server is a pre-registered MCP server and not-initialized & s and server match ; serverStateMap' is serverStateMap with server changed to initializing, tools' remains the same & server', tools', and state' all remain the same
+c2_s0 --> c1_s0 : returnText ; always transition possible ; tools' remains the same
+c1_s1 --> c2_s1 : inputPrompt ; always transition possible ; tools' remains the same
+c0_s2 --> c0_s3 : initializeRes ; server is a pre-registered MCP server and initializing & s and server match ; serverStateMap' is serverStateMap with server changed to initialized, tools' remains the same & server', tools', and state' all remain the same
+c0_s2 --> c1_s2 : tau ; all in serverStateMap are initialized ; tools' remains the same
+c2_s1 --> c1_s1 : returnText ; always transition possible ; tools' remains the same
+c0_s3 --> c1_s3 : tau ; all in serverStateMap are initialized ; tools' remains the same
+c0_s3 --> c0_s4 : toolsListReq ; server is a pre-registered MCP server and in initialized state & s and server match ; serverStateMap' is serverStateMap with server changed to waiting for tools list, tools' remains the same & server', tools', and state' all remain the same
+c1_s2 --> c2_s2 : inputPrompt ; always transition possible ; tools' remains the same
+c1_s3 --> c2_s3 : inputPrompt ; always transition possible ; tools' remains the same
+c0_s4 --> c0_s3 : toolsListRes ; server is a pre-registered MCP server and in initialized state & s and server match, and ts and tools match ; serverStateMap' is serverStateMap with server changed to tools list complete, tools' is tools with ts added & server', tools', and state' all remain the same
+c0_s4 --> c1_s4 : tau ; all in serverStateMap are initialized ; tools' remains the same
+c2_s2 --> c1_s2 : returnText ; always transition possible ; tools' remains the same
+c2_s3 --> c1_s3 : returnText ; always transition possible ; tools' remains the same
+c2_s3 --> c3_s5 : toolsCallReq ; tool is included in tools & s and server match ; tools' remains the same & server' and tools' both remain the same, state' is somehow updated (may not be updated)
+c1_s4 --> c2_s4 : inputPrompt ; always transition possible ; tools' remains the same
+c3_s5 --> c2_s3 : toolsCallRes ; tool is included in tools & s and server match ; tools' remains the same & server' and tools' both remain the same, state' is somehow updated (may not be updated)
+c2_s4 --> c1_s4 : returnText ; always transition possible ; tools' remains the same
+@enduml
