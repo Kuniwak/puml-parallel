@@ -6,11 +6,10 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *(edgeDecl / endEdgeDecl) "@enduml" LF
+diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *edgeDecl "@enduml" LF
 stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID *SP ":" *SP var LF)
 startEdgeDecl = "[*]" SP "-->" SP stateID 0*1(*SP ":" SP post) *SP 1*LF
 edgeDecl = stateID SP "-->" SP stateID *SP ":" *SP event 0*1(*SP ";" *SP guard 0*1(*SP ";" *SP post)) *SP 1*LF
-endEdgeDecl = stateID SP "-->" SP "[*]" *SP ":" *SP event 0*1(*SP ";" *SP guard 1*LF)
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
@@ -49,7 +48,6 @@ type Diagram struct {
 	State     map[StateID]State
 	StartEdge StartEdge
 	Edges     []Edge
-	EndEdges  []EndEdge
 }
 
 type State struct {
@@ -59,8 +57,8 @@ type State struct {
 }
 
 type StartEdge struct {
-    Dst  StateID
-    Post string
+	Dst  StateID
+	Post string
 }
 
 type Edge struct {
@@ -69,12 +67,6 @@ type Edge struct {
 	Event Event
 	Guard string
 	Post  string
-}
-
-type EndEdge struct {
-    Src   StateID
-    Event Event
-    Guard string
 }
 
 type Event struct {
@@ -86,21 +78,21 @@ type Event struct {
 
 Semantics
 ---------
-| Syntax Element                              | Corresponding Type | Meaning                                                                         |
-|:-------------------------------------------|:----------|:-----------------------------------------------------------------------------------|
-| `diagram`                                  | `Diagram` | Represents a declaration of a state transition model.                          |
-| `stateDecl`                                | `State`   | Represents a state declaration.                                                 |
-| `startEdgeDecl`                            | `Edge`    | Represents a declaration of transition to the initial state.                   |
-| `edgeDecl`                                 | `Edge`    | Represents a declaration of a directed edge.                                   |
-| `endEdgeDecl`                              | `EndEdge` | Represents a declaration of transition to the end state.                       |
-| `stateName`                                | `string`  | State name. Represents a string with leading and trailing double quotes removed and escapes resolved. |
-| `escape_backslash`                         | `rune`    | Represents `\`.                                                                |
-| `escape_dquote`                            | `rune`    | Represents `"`.                                                                |
-| `stateID`                                  | `StateID` | Represents an ID string.                                                        |
-| `var`                                      | `Var`     | Represents a variable name.                                                     |
-| `event`                                    | `Event`   | Represents an event. Variables are stored in Params in the order they appear. When the event ID is `tau`, it is an internal transition. Therefore, Params must be empty. |
-| `guard`                                    | `string`  | Represents a natural language expression of guard conditions.                   |
-| `post`                                     | `string`  | Represents a natural language expression of post-conditions.                    |
-| `id`                                       | `string`  | Represents an ID string.                                                        |
-| `unicode_char_except_dquote_and_backslash` | `rune`    | Represents Unicode characters except double quotes and backslashes.            |
-| `unicode_char_except_semicolon`            | `rune`    | Represents Unicode characters except semicolons.                               |
+| Syntax Element                             | Corresponding Type | Meaning                                                                                                                                                                  |
+|:-------------------------------------------|:-------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `diagram`                                  | `Diagram`          | Represents a declaration of a state transition model.                                                                                                                    |
+| `stateDecl`                                | `State`            | Represents a state declaration.                                                                                                                                          |
+| `startEdgeDecl`                            | `Edge`             | Represents a declaration of transition to the initial state.                                                                                                             |
+| `edgeDecl`                                 | `Edge`             | Represents a declaration of a directed edge.                                                                                                                             |
+| `endEdgeDecl`                              | `EndEdge`          | Represents a declaration of transition to the end state.                                                                                                                 |
+| `stateName`                                | `string`           | State name. Represents a string with leading and trailing double quotes removed and escapes resolved.                                                                    |
+| `escape_backslash`                         | `rune`             | Represents `\`.                                                                                                                                                          |
+| `escape_dquote`                            | `rune`             | Represents `"`.                                                                                                                                                          |
+| `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
+| `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
+| `event`                                    | `Event`            | Represents an event. Variables are stored in Params in the order they appear. When the event ID is `tau`, it is an internal transition. Therefore, Params must be empty. |
+| `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
+| `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
+| `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |
+| `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
+| `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |

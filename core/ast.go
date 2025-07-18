@@ -8,12 +8,9 @@ import (
 type ID string
 type StateID ID
 
-const StateIDOmega StateID = "Ω"
-
 type EventID ID
 
 const EventIDTau EventID = "τ"
-const EventIDTick EventID = "✔"
 
 type Var ID
 
@@ -23,18 +20,12 @@ type Diagram struct {
 	States    map[StateID]State
 	StartEdge StartEdge
 	Edges     []Edge
-	EndEdges  []EndEdge
 }
 
 type State struct {
 	ID   StateID
 	Name string
 	Vars []Var
-}
-
-var StateOmega = State{
-	ID:   StateIDOmega,
-	Name: "Ω",
 }
 
 type StartEdge struct {
@@ -50,12 +41,6 @@ type Edge struct {
 	Post  string
 }
 
-type EndEdge struct {
-	Src   StateID
-	Event Event
-	Guard string
-}
-
 type Event struct {
 	ID     EventID
 	Params []Var
@@ -63,10 +48,6 @@ type Event struct {
 
 var EventTau = Event{
 	ID: EventIDTau,
-}
-
-var EventTick = Event{
-	ID: EventIDTick,
 }
 
 func (d *Diagram) String() string {
@@ -109,26 +90,6 @@ func (d *Diagram) String() string {
 			continue
 		}
 		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
-	}
-
-	// EndEdges
-	for _, endEdge := range d.EndEdges {
-		sb.WriteString(fmt.Sprintf("%s --> [*] : %s", endEdge.Src, endEdge.Event.ID))
-		if len(endEdge.Event.Params) > 0 {
-			sb.WriteString("(")
-			for i, param := range endEdge.Event.Params {
-				if i > 0 {
-					sb.WriteString(", ")
-				}
-				sb.WriteString(string(param))
-			}
-			sb.WriteString(")")
-		}
-		if endEdge.Guard == "" || endEdge.Guard == True {
-			sb.WriteString("\n")
-			continue
-		}
-		sb.WriteString(fmt.Sprintf(" ; %s\n", endEdge.Guard))
 	}
 
 	sb.WriteString("@enduml\n")

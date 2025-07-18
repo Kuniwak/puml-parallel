@@ -1,7 +1,0 @@
-@startuml
-state "Ready" as r
-state "Working" as w
-[*] --> r : start ; ; 
-r --> w : begin ; ; 
-w --> [*] : finish ; ; 
-@enduml

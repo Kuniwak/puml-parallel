@@ -2,11 +2,12 @@
 
 state "s0 || s0" as s0_s0
 state "s1 || s0" as s1_s0
-state "s1 || s1" as s1_s1
+state "s2 || s1" as s2_s1
+state "s2 || s2" as s2_s2
 
 [*] --> s0_s0
 s0_s0 --> s1_s0 : in
-s1_s0 --> s1_s1 : sync
-s1_s1 --> [*] : out
+s1_s0 --> s2_s1 : sync
+s2_s1 --> s2_s2 : out
 
 @enduml

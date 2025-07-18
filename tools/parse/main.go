@@ -55,22 +55,4 @@ func main() {
 		fmt.Printf("    Guard: \"%s\"\n", edge.Guard)
 		fmt.Printf("    Post: \"%s\"\n", edge.Post)
 	}
-
-	fmt.Printf("\nEnd Edges: %d\n", len(diagram.EndEdges))
-	for i, endEdge := range diagram.EndEdges {
-		fmt.Printf("  End Edge %d: %s --> [*]\n", i+1, endEdge.Src)
-		fmt.Printf("    Event: %s", endEdge.Event.ID)
-		if len(endEdge.Event.Params) > 0 {
-			fmt.Printf("(")
-			for j, param := range endEdge.Event.Params {
-				if j > 0 {
-					fmt.Printf(", ")
-				}
-				fmt.Printf("%s", param)
-			}
-			fmt.Printf(")")
-		}
-		fmt.Printf("\n")
-		fmt.Printf("    Guard: \"%s\"\n", endEdge.Guard)
-	}
 }

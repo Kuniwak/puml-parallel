@@ -23,9 +23,8 @@ func NewParser(input string) *Parser {
 
 func (p *Parser) Parse() (*Diagram, error) {
 	diagram := &Diagram{
-		States:   make(map[StateID]State),
-		Edges:    []Edge{},
-		EndEdges: []EndEdge{},
+		States: make(map[StateID]State),
+		Edges:  []Edge{},
 	}
 
 	if !p.expectString("@startuml") {
@@ -59,30 +58,6 @@ func (p *Parser) Parse() (*Diagram, error) {
 		p.skipWhitespace()
 	} else {
 		return nil, fmt.Errorf("expected start edge [*] --> state at line %d, col %d", p.line, p.col)
-	}
-
-	// Parse edges and endEdges
-	for !p.isAtEnd() && !p.peekString("@enduml") {
-		if p.isStateID() {
-			// Check if it's an end edge (state --> [*])
-			if p.isEndEdge() {
-				endEdge, err := p.parseEndEdge()
-				if err != nil {
-					return nil, err
-				}
-				diagram.EndEdges = append(diagram.EndEdges, endEdge)
-			} else {
-				// Regular edge (state --> state)
-				edge, err := p.parseEdge()
-				if err != nil {
-					return nil, err
-				}
-				diagram.Edges = append(diagram.Edges, edge)
-			}
-		} else {
-			p.skipLine()
-		}
-		p.skipWhitespace()
 	}
 
 	if !p.expectString("@enduml") {
@@ -278,52 +253,6 @@ func (p *Parser) parseEdge() (Edge, error) {
 	}, nil
 }
 
-func (p *Parser) parseEndEdge() (EndEdge, error) {
-	src, err := p.parseID()
-	if err != nil {
-		return EndEdge{}, err
-	}
-	p.skipSpaces()
-
-	if !p.expectString("-->") {
-		return EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
-	}
-	p.skipSpaces()
-
-	if !p.expectString("[*]") {
-		return EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
-	}
-	p.skipSpaces()
-
-	if !p.expectChar(':') {
-		return EndEdge{}, fmt.Errorf("expected ':' at line %d, col %d", p.line, p.col)
-	}
-	p.skipSpaces()
-
-	event, err := p.parseEvent()
-	if err != nil {
-		return EndEdge{}, err
-	}
-	p.skipSpaces()
-
-	guard := "true" // Default value when guard is omitted
-	if p.peek() == ';' {
-		p.advance() // consume ';'
-		p.skipSpaces()
-		guard = p.parseUntilNewline()
-	}
-
-	if !p.expectNewlines() {
-		return EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
-	}
-
-	return EndEdge{
-		Src:   StateID(src),
-		Event: event,
-		Guard: guard,
-	}, nil
-}
-
 func (p *Parser) parseEvent() (Event, error) {
 	eventID, err := p.parseID()
 	if err != nil {
@@ -366,7 +295,6 @@ func (p *Parser) parseEvent() (Event, error) {
 
 	return event, nil
 }
-
 
 func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
