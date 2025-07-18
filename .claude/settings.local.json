@@ -14,7 +14,9 @@
       "Bash(goreleaser build:*)",
       "Bash(goreleaser check:*)",
       "Bash(ls:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(goreleaser release:*)",
+      "Bash(tar:*)"
     ],
     "deny": [
       "Bash(cp:*)",
