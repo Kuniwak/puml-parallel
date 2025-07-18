@@ -8,7 +8,9 @@
       "Bash(git rm:*)",
       "Bash(git clean:*)",
       "Bash(echo:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(actionlint:*)",
+      "Bash(ghalint run:*)"
     ],
     "deny": [
       "Bash(cp:*)",
