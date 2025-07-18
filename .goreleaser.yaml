@@ -93,7 +93,3 @@ release:
     All binaries are available with checksums for verification.
     
     **Full Changelog**: https://github.com/Kuniwak/puml-parallel/compare/{{ .PreviousTag }}...{{ .Tag }}
-
-  extra_files:
-    - glob: ./examples/**/*
-    - glob: ./docs/**/*
