@@ -8,14 +8,12 @@ This tool takes multiple Composable State Diagram files and composes them into a
 
 ## Installation
 
-```bash
-go build -o puml-parallel
-```
+Download binaries from [Releases](https://github.com/Kuniwak/puml-parallel/releases).
 
 ## Usage
 
-```bash
-./puml-parallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...
+```console
+$ puml-parallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...
 ```
 
 ### Options
@@ -23,8 +21,8 @@ go build -o puml-parallel
 - `--sync`: Semicolon-separated list of synchronization events for interface parallel
 
 ### Examples
-```bash
-./puml-parallel -sync 'insert;showAvailable;showPurchasable;choose;drop' ./examples/user.puml ./examples/vendormachine.puml
+```console
+$ puml-parallel -sync 'insert;showAvailable;showPurchasable;choose;drop' ./examples/user.puml ./examples/vendormachine.puml
 ```
 
 ## Input Format
