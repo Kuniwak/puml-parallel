@@ -46,6 +46,16 @@ The tool accepts PlantUML state diagram files in a specific Composable State Dia
 - `docs/` - Documentation including requirements and specifications
 - `tools/` - Additional parsing tools
 
+## Limitations
+
+The parallel composition tool has the following limitations:
+
+- **Start edge requirement**: State diagrams without a start edge (`[*] --> state`) cannot be composed in parallel. Each diagram must have exactly one start edge to define the initial state for composition.
+
+- **End edge restriction**: State diagrams containing end edges (`state --> [*]`) are not currently supported for parallel composition. While technically possible, the semantics of parallel composition with terminating processes would be complex to define and implement, so this feature is not yet supported.
+
+These limitations are implementation choices made to keep the parallel composition semantics manageable in the current version.
+
 ## Documentation
 
 - [Requirements](docs/REQUIREMENTS.md) - Project requirements (Japanese)
