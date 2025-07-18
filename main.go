@@ -14,7 +14,7 @@ func main() {
 
 	args := flag.Args()
 	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage: %s [--sync event1;event2;...] <file1.puml> [file2.puml] ...\n", os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: %s [--sync event1;event2;...] <file1.puml> [file2.puml] ...\n", os.Args[0])
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
@@ -34,14 +34,14 @@ func main() {
 	for _, filename := range args {
 		content, err := os.ReadFile(filename)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filename, err)
+			_, _ = fmt.Fprintf(os.Stderr, "Error reading file %s: %v\n", filename, err)
 			os.Exit(1)
 		}
 
 		parser := core.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filename, err)
+			_, _ = fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filename, err)
 			os.Exit(1)
 		}
 
@@ -53,7 +53,7 @@ func main() {
 	} else {
 		composite, err := core.ComposeParallel(diagrams, syncEvents)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error composing diagrams: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "Error composing diagrams: %v\n", err)
 			os.Exit(1)
 		}
 		fmt.Print(composite.String())

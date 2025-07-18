@@ -1,7 +1,7 @@
 package core
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -9,7 +9,7 @@ import (
 func TestParseValidExamples(t *testing.T) {
 	examplesDir := "../examples/valid"
 	
-	files, err := ioutil.ReadDir(examplesDir)
+	files, err := os.ReadDir(examplesDir)
 	if err != nil {
 		t.Fatalf("Failed to read examples directory: %v", err)
 	}
@@ -18,7 +18,7 @@ func TestParseValidExamples(t *testing.T) {
 		if filepath.Ext(file.Name()) == ".puml" {
 			t.Run(file.Name(), func(t *testing.T) {
 				filePath := filepath.Join(examplesDir, file.Name())
-				content, err := ioutil.ReadFile(filePath)
+				content, err := os.ReadFile(filePath)
 				if err != nil {
 					t.Fatalf("Failed to read file %s: %v", filePath, err)
 				}
@@ -53,7 +53,7 @@ func TestParseValidExamples(t *testing.T) {
 func TestParseInvalidExamples(t *testing.T) {
 	examplesDir := "../examples/invalid"
 	
-	files, err := ioutil.ReadDir(examplesDir)
+	files, err := os.ReadDir(examplesDir)
 	if err != nil {
 		t.Fatalf("Failed to read examples directory: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestParseInvalidExamples(t *testing.T) {
 		if filepath.Ext(file.Name()) == ".puml" {
 			t.Run(file.Name(), func(t *testing.T) {
 				filePath := filepath.Join(examplesDir, file.Name())
-				content, err := ioutil.ReadFile(filePath)
+				content, err := os.ReadFile(filePath)
 				if err != nil {
 					t.Fatalf("Failed to read file %s: %v", filePath, err)
 				}

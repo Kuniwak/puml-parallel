@@ -11,7 +11,7 @@ func main() {
 	// Read from standard input
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -19,7 +19,7 @@ func main() {
 	parser := core.NewParser(string(input))
 	diagram, err := parser.Parse()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
 		os.Exit(1)
 	}
 

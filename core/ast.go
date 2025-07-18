@@ -46,9 +46,6 @@ type Event struct {
 	Params []Var
 }
 
-var EventTau = Event{
-	ID: EventIDTau,
-}
 
 func (d *Diagram) String() string {
 	var sb strings.Builder

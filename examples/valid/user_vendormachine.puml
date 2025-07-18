@@ -1,0 +1,32 @@
+@startuml
+state "userIdle || vmIdle" as userIdle_vmIdle
+userIdle_vmIdle: wanted
+userIdle_vmIdle: availableProducts
+state "userGonnaBuy || vmIdle" as userGonnaBuy_vmIdle
+userGonnaBuy_vmIdle: product
+userGonnaBuy_vmIdle: availableProducts
+state "userPaying || vmCoinsInserted" as userPaying_vmCoinsInserted
+userPaying_vmCoinsInserted: product
+userPaying_vmCoinsInserted: availableProducts
+userPaying_vmCoinsInserted: coins
+state "userGonnaBuy || vmWaitingChoosing" as userGonnaBuy_vmWaitingChoosing
+userGonnaBuy_vmWaitingChoosing: product
+userGonnaBuy_vmWaitingChoosing: availableProducts
+userGonnaBuy_vmWaitingChoosing: coins
+state "userChoosing || vmWaitingChoosing" as userChoosing_vmWaitingChoosing
+userChoosing_vmWaitingChoosing: product
+userChoosing_vmWaitingChoosing: availableProducts
+userChoosing_vmWaitingChoosing: coins
+state "userWaiting || vmDropping" as userWaiting_vmDropping
+userWaiting_vmDropping: availableProducts
+userWaiting_vmDropping: product
+[*] --> userIdle_vmIdle : wanted' is empty & availableProducts' are products initially in the vending machine
+userIdle_vmIdle --> userIdle_vmIdle : tau ; wanted' is non-empty
+userIdle_vmIdle --> userGonnaBuy_vmIdle : showAvailable ; products and wanted have overlap ; product' is one of the overlap between products and wanted & availableProducts' remains the same
+userGonnaBuy_vmIdle --> userPaying_vmCoinsInserted : insert ; product' remains the same & coins' is {coin}, availableProducts' remains the same
+userPaying_vmCoinsInserted --> userGonnaBuy_vmWaitingChoosing : showPurchasable ; products does not contain product ; product' remains the same & availableProducts' and coins' remain the same
+userPaying_vmCoinsInserted --> userChoosing_vmWaitingChoosing : showPurchasable ; products contains product ; product' remains the same & availableProducts' and coins' remain the same
+userGonnaBuy_vmWaitingChoosing --> userPaying_vmCoinsInserted : insert ; product' remains the same & coins' is coins with coin added, availableProducts' remains the same
+userChoosing_vmWaitingChoosing --> userWaiting_vmDropping : choose ; availableProducts contains product ; product' is product
+userWaiting_vmDropping --> userIdle_vmIdle : drop ; wanted' is empty & availableProducts' is availableProducts minus product
+@enduml
