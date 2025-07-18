@@ -70,32 +70,6 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^test:"
-      - "^chore:"
-      - "^ci:"
-      - "^build:"
-      - "^style:"
-      - "^refactor:"
-      - "^perf:"
-      - "^revert:"
-      - "Merge pull request"
-      - "Merge branch"
-      - "go mod tidy"
-  groups:
-    - title: Features
-      regexp: "^.*feat[(\\w)]*:+.*$"
-      order: 0
-    - title: Bug fixes
-      regexp: "^.*fix[(\\w)]*:+.*$"
-      order: 1
-    - title: Others
-      order: 999
-
 release:
   github:
     owner: Kuniwak
