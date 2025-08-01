@@ -1,0 +1,11 @@
+@startuml
+
+state "ready" as s0
+state "working" as s1
+state "finished" as s2
+
+[*] --> s0 : balance = 100
+s0 --> s1 : withdraw(amount) ; balance > 0 ; balance' = balance - amount
+s1 --> s2 : confirm ; always ; confirmed = true
+
+@enduml

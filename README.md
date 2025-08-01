@@ -52,6 +52,10 @@ These limitations are implementation choices made to keep the interface parallel
 - [Syntax](docs/SYNTAX.md) - Syntax documentation
 - [Glossary](docs/GLOSSARY.md) - Term definitions
 
+## Acknowledgments
+
+[1] M. Leuschel and M. Butler, "Correct and Efficient Antichain Algorithms for Refinement Checking," in *Proceedings of the 13th International Conference on Formal Methods and Software Engineering (ICFEM 2011)*, Durham, UK, Oct. 26-28, 2011, pp. 493-508. doi: 10.1007/978-3-642-24559-6\_33.
+
 ## License
 
 MIT License

@@ -1,0 +1,11 @@
+@startuml
+
+state "prepared" as s0
+state "executing" as s1
+state "completed" as s2
+
+[*] --> s0 : counter = 0
+s0 --> s1 : execute ; always ; executing = true
+s1 --> s2 : finish ; always ; result = maybe_success
+
+@enduml
