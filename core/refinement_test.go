@@ -1,7 +1,6 @@
 package core
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -50,8 +49,8 @@ func TestStableFailuresRefinement(t *testing.T) {
 				t.Fatalf("Failed to generate proof obligations: %v", err)
 			}
 
-			fmt.Printf("\n=== %s ===\n", tc.name)
-			fmt.Print(FormatProofObligations(obligations))
+			t.Logf("\n=== %s ===\n", tc.name)
+			t.Log(FormatProofObligations(obligations))
 			
 			if tc.expectFail {
 				// Check if we have the expected failing obligation type
