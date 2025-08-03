@@ -13,7 +13,7 @@ Download binaries from [Releases](https://github.com/Kuniwak/puml-parallel/relea
 ## Usage
 
 ```console
-$ puml-parallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...
+$ puml-parallel [--sync event1;event2;...] <file1.puml> <file2.puml> [<file3.puml> ...]
 ```
 
 ### Options
