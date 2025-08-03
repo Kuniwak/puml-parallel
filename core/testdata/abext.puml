@@ -1,0 +1,10 @@
+@startuml
+
+state "(a→SKIP)□(b→SKIP)" as abext0
+state "SKIP" as abext1
+
+[*] --> abext0 : true
+abext0 --> abext1 : a ; true ; true
+abext0 --> abext1 : b ; true ; true
+
+@enduml

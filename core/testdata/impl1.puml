@@ -1,0 +1,14 @@
+@startuml
+
+state "0" as s0
+state "1" as s1
+state "2" as s2
+state "3" as s3
+
+[*] --> s0 : nothing
+s0 --> s1 : nondeterministic ; true ; true
+s0 --> s2 : nondeterministic ; false ; true
+s1 --> s3 : a ; true ; true
+s2 --> s3 : b ; true ; true
+
+@enduml

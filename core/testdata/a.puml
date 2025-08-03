@@ -1,0 +1,10 @@
+@startuml
+
+state "0" as a0
+state "1" as a1
+
+[*] --> a0 : true
+a0 --> a1 : a ; true ; true
+
+
+@enduml

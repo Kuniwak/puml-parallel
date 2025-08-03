@@ -1,0 +1,14 @@
+@startuml
+
+state "(a→SKIP)⨅(b→SKIP)" as abint0
+state "a→SKIP" as abint1
+state "b→SKIP" as abint2
+state "SKIP" as abint3
+
+[*] --> abint0 : true
+abint0 --> abint1 : tau ; true ; true
+abint0 --> abint2 : tau ; false ; true
+abint1 --> abint3 : a ; true ; true
+abint2 --> abint3 : b ; true ; true
+
+@enduml
