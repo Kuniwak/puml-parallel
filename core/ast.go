@@ -10,6 +10,8 @@ type StateID ID
 
 type EventID ID
 
+const EventIDTau = "tau"
+
 type Var ID
 
 const True = "true"
@@ -42,6 +44,10 @@ type Edge struct {
 type Event struct {
 	ID     EventID
 	Params []Var
+}
+
+func (e Event) IsTau() bool {
+	return e.ID == EventIDTau
 }
 
 func (d *Diagram) String() string {
