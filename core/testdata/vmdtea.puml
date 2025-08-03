@@ -1,0 +1,10 @@
+@startuml
+
+state "coin→tea→VMDtea" as vmd0
+state "tea→VMDtea" as vmd1
+
+[*] --> vmd0 : true
+vmd0 --> vmd1 : coin ; true ; true
+vmd1 --> vmd0 : tea ; true ; true
+
+@enduml

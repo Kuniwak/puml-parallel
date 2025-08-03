@@ -1,0 +1,15 @@
+@startuml
+
+state "coin→((tea→VMI)⨅(coffee→VMI))" as vmi0
+state "(tea→VMI)⨅(coffee→VMI)" as vmi1
+state "tea→VMI" as vmi2
+state "coffee→VMI" as vmi3
+
+[*] --> vmi0 : true
+vmi0 --> vmi1 : coin ; true ; true
+vmi1 --> vmi2 : tau ; true ; true
+vmi1 --> vmi3 : tau ; true ; true
+vmi2 --> vmi0 : tea ; true ; true
+vmi3 --> vmi0 : coffee ; true ; true
+
+@enduml

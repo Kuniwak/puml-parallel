@@ -1,0 +1,14 @@
+@startuml
+
+state "coin→tea→coin→coffee→VMDalt" as vmdalt0
+state "tea→coin→coffee→VMDalt" as vmdalt1
+state "coin→coffee→VMDalt" as vmdalt2
+state "coffee→VMDalt" as vmdalt3
+
+[*] --> vmdalt0 : true
+vmdalt0 --> vmdalt1 : coin ; true ; true
+vmdalt1 --> vmdalt2 : tea ; true ; true
+vmdalt2 --> vmdalt3 : coin ; true ; true
+vmdalt3 --> vmdalt0 : coffee ; true ; true
+
+@enduml
