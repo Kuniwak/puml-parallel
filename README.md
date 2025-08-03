@@ -30,10 +30,14 @@ The tool accepts PlantUML state diagram files in a specific Composable State Dia
 
 ## Project Structure
 
-- `core/` - Core parsing and composition logic
-- `examples/` - Sample PlantUML files
+- `core/` - Core parsing, composition, and refinement verification logic
+- `examples/` - Sample PlantUML files and demonstration scripts
+  - `examples/test_cases/` - Test cases for refinement verification
+  - `examples/demo/` - Educational demonstration scripts
 - `docs/` - Documentation including requirements and specifications
-- `tools/` - Additional parsing tools
+- `tools/` - Command-line tools
+  - `tools/puml-parallel/` - PlantUML composition tool  
+  - `tools/puml-refinement/` - Stable failures refinement verification tool
 
 ## Limitations
 
