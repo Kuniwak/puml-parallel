@@ -1,0 +1,7 @@
+@startuml
+
+state "STOP" as s0
+
+[*] --> s0 : nothing
+
+@enduml
