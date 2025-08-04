@@ -15,7 +15,7 @@ builds:
       - CGO_ENABLED=0
 
   - id: puml-parse
-    main: ./tools/parse/main.go
+    main: ./tools/puml-parse/main.go
     binary: puml-parse
     goos:
       - linux
@@ -28,8 +28,21 @@ builds:
       - CGO_ENABLED=0
 
   - id: puml-events
-    main: ./tools/events/main.go
+    main: ./tools/puml-events/main.go
     binary: puml-events
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
+  - id: puml-refinement
+    main: ./tools/puml-refinement/main.go
+    binary: puml-refinement
     goos:
       - linux
       - darwin
@@ -50,6 +63,7 @@ archives:
       - puml-parallel
       - puml-parse
       - puml-events
+      - puml-refinement
     files:
       - README.md
       - LICENSE*
