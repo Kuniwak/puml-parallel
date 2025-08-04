@@ -28,5 +28,5 @@ vmi [F= vmdalt
 vmi [F= vmd
 
 not (abint [F= stop)
-not (abint [F= a)
+not (abext [F= a)
 ```

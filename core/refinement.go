@@ -18,20 +18,24 @@ type ProofObligation struct {
 type ProofObligationType string
 
 const (
-	GuardWeakening           ProofObligationType = "guard_weakening"
-	PostconditionStrength    ProofObligationType = "postcondition_strengthening"
-	StateInvariant           ProofObligationType = "state_invariant"
+	// Stable Failures Model refinement proof obligations
 	StableFailuresRefinement ProofObligationType = "stable_failures_refinement"
 	TraceInclusion           ProofObligationType = "trace_inclusion"
 	RefusalSetInclusion      ProofObligationType = "refusal_set_inclusion"
+	
+	// Additional stable failures refinement checks
+	AlphabetConsistency      ProofObligationType = "alphabet_consistency"
+	InitialStateRefinement   ProofObligationType = "initial_state_refinement"
 )
 
-// RefContext provides context for refinement verification
+// RefContext provides context for CSP refinement verification
 type RefContext struct {
-	SpecState StateID
-	ImplState StateID
-	Event     EventID
-	StateVars map[StateID][]Var
+	SpecState    StateID
+	ImplState    StateID
+	Event        EventID
+	Trace        []EventID    // Current trace being analyzed
+	RefusalSet   []EventID    // Events refused in current state
+	IsStable     bool         // Whether current state is stable (no tau transitions)
 }
 
 // RefinementVerifier generates proof obligations for refinement verification
@@ -64,53 +68,25 @@ func NewStableFailuresVerifier(spec, impl *Diagram) *StableFailuresVerifier {
 	}
 }
 
-// GenerateProofObligations generates all proof obligations for refinement
+// GenerateProofObligations generates basic CSP refinement proof obligations
 func (rv *RefinementVerifier) GenerateProofObligations() ([]ProofObligation, error) {
 	var obligations []ProofObligation
 
-	// Generate obligations for corresponding transitions
-	specTransitions := rv.getTransitionMap(rv.specDiagram)
-	implTransitions := rv.getTransitionMap(rv.implDiagram)
-
-	for key, specEdge := range specTransitions {
-		if implEdge, exists := implTransitions[key]; exists {
-			// Generate guard weakening obligation
-			if specEdge.Guard != True && implEdge.Guard != True {
-				guardObligation := ProofObligation{
-					ID:          fmt.Sprintf("guard_%s_%s", specEdge.Src, specEdge.Event.ID),
-					Type:        GuardWeakening,
-					Description: fmt.Sprintf("Guard weakening for transition %s --%s--> %s", specEdge.Src, specEdge.Event.ID, specEdge.Dst),
-					Premise:     implEdge.Guard,
-					Conclusion:  specEdge.Guard,
-					Context: RefContext{
-						SpecState: specEdge.Src,
-						ImplState: implEdge.Src,
-						Event:     specEdge.Event.ID,
-						StateVars: rv.getAllStateVars(),
-					},
-				}
-				obligations = append(obligations, guardObligation)
-			}
-
-			// Generate postcondition strengthening obligation
-			if specEdge.Post != True && implEdge.Post != True {
-				postObligation := ProofObligation{
-					ID:          fmt.Sprintf("post_%s_%s", specEdge.Src, specEdge.Event.ID),
-					Type:        PostconditionStrength,
-					Description: fmt.Sprintf("Postcondition strengthening for transition %s --%s--> %s", specEdge.Src, specEdge.Event.ID, specEdge.Dst),
-					Premise:     specEdge.Post,
-					Conclusion:  implEdge.Post,
-					Context: RefContext{
-						SpecState: specEdge.Src,
-						ImplState: implEdge.Src,
-						Event:     specEdge.Event.ID,
-						StateVars: rv.getAllStateVars(),
-					},
-				}
-				obligations = append(obligations, postObligation)
-			}
-		}
+	// Generate initial state refinement obligation
+	initObligation := ProofObligation{
+		ID:          "initial_state_refinement",
+		Type:        InitialStateRefinement,
+		Description: "Implementation initial state must refine specification initial state",
+		Premise:     fmt.Sprintf("impl_init = %s", rv.implDiagram.StartEdge.Dst),
+		Conclusion:  fmt.Sprintf("spec_init = %s", rv.specDiagram.StartEdge.Dst),
+		Context: RefContext{
+			SpecState: rv.specDiagram.StartEdge.Dst,
+			ImplState: rv.implDiagram.StartEdge.Dst,
+			Trace:     []EventID{},
+			IsStable:  true,
+		},
 	}
+	obligations = append(obligations, initObligation)
 
 	return obligations, nil
 }
@@ -127,20 +103,6 @@ func (rv *RefinementVerifier) getTransitionMap(diagram *Diagram) map[string]Edge
 	return transitions
 }
 
-// getAllStateVars collects all state variables from both diagrams
-func (rv *RefinementVerifier) getAllStateVars() map[StateID][]Var {
-	stateVars := make(map[StateID][]Var)
-
-	for stateID, state := range rv.specDiagram.States {
-		stateVars[stateID] = state.Vars
-	}
-
-	for stateID, state := range rv.implDiagram.States {
-		stateVars[stateID] = state.Vars
-	}
-
-	return stateVars
-}
 
 // GenerateStableFailuresProofObligations generates proof obligations for stable failures refinement
 func (sfv *StableFailuresVerifier) GenerateStableFailuresProofObligations() ([]ProofObligation, error) {
@@ -160,12 +122,15 @@ func (sfv *StableFailuresVerifier) GenerateStableFailuresProofObligations() ([]P
 	}
 	obligations = append(obligations, refusalObligations...)
 
-	// Generate existing guard/postcondition obligations
-	basicObligations, err := sfv.GenerateProofObligations()
+	// Note: Divergence obligations are NOT generated for Stable Failures Model
+	// Divergence is only relevant in Failures-Divergences Model
+
+	// Generate alphabet consistency obligations
+	alphabetObligations, err := sfv.generateAlphabetConsistencyObligations()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate basic obligations: %w", err)
+		return nil, fmt.Errorf("failed to generate alphabet consistency obligations: %w", err)
 	}
-	obligations = append(obligations, basicObligations...)
+	obligations = append(obligations, alphabetObligations...)
 
 	return obligations, nil
 }
@@ -415,4 +380,92 @@ func FormatProofObligations(obligations []ProofObligation) string {
 	}
 
 	return sb.String()
+}
+
+// Note: generateDivergenceObligations is NOT used in Stable Failures Model
+// Stable Failures Model ignores divergent behaviors and focuses only on stable states
+
+// generateAlphabetConsistencyObligations generates obligations for alphabet consistency
+// In CSP: alphabets must be consistent for meaningful refinement
+func (sfv *StableFailuresVerifier) generateAlphabetConsistencyObligations() ([]ProofObligation, error) {
+	var obligations []ProofObligation
+
+	specAlphabet := sfv.extractAlphabet(sfv.specDiagram)
+	implAlphabet := sfv.extractAlphabet(sfv.implDiagram)
+
+	// Check if implementation alphabet is subset of specification alphabet
+	for _, implEvent := range implAlphabet {
+		found := false
+		for _, specEvent := range specAlphabet {
+			if implEvent == specEvent {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			obligation := ProofObligation{
+				ID:          fmt.Sprintf("alphabet_%s", implEvent),
+				Type:        AlphabetConsistency,
+				Description: fmt.Sprintf("Implementation event %s must be in specification alphabet", implEvent),
+				Premise:     fmt.Sprintf("impl_alphabet contains %s", implEvent),
+				Conclusion:  fmt.Sprintf("spec_alphabet contains %s", implEvent),
+				Context: RefContext{
+					Event: implEvent,
+				},
+			}
+			obligations = append(obligations, obligation)
+		}
+	}
+
+	return obligations, nil
+}
+
+// Helper methods for Stable Failures Model
+
+// findStableStates identifies states that are stable (no outgoing tau transitions)
+func (sfv *StableFailuresVerifier) findStableStates(diagram *Diagram) []StateID {
+	var stableStates []StateID
+
+	for stateID := range diagram.States {
+		if sfv.isStableState(diagram, stateID) {
+			stableStates = append(stableStates, stateID)
+		}
+	}
+
+	return stableStates
+}
+
+// isStableState checks if a state has no outgoing tau transitions
+func (sfv *StableFailuresVerifier) isStableState(diagram *Diagram, stateID StateID) bool {
+	for _, edge := range diagram.Edges {
+		if edge.Src == stateID && edge.Event.ID == "tau" {
+			return false // Found a tau transition, not stable
+		}
+	}
+	return true // No tau transitions found, state is stable
+}
+
+// statesCorrespond checks if implementation and specification states correspond
+// This is simplified - in practice requires sophisticated state mapping
+func (sfv *StableFailuresVerifier) statesCorrespond(implState, specState StateID) bool {
+	// Simplified correspondence - in practice this requires state bisimulation or mapping
+	return implState == specState
+}
+
+// extractAlphabet extracts the set of all events from a diagram
+func (sfv *StableFailuresVerifier) extractAlphabet(diagram *Diagram) []EventID {
+	eventSet := make(map[EventID]bool)
+	var alphabet []EventID
+
+	for _, edge := range diagram.Edges {
+		if edge.Event.ID != "tau" { // Exclude internal tau events from alphabet
+			if !eventSet[edge.Event.ID] {
+				eventSet[edge.Event.ID] = true
+				alphabet = append(alphabet, edge.Event.ID)
+			}
+		}
+	}
+
+	return alphabet
 }

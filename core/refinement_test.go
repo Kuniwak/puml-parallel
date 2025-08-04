@@ -29,14 +29,14 @@ func TestStableFailuresRefinement(t *testing.T) {
 			spec: createSpecGuardFail(),
 			impl: createImplGuardFail(), 
 			expectFail: true,
-			expectedType: GuardWeakening,
+			expectedType: TraceInclusion, // CSP-based: different traces may cause refinement failure
 		},
 		{
 			name: "Case 4: Postcondition Fails",
 			spec: createSpecPostFail(),
 			impl: createImplPostFail(),
 			expectFail: true,
-			expectedType: PostconditionStrength,
+			expectedType: RefusalSetInclusion, // CSP-based: different refusal sets may cause refinement failure
 		},
 	}
 
