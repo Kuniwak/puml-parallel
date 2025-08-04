@@ -1,0 +1,8 @@
+@startuml
+
+state "Aloop \ {a}" as tauloop0
+
+[*] --> tauloop0 : true
+tauloop0 --> tauloop0 : tau ; true ; true
+
+@enduml

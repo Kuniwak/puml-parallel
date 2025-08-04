@@ -1,0 +1,8 @@
+@startuml
+
+state "a→Aloop" as aloop0
+
+[*] --> aloop0 : true
+aloop0 --> aloop0 : a ; true ; true
+
+@enduml

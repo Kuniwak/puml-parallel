@@ -1,0 +1,9 @@
+@startuml
+
+state "AorTau" as aortau0
+
+[*] --> aortau0 : true
+aortau0 --> aortau0 : a ; true ; true
+aortau0 --> aortau0 : tau ; true ; true
+
+@enduml
