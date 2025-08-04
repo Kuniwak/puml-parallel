@@ -1,27 +1,6 @@
 {
   "permissions": {
-    "allow": [
-      "WebFetch(domain:plantuml.com)",
-      "Bash(actionlint:*)",
-      "Bash(diff:*)",
-      "Bash(echo:*)",
-      "Bash(ghalint run:*)",
-      "Bash(git clean:*)",
-      "Bash(git rm:*)",
-      "Bash(go build:*)",
-      "Bash(go run:*)",
-      "Bash(go test:*)",
-      "Bash(goreleaser build:*)",
-      "Bash(goreleaser check:*)",
-      "Bash(ls:*)",
-      "Bash(mkdir:*)",
-      "Bash(goreleaser release:*)",
-      "Bash(tar:*)"
-    ],
-    "deny": [
-      "Bash(cp:*)",
-      "Bash(mv:*)",
-      "Bash(rm:*)"
-    ]
+    "allow": [],
+    "deny": []
   }
 }
