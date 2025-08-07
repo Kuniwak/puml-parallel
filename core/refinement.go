@@ -166,7 +166,7 @@ func (sfv *StableFailuresVerifier) generateTraceInclusionObligations() ([]ProofO
 				Premise:     fmt.Sprintf("initial state is reachable AND trace %s exists in implementation", traceDisplay),
 				Conclusion:  fmt.Sprintf("trace %s must exist in specification", traceDisplay),
 				Context: RefContext{
-					StateVars: sfv.getAllStateVars(),
+					Trace: []EventID{},
 				},
 			}
 			obligations = append(obligations, obligation)
@@ -196,7 +196,7 @@ func (sfv *StableFailuresVerifier) generateRefusalSetObligations() ([]ProofOblig
 					Context: RefContext{
 						SpecState: stateID,
 						ImplState: stateID,
-						StateVars: sfv.getAllStateVars(),
+						Trace:     []EventID{},
 					},
 				}
 				obligations = append(obligations, obligation)
@@ -210,28 +210,40 @@ func (sfv *StableFailuresVerifier) generateRefusalSetObligations() ([]ProofOblig
 // Helper methods for stable failures verification
 func (sfv *StableFailuresVerifier) extractTraces(diagram *Diagram) []string {
 	var traces []string
-	visited := make(map[string]bool)
 	
 	// Find initial state
 	initialState := diagram.StartEdge.Dst
 	
-	// Extract all possible traces from initial state
-	sfv.extractTracesFromState(diagram, initialState, []string{}, &traces, visited)
+	// Use depth-limited search to extract traces up to a reasonable limit
+	maxDepth := 10 // Limit trace depth to prevent infinite loops
+	sfv.extractTracesWithDepthLimit(diagram, initialState, []string{}, &traces, make(map[StateID]bool), 0, maxDepth)
 	
 	// Add empty trace (initial state is reachable)
 	traces = append(traces, "")
 	
-	return traces
+	// Remove duplicates
+	return sfv.removeDuplicateTraces(traces)
 }
 
-// extractTracesFromState recursively extracts traces from a given state
-func (sfv *StableFailuresVerifier) extractTracesFromState(diagram *Diagram, currentState StateID, currentTrace []string, traces *[]string, visited map[string]bool) {
-	// Create a key for the current state and trace to avoid infinite loops
-	key := fmt.Sprintf("%s:%s", currentState, strings.Join(currentTrace, ","))
-	if visited[key] {
+// extractTracesWithDepthLimit extracts traces with depth limitation to prevent infinite loops
+func (sfv *StableFailuresVerifier) extractTracesWithDepthLimit(diagram *Diagram, currentState StateID, currentTrace []string, traces *[]string, pathVisited map[StateID]bool, depth int, maxDepth int) {
+	// Stop if we've reached maximum depth
+	if depth > maxDepth {
 		return
 	}
-	visited[key] = true
+	
+	// Stop if we've already visited this state in current path (cycle detection)
+	if pathVisited[currentState] {
+		// Add current trace as it represents a cycle-terminated path
+		if len(currentTrace) > 0 {
+			*traces = append(*traces, strings.Join(currentTrace, ","))
+		}
+		return
+	}
+	
+	// Mark current state as visited in this path
+	pathVisited[currentState] = true
+	defer func() { delete(pathVisited, currentState) }() // Backtrack on return
 	
 	// Add current trace if it's not empty
 	if len(currentTrace) > 0 {
@@ -243,16 +255,31 @@ func (sfv *StableFailuresVerifier) extractTracesFromState(diagram *Diagram, curr
 		if edge.Src == currentState {
 			if edge.Event.IsTau() {
 				// For tau transitions, don't add to trace but continue exploration
-				sfv.extractTracesFromState(diagram, edge.Dst, currentTrace, traces, visited)
+				sfv.extractTracesWithDepthLimit(diagram, edge.Dst, currentTrace, traces, pathVisited, depth, maxDepth)
 			} else {
 				// For visible events, add to trace and continue
 				newTrace := make([]string, len(currentTrace))
 				copy(newTrace, currentTrace)
 				newTrace = append(newTrace, string(edge.Event.ID))
-				sfv.extractTracesFromState(diagram, edge.Dst, newTrace, traces, visited)
+				sfv.extractTracesWithDepthLimit(diagram, edge.Dst, newTrace, traces, pathVisited, depth+1, maxDepth)
 			}
 		}
 	}
+}
+
+// removeDuplicateTraces removes duplicate traces from the slice
+func (sfv *StableFailuresVerifier) removeDuplicateTraces(traces []string) []string {
+	seen := make(map[string]bool)
+	result := []string{}
+	
+	for _, trace := range traces {
+		if !seen[trace] {
+			seen[trace] = true
+			result = append(result, trace)
+		}
+	}
+	
+	return result
 }
 
 func (sfv *StableFailuresVerifier) tracesMatch(trace1, trace2 string) bool {
@@ -368,13 +395,8 @@ func FormatProofObligations(obligations []ProofObligation) string {
 			sb.WriteString("\n")
 		}
 
-		if len(obligation.Context.StateVars) > 0 {
-			sb.WriteString("   State Variables:\n")
-			for stateID, vars := range obligation.Context.StateVars {
-				if len(vars) > 0 {
-					sb.WriteString(fmt.Sprintf("     %s: %v\n", stateID, vars))
-				}
-			}
+		if len(obligation.Context.RefusalSet) > 0 {
+			sb.WriteString(fmt.Sprintf("   Refusal Set: %v\n", obligation.Context.RefusalSet))
 		}
 		sb.WriteString("\n")
 	}
@@ -428,7 +450,7 @@ func (sfv *StableFailuresVerifier) findStableStates(diagram *Diagram) []StateID 
 	var stableStates []StateID
 
 	for stateID := range diagram.States {
-		if sfv.isStableState(diagram, stateID) {
+		if sfv.isStableStateInDiagram(diagram.States[stateID], diagram) {
 			stableStates = append(stableStates, stateID)
 		}
 	}
@@ -436,15 +458,6 @@ func (sfv *StableFailuresVerifier) findStableStates(diagram *Diagram) []StateID 
 	return stableStates
 }
 
-// isStableState checks if a state has no outgoing tau transitions
-func (sfv *StableFailuresVerifier) isStableState(diagram *Diagram, stateID StateID) bool {
-	for _, edge := range diagram.Edges {
-		if edge.Src == stateID && edge.Event.ID == "tau" {
-			return false // Found a tau transition, not stable
-		}
-	}
-	return true // No tau transitions found, state is stable
-}
 
 // statesCorrespond checks if implementation and specification states correspond
 // This is simplified - in practice requires sophisticated state mapping
