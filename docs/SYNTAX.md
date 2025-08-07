@@ -6,10 +6,11 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *edgeDecl "@enduml" LF
+diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *edgeDecl 0*1(endEdgeDecl) "@enduml" LF
 stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID *SP ":" *SP var LF)
 startEdgeDecl = "[*]" SP "-->" SP stateID 0*1(*SP ":" SP post) *SP 1*LF
 edgeDecl = stateID SP "-->" SP stateID *SP ":" *SP event 0*1(*SP ";" *SP guard 0*1(*SP ";" *SP post)) *SP 1*LF
+endEdgeDecl = stateID SP "-->" SP "[*]" *SP 1*LF
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
@@ -67,6 +68,10 @@ type Edge struct {
 	Event Event
 	Guard string
 	Post  string
+}
+
+type EndEdge struct {
+    Src StateID
 }
 
 type Event struct {

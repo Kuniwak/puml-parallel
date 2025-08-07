@@ -10,7 +10,10 @@ type StateID ID
 
 type EventID ID
 
-const EventIDTau = "tau"
+const (
+	EventIDTau  = "tau"
+	EventIDTick = "tick"
+)
 
 type Var ID
 
@@ -48,6 +51,10 @@ type Event struct {
 
 func (e Event) IsTau() bool {
 	return e.ID == EventIDTau
+}
+
+func (e Event) IsTick() bool {
+	return e.ID == EventIDTick
 }
 
 func (d *Diagram) String() string {
