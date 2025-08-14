@@ -2,10 +2,10 @@ package parse
 
 import (
 	"fmt"
+	"github.com/Kuniwak/puml-parallel/lts/syntax"
 	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
 )
 
 func MainCommandByArgs(args []string, inout *cli.ProcInout) int {
@@ -24,7 +24,7 @@ func MainCommand(inout *cli.ProcInout) error {
 	}
 
 	// Parse with parser
-	parser := core.NewParser(string(input))
+	parser := syntax.NewParser(string(input))
 	diagram, err := parser.Parse()
 	if err != nil {
 		return fmt.Errorf("parse error: %w", err)

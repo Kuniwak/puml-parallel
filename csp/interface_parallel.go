@@ -1,35 +1,36 @@
-package core
+package csp
 
 import (
 	"fmt"
+	"github.com/Kuniwak/puml-parallel/lts/syntax"
 )
 
 type StatePair struct {
-	Left  State
-	Right State
+	Left  syntax.State
+	Right syntax.State
 }
 
 type Trans struct {
-	Src   StateID
-	Dst   StateID
-	Event Event
+	Src   syntax.StateID
+	Dst   syntax.StateID
+	Event syntax.Event
 }
 
-func (s StatePair) ID() StateID {
+func (s StatePair) ID() syntax.StateID {
 	return ComposeStateIDs(s.Left.ID, s.Right.ID)
 }
 
-func (s StatePair) State() State {
-	return State{
+func (s StatePair) State() syntax.State {
+	return syntax.State{
 		ID:   s.ID(),
 		Name: ComposeStateNames(s.Left.Name, s.Right.Name),
-		Vars: append(append([]Var{}, s.Left.Vars...), s.Right.Vars...),
+		Vars: append(append([]syntax.Var{}, s.Left.Vars...), s.Right.Vars...),
 	}
 }
 
-func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) {
+func ComposeParallel(diagrams []syntax.Diagram, syncEvents []syntax.EventID) (syntax.Diagram, error) {
 	if len(diagrams) < 1 {
-		return Diagram{}, fmt.Errorf("at least one diagrams are required for interface parallel")
+		return syntax.Diagram{}, fmt.Errorf("at least one diagrams are required for interface parallel")
 	}
 
 	if len(diagrams) == 1 {
@@ -44,7 +45,7 @@ func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) 
 			var err error
 			dL, err = ComposeParallel2(dL, d, syncEvents)
 			if err != nil {
-				return Diagram{}, err
+				return syntax.Diagram{}, err
 			}
 		}
 	}
@@ -52,8 +53,8 @@ func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) 
 	return ComposeParallel2(dL, dR, syncEvents)
 }
 
-func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
-	ss := make(map[EventID]struct{})
+func ComposeParallel2(dL, dR syntax.Diagram, syncEvents []syntax.EventID) (syntax.Diagram, error) {
+	ss := make(map[syntax.EventID]struct{})
 	for _, event := range syncEvents {
 		ss[event] = struct{}{}
 	}
@@ -63,42 +64,42 @@ func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
 		Right: dR.States[dR.StartEdge.Dst],
 	}
 
-	states := make(map[StateID]State)
+	states := make(map[syntax.StateID]syntax.State)
 	states[initStatePair.ID()] = initStatePair.State()
 
-	out := Diagram{
+	out := syntax.Diagram{
 		States: states,
-		StartEdge: StartEdge{
+		StartEdge: syntax.StartEdge{
 			Dst:  initStatePair.ID(),
 			Post: ComposePostConditions(dL.StartEdge.Post, dR.StartEdge.Post),
 		},
-		Edges: make([]Edge, 0),
+		Edges: make([]syntax.Edge, 0),
 	}
 
-	marked := make(map[StateID]struct{})
+	marked := make(map[syntax.StateID]struct{})
 	marked[initStatePair.ID()] = struct{}{}
 	queue := []StatePair{initStatePair}
 	for len(queue) > 0 {
 		if err := composeParallel2(dL, dR, dL.Edges, dR.Edges, &queue, &marked, ss, &out); err != nil {
-			return Diagram{}, err
+			return syntax.Diagram{}, err
 		}
 	}
 	return out, nil
 }
 
-func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncEvents map[EventID]struct{}, out *Diagram) error {
+func composeParallel2(dL, dR syntax.Diagram, tsL, tsR []syntax.Edge, queue *[]StatePair, marked *map[syntax.StateID]struct{}, syncEvents map[syntax.EventID]struct{}, out *syntax.Diagram) error {
 	currentPair := (*queue)[0]
 	currentPairID := currentPair.ID()
 	*queue = (*queue)[1:]
 
-	evs := make(map[EventID]Event)
-	evL := make(map[EventID]map[StateID][]Edge)
-	evR := make(map[EventID]map[StateID][]Edge)
+	evs := make(map[syntax.EventID]syntax.Event)
+	evL := make(map[syntax.EventID]map[syntax.StateID][]syntax.Edge)
+	evR := make(map[syntax.EventID]map[syntax.StateID][]syntax.Edge)
 	for _, tL := range tsL {
 		if tL.Src == currentPair.Left.ID {
 			evs[tL.Event.ID] = tL.Event
 			if _, ok := evL[tL.Event.ID]; !ok {
-				evL[tL.Event.ID] = make(map[StateID][]Edge)
+				evL[tL.Event.ID] = make(map[syntax.StateID][]syntax.Edge)
 			}
 			evL[tL.Event.ID][tL.Dst] = append(evL[tL.Event.ID][tL.Dst], tL)
 		}
@@ -108,7 +109,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marke
 		if tR.Src == currentPair.Right.ID {
 			evs[tR.Event.ID] = tR.Event
 			if _, ok := evR[tR.Event.ID]; !ok {
-				evR[tR.Event.ID] = make(map[StateID][]Edge)
+				evR[tR.Event.ID] = make(map[syntax.StateID][]syntax.Edge)
 			}
 			evR[tR.Event.ID][tR.Dst] = append(evR[tR.Event.ID][tR.Dst], tR)
 		}
@@ -128,10 +129,10 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marke
 										Right: dR.States[dstR],
 									}
 									out.States[nextStatePair.ID()] = nextStatePair.State()
-									out.Edges = append(out.Edges, Edge{
+									out.Edges = append(out.Edges, syntax.Edge{
 										Src:   currentPairID,
 										Dst:   nextStatePair.ID(),
-										Event: Event{ID: ev},
+										Event: syntax.Event{ID: ev},
 										Guard: ComposeGuard(eL.Guard, eR.Guard),
 										Post:  ComposePostConditions(eL.Post, eR.Post),
 									})
@@ -157,7 +158,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marke
 						Right: currentPair.Right,
 					}
 					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
+					out.Edges = append(out.Edges, syntax.Edge{
 						Src:   currentPairID,
 						Dst:   nextStatePair.ID(),
 						Event: evs[ev],
@@ -181,7 +182,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marke
 						Right: dR.States[dstR],
 					}
 					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
+					out.Edges = append(out.Edges, syntax.Edge{
 						Src:   currentPairID,
 						Dst:   nextStatePair.ID(),
 						Event: evs[ev],
@@ -199,7 +200,7 @@ func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marke
 	return nil
 }
 
-func ComposeStateIDs(s1, s2 StateID) StateID {
+func ComposeStateIDs(s1, s2 syntax.StateID) syntax.StateID {
 	return s1 + "_" + s2
 }
 
@@ -208,20 +209,20 @@ func ComposeStateNames(s1, s2 string) string {
 }
 
 func ComposeGuard(g1, g2 string) string {
-	if g1 == "" || g1 == True {
+	if g1 == "" || g1 == syntax.True {
 		return g2
 	}
-	if g2 == "" || g2 == True {
+	if g2 == "" || g2 == syntax.True {
 		return g1
 	}
 	return g1 + " & " + g2
 }
 
 func ComposePostConditions(p1, p2 string) string {
-	if p1 == "" || p1 == True {
+	if p1 == "" || p1 == syntax.True {
 		return p2
 	}
-	if p2 == "" || p2 == True {
+	if p2 == "" || p2 == syntax.True {
 		return p1
 	}
 	return p1 + " & " + p2

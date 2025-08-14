@@ -1,4 +1,4 @@
-package core
+package syntax
 
 import (
 	"fmt"
@@ -478,28 +478,27 @@ func (p *Parser) skipLine() {
 	}
 }
 
-
 // parseEndEdge parses an end edge declaration: stateID --> [*] [: guard]
 func (p *Parser) parseEndEdge() (EndEdge, error) {
 	srcID, err := p.parseID()
 	if err != nil {
 		return EndEdge{}, err
 	}
-	
+
 	p.skipSpaces()
-	
+
 	if !p.expectString("-->") {
 		return EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
 	}
-	
+
 	p.skipSpaces()
-	
+
 	if !p.expectString("[*]") {
 		return EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
 	}
-	
+
 	p.skipSpaces()
-	
+
 	var guard string
 	// Check for optional guard condition
 	if p.peek() == ':' {
@@ -508,10 +507,10 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 		guard = p.parseUntilNewline()
 		// parseUntilNewline() leaves the position before newline, so we don't need to skip spaces again
 	}
-	
+
 	if !p.expectNewlines() {
 		return EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
-	
+
 	return EndEdge{Src: StateID(srcID), Guard: guard}, nil
 }

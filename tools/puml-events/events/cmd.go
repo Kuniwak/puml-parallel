@@ -4,11 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/Kuniwak/puml-parallel/lts/syntax"
 	"os"
 	"sort"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
 )
 
 type Options struct {
@@ -86,7 +86,7 @@ func MainCommandByOptions(opts *Options, inout *cli.ProcInout) error {
 
 func findAllEvents(filenames []string, inout *cli.ProcInout) error {
 	// Set to collect unique events
-	eventSet := make(map[core.EventID]struct{})
+	eventSet := make(map[syntax.EventID]struct{})
 
 	// Process each file
 	for _, filename := range filenames {
@@ -95,7 +95,7 @@ func findAllEvents(filenames []string, inout *cli.ProcInout) error {
 			return fmt.Errorf("reading file %s: %w", filename, err)
 		}
 
-		parser := core.NewParser(string(content))
+		parser := syntax.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
 			return fmt.Errorf("parsing file %s: %w", filename, err)
@@ -124,7 +124,7 @@ func findAllEvents(filenames []string, inout *cli.ProcInout) error {
 
 func findCommonEvents(filenames []string, inout *cli.ProcInout) error {
 	// Map to count occurrences of each event
-	eventCount := make(map[core.EventID]int)
+	eventCount := make(map[syntax.EventID]int)
 
 	// Process each file
 	for _, filename := range filenames {
@@ -133,14 +133,14 @@ func findCommonEvents(filenames []string, inout *cli.ProcInout) error {
 			return fmt.Errorf("reading file %s: %w", filename, err)
 		}
 
-		parser := core.NewParser(string(content))
+		parser := syntax.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
 			return fmt.Errorf("parsing file %s: %w", filename, err)
 		}
 
 		// Set to collect unique events per file
-		fileEvents := make(map[core.EventID]struct{})
+		fileEvents := make(map[syntax.EventID]struct{})
 		for _, edge := range diagram.Edges {
 			fileEvents[edge.Event.ID] = struct{}{}
 		}

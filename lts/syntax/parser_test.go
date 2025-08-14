@@ -1,4 +1,4 @@
-package core
+package syntax
 
 import (
 	"os"
@@ -7,22 +7,22 @@ import (
 )
 
 func TestParseValidExamples(t *testing.T) {
-	es1, err := os.ReadDir("../examples/valid")
+	es1, err := os.ReadDir("../../testdata")
 	if err != nil {
-		t.Fatalf("Failed to read examples directory: %v", err)
+		t.Fatalf("Failed to read testdata directory: %v", err)
 	}
 	ps1 := make([]string, len(es1))
 	for _, e := range es1 {
-		ps1 = append(ps1, filepath.Join("../examples/valid", e.Name()))
+		ps1 = append(ps1, filepath.Join("../../testdata", e.Name()))
 	}
 
-	es2, err := os.ReadDir("./testdata")
+	es2, err := os.ReadDir("../testdata")
 	if err != nil {
 		t.Fatalf("Failed to read testdata directory: %v", err)
 	}
 	ps2 := make([]string, len(es2))
 	for _, e := range es2 {
-		ps2 = append(ps2, filepath.Join("./testdata", e.Name()))
+		ps2 = append(ps2, filepath.Join("../testdata", e.Name()))
 	}
 
 	ps := append(ps1, ps2...)
@@ -54,11 +54,11 @@ func TestParseValidExamples(t *testing.T) {
 }
 
 func TestParseInvalidExamples(t *testing.T) {
-	examplesDir := "../examples/invalid"
+	examplesDir := "./testdata/invalid"
 
 	files, err := os.ReadDir(examplesDir)
 	if err != nil {
-		t.Fatalf("Failed to read examples directory: %v", err)
+		t.Fatalf("Failed to read testdata directory: %v", err)
 	}
 
 	for _, file := range files {
