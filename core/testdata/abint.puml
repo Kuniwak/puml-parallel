@@ -10,5 +10,6 @@ abint0 --> abint1 : tau ; true ; true
 abint0 --> abint2 : tau ; false ; true
 abint1 --> abint3 : a ; true ; true
 abint2 --> abint3 : b ; true ; true
+abint3 --> [*] : true
 
 @enduml

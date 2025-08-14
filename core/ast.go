@@ -46,7 +46,8 @@ type Edge struct {
 }
 
 type EndEdge struct {
-	Src StateID
+	Src   StateID
+	Guard string
 }
 
 type Event struct {

@@ -10,5 +10,6 @@ s0 --> s1 : nondeterministic ; true ; true
 s0 --> s2 : nondeterministic ; false ; true
 s1 --> s3 : a ; true ; true
 s2 --> s3 : b ; true ; true
+s3 --> [*] : true
 
 @enduml

@@ -1,9 +1,13 @@
 @startuml
 
-state "AorTau" as aortau0
+state "Aloop ⨅ Tauloop" as aortau0
+state "a → Aloop" as aortau1
+state "Aloop \ {a}" as aortau2
 
 [*] --> aortau0 : true
-aortau0 --> aortau0 : a ; true ; true
-aortau0 --> aortau0 : tau ; true ; true
+aortau0 --> aortau1 : tau ; true ; true
+aortau0 --> aortau2 : tau ; true ; true
+aortau1 --> aortau1 : a ; true ; true
+aortau2 --> aortau2 : tau ; true ; true
 
 @enduml

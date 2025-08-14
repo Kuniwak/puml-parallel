@@ -7,5 +7,6 @@ state "2" as s2
 [*] --> s0 : nothing
 s0 --> s1 : nondeterministic ; true ; true
 s1 --> s2 : a ; true ; true
+s2 --> [*] : true
 
 @enduml
