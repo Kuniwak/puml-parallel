@@ -1,7 +1,8 @@
-package syntax
+package puml
 
 import (
 	"fmt"
+	"github.com/Kuniwak/puml-parallel/lts/syntax"
 	"strings"
 )
 
@@ -21,10 +22,10 @@ func NewParser(input string) *Parser {
 	}
 }
 
-func (p *Parser) Parse() (*Diagram, error) {
-	diagram := &Diagram{
-		States: make(map[StateID]State),
-		Edges:  []Edge{},
+func (p *Parser) Parse() (*syntax.Diagram, error) {
+	diagram := &syntax.Diagram{
+		States: make(map[syntax.StateID]syntax.State),
+		Edges:  []syntax.Edge{},
 	}
 
 	if !p.expectString("@startuml") {
@@ -81,36 +82,36 @@ func (p *Parser) Parse() (*Diagram, error) {
 	return diagram, nil
 }
 
-func (p *Parser) parseState() (State, error) {
+func (p *Parser) parseState() (syntax.State, error) {
 	if !p.expectString("state") {
-		return State{}, fmt.Errorf("expected 'state' at line %d, col %d", p.line, p.col)
+		return syntax.State{}, fmt.Errorf("expected 'state' at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
 	name, err := p.parseStateName()
 	if err != nil {
-		return State{}, err
+		return syntax.State{}, err
 	}
 	p.skipSpaces()
 
 	if !p.expectString("as") {
-		return State{}, fmt.Errorf("expected 'as' at line %d, col %d", p.line, p.col)
+		return syntax.State{}, fmt.Errorf("expected 'as' at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
 	id, err := p.parseID()
 	if err != nil {
-		return State{}, err
+		return syntax.State{}, err
 	}
 
-	state := State{
-		ID:   StateID(id),
+	state := syntax.State{
+		ID:   syntax.StateID(id),
 		Name: name,
-		Vars: []Var{},
+		Vars: []syntax.Var{},
 	}
 
 	if !p.expectNewlines() {
-		return State{}, fmt.Errorf("expected newline after state declaration at line %d, col %d", p.line, p.col)
+		return syntax.State{}, fmt.Errorf("expected newline after state declaration at line %d, col %d", p.line, p.col)
 	}
 
 	for !p.isAtEnd() && !p.peekString("@enduml") && !p.peekString("state") && !p.isStateID() {
@@ -118,20 +119,20 @@ func (p *Parser) parseState() (State, error) {
 			// Parse stateID : var
 			_, err := p.parseID() // Should match state.ID
 			if err != nil {
-				return State{}, err
+				return syntax.State{}, err
 			}
 			p.skipSpaces()
 			if !p.expectChar(':') {
-				return State{}, fmt.Errorf("expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
+				return syntax.State{}, fmt.Errorf("expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
 			}
 			p.skipSpaces()
 			varName, err := p.parseID()
 			if err != nil {
-				return State{}, err
+				return syntax.State{}, err
 			}
-			state.Vars = append(state.Vars, Var(varName))
+			state.Vars = append(state.Vars, syntax.Var(varName))
 			if !p.expectNewlines() {
-				return State{}, fmt.Errorf("expected newline after variable declaration at line %d, col %d", p.line, p.col)
+				return syntax.State{}, fmt.Errorf("expected newline after variable declaration at line %d, col %d", p.line, p.col)
 			}
 		} else {
 			break
@@ -175,20 +176,20 @@ func (p *Parser) parseStateName() (string, error) {
 	return result.String(), nil
 }
 
-func (p *Parser) parseStartEdge() (StartEdge, error) {
+func (p *Parser) parseStartEdge() (syntax.StartEdge, error) {
 	if !p.expectString("[*]") {
-		return StartEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+		return syntax.StartEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
 	if !p.expectString("-->") {
-		return StartEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+		return syntax.StartEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
 	dst, err := p.parseID()
 	if err != nil {
-		return StartEdge{}, fmt.Errorf("expected destination state ID after '-->' in start edge at line %d, col %d", p.line, p.col)
+		return syntax.StartEdge{}, fmt.Errorf("expected destination state ID after '-->' in start edge at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
@@ -200,41 +201,41 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 	}
 
 	if !p.expectNewlines() {
-		return StartEdge{}, fmt.Errorf("expected newline after start edge declaration at line %d, col %d", p.line, p.col)
+		return syntax.StartEdge{}, fmt.Errorf("expected newline after start edge declaration at line %d, col %d", p.line, p.col)
 	}
 
-	return StartEdge{
-		Dst:  StateID(dst),
+	return syntax.StartEdge{
+		Dst:  syntax.StateID(dst),
 		Post: post,
 	}, nil
 }
 
-func (p *Parser) parseEdge() (Edge, error) {
+func (p *Parser) parseEdge() (syntax.Edge, error) {
 	src, err := p.parseID()
 	if err != nil {
-		return Edge{}, err
+		return syntax.Edge{}, err
 	}
 	p.skipSpaces()
 
 	if !p.expectString("-->") {
-		return Edge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+		return syntax.Edge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
 	dst, err := p.parseID()
 	if err != nil {
-		return Edge{}, err
+		return syntax.Edge{}, err
 	}
 	p.skipSpaces()
 
 	if !p.expectChar(':') {
-		return Edge{}, fmt.Errorf("expected ':' at line %d, col %d", p.line, p.col)
+		return syntax.Edge{}, fmt.Errorf("expected ':' at line %d, col %d", p.line, p.col)
 	}
 	p.skipSpaces()
 
 	event, err := p.parseEvent()
 	if err != nil {
-		return Edge{}, err
+		return syntax.Edge{}, err
 	}
 	p.skipSpaces()
 
@@ -255,27 +256,27 @@ func (p *Parser) parseEdge() (Edge, error) {
 	}
 
 	if !p.expectNewlines() {
-		return Edge{}, fmt.Errorf("expected newline after edge declaration at line %d, col %d", p.line, p.col)
+		return syntax.Edge{}, fmt.Errorf("expected newline after edge declaration at line %d, col %d", p.line, p.col)
 	}
 
-	return Edge{
-		Src:   StateID(src),
-		Dst:   StateID(dst),
+	return syntax.Edge{
+		Src:   syntax.StateID(src),
+		Dst:   syntax.StateID(dst),
 		Event: event,
 		Guard: guard,
 		Post:  post,
 	}, nil
 }
 
-func (p *Parser) parseEvent() (Event, error) {
+func (p *Parser) parseEvent() (syntax.Event, error) {
 	eventID, err := p.parseID()
 	if err != nil {
-		return Event{}, fmt.Errorf("expected event ID after ':' in edge at line %d, col %d", p.line, p.col)
+		return syntax.Event{}, fmt.Errorf("expected event ID after ':' in edge at line %d, col %d", p.line, p.col)
 	}
 
-	event := Event{
-		ID:     EventID(eventID),
-		Params: []Var{},
+	event := syntax.Event{
+		ID:     syntax.EventID(eventID),
+		Params: []syntax.Var{},
 	}
 
 	if p.peek() == '(' {
@@ -285,9 +286,9 @@ func (p *Parser) parseEvent() (Event, error) {
 		if p.peek() != ')' {
 			param, err := p.parseID()
 			if err != nil {
-				return Event{}, err
+				return syntax.Event{}, err
 			}
-			event.Params = append(event.Params, Var(param))
+			event.Params = append(event.Params, syntax.Var(param))
 			p.skipSpaces()
 
 			for p.peek() == ',' {
@@ -295,15 +296,15 @@ func (p *Parser) parseEvent() (Event, error) {
 				p.skipSpaces()
 				param, err := p.parseID()
 				if err != nil {
-					return Event{}, err
+					return syntax.Event{}, err
 				}
-				event.Params = append(event.Params, Var(param))
+				event.Params = append(event.Params, syntax.Var(param))
 				p.skipSpaces()
 			}
 		}
 
 		if !p.expectChar(')') {
-			return Event{}, fmt.Errorf("expected ')' at line %d, col %d", p.line, p.col)
+			return syntax.Event{}, fmt.Errorf("expected ')' at line %d, col %d", p.line, p.col)
 		}
 	}
 
@@ -344,7 +345,7 @@ func (p *Parser) parseUntilNewline() string {
 }
 
 func (p *Parser) isIDChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
+	return (c >= 'a' && c <= 'z') || (c >= 'Event' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
 }
 
 func (p *Parser) isStateID() bool {
@@ -479,22 +480,22 @@ func (p *Parser) skipLine() {
 }
 
 // parseEndEdge parses an end edge declaration: stateID --> [*] [: guard]
-func (p *Parser) parseEndEdge() (EndEdge, error) {
+func (p *Parser) parseEndEdge() (syntax.EndEdge, error) {
 	srcID, err := p.parseID()
 	if err != nil {
-		return EndEdge{}, err
+		return syntax.EndEdge{}, err
 	}
 
 	p.skipSpaces()
 
 	if !p.expectString("-->") {
-		return EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+		return syntax.EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
 	}
 
 	p.skipSpaces()
 
 	if !p.expectString("[*]") {
-		return EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+		return syntax.EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
 	}
 
 	p.skipSpaces()
@@ -509,8 +510,8 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	}
 
 	if !p.expectNewlines() {
-		return EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
+		return syntax.EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
 
-	return EndEdge{Src: StateID(srcID), Guard: guard}, nil
+	return syntax.EndEdge{Src: syntax.StateID(srcID), Guard: guard}, nil
 }

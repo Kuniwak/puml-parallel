@@ -2,11 +2,24 @@ package syntax
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
 type ID string
 type StateID ID
+
+func (s StateID) String() string {
+	return string(s)
+}
+
+func (s StateID) WriteTo(w io.Writer) (int64, error) {
+	n, err := io.WriteString(w, string(s))
+	if err != nil {
+		return 0, err
+	}
+	return int64(n), nil
+}
 
 type EventID ID
 
@@ -18,13 +31,6 @@ const (
 type Var ID
 
 const True = "true"
-
-type Diagram struct {
-	States    map[StateID]State
-	StartEdge StartEdge
-	Edges     []Edge
-	EndEdge   *EndEdge // Optional end edge
-}
 
 type State struct {
 	ID   StateID
@@ -61,6 +67,13 @@ func (e Event) IsTau() bool {
 
 func (e Event) IsTick() bool {
 	return e.ID == EventIDTick
+}
+
+type Diagram struct {
+	States    map[StateID]State
+	StartEdge StartEdge
+	Edges     []Edge
+	EndEdge   *EndEdge // Optional end edge
 }
 
 func (d *Diagram) String() string {

@@ -2,7 +2,7 @@ package parse
 
 import (
 	"fmt"
-	"github.com/Kuniwak/puml-parallel/lts/syntax"
+	"github.com/Kuniwak/puml-parallel/lts/syntax/puml"
 	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -24,7 +24,7 @@ func MainCommand(inout *cli.ProcInout) error {
 	}
 
 	// Parse with parser
-	parser := syntax.NewParser(string(input))
+	parser := puml.NewParser(string(input))
 	diagram, err := parser.Parse()
 	if err != nil {
 		return fmt.Errorf("parse error: %w", err)

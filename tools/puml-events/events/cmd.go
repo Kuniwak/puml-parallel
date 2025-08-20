@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Kuniwak/puml-parallel/lts/syntax"
+	"github.com/Kuniwak/puml-parallel/lts/syntax/puml"
 	"os"
 	"sort"
 
@@ -95,7 +96,7 @@ func findAllEvents(filenames []string, inout *cli.ProcInout) error {
 			return fmt.Errorf("reading file %s: %w", filename, err)
 		}
 
-		parser := syntax.NewParser(string(content))
+		parser := puml.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
 			return fmt.Errorf("parsing file %s: %w", filename, err)
@@ -133,7 +134,7 @@ func findCommonEvents(filenames []string, inout *cli.ProcInout) error {
 			return fmt.Errorf("reading file %s: %w", filename, err)
 		}
 
-		parser := syntax.NewParser(string(content))
+		parser := puml.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
 			return fmt.Errorf("parsing file %s: %w", filename, err)

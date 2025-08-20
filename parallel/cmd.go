@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Kuniwak/puml-parallel/csp"
 	"github.com/Kuniwak/puml-parallel/lts/syntax"
+	"github.com/Kuniwak/puml-parallel/lts/syntax/puml"
 	"os"
 	"strings"
 
@@ -26,7 +27,7 @@ func ParseOptions(args []string, inout *cli.ProcInout) (*Options, error) {
 
 	flags.Usage = func() {
 		fmt.Fprintf(inout.Stderr, "Usage: puml-parallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...\n\n")
-		fmt.Fprintf(inout.Stderr, "A tool for composing multiple PlantUML state diagrams in parallel with synchronization events.\n\n")
+		fmt.Fprintf(inout.Stderr, "Event tool for composing multiple PlantUML state diagrams in parallel with synchronization events.\n\n")
 		fmt.Fprintf(inout.Stderr, "OPTIONS:\n")
 		flags.PrintDefaults()
 		fmt.Fprintf(inout.Stderr, "\nEXAMPLES:\n")
@@ -92,7 +93,7 @@ func MainCommandByOptions(opts *Options, inout *cli.ProcInout) error {
 			return fmt.Errorf("reading file %s: %w", filename, err)
 		}
 
-		parser := syntax.NewParser(string(content))
+		parser := puml.NewParser(string(content))
 		diagram, err := parser.Parse()
 		if err != nil {
 			return fmt.Errorf("parsing file %s: %w", filename, err)
