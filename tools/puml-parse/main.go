@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/pngsrc"
 	"io"
 	"os"
 )
@@ -25,8 +26,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	source, err := pngsrc.Extract(input)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error reading PlantUML source: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Parse with parser
-	parser := core.NewParser(string(input))
+	parser := core.NewParser(source)
 	diagram, err := parser.Parse()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
