@@ -1,9 +1,9 @@
 version: 2
 
 builds:
-  - id: puml-parallel
+  - id: csdfparallel
     main: ./main.go
-    binary: puml-parallel
+    binary: csdfparallel
     goos:
       - linux
       - darwin
@@ -14,9 +14,9 @@ builds:
     env:
       - CGO_ENABLED=0
 
-  - id: puml-parse
-    main: ./tools/puml-parse/main.go
-    binary: puml-parse
+  - id: csdfparse
+    main: ./tools/csdfparse/main.go
+    binary: csdfparse
     goos:
       - linux
       - darwin
@@ -27,9 +27,9 @@ builds:
     env:
       - CGO_ENABLED=0
 
-  - id: puml-events
-    main: ./tools/puml-events/main.go
-    binary: puml-events
+  - id: csdfevents
+    main: ./tools/csdfevents/main.go
+    binary: csdfevents
     goos:
       - linux
       - darwin
@@ -45,11 +45,11 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-    name_template: "puml-parallel_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "csdfparallel_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids:
-      - puml-parallel
-      - puml-parse
-      - puml-events
+      - csdfparallel
+      - csdfparse
+      - csdfevents
     files:
       - README.md
       - LICENSE*
