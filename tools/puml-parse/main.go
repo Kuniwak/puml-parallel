@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/Kuniwak/puml-parallel/core"
 	"io"
@@ -8,6 +9,15 @@ import (
 )
 
 func main() {
+	flag.Usage = func() {
+		_, _ = fmt.Fprintf(os.Stderr, "Usage: %s < <file.puml>\n", os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "Parses a PlantUML state diagram from stdin and prints the parsed structure.\n")
+		_, _ = fmt.Fprintf(os.Stderr, "\nExamples:\n")
+		_, _ = fmt.Fprintf(os.Stderr, "  $ %s < path/to/file.puml\n", os.Args[0])
+		_, _ = fmt.Fprintf(os.Stderr, "  $ cat path/to/file.puml | %s\n", os.Args[0])
+	}
+	flag.Parse()
+
 	// Read from standard input
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
