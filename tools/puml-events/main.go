@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/pngsrc"
 	"os"
 	"sort"
 )
@@ -37,7 +38,13 @@ func findAllEvents(filenames []string) {
 			os.Exit(1)
 		}
 
-		parser := core.NewParser(string(content))
+		source, err := pngsrc.Extract(content)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error reading PlantUML source from %s: %v\n", filename, err)
+			os.Exit(1)
+		}
+
+		parser := core.NewParser(source)
 		diagram, err := parser.Parse()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filename, err)
@@ -80,7 +87,13 @@ func findCommonEvents(filenames []string) {
 			os.Exit(1)
 		}
 
-		parser := core.NewParser(string(content))
+		source, err := pngsrc.Extract(content)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error reading PlantUML source from %s: %v\n", filename, err)
+			os.Exit(1)
+		}
+
+		parser := core.NewParser(source)
 		diagram, err := parser.Parse()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Error parsing file %s: %v\n", filename, err)
