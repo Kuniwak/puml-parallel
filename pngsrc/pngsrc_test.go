@@ -102,6 +102,108 @@ func TestExtract(t *testing.T) {
 	}
 }
 
+func TestPNGTextChunks(t *testing.T) {
+	t.Run("non-PNG input yields no chunks", func(t *testing.T) {
+		var got []PNGTextChunk
+		var gotErr error
+		for c, err := range PNGTextChunks([]byte("not a png")) {
+			gotErr = err
+			got = append(got, c)
+		}
+		if gotErr != nil {
+			t.Fatalf("unexpected error: %v", gotErr)
+		}
+		if len(got) != 0 {
+			t.Fatalf("want empty sequence, got %d chunks", len(got))
+		}
+	})
+
+	t.Run("yields all text chunks in order", func(t *testing.T) {
+		input := buildPNG(
+			tEXt("Author", "alice"),
+			zTXt("plantuml", "@startuml\n@enduml"),
+			iTXt("Note", false, "ignore me"),
+			iendChunk(),
+		)
+		var got []PNGTextChunk
+		for c, err := range PNGTextChunks(input) {
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got = append(got, c)
+		}
+		want := []PNGTextChunk{
+			{Keyword: "Author", Text: "alice"},
+			{Keyword: "plantuml", Text: "@startuml\n@enduml"},
+			{Keyword: "Note", Text: "ignore me"},
+		}
+		if len(got) != len(want) {
+			t.Fatalf("got %d chunks, want %d (got=%+v)", len(got), len(want), got)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("chunk %d: got %+v, want %+v", i, got[i], want[i])
+			}
+		}
+	})
+
+	t.Run("stops at IEND", func(t *testing.T) {
+		input := buildPNG(
+			tEXt("Author", "alice"),
+			iendChunk(),
+			tEXt("AfterIEND", "should be ignored"),
+		)
+		var got []PNGTextChunk
+		for c, err := range PNGTextChunks(input) {
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got = append(got, c)
+		}
+		if len(got) != 1 || got[0].Keyword != "Author" {
+			t.Fatalf("want only the chunk before IEND, got %+v", got)
+		}
+	})
+
+	t.Run("malformed chunk surfaces error and terminates", func(t *testing.T) {
+		input := buildPNG(rawChunk{typ: "IHDR", data: bytes.Repeat([]byte{0}, 13), lenOverride: 0xFFFFFFF0})
+		var sawErr bool
+		var chunks int
+		for _, err := range PNGTextChunks(input) {
+			if err != nil {
+				sawErr = true
+				break
+			}
+			chunks++
+		}
+		if !sawErr {
+			t.Fatalf("want error item, got none (chunks=%d)", chunks)
+		}
+	})
+
+	t.Run("early break from caller stops iteration", func(t *testing.T) {
+		input := buildPNG(
+			tEXt("a", "1"),
+			tEXt("b", "2"),
+			tEXt("c", "3"),
+			iendChunk(),
+		)
+		var seen []string
+		for c, err := range PNGTextChunks(input) {
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			seen = append(seen, c.Keyword)
+			if c.Keyword == "b" {
+				break
+			}
+		}
+		if len(seen) != 2 || seen[0] != "a" || seen[1] != "b" {
+			t.Fatalf("want [a b], got %v", seen)
+		}
+	})
+}
+
 func TestExtractFromRealPlantUMLPNG(t *testing.T) {
 	pumlBytes, err := os.ReadFile("../examples/valid/client.puml")
 	if err != nil {
