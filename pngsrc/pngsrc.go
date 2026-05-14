@@ -143,7 +143,7 @@ func decodeZTXt(data []byte) (PNGTextChunk, bool, error) {
 	if rest[0] != 0 {
 		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: zTXt: unsupported compression method %d", rest[0])
 	}
-	text, err := inflateBounded(rest[1:])
+	text, err := InflateBounded(rest[1:], MaxDecompressedSize)
 	if err != nil {
 		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: zTXt: %w", err)
 	}
@@ -178,7 +178,7 @@ func decodeITXt(data []byte) (PNGTextChunk, bool, error) {
 	if compFlag == 0 {
 		return PNGTextChunk{Keyword: keyword, Text: string(rest)}, true, nil
 	}
-	text, err := inflateBounded(rest)
+	text, err := InflateBounded(rest, MaxDecompressedSize)
 	if err != nil {
 		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: %w", err)
 	}
@@ -193,19 +193,24 @@ func splitAtNUL(data []byte) (string, []byte, error) {
 	return string(data[:i]), data[i+1:], nil
 }
 
-func inflateBounded(compressed []byte) (string, error) {
+// InflateBounded decompresses zlib-encoded bytes with a hard cap on output
+// length, returning an error if the output would exceed max bytes.
+//
+// The cap defends against deflate-bomb inputs. Pass MaxDecompressedSize for
+// PNG text-chunk decoding; other callers may pick a different limit.
+func InflateBounded(compressed []byte, max int64) (string, error) {
 	r, err := zlib.NewReader(bytes.NewReader(compressed))
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = r.Close() }()
-	limited := io.LimitReader(r, MaxDecompressedSize+1)
+	limited := io.LimitReader(r, max+1)
 	out, err := io.ReadAll(limited)
 	if err != nil {
 		return "", err
 	}
-	if len(out) > MaxDecompressedSize {
-		return "", fmt.Errorf("decompressed text exceeds %d bytes", MaxDecompressedSize)
+	if int64(len(out)) > max {
+		return "", fmt.Errorf("decompressed text exceeds %d bytes", max)
 	}
 	return string(out), nil
 }

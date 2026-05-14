@@ -102,6 +102,67 @@ func TestExtract(t *testing.T) {
 	}
 }
 
+func TestInflateBounded(t *testing.T) {
+	compress := func(s string) []byte {
+		var buf bytes.Buffer
+		w := zlib.NewWriter(&buf)
+		_, _ = w.Write([]byte(s))
+		_ = w.Close()
+		return buf.Bytes()
+	}
+
+	cases := []struct {
+		name       string
+		compressed []byte
+		max        int64
+		want       string
+		wantErr    bool
+	}{
+		{
+			name:       "round-trips a small payload",
+			compressed: compress("hello world"),
+			max:        1024,
+			want:       "hello world",
+		},
+		{
+			name:       "exactly at max is accepted",
+			compressed: compress("ABCDE"),
+			max:        5,
+			want:       "ABCDE",
+		},
+		{
+			name:       "one byte over max is rejected",
+			compressed: compress("ABCDEF"),
+			max:        5,
+			wantErr:    true,
+		},
+		{
+			name:       "garbage input returns zlib error",
+			compressed: []byte("not zlib data"),
+			max:        1024,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := InflateBounded(tc.compressed, tc.max)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("want error, got nil (result=%q)", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPNGTextChunks(t *testing.T) {
 	t.Run("non-PNG input yields no chunks", func(t *testing.T) {
 		var got []PNGTextChunk
