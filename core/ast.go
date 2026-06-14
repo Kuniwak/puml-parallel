@@ -92,6 +92,14 @@ func (d *Diagram) String() string {
 		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
 	}
 
+	if d.EndEdge != nil {
+		sb.WriteString(fmt.Sprintf("%s --> [*]", d.EndEdge.Src))
+		if d.EndEdge.Guard != "" {
+			sb.WriteString(fmt.Sprintf(" : %s", d.EndEdge.Guard))
+		}
+		sb.WriteString("\n")
+	}
+
 	sb.WriteString("@enduml\n")
 	return sb.String()
 }

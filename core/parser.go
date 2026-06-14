@@ -39,6 +39,9 @@ func (p *Parser) Parse() (*Diagram, error) {
 		if p.isAtEnd() || p.peekString("@enduml") {
 			break
 		}
+		if diagram.EndEdge != nil {
+			return nil, fmt.Errorf("expected @enduml after end edge at line %d, col %d", p.line, p.col)
+		}
 
 		if p.peekString("state") {
 			state, err := p.parseState()
@@ -497,7 +500,10 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	var guard string
 	if p.expectChar(':') {
 		p.skipSpaces()
-		guard = p.parseUntilNewline()
+		guard = p.parseUntilSemicolon()
+		if p.peek() == ';' {
+			return EndEdge{}, fmt.Errorf("unexpected ';' in end edge guard at line %d, col %d", p.line, p.col)
+		}
 	}
 
 	if !p.expectNewlines() {

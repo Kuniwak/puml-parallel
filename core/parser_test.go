@@ -139,3 +139,74 @@ done --> [*]
 		})
 	}
 }
+
+func TestParseRejectsContentAfterEndEdge(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "duplicate end edge",
+			input: `@startuml
+state "Done" as done
+[*] --> done
+done --> [*]
+done --> [*]
+@enduml
+`,
+		},
+		{
+			name: "regular edge after end edge",
+			input: `@startuml
+state "Done" as done
+[*] --> done
+done --> [*]
+done --> done : retry
+@enduml
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(tt.input)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err == nil {
+				t.Fatal("Parse() error = nil, want content-after-end-edge rejection")
+			}
+			if diagram != nil {
+				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+			}
+
+			// Teardown: no resources to release.
+		})
+	}
+}
+
+func TestParseRejectsSemicolonInEndEdgeGuard(t *testing.T) {
+	// Setup
+	parser := NewParser(`@startuml
+state "Done" as done
+[*] --> done
+done --> [*] : left ; right
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err == nil {
+		t.Fatal("Parse() error = nil, want semicolon rejection")
+	}
+	if diagram != nil {
+		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+	}
+
+	// Teardown: no resources to release.
+}
