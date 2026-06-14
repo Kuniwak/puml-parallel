@@ -19,57 +19,65 @@ func main() {
 	}
 	flag.Parse()
 
+	if exitCode := Run(os.Stdin, os.Stdout, os.Stderr); exitCode != 0 {
+		os.Exit(exitCode)
+	}
+}
+
+func Run(stdin io.Reader, stdout, stderr io.Writer) int {
 	// Read from standard input
-	input, err := io.ReadAll(os.Stdin)
+	input, err := io.ReadAll(stdin)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
-		os.Exit(1)
+		_, _ = fmt.Fprintf(stderr, "Error reading from stdin: %v\n", err)
+		return 1
 	}
 
 	source, err := pngsrc.Extract(input)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error reading PlantUML source: %v\n", err)
-		os.Exit(1)
+		_, _ = fmt.Fprintf(stderr, "Error reading PlantUML source: %v\n", err)
+		return 1
 	}
 
 	// Parse with parser
 	parser := core.NewParser(source)
 	diagram, err := parser.Parse()
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Parse error: %v\n", err)
-		os.Exit(1)
+		_, _ = fmt.Fprintf(stderr, "Parse error: %v\n", err)
+		return 1
 	}
 
 	// Output parse result
-	fmt.Println("=== Parse Result ===")
-	fmt.Printf("States: %d\n", len(diagram.States))
+	_, _ = fmt.Fprintln(stdout, "=== Parse Result ===")
+	_, _ = fmt.Fprintf(stdout, "States: %d\n", len(diagram.States))
 	for id, state := range diagram.States {
-		fmt.Printf("  State %s: \"%s\"\n", id, state.Name)
+		_, _ = fmt.Fprintf(stdout, "  State %s: \"%s\"\n", id, state.Name)
 		for _, v := range state.Vars {
-			fmt.Printf("    var: %s\n", v)
+			_, _ = fmt.Fprintf(stdout, "    var: %s\n", v)
 		}
 	}
 
-	fmt.Printf("\nStart Edge:\n")
-	fmt.Printf("  [*] --> %s\n", diagram.StartEdge.Dst)
-	fmt.Printf("    Post: \"%s\"\n", diagram.StartEdge.Post)
+	_, _ = fmt.Fprintln(stdout, "\nStart Edge:")
+	_, _ = fmt.Fprintf(stdout, "  [*] --> %s\n", diagram.StartEdge.Dst)
+	_, _ = fmt.Fprintf(stdout, "    Post: \"%s\"\n", diagram.StartEdge.Post)
 
-	fmt.Printf("\nEdges: %d\n", len(diagram.Edges))
+	_, _ = fmt.Fprintf(stdout, "\nEdges: %d\n", len(diagram.Edges))
 	for i, edge := range diagram.Edges {
-		fmt.Printf("  Edge %d: %s --> %s\n", i+1, edge.Src, edge.Dst)
-		fmt.Printf("    Event: %s", edge.Event.ID)
+		_, _ = fmt.Fprintf(stdout, "  Edge %d: %s --> %s\n", i+1, edge.Src, edge.Dst)
+		_, _ = fmt.Fprintf(stdout, "    Event: %s", edge.Event.ID)
 		if len(edge.Event.Params) > 0 {
-			fmt.Printf("(")
+			_, _ = fmt.Fprint(stdout, "(")
 			for j, param := range edge.Event.Params {
 				if j > 0 {
-					fmt.Printf(", ")
+					_, _ = fmt.Fprint(stdout, ", ")
 				}
-				fmt.Printf("%s", param)
+				_, _ = fmt.Fprintf(stdout, "%s", param)
 			}
-			fmt.Printf(")")
+			_, _ = fmt.Fprint(stdout, ")")
 		}
-		fmt.Printf("\n")
-		fmt.Printf("    Guard: \"%s\"\n", edge.Guard)
-		fmt.Printf("    Post: \"%s\"\n", edge.Post)
+		_, _ = fmt.Fprintln(stdout)
+		_, _ = fmt.Fprintf(stdout, "    Guard: \"%s\"\n", edge.Guard)
+		_, _ = fmt.Fprintf(stdout, "    Post: \"%s\"\n", edge.Post)
 	}
+
+	return 0
 }
