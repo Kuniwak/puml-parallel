@@ -6,8 +6,8 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *edgeDecl 0*1(endEdgeDecl) "@enduml" LF
-stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID *SP ":" *SP var LF)
+diagram = "@startuml" *(SP DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE) LF *trivia 1*stateDecl startEdgeDecl *edgeDecl 0*1(endEdgeDecl) "@enduml" LF
+stateDecl = "state" SP stateName SP "as" SP stateID LF *(stateID *SP ":" *SP var *SP ";" *SP *unicode_char_except_semicolon LF)
 startEdgeDecl = "[*]" SP "-->" SP stateID 0*1(*SP ":" SP post) *SP 1*LF
 edgeDecl = stateID SP "-->" SP stateID *SP ":" *SP event 0*1(*SP ";" *SP guard 0*1(*SP ";" *SP post)) *SP 1*LF
 endEdgeDecl = stateID SP "-->" SP "[*]" 0*1(*SP ":" SP guard) *SP 1*LF
@@ -21,8 +21,14 @@ event = eventID 0*1("(" var 0*1("," SP var) ")")
 guard = *unicode_char_except_semicolon
 post = *unicode_char_except_semicolon
 id = 1*(ALPHA / DIGIT / "_" / "-")
-unicode_char_except_dquote_and_backslash = %x21 / %x23-5B / %x5D-7F / %x80-10FFFF
-unicode_char_except_semicolon = %x21-3A / %3C-7F / %x80-10FFFF
+trivia = *(LF / HTAB / SP / block_comment / line_comment )
+line_comment = "'" *unicode_char LF
+block_comment = "/'" *(unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
+unicode_char = %x20-7F / %x80-10FFFF
+unicode_char_except_dquote_and_backslash = %x20-21 / %x23-5B / %x5D-7F / %x80-10FFFF
+unicode_char_except_squote = %x20-26 / %x28-7F / %x80-10FFFF
+unicode_char_except_slash = %x20-2E / %x30-7F / %x80-10FFFF
+unicode_char_except_semicolon = %x20-3A / %3C-7F / %x80-10FFFF
 ```
 
 The following symbols are ABNF core rules:
