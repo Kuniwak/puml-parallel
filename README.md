@@ -35,6 +35,14 @@ $ csdfparse < diagram.png
 $ csdfparallel diagram1.png diagram2.puml
 ```
 
+`csdfparse` writes one JSON object followed by a newline. Its keys use
+`snake_case`, and optional end edges are represented by `null` when absent.
+
+```console
+$ csdfparse < examples/valid/skip.puml
+{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"}}
+```
+
 ## Project Structure
 
 - `core/` - Core parsing and composition logic

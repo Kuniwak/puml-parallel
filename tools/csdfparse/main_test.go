@@ -6,54 +6,34 @@ import (
 	"testing"
 )
 
-func TestRun(t *testing.T) {
-	tests := []struct {
-		name       string
-		input      string
-		wantOutput string
-	}{
-		{
-			name: "prints start edge",
-			input: `@startuml
-state "Start" as s0
-[*] --> s0
+func TestRunPrintsJSON(t *testing.T) {
+	// Setup
+	input := `@startuml
+state "Initial" as s0
+s0: ready
+state "Done" as s1
+[*] --> s0 : initialize
+s0 --> s1 : finish(result) ; ready ; done
+s1 --> [*] : complete
 @enduml
-`,
-			wantOutput: "Start Edge:\n  [*] --> s0\n",
-		},
-		{
-			name: "prints end edge",
-			input: `@startuml
-state "SKIP" as s0
-[*] --> s0
-s0 --> [*] : true
-@enduml
-`,
-			wantOutput: "End Edge:\n  s0 --> [*]\n    Guard: \"true\"\n",
-		},
+`
+	stdout := &bytes.Buffer{}
+	stderr := &bytes.Buffer{}
+	want := `{"states":{"s0":{"id":"s0","name":"Initial","vars":["ready"]},"s1":{"id":"s1","name":"Done","vars":[]}},"start_edge":{"dst":"s0","post":"initialize"},"edges":[{"src":"s0","dst":"s1","event":{"id":"finish","params":["result"]},"guard":"ready","post":"done"}],"end_edge":{"src":"s1","guard":"complete"}}` + "\n"
+
+	// Execute
+	exitCode := Run(strings.NewReader(input), stdout, stderr)
+
+	// Assert
+	if exitCode != 0 {
+		t.Errorf("Run() exit code = %d, want 0; stderr = %q", exitCode, stderr.String())
+	}
+	if stdout.String() != want {
+		t.Errorf("Run() stdout = %q, want %q", stdout.String(), want)
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("Run() stderr = %q, want empty", stderr.String())
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Setup
-			stdout := &bytes.Buffer{}
-			stderr := &bytes.Buffer{}
-
-			// Execute
-			exitCode := Run(strings.NewReader(tt.input), stdout, stderr)
-
-			// Assert
-			if exitCode != 0 {
-				t.Errorf("Run() exit code = %d, want 0; stderr = %q", exitCode, stderr.String())
-			}
-			if !strings.Contains(stdout.String(), tt.wantOutput) {
-				t.Errorf("Run() stdout = %q, want substring %q", stdout.String(), tt.wantOutput)
-			}
-			if stderr.Len() != 0 {
-				t.Errorf("Run() stderr = %q, want empty", stderr.String())
-			}
-
-			// Teardown: no resources to release.
-		})
-	}
+	// Teardown: no resources to release.
 }
