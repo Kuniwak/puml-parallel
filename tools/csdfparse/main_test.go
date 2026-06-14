@@ -21,6 +21,16 @@ state "Start" as s0
 `,
 			wantOutput: "Start Edge:\n  [*] --> s0\n",
 		},
+		{
+			name: "prints end edge",
+			input: `@startuml
+state "SKIP" as s0
+[*] --> s0
+s0 --> [*] : true
+@enduml
+`,
+			wantOutput: "End Edge:\n  s0 --> [*]\n    Guard: \"true\"\n",
+		},
 	}
 
 	for _, tt := range tests {

@@ -79,5 +79,11 @@ func Run(stdin io.Reader, stdout, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stdout, "    Post: \"%s\"\n", edge.Post)
 	}
 
+	if diagram.EndEdge != nil {
+		_, _ = fmt.Fprintln(stdout, "\nEnd Edge:")
+		_, _ = fmt.Fprintf(stdout, "  %s --> [*]\n", diagram.EndEdge.Src)
+		_, _ = fmt.Fprintf(stdout, "    Guard: \"%s\"\n", diagram.EndEdge.Guard)
+	}
+
 	return 0
 }
