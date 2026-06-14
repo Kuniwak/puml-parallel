@@ -82,3 +82,51 @@ func TestParseInvalidExamples(t *testing.T) {
 		}
 	}
 }
+
+func TestParseEndEdgeWithGuard(t *testing.T) {
+	input := `@startuml
+state "SKIP" as s0
+[*] --> s0
+s0 --> [*] : true
+@enduml
+`
+
+	diagram, err := NewParser(input).Parse()
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if diagram.EndEdge == nil {
+		t.Fatal("Parse() EndEdge = nil")
+	}
+	if diagram.EndEdge.Src != StateID("s0") {
+		t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, StateID("s0"))
+	}
+	if diagram.EndEdge.Guard != "true" {
+		t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, "true")
+	}
+}
+
+func TestParseEndEdgeWithoutGuard(t *testing.T) {
+	input := `@startuml
+state "Done" as done
+[*] --> done
+done --> [*]
+@enduml
+`
+
+	diagram, err := NewParser(input).Parse()
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	if diagram.EndEdge == nil {
+		t.Fatal("Parse() EndEdge = nil")
+	}
+	if diagram.EndEdge.Src != StateID("done") {
+		t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, StateID("done"))
+	}
+	if diagram.EndEdge.Guard != "" {
+		t.Errorf("Parse() EndEdge.Guard = %q, want empty", diagram.EndEdge.Guard)
+	}
+}

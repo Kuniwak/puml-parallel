@@ -1,0 +1,8 @@
+@startuml
+
+state "SKIP" as s0
+
+[*] --> s0
+s0 --> [*] : true
+
+@enduml

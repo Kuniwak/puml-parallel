@@ -18,6 +18,7 @@ type Diagram struct {
 	States    map[StateID]State
 	StartEdge StartEdge
 	Edges     []Edge
+	EndEdge   *EndEdge
 }
 
 type State struct {
@@ -37,6 +38,11 @@ type Edge struct {
 	Event Event
 	Guard string
 	Post  string
+}
+
+type EndEdge struct {
+	Src   StateID
+	Guard string
 }
 
 type Event struct {
