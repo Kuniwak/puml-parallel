@@ -34,3 +34,38 @@ func TestComposeParallelRejectsEndEdges(t *testing.T) {
 
 	// Teardown: no resources to release.
 }
+
+func TestStatePairPreservesStateVarTypes(t *testing.T) {
+	// Setup
+	pair := StatePair{
+		Left: State{
+			ID:   "left",
+			Name: "Left",
+			Vars: []StateVar{{Name: "ready", Type: "bool"}},
+		},
+		Right: State{
+			ID:   "right",
+			Name: "Right",
+			Vars: []StateVar{{Name: "count", Type: "int"}},
+		},
+	}
+
+	// Execute
+	state := pair.State()
+
+	// Assert
+	want := []StateVar{
+		{Name: "ready", Type: "bool"},
+		{Name: "count", Type: "int"},
+	}
+	if len(state.Vars) != len(want) {
+		t.Fatalf("StatePair.State() vars = %#v, want %#v", state.Vars, want)
+	}
+	for i := range want {
+		if state.Vars[i] != want[i] {
+			t.Errorf("StatePair.State() vars[%d] = %#v, want %#v", i, state.Vars[i], want[i])
+		}
+	}
+
+	// Teardown: no resources to release.
+}

@@ -12,6 +12,11 @@ type EventID ID
 
 type Var ID
 
+type StateVar struct {
+	Name Var    `json:"name"`
+	Type string `json:"type,omitempty"`
+}
+
 const True = "true"
 
 type Diagram struct {
@@ -22,9 +27,9 @@ type Diagram struct {
 }
 
 type State struct {
-	ID   StateID `json:"id"`
-	Name string  `json:"name"`
-	Vars []Var   `json:"vars"`
+	ID   StateID    `json:"id"`
+	Name string     `json:"name"`
+	Vars []StateVar `json:"vars"`
 }
 
 type StartEdge struct {
@@ -57,7 +62,11 @@ func (d *Diagram) String() string {
 	for _, state := range d.States {
 		sb.WriteString(fmt.Sprintf("state \"%s\" as %s\n", state.Name, state.ID))
 		for _, v := range state.Vars {
-			sb.WriteString(fmt.Sprintf("%s: %s\n", state.ID, v))
+			sb.WriteString(fmt.Sprintf("%s: %s", state.ID, v.Name))
+			if v.Type != "" {
+				sb.WriteString(fmt.Sprintf(" ; %s", v.Type))
+			}
+			sb.WriteString("\n")
 		}
 	}
 

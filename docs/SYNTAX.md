@@ -6,24 +6,41 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" 1*LF 1*stateDecl startEdgeDecl *edgeDecl 0*1(endEdgeDecl) "@enduml" LF
-stateDecl = "state" SP stateName SP "as" SP stateID 1*LF *(stateID *SP ":" *SP var LF)
-startEdgeDecl = "[*]" SP "-->" SP stateID 0*1(*SP ":" SP post) *SP 1*LF
-edgeDecl = stateID SP "-->" SP stateID *SP ":" *SP event 0*1(*SP ";" *SP guard 0*1(*SP ";" *SP post)) *SP 1*LF
-endEdgeDecl = stateID SP "-->" SP "[*]" 0*1(*SP ":" SP guard) *SP 1*LF
+diagram = "@startuml" inlineTrivia 0*1(diagramName) inlineTrivia LF trivia 1*(stateDecl trivia) startEdgeDecl trivia *(edgeDecl trivia) 0*1(endEdgeDecl trivia) "@enduml" LF
+diagramName = stateName
+stateDecl = "state" inlineSeparator stateName inlineSeparator "as" inlineSeparator stateID inlineTrivia LF trivia *(stateVarDecl trivia)
+stateVarDecl = stateID inlineTrivia ":" inlineTrivia var inlineTrivia 0*1(";" inlineTrivia varType) LF
+startEdgeDecl = "[*]" inlineSeparator "-->" inlineSeparator stateID 0*1(inlineTrivia ":" inlineSeparator post) inlineTrivia LF
+edgeDecl = stateID inlineSeparator "-->" inlineSeparator stateID inlineTrivia ":" inlineTrivia event 0*1(inlineTrivia ";" inlineTrivia guard 0*1(inlineTrivia ";" inlineTrivia post)) inlineTrivia LF
+endEdgeDecl = stateID inlineSeparator "-->" inlineSeparator "[*]" 0*1(inlineTrivia ":" inlineSeparator guard) inlineTrivia LF
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
 stateID = id
 var = id
+varType = *textElement
 eventID = id
-event = eventID 0*1("(" var 0*1("," SP var) ")")
-guard = *unicode_char_except_semicolon
-post = *unicode_char_except_semicolon
+event = eventID 0*1("(" inlineTrivia var *(inlineTrivia "," inlineTrivia var) inlineTrivia ")")
+guard = *textElement
+post = *textElement
+textElement = unicode_char_except_semicolon / block_comment
 id = 1*(ALPHA / DIGIT / "_" / "-")
-unicode_char_except_dquote_and_backslash = %x21 / %x23-5B / %x5D-7F / %x80-10FFFF
-unicode_char_except_semicolon = %x21-3A / %3C-7F / %x80-10FFFF
+trivia = *(LF / HTAB / SP / block_comment / line_comment)
+inlineTrivia = *(HTAB / SP / block_comment)
+inlineSeparator = 1*(HTAB / SP / block_comment)
+line_comment = "'" *unicode_char LF
+block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
+unicode_char = %x20-7F / %x80-10FFFF
+unicode_char_except_dquote_and_backslash = %x20-21 / %x23-5B / %x5D-7F / %x80-10FFFF
+unicode_char_except_squote = %x20-26 / %x28-7F / %x80-10FFFF
+unicode_char_except_slash = %x20-2E / %x30-7F / %x80-10FFFF
+unicode_char_except_semicolon = %x20-3A / %x3C-7F / %x80-10FFFF
 ```
+
+Line comments are accepted between declarations and state-variable lines.
+Block comments are accepted wherever horizontal whitespace is accepted, including
+inside `varType`, `guard`, and `post`. Comments are discarded while parsing.
+Comment delimiters inside double-quoted strings are treated as ordinary text.
 
 The following symbols are ABNF core rules:
 
@@ -45,6 +62,11 @@ type StateID ID
 type EventID ID
 type Var ID
 
+type StateVar struct {
+	Name Var
+	Type string
+}
+
 type Diagram struct {
 	State     map[StateID]State
 	StartEdge StartEdge
@@ -55,7 +77,7 @@ type Diagram struct {
 type State struct {
 	ID   StateID
 	Name string
-	Vars []Var
+	Vars []StateVar
 }
 
 type StartEdge struct {
@@ -88,7 +110,9 @@ Semantics
 | Syntax Element                             | Corresponding Type | Meaning                                                                                                                                                                  |
 |:-------------------------------------------|:-------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `diagram`                                  | `Diagram`          | Represents a declaration of a state transition model.                                                                                                                    |
+| `diagramName`                              | N/A                | Optional PlantUML diagram name. It is accepted but not retained in the AST.                                                                                               |
 | `stateDecl`                                | `State`            | Represents a state declaration.                                                                                                                                          |
+| `stateVarDecl`                             | `StateVar`         | Represents a state variable name and its optional type.                                                                                                                   |
 | `startEdgeDecl`                            | `Edge`             | Represents a declaration of transition to the initial state.                                                                                                             |
 | `edgeDecl`                                 | `Edge`             | Represents a declaration of a directed edge.                                                                                                                             |
 | `endEdgeDecl`                              | `EndEdge`          | Represents a declaration of transition to the end state.                                                                                                                 |
@@ -97,9 +121,14 @@ Semantics
 | `escape_dquote`                            | `rune`             | Represents `"`.                                                                                                                                                          |
 | `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
+| `varType`                                  | `string`           | Represents an optional state-variable type. Leading and trailing whitespace is removed.                                                                                   |
 | `event`                                    | `Event`            | Represents an event. Variables are stored in Params in the order they appear. When the event ID is `tau`, it is an internal transition. Therefore, Params must be empty. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
 | `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |
+| `trivia`                                   | N/A                | Whitespace and comments accepted between declarations.                                                                                                                   |
+| `inlineTrivia`                             | N/A                | Horizontal whitespace and block comments accepted inside declarations.                                                                                                  |
+| `line_comment`                             | N/A                | PlantUML line comment beginning with `'`. It is not retained in the AST.                                                                                                 |
+| `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. It is not retained in the AST.                                                                                         |
 | `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
