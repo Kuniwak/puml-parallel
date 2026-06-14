@@ -28,3 +28,37 @@ s0 --> [*] : true
 
 	// Teardown: no resources to release.
 }
+
+func TestDiagramStringIncludesStateVarTypes(t *testing.T) {
+	// Setup
+	diagram := Diagram{
+		States: map[StateID]State{
+			"s0": {
+				ID:   "s0",
+				Name: "Initial",
+				Vars: []StateVar{
+					{Name: "ready", Type: "bool"},
+					{Name: "count"},
+				},
+			},
+		},
+		StartEdge: StartEdge{Dst: "s0", Post: True},
+	}
+	want := `@startuml
+state "Initial" as s0
+s0: ready ; bool
+s0: count
+[*] --> s0
+@enduml
+`
+
+	// Execute
+	got := diagram.String()
+
+	// Assert
+	if got != want {
+		t.Errorf("Diagram.String() = %q, want %q", got, want)
+	}
+
+	// Teardown: no resources to release.
+}

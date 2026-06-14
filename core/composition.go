@@ -23,7 +23,7 @@ func (s StatePair) State() State {
 	return State{
 		ID:   s.ID(),
 		Name: ComposeStateNames(s.Left.Name, s.Right.Name),
-		Vars: append(append([]Var{}, s.Left.Vars...), s.Right.Vars...),
+		Vars: append(append([]StateVar{}, s.Left.Vars...), s.Right.Vars...),
 	}
 }
 

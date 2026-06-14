@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -194,6 +195,160 @@ func TestParseRejectsSemicolonInEndEdgeGuard(t *testing.T) {
 state "Done" as done
 [*] --> done
 done --> [*] : left ; right
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err == nil {
+		t.Fatal("Parse() error = nil, want semicolon rejection")
+	}
+	if diagram != nil {
+		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+	}
+
+	// Teardown: no resources to release.
+}
+
+func TestParseCommentsAndTypedStateVars(t *testing.T) {
+	// Setup
+	parser := NewParser(`@startuml /' diagram comment '/ "Example /' name '/"
+' before first state
+state /' before name '/ "Initial /' literal '/ and ' apostrophe" /' before as '/ as /' before id '/ s0 /' after id '/
+' before first variable
+s0 /' before colon '/ : /' before variable '/ ready /' before type marker '/ ; /' before type '/ bool /' after type '/
+/' between variables '/
+s0: cache ; map[string]/' inside type '/value
+s0: optional ;
+' before next state
+state "Done" as s1
+' before start edge
+[*] /' before arrow '/ --> /' before destination '/ s0 /' before colon '/ : /' before post '/ initialize/' inside post '/now
+' before regular edge
+s0 /' before arrow '/ --> /' before destination '/ s1 /' before colon '/ : /' before event '/ finish(/' before parameter '/result/' before comma '/, /' before parameter '/code/' before close '/) /' before guard '/ ; /' before guard text '/ ready/' inside guard '/&& done /' before post '/ ; /' before post text '/ complete/' inside post '/now
+' before end edge
+s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' before guard '/ "guard /' literal '/"
+' comments are allowed after the end edge
+/' final block comment '/
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	initial := diagram.States["s0"]
+	if initial.Name != "Initial /' literal '/ and ' apostrophe" {
+		t.Errorf("Parse() state name = %q", initial.Name)
+	}
+	wantVars := []StateVar{
+		{Name: "ready", Type: "bool"},
+		{Name: "cache", Type: "map[string] value"},
+		{Name: "optional"},
+	}
+	if len(initial.Vars) != len(wantVars) {
+		t.Fatalf("Parse() vars = %#v, want %#v", initial.Vars, wantVars)
+	}
+	for i, want := range wantVars {
+		if initial.Vars[i] != want {
+			t.Errorf("Parse() vars[%d] = %#v, want %#v", i, initial.Vars[i], want)
+		}
+	}
+	if diagram.StartEdge.Post != "initialize now" {
+		t.Errorf("Parse() start post = %q, want %q", diagram.StartEdge.Post, "initialize now")
+	}
+	if len(diagram.Edges) != 1 {
+		t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+	}
+	edge := diagram.Edges[0]
+	if edge.Event.ID != "finish" {
+		t.Errorf("Parse() event ID = %q, want finish", edge.Event.ID)
+	}
+	if len(edge.Event.Params) != 2 || edge.Event.Params[0] != "result" || edge.Event.Params[1] != "code" {
+		t.Errorf("Parse() event params = %#v, want [result code]", edge.Event.Params)
+	}
+	if edge.Guard != "ready && done" {
+		t.Errorf("Parse() guard = %q, want %q", edge.Guard, "ready && done")
+	}
+	if edge.Post != "complete now" {
+		t.Errorf("Parse() post = %q, want %q", edge.Post, "complete now")
+	}
+	if diagram.EndEdge == nil {
+		t.Fatal("Parse() end edge = nil")
+	}
+	if diagram.EndEdge.Guard != `"guard /' literal '/"` {
+		t.Errorf("Parse() end guard = %q", diagram.EndEdge.Guard)
+	}
+
+	// Teardown: no resources to release.
+}
+
+func TestParseRejectsUnterminatedBlockComment(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantPos string
+	}{
+		{
+			name: "between declarations",
+			input: `@startuml
+/' never closed
+`,
+			wantPos: "line 2, col 1",
+		},
+		{
+			name: "inside declaration",
+			input: `@startuml
+state /' never closed
+`,
+			wantPos: "line 2, col 7",
+		},
+		{
+			name: "inside free text",
+			input: `@startuml
+state "Initial" as s0
+[*] --> s0
+s0 --> s0 : retry ; ready /' never closed
+`,
+			wantPos: "line 4, col 27",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(tt.input)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err == nil {
+				t.Fatal("Parse() error = nil, want unterminated block comment error")
+			}
+			if diagram != nil {
+				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+			}
+			if !strings.Contains(err.Error(), "unterminated block comment at "+tt.wantPos) {
+				t.Errorf("Parse() error = %q, want block comment start at %s", err, tt.wantPos)
+			}
+
+			// Teardown: no resources to release.
+		})
+	}
+}
+
+func TestParseRejectsSemicolonInStateVarType(t *testing.T) {
+	// Setup
+	parser := NewParser(`@startuml
+state "Initial" as s0
+s0: ready ; bool ; extra
+[*] --> s0
 @enduml
 `)
 
