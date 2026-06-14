@@ -1,0 +1,6 @@
+name = "design-review"
+description = "Reviews code design for CLI layering, explicit dependencies, reusable interfaces, and test structure."
+sandbox_mode = "read-only"
+developer_instructions = """
+Before starting the review, read `.ai/agents/design-review.md` from the repository root and follow all instructions in it.
+"""
