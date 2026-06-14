@@ -82,3 +82,131 @@ func TestParseInvalidExamples(t *testing.T) {
 		}
 	}
 }
+
+func TestParseEndEdge(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantSrc   StateID
+		wantGuard string
+	}{
+		{
+			name: "with guard",
+			input: `@startuml
+state "SKIP" as s0
+[*] --> s0
+s0 --> [*] : true
+@enduml
+`,
+			wantSrc:   StateID("s0"),
+			wantGuard: "true",
+		},
+		{
+			name: "without guard",
+			input: `@startuml
+state "Done" as done
+[*] --> done
+done --> [*]
+@enduml
+`,
+			wantSrc: StateID("done"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(tt.input)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if diagram.EndEdge == nil {
+				t.Fatal("Parse() EndEdge = nil")
+			}
+			if diagram.EndEdge.Src != tt.wantSrc {
+				t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
+			}
+			if diagram.EndEdge.Guard != tt.wantGuard {
+				t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
+			}
+
+			// Teardown: no resources to release.
+		})
+	}
+}
+
+func TestParseRejectsContentAfterEndEdge(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "duplicate end edge",
+			input: `@startuml
+state "Done" as done
+[*] --> done
+done --> [*]
+done --> [*]
+@enduml
+`,
+		},
+		{
+			name: "regular edge after end edge",
+			input: `@startuml
+state "Done" as done
+[*] --> done
+done --> [*]
+done --> done : retry
+@enduml
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(tt.input)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err == nil {
+				t.Fatal("Parse() error = nil, want content-after-end-edge rejection")
+			}
+			if diagram != nil {
+				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+			}
+
+			// Teardown: no resources to release.
+		})
+	}
+}
+
+func TestParseRejectsSemicolonInEndEdgeGuard(t *testing.T) {
+	// Setup
+	parser := NewParser(`@startuml
+state "Done" as done
+[*] --> done
+done --> [*] : left ; right
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err == nil {
+		t.Fatal("Parse() error = nil, want semicolon rejection")
+	}
+	if diagram != nil {
+		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+	}
+
+	// Teardown: no resources to release.
+}

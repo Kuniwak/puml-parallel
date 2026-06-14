@@ -53,6 +53,10 @@ func ComposeParallel(diagrams []Diagram, syncEvents []EventID) (Diagram, error) 
 }
 
 func ComposeParallel2(dL, dR Diagram, syncEvents []EventID) (Diagram, error) {
+	if dL.EndEdge != nil || dR.EndEdge != nil {
+		return Diagram{}, fmt.Errorf("end edges are not supported for interface parallel")
+	}
+
 	ss := make(map[EventID]struct{})
 	for _, event := range syncEvents {
 		ss[event] = struct{}{}

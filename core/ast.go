@@ -18,6 +18,7 @@ type Diagram struct {
 	States    map[StateID]State
 	StartEdge StartEdge
 	Edges     []Edge
+	EndEdge   *EndEdge
 }
 
 type State struct {
@@ -37,6 +38,11 @@ type Edge struct {
 	Event Event
 	Guard string
 	Post  string
+}
+
+type EndEdge struct {
+	Src   StateID
+	Guard string
 }
 
 type Event struct {
@@ -84,6 +90,14 @@ func (d *Diagram) String() string {
 			continue
 		}
 		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
+	}
+
+	if d.EndEdge != nil {
+		sb.WriteString(fmt.Sprintf("%s --> [*]", d.EndEdge.Src))
+		if d.EndEdge.Guard != "" {
+			sb.WriteString(fmt.Sprintf(" : %s", d.EndEdge.Guard))
+		}
+		sb.WriteString("\n")
 	}
 
 	sb.WriteString("@enduml\n")

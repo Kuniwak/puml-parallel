@@ -39,6 +39,9 @@ func (p *Parser) Parse() (*Diagram, error) {
 		if p.isAtEnd() || p.peekString("@enduml") {
 			break
 		}
+		if diagram.EndEdge != nil {
+			return nil, fmt.Errorf("expected @enduml after end edge at line %d, col %d", p.line, p.col)
+		}
 
 		if p.peekString("state") {
 			state, err := p.parseState()
@@ -53,11 +56,19 @@ func (p *Parser) Parse() (*Diagram, error) {
 			}
 			diagram.StartEdge = startEdge
 		} else if p.isStateID() {
-			edge, err := p.parseEdge()
-			if err != nil {
-				return nil, err
+			if p.isEndEdge() {
+				endEdge, err := p.parseEndEdge()
+				if err != nil {
+					return nil, err
+				}
+				diagram.EndEdge = &endEdge
+			} else {
+				edge, err := p.parseEdge()
+				if err != nil {
+					return nil, err
+				}
+				diagram.Edges = append(diagram.Edges, edge)
 			}
-			diagram.Edges = append(diagram.Edges, edge)
 		} else {
 			// Unknown syntax - report error
 			return nil, fmt.Errorf("unexpected syntax at line %d, col %d", p.line, p.col)
@@ -467,4 +478,40 @@ func (p *Parser) skipLine() {
 	if !p.isAtEnd() {
 		p.advance()
 	}
+}
+
+func (p *Parser) parseEndEdge() (EndEdge, error) {
+	src, err := p.parseID()
+	if err != nil {
+		return EndEdge{}, err
+	}
+	p.skipSpaces()
+
+	if !p.expectString("-->") {
+		return EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	if !p.expectString("[*]") {
+		return EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+	}
+	p.skipSpaces()
+
+	var guard string
+	if p.expectChar(':') {
+		p.skipSpaces()
+		guard = p.parseUntilSemicolon()
+		if p.peek() == ';' {
+			return EndEdge{}, fmt.Errorf("unexpected ';' in end edge guard at line %d, col %d", p.line, p.col)
+		}
+	}
+
+	if !p.expectNewlines() {
+		return EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
+	}
+
+	return EndEdge{
+		Src:   StateID(src),
+		Guard: guard,
+	}, nil
 }
