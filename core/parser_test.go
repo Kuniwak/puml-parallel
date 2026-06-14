@@ -83,50 +83,59 @@ func TestParseInvalidExamples(t *testing.T) {
 	}
 }
 
-func TestParseEndEdgeWithGuard(t *testing.T) {
-	input := `@startuml
+func TestParseEndEdge(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantSrc   StateID
+		wantGuard string
+	}{
+		{
+			name: "with guard",
+			input: `@startuml
 state "SKIP" as s0
 [*] --> s0
 s0 --> [*] : true
 @enduml
-`
-
-	diagram, err := NewParser(input).Parse()
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
-	}
-
-	if diagram.EndEdge == nil {
-		t.Fatal("Parse() EndEdge = nil")
-	}
-	if diagram.EndEdge.Src != StateID("s0") {
-		t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, StateID("s0"))
-	}
-	if diagram.EndEdge.Guard != "true" {
-		t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, "true")
-	}
-}
-
-func TestParseEndEdgeWithoutGuard(t *testing.T) {
-	input := `@startuml
+`,
+			wantSrc:   StateID("s0"),
+			wantGuard: "true",
+		},
+		{
+			name: "without guard",
+			input: `@startuml
 state "Done" as done
 [*] --> done
 done --> [*]
 @enduml
-`
-
-	diagram, err := NewParser(input).Parse()
-	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+`,
+			wantSrc: StateID("done"),
+		},
 	}
 
-	if diagram.EndEdge == nil {
-		t.Fatal("Parse() EndEdge = nil")
-	}
-	if diagram.EndEdge.Src != StateID("done") {
-		t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, StateID("done"))
-	}
-	if diagram.EndEdge.Guard != "" {
-		t.Errorf("Parse() EndEdge.Guard = %q, want empty", diagram.EndEdge.Guard)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(tt.input)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if diagram.EndEdge == nil {
+				t.Fatal("Parse() EndEdge = nil")
+			}
+			if diagram.EndEdge.Src != tt.wantSrc {
+				t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
+			}
+			if diagram.EndEdge.Guard != tt.wantGuard {
+				t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
+			}
+
+			// Teardown: no resources to release.
+		})
 	}
 }
