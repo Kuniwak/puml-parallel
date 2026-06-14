@@ -15,39 +15,39 @@ type Var ID
 const True = "true"
 
 type Diagram struct {
-	States    map[StateID]State
-	StartEdge StartEdge
-	Edges     []Edge
-	EndEdge   *EndEdge
+	States    map[StateID]State `json:"states"`
+	StartEdge StartEdge         `json:"start_edge"`
+	Edges     []Edge            `json:"edges"`
+	EndEdge   *EndEdge          `json:"end_edge"`
 }
 
 type State struct {
-	ID   StateID
-	Name string
-	Vars []Var
+	ID   StateID `json:"id"`
+	Name string  `json:"name"`
+	Vars []Var   `json:"vars"`
 }
 
 type StartEdge struct {
-	Dst  StateID
-	Post string
+	Dst  StateID `json:"dst"`
+	Post string  `json:"post"`
 }
 
 type Edge struct {
-	Src   StateID
-	Dst   StateID
-	Event Event
-	Guard string
-	Post  string
+	Src   StateID `json:"src"`
+	Dst   StateID `json:"dst"`
+	Event Event   `json:"event"`
+	Guard string  `json:"guard"`
+	Post  string  `json:"post"`
 }
 
 type EndEdge struct {
-	Src   StateID
-	Guard string
+	Src   StateID `json:"src"`
+	Guard string  `json:"guard"`
 }
 
 type Event struct {
-	ID     EventID
-	Params []Var
+	ID     EventID `json:"id"`
+	Params []Var   `json:"params"`
 }
 
 func (d *Diagram) String() string {
