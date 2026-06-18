@@ -5,3 +5,4 @@ Commands:
   s INDEX   select a transition
   j INDEX   jump to a history entry
   ?, help   display this help
+command> 

@@ -9,3 +9,4 @@ Transitions:
   [1] reject(reason) -> Rejected (rejected)
       Guard: true
       Post: true
+command> 

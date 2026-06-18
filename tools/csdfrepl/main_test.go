@@ -42,6 +42,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 	tests := []struct {
 		name    string
 		diagram *core.Diagram
+		prompt  string
 		display func(*repl)
 	}{
 		{
@@ -51,7 +52,8 @@ func TestEventDisplaysGolden(t *testing.T) {
 			},
 		},
 		{
-			name: "EventDisplayStateGroup",
+			name:   "EventDisplayStateGroup",
+			prompt: "state> ",
 			display: func(r *repl) {
 				r.displayStateValuePrompt(core.State{
 					ID:   "review",
@@ -64,13 +66,22 @@ func TestEventDisplaysGolden(t *testing.T) {
 			},
 		},
 		{
-			name: "EventDisplayError",
+			name:   "EventDisplayStateVarsError",
+			prompt: "state> ",
 			display: func(r *repl) {
 				r.displayError("State variable values length mismatch")
 			},
 		},
 		{
-			name: "EventDisplayTrans",
+			name:   "EventDisplayCommandError",
+			prompt: "command> ",
+			display: func(r *repl) {
+				r.displayError("invalid command")
+			},
+		},
+		{
+			name:   "EventDisplayTrans",
+			prompt: "command> ",
 			diagram: &core.Diagram{
 				States: map[core.StateID]core.State{
 					"approved": {ID: "approved", Name: "Approved"},
@@ -98,30 +109,35 @@ func TestEventDisplaysGolden(t *testing.T) {
 		{
 			name:    "EventDisplayDeadlock",
 			diagram: &core.Diagram{},
+			prompt:  "command> ",
 			display: func(r *repl) {
 				r.displayState(state)
 			},
 		},
 		{
-			name: "EventDisplayTrace",
+			name:   "EventDisplayTrace",
+			prompt: "command> ",
 			display: func(r *repl) {
 				r.displayJSON("Trace", []core.Event{"submit(order)", "approve"})
 			},
 		},
 		{
-			name: "EventDisplayHistory",
+			name:   "EventDisplayHistory",
+			prompt: "command> ",
 			display: func(r *repl) {
 				r.displayJSON("History", history)
 			},
 		},
 		{
-			name: "EventDisplayHelp",
+			name:   "EventDisplayHelp",
+			prompt: "command> ",
 			display: func(r *repl) {
 				r.displayHelp()
 			},
 		},
 		{
-			name: "EventDisplayEmptyLine",
+			name:   "EventDisplayEmptyLine",
+			prompt: "command> ",
 			display: func(r *repl) {
 				r.displayEmptyLine()
 			},
@@ -135,7 +151,16 @@ func TestEventDisplaysGolden(t *testing.T) {
 			if diagram == nil {
 				diagram = &core.Diagram{}
 			}
-			tt.display(&repl{diagram: diagram, stdout: stdout})
+			lines := make(chan lineResult, 1)
+			lines <- lineResult{}
+			close(lines)
+			r := &repl{diagram: diagram, stdout: stdout, lines: lines}
+			tt.display(r)
+			if tt.prompt != "" {
+				if _, outcome := r.readLine(tt.prompt); outcome != inputLine {
+					t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
+				}
+			}
 			assertGolden(t, tt.name, stdout.Bytes())
 		})
 	}

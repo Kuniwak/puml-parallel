@@ -5,3 +5,4 @@ Variables:
 Guard: count > 0
 Post: status' = "reviewing"
 Enter state variable values as a JSON array.
+state> 

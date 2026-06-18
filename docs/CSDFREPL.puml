@@ -133,7 +133,7 @@ waitingStateVars --> willAskCommand : EventCtrlC ; length (historyOfCommon commo
 waitingStateVars --> willDisplayFatal : EventCtrlC ; length (historyOfCommon common) = 0 ; fatal' = NoSolutionsFound
 waitingStateVars --> willExit : EventCtrlD ; input = "" ; True
 
-willDisplayError1 --> waitingStateVars : EventDisplayError e ; error = e ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ post' = post ∧ input' = input ∧ curPos' = curPos
+willDisplayError1 --> waitingStateVars : EventDisplayStateVarsError e ; error = e ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ post' = post ∧ input' = input ∧ curPos' = curPos
 
 willAskCommand --> waitingCommand : EventDisplayTrans s ts ; state = s ∧ ts = transByStateGroupID (csdfOfCommon common) (stateIDOfState state) ∧ length ts > 0 ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
 willAskCommand --> waitingCommand : EventDisplayDeadlock s ; state = s ∧ length (transByStateGroupID (csdfOfCommon common) (stateIDOfState state)) = 0 ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
@@ -173,7 +173,7 @@ willDisplayHelp --> waitingCommand : EventDisplayHelp ; True ; common' = common 
 
 willDisplayEmptyLine --> waitingCommand : EventDisplayEmptyLine ; True ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
 
-willDisplayError2 --> waitingCommand : EventDisplayError e ; error = e ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+willDisplayError2 --> waitingCommand : EventDisplayCommandError e ; error = e ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
 
 willExit --> [*] : True
 
