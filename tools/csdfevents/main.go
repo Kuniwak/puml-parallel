@@ -28,7 +28,7 @@ func main() {
 
 func findAllEvents(filenames []string) {
 	// Set to collect unique events
-	eventSet := make(map[core.EventID]struct{})
+	eventSet := make(map[core.Event]struct{})
 
 	// Process each file
 	for _, filename := range filenames {
@@ -53,7 +53,7 @@ func findAllEvents(filenames []string) {
 
 		// Extract events from all edges
 		for _, edge := range diagram.Edges {
-			eventSet[edge.Event.ID] = struct{}{}
+			eventSet[edge.Event] = struct{}{}
 		}
 	}
 
@@ -77,7 +77,7 @@ func findCommonEvents(filenames []string) {
 	}
 
 	// Map to count occurrences of each event
-	eventCount := make(map[core.EventID]int)
+	eventCount := make(map[core.Event]int)
 
 	// Process each file
 	for _, filename := range filenames {
@@ -101,9 +101,9 @@ func findCommonEvents(filenames []string) {
 		}
 
 		// Set to collect unique events per file
-		fileEvents := make(map[core.EventID]struct{})
+		fileEvents := make(map[core.Event]struct{})
 		for _, edge := range diagram.Edges {
-			fileEvents[edge.Event.ID] = struct{}{}
+			fileEvents[edge.Event] = struct{}{}
 		}
 
 		// Increment count for each unique event in this file

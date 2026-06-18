@@ -69,3 +69,52 @@ func TestStatePairPreservesStateVarTypes(t *testing.T) {
 
 	// Teardown: no resources to release.
 }
+
+func TestComposeParallelMatchesWholeEvent(t *testing.T) {
+	left := Diagram{
+		States: map[StateID]State{
+			"l0": {ID: "l0", Name: "Left 0"},
+			"l1": {ID: "l1", Name: "Left 1"},
+		},
+		StartEdge: StartEdge{Dst: "l0"},
+		Edges: []Edge{
+			{Src: "l0", Dst: "l1", Event: "send(x)", Guard: True, Post: True},
+		},
+	}
+	right := Diagram{
+		States: map[StateID]State{
+			"r0": {ID: "r0", Name: "Right 0"},
+			"r1": {ID: "r1", Name: "Right 1"},
+		},
+		StartEdge: StartEdge{Dst: "r0"},
+		Edges: []Edge{
+			{Src: "r0", Dst: "r1", Event: "send(y)", Guard: True, Post: True},
+		},
+	}
+
+	composite, err := ComposeParallel2(left, right, []Event{"send(x)"})
+	if err != nil {
+		t.Fatalf("ComposeParallel2() error = %v", err)
+	}
+	if len(composite.Edges) != 1 {
+		t.Fatalf("ComposeParallel2() edges = %#v, want one unsynchronized edge", composite.Edges)
+	}
+	if composite.Edges[0].Event != "send(y)" {
+		t.Errorf("ComposeParallel2() event = %q, want send(y)", composite.Edges[0].Event)
+	}
+
+	right.Edges[0].Event = "send(x)"
+	composite, err = ComposeParallel2(left, right, []Event{"send(x)"})
+	if err != nil {
+		t.Fatalf("ComposeParallel2() matching event error = %v", err)
+	}
+	if len(composite.Edges) != 1 {
+		t.Fatalf("ComposeParallel2() matching event edges = %#v, want one synchronized edge", composite.Edges)
+	}
+	if composite.Edges[0].Event != "send(x)" {
+		t.Errorf("ComposeParallel2() synchronized event = %q, want send(x)", composite.Edges[0].Event)
+	}
+	if composite.Edges[0].Dst != "l1_r1" {
+		t.Errorf("ComposeParallel2() synchronized destination = %q, want l1_r1", composite.Edges[0].Dst)
+	}
+}

@@ -8,7 +8,7 @@ import (
 type ID string
 type StateID ID
 
-type EventID ID
+type Event string
 
 type Var ID
 
@@ -50,11 +50,6 @@ type EndEdge struct {
 	Guard string  `json:"guard"`
 }
 
-type Event struct {
-	ID     EventID `json:"id"`
-	Params []Var   `json:"params"`
-}
-
 func (d *Diagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")
@@ -79,17 +74,7 @@ func (d *Diagram) String() string {
 
 	// Regular edges
 	for _, edge := range d.Edges {
-		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event.ID))
-		if len(edge.Event.Params) > 0 {
-			sb.WriteString("(")
-			for i, param := range edge.Event.Params {
-				if i > 0 {
-					sb.WriteString(", ")
-				}
-				sb.WriteString(string(param))
-			}
-			sb.WriteString(")")
-		}
+		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event))
 		if edge.Post == "" || edge.Post == True {
 			sb.WriteString("\n")
 			continue
