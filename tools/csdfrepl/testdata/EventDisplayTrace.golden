@@ -1,6 +1,7 @@
 Trace:
-[
-  "submit(order)",
-  "approve"
-]
+  [
+    "submit(order)",
+    "approve"
+  ]
+
 command> 

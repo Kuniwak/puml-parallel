@@ -2,5 +2,7 @@ State: Review order (review)
 Values:
   count = 2
   metadata = {"priority":true,"tags":["new","gift"]}
+  
 Deadlock: no outgoing transitions.
+
 command> 
