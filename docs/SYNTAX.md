@@ -19,8 +19,7 @@ escape_dquote = "\" DQUOTE
 stateID = id
 var = id
 varType = *textElement
-eventID = id
-event = eventID 0*1("(" inlineTrivia var *(inlineTrivia "," inlineTrivia var) inlineTrivia ")")
+event = 1*unicode_char_except_semicolon
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
@@ -59,7 +58,7 @@ package example
 
 type ID string
 type StateID ID
-type EventID ID
+type Event
 type Var ID
 
 type StateVar struct {
@@ -97,11 +96,6 @@ type EndEdge struct {
 	Src   StateID
 	Guard string
 }
-
-type Event struct {
-	ID     EventID
-	Params []Var
-}
 ```
 
 
@@ -122,7 +116,7 @@ Semantics
 | `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
 | `varType`                                  | `string`           | Represents an optional state-variable type. Leading and trailing whitespace is removed.                                                                                   |
-| `event`                                    | `Event`            | Represents an event. Variables are stored in Params in the order they appear. When the event ID is `tau`, it is an internal transition. Therefore, Params must be empty. |
+| `event`                                    | `Event`            | Represents an event. When the event is `tau`, it is an internal transition. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
 | `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |
