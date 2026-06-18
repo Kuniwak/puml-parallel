@@ -1,0 +1,42 @@
+History:
+[
+  {
+    "state": {
+      "state_id": "draft",
+      "state_name": "Draft order",
+      "values": [
+        {
+          "name": "count",
+          "value": 1
+        }
+      ]
+    },
+    "trace": []
+  },
+  {
+    "state": {
+      "state_id": "review",
+      "state_name": "Review order",
+      "values": [
+        {
+          "name": "count",
+          "value": 2
+        },
+        {
+          "name": "metadata",
+          "value": {
+            "priority": true,
+            "tags": [
+              "new",
+              "gift"
+            ]
+          }
+        }
+      ]
+    },
+    "trace": [
+      "submit(order)",
+      "approve"
+    ]
+  }
+]

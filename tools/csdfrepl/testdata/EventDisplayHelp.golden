@@ -1,0 +1,7 @@
+Commands:
+  l         list the current state and transitions
+  t         display the current trace
+  h         display history
+  s INDEX   select a transition
+  j INDEX   jump to a history entry
+  ?, help   display this help

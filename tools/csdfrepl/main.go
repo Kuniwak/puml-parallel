@@ -231,7 +231,7 @@ type repl struct {
 func (r *repl) run() int {
 	initial, ok := r.diagram.States[r.diagram.StartEdge.Dst]
 	if !ok {
-		_, _ = fmt.Fprintf(r.stdout, "Fatal: initial state %q does not exist\n", r.diagram.StartEdge.Dst)
+		r.displayFatal(fmt.Sprintf("initial state %q does not exist", r.diagram.StartEdge.Dst))
 		return 1
 	}
 
@@ -269,13 +269,13 @@ func (r *repl) run() int {
 
 			action, index, err := parseCommand(command)
 			if err != nil {
-				_, _ = fmt.Fprintf(r.stdout, "Error: %v\n", err)
+				r.displayError(err.Error())
 				continue
 			}
 
 			switch action {
 			case commandEmpty:
-				_, _ = fmt.Fprintln(r.stdout)
+				r.displayEmptyLine()
 			case commandList:
 				r.displayState(current)
 			case commandTrace:
@@ -286,7 +286,7 @@ func (r *repl) run() int {
 				r.displayHelp()
 			case commandJump:
 				if index >= len(r.history) {
-					_, _ = fmt.Fprintln(r.stdout, "Error: Index out of range")
+					r.displayError("Index out of range")
 					continue
 				}
 				entry := cloneHistoryEntry(r.history[index])
@@ -297,13 +297,13 @@ func (r *repl) run() int {
 			case commandSelect:
 				edges := r.outgoing(current.ID)
 				if index >= len(edges) {
-					_, _ = fmt.Fprintln(r.stdout, "Error: Index out of range")
+					r.displayError("Index out of range")
 					continue
 				}
 				edge := edges[index]
 				next, ok := r.diagram.States[edge.Dst]
 				if !ok {
-					_, _ = fmt.Fprintf(r.stdout, "Fatal: destination state %q does not exist\n", edge.Dst)
+					r.displayFatal(fmt.Sprintf("destination state %q does not exist", edge.Dst))
 					return 1
 				}
 				stateGroup = next
@@ -340,7 +340,7 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 		}
 		if outcome == inputInterrupt {
 			if len(r.history) == 0 {
-				_, _ = fmt.Fprintln(r.stdout, "Fatal: No solutions found")
+				r.displayFatal("No solutions found")
 				return RuntimeState{}, inputFatal
 			}
 			return RuntimeState{}, inputBack
@@ -362,17 +362,17 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 			r.history = append(r.history, HistoryEntry{State: result.State, Trace: trace})
 			return result.State, inputLine
 		case PostSolverResultNoSolutions:
-			_, _ = fmt.Fprintln(r.stdout, "Error: No solutions")
+			r.displayError("No solutions")
 		case PostSolverResultInvalidStateVarValuesLength:
-			_, _ = fmt.Fprintln(r.stdout, "Error: State variable values length mismatch")
+			r.displayError("State variable values length mismatch")
 		case PostSolverResultSyntaxError:
 			if result.Err == nil {
-				_, _ = fmt.Fprintln(r.stdout, "Error: invalid state variable values")
+				r.displayError("invalid state variable values")
 			} else {
-				_, _ = fmt.Fprintf(r.stdout, "Error: %v\n", result.Err)
+				r.displayError(result.Err.Error())
 			}
 		default:
-			_, _ = fmt.Fprintln(r.stdout, "Fatal: post solver returned an unknown result")
+			r.displayFatal("post solver returned an unknown result")
 			return RuntimeState{}, inputFatal
 		}
 	}
@@ -395,11 +395,23 @@ func (r *repl) readLine(prompt string) (string, inputOutcome) {
 			return "", inputExit
 		}
 		if result.err != nil {
-			_, _ = fmt.Fprintf(r.stdout, "Fatal: reading input: %v\n", result.err)
+			r.displayFatal(fmt.Sprintf("reading input: %v", result.err))
 			return "", inputFatal
 		}
 		return result.line, inputLine
 	}
+}
+
+func (r *repl) displayFatal(message string) {
+	_, _ = fmt.Fprintf(r.stdout, "Fatal: %s\n", message)
+}
+
+func (r *repl) displayError(message string) {
+	_, _ = fmt.Fprintf(r.stdout, "Error: %s\n", message)
+}
+
+func (r *repl) displayEmptyLine() {
+	_, _ = fmt.Fprintln(r.stdout)
 }
 
 func (r *repl) displayStateValuePrompt(group core.State, guard, post string) {
@@ -457,7 +469,7 @@ func (r *repl) displayJSON(label string, value any) {
 	encoder := json.NewEncoder(&output)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(value); err != nil {
-		_, _ = fmt.Fprintf(r.stdout, "Error: encoding %s: %v\n", strings.ToLower(label), err)
+		r.displayError(fmt.Sprintf("encoding %s: %v", strings.ToLower(label), err))
 		return
 	}
 	_, _ = fmt.Fprintf(r.stdout, "%s:\n%s", label, output.String())

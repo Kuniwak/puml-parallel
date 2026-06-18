@@ -1,0 +1,7 @@
+State: Review order (review)
+Variables:
+  count: number
+  metadata
+Guard: count > 0
+Post: status' = "reviewing"
+Enter state variable values as a JSON array.

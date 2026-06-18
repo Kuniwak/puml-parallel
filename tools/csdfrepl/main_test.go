@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +12,155 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/core"
 )
+
+var updateGolden = flag.Bool("update", false, "update golden files")
+
+func TestEventDisplaysGolden(t *testing.T) {
+	state := RuntimeState{
+		ID:   "review",
+		Name: "Review order",
+		Values: []StateValue{
+			{Name: "count", Value: 2},
+			{Name: "metadata", Value: map[string]any{"priority": true, "tags": []any{"new", "gift"}}},
+		},
+	}
+	history := []HistoryEntry{
+		{
+			State: RuntimeState{
+				ID:     "draft",
+				Name:   "Draft order",
+				Values: []StateValue{{Name: "count", Value: 1}},
+			},
+			Trace: []core.Event{},
+		},
+		{
+			State: state,
+			Trace: []core.Event{"submit(order)", "approve"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		diagram *core.Diagram
+		display func(*repl)
+	}{
+		{
+			name: "EventDisplayFatal",
+			display: func(r *repl) {
+				r.displayFatal(`destination state "missing" does not exist`)
+			},
+		},
+		{
+			name: "EventDisplayStateGroup",
+			display: func(r *repl) {
+				r.displayStateValuePrompt(core.State{
+					ID:   "review",
+					Name: "Review order",
+					Vars: []core.StateVar{
+						{Name: "count", Type: "number"},
+						{Name: "metadata"},
+					},
+				}, "count > 0", `status' = "reviewing"`)
+			},
+		},
+		{
+			name: "EventDisplayError",
+			display: func(r *repl) {
+				r.displayError("State variable values length mismatch")
+			},
+		},
+		{
+			name: "EventDisplayTrans",
+			diagram: &core.Diagram{
+				States: map[core.StateID]core.State{
+					"approved": {ID: "approved", Name: "Approved"},
+					"rejected": {ID: "rejected", Name: "Rejected"},
+				},
+				Edges: []core.Edge{
+					{
+						Src:   "review",
+						Dst:   "approved",
+						Event: "approve",
+						Guard: "count > 0",
+						Post:  `status' = "approved"`,
+					},
+					{
+						Src:   "review",
+						Dst:   "rejected",
+						Event: "reject(reason)",
+					},
+				},
+			},
+			display: func(r *repl) {
+				r.displayState(state)
+			},
+		},
+		{
+			name:    "EventDisplayDeadlock",
+			diagram: &core.Diagram{},
+			display: func(r *repl) {
+				r.displayState(state)
+			},
+		},
+		{
+			name: "EventDisplayTrace",
+			display: func(r *repl) {
+				r.displayJSON("Trace", []core.Event{"submit(order)", "approve"})
+			},
+		},
+		{
+			name: "EventDisplayHistory",
+			display: func(r *repl) {
+				r.displayJSON("History", history)
+			},
+		},
+		{
+			name: "EventDisplayHelp",
+			display: func(r *repl) {
+				r.displayHelp()
+			},
+		},
+		{
+			name: "EventDisplayEmptyLine",
+			display: func(r *repl) {
+				r.displayEmptyLine()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := &bytes.Buffer{}
+			diagram := tt.diagram
+			if diagram == nil {
+				diagram = &core.Diagram{}
+			}
+			tt.display(&repl{diagram: diagram, stdout: stdout})
+			assertGolden(t, tt.name, stdout.Bytes())
+		})
+	}
+}
+
+func assertGolden(t *testing.T, name string, actual []byte) {
+	t.Helper()
+	path := filepath.Join("testdata", name+".golden")
+	if *updateGolden {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, actual, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	expected, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading golden file: %v; create it with go test ./tools/csdfrepl -update", err)
+	}
+	if !bytes.Equal(actual, expected) {
+		t.Errorf("output differs from %s\n--- expected ---\n%s--- actual ---\n%s\nupdate with: go test ./tools/csdfrepl -update", path, expected, actual)
+	}
+}
 
 func TestRunExploresDiagram(t *testing.T) {
 	path := writeDiagram(t, `@startuml
