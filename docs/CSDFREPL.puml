@@ -1,4 +1,4 @@
-@startuml
+@startuml csdfrepl_spec
 
 ' type json = Boolean | Number | String | Dict ((string * json) list) | Array (json list)
 ' type event = Event string | Tau
