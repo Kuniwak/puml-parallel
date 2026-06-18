@@ -62,3 +62,27 @@ s0: count
 
 	// Teardown: no resources to release.
 }
+
+func TestDiagramStringIncludesFreeFormEvent(t *testing.T) {
+	diagram := Diagram{
+		States: map[StateID]State{
+			"s0": {ID: "s0", Name: "Initial"},
+		},
+		StartEdge: StartEdge{Dst: "s0", Post: True},
+		Edges: []Edge{
+			{Src: "s0", Dst: "s0", Event: "finish(result, status)", Guard: True, Post: True},
+		},
+	}
+	want := `@startuml
+state "Initial" as s0
+[*] --> s0
+s0 --> s0 : finish(result, status)
+@enduml
+`
+
+	got := diagram.String()
+
+	if got != want {
+		t.Errorf("Diagram.String() = %q, want %q", got, want)
+	}
+}

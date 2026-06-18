@@ -37,8 +37,8 @@ $ csdfparallel diagram1.png diagram2.puml
 
 `csdfparse` writes one JSON object followed by a newline. Its keys use
 `snake_case`, and optional end edges are represented by `null` when absent.
-State variables are objects with a `name` and an optional `type`; event
-parameters remain strings.
+State variables are objects with a `name` and an optional `type`. Events are
+free-form strings.
 
 ```console
 $ csdfparse < examples/valid/skip.puml

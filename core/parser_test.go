@@ -266,11 +266,8 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 		t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
 	}
 	edge := diagram.Edges[0]
-	if edge.Event.ID != "finish" {
-		t.Errorf("Parse() event ID = %q, want finish", edge.Event.ID)
-	}
-	if len(edge.Event.Params) != 2 || edge.Event.Params[0] != "result" || edge.Event.Params[1] != "code" {
-		t.Errorf("Parse() event params = %#v, want [result code]", edge.Event.Params)
+	if edge.Event != "finish( result , code )" {
+		t.Errorf("Parse() event = %q, want %q", edge.Event, "finish( result , code )")
 	}
 	if edge.Guard != "ready && done" {
 		t.Errorf("Parse() guard = %q, want %q", edge.Guard, "ready && done")
@@ -286,6 +283,95 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 	}
 
 	// Teardown: no resources to release.
+}
+
+func TestParseFreeFormEvents(t *testing.T) {
+	tests := []struct {
+		name      string
+		event     string
+		wantEvent Event
+	}{
+		{
+			name:      "spaces symbols and unicode",
+			event:     "注文 accepted => v2",
+			wantEvent: "注文 accepted => v2",
+		},
+		{
+			name:      "unclosed parenthesis",
+			event:     "finish(result",
+			wantEvent: "finish(result",
+		},
+		{
+			name:      "trailing comma",
+			event:     "finish(result, )",
+			wantEvent: "finish(result, )",
+		},
+		{
+			name:      "block comment removed",
+			event:     "send/' implementation detail '/message",
+			wantEvent: "send message",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parser := NewParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : ` + tt.event + ` ; ready ; done
+@enduml
+`)
+
+			diagram, err := parser.Parse()
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if len(diagram.Edges) != 1 {
+				t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+			}
+			if diagram.Edges[0].Event != tt.wantEvent {
+				t.Errorf("Parse() event = %q, want %q", diagram.Edges[0].Event, tt.wantEvent)
+			}
+			if diagram.Edges[0].Guard != "ready" {
+				t.Errorf("Parse() guard = %q, want ready", diagram.Edges[0].Guard)
+			}
+			if diagram.Edges[0].Post != "done" {
+				t.Errorf("Parse() post = %q, want done", diagram.Edges[0].Post)
+			}
+		})
+	}
+}
+
+func TestParseRejectsEmptyEvent(t *testing.T) {
+	tests := []struct {
+		name  string
+		event string
+	}{
+		{name: "empty", event: ""},
+		{name: "whitespace", event: " \t "},
+		{name: "comment only", event: " /' comment '/ "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parser := NewParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : ` + tt.event + `
+@enduml
+`)
+
+			diagram, err := parser.Parse()
+			if err == nil {
+				t.Fatal("Parse() error = nil, want empty event rejection")
+			}
+			if diagram != nil {
+				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+			}
+		})
+	}
 }
 
 func TestParseRejectsUnterminatedBlockComment(t *testing.T) {
