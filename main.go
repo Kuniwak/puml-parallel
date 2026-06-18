@@ -20,13 +20,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	var syncEvents []core.EventID
+	var syncEvents []core.Event
 	if *syncFlag != "" {
 		eventList := strings.Split(*syncFlag, ";")
 		for _, event := range eventList {
 			trimmed := strings.TrimSpace(event)
 			if trimmed != "" {
-				syncEvents = append(syncEvents, core.EventID(trimmed))
+				syncEvents = append(syncEvents, core.Event(trimmed))
 			}
 		}
 	}

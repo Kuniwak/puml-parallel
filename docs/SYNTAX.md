@@ -19,8 +19,7 @@ escape_dquote = "\" DQUOTE
 stateID = id
 var = id
 varType = *textElement
-eventID = id
-event = eventID 0*1("(" inlineTrivia var *(inlineTrivia "," inlineTrivia var) inlineTrivia ")")
+event = 1*textElement
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
@@ -39,8 +38,9 @@ unicode_char_except_semicolon = %x20-3A / %x3C-7F / %x80-10FFFF
 
 Line comments are accepted between declarations and state-variable lines.
 Block comments are accepted wherever horizontal whitespace is accepted, including
-inside `varType`, `guard`, and `post`. Comments are discarded while parsing.
+inside `varType`, `event`, `guard`, and `post`. Comments are discarded while parsing.
 Comment delimiters inside double-quoted strings are treated as ordinary text.
+An event must remain non-empty after comments and surrounding whitespace are removed.
 
 The following symbols are ABNF core rules:
 
@@ -59,7 +59,7 @@ package example
 
 type ID string
 type StateID ID
-type EventID ID
+type Event string
 type Var ID
 
 type StateVar struct {
@@ -68,7 +68,7 @@ type StateVar struct {
 }
 
 type Diagram struct {
-	State     map[StateID]State
+	States    map[StateID]State
 	StartEdge StartEdge
 	Edges     []Edge
 	EndEdge   *EndEdge
@@ -97,11 +97,6 @@ type EndEdge struct {
 	Src   StateID
 	Guard string
 }
-
-type Event struct {
-	ID     EventID
-	Params []Var
-}
 ```
 
 
@@ -113,7 +108,7 @@ Semantics
 | `diagramName`                              | N/A                | Optional PlantUML diagram name. It is accepted but not retained in the AST.                                                                                               |
 | `stateDecl`                                | `State`            | Represents a state declaration.                                                                                                                                          |
 | `stateVarDecl`                             | `StateVar`         | Represents a state variable name and its optional type.                                                                                                                   |
-| `startEdgeDecl`                            | `Edge`             | Represents a declaration of transition to the initial state.                                                                                                             |
+| `startEdgeDecl`                            | `StartEdge`        | Represents a declaration of transition to the initial state.                                                                                                             |
 | `edgeDecl`                                 | `Edge`             | Represents a declaration of a directed edge.                                                                                                                             |
 | `endEdgeDecl`                              | `EndEdge`          | Represents a declaration of transition to the end state.                                                                                                                 |
 | `stateName`                                | `string`           | State name. Represents a string with leading and trailing double quotes removed and escapes resolved.                                                                    |
@@ -122,7 +117,7 @@ Semantics
 | `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
 | `varType`                                  | `string`           | Represents an optional state-variable type. Leading and trailing whitespace is removed.                                                                                   |
-| `event`                                    | `Event`            | Represents an event. Variables are stored in Params in the order they appear. When the event ID is `tau`, it is an internal transition. Therefore, Params must be empty. |
+| `event`                                    | `Event`            | Represents an event as a free-form string. Leading and trailing whitespace is removed. The entire string is used for synchronization. When it is exactly `tau`, it is an internal transition. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
 | `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |

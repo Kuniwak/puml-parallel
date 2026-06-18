@@ -371,54 +371,14 @@ func (p *Parser) parseEdge() (Edge, error) {
 }
 
 func (p *Parser) parseEvent() (Event, error) {
-	eventID, err := p.parseID()
+	event, err := p.parseUntilSemicolon()
 	if err != nil {
-		return Event{}, fmt.Errorf("expected event ID after ':' in edge at line %d, col %d", p.line, p.col)
+		return "", err
 	}
-
-	event := Event{
-		ID:     EventID(eventID),
-		Params: []Var{},
+	if event == "" {
+		return "", fmt.Errorf("expected event after ':' in edge at line %d, col %d", p.line, p.col)
 	}
-
-	if p.peek() == '(' {
-		p.advance()
-		if err := p.skipInlineTrivia(); err != nil {
-			return Event{}, err
-		}
-
-		if p.peek() != ')' {
-			param, err := p.parseID()
-			if err != nil {
-				return Event{}, err
-			}
-			event.Params = append(event.Params, Var(param))
-			if err := p.skipInlineTrivia(); err != nil {
-				return Event{}, err
-			}
-
-			for p.peek() == ',' {
-				p.advance()
-				if err := p.skipInlineTrivia(); err != nil {
-					return Event{}, err
-				}
-				param, err := p.parseID()
-				if err != nil {
-					return Event{}, err
-				}
-				event.Params = append(event.Params, Var(param))
-				if err := p.skipInlineTrivia(); err != nil {
-					return Event{}, err
-				}
-			}
-		}
-
-		if !p.expectChar(')') {
-			return Event{}, fmt.Errorf("expected ')' at line %d, col %d", p.line, p.col)
-		}
-	}
-
-	return event, nil
+	return Event(event), nil
 }
 
 func (p *Parser) parseID() (string, error) {

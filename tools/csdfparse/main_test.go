@@ -20,7 +20,7 @@ s1 --> [*] : complete
 `
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
-	want := `{"states":{"s0":{"id":"s0","name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}]},"s1":{"id":"s1","name":"Done","vars":[]}},"start_edge":{"dst":"s0","post":"initialize"},"edges":[{"src":"s0","dst":"s1","event":{"id":"finish","params":["result"]},"guard":"ready","post":"done"}],"end_edge":{"src":"s1","guard":"complete"}}` + "\n"
+	want := `{"states":{"s0":{"id":"s0","name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}]},"s1":{"id":"s1","name":"Done","vars":[]}},"start_edge":{"dst":"s0","post":"initialize"},"edges":[{"src":"s0","dst":"s1","event":"finish(result)","guard":"ready","post":"done"}],"end_edge":{"src":"s1","guard":"complete"}}` + "\n"
 
 	// Execute
 	exitCode := Run(strings.NewReader(input), stdout, stderr)
