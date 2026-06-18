@@ -1,0 +1,1 @@
+tools/csdfrepl/testdata/*.golden whitespace=-blank-at-eol

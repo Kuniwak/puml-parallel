@@ -1,0 +1,17 @@
+State: Review order (review)
+  count = 2
+  metadata = {"priority":true,"tags":["new","gift"]}
+
+Guard:
+  count > 0
+
+Post State Group:
+  Approved
+    status' as string
+
+Post Condition:
+  status' = "reviewing"
+
+Enter state variable values as a JSON array.
+
+state> 

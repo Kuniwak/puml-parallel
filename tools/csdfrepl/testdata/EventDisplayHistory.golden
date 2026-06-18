@@ -1,0 +1,17 @@
+History:
+  [0] Trace:
+
+      State:
+        Draft order
+          count = 1
+
+  [1] Trace:
+        submit(order)
+        approve
+
+      State:
+        Review order
+          count = 2
+          metadata = {"priority":true,"tags":["new","gift"]}
+
+command> 

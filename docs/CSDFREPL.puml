@@ -1,0 +1,187 @@
+@startuml
+
+' type json = Boolean | Number | String | Dict ((string * json) list) | Array (json list)
+' type event = Event string | Tau
+' type trace = event list
+' fun appendVisible :: trace ⇒ event ⇒ trace
+'     where appendVisible trace event = (if event = Tau then trace else trace @ [event])
+' type stateGroupID = StateGroupID string
+' type stateGroup = StateGroup stateGroupID (string list)
+' fun stateIDOfStateGroup :: stateGroup ⇒ stateGroupID
+'     where stateIDOfStateGroup (StateGroup stateGroupID _) = stateGroupID
+' fun stateVarNamesOfStateGroup :: stateGroup ⇒ string list
+'     where stateVarNamesOfStateGroup (StateGroup _ stateVarNames) = stateVarNames
+' type state = State stateGroupID ((string * json) list)
+' fun stateIDOfState :: state ⇒ stateGroupID
+'     where stateIDOfState (State stateGroupID _) = stateGroupID
+' type postSolverResult = PostSolverResultOK state | PostSolverResultNoSolutions | PostSolverResultInvalidStateVarValuesLength | PostSolverResultSyntaxError string
+' fun solvePost :: stateGroup ⇒ string ⇒ postSolverResult
+'     where solvePost (StateGroup stateGroupID stateVarNames) input = (match parseJSON input
+'         of JSONResultOK stateVarValues ⇒ (if length stateVarNames = length stateVarValues then PostSolverResultOK (State stateGroupID (zip stateVarNames stateVarValues)) else PostSolverResultInvalidStateVarValuesLength)
+'          | JSONResultSyntaxError e ⇒ PostSolverResultSyntaxError e)
+' type historyEntry = HistoryEntry state trace
+' fun stateOfHistoryEntry :: historyEntry ⇒ state
+'     where stateOfHistoryEntry (HistoryEntry state _) = state
+' fun traceOfHistoryEntry :: historyEntry ⇒ trace
+'     where traceOfHistoryEntry (HistoryEntry _ trace) = trace
+' type history = historyEntry list
+' type guard = Guard string
+' type post = Post string
+' type trans = Trans stateGroup event guard post stateGroup
+' type csdf = CSDF (stateGroup list) (trans list)
+' type common = Common csdf history
+' fun csdfOfCommon :: common ⇒ csdf
+'     where csdfOfCommon (Common csdf _) = csdf
+' fun historyOfCommon :: common ⇒ history
+'     where historyOfCommon (Common _ history) = history
+' fun traceOfCommon :: common ⇒ trace
+'     where traceOfCommon (Common _ history) = (if length history = 0 then [] else traceOfHistoryEntry (last history))
+' type fatal = FileNotExists string | SyntaxError string | NoSolutionsFound
+'
+' The JSON-input solver does not produce PostSolverResultNoSolutions.
+' A future solver that mechanically evaluates guards and posts may produce it
+' when a guard-satisfying pre-state has no post-state satisfying the post.
+
+state "starting" as starting
+
+state "loadError" as loadError
+loadError: diagram ; string
+
+state "willAskStateVars" as willAskStateVars
+willAskStateVars: common ; common
+willAskStateVars: event ; event
+willAskStateVars: stateGroup ; stateGroup
+willAskStateVars: guard ; guard
+willAskStateVars: post ; post
+
+state "waitingStateVars" as waitingStateVars
+waitingStateVars: common ; common
+waitingStateVars: event ; event
+waitingStateVars: stateGroup ; stateGroup
+waitingStateVars: guard ; guard
+waitingStateVars: post ; post
+waitingStateVars: input ; string
+waitingStateVars: curPos ; nat
+
+state "willAskCommand" as willAskCommand
+willAskCommand: common ; common
+willAskCommand: state ; state
+
+state "waitingCommand" as waitingCommand
+waitingCommand: common ; common
+waitingCommand: state ; state
+waitingCommand: input ; string
+waitingCommand: curPos ; nat
+
+state "willDisplayTrans" as willDisplayTrans
+willDisplayTrans: common ; common
+willDisplayTrans: state ; state
+
+state "willDisplayTrace" as willDisplayTrace
+willDisplayTrace: common ; common
+willDisplayTrace: state ; state
+
+state "willDisplayHistory" as willDisplayHistory
+willDisplayHistory: common ; common
+willDisplayHistory: state ; state
+
+state "willDisplayHelp" as willDisplayHelp
+willDisplayHelp: common ; common
+willDisplayHelp: state ; state
+
+state "willDisplayEmptyLine" as willDisplayEmptyLine
+willDisplayEmptyLine: common ; common
+willDisplayEmptyLine: state ; state
+
+state "willDisplayError1" as willDisplayError1
+willDisplayError1: common ; common
+willDisplayError1: event ; event
+willDisplayError1: stateGroup ; stateGroup
+willDisplayError1: guard ; guard
+willDisplayError1: post ; post
+willDisplayError1: input ; string
+willDisplayError1: curPos ; nat
+willDisplayError1: error ; string
+
+state "willDisplayError2" as willDisplayError2
+willDisplayError2: common ; common
+willDisplayError2: state ; state
+willDisplayError2: input ; string
+willDisplayError2: curPos ; nat
+willDisplayError2: error ; string
+
+state "willDisplayFatal" as willDisplayFatal
+willDisplayFatal: fatal ; fatal
+
+state "willExit" as willExit
+
+[*] --> starting : True
+
+starting --> willAskStateVars : EventLaunch csdfPath ; fileExists csdfPath ∧ (∃x. parseCSDF csdfPath = ValidCSDF x); ∀x. parseCSDF csdfPath = ValidCSDF x ⟶ common' = Common x [] ∧ stateGroup' = initialStateGroup x ∧ guard' = Guard "true" ∧ post' = initialPost x ∧ event' = initialEvent x
+starting --> willDisplayFatal : EventLaunch csdfPath ; ¬fileExists csdfPath ; fatal' = FileNotExists csdfPath
+starting --> willDisplayFatal : EventLaunch csdfPath ; fileExists csdfPath ∧ (∃x. parseCSDF csdfPath = InvalidCSDF x); ∀x. parseCSDF csdfPath = InvalidCSDF x ⟶ fatal' = SyntaxError x
+
+willDisplayFatal --> willExit : EventDisplayFatal e ; fatal = e ; True
+
+willAskStateVars --> waitingStateVars : EventDisplayStateGroup h sg g p ; historyOfCommon common = h ∧ stateGroup = sg ∧ guard = g ∧ post = p ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = "" ∧ curPos' = 0
+
+waitingStateVars --> waitingStateVars : EventInputRunes rs ; length rs > 0 ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = insertRunes rs curPos input ∧ curPos' = curPos + length rs
+waitingStateVars --> waitingStateVars : EventCtrlD ; input ≠ "" ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = deleteRuneAtJustAfterCursor input ∧ curPos' = curPos
+waitingStateVars --> waitingStateVars : EventCtrlH ; curPos > 0 ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = deleteRuneAtJustBeforeCursor input ∧ curPos' = curPos - 1
+waitingStateVars --> waitingStateVars : EventPressLeftArrow ; curPos > 0 ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = input ∧ curPos' = curPos - 1
+waitingStateVars --> waitingStateVars : EventPressRightArrow ; curPos < length input ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = input ∧ curPos' = curPos + 1
+waitingStateVars --> willAskCommand : EventPressEnter ; ∃x. solvePost stateGroup input = PostSolverResultOK x ; solvePost stateGroup input = PostSolverResultOK state' ⟶ common' = Common (csdfOfCommon common) ((historyOfCommon common) @ [HistoryEntry state' (appendVisible (traceOfCommon common) event)])
+waitingStateVars --> willDisplayError1 : EventPressEnter ; solvePost stateGroup input = PostSolverResultInvalidStateVarValuesLength ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ error' = "State variable values length mismatch" ∧ input' = input ∧ curPos' = curPos
+waitingStateVars --> willDisplayError1 : EventPressEnter ; solvePost stateGroup input = PostSolverResultNoSolutions ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ error' = "No solutions" ∧ input' = input ∧ curPos' = curPos
+waitingStateVars --> willDisplayError1 : EventPressEnter ; ∃e. solvePost stateGroup input = PostSolverResultSyntaxError e ; ∀e. solvePost stateGroup input = PostSolverResultSyntaxError e ⟶ common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ error' = e ∧ input' = input ∧ curPos' = curPos
+waitingStateVars --> willAskCommand : EventCtrlC ; length (historyOfCommon common) > 0 ; common' = common ∧ state' = stateOfHistoryEntry (last (historyOfCommon common))
+waitingStateVars --> willDisplayFatal : EventCtrlC ; length (historyOfCommon common) = 0 ; fatal' = NoSolutionsFound
+waitingStateVars --> willExit : EventCtrlD ; input = "" ; True
+
+willDisplayError1 --> waitingStateVars : EventDisplayStateVarsError e ; error = e ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = input ∧ curPos' = curPos
+
+willAskCommand --> waitingCommand : EventDisplayTrans s ts ; state = s ∧ ts = transByStateGroupID (csdfOfCommon common) (stateIDOfState state) ∧ length ts > 0 ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+willAskCommand --> waitingCommand : EventDisplayDeadlock s ; state = s ∧ length (transByStateGroupID (csdfOfCommon common) (stateIDOfState state)) = 0 ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+waitingCommand --> waitingCommand : EventInputRunes rs ; length rs > 0 ; common' = common ∧ state' = state ∧ input' = insertRunes rs curPos input ∧ curPos' = curPos + length rs
+waitingCommand --> waitingCommand : EventCtrlD ; input ≠ "" ; common' = common ∧ state' = state ∧ input' = deleteRuneAtJustAfterCursor input ∧ curPos' = curPos
+waitingCommand --> waitingCommand : EventCtrlH ; curPos > 0 ; common' = common ∧ state' = state ∧ input' = deleteRuneAtJustBeforeCursor input ∧ curPos' = curPos - 1
+waitingCommand --> waitingCommand : EventPressLeftArrow ; curPos > 0 ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos - 1
+waitingCommand --> waitingCommand : EventPressRightArrow ; curPos < length input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos + 1
+waitingCommand --> willDisplayTrans : EventPressEnter ; input = "l" ; common' = common ∧ state' = state
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "l " input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "invalid arguments"
+waitingCommand --> willDisplayTrace : EventPressEnter ; input = "t" ; common' = common ∧ state' = state
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "t " input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "invalid arguments"
+waitingCommand --> willDisplayHistory : EventPressEnter ; input = "h" ; common' = common ∧ state' = state
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "h " input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "invalid arguments"
+waitingCommand --> willDisplayHelp : EventPressEnter ; input = "?" ∨ input = "help" ; common' = common ∧ state' = state
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "? " input ∨ hasPrefix "help " input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "invalid arguments"
+waitingCommand --> willAskStateVars : EventPressEnter ; ∀ts. ts = transByStateGroupID (csdfOfCommon common) (stateIDOfState state) ⟶ (hasPrefix "s " input ∧ (∃x. parseNat (trimPrefix "s " input) = ValidNat x ∧ x < length ts)) ; ∀ts. ts = transByStateGroupID (csdfOfCommon common) (stateIDOfState state) ⟶ (common' = common ∧ (∃x. parseNat (trimPrefix "s " input) = ValidNat x ∧ post' = postOfTrans (ts ! x) ∧ guard' = guardOfTrans (ts ! x) ∧ stateGroup' = stateGroupOfTrans (ts ! x) ∧ event' = eventOfTrans (ts ! x)))
+waitingCommand --> willDisplayError2 : EventPressEnter ; input = "s" ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "required an index of transition"
+waitingCommand --> willDisplayError2 : EventPressEnter ; ∀ts. ts = transByStateGroupID (csdfOfCommon common) (stateIDOfState state) ⟶ (hasPrefix "s " input ∧ (∃x. parseNat (trimPrefix "s " input) = ValidNat x ∧ x ≧ length ts)) ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "Index out of range"
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "s " input ∧ (∃x. parseNat (trimPrefix "s " input) = InvalidNat); common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "Not a natural number"
+waitingCommand --> willDisplayTrans : EventPressEnter ; hasPrefix "j " input ∧ (∃x. parseNat (trimPrefix "j " input) = ValidNat x ∧ x < length (historyOfCommon common)) ; ∀x. parseNat (trimPrefix "j " input) = ValidNat x ⟶ common' = Common (csdfOfCommon common) ((historyOfCommon common) @ [(historyOfCommon common) ! x]) ∧ state' = stateOfHistoryEntry ((historyOfCommon common) ! x)
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "j " input ∧ (∃x. parseNat (trimPrefix "j " input) = ValidNat x ∧ x ≧ length (historyOfCommon common)) ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "Index out of range"
+waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "j " input ∧ (∃x. parseNat (trimPrefix "j " input) = InvalidNat) ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "Not a natural number"
+waitingCommand --> willDisplayError2 : EventPressEnter ; input = "j" ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "required an index of history"
+waitingCommand --> willDisplayError2 : EventPressEnter ; input ∉ {"l", "t", "h", "?", "help", "s", "j", ""} ∧ (∀x ∈ {"l ", "t ", "h ", "? ", "help ", "s ", "j "}. ¬ hasPrefix x input) ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "invalid command"
+waitingCommand --> willDisplayEmptyLine : EventPressEnter ; input = "" ; common' = common ∧ state' = state
+waitingCommand --> willExit : EventCtrlD ; input = "" ; True
+waitingCommand --> willExit : EventCtrlC ; True ; True
+
+willDisplayTrans --> waitingCommand : EventDisplayTrans s ts ; state = s ∧ ts = transByStateGroupID (csdfOfCommon common) (stateIDOfState state) ∧ length ts > 0 ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+willDisplayTrans --> waitingCommand : EventDisplayDeadlock s ; state = s ∧ length (transByStateGroupID (csdfOfCommon common) (stateIDOfState state)) = 0 ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+willDisplayTrace --> waitingCommand : EventDisplayTrace t ; traceOfHistoryEntry (last (historyOfCommon common)) = t ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+willDisplayHistory --> waitingCommand : EventDisplayHistory h ; historyOfCommon common = h ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+willDisplayHelp --> waitingCommand : EventDisplayHelp ; True ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+willDisplayEmptyLine --> waitingCommand : EventDisplayEmptyLine ; True ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+willDisplayError2 --> waitingCommand : EventDisplayCommandError e ; error = e ; common' = common ∧ state' = state ∧ input' = "" ∧ curPos' = 0
+
+willExit --> [*] : True
+
+@enduml
