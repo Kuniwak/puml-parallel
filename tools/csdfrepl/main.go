@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -279,9 +278,9 @@ func (r *repl) run() int {
 			case commandList:
 				r.displayState(current)
 			case commandTrace:
-				r.displayJSON("Trace", r.currentTrace())
+				r.displayTrace(r.currentTrace())
 			case commandHistory:
-				r.displayJSON("History", r.history)
+				r.displayHistory(r.history)
 			case commandHelp:
 				r.displayHelp()
 			case commandJump:
@@ -330,7 +329,7 @@ const (
 
 func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, post string, event core.Event) (RuntimeState, inputOutcome) {
 	for {
-		r.displayStateValuePrompt(group, guard, post)
+		r.displayStateValuePrompt(previous, group, guard, post)
 		line, outcome := r.readLine("state> ")
 		if outcome == inputExit {
 			return RuntimeState{}, inputExit
@@ -362,14 +361,14 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 			r.history = append(r.history, HistoryEntry{State: result.State, Trace: trace})
 			return result.State, inputLine
 		case PostSolverResultNoSolutions:
-			r.displayError("No solutions")
+			r.displayStateVarsError("No solutions")
 		case PostSolverResultInvalidStateVarValuesLength:
-			r.displayError("State variable values length mismatch")
+			r.displayStateVarsError("State variable values length mismatch")
 		case PostSolverResultSyntaxError:
 			if result.Err == nil {
-				r.displayError("invalid state variable values")
+				r.displayStateVarsError("invalid state variable values")
 			} else {
-				r.displayError(result.Err.Error())
+				r.displayStateVarsError(result.Err.Error())
 			}
 		default:
 			r.displayFatal("post solver returned an unknown result")
@@ -410,42 +409,60 @@ func (r *repl) displayError(message string) {
 	_, _ = fmt.Fprintf(r.stdout, "Error: %s\n", message)
 }
 
+func (r *repl) displayStateVarsError(message string) {
+	r.displayError(message)
+	_, _ = fmt.Fprintln(r.stdout)
+}
+
 func (r *repl) displayEmptyLine() {
 	_, _ = fmt.Fprintln(r.stdout)
 }
 
-func (r *repl) displayStateValuePrompt(group core.State, guard, post string) {
-	_, _ = fmt.Fprintf(r.stdout, "State: %s (%s)\n", group.Name, group.ID)
-	_, _ = fmt.Fprintln(r.stdout, "Variables:")
-	if len(group.Vars) == 0 {
-		_, _ = fmt.Fprintln(r.stdout, "  (none)")
+func (r *repl) displayStateValuePrompt(previous *RuntimeState, group core.State, guard, post string) {
+	if previous == nil {
+		_, _ = fmt.Fprintln(r.stdout, "State: (none)")
+	} else {
+		_, _ = fmt.Fprintf(r.stdout, "State: %s (%s)\n", previous.Name, previous.ID)
+		r.displayStateValues(previous.Values, "  ")
 	}
+	_, _ = fmt.Fprintln(r.stdout)
+
+	_, _ = fmt.Fprintln(r.stdout, "Guard:")
+	_, _ = fmt.Fprintf(r.stdout, "  %s\n\n", displayCondition(guard))
+
+	_, _ = fmt.Fprintln(r.stdout, "Post State Group:")
+	_, _ = fmt.Fprintf(r.stdout, "  %s\n", group.Name)
 	for _, variable := range group.Vars {
-		if variable.Type == "" {
-			_, _ = fmt.Fprintf(r.stdout, "  %s\n", variable.Name)
-		} else {
-			_, _ = fmt.Fprintf(r.stdout, "  %s: %s\n", variable.Name, variable.Type)
+		variableType := variable.Type
+		if variableType == "" {
+			variableType = "any"
 		}
+		_, _ = fmt.Fprintf(r.stdout, "    %s' as %s\n", variable.Name, variableType)
 	}
-	_, _ = fmt.Fprintf(r.stdout, "Guard: %s\n", displayCondition(guard))
-	_, _ = fmt.Fprintf(r.stdout, "Post: %s\n", displayCondition(post))
+	_, _ = fmt.Fprintln(r.stdout)
+
+	_, _ = fmt.Fprintln(r.stdout, "Post Condition:")
+	_, _ = fmt.Fprintf(r.stdout, "  %s\n\n", displayCondition(post))
 	_, _ = fmt.Fprintln(r.stdout, "Enter state variable values as a JSON array.")
+	_, _ = fmt.Fprintln(r.stdout)
 }
 
 func (r *repl) displayState(state RuntimeState) {
+	edges := r.outgoing(state.ID)
 	_, _ = fmt.Fprintf(r.stdout, "State: %s (%s)\n", state.Name, state.ID)
+	if len(edges) > 0 {
+		_, _ = fmt.Fprintln(r.stdout)
+	}
 	_, _ = fmt.Fprintln(r.stdout, "Values:")
 	if len(state.Values) == 0 {
 		_, _ = fmt.Fprintln(r.stdout, "  (none)")
 	}
-	for _, value := range state.Values {
-		encoded, _ := json.Marshal(value.Value)
-		_, _ = fmt.Fprintf(r.stdout, "  %s = %s\n", value.Name, encoded)
-	}
+	r.displayStateValues(state.Values, "  ")
+	_, _ = fmt.Fprintln(r.stdout)
 
-	edges := r.outgoing(state.ID)
 	if len(edges) == 0 {
 		_, _ = fmt.Fprintln(r.stdout, "Deadlock: no outgoing transitions.")
+		_, _ = fmt.Fprintln(r.stdout)
 		return
 	}
 	_, _ = fmt.Fprintln(r.stdout, "Transitions:")
@@ -454,7 +471,19 @@ func (r *repl) displayState(state RuntimeState) {
 		_, _ = fmt.Fprintf(r.stdout, "  [%d] %s -> %s (%s)\n", i, edge.Event, destination.Name, edge.Dst)
 		_, _ = fmt.Fprintf(r.stdout, "      Guard: %s\n", displayCondition(edge.Guard))
 		_, _ = fmt.Fprintf(r.stdout, "      Post: %s\n", displayCondition(edge.Post))
+		_, _ = fmt.Fprintln(r.stdout)
 	}
+}
+
+func (r *repl) displayStateValues(values []StateValue, indent string) {
+	for _, value := range values {
+		_, _ = fmt.Fprintf(r.stdout, "%s%s = %s\n", indent, value.Name, encodeJSON(value.Value))
+	}
+}
+
+func encodeJSON(value any) string {
+	encoded, _ := json.Marshal(value)
+	return string(encoded)
 }
 
 func displayCondition(condition string) string {
@@ -464,15 +493,29 @@ func displayCondition(condition string) string {
 	return condition
 }
 
-func (r *repl) displayJSON(label string, value any) {
-	var output bytes.Buffer
-	encoder := json.NewEncoder(&output)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(value); err != nil {
-		r.displayError(fmt.Sprintf("encoding %s: %v", strings.ToLower(label), err))
+func (r *repl) displayTrace(trace []core.Event) {
+	encoded, err := json.MarshalIndent(trace, "", "  ")
+	if err != nil {
+		r.displayError(fmt.Sprintf("encoding trace: %v", err))
 		return
 	}
-	_, _ = fmt.Fprintf(r.stdout, "%s:\n%s", label, output.String())
+	indented := strings.ReplaceAll(string(encoded), "\n", "\n  ")
+	_, _ = fmt.Fprintf(r.stdout, "Trace:\n  %s\n\n", indented)
+}
+
+func (r *repl) displayHistory(history []HistoryEntry) {
+	_, _ = fmt.Fprintln(r.stdout, "History:")
+	for i, entry := range history {
+		_, _ = fmt.Fprintf(r.stdout, "  [%d] Trace:\n", i)
+		for _, event := range entry.Trace {
+			_, _ = fmt.Fprintf(r.stdout, "        %s\n", event)
+		}
+		_, _ = fmt.Fprintln(r.stdout)
+		_, _ = fmt.Fprintln(r.stdout, "      State:")
+		_, _ = fmt.Fprintf(r.stdout, "        %s\n", entry.State.Name)
+		r.displayStateValues(entry.State.Values, "          ")
+		_, _ = fmt.Fprintln(r.stdout)
+	}
 }
 
 func (r *repl) displayHelp() {
@@ -483,6 +526,7 @@ func (r *repl) displayHelp() {
 	_, _ = fmt.Fprintln(r.stdout, "  s INDEX   select a transition")
 	_, _ = fmt.Fprintln(r.stdout, "  j INDEX   jump to a history entry")
 	_, _ = fmt.Fprintln(r.stdout, "  ?, help   display this help")
+	_, _ = fmt.Fprintln(r.stdout)
 }
 
 func (r *repl) outgoing(stateID core.StateID) []core.Edge {

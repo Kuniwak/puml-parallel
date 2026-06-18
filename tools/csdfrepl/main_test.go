@@ -55,12 +55,11 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateGroup",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateValuePrompt(core.State{
-					ID:   "review",
-					Name: "Review order",
+				r.displayStateValuePrompt(&state, core.State{
+					ID:   "approved",
+					Name: "Approved",
 					Vars: []core.StateVar{
-						{Name: "count", Type: "number"},
-						{Name: "metadata"},
+						{Name: "status", Type: "string"},
 					},
 				}, "count > 0", `status' = "reviewing"`)
 			},
@@ -69,7 +68,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateVarsError",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayError("State variable values length mismatch")
+				r.displayStateVarsError("State variable values length mismatch")
 			},
 		},
 		{
@@ -118,14 +117,14 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayTrace",
 			prompt: "command> ",
 			display: func(r *repl) {
-				r.displayJSON("Trace", []core.Event{"submit(order)", "approve"})
+				r.displayTrace([]core.Event{"submit(order)", "approve"})
 			},
 		},
 		{
 			name:   "EventDisplayHistory",
 			prompt: "command> ",
 			display: func(r *repl) {
-				r.displayJSON("History", history)
+				r.displayHistory(history)
 			},
 		},
 		{
@@ -163,6 +162,47 @@ func TestEventDisplaysGolden(t *testing.T) {
 			}
 			assertGolden(t, tt.name, stdout.Bytes())
 		})
+	}
+}
+
+func TestDisplayStateValuePromptForInitialState(t *testing.T) {
+	stdout := &bytes.Buffer{}
+	lines := make(chan lineResult, 1)
+	lines <- lineResult{}
+	close(lines)
+	r := &repl{stdout: stdout, lines: lines}
+
+	r.displayStateValuePrompt(nil, core.State{
+		ID:   "initial",
+		Name: "Initial",
+		Vars: []core.StateVar{
+			{Name: "count", Type: "number"},
+			{Name: "metadata"},
+		},
+	}, "", "")
+	if _, outcome := r.readLine("state> "); outcome != inputLine {
+		t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
+	}
+
+	want := "" +
+		"State: (none)\n" +
+		"\n" +
+		"Guard:\n" +
+		"  true\n" +
+		"\n" +
+		"Post State Group:\n" +
+		"  Initial\n" +
+		"    count' as number\n" +
+		"    metadata' as any\n" +
+		"\n" +
+		"Post Condition:\n" +
+		"  true\n" +
+		"\n" +
+		"Enter state variable values as a JSON array.\n" +
+		"\n" +
+		"state> "
+	if stdout.String() != want {
+		t.Errorf("output differs\n--- expected ---\n%s--- actual ---\n%s", want, stdout.String())
 	}
 }
 
@@ -211,7 +251,7 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 	}
 	for _, want := range []string{
 		"State: Initial (s0)",
-		"count: number",
+		"count' as number",
 		"[0] insert(coin) -> Done (s1)",
 		`"insert(coin)"`,
 		"State: Done (s1)",
