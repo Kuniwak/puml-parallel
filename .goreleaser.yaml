@@ -40,6 +40,19 @@ builds:
     env:
       - CGO_ENABLED=0
 
+  - id: csdfrepl
+    main: ./tools/csdfrepl/main.go
+    binary: csdfrepl
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+
 archives:
   - id: default
     format_overrides:
@@ -50,6 +63,7 @@ archives:
       - csdfparallel
       - csdfparse
       - csdfevents
+      - csdfrepl
     files:
       - README.md
       - LICENSE*
