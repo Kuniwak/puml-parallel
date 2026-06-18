@@ -200,7 +200,7 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 		"\n" +
 		"Enter state variable values as a JSON array.\n" +
 		"\n" +
-		"state> "
+		"state> \n"
 	if stdout.String() != want {
 		t.Errorf("output differs\n--- expected ---\n%s--- actual ---\n%s", want, stdout.String())
 	}

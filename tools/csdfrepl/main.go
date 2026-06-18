@@ -397,6 +397,7 @@ func (r *repl) readLine(prompt string) (string, inputOutcome) {
 			r.displayFatal(fmt.Sprintf("reading input: %v", result.err))
 			return "", inputFatal
 		}
+		_, _ = fmt.Fprintln(r.stdout)
 		return result.line, inputLine
 	}
 }
