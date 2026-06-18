@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -391,6 +393,84 @@ s0: value
 	}
 	if strings.Contains(stdout.String(), "value = 1") {
 		t.Errorf("Run() submitted a line without Enter:\n%s", stdout.String())
+	}
+}
+
+func TestTerminalLineReaderEditsInput(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "Ctrl+H",
+			input: "ab\x08c\r",
+			want:  "ac",
+		},
+		{
+			name:  "Backspace",
+			input: "ab\x7fc\r",
+			want:  "ac",
+		},
+		{
+			name:  "left arrow inserts before cursor",
+			input: "ac\x1b[Db\r",
+			want:  "abc",
+		},
+		{
+			name:  "right arrow moves cursor",
+			input: "ac\x1b[D\x1b[D\x1b[Cb\r",
+			want:  "abc",
+		},
+		{
+			name:  "cursor boundaries are ignored",
+			input: "\x1b[D\x08a\x1b[C\r",
+			want:  "a",
+		},
+		{
+			name:  "Unicode runes",
+			input: "あう\x1b[Dい\r",
+			want:  "あいう",
+		},
+		{
+			name:  "Ctrl+D deletes after cursor",
+			input: "ac\x1b[D\x04\r",
+			want:  "a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newTerminalLineReader(strings.NewReader(tt.input), &bytes.Buffer{})
+			got, err := reader.readLine("command> ")
+			if err != nil {
+				t.Fatalf("readLine() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("readLine() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTerminalLineReaderControlOutcomes(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr error
+	}{
+		{name: "Ctrl+C", input: "\x03", wantErr: errTerminalInterrupt},
+		{name: "Ctrl+D on empty line", input: "\x04", wantErr: io.EOF},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newTerminalLineReader(strings.NewReader(tt.input), &bytes.Buffer{})
+			_, err := reader.readLine("command> ")
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("readLine() error = %v, want %v", err, tt.wantErr)
+			}
+		})
 	}
 }
 

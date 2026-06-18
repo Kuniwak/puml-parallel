@@ -128,6 +128,8 @@ willAskStateVars --> waitingStateVars : EventDisplayStateGroup h sg g p ; histor
 waitingStateVars --> waitingStateVars : EventInputRunes rs ; length rs > 0 ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = insertRunes rs curPos input ∧ curPos' = curPos + length rs
 waitingStateVars --> waitingStateVars : EventCtrlD ; input ≠ "" ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = deleteRuneAtJustAfterCursor input ∧ curPos' = curPos
 waitingStateVars --> waitingStateVars : EventCtrlH ; curPos > 0 ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = deleteRuneAtJustBeforeCursor input ∧ curPos' = curPos - 1
+waitingStateVars --> waitingStateVars : EventPressLeftArrow ; curPos > 0 ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = input ∧ curPos' = curPos - 1
+waitingStateVars --> waitingStateVars : EventPressRightArrow ; curPos < length input ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ input' = input ∧ curPos' = curPos + 1
 waitingStateVars --> willAskCommand : EventPressEnter ; ∃x. solvePost stateGroup input = PostSolverResultOK x ; solvePost stateGroup input = PostSolverResultOK state' ⟶ common' = Common (csdfOfCommon common) ((historyOfCommon common) @ [HistoryEntry state' (appendVisible (traceOfCommon common) event)])
 waitingStateVars --> willDisplayError1 : EventPressEnter ; solvePost stateGroup input = PostSolverResultInvalidStateVarValuesLength ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ error' = "State variable values length mismatch" ∧ input' = input ∧ curPos' = curPos
 waitingStateVars --> willDisplayError1 : EventPressEnter ; solvePost stateGroup input = PostSolverResultNoSolutions ; common' = common ∧ event' = event ∧ stateGroup' = stateGroup ∧ guard' = guard ∧ post' = post ∧ error' = "No solutions" ∧ input' = input ∧ curPos' = curPos
@@ -144,6 +146,8 @@ willAskCommand --> waitingCommand : EventDisplayDeadlock s ; state = s ∧ lengt
 waitingCommand --> waitingCommand : EventInputRunes rs ; length rs > 0 ; common' = common ∧ state' = state ∧ input' = insertRunes rs curPos input ∧ curPos' = curPos + length rs
 waitingCommand --> waitingCommand : EventCtrlD ; input ≠ "" ; common' = common ∧ state' = state ∧ input' = deleteRuneAtJustAfterCursor input ∧ curPos' = curPos
 waitingCommand --> waitingCommand : EventCtrlH ; curPos > 0 ; common' = common ∧ state' = state ∧ input' = deleteRuneAtJustBeforeCursor input ∧ curPos' = curPos - 1
+waitingCommand --> waitingCommand : EventPressLeftArrow ; curPos > 0 ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos - 1
+waitingCommand --> waitingCommand : EventPressRightArrow ; curPos < length input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos + 1
 waitingCommand --> willDisplayTrans : EventPressEnter ; input = "l" ; common' = common ∧ state' = state
 waitingCommand --> willDisplayError2 : EventPressEnter ; hasPrefix "l " input ; common' = common ∧ state' = state ∧ input' = input ∧ curPos' = curPos ∧ error' = "invalid arguments"
 waitingCommand --> willDisplayTrace : EventPressEnter ; input = "t" ; common' = common ∧ state' = state

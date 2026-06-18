@@ -14,6 +14,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
+	"golang.org/x/term"
 )
 
 const tau core.Event = "tau"
@@ -165,12 +166,21 @@ func runWithSolver(args []string, stdin io.Reader, stdout, stderr io.Writer, int
 		return 1
 	}
 
-	lines := newLineReader(stdin)
+	var terminal *terminalLineReader
+	var lines <-chan lineResult
+	stdinFile, stdinIsFile := stdin.(*os.File)
+	stdoutFile, stdoutIsFile := stdout.(*os.File)
+	if stdinIsFile && stdoutIsFile && term.IsTerminal(int(stdinFile.Fd())) && term.IsTerminal(int(stdoutFile.Fd())) {
+		terminal = newTerminalLineReader(stdinFile, stdoutFile)
+	} else {
+		lines = newLineReader(stdin)
+	}
 	repl := repl{
 		diagram:    diagram,
 		stdout:     stdout,
 		interrupts: interrupts,
 		lines:      lines,
+		terminal:   terminal,
 		solver:     solver,
 	}
 	return repl.run()
@@ -195,6 +205,76 @@ func loadDiagram(path string) (*core.Diagram, error) {
 type lineResult struct {
 	line string
 	err  error
+}
+
+var errTerminalInterrupt = errors.New("terminal input interrupted")
+
+type terminalReadWriter struct {
+	reader *bufio.Reader
+	writer io.Writer
+}
+
+func (rw *terminalReadWriter) Read(buffer []byte) (int, error) {
+	if len(buffer) == 0 {
+		return 0, nil
+	}
+	value, err := rw.reader.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	if value == 3 {
+		return 0, errTerminalInterrupt
+	}
+	buffer[0] = value
+	return 1, nil
+}
+
+func (rw *terminalReadWriter) Write(buffer []byte) (int, error) {
+	return rw.writer.Write(buffer)
+}
+
+type terminalLineReader struct {
+	stream   *terminalReadWriter
+	inputFD  int
+	outputFD int
+}
+
+func newTerminalLineReader(reader io.Reader, writer io.Writer) *terminalLineReader {
+	inputFD := -1
+	if file, ok := reader.(*os.File); ok {
+		inputFD = int(file.Fd())
+	}
+	outputFD := -1
+	if file, ok := writer.(*os.File); ok {
+		outputFD = int(file.Fd())
+	}
+	return &terminalLineReader{
+		stream: &terminalReadWriter{
+			reader: bufio.NewReader(reader),
+			writer: writer,
+		},
+		inputFD:  inputFD,
+		outputFD: outputFD,
+	}
+}
+
+func (r *terminalLineReader) readLine(prompt string) (string, error) {
+	if r.inputFD >= 0 {
+		oldState, err := term.MakeRaw(r.inputFD)
+		if err != nil {
+			return "", fmt.Errorf("configuring terminal input: %w", err)
+		}
+		defer func() {
+			_ = term.Restore(r.inputFD, oldState)
+		}()
+	}
+	terminal := term.NewTerminal(r.stream, prompt)
+	if r.outputFD >= 0 {
+		if width, height, err := term.GetSize(r.outputFD); err == nil {
+			_ = terminal.SetSize(width, height)
+		}
+	}
+	return terminal.ReadLine()
 }
 
 func newLineReader(reader io.Reader) <-chan lineResult {
@@ -223,6 +303,7 @@ type repl struct {
 	stdout     io.Writer
 	interrupts <-chan os.Signal
 	lines      <-chan lineResult
+	terminal   *terminalLineReader
 	solver     PostSolver
 	history    []HistoryEntry
 }
@@ -378,6 +459,28 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 }
 
 func (r *repl) readLine(prompt string) (string, inputOutcome) {
+	if r.terminal != nil {
+		select {
+		case <-r.interrupts:
+			_, _ = fmt.Fprintln(r.stdout, prompt)
+			return "", inputInterrupt
+		default:
+		}
+		line, err := r.terminal.readLine(prompt)
+		if errors.Is(err, errTerminalInterrupt) {
+			_, _ = fmt.Fprintln(r.stdout)
+			return "", inputInterrupt
+		}
+		if errors.Is(err, io.EOF) {
+			return "", inputExit
+		}
+		if err != nil {
+			r.displayFatal(fmt.Sprintf("reading input: %v", err))
+			return "", inputFatal
+		}
+		return line, inputLine
+	}
+
 	_, _ = fmt.Fprint(r.stdout, prompt)
 	select {
 	case <-r.interrupts:
