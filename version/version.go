@@ -1,3 +1,5 @@
 package version
 
-const Version = "0.0.0"
+// Version is the build version. It defaults to "dev" for builds from source
+// and is overridden at release time by goreleaser via -ldflags -X.
+var Version = "dev"
