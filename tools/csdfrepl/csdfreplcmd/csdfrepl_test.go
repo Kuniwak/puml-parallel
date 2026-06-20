@@ -1,4 +1,4 @@
-package main
+package csdfreplcmd
 
 import (
 	"bytes"
@@ -499,7 +499,7 @@ func TestRunRejectsBadInvocationAndBadFiles(t *testing.T) {
 }
 
 func TestLoadDiagramReadsPlantUMLPNG(t *testing.T) {
-	diagram, err := loadDiagram(filepath.Join("..", "..", "examples", "valid", "client.png"))
+	diagram, err := loadDiagram(filepath.Join("..", "..", "..", "examples", "valid", "client.png"))
 	if err != nil {
 		t.Fatalf("loadDiagram() error = %v", err)
 	}
