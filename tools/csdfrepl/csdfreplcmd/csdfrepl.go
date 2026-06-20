@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 	"golang.org/x/term"
@@ -132,34 +133,24 @@ func containsNull(value any) bool {
 	return false
 }
 
-func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, interrupts <-chan os.Signal) int {
-	return runWithSolver(args, stdin, stdout, stderr, interrupts, JSONPostSolver{})
-}
-
-func runWithSolver(args []string, stdin io.Reader, stdout, stderr io.Writer, interrupts <-chan os.Signal, solver PostSolver) int {
-	if len(args) != 1 {
-		_, _ = fmt.Fprintln(stderr, "Error: exactly one CSDF file is required")
-		return 1
-	}
-
-	diagram, err := loadDiagram(args[0])
+func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver PostSolver) error {
+	diagram, err := loadDiagram(file)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "Error: %v\n", err)
-		return 1
+		return err
 	}
 
 	var terminal *terminalLineReader
 	var lines <-chan lineResult
-	stdinFile, stdinIsFile := stdin.(*os.File)
-	stdoutFile, stdoutIsFile := stdout.(*os.File)
+	stdinFile, stdinIsFile := inout.Stdin.(*os.File)
+	stdoutFile, stdoutIsFile := inout.Stdout.(*os.File)
 	if stdinIsFile && stdoutIsFile && term.IsTerminal(int(stdinFile.Fd())) && term.IsTerminal(int(stdoutFile.Fd())) {
 		terminal = newTerminalLineReader(stdinFile, stdoutFile)
 	} else {
-		lines = newLineReader(stdin)
+		lines = newLineReader(inout.Stdin)
 	}
 	repl := repl{
 		diagram:    diagram,
-		stdout:     stdout,
+		stdout:     inout.Stdout,
 		interrupts: interrupts,
 		lines:      lines,
 		terminal:   terminal,
@@ -290,11 +281,10 @@ type repl struct {
 	history    []HistoryEntry
 }
 
-func (r *repl) run() int {
+func (r *repl) run() error {
 	initial, ok := r.diagram.States[r.diagram.StartEdge.Dst]
 	if !ok {
-		r.displayFatal(fmt.Sprintf("initial state %q does not exist", r.diagram.StartEdge.Dst))
-		return 1
+		return fmt.Errorf("initial state %q does not exist", r.diagram.StartEdge.Dst)
 	}
 
 	var previous *RuntimeState
@@ -304,12 +294,13 @@ func (r *repl) run() int {
 	event := tau
 
 	for {
-		state, outcome := r.askStateValues(stateGroup, previous, guard, post, event)
+		state, outcome, err := r.askStateValues(stateGroup, previous, guard, post, event)
+		if err != nil {
+			return err
+		}
 		switch outcome {
 		case inputExit:
-			return 0
-		case inputFatal:
-			return 1
+			return nil
 		case inputBack:
 			current := r.history[len(r.history)-1].State
 			previous = &current
@@ -321,12 +312,12 @@ func (r *repl) run() int {
 		r.displayState(*previous)
 		for {
 			current := *previous
-			command, outcome := r.readLine("command> ")
-			if outcome == inputExit || outcome == inputInterrupt {
-				return 0
+			command, outcome, err := r.readLine("command> ")
+			if err != nil {
+				return err
 			}
-			if outcome == inputFatal {
-				return 1
+			if outcome == inputExit || outcome == inputInterrupt {
+				return nil
 			}
 
 			action, index, err := parseCommand(command)
@@ -365,8 +356,7 @@ func (r *repl) run() int {
 				edge := edges[index]
 				next, ok := r.diagram.States[edge.Dst]
 				if !ok {
-					r.displayFatal(fmt.Sprintf("destination state %q does not exist", edge.Dst))
-					return 1
+					return fmt.Errorf("destination state %q does not exist", edge.Dst)
 				}
 				stateGroup = next
 				guard = edge.Guard
@@ -390,22 +380,21 @@ const (
 	inputFatal
 )
 
-func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, post string, event core.Event) (RuntimeState, inputOutcome) {
+func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, post string, event core.Event) (RuntimeState, inputOutcome, error) {
 	for {
 		r.displayStateValuePrompt(previous, group, guard, post)
-		line, outcome := r.readLine("state> ")
-		if outcome == inputExit {
-			return RuntimeState{}, inputExit
+		line, outcome, err := r.readLine("state> ")
+		if err != nil {
+			return RuntimeState{}, inputFatal, err
 		}
-		if outcome == inputFatal {
-			return RuntimeState{}, inputFatal
+		if outcome == inputExit {
+			return RuntimeState{}, inputExit, nil
 		}
 		if outcome == inputInterrupt {
 			if len(r.history) == 0 {
-				r.displayFatal("No solutions found")
-				return RuntimeState{}, inputFatal
+				return RuntimeState{}, inputFatal, errors.New("No solutions found")
 			}
-			return RuntimeState{}, inputBack
+			return RuntimeState{}, inputBack, nil
 		}
 
 		result := r.solver.Solve(PostSolverInput{
@@ -422,7 +411,7 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 				trace = append(trace, event)
 			}
 			r.history = append(r.history, HistoryEntry{State: result.State, Trace: trace})
-			return result.State, inputLine
+			return result.State, inputLine, nil
 		case PostSolverResultNoSolutions:
 			r.displayStateVarsError("No solutions")
 		case PostSolverResultInvalidStateVarValuesLength:
@@ -434,61 +423,54 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 				r.displayStateVarsError(result.Err.Error())
 			}
 		default:
-			r.displayFatal("post solver returned an unknown result")
-			return RuntimeState{}, inputFatal
+			return RuntimeState{}, inputFatal, errors.New("post solver returned an unknown result")
 		}
 	}
 }
 
-func (r *repl) readLine(prompt string) (string, inputOutcome) {
+func (r *repl) readLine(prompt string) (string, inputOutcome, error) {
 	if r.terminal != nil {
 		select {
 		case <-r.interrupts:
 			_, _ = fmt.Fprintln(r.stdout, prompt)
-			return "", inputInterrupt
+			return "", inputInterrupt, nil
 		default:
 		}
 		line, err := r.terminal.readLine(prompt)
 		if errors.Is(err, errTerminalInterrupt) {
 			_, _ = fmt.Fprintln(r.stdout)
-			return "", inputInterrupt
+			return "", inputInterrupt, nil
 		}
 		if errors.Is(err, io.EOF) {
-			return "", inputExit
+			return "", inputExit, nil
 		}
 		if err != nil {
-			r.displayFatal(fmt.Sprintf("reading input: %v", err))
-			return "", inputFatal
+			return "", inputFatal, fmt.Errorf("reading input: %w", err)
 		}
-		return line, inputLine
+		return line, inputLine, nil
 	}
 
 	_, _ = fmt.Fprint(r.stdout, prompt)
 	select {
 	case <-r.interrupts:
 		_, _ = fmt.Fprintln(r.stdout)
-		return "", inputInterrupt
+		return "", inputInterrupt, nil
 	default:
 	}
 	select {
 	case <-r.interrupts:
 		_, _ = fmt.Fprintln(r.stdout)
-		return "", inputInterrupt
+		return "", inputInterrupt, nil
 	case result, ok := <-r.lines:
 		if !ok || errors.Is(result.err, io.EOF) {
-			return "", inputExit
+			return "", inputExit, nil
 		}
 		if result.err != nil {
-			r.displayFatal(fmt.Sprintf("reading input: %v", result.err))
-			return "", inputFatal
+			return "", inputFatal, fmt.Errorf("reading input: %w", result.err)
 		}
 		_, _ = fmt.Fprintln(r.stdout)
-		return result.line, inputLine
+		return result.line, inputLine, nil
 	}
-}
-
-func (r *repl) displayFatal(message string) {
-	_, _ = fmt.Fprintf(r.stdout, "Fatal: %s\n", message)
 }
 
 func (r *repl) displayError(message string) {

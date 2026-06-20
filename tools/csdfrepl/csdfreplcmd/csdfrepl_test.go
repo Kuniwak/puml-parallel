@@ -12,8 +12,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/core"
 )
+
+func newInout(stdin io.Reader, stdout, stderr io.Writer) *cli.ProcInout {
+	return &cli.ProcInout{
+		Stdin:  stdin,
+		Stdout: stdout,
+		Stderr: stderr,
+		Env:    func(string) string { return "" },
+	}
+}
 
 var updateGolden = flag.Bool("update", false, "update golden files")
 
@@ -47,12 +57,6 @@ func TestEventDisplaysGolden(t *testing.T) {
 		prompt  string
 		display func(*repl)
 	}{
-		{
-			name: "EventDisplayFatal",
-			display: func(r *repl) {
-				r.displayFatal(`destination state "missing" does not exist`)
-			},
-		},
 		{
 			name:   "EventDisplayStateGroup",
 			prompt: "state> ",
@@ -158,7 +162,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			r := &repl{diagram: diagram, stdout: stdout, lines: lines}
 			tt.display(r)
 			if tt.prompt != "" {
-				if _, outcome := r.readLine(tt.prompt); outcome != inputLine {
+				if _, outcome, _ := r.readLine(tt.prompt); outcome != inputLine {
 					t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
 				}
 			}
@@ -182,7 +186,7 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 			{Name: "metadata"},
 		},
 	}, "", "")
-	if _, outcome := r.readLine("state> "); outcome != inputLine {
+	if _, outcome, _ := r.readLine("state> "); outcome != inputLine {
 		t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
 	}
 
@@ -243,13 +247,13 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 	stderr := &bytes.Buffer{}
 	input := strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n")
 
-	exitCode := Run([]string{path}, input, stdout, stderr, nil)
+	err := runWithSolver(path, newInout(input, stdout, stderr), nil, JSONPostSolver{})
 
-	if exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0; stderr = %q", exitCode, stderr.String())
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, stderr.String())
 	}
 	if stderr.Len() != 0 {
-		t.Errorf("Run() stderr = %q, want empty", stderr.String())
+		t.Errorf("runWithSolver() stderr = %q, want empty", stderr.String())
 	}
 	for _, want := range []string{
 		"State: Initial (s0)",
@@ -278,10 +282,10 @@ s0: value
 	stderr := &bytes.Buffer{}
 	input := strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n")
 
-	exitCode := Run([]string{path}, input, stdout, stderr, nil)
+	err := runWithSolver(path, newInout(input, stdout, stderr), nil, JSONPostSolver{})
 
-	if exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0; stderr = %q", exitCode, stderr.String())
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, stderr.String())
 	}
 	for _, want := range []string{
 		"invalid JSON array",
@@ -317,10 +321,10 @@ state "Initial" as s0
 		},
 	}
 
-	exitCode := runWithSolver([]string{path}, strings.NewReader("[]\n[]\n"), stdout, &bytes.Buffer{}, nil, solver)
+	err := runWithSolver(path, newInout(strings.NewReader("[]\n[]\n"), stdout, &bytes.Buffer{}), nil, solver)
 
-	if exitCode != 0 {
-		t.Fatalf("runWithSolver() exit code = %d, want 0", exitCode)
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v, want nil", err)
 	}
 	if !strings.Contains(stdout.String(), "Error: No solutions") {
 		t.Fatalf("runWithSolver() stdout = %q, want No solutions error", stdout.String())
@@ -341,9 +345,9 @@ s0 --> s1 : go
 	stdout := &lockedBuffer{}
 	interrupts := make(chan os.Signal, 1)
 	inputReader, inputWriter := ioPipe(t)
-	done := make(chan int, 1)
+	done := make(chan error, 1)
 	go func() {
-		done <- Run([]string{path}, inputReader, stdout, &bytes.Buffer{}, interrupts)
+		done <- runWithSolver(path, newInout(inputReader, stdout, &bytes.Buffer{}), interrupts, JSONPostSolver{})
 	}()
 
 	writeAndWait(t, inputWriter, "[]\n", stdout, "command> ")
@@ -352,8 +356,8 @@ s0 --> s1 : go
 	waitFor(t, stdout, "State: Initial (s0)")
 	_ = inputWriter.Close()
 
-	if exitCode := <-done; exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	if err := <-done; err != nil {
+		t.Fatalf("runWithSolver() error = %v, want nil", err)
 	}
 }
 
@@ -367,13 +371,13 @@ state "Initial" as s0
 	interrupts := make(chan os.Signal, 1)
 	interrupts <- os.Interrupt
 
-	exitCode := Run([]string{path}, strings.NewReader(""), stdout, &bytes.Buffer{}, interrupts)
+	err := runWithSolver(path, newInout(strings.NewReader(""), stdout, &bytes.Buffer{}), interrupts, JSONPostSolver{})
 
-	if exitCode != 1 {
-		t.Fatalf("Run() exit code = %d, want 1", exitCode)
+	if err == nil {
+		t.Fatalf("runWithSolver() error = nil, want error")
 	}
-	if !strings.Contains(stdout.String(), "Fatal: No solutions found") {
-		t.Errorf("Run() stdout = %q, want fatal error", stdout.String())
+	if !strings.Contains(err.Error(), "No solutions found") {
+		t.Errorf("runWithSolver() error = %v, want fatal error mentioning No solutions found", err)
 	}
 }
 
@@ -386,13 +390,13 @@ s0: value
 `)
 	stdout := &bytes.Buffer{}
 
-	exitCode := Run([]string{path}, strings.NewReader("[1]"), stdout, &bytes.Buffer{}, nil)
+	err := runWithSolver(path, newInout(strings.NewReader("[1]"), stdout, &bytes.Buffer{}), nil, JSONPostSolver{})
 
-	if exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v, want nil", err)
 	}
 	if strings.Contains(stdout.String(), "value = 1") {
-		t.Errorf("Run() submitted a line without Enter:\n%s", stdout.String())
+		t.Errorf("runWithSolver() submitted a line without Enter:\n%s", stdout.String())
 	}
 }
 
@@ -474,25 +478,20 @@ func TestTerminalLineReaderControlOutcomes(t *testing.T) {
 	}
 }
 
-func TestRunRejectsBadInvocationAndBadFiles(t *testing.T) {
+func TestRunWithSolverRejectsBadFiles(t *testing.T) {
 	tests := []struct {
 		name string
-		args []string
+		file string
 	}{
-		{name: "missing argument"},
-		{name: "too many arguments", args: []string{"a", "b"}},
-		{name: "missing file", args: []string{filepath.Join(t.TempDir(), "missing.puml")}},
-		{name: "invalid file", args: []string{writeDiagram(t, "not PlantUML")}},
+		{name: "missing file", file: filepath.Join(t.TempDir(), "missing.puml")},
+		{name: "invalid file", file: writeDiagram(t, "not PlantUML")},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stderr := &bytes.Buffer{}
-			if exitCode := Run(tt.args, strings.NewReader(""), &bytes.Buffer{}, stderr, nil); exitCode != 1 {
-				t.Errorf("Run() exit code = %d, want 1", exitCode)
-			}
-			if stderr.Len() == 0 {
-				t.Error("Run() stderr is empty, want error")
+			err := runWithSolver(tt.file, newInout(strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}), nil, JSONPostSolver{})
+			if err == nil {
+				t.Error("runWithSolver() error = nil, want error")
 			}
 		})
 	}
