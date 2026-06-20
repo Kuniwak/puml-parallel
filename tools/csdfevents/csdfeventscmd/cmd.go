@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -17,15 +19,20 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		var events []string
-		var err error
-		if opts.OnlyCommon {
-			events, err = collectCommonEvents(opts.Files)
-		} else {
-			events, err = collectAllEvents(opts.Files)
+		diagrams := make([]core.Diagram, 0, len(opts.Files))
+		for _, file := range opts.Files {
+			diagram, err := csdf.LoadDiagram(file)
+			if err != nil {
+				return err
+			}
+			diagrams = append(diagrams, *diagram)
 		}
-		if err != nil {
-			return err
+
+		var events []string
+		if opts.OnlyCommon {
+			events = csdf.CommonEvents(diagrams)
+		} else {
+			events = csdf.AllEvents(diagrams)
 		}
 
 		for _, event := range events {

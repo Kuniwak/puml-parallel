@@ -1,4 +1,4 @@
-package csdfparallelcmd
+package csdf
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestProcessSingleFile(t *testing.T) {
+func TestComposeSingle(t *testing.T) {
 	// Arrange
 	want := `@startuml
 state "SKIP" as s0
@@ -17,18 +17,18 @@ s0 --> [*] : true
 `
 
 	// Act
-	got, err := process([]string{"../../../examples/valid/skip.puml"}, nil)
+	composite, err := Compose(loadAll(t, "../examples/valid/skip.puml"), nil)
 	if err != nil {
-		t.Fatalf("want nil, got %v", err)
+		t.Fatalf("Compose() error = %v", err)
 	}
 
 	// Assert
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := cmp.Diff(want, composite.String()); diff != "" {
 		t.Error(diff)
 	}
 }
 
-func TestProcessCompose(t *testing.T) {
+func TestComposeParallel(t *testing.T) {
 	// Arrange
 	want := `@startuml
 state "s0 || s0" as s0_s0
@@ -43,16 +43,16 @@ s2_s1 --> s2_s2 : out
 `
 
 	// Act
-	got, err := process(
-		[]string{"../../../examples/valid/in.puml", "../../../examples/valid/out.puml"},
+	composite, err := Compose(
+		loadAll(t, "../examples/valid/in.puml", "../examples/valid/out.puml"),
 		[]core.Event{"sync"},
 	)
 	if err != nil {
-		t.Fatalf("want nil, got %v", err)
+		t.Fatalf("Compose() error = %v", err)
 	}
 
 	// Assert
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := cmp.Diff(want, composite.String()); diff != "" {
 		t.Error(diff)
 	}
 }

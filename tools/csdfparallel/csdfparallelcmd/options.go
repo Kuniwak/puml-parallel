@@ -4,11 +4,26 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
+
+func parseSyncEvents(s string) []core.Event {
+	if s == "" {
+		return nil
+	}
+	var events []core.Event
+	for _, event := range strings.Split(s, ";") {
+		trimmed := strings.TrimSpace(event)
+		if trimmed != "" {
+			events = append(events, core.Event(trimmed))
+		}
+	}
+	return events
+}
 
 type Options struct {
 	Common *tools.CommonOptions

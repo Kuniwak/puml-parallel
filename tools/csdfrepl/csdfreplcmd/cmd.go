@@ -6,6 +6,7 @@ import (
 	"os/signal"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -23,6 +24,6 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		signal.Notify(interrupts, os.Interrupt)
 		defer signal.Stop(interrupts)
 
-		return runWithSolver(opts.File, inout, interrupts, JSONPostSolver{})
+		return runWithSolver(opts.File, inout, interrupts, csdf.SolveJSON)
 	}
 }

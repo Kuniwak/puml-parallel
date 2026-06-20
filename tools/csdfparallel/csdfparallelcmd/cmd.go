@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -17,12 +19,21 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		output, err := process(opts.Files, opts.Sync)
+		diagrams := make([]core.Diagram, 0, len(opts.Files))
+		for _, file := range opts.Files {
+			diagram, err := csdf.LoadDiagram(file)
+			if err != nil {
+				return err
+			}
+			diagrams = append(diagrams, *diagram)
+		}
+
+		composite, err := csdf.Compose(diagrams, opts.Sync)
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprint(inout.Stdout, output)
+		fmt.Fprint(inout.Stdout, composite.String())
 		return nil
 	}
 }

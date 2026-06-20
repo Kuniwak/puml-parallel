@@ -12,129 +12,19 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/core"
-	"github.com/Kuniwak/puml-parallel/pngsrc"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"golang.org/x/term"
 )
 
 const tau core.Event = "tau"
 
-type StateValue struct {
-	Name  core.Var `json:"name"`
-	Value any      `json:"value"`
-}
-
-type RuntimeState struct {
-	ID     core.StateID `json:"state_id"`
-	Name   string       `json:"state_name"`
-	Values []StateValue `json:"values"`
-}
-
 type HistoryEntry struct {
-	State RuntimeState `json:"state"`
-	Trace []core.Event `json:"trace"`
+	State csdf.RuntimeState `json:"state"`
+	Trace []core.Event      `json:"trace"`
 }
 
-type PostSolverResultKind int
-
-const (
-	PostSolverResultOK PostSolverResultKind = iota
-	PostSolverResultNoSolutions
-	PostSolverResultInvalidStateVarValuesLength
-	PostSolverResultSyntaxError
-)
-
-type PostSolverInput struct {
-	StateGroup    core.State
-	Previous      *RuntimeState
-	Guard         string
-	Post          string
-	EncodedValues string
-}
-
-type PostSolverResult struct {
-	Kind  PostSolverResultKind
-	State RuntimeState
-	Err   error
-}
-
-type PostSolver interface {
-	Solve(PostSolverInput) PostSolverResult
-}
-
-type JSONPostSolver struct{}
-
-func (JSONPostSolver) Solve(input PostSolverInput) PostSolverResult {
-	decoder := json.NewDecoder(strings.NewReader(input.EncodedValues))
-	decoder.UseNumber()
-
-	var decoded any
-	if err := decoder.Decode(&decoded); err != nil {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("invalid JSON array: %w", err)}
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: err}
-	}
-	values, ok := decoded.([]any)
-	if !ok {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("invalid JSON array: top-level value must be an array")}
-	}
-	for _, value := range values {
-		if containsNull(value) {
-			return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("null is not a supported JSON value")}
-		}
-	}
-	if len(values) != len(input.StateGroup.Vars) {
-		return PostSolverResult{Kind: PostSolverResultInvalidStateVarValuesLength}
-	}
-
-	stateValues := make([]StateValue, len(values))
-	for i, value := range values {
-		stateValues[i] = StateValue{Name: input.StateGroup.Vars[i].Name, Value: value}
-	}
-	return PostSolverResult{
-		Kind: PostSolverResultOK,
-		State: RuntimeState{
-			ID:     input.StateGroup.ID,
-			Name:   input.StateGroup.Name,
-			Values: stateValues,
-		},
-	}
-}
-
-func ensureJSONEOF(decoder *json.Decoder) error {
-	var extra any
-	err := decoder.Decode(&extra)
-	if errors.Is(err, io.EOF) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("invalid JSON array: %w", err)
-	}
-	return errors.New("invalid JSON array: multiple JSON values")
-}
-
-func containsNull(value any) bool {
-	switch value := value.(type) {
-	case nil:
-		return true
-	case []any:
-		for _, item := range value {
-			if containsNull(item) {
-				return true
-			}
-		}
-	case map[string]any:
-		for _, item := range value {
-			if containsNull(item) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver PostSolver) error {
-	diagram, err := loadDiagram(file)
+func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver) error {
+	diagram, err := csdf.LoadDiagram(file)
 	if err != nil {
 		return err
 	}
@@ -157,22 +47,6 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		solver:     solver,
 	}
 	return repl.run()
-}
-
-func loadDiagram(path string) (*core.Diagram, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading file %s: %w", path, err)
-	}
-	source, err := pngsrc.Extract(content)
-	if err != nil {
-		return nil, fmt.Errorf("reading PlantUML source from %s: %w", path, err)
-	}
-	diagram, err := core.NewParser(source).Parse()
-	if err != nil {
-		return nil, fmt.Errorf("parsing file %s: %w", path, err)
-	}
-	return diagram, nil
 }
 
 type lineResult struct {
@@ -277,7 +151,7 @@ type repl struct {
 	interrupts <-chan os.Signal
 	lines      <-chan lineResult
 	terminal   *terminalLineReader
-	solver     PostSolver
+	solver     csdf.PostSolver
 	history    []HistoryEntry
 }
 
@@ -287,7 +161,7 @@ func (r *repl) run() error {
 		return fmt.Errorf("initial state %q does not exist", r.diagram.StartEdge.Dst)
 	}
 
-	var previous *RuntimeState
+	var previous *csdf.RuntimeState
 	stateGroup := initial
 	guard := core.True
 	post := r.diagram.StartEdge.Post
@@ -380,24 +254,24 @@ const (
 	inputFatal
 )
 
-func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, post string, event core.Event) (RuntimeState, inputOutcome, error) {
+func (r *repl) askStateValues(group core.State, previous *csdf.RuntimeState, guard, post string, event core.Event) (csdf.RuntimeState, inputOutcome, error) {
 	for {
 		r.displayStateValuePrompt(previous, group, guard, post)
 		line, outcome, err := r.readLine("state> ")
 		if err != nil {
-			return RuntimeState{}, inputFatal, err
+			return csdf.RuntimeState{}, inputFatal, err
 		}
 		if outcome == inputExit {
-			return RuntimeState{}, inputExit, nil
+			return csdf.RuntimeState{}, inputExit, nil
 		}
 		if outcome == inputInterrupt {
 			if len(r.history) == 0 {
-				return RuntimeState{}, inputFatal, errors.New("No solutions found")
+				return csdf.RuntimeState{}, inputFatal, errors.New("No solutions found")
 			}
-			return RuntimeState{}, inputBack, nil
+			return csdf.RuntimeState{}, inputBack, nil
 		}
 
-		result := r.solver.Solve(PostSolverInput{
+		result := r.solver(csdf.PostSolverInput{
 			StateGroup:    group,
 			Previous:      previous,
 			Guard:         guard,
@@ -405,25 +279,25 @@ func (r *repl) askStateValues(group core.State, previous *RuntimeState, guard, p
 			EncodedValues: line,
 		})
 		switch result.Kind {
-		case PostSolverResultOK:
+		case csdf.PostSolverResultOK:
 			trace := append([]core.Event{}, r.currentTrace()...)
 			if event != tau {
 				trace = append(trace, event)
 			}
 			r.history = append(r.history, HistoryEntry{State: result.State, Trace: trace})
 			return result.State, inputLine, nil
-		case PostSolverResultNoSolutions:
+		case csdf.PostSolverResultNoSolutions:
 			r.displayStateVarsError("No solutions")
-		case PostSolverResultInvalidStateVarValuesLength:
+		case csdf.PostSolverResultInvalidStateVarValuesLength:
 			r.displayStateVarsError("State variable values length mismatch")
-		case PostSolverResultSyntaxError:
+		case csdf.PostSolverResultSyntaxError:
 			if result.Err == nil {
 				r.displayStateVarsError("invalid state variable values")
 			} else {
 				r.displayStateVarsError(result.Err.Error())
 			}
 		default:
-			return RuntimeState{}, inputFatal, errors.New("post solver returned an unknown result")
+			return csdf.RuntimeState{}, inputFatal, errors.New("post solver returned an unknown result")
 		}
 	}
 }
@@ -486,7 +360,7 @@ func (r *repl) displayEmptyLine() {
 	_, _ = fmt.Fprintln(r.stdout)
 }
 
-func (r *repl) displayStateValuePrompt(previous *RuntimeState, group core.State, guard, post string) {
+func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group core.State, guard, post string) {
 	if previous == nil {
 		_, _ = fmt.Fprintln(r.stdout, "State: (none)")
 	} else {
@@ -515,7 +389,7 @@ func (r *repl) displayStateValuePrompt(previous *RuntimeState, group core.State,
 	_, _ = fmt.Fprintln(r.stdout)
 }
 
-func (r *repl) displayState(state RuntimeState) {
+func (r *repl) displayState(state csdf.RuntimeState) {
 	edges := r.outgoing(state.ID)
 	_, _ = fmt.Fprintf(r.stdout, "State: %s (%s)\n", state.Name, state.ID)
 	if len(edges) > 0 {
@@ -543,7 +417,7 @@ func (r *repl) displayState(state RuntimeState) {
 	}
 }
 
-func (r *repl) displayStateValues(values []StateValue, indent string) {
+func (r *repl) displayStateValues(values []csdf.StateValue, indent string) {
 	for _, value := range values {
 		_, _ = fmt.Fprintf(r.stdout, "%s%s = %s\n", indent, value.Name, encodeJSON(value.Value))
 	}
@@ -615,7 +489,7 @@ func (r *repl) currentTrace() []core.Event {
 }
 
 func cloneHistoryEntry(entry HistoryEntry) HistoryEntry {
-	entry.State.Values = append([]StateValue{}, entry.State.Values...)
+	entry.State.Values = append([]csdf.StateValue{}, entry.State.Values...)
 	entry.Trace = append([]core.Event{}, entry.Trace...)
 	return entry
 }

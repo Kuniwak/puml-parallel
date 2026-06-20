@@ -14,6 +14,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 func newInout(stdin io.Reader, stdout, stderr io.Writer) *cli.ProcInout {
@@ -28,20 +29,20 @@ func newInout(stdin io.Reader, stdout, stderr io.Writer) *cli.ProcInout {
 var updateGolden = flag.Bool("update", false, "update golden files")
 
 func TestEventDisplaysGolden(t *testing.T) {
-	state := RuntimeState{
+	state := csdf.RuntimeState{
 		ID:   "review",
 		Name: "Review order",
-		Values: []StateValue{
+		Values: []csdf.StateValue{
 			{Name: "count", Value: 2},
 			{Name: "metadata", Value: map[string]any{"priority": true, "tags": []any{"new", "gift"}}},
 		},
 	}
 	history := []HistoryEntry{
 		{
-			State: RuntimeState{
+			State: csdf.RuntimeState{
 				ID:     "draft",
 				Name:   "Draft order",
-				Values: []StateValue{{Name: "count", Value: 1}},
+				Values: []csdf.StateValue{{Name: "count", Value: 1}},
 			},
 			Trace: []core.Event{},
 		},
@@ -247,7 +248,7 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 	stderr := &bytes.Buffer{}
 	input := strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n")
 
-	err := runWithSolver(path, newInout(input, stdout, stderr), nil, JSONPostSolver{})
+	err := runWithSolver(path, newInout(input, stdout, stderr), nil, csdf.SolveJSON)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, stderr.String())
@@ -282,7 +283,7 @@ s0: value
 	stderr := &bytes.Buffer{}
 	input := strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n")
 
-	err := runWithSolver(path, newInout(input, stdout, stderr), nil, JSONPostSolver{})
+	err := runWithSolver(path, newInout(input, stdout, stderr), nil, csdf.SolveJSON)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, stderr.String())
@@ -311,15 +312,13 @@ state "Initial" as s0
 @enduml
 `)
 	stdout := &bytes.Buffer{}
-	solver := &sequenceSolver{
-		results: []PostSolverResult{
-			{Kind: PostSolverResultNoSolutions},
-			{
-				Kind:  PostSolverResultOK,
-				State: RuntimeState{ID: "s0", Name: "Initial"},
-			},
+	solver, calls := sequenceSolver(
+		csdf.PostSolverResult{Kind: csdf.PostSolverResultNoSolutions},
+		csdf.PostSolverResult{
+			Kind:  csdf.PostSolverResultOK,
+			State: csdf.RuntimeState{ID: "s0", Name: "Initial"},
 		},
-	}
+	)
 
 	err := runWithSolver(path, newInout(strings.NewReader("[]\n[]\n"), stdout, &bytes.Buffer{}), nil, solver)
 
@@ -329,8 +328,8 @@ state "Initial" as s0
 	if !strings.Contains(stdout.String(), "Error: No solutions") {
 		t.Fatalf("runWithSolver() stdout = %q, want No solutions error", stdout.String())
 	}
-	if solver.calls != 2 {
-		t.Errorf("solver calls = %d, want 2", solver.calls)
+	if *calls != 2 {
+		t.Errorf("solver calls = %d, want 2", *calls)
 	}
 }
 
@@ -347,7 +346,7 @@ s0 --> s1 : go
 	inputReader, inputWriter := ioPipe(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- runWithSolver(path, newInout(inputReader, stdout, &bytes.Buffer{}), interrupts, JSONPostSolver{})
+		done <- runWithSolver(path, newInout(inputReader, stdout, &bytes.Buffer{}), interrupts, csdf.SolveJSON)
 	}()
 
 	writeAndWait(t, inputWriter, "[]\n", stdout, "command> ")
@@ -371,7 +370,7 @@ state "Initial" as s0
 	interrupts := make(chan os.Signal, 1)
 	interrupts <- os.Interrupt
 
-	err := runWithSolver(path, newInout(strings.NewReader(""), stdout, &bytes.Buffer{}), interrupts, JSONPostSolver{})
+	err := runWithSolver(path, newInout(strings.NewReader(""), stdout, &bytes.Buffer{}), interrupts, csdf.SolveJSON)
 
 	if err == nil {
 		t.Fatalf("runWithSolver() error = nil, want error")
@@ -390,7 +389,7 @@ s0: value
 `)
 	stdout := &bytes.Buffer{}
 
-	err := runWithSolver(path, newInout(strings.NewReader("[1]"), stdout, &bytes.Buffer{}), nil, JSONPostSolver{})
+	err := runWithSolver(path, newInout(strings.NewReader("[1]"), stdout, &bytes.Buffer{}), nil, csdf.SolveJSON)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v, want nil", err)
@@ -489,40 +488,11 @@ func TestRunWithSolverRejectsBadFiles(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runWithSolver(tt.file, newInout(strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}), nil, JSONPostSolver{})
+			err := runWithSolver(tt.file, newInout(strings.NewReader(""), &bytes.Buffer{}, &bytes.Buffer{}), nil, csdf.SolveJSON)
 			if err == nil {
 				t.Error("runWithSolver() error = nil, want error")
 			}
 		})
-	}
-}
-
-func TestLoadDiagramReadsPlantUMLPNG(t *testing.T) {
-	diagram, err := loadDiagram(filepath.Join("..", "..", "..", "examples", "valid", "client.png"))
-	if err != nil {
-		t.Fatalf("loadDiagram() error = %v", err)
-	}
-	if len(diagram.States) == 0 {
-		t.Fatal("loadDiagram() returned a diagram without states")
-	}
-}
-
-func TestJSONPostSolver(t *testing.T) {
-	group := core.State{
-		ID:   "s0",
-		Name: "Initial",
-		Vars: []core.StateVar{{Name: "a"}, {Name: "b"}},
-	}
-	result := (JSONPostSolver{}).Solve(PostSolverInput{
-		StateGroup:    group,
-		EncodedValues: `[1, {"nested": ["ok"]}]`,
-	})
-
-	if result.Kind != PostSolverResultOK {
-		t.Fatalf("Solve() kind = %v, want OK; err = %v", result.Kind, result.Err)
-	}
-	if len(result.State.Values) != 2 || result.State.Values[0].Name != "a" || result.State.Values[1].Name != "b" {
-		t.Errorf("Solve() state values = %#v", result.State.Values)
 	}
 }
 
@@ -563,15 +533,15 @@ func TestParseCommand(t *testing.T) {
 	}
 }
 
-type sequenceSolver struct {
-	results []PostSolverResult
-	calls   int
-}
-
-func (s *sequenceSolver) Solve(PostSolverInput) PostSolverResult {
-	result := s.results[s.calls]
-	s.calls++
-	return result
+// sequenceSolver returns a csdf.PostSolver that yields the given results in
+// order, plus a pointer to the number of times it has been called.
+func sequenceSolver(results ...csdf.PostSolverResult) (csdf.PostSolver, *int) {
+	calls := 0
+	return func(csdf.PostSolverInput) csdf.PostSolverResult {
+		result := results[calls]
+		calls++
+		return result
+	}, &calls
 }
 
 func writeDiagram(t *testing.T, content string) string {
