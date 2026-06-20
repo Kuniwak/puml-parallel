@@ -41,6 +41,25 @@ s1 --> [*] : complete
 	}
 }
 
+func TestNewMainFuncReadsFileArgument(t *testing.T) {
+	// Arrange: `csdfparse <file>` must be equivalent to reading from stdin.
+	want := `{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"}}` + "\n"
+	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	spy := cli.SpyProcInout()
+
+	// Act
+	exitStatus := cmdFunc([]string{"../../../examples/valid/skip.puml"}, spy.NewProcInout())
+
+	// Assert
+	if exitStatus != 0 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 0, got %d", exitStatus)
+	}
+	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
 	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())

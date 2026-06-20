@@ -11,6 +11,9 @@ import (
 
 type Options struct {
 	Common *tools.CommonOptions
+	// File is the input path. An empty string or "-" means standard input,
+	// so `csdfparse f`, `csdfparse < f`, and `csdfparse - < f` are equivalent.
+	File string
 }
 
 func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
@@ -19,17 +22,19 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 		flags.SetOutput(inout.Stderr)
 		flags.Usage = func() {
 			w := flags.Output()
-			fmt.Fprintf(w, `Usage: csdfparse [options] < <file.puml|file.png>
+			fmt.Fprintf(w, `Usage: csdfparse [options] [file.puml|file.png]
 
-Parses a PlantUML state diagram from stdin and prints the parsed structure as JSON.
+Parses a Composable State Diagram and prints the parsed structure as JSON.
+A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:
 `)
 			flags.PrintDefaults()
 			fmt.Fprintf(w, `
 Examples:
+  $ csdfparse path/to/file.puml
   $ csdfparse < path/to/file.puml
-  $ cat path/to/file.puml | csdfparse
+  $ csdfparse - < path/to/file.puml
 `)
 		}
 
@@ -51,10 +56,15 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if flags.NArg() > 0 {
-			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: too many arguments (reads from stdin)")
+		if flags.NArg() > 1 {
+			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: too many arguments")
 		}
 
-		return &Options{Common: commonOpts}, nil
+		file := ""
+		if flags.NArg() == 1 {
+			file = flags.Arg(0)
+		}
+
+		return &Options{Common: commonOpts, File: file}, nil
 	}
 }

@@ -32,9 +32,17 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:     []string{"--version"},
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"no args (representative value)": {
+		"no args means stdin (representative value)": {
 			Args:     []string{},
 			Expected: &Options{Common: tools.NewCommonOptionsDefault()},
+		},
+		"dash means stdin (representative value)": {
+			Args:     []string{"-"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "-"},
+		},
+		"file argument (representative value)": {
+			Args:     []string{"a.puml"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml"},
 		},
 	}
 
@@ -66,7 +74,7 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 
 	testCases := map[string]testCase{
 		"too many arguments (representative value)": {
-			Args: []string{"unexpected.puml"},
+			Args: []string{"a.puml", "b.puml"},
 		},
 	}
 

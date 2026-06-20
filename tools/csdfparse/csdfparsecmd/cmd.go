@@ -7,7 +7,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/core"
-	"github.com/Kuniwak/puml-parallel/pngsrc"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -21,19 +21,22 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		input, err := io.ReadAll(inout.Stdin)
-		if err != nil {
-			return fmt.Errorf("reading from stdin: %w", err)
-		}
-
-		source, err := pngsrc.Extract(input)
-		if err != nil {
-			return fmt.Errorf("reading PlantUML source: %w", err)
-		}
-
-		diagram, err := core.NewParser(source).Parse()
-		if err != nil {
-			return fmt.Errorf("parse: %w", err)
+		var diagram *core.Diagram
+		if opts.File == "" || opts.File == "-" {
+			content, err := io.ReadAll(inout.Stdin)
+			if err != nil {
+				return fmt.Errorf("reading from stdin: %w", err)
+			}
+			diagram, err = csdf.ParseDiagram(content)
+			if err != nil {
+				return err
+			}
+		} else {
+			loaded, err := csdf.LoadDiagram(opts.File)
+			if err != nil {
+				return err
+			}
+			diagram = loaded
 		}
 
 		if err := json.NewEncoder(inout.Stdout).Encode(diagram); err != nil {
