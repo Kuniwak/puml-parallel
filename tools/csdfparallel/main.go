@@ -1,11 +1,13 @@
 package main
 
 import (
-	"os"
-
+	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparallel/csdfparallelcmd"
 )
 
 func main() {
-	os.Exit(csdfparallelcmd.Run(os.Args[1:], os.Stdout, os.Stderr))
+	cli.NewCommandFunc(
+		csdfparallelcmd.NewParseOptionsFunc(),
+		csdfparallelcmd.NewMainFunc(),
+	).Run()
 }

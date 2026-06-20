@@ -1,40 +1,13 @@
 package csdfparallelcmd
 
 import (
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
-
-func Run(args []string, stdout, stderr io.Writer) int {
-	flags := flag.NewFlagSet("csdfparallel", flag.ContinueOnError)
-	flags.SetOutput(stderr)
-	syncFlag := flags.String("sync", "", "Semicolon-separated list of synchronization events")
-	if err := flags.Parse(args); err != nil {
-		return 1
-	}
-
-	files := flags.Args()
-	if len(files) == 0 {
-		_, _ = fmt.Fprintf(stderr, "Usage: csdfparallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...\n")
-		flags.PrintDefaults()
-		return 1
-	}
-
-	output, err := process(files, parseSyncEvents(*syncFlag))
-	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "%v\n", err)
-		return 1
-	}
-
-	_, _ = fmt.Fprint(stdout, output)
-	return 0
-}
 
 func parseSyncEvents(s string) []core.Event {
 	if s == "" {
