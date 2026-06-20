@@ -71,10 +71,20 @@ See [CSDFREPL.puml](docs/CSDFREPL.puml) for the behavioral specification.
 
 ## Project Structure
 
+This repository follows the layout of [go-cli-template](https://github.com/Kuniwak/go-cli-template):
+
+- `cli/` - CLI plumbing: `ProcInout` dependency injection and the `CommandFunc` / `MainFunc` / `ParseOptionsFunc` helpers
 - `core/` - Core parsing and composition logic
+- `pngsrc/` - Extraction of embedded PlantUML source from `.png` files
+- `version/` - Version constant
+- `slograw/`, `slogtest/` - Structured logging handler and test helpers
+- `tools/` - One executable per subdirectory; each `tools/<tool>/main.go` is a thin entrypoint that wires `tools/<tool>/<tool>cmd` (options + command). Shared options live in `tools/commonopts.go`
 - `examples/` - Sample PlantUML files
 - `docs/` - Documentation including requirements and specifications
-- `tools/` - Additional parsing tools
+
+Every tool accepts the common options `-v` / `-version` (print version), `-silent`, and `-debug`.
+
+Build a tool with, e.g., `go build ./tools/csdfparallel`.
 
 ## Limitations
 
