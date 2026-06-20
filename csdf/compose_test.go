@@ -3,7 +3,6 @@ package csdf
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -45,7 +44,7 @@ s2_s1 --> s2_s2 : out
 	// Act
 	composite, err := Compose(
 		loadAll(t, "../examples/valid/in.puml", "../examples/valid/out.puml"),
-		[]core.Event{"sync"},
+		[]Event{"sync"},
 	)
 	if err != nil {
 		t.Fatalf("Compose() error = %v", err)

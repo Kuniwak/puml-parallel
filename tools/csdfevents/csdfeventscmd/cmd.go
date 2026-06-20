@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -19,7 +18,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagrams := make([]core.Diagram, 0, len(opts.Files))
+		diagrams := make([]csdf.Diagram, 0, len(opts.Files))
 		for _, file := range opts.Files {
 			diagram, err := csdf.LoadDiagram(file)
 			if err != nil {

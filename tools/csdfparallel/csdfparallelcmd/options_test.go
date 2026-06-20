@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -33,7 +33,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Sync:   []core.Event{"x", "y"},
+				Sync:   []csdf.Event{"x", "y"},
 				Files:  []string{"a.puml", "b.puml"},
 			},
 		},

@@ -7,19 +7,19 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
-func parseSyncEvents(s string) []core.Event {
+func parseSyncEvents(s string) []csdf.Event {
 	if s == "" {
 		return nil
 	}
-	var events []core.Event
+	var events []csdf.Event
 	for _, event := range strings.Split(s, ";") {
 		trimmed := strings.TrimSpace(event)
 		if trimmed != "" {
-			events = append(events, core.Event(trimmed))
+			events = append(events, csdf.Event(trimmed))
 		}
 	}
 	return events
@@ -27,7 +27,7 @@ func parseSyncEvents(s string) []core.Event {
 
 type Options struct {
 	Common *tools.CommonOptions
-	Sync   []core.Event
+	Sync   []csdf.Event
 	Files  []string
 }
 

@@ -2,16 +2,14 @@ package csdf
 
 import (
 	"testing"
-
-	"github.com/Kuniwak/puml-parallel/core"
 )
 
 func TestSolveJSON(t *testing.T) {
 	// Arrange
-	group := core.State{
+	group := State{
 		ID:   "s0",
 		Name: "Initial",
-		Vars: []core.StateVar{{Name: "a"}, {Name: "b"}},
+		Vars: []StateVar{{Name: "a"}, {Name: "b"}},
 	}
 
 	// Act

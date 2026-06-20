@@ -3,13 +3,12 @@ package csdf
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/google/go-cmp/cmp"
 )
 
-func loadAll(t *testing.T, paths ...string) []core.Diagram {
+func loadAll(t *testing.T, paths ...string) []Diagram {
 	t.Helper()
-	diagrams := make([]core.Diagram, 0, len(paths))
+	diagrams := make([]Diagram, 0, len(paths))
 	for _, path := range paths {
 		diagram, err := LoadDiagram(path)
 		if err != nil {

@@ -6,19 +6,17 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/Kuniwak/puml-parallel/core"
 )
 
 // StateValue is a resolved value for a single state variable.
 type StateValue struct {
-	Name  core.Var `json:"name"`
-	Value any      `json:"value"`
+	Name  Var `json:"name"`
+	Value any `json:"value"`
 }
 
 // RuntimeState is a state group with concrete values bound to its variables.
 type RuntimeState struct {
-	ID     core.StateID `json:"state_id"`
+	ID     StateID      `json:"state_id"`
 	Name   string       `json:"state_name"`
 	Values []StateValue `json:"values"`
 }
@@ -35,7 +33,7 @@ const (
 // PostSolverInput is the request to resolve entered values against a post
 // state group, given the previous state and the guard/post conditions.
 type PostSolverInput struct {
-	StateGroup    core.State
+	StateGroup    State
 	Previous      *RuntimeState
 	Guard         string
 	Post          string

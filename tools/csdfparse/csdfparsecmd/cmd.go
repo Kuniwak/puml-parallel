@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -21,7 +20,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		var diagram *core.Diagram
+		var diagram *csdf.Diagram
 		if opts.File == "" || opts.File == "-" {
 			content, err := io.ReadAll(inout.Stdin)
 			if err != nil {

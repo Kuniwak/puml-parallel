@@ -78,8 +78,7 @@ See [CSDFREPL.puml](docs/CSDFREPL.puml) for the behavioral specification.
 This repository follows the layout of [go-cli-template](https://github.com/Kuniwak/go-cli-template):
 
 - `cli/` - CLI plumbing: `ProcInout` dependency injection and the `CommandFunc` / `MainFunc` / `ParseOptionsFunc` helpers
-- `core/` - Core parsing and composition logic
-- `csdf/` - CLI-independent CSDF operations reused by the tools (loading/parsing diagrams, event collection, parallel composition)
+- `csdf/` - CLI-independent CSDF domain: the AST, parser, and composition, plus the operations reused by the tools (loading/parsing diagrams, event collection, parallel composition, the exploration solver)
 - `pngsrc/` - Extraction of embedded PlantUML source from `.png` files
 - `version/` - Version variable, overridden at release time by goreleaser
 - `slograw/`, `slogtest/` - Structured logging handler and test helpers

@@ -11,16 +11,15 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"golang.org/x/term"
 )
 
-const tau core.Event = "tau"
+const tau csdf.Event = "tau"
 
 type HistoryEntry struct {
 	State csdf.RuntimeState `json:"state"`
-	Trace []core.Event      `json:"trace"`
+	Trace []csdf.Event      `json:"trace"`
 }
 
 func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver) error {
@@ -146,7 +145,7 @@ func newLineReader(reader io.Reader) <-chan lineResult {
 }
 
 type repl struct {
-	diagram    *core.Diagram
+	diagram    *csdf.Diagram
 	stdout     io.Writer
 	interrupts <-chan os.Signal
 	lines      <-chan lineResult
@@ -163,7 +162,7 @@ func (r *repl) run() error {
 
 	var previous *csdf.RuntimeState
 	stateGroup := initial
-	guard := core.True
+	guard := csdf.True
 	post := r.diagram.StartEdge.Post
 	event := tau
 
@@ -254,7 +253,7 @@ const (
 	inputFatal
 )
 
-func (r *repl) askStateValues(group core.State, previous *csdf.RuntimeState, guard, post string, event core.Event) (csdf.RuntimeState, inputOutcome, error) {
+func (r *repl) askStateValues(group csdf.State, previous *csdf.RuntimeState, guard, post string, event csdf.Event) (csdf.RuntimeState, inputOutcome, error) {
 	for {
 		r.displayStateValuePrompt(previous, group, guard, post)
 		line, outcome, err := r.readLine("state> ")
@@ -280,7 +279,7 @@ func (r *repl) askStateValues(group core.State, previous *csdf.RuntimeState, gua
 		})
 		switch result.Kind {
 		case csdf.PostSolverResultOK:
-			trace := append([]core.Event{}, r.currentTrace()...)
+			trace := append([]csdf.Event{}, r.currentTrace()...)
 			if event != tau {
 				trace = append(trace, event)
 			}
@@ -360,7 +359,7 @@ func (r *repl) displayEmptyLine() {
 	_, _ = fmt.Fprintln(r.stdout)
 }
 
-func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group core.State, guard, post string) {
+func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group csdf.State, guard, post string) {
 	if previous == nil {
 		_, _ = fmt.Fprintln(r.stdout, "State: (none)")
 	} else {
@@ -430,12 +429,12 @@ func encodeJSON(value any) string {
 
 func displayCondition(condition string) string {
 	if condition == "" {
-		return core.True
+		return csdf.True
 	}
 	return condition
 }
 
-func (r *repl) displayTrace(trace []core.Event) {
+func (r *repl) displayTrace(trace []csdf.Event) {
 	encoded, err := json.MarshalIndent(trace, "", "  ")
 	if err != nil {
 		r.displayError(fmt.Sprintf("encoding trace: %v", err))
@@ -471,8 +470,8 @@ func (r *repl) displayHelp() {
 	_, _ = fmt.Fprintln(r.stdout)
 }
 
-func (r *repl) outgoing(stateID core.StateID) []core.Edge {
-	var edges []core.Edge
+func (r *repl) outgoing(stateID csdf.StateID) []csdf.Edge {
+	var edges []csdf.Edge
 	for _, edge := range r.diagram.Edges {
 		if edge.Src == stateID {
 			edges = append(edges, edge)
@@ -481,7 +480,7 @@ func (r *repl) outgoing(stateID core.StateID) []core.Edge {
 	return edges
 }
 
-func (r *repl) currentTrace() []core.Event {
+func (r *repl) currentTrace() []csdf.Event {
 	if len(r.history) == 0 {
 		return nil
 	}
@@ -490,7 +489,7 @@ func (r *repl) currentTrace() []core.Event {
 
 func cloneHistoryEntry(entry HistoryEntry) HistoryEntry {
 	entry.State.Values = append([]csdf.StateValue{}, entry.State.Values...)
-	entry.Trace = append([]core.Event{}, entry.Trace...)
+	entry.Trace = append([]csdf.Event{}, entry.Trace...)
 	return entry
 }
 

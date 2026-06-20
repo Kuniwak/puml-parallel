@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/core"
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
@@ -44,17 +43,17 @@ func TestEventDisplaysGolden(t *testing.T) {
 				Name:   "Draft order",
 				Values: []csdf.StateValue{{Name: "count", Value: 1}},
 			},
-			Trace: []core.Event{},
+			Trace: []csdf.Event{},
 		},
 		{
 			State: state,
-			Trace: []core.Event{"submit(order)", "approve"},
+			Trace: []csdf.Event{"submit(order)", "approve"},
 		},
 	}
 
 	tests := []struct {
 		name    string
-		diagram *core.Diagram
+		diagram *csdf.Diagram
 		prompt  string
 		display func(*repl)
 	}{
@@ -62,10 +61,10 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateGroup",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateValuePrompt(&state, core.State{
+				r.displayStateValuePrompt(&state, csdf.State{
 					ID:   "approved",
 					Name: "Approved",
-					Vars: []core.StateVar{
+					Vars: []csdf.StateVar{
 						{Name: "status", Type: "string"},
 					},
 				}, "count > 0", `status' = "reviewing"`)
@@ -88,12 +87,12 @@ func TestEventDisplaysGolden(t *testing.T) {
 		{
 			name:   "EventDisplayTrans",
 			prompt: "command> ",
-			diagram: &core.Diagram{
-				States: map[core.StateID]core.State{
+			diagram: &csdf.Diagram{
+				States: map[csdf.StateID]csdf.State{
 					"approved": {ID: "approved", Name: "Approved"},
 					"rejected": {ID: "rejected", Name: "Rejected"},
 				},
-				Edges: []core.Edge{
+				Edges: []csdf.Edge{
 					{
 						Src:   "review",
 						Dst:   "approved",
@@ -114,7 +113,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 		},
 		{
 			name:    "EventDisplayDeadlock",
-			diagram: &core.Diagram{},
+			diagram: &csdf.Diagram{},
 			prompt:  "command> ",
 			display: func(r *repl) {
 				r.displayState(state)
@@ -124,7 +123,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayTrace",
 			prompt: "command> ",
 			display: func(r *repl) {
-				r.displayTrace([]core.Event{"submit(order)", "approve"})
+				r.displayTrace([]csdf.Event{"submit(order)", "approve"})
 			},
 		},
 		{
@@ -155,7 +154,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			stdout := &bytes.Buffer{}
 			diagram := tt.diagram
 			if diagram == nil {
-				diagram = &core.Diagram{}
+				diagram = &csdf.Diagram{}
 			}
 			lines := make(chan lineResult, 1)
 			lines <- lineResult{}
@@ -179,10 +178,10 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 	close(lines)
 	r := &repl{stdout: stdout, lines: lines}
 
-	r.displayStateValuePrompt(nil, core.State{
+	r.displayStateValuePrompt(nil, csdf.State{
 		ID:   "initial",
 		Name: "Initial",
-		Vars: []core.StateVar{
+		Vars: []csdf.StateVar{
 			{Name: "count", Type: "number"},
 			{Name: "metadata"},
 		},
