@@ -27,7 +27,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			diagrams = append(diagrams, *diagram)
 		}
 
-		composite, err := csdf.Compose(diagrams, opts.Sync)
+		composite, err := csdf.ComposeParallel(diagrams, opts.Sync)
 		if err != nil {
 			return err
 		}
