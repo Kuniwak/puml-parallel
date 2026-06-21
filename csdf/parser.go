@@ -28,74 +28,74 @@ func (p *Parser) Parse() (*Diagram, error) {
 	}
 
 	if !p.expectString("@startuml") {
-		return nil, fmt.Errorf("expected @startuml at line %d, col %d", p.line, p.col)
+		return nil, fmt.Errorf("csdf.Parser.Parse: expected @startuml at line %d, col %d", p.line, p.col)
 	}
 
 	if err := p.skipInlineTrivia(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 	}
 	if p.peek() == '"' {
 		if _, err := p.parseStateName(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 		}
 	}
 	if !p.expectNewlines() {
-		return nil, fmt.Errorf("expected newline after @startuml at line %d, col %d", p.line, p.col)
+		return nil, fmt.Errorf("csdf.Parser.Parse: expected newline after @startuml at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipTrivia(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 	}
 
 	// Parse all content until @enduml
 	for !p.isAtEnd() && !p.peekString("@enduml") {
 		if err := p.skipTrivia(); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 		}
 		if p.isAtEnd() || p.peekString("@enduml") {
 			break
 		}
 		if diagram.EndEdge != nil {
-			return nil, fmt.Errorf("expected @enduml after end edge at line %d, col %d", p.line, p.col)
+			return nil, fmt.Errorf("csdf.Parser.Parse: expected @enduml after end edge at line %d, col %d", p.line, p.col)
 		}
 
 		if p.peekString("state") {
 			state, err := p.parseState()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
 			diagram.States[state.ID] = state
 		} else if p.peekString("[*]") {
 			startEdge, err := p.parseStartEdge()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
 			diagram.StartEdge = startEdge
 		} else {
 			isEdge, err := p.isEdge()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
 			if !isEdge {
-				return nil, fmt.Errorf("unexpected syntax at line %d, col %d", p.line, p.col)
+				return nil, fmt.Errorf("csdf.Parser.Parse: unexpected syntax at line %d, col %d", p.line, p.col)
 			}
 
 			isEndEdge, err := p.isEndEdge()
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
 			if isEndEdge {
 				endEdge, err := p.parseEndEdge()
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 				}
 				diagram.EndEdge = &endEdge
 			} else {
 				edge, err := p.parseEdge()
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 				}
 				diagram.Edges = append(diagram.Edges, edge)
 			}
@@ -103,7 +103,7 @@ func (p *Parser) Parse() (*Diagram, error) {
 	}
 
 	if !p.expectString("@enduml") {
-		return nil, fmt.Errorf("expected @enduml at line %d, col %d", p.line, p.col)
+		return nil, fmt.Errorf("csdf.Parser.Parse: expected @enduml at line %d, col %d", p.line, p.col)
 	}
 
 	return diagram, nil
@@ -111,30 +111,30 @@ func (p *Parser) Parse() (*Diagram, error) {
 
 func (p *Parser) parseState() (State, error) {
 	if !p.expectString("state") {
-		return State{}, fmt.Errorf("expected 'state' at line %d, col %d", p.line, p.col)
+		return State{}, fmt.Errorf("csdf.Parser.parseState: expected 'state' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	name, err := p.parseStateName()
 	if err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	if !p.expectString("as") {
-		return State{}, fmt.Errorf("expected 'as' at line %d, col %d", p.line, p.col)
+		return State{}, fmt.Errorf("csdf.Parser.parseState: expected 'as' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	id, err := p.parseID()
 	if err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	state := State{
@@ -144,55 +144,55 @@ func (p *Parser) parseState() (State, error) {
 	}
 
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 	if !p.expectNewlines() {
-		return State{}, fmt.Errorf("expected newline after state declaration at line %d, col %d", p.line, p.col)
+		return State{}, fmt.Errorf("csdf.Parser.parseState: expected newline after state declaration at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipTrivia(); err != nil {
-		return State{}, err
+		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	for !p.isAtEnd() {
 		isStateVar, err := p.isStateVar(state.ID)
 		if err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if !isStateVar {
 			break
 		}
 
 		if _, err := p.parseID(); err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if !p.expectChar(':') {
-			return State{}, fmt.Errorf("expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
+			return State{}, fmt.Errorf("csdf.Parser.parseState: expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		varName, err := p.parseID()
 		if err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 
 		var varType string
 		if p.expectChar(';') {
 			if err := p.skipInlineTrivia(); err != nil {
-				return State{}, err
+				return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 			}
 			varType, err = p.parseUntilSemicolon()
 			if err != nil {
-				return State{}, err
+				return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 			}
 			if p.peek() == ';' {
-				return State{}, fmt.Errorf("unexpected ';' in variable type at line %d, col %d", p.line, p.col)
+				return State{}, fmt.Errorf("csdf.Parser.parseState: unexpected ';' in variable type at line %d, col %d", p.line, p.col)
 			}
 		}
 
@@ -201,10 +201,10 @@ func (p *Parser) parseState() (State, error) {
 			Type: varType,
 		})
 		if !p.expectNewlines() {
-			return State{}, fmt.Errorf("expected newline after variable declaration at line %d, col %d", p.line, p.col)
+			return State{}, fmt.Errorf("csdf.Parser.parseState: expected newline after variable declaration at line %d, col %d", p.line, p.col)
 		}
 		if err := p.skipTrivia(); err != nil {
-			return State{}, err
+			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 	}
 
@@ -213,7 +213,7 @@ func (p *Parser) parseState() (State, error) {
 
 func (p *Parser) parseStateName() (string, error) {
 	if !p.expectChar('"') {
-		return "", fmt.Errorf("expected '\"' at line %d, col %d", p.line, p.col)
+		return "", fmt.Errorf("csdf.Parser.parseStateName: expected '\"' at line %d, col %d", p.line, p.col)
 	}
 
 	var result strings.Builder
@@ -221,7 +221,7 @@ func (p *Parser) parseStateName() (string, error) {
 		if p.peek() == '\\' {
 			p.advance()
 			if p.isAtEnd() {
-				return "", fmt.Errorf("unexpected end of input in string at line %d, col %d", p.line, p.col)
+				return "", fmt.Errorf("csdf.Parser.parseStateName: unexpected end of input in string at line %d, col %d", p.line, p.col)
 			}
 			switch p.peek() {
 			case '\\':
@@ -239,7 +239,7 @@ func (p *Parser) parseStateName() (string, error) {
 	}
 
 	if !p.expectChar('"') {
-		return "", fmt.Errorf("expected closing '\"' at line %d, col %d", p.line, p.col)
+		return "", fmt.Errorf("csdf.Parser.parseStateName: expected closing '\"' at line %d, col %d", p.line, p.col)
 	}
 
 	return result.String(), nil
@@ -247,41 +247,41 @@ func (p *Parser) parseStateName() (string, error) {
 
 func (p *Parser) parseStartEdge() (StartEdge, error) {
 	if !p.expectString("[*]") {
-		return StartEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected '[*]' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return StartEdge{}, err
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
 	if !p.expectString("-->") {
-		return StartEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected '-->' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return StartEdge{}, err
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
 	dst, err := p.parseID()
 	if err != nil {
-		return StartEdge{}, fmt.Errorf("expected destination state ID after '-->' in start edge at line %d, col %d", p.line, p.col)
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected destination state ID after '-->' in start edge at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return StartEdge{}, err
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
 	post := "true" // Default value when post is omitted
 	if p.peek() == ':' {
 		p.advance() // consume ':'
 		if err := p.skipInlineTrivia(); err != nil {
-			return StartEdge{}, err
+			return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 		}
 		post, err = p.parseUntilNewline()
 		if err != nil {
-			return StartEdge{}, err
+			return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 		}
 	}
 
 	if !p.expectNewlines() {
-		return StartEdge{}, fmt.Errorf("expected newline after start edge declaration at line %d, col %d", p.line, p.col)
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected newline after start edge declaration at line %d, col %d", p.line, p.col)
 	}
 
 	return StartEdge{
@@ -293,40 +293,40 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 func (p *Parser) parseEdge() (Edge, error) {
 	src, err := p.parseID()
 	if err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	if !p.expectString("-->") {
-		return Edge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected '-->' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	dst, err := p.parseID()
 	if err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	if !p.expectChar(':') {
-		return Edge{}, fmt.Errorf("expected ':' at line %d, col %d", p.line, p.col)
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected ':' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	event, err := p.parseEvent()
 	if err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Edge{}, err
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	guard := "true" // Default value when guard is omitted
@@ -335,30 +335,30 @@ func (p *Parser) parseEdge() (Edge, error) {
 	if p.peek() == ';' {
 		p.advance() // consume first ';'
 		if err := p.skipInlineTrivia(); err != nil {
-			return Edge{}, err
+			return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 		}
 		guard, err = p.parseUntilSemicolon()
 		if err != nil {
-			return Edge{}, err
+			return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return Edge{}, err
+			return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 		}
 
 		if p.peek() == ';' {
 			p.advance() // consume second ';'
 			if err := p.skipInlineTrivia(); err != nil {
-				return Edge{}, err
+				return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 			}
 			post, err = p.parseUntilNewline()
 			if err != nil {
-				return Edge{}, err
+				return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 			}
 		}
 	}
 
 	if !p.expectNewlines() {
-		return Edge{}, fmt.Errorf("expected newline after edge declaration at line %d, col %d", p.line, p.col)
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected newline after edge declaration at line %d, col %d", p.line, p.col)
 	}
 
 	return Edge{
@@ -373,10 +373,10 @@ func (p *Parser) parseEdge() (Edge, error) {
 func (p *Parser) parseEvent() (Event, error) {
 	event, err := p.parseUntilSemicolon()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("csdf.Parser.parseEvent: %w", err)
 	}
 	if event == "" {
-		return "", fmt.Errorf("expected event after ':' in edge at line %d, col %d", p.line, p.col)
+		return "", fmt.Errorf("csdf.Parser.parseEvent: expected event after ':' in edge at line %d, col %d", p.line, p.col)
 	}
 	return Event(event), nil
 }
@@ -385,7 +385,7 @@ func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
 
 	if p.isAtEnd() || !p.isIDChar(p.peek()) {
-		return "", fmt.Errorf("expected identifier at line %d, col %d", p.line, p.col)
+		return "", fmt.Errorf("csdf.Parser.parseID: expected identifier at line %d, col %d", p.line, p.col)
 	}
 
 	for !p.isAtEnd() && p.isIDChar(p.peek()) {
@@ -414,7 +414,7 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 		if !inString && p.peekString("/'") {
 			needsSeparator := result.Len() > 0 && lastWritten != ' ' && lastWritten != '\t' && lastWritten != '\r' && lastWritten != '\n'
 			if err := p.skipBlockComment(); err != nil {
-				return "", err
+				return "", fmt.Errorf("csdf.Parser.parseUntil: %w", err)
 			}
 			if needsSeparator && !p.isAtEnd() && !containsByte(stops, p.peek()) &&
 				p.peek() != ' ' && p.peek() != '\t' && p.peek() != '\r' && p.peek() != '\n' {
@@ -455,7 +455,7 @@ func (p *Parser) isEdge() (bool, error) {
 		return false, nil
 	}
 	if err := probe.skipInlineTrivia(); err != nil {
-		return false, err
+		return false, fmt.Errorf("csdf.Parser.isEdge: %w", err)
 	}
 	return probe.peekString("-->"), nil
 }
@@ -467,13 +467,13 @@ func (p *Parser) isEndEdge() (bool, error) {
 		return false, nil
 	}
 	if err := probe.skipInlineTrivia(); err != nil {
-		return false, err
+		return false, fmt.Errorf("csdf.Parser.isEndEdge: %w", err)
 	}
 	if !probe.expectString("-->") {
 		return false, nil
 	}
 	if err := probe.skipInlineTrivia(); err != nil {
-		return false, err
+		return false, fmt.Errorf("csdf.Parser.isEndEdge: %w", err)
 	}
 	return probe.peekString("[*]"), nil
 }
@@ -485,7 +485,7 @@ func (p *Parser) isStateVar(stateID StateID) (bool, error) {
 		return false, nil
 	}
 	if err := probe.skipInlineTrivia(); err != nil {
-		return false, err
+		return false, fmt.Errorf("csdf.Parser.isStateVar: %w", err)
 	}
 	return probe.peek() == ':', nil
 }
@@ -551,7 +551,7 @@ func (p *Parser) skipTrivia() error {
 		}
 		if p.peekString("/'") {
 			if err := p.skipBlockComment(); err != nil {
-				return err
+				return fmt.Errorf("csdf.Parser.skipTrivia: %w", err)
 			}
 			continue
 		}
@@ -572,7 +572,7 @@ func (p *Parser) skipInlineTrivia() error {
 			return nil
 		}
 		if err := p.skipBlockComment(); err != nil {
-			return err
+			return fmt.Errorf("csdf.Parser.skipInlineTrivia: %w", err)
 		}
 	}
 }
@@ -585,7 +585,7 @@ func (p *Parser) skipBlockComment() error {
 		p.advance()
 	}
 	if !p.expectString("'/") {
-		return fmt.Errorf("unterminated block comment at line %d, col %d", startLine, startCol)
+		return fmt.Errorf("csdf.Parser.skipBlockComment: unterminated block comment at line %d, col %d", startLine, startCol)
 	}
 	return nil
 }
@@ -613,42 +613,42 @@ func (p *Parser) skipLine() {
 func (p *Parser) parseEndEdge() (EndEdge, error) {
 	src, err := p.parseID()
 	if err != nil {
-		return EndEdge{}, err
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return EndEdge{}, err
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
 
 	if !p.expectString("-->") {
-		return EndEdge{}, fmt.Errorf("expected '-->' at line %d, col %d", p.line, p.col)
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected '-->' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return EndEdge{}, err
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
 
 	if !p.expectString("[*]") {
-		return EndEdge{}, fmt.Errorf("expected '[*]' at line %d, col %d", p.line, p.col)
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected '[*]' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return EndEdge{}, err
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
 
 	var guard string
 	if p.expectChar(':') {
 		if err := p.skipInlineTrivia(); err != nil {
-			return EndEdge{}, err
+			return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 		}
 		guard, err = p.parseUntilSemicolon()
 		if err != nil {
-			return EndEdge{}, err
+			return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 		}
 		if p.peek() == ';' {
-			return EndEdge{}, fmt.Errorf("unexpected ';' in end edge guard at line %d, col %d", p.line, p.col)
+			return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: unexpected ';' in end edge guard at line %d, col %d", p.line, p.col)
 		}
 	}
 
 	if !p.expectNewlines() {
-		return EndEdge{}, fmt.Errorf("expected newline after end edge declaration at line %d, col %d", p.line, p.col)
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
 
 	return EndEdge{

@@ -103,7 +103,7 @@ func (r *terminalLineReader) readLine(prompt string) (string, error) {
 	if term.IsTerminal(r.inputFD) {
 		oldState, err := term.MakeRaw(r.inputFD)
 		if err != nil {
-			return "", fmt.Errorf("configuring terminal input: %w", err)
+			return "", fmt.Errorf("csdfreplcmd.terminalLineReader.readLine: configuring terminal input: %w", err)
 		}
 		defer func() {
 			_ = term.Restore(r.inputFD, oldState)
@@ -152,7 +152,7 @@ type repl struct {
 func (r *repl) run() error {
 	initial, ok := r.diagram.States[r.diagram.StartEdge.Dst]
 	if !ok {
-		return fmt.Errorf("initial state %q does not exist", r.diagram.StartEdge.Dst)
+		return fmt.Errorf("csdfreplcmd.repl.run: initial state %q does not exist", r.diagram.StartEdge.Dst)
 	}
 
 	var previous *csdf.RuntimeState
@@ -164,7 +164,7 @@ func (r *repl) run() error {
 	for {
 		state, outcome, err := r.askStateValues(stateGroup, previous, guard, post, event)
 		if err != nil {
-			return err
+			return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 		}
 		switch outcome {
 		case inputExit:
@@ -182,7 +182,7 @@ func (r *repl) run() error {
 			current := *previous
 			command, outcome, err := r.readLine("command> ")
 			if err != nil {
-				return err
+				return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 			}
 			if outcome == inputExit || outcome == inputInterrupt {
 				return nil
@@ -224,7 +224,7 @@ func (r *repl) run() error {
 				edge := edges[index]
 				next, ok := r.diagram.States[edge.Dst]
 				if !ok {
-					return fmt.Errorf("destination state %q does not exist", edge.Dst)
+					return fmt.Errorf("csdfreplcmd.repl.run: destination state %q does not exist", edge.Dst)
 				}
 				stateGroup = next
 				guard = edge.Guard
@@ -253,14 +253,14 @@ func (r *repl) askStateValues(group csdf.State, previous *csdf.RuntimeState, gua
 		r.displayStateValuePrompt(previous, group, guard, post)
 		line, outcome, err := r.readLine("state> ")
 		if err != nil {
-			return csdf.RuntimeState{}, inputFatal, err
+			return csdf.RuntimeState{}, inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
 		}
 		if outcome == inputExit {
 			return csdf.RuntimeState{}, inputExit, nil
 		}
 		if outcome == inputInterrupt {
 			if len(r.history) == 0 {
-				return csdf.RuntimeState{}, inputFatal, errors.New("No solutions found")
+				return csdf.RuntimeState{}, inputFatal, errors.New("csdfreplcmd.repl.askStateValues: No solutions found")
 			}
 			return csdf.RuntimeState{}, inputBack, nil
 		}
@@ -291,7 +291,7 @@ func (r *repl) askStateValues(group csdf.State, previous *csdf.RuntimeState, gua
 				r.displayError(result.Err.Error())
 			}
 		default:
-			return csdf.RuntimeState{}, inputFatal, errors.New("post solver returned an unknown result")
+			return csdf.RuntimeState{}, inputFatal, errors.New("csdfreplcmd.repl.askStateValues: post solver returned an unknown result")
 		}
 	}
 }
@@ -313,7 +313,7 @@ func (r *repl) readLine(prompt string) (string, inputOutcome, error) {
 			return "", inputExit, nil
 		}
 		if err != nil {
-			return "", inputFatal, fmt.Errorf("reading input: %w", err)
+			return "", inputFatal, fmt.Errorf("csdfreplcmd.repl.readLine: reading input: %w", err)
 		}
 		return line, inputLine, nil
 	}
@@ -334,7 +334,7 @@ func (r *repl) readLine(prompt string) (string, inputOutcome, error) {
 			return "", inputExit, nil
 		}
 		if result.err != nil {
-			return "", inputFatal, fmt.Errorf("reading input: %w", result.err)
+			return "", inputFatal, fmt.Errorf("csdfreplcmd.repl.readLine: reading input: %w", result.err)
 		}
 		_, _ = fmt.Fprintln(r.stdout)
 		return result.line, inputLine, nil

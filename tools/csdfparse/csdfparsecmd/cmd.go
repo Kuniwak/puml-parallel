@@ -21,11 +21,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		diagram, err := csdf.ParseDiagram(opts.Bytes)
 		if err != nil {
-			return err
+			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}
 
 		if err := json.NewEncoder(inout.Stdout).Encode(diagram); err != nil {
-			return fmt.Errorf("writing JSON: %w", err)
+			return fmt.Errorf("csdfparsecmd.NewMainFunc: writing JSON: %w", err)
 		}
 		return nil
 	}

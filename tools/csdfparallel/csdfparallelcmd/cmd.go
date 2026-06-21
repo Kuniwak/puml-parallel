@@ -25,7 +25,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		composite, err := csdf.ComposeParallel(diagrams, opts.Sync)
 		if err != nil {
-			return err
+			return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
 		}
 
 		fmt.Fprint(inout.Stdout, composite.String())

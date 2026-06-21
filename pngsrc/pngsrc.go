@@ -53,7 +53,7 @@ func Extract(raw []byte) (string, error) {
 	}
 	for chunk, err := range PNGTextChunks(raw) {
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("pngsrc.Extract: %w", err)
 		}
 		if chunk.Keyword == plantumlKeyword {
 			return chunk.Text, nil
@@ -76,18 +76,18 @@ func PNGTextChunks(raw []byte) iter.Seq2[PNGTextChunk, error] {
 		body := raw[len(pngSignature):]
 		for pos := 0; pos < len(body); {
 			if len(body)-pos < 8 {
-				yield(PNGTextChunk{}, fmt.Errorf("pngsrc: truncated PNG chunk header at offset %d", pos))
+				yield(PNGTextChunk{}, fmt.Errorf("pngsrc.PNGTextChunks: truncated PNG chunk header at offset %d", pos))
 				return
 			}
 			length := binary.BigEndian.Uint32(body[pos : pos+4])
 			if length > maxChunkLen {
-				yield(PNGTextChunk{}, fmt.Errorf("pngsrc: chunk length %d exceeds PNG maximum", length))
+				yield(PNGTextChunk{}, fmt.Errorf("pngsrc.PNGTextChunks: chunk length %d exceeds PNG maximum", length))
 				return
 			}
 			typ := string(body[pos+4 : pos+8])
 			dataStart := pos + 8
 			if uint64(dataStart)+uint64(length)+4 > uint64(len(body)) {
-				yield(PNGTextChunk{}, fmt.Errorf("pngsrc: chunk %q length %d overruns input", typ, length))
+				yield(PNGTextChunk{}, fmt.Errorf("pngsrc.PNGTextChunks: chunk %q length %d overruns input", typ, length))
 				return
 			}
 			data := body[dataStart : dataStart+int(length)]
@@ -127,7 +127,7 @@ func PNGTextChunks(raw []byte) iter.Seq2[PNGTextChunk, error] {
 func decodeTEXt(data []byte) (PNGTextChunk, bool, error) {
 	keyword, rest, err := splitAtNUL(data)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: tEXt: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeTEXt: %w", err)
 	}
 	return PNGTextChunk{Keyword: keyword, Text: string(rest)}, true, nil
 }
@@ -135,17 +135,17 @@ func decodeTEXt(data []byte) (PNGTextChunk, bool, error) {
 func decodeZTXt(data []byte) (PNGTextChunk, bool, error) {
 	keyword, rest, err := splitAtNUL(data)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: zTXt: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeZTXt: %w", err)
 	}
 	if len(rest) < 1 {
-		return PNGTextChunk{}, false, errors.New("pngsrc: zTXt: missing compression method byte")
+		return PNGTextChunk{}, false, errors.New("pngsrc.decodeZTXt: missing compression method byte")
 	}
 	if rest[0] != 0 {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: zTXt: unsupported compression method %d", rest[0])
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeZTXt: unsupported compression method %d", rest[0])
 	}
 	text, err := InflateBounded(rest[1:], MaxDecompressedSize)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: zTXt: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeZTXt: %w", err)
 	}
 	return PNGTextChunk{Keyword: keyword, Text: text}, true, nil
 }
@@ -153,34 +153,34 @@ func decodeZTXt(data []byte) (PNGTextChunk, bool, error) {
 func decodeITXt(data []byte) (PNGTextChunk, bool, error) {
 	keyword, rest, err := splitAtNUL(data)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeITXt: %w", err)
 	}
 	if len(rest) < 2 {
-		return PNGTextChunk{}, false, errors.New("pngsrc: iTXt: missing compression flag/method")
+		return PNGTextChunk{}, false, errors.New("pngsrc.decodeITXt: missing compression flag/method")
 	}
 	compFlag, compMethod := rest[0], rest[1]
 	rest = rest[2:]
 	if compFlag != 0 && compFlag != 1 {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: invalid compression flag %d", compFlag)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeITXt: invalid compression flag %d", compFlag)
 	}
 	if compFlag == 1 && compMethod != 0 {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: unsupported compression method %d", compMethod)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeITXt: unsupported compression method %d", compMethod)
 	}
 	// Skip language tag (null-terminated) and translated keyword (null-terminated).
 	_, rest, err = splitAtNUL(rest)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: language tag: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeITXt: language tag: %w", err)
 	}
 	_, rest, err = splitAtNUL(rest)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: translated keyword: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeITXt: translated keyword: %w", err)
 	}
 	if compFlag == 0 {
 		return PNGTextChunk{Keyword: keyword, Text: string(rest)}, true, nil
 	}
 	text, err := InflateBounded(rest, MaxDecompressedSize)
 	if err != nil {
-		return PNGTextChunk{}, false, fmt.Errorf("pngsrc: iTXt: %w", err)
+		return PNGTextChunk{}, false, fmt.Errorf("pngsrc.decodeITXt: %w", err)
 	}
 	return PNGTextChunk{Keyword: keyword, Text: text}, true, nil
 }
@@ -188,7 +188,7 @@ func decodeITXt(data []byte) (PNGTextChunk, bool, error) {
 func splitAtNUL(data []byte) (string, []byte, error) {
 	i := bytes.IndexByte(data, 0)
 	if i < 0 {
-		return "", nil, errors.New("missing NUL terminator")
+		return "", nil, errors.New("pngsrc.splitAtNUL: missing NUL terminator")
 	}
 	return string(data[:i]), data[i+1:], nil
 }
@@ -201,16 +201,16 @@ func splitAtNUL(data []byte) (string, []byte, error) {
 func InflateBounded(compressed []byte, max int64) (string, error) {
 	r, err := zlib.NewReader(bytes.NewReader(compressed))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("pngsrc.InflateBounded: %w", err)
 	}
 	defer func() { _ = r.Close() }()
 	limited := io.LimitReader(r, max+1)
 	out, err := io.ReadAll(limited)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("pngsrc.InflateBounded: %w", err)
 	}
 	if int64(len(out)) > max {
-		return "", fmt.Errorf("decompressed text exceeds %d bytes", max)
+		return "", fmt.Errorf("pngsrc.InflateBounded: decompressed text exceeds %d bytes", max)
 	}
 	return string(out), nil
 }

@@ -27,18 +27,18 @@ func (h *Handler) Handle(_ context.Context, record slog.Record) error {
 	defer h.mu.Unlock()
 
 	if _, err := io.WriteString(h.w, record.Level.String()); err != nil {
-		return fmt.Errorf("slograw.Handler.Handle: failed to write level: %v", err)
+		return fmt.Errorf("slograw.Handler.Handle: failed to write level: %w", err)
 	}
 	if _, err := io.WriteString(h.w, ": "); err != nil {
-		return fmt.Errorf("slograw.Handler.Handle: failed to write level: %v", err)
+		return fmt.Errorf("slograw.Handler.Handle: failed to write level separator: %w", err)
 	}
 	if _, err := io.WriteString(h.w, record.Message); err != nil {
-		return fmt.Errorf("slograw.Handler.Handle: failed to write level: %v", err)
+		return fmt.Errorf("slograw.Handler.Handle: failed to write message: %w", err)
 	}
 
 	if record.NumAttrs() > 0 {
 		if _, err := io.WriteString(h.w, ": "); err != nil {
-			return fmt.Errorf("slograw.Handler.Handle: failed to write level: %v", err)
+			return fmt.Errorf("slograw.Handler.Handle: failed to write attrs separator: %w", err)
 		}
 
 		first := true
@@ -63,7 +63,7 @@ func (h *Handler) Handle(_ context.Context, record slog.Record) error {
 	}
 
 	if _, err := io.WriteString(h.w, "\n"); err != nil {
-		return fmt.Errorf("slograw.Handler.Handle: failed to write level: %v", err)
+		return fmt.Errorf("slograw.Handler.Handle: failed to write newline: %w", err)
 	}
 	return nil
 }

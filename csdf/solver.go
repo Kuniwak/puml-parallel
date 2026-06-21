@@ -59,18 +59,18 @@ func SolveJSON(input PostSolverInput) PostSolverResult {
 
 	var decoded any
 	if err := decoder.Decode(&decoded); err != nil {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("invalid JSON array: %w", err)}
+		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("csdf.SolveJSON: invalid JSON array: %w", err)}
 	}
 	if err := ensureJSONEOF(decoder); err != nil {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: err}
+		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("csdf.SolveJSON: %w", err)}
 	}
 	values, ok := decoded.([]any)
 	if !ok {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("invalid JSON array: top-level value must be an array")}
+		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("csdf.SolveJSON: invalid JSON array: top-level value must be an array")}
 	}
 	for _, value := range values {
 		if containsNull(value) {
-			return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("null is not a supported JSON value")}
+			return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("csdf.SolveJSON: null is not a supported JSON value")}
 		}
 	}
 	if len(values) != len(input.StateGroup.Vars) {
@@ -98,9 +98,9 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("invalid JSON array: %w", err)
+		return fmt.Errorf("csdf.ensureJSONEOF: invalid JSON array: %w", err)
 	}
-	return errors.New("invalid JSON array: multiple JSON values")
+	return errors.New("csdf.ensureJSONEOF: invalid JSON array: multiple JSON values")
 }
 
 func containsNull(value any) bool {

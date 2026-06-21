@@ -12,11 +12,11 @@ import (
 func ParseDiagram(content []byte) (*Diagram, error) {
 	source, err := pngsrc.Extract(content)
 	if err != nil {
-		return nil, fmt.Errorf("reading PlantUML source: %w", err)
+		return nil, fmt.Errorf("csdf.ParseDiagram: reading PlantUML source: %w", err)
 	}
 	diagram, err := NewParser(source).Parse()
 	if err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
+		return nil, fmt.Errorf("csdf.ParseDiagram: parse: %w", err)
 	}
 	return diagram, nil
 }

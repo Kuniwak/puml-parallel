@@ -29,7 +29,7 @@ func (s StatePair) State() State {
 
 func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) {
 	if len(diagrams) < 1 {
-		return nil, fmt.Errorf("at least one diagrams are required for interface parallel")
+		return nil, fmt.Errorf("csdf.ComposeParallel: at least one diagrams are required for interface parallel")
 	}
 
 	if len(diagrams) == 1 {
@@ -44,7 +44,7 @@ func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) 
 			var err error
 			dL, err = ComposeParallel2(dL, d, syncEvents)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("csdf.ComposeParallel: %w", err)
 			}
 		}
 	}
@@ -54,7 +54,7 @@ func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) 
 
 func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	if dL.EndEdge != nil || dR.EndEdge != nil {
-		return nil, fmt.Errorf("end edges are not supported for interface parallel")
+		return nil, fmt.Errorf("csdf.ComposeParallel2: end edges are not supported for interface parallel")
 	}
 
 	ss := make(map[Event]struct{})
@@ -84,7 +84,7 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	queue := []StatePair{initStatePair}
 	for len(queue) > 0 {
 		if err := composeParallel2(dL, dR, dL.Edges, dR.Edges, &queue, &marked, ss, out); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("csdf.ComposeParallel2: %w", err)
 		}
 	}
 	return out, nil
