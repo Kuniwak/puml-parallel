@@ -41,7 +41,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			spy := cli.SpyProcInout()
 
 			// Act
-			opts, err := parseOptions(testCase.Args, spy.NewProcInout())
+			opts, err := parseOptions(testCase.Args, spy.New())
 			if err != nil {
 				t.Log(spy.Stderr.String())
 				t.Errorf("want nil, got %#v", err)
@@ -76,7 +76,7 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 			spy := cli.SpyProcInout()
 
 			// Act
-			opts, err := parseOptions(testCase.Args, spy.NewProcInout())
+			opts, err := parseOptions(testCase.Args, spy.New())
 
 			// Assert
 			if err == nil {

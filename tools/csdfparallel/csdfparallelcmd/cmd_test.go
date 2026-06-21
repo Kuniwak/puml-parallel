@@ -29,7 +29,7 @@ s2_s1 --> s2_s2 : out
 		"-sync", "sync",
 		"../../../examples/valid/in.puml",
 		"../../../examples/valid/out.puml",
-	}, spy.NewProcInout())
+	}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {
@@ -47,7 +47,7 @@ func TestNewMainFuncVersion(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Act
-	exitStatus := cmdFunc([]string{"-v"}, spy.NewProcInout())
+	exitStatus := cmdFunc([]string{"-v"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {

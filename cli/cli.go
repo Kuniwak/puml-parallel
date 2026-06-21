@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
+	"sync"
 )
 
 type EnvFunc func(name string) string
@@ -16,95 +16,82 @@ func NewEnvFunc(env map[string]string) EnvFunc {
 	}
 }
 
-type Stdin interface {
+type FDReader interface {
 	io.Reader
 	Fd() uintptr
 }
 
-type Stdout interface {
+type FDWriter interface {
 	io.Writer
 	Fd() uintptr
 }
 
-// NoFd is an invalid file descriptor. term.IsTerminal(int(NoFd)) reports false,
-// so a stub stream created with it is treated as non-interactive.
-const NoFd = ^uintptr(0)
-
-// NewStdinFromFile widens a real file to a Stdin. *os.File already satisfies
-// Stdin, so this is a static, type-checked conversion (no runtime assertion).
-func NewStdinFromFile(f *os.File) Stdin { return f }
-
-// NewStdoutFromFile widens a real file to a Stdout.
-func NewStdoutFromFile(f *os.File) Stdout { return f }
-
-type stubStdin struct {
+type FDReaderStub struct {
 	io.Reader
 	fd uintptr
 }
 
-func (s stubStdin) Fd() uintptr { return s.fd }
+func (r FDReaderStub) Fd() uintptr { return r.fd }
 
-// StubStdin builds a Stdin from any reader plus an explicit descriptor, letting
-// callers decide whether the stream should look like a terminal.
-func StubStdin(r io.Reader, fd uintptr) Stdin { return stubStdin{Reader: r, fd: fd} }
+func StubStdin(r io.Reader) FDReader { return FDReaderStub{r, 0} }
 
-type stubStdout struct {
+type FDWriterStub struct {
 	io.Writer
 	fd uintptr
 }
 
-func (s stubStdout) Fd() uintptr { return s.fd }
+func (s FDWriterStub) Fd() uintptr { return s.fd }
 
-// StubStdout builds a Stdout from any writer plus an explicit descriptor.
-func StubStdout(w io.Writer, fd uintptr) Stdout { return stubStdout{Writer: w, fd: fd} }
+func StubStdout(w io.Writer) FDWriter { return FDWriterStub{w, 1} }
+func StubStderr(w io.Writer) FDWriter { return FDWriterStub{w, 2} }
 
 type ProcInout struct {
-	Stdin  Stdin
-	Stdout Stdout
-	Stderr io.Writer
+	Stdin  FDReader
+	Stdout FDWriter
+	Stderr FDWriter
 	Env    EnvFunc
 }
 
 func NewProcInout() *ProcInout {
 	return &ProcInout{
-		Stdin:  NewStdinFromFile(os.Stdin),
-		Stdout: NewStdoutFromFile(os.Stdout),
+		Stdin:  os.Stdin,
+		Stdout: os.Stdout,
 		Stderr: os.Stderr,
 		Env:    os.Getenv,
 	}
 }
 
-func StubProcInout() *ProcInout {
+func StubProcInout(r io.Reader, env map[string]string) *ProcInout {
 	return &ProcInout{
-		Stdin:  StubStdin(io.NopCloser(strings.NewReader("")), NoFd),
-		Stdout: StubStdout(io.Discard, NoFd),
-		Stderr: io.Discard,
-		Env:    func(name string) string { return "" },
+		Stdin:  StubStdin(r),
+		Stdout: StubStdout(io.Discard),
+		Stderr: StubStdout(io.Discard),
+		Env:    NewEnvFunc(env),
 	}
 }
 
 type ProcInoutSpy struct {
 	Stdin  io.Reader
-	Stdout *bytes.Buffer
-	Stderr *bytes.Buffer
+	Stdout *LockedBuffer
+	Stderr *LockedBuffer
 	Env    map[string]string
 }
 
-func (s *ProcInoutSpy) NewProcInout() *ProcInout {
-	return &ProcInout{
-		Stdin:  StubStdin(s.Stdin, NoFd),
-		Stdout: StubStdout(s.Stdout, NoFd),
-		Stderr: s.Stderr,
-		Env:    NewEnvFunc(s.Env),
+func SpyProcInout() *ProcInoutSpy {
+	return &ProcInoutSpy{
+		Stdin:  &bytes.Buffer{},
+		Stdout: NewLockedBuffer(),
+		Stderr: NewLockedBuffer(),
+		Env:    nil,
 	}
 }
 
-func SpyProcInout(stdin ...string) *ProcInoutSpy {
-	return &ProcInoutSpy{
-		Stdin:  strings.NewReader(strings.Join(stdin, "\n")),
-		Stdout: &bytes.Buffer{},
-		Stderr: &bytes.Buffer{},
-		Env:    make(map[string]string),
+func (s *ProcInoutSpy) New() *ProcInout {
+	return &ProcInout{
+		Stdin:  StubStdin(s.Stdin),
+		Stdout: StubStdout(s.Stdout),
+		Stderr: StubStderr(s.Stderr),
+		Env:    NewEnvFunc(s.Env),
 	}
 }
 
@@ -133,4 +120,33 @@ func NewCommandFunc[T any](parseOpts ParseOptionsFunc[T], mainFunc MainFunc[T]) 
 
 		return 0
 	}
+}
+
+type LockedBuffer struct {
+	mu     sync.Mutex
+	buffer *bytes.Buffer
+}
+
+func NewLockedBuffer() *LockedBuffer {
+	return &LockedBuffer{
+		buffer: &bytes.Buffer{},
+	}
+}
+
+func (b *LockedBuffer) Write(data []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(data)
+}
+
+func (b *LockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
+}
+
+func (b *LockedBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Len()
 }

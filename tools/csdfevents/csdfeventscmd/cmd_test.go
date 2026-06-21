@@ -19,7 +19,7 @@ func TestNewMainFuncOnlyCommon(t *testing.T) {
 		"-only-common",
 		"../../../examples/valid/user.puml",
 		"../../../examples/valid/vending_machine.puml",
-	}, spy.NewProcInout())
+	}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {
@@ -37,7 +37,7 @@ func TestNewMainFuncVersion(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Act
-	exitStatus := cmdFunc([]string{"-v"}, spy.NewProcInout())
+	exitStatus := cmdFunc([]string{"-v"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {

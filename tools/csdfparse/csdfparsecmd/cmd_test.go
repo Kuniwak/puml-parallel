@@ -1,6 +1,7 @@
 package csdfparsecmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -23,10 +24,11 @@ s1 --> [*] : complete
 	want := `{"states":{"s0":{"id":"s0","name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}]},"s1":{"id":"s1","name":"Done","vars":[]}},"start_edge":{"dst":"s0","post":"initialize"},"edges":[{"src":"s0","dst":"s1","event":"finish(result)","guard":"ready","post":"done"}],"end_edge":{"src":"s1","guard":"complete"}}` + "\n"
 
 	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout(input)
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(input))
 
 	// Act
-	exitStatus := cmdFunc([]string{}, spy.NewProcInout())
+	exitStatus := cmdFunc([]string{}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {
@@ -48,7 +50,7 @@ func TestNewMainFuncReadsFileArgument(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Act
-	exitStatus := cmdFunc([]string{"../../../examples/valid/skip.puml"}, spy.NewProcInout())
+	exitStatus := cmdFunc([]string{"../../../examples/valid/skip.puml"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {
@@ -66,7 +68,7 @@ func TestNewMainFuncVersion(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Act
-	exitStatus := cmdFunc([]string{"-v"}, spy.NewProcInout())
+	exitStatus := cmdFunc([]string{"-v"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {

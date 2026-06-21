@@ -31,7 +31,7 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 	var terminal *terminalLineReader
 	var lines <-chan lineResult
 	if term.IsTerminal(int(inout.Stdin.Fd())) && term.IsTerminal(int(inout.Stdout.Fd())) {
-		terminal = newTerminalLineReader(inout.Stdin, inout.Stdout)
+		terminal = newTerminalLineReader(inout)
 	} else {
 		lines = newLineReader(inout.Stdin)
 	}
@@ -83,19 +83,19 @@ type terminalLineReader struct {
 	outputFD int
 }
 
-func newTerminalLineReader(reader cli.Stdin, writer cli.Stdout) *terminalLineReader {
+func newTerminalLineReader(inout *cli.ProcInout) *terminalLineReader {
 	return &terminalLineReader{
 		stream: &terminalReadWriter{
-			reader: bufio.NewReader(reader),
-			writer: writer,
+			reader: bufio.NewReader(inout.Stdin),
+			writer: inout.Stdout,
 		},
-		inputFD:  int(reader.Fd()),
-		outputFD: int(writer.Fd()),
+		inputFD:  int(inout.Stdin.Fd()),
+		outputFD: int(inout.Stdout.Fd()),
 	}
 }
 
 func (r *terminalLineReader) readLine(prompt string) (string, error) {
-	if r.inputFD >= 0 {
+	if term.IsTerminal(r.inputFD) {
 		oldState, err := term.MakeRaw(r.inputFD)
 		if err != nil {
 			return "", fmt.Errorf("configuring terminal input: %w", err)
@@ -105,7 +105,7 @@ func (r *terminalLineReader) readLine(prompt string) (string, error) {
 		}()
 	}
 	terminal := term.NewTerminal(r.stream, prompt)
-	if r.outputFD >= 0 {
+	if term.IsTerminal(r.outputFD) {
 		if width, height, err := term.GetSize(r.outputFD); err == nil {
 			_ = terminal.SetSize(width, height)
 		}
