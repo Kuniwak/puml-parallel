@@ -20,7 +20,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		diagrams, err := csdf.LoadDiagrams(opts.Files)
 		if err != nil {
-			return fmt.Errorf("csdfeventcmd.NewMainFunc: cannot parse diagrams: %w", err)
+			return fmt.Errorf("csdfeventscmd.NewMainFunc: cannot parse diagrams: %w", err)
 		}
 
 		var events []string
