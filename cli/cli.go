@@ -26,35 +26,37 @@ type Stdout interface {
 	Fd() uintptr
 }
 
-// noFd is an invalid descriptor; term.IsTerminal(int(noFd)) == false, so streams
-// that are not backed by a file are treated as non-interactive.
-const noFd = ^uintptr(0)
+// NoFd is an invalid file descriptor. term.IsTerminal(int(NoFd)) reports false,
+// so a stub stream created with it is treated as non-interactive.
+const NoFd = ^uintptr(0)
 
-type stdinWithoutFd struct{ io.Reader }
+// NewStdinFromFile widens a real file to a Stdin. *os.File already satisfies
+// Stdin, so this is a static, type-checked conversion (no runtime assertion).
+func NewStdinFromFile(f *os.File) Stdin { return f }
 
-func (stdinWithoutFd) Fd() uintptr { return noFd }
+// NewStdoutFromFile widens a real file to a Stdout.
+func NewStdoutFromFile(f *os.File) Stdout { return f }
 
-type stdoutWithoutFd struct{ io.Writer }
-
-func (stdoutWithoutFd) Fd() uintptr { return noFd }
-
-// NewStdin adapts an arbitrary reader (tests, in-memory streams) into a Stdin.
-// A reader that already exposes Fd() (e.g. *os.File) is passed through unchanged.
-func NewStdin(r io.Reader) Stdin {
-	if s, ok := r.(Stdin); ok {
-		return s
-	}
-	return stdinWithoutFd{r}
+type stubStdin struct {
+	io.Reader
+	fd uintptr
 }
 
-// NewStdout adapts an arbitrary writer into a Stdout. A writer that already
-// exposes Fd() (e.g. *os.File) is passed through unchanged.
-func NewStdout(w io.Writer) Stdout {
-	if s, ok := w.(Stdout); ok {
-		return s
-	}
-	return stdoutWithoutFd{w}
+func (s stubStdin) Fd() uintptr { return s.fd }
+
+// StubStdin builds a Stdin from any reader plus an explicit descriptor, letting
+// callers decide whether the stream should look like a terminal.
+func StubStdin(r io.Reader, fd uintptr) Stdin { return stubStdin{Reader: r, fd: fd} }
+
+type stubStdout struct {
+	io.Writer
+	fd uintptr
 }
+
+func (s stubStdout) Fd() uintptr { return s.fd }
+
+// StubStdout builds a Stdout from any writer plus an explicit descriptor.
+func StubStdout(w io.Writer, fd uintptr) Stdout { return stubStdout{Writer: w, fd: fd} }
 
 type ProcInout struct {
 	Stdin  Stdin
@@ -65,8 +67,8 @@ type ProcInout struct {
 
 func NewProcInout() *ProcInout {
 	return &ProcInout{
-		Stdin:  os.Stdin,
-		Stdout: os.Stdout,
+		Stdin:  NewStdinFromFile(os.Stdin),
+		Stdout: NewStdoutFromFile(os.Stdout),
 		Stderr: os.Stderr,
 		Env:    os.Getenv,
 	}
@@ -74,8 +76,8 @@ func NewProcInout() *ProcInout {
 
 func StubProcInout() *ProcInout {
 	return &ProcInout{
-		Stdin:  NewStdin(io.NopCloser(strings.NewReader(""))),
-		Stdout: NewStdout(io.Discard),
+		Stdin:  StubStdin(io.NopCloser(strings.NewReader("")), NoFd),
+		Stdout: StubStdout(io.Discard, NoFd),
 		Stderr: io.Discard,
 		Env:    func(name string) string { return "" },
 	}
@@ -90,8 +92,8 @@ type ProcInoutSpy struct {
 
 func (s *ProcInoutSpy) NewProcInout() *ProcInout {
 	return &ProcInout{
-		Stdin:  NewStdin(s.Stdin),
-		Stdout: NewStdout(s.Stdout),
+		Stdin:  StubStdin(s.Stdin, NoFd),
+		Stdout: StubStdout(s.Stdout, NoFd),
 		Stderr: s.Stderr,
 		Env:    NewEnvFunc(s.Env),
 	}

@@ -18,8 +18,8 @@ import (
 
 func newInout(stdin io.Reader, stdout, stderr io.Writer) *cli.ProcInout {
 	return &cli.ProcInout{
-		Stdin:  cli.NewStdin(stdin),
-		Stdout: cli.NewStdout(stdout),
+		Stdin:  cli.StubStdin(stdin, cli.NoFd),
+		Stdout: cli.StubStdout(stdout, cli.NoFd),
 		Stderr: stderr,
 		Env:    func(string) string { return "" },
 	}
@@ -443,7 +443,7 @@ func TestTerminalLineReaderEditsInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := newTerminalLineReader(cli.NewStdin(strings.NewReader(tt.input)), cli.NewStdout(&bytes.Buffer{}))
+			reader := newTerminalLineReader(cli.StubStdin(strings.NewReader(tt.input), cli.NoFd), cli.StubStdout(&bytes.Buffer{}, cli.NoFd))
 			got, err := reader.readLine("command> ")
 			if err != nil {
 				t.Fatalf("readLine() error = %v", err)
@@ -467,7 +467,7 @@ func TestTerminalLineReaderControlOutcomes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := newTerminalLineReader(cli.NewStdin(strings.NewReader(tt.input)), cli.NewStdout(&bytes.Buffer{}))
+			reader := newTerminalLineReader(cli.StubStdin(strings.NewReader(tt.input), cli.NoFd), cli.StubStdout(&bytes.Buffer{}, cli.NoFd))
 			_, err := reader.readLine("command> ")
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("readLine() error = %v, want %v", err, tt.wantErr)
