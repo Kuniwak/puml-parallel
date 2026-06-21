@@ -27,9 +27,9 @@ func (s StatePair) State() State {
 	}
 }
 
-func ComposeParallel(diagrams []Diagram, syncEvents []Event) (Diagram, error) {
+func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) {
 	if len(diagrams) < 1 {
-		return Diagram{}, fmt.Errorf("at least one diagrams are required for interface parallel")
+		return nil, fmt.Errorf("at least one diagrams are required for interface parallel")
 	}
 
 	if len(diagrams) == 1 {
@@ -44,7 +44,7 @@ func ComposeParallel(diagrams []Diagram, syncEvents []Event) (Diagram, error) {
 			var err error
 			dL, err = ComposeParallel2(dL, d, syncEvents)
 			if err != nil {
-				return Diagram{}, err
+				return nil, err
 			}
 		}
 	}
@@ -52,9 +52,9 @@ func ComposeParallel(diagrams []Diagram, syncEvents []Event) (Diagram, error) {
 	return ComposeParallel2(dL, dR, syncEvents)
 }
 
-func ComposeParallel2(dL, dR Diagram, syncEvents []Event) (Diagram, error) {
+func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	if dL.EndEdge != nil || dR.EndEdge != nil {
-		return Diagram{}, fmt.Errorf("end edges are not supported for interface parallel")
+		return nil, fmt.Errorf("end edges are not supported for interface parallel")
 	}
 
 	ss := make(map[Event]struct{})
@@ -70,7 +70,7 @@ func ComposeParallel2(dL, dR Diagram, syncEvents []Event) (Diagram, error) {
 	states := make(map[StateID]State)
 	states[initStatePair.ID()] = initStatePair.State()
 
-	out := Diagram{
+	out := &Diagram{
 		States: states,
 		StartEdge: StartEdge{
 			Dst:  initStatePair.ID(),
@@ -83,14 +83,14 @@ func ComposeParallel2(dL, dR Diagram, syncEvents []Event) (Diagram, error) {
 	marked[initStatePair.ID()] = struct{}{}
 	queue := []StatePair{initStatePair}
 	for len(queue) > 0 {
-		if err := composeParallel2(dL, dR, dL.Edges, dR.Edges, &queue, &marked, ss, &out); err != nil {
-			return Diagram{}, err
+		if err := composeParallel2(dL, dR, dL.Edges, dR.Edges, &queue, &marked, ss, out); err != nil {
+			return nil, err
 		}
 	}
 	return out, nil
 }
 
-func composeParallel2(dL, dR Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncEvents map[Event]struct{}, out *Diagram) error {
+func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncEvents map[Event]struct{}, out *Diagram) error {
 	currentPair := (*queue)[0]
 	currentPairID := currentPair.ID()
 	*queue = (*queue)[1:]

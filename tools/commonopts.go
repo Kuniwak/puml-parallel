@@ -2,9 +2,12 @@ package tools
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log/slog"
+	"os"
 
+	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/slograw"
 )
 
@@ -55,4 +58,34 @@ func ValidateCommonOptions(options *CommonRawOptions) (*CommonOptions, error) {
 
 func NewLogger(logLevel slog.Level, w io.Writer) *slog.Logger {
 	return slog.New(slograw.NewHandler(w, logLevel))
+}
+
+func ValidateArgsAsFilePath(args []string, inout *cli.ProcInout) ([]byte, error) {
+	switch len(args) {
+	case 0:
+		bs, err := io.ReadAll(inout.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: cannot read via stdin: %w", err)
+		}
+		return bs, nil
+
+	case 1:
+		file := args[0]
+		if file == "-" {
+			bs, err := io.ReadAll(inout.Stdin)
+			if err != nil {
+				return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: cannot read via stdin: %w", err)
+			}
+			return bs, nil
+		}
+
+		bs, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: cannot read file: %w (%q)", err, file)
+		}
+		return bs, nil
+
+	default:
+		return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: too many arguments")
+	}
 }

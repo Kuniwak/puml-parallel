@@ -18,13 +18,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagrams := make([]csdf.Diagram, 0, len(opts.Files))
-		for _, file := range opts.Files {
-			diagram, err := csdf.LoadDiagram(file)
-			if err != nil {
-				return err
-			}
-			diagrams = append(diagrams, *diagram)
+		diagrams, err := csdf.LoadDiagrams(opts.Files)
+		if err != nil {
+			return fmt.Errorf("csdfeventcmd.NewMainFunc: cannot parse diagrams: %w", err)
 		}
 
 		var events []string

@@ -65,7 +65,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateVarsError",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateVarsError("State variable values length mismatch")
+				r.displayError("State variable values length mismatch")
 			},
 		},
 		{

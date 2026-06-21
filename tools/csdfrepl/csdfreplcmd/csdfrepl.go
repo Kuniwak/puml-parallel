@@ -23,9 +23,14 @@ type HistoryEntry struct {
 }
 
 func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver) error {
-	diagram, err := csdf.LoadDiagram(file)
+	bs, err := os.ReadFile(file)
 	if err != nil {
-		return err
+		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot read the file: %w: %q", err, file)
+	}
+
+	diagram, err := csdf.ParseDiagram(bs)
+	if err != nil {
+		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot parse the file: %w: %q", err, file)
 	}
 
 	var terminal *terminalLineReader
@@ -276,14 +281,14 @@ func (r *repl) askStateValues(group csdf.State, previous *csdf.RuntimeState, gua
 			r.history = append(r.history, HistoryEntry{State: result.State, Trace: trace})
 			return result.State, inputLine, nil
 		case csdf.PostSolverResultNoSolutions:
-			r.displayStateVarsError("No solutions")
+			r.displayError("No solutions")
 		case csdf.PostSolverResultInvalidStateVarValuesLength:
-			r.displayStateVarsError("State variable values length mismatch")
+			r.displayError("State variable values length mismatch")
 		case csdf.PostSolverResultSyntaxError:
 			if result.Err == nil {
-				r.displayStateVarsError("invalid state variable values")
+				r.displayError("invalid state variable values")
 			} else {
-				r.displayStateVarsError(result.Err.Error())
+				r.displayError(result.Err.Error())
 			}
 		default:
 			return csdf.RuntimeState{}, inputFatal, errors.New("post solver returned an unknown result")
@@ -337,12 +342,7 @@ func (r *repl) readLine(prompt string) (string, inputOutcome, error) {
 }
 
 func (r *repl) displayError(message string) {
-	_, _ = fmt.Fprintf(r.stdout, "Error: %s\n", message)
-}
-
-func (r *repl) displayStateVarsError(message string) {
-	r.displayError(message)
-	_, _ = fmt.Fprintln(r.stdout)
+	_, _ = fmt.Fprintf(r.stdout, "Error: %s\n\n", message)
 }
 
 func (r *repl) displayEmptyLine() {

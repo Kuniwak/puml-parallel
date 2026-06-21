@@ -21,15 +21,27 @@ func ParseDiagram(content []byte) (*Diagram, error) {
 	return diagram, nil
 }
 
-// LoadDiagram reads and parses a Composable State Diagram from a file.
-func LoadDiagram(path string) (*Diagram, error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading file %s: %w", path, err)
+func LoadDiagrams(files []string) ([]*Diagram, error) {
+	diagrams := make([]*Diagram, 0, len(files))
+	for _, file := range files {
+		bs, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("csdf.LoadDiagrams: cannot read file: %w: %q", err, file)
+		}
+
+		diagram, err := ParseDiagram(bs)
+		if err != nil {
+			return nil, fmt.Errorf("csdf.LoadDiagrams: cannot parse file: %w: %q", err, file)
+		}
+		diagrams = append(diagrams, diagram)
 	}
-	diagram, err := ParseDiagram(content)
+	return diagrams, nil
+}
+
+func MustLoadDiagrams(paths ...string) []*Diagram {
+	diagrams, err := LoadDiagrams(paths)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+		panic(err.Error())
 	}
-	return diagram, nil
+	return diagrams
 }

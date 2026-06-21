@@ -17,7 +17,7 @@ s0 --> [*] : true
 `
 
 	// Execute
-	composite, err := ComposeParallel(loadAll(t, "../examples/valid/skip.puml"), nil)
+	composite, err := ComposeParallel(MustLoadDiagrams("../examples/valid/skip.puml"), nil)
 	if err != nil {
 		t.Fatalf("ComposeParallel() error = %v", err)
 	}
@@ -44,7 +44,7 @@ s2_s1 --> s2_s2 : out
 
 	// Execute
 	composite, err := ComposeParallel(
-		loadAll(t, "../examples/valid/in.puml", "../examples/valid/out.puml"),
+		MustLoadDiagrams("../examples/valid/in.puml", "../examples/valid/out.puml"),
 		[]Event{"sync"},
 	)
 	if err != nil {
@@ -59,14 +59,14 @@ s2_s1 --> s2_s2 : out
 
 func TestComposeParallelRejectsEndEdges(t *testing.T) {
 	// Setup
-	left := Diagram{
+	left := &Diagram{
 		States: map[StateID]State{
 			"left": {ID: "left", Name: "Left"},
 		},
 		StartEdge: StartEdge{Dst: "left"},
 		EndEdge:   &EndEdge{Src: "left"},
 	}
-	right := Diagram{
+	right := &Diagram{
 		States: map[StateID]State{
 			"right": {ID: "right", Name: "Right"},
 		},
@@ -74,7 +74,7 @@ func TestComposeParallelRejectsEndEdges(t *testing.T) {
 	}
 
 	// Execute
-	_, err := ComposeParallel([]Diagram{left, right}, nil)
+	_, err := ComposeParallel([]*Diagram{left, right}, nil)
 
 	// Assert
 	if err == nil {
@@ -123,7 +123,7 @@ func TestStatePairPreservesStateVarTypes(t *testing.T) {
 }
 
 func TestComposeParallelMatchesWholeEvent(t *testing.T) {
-	left := Diagram{
+	left := &Diagram{
 		States: map[StateID]State{
 			"l0": {ID: "l0", Name: "Left 0"},
 			"l1": {ID: "l1", Name: "Left 1"},
@@ -133,7 +133,7 @@ func TestComposeParallelMatchesWholeEvent(t *testing.T) {
 			{Src: "l0", Dst: "l1", Event: "send(x)", Guard: True, Post: True},
 		},
 	}
-	right := Diagram{
+	right := &Diagram{
 		States: map[StateID]State{
 			"r0": {ID: "r0", Name: "Right 0"},
 			"r1": {ID: "r1", Name: "Right 1"},

@@ -1,7 +1,9 @@
 package csdfparsecmd
 
 import (
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -11,6 +13,7 @@ import (
 
 func TestNewParseOptionsFuncOK(t *testing.T) {
 	type testCase struct {
+		Stdin    string
 		Args     []string
 		Expected *Options
 	}
@@ -33,16 +36,27 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
 		"no args means stdin (representative value)": {
-			Args:     []string{},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault()},
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
 		},
 		"dash means stdin (representative value)": {
-			Args:     []string{"-"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "-"},
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{"-"},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
 		},
 		"file argument (representative value)": {
-			Args:     []string{"a.puml"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml"},
+			Args: []string{filepath.Join("testdata", "a.puml")},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
 		},
 	}
 
@@ -51,6 +65,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			// Arrange
 			parseOptions := NewParseOptionsFunc()
 			spy := cli.SpyProcInout()
+			spy.Stdin = cli.StubStdin(strings.NewReader(testCase.Stdin))
 
 			// Act
 			opts, err := parseOptions(testCase.Args, spy.New())

@@ -11,9 +11,7 @@ import (
 
 type Options struct {
 	Common *tools.CommonOptions
-	// File is the input path. An empty string or "-" means standard input,
-	// so `csdfparse f`, `csdfparse < f`, and `csdfparse - < f` are equivalent.
-	File string
+	Bytes  []byte
 }
 
 func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
@@ -56,15 +54,10 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if flags.NArg() > 1 {
-			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: too many arguments")
+		bs, err := tools.ValidateArgsAsFilePath(flags.Args(), inout)
+		if err != nil {
+			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-
-		file := ""
-		if flags.NArg() == 1 {
-			file = flags.Arg(0)
-		}
-
-		return &Options{Common: commonOpts, File: file}, nil
+		return &Options{Common: commonOpts, Bytes: bs}, nil
 	}
 }
