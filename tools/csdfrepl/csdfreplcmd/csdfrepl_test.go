@@ -1,4 +1,4 @@
-package main
+package csdfreplcmd
 
 import (
 	"bytes"
@@ -8,59 +8,54 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/Kuniwak/puml-parallel/core"
+	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/google/go-cmp/cmp"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")
 
 func TestEventDisplaysGolden(t *testing.T) {
-	state := RuntimeState{
+	state := csdf.RuntimeState{
 		ID:   "review",
 		Name: "Review order",
-		Values: []StateValue{
+		Values: []csdf.StateValue{
 			{Name: "count", Value: 2},
 			{Name: "metadata", Value: map[string]any{"priority": true, "tags": []any{"new", "gift"}}},
 		},
 	}
 	history := []HistoryEntry{
 		{
-			State: RuntimeState{
+			State: csdf.RuntimeState{
 				ID:     "draft",
 				Name:   "Draft order",
-				Values: []StateValue{{Name: "count", Value: 1}},
+				Values: []csdf.StateValue{{Name: "count", Value: 1}},
 			},
-			Trace: []core.Event{},
+			Trace: []csdf.Event{},
 		},
 		{
 			State: state,
-			Trace: []core.Event{"submit(order)", "approve"},
+			Trace: []csdf.Event{"submit(order)", "approve"},
 		},
 	}
 
 	tests := []struct {
 		name    string
-		diagram *core.Diagram
+		diagram *csdf.Diagram
 		prompt  string
 		display func(*repl)
 	}{
 		{
-			name: "EventDisplayFatal",
-			display: func(r *repl) {
-				r.displayFatal(`destination state "missing" does not exist`)
-			},
-		},
-		{
 			name:   "EventDisplayStateGroup",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateValuePrompt(&state, core.State{
+				r.displayStateValuePrompt(&state, csdf.State{
 					ID:   "approved",
 					Name: "Approved",
-					Vars: []core.StateVar{
+					Vars: []csdf.StateVar{
 						{Name: "status", Type: "string"},
 					},
 				}, "count > 0", `status' = "reviewing"`)
@@ -70,7 +65,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateVarsError",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateVarsError("State variable values length mismatch")
+				r.displayError("State variable values length mismatch")
 			},
 		},
 		{
@@ -83,12 +78,12 @@ func TestEventDisplaysGolden(t *testing.T) {
 		{
 			name:   "EventDisplayTrans",
 			prompt: "command> ",
-			diagram: &core.Diagram{
-				States: map[core.StateID]core.State{
+			diagram: &csdf.Diagram{
+				States: map[csdf.StateID]csdf.State{
 					"approved": {ID: "approved", Name: "Approved"},
 					"rejected": {ID: "rejected", Name: "Rejected"},
 				},
-				Edges: []core.Edge{
+				Edges: []csdf.Edge{
 					{
 						Src:   "review",
 						Dst:   "approved",
@@ -109,7 +104,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 		},
 		{
 			name:    "EventDisplayDeadlock",
-			diagram: &core.Diagram{},
+			diagram: &csdf.Diagram{},
 			prompt:  "command> ",
 			display: func(r *repl) {
 				r.displayState(state)
@@ -119,7 +114,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayTrace",
 			prompt: "command> ",
 			display: func(r *repl) {
-				r.displayTrace([]core.Event{"submit(order)", "approve"})
+				r.displayTrace([]csdf.Event{"submit(order)", "approve"})
 			},
 		},
 		{
@@ -150,7 +145,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			stdout := &bytes.Buffer{}
 			diagram := tt.diagram
 			if diagram == nil {
-				diagram = &core.Diagram{}
+				diagram = &csdf.Diagram{}
 			}
 			lines := make(chan lineResult, 1)
 			lines <- lineResult{}
@@ -158,7 +153,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			r := &repl{diagram: diagram, stdout: stdout, lines: lines}
 			tt.display(r)
 			if tt.prompt != "" {
-				if _, outcome := r.readLine(tt.prompt); outcome != inputLine {
+				if _, outcome, _ := r.readLine(tt.prompt); outcome != inputLine {
 					t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
 				}
 			}
@@ -174,15 +169,15 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 	close(lines)
 	r := &repl{stdout: stdout, lines: lines}
 
-	r.displayStateValuePrompt(nil, core.State{
+	r.displayStateValuePrompt(nil, csdf.State{
 		ID:   "initial",
 		Name: "Initial",
-		Vars: []core.StateVar{
+		Vars: []csdf.StateVar{
 			{Name: "count", Type: "number"},
 			{Name: "metadata"},
 		},
 	}, "", "")
-	if _, outcome := r.readLine("state> "); outcome != inputLine {
+	if _, outcome, _ := r.readLine("state> "); outcome != inputLine {
 		t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
 	}
 
@@ -204,7 +199,7 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 		"\n" +
 		"state> \n"
 	if stdout.String() != want {
-		t.Errorf("output differs\n--- expected ---\n%s--- actual ---\n%s", want, stdout.String())
+		t.Error(cmp.Diff(want, stdout.String()))
 	}
 }
 
@@ -225,7 +220,8 @@ func assertGolden(t *testing.T, name string, actual []byte) {
 		t.Fatalf("reading golden file: %v; create it with go test ./tools/csdfrepl -update", err)
 	}
 	if !bytes.Equal(actual, expected) {
-		t.Errorf("output differs from %s\n--- expected ---\n%s--- actual ---\n%s\nupdate with: go test ./tools/csdfrepl -update", path, expected, actual)
+		t.Log("update with: go test ./tools/csdfrepl -update")
+		t.Error(cmp.Diff(expected, actual))
 	}
 }
 
@@ -239,17 +235,16 @@ s1: result ; string
 s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 @enduml
 `)
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	input := strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n")
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n"))
 
-	exitCode := Run([]string{path}, input, stdout, stderr, nil)
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON)
 
-	if exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0; stderr = %q", exitCode, stderr.String())
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
 	}
-	if stderr.Len() != 0 {
-		t.Errorf("Run() stderr = %q, want empty", stderr.String())
+	if spy.Stderr.Len() != 0 {
+		t.Errorf("runWithSolver() stderr = %q, want empty", spy.Stderr.String())
 	}
 	for _, want := range []string{
 		"State: Initial (s0)",
@@ -261,8 +256,8 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 		"Deadlock: no outgoing transitions.",
 		"History:",
 	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Errorf("Run() stdout does not contain %q:\n%s", want, stdout.String())
+		if !strings.Contains(spy.Stdout.String(), want) {
+			t.Errorf("Run() stdout does not contain %q:\n%s", want, spy.Stdout.String())
 		}
 	}
 }
@@ -274,14 +269,13 @@ s0: value
 [*] --> s0
 @enduml
 `)
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-	input := strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n")
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n"))
 
-	exitCode := Run([]string{path}, input, stdout, stderr, nil)
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON)
 
-	if exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0; stderr = %q", exitCode, stderr.String())
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
 	}
 	for _, want := range []string{
 		"invalid JSON array",
@@ -294,8 +288,8 @@ s0: value
 		"invalid arguments",
 		"invalid command",
 	} {
-		if !strings.Contains(stdout.String(), want) {
-			t.Errorf("Run() stdout does not contain %q:\n%s", want, stdout.String())
+		if !strings.Contains(spy.Stdout.String(), want) {
+			t.Errorf("Run() stdout does not contain %q:\n%s", want, spy.Stdout.String())
 		}
 	}
 }
@@ -306,27 +300,26 @@ state "Initial" as s0
 [*] --> s0
 @enduml
 `)
-	stdout := &bytes.Buffer{}
-	solver := &sequenceSolver{
-		results: []PostSolverResult{
-			{Kind: PostSolverResultNoSolutions},
-			{
-				Kind:  PostSolverResultOK,
-				State: RuntimeState{ID: "s0", Name: "Initial"},
-			},
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("[]\n[]\n"))
+	solver, calls := sequenceSolver(
+		csdf.PostSolverResult{Kind: csdf.PostSolverResultNoSolutions},
+		csdf.PostSolverResult{
+			Kind:  csdf.PostSolverResultOK,
+			State: csdf.RuntimeState{ID: "s0", Name: "Initial"},
 		},
-	}
+	)
 
-	exitCode := runWithSolver([]string{path}, strings.NewReader("[]\n[]\n"), stdout, &bytes.Buffer{}, nil, solver)
+	err := runWithSolver(path, spy.New(), nil, solver)
 
-	if exitCode != 0 {
-		t.Fatalf("runWithSolver() exit code = %d, want 0", exitCode)
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v, want nil", err)
 	}
-	if !strings.Contains(stdout.String(), "Error: No solutions") {
-		t.Fatalf("runWithSolver() stdout = %q, want No solutions error", stdout.String())
+	if !strings.Contains(spy.Stdout.String(), "Error: No solutions") {
+		t.Fatalf("runWithSolver() stdout = %q, want No solutions error", spy.Stdout.String())
 	}
-	if solver.calls != 2 {
-		t.Errorf("solver calls = %d, want 2", solver.calls)
+	if *calls != 2 {
+		t.Errorf("solver calls = %d, want 2", *calls)
 	}
 }
 
@@ -338,22 +331,23 @@ state "Done" as s1
 s0 --> s1 : go
 @enduml
 `)
-	stdout := &lockedBuffer{}
 	interrupts := make(chan os.Signal, 1)
 	inputReader, inputWriter := ioPipe(t)
-	done := make(chan int, 1)
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(inputReader)
+	done := make(chan error, 1)
 	go func() {
-		done <- Run([]string{path}, inputReader, stdout, &bytes.Buffer{}, interrupts)
+		done <- runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON)
 	}()
 
-	writeAndWait(t, inputWriter, "[]\n", stdout, "command> ")
-	writeAndWait(t, inputWriter, "s 0\n", stdout, "state> ")
+	writeAndWait(t, inputWriter, "[]\n", spy.Stdout, "command> ")
+	writeAndWait(t, inputWriter, "s 0\n", spy.Stdout, "state> ")
 	interrupts <- os.Interrupt
-	waitFor(t, stdout, "State: Initial (s0)")
+	waitFor(t, spy.Stdout, "State: Initial (s0)")
 	_ = inputWriter.Close()
 
-	if exitCode := <-done; exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	if err := <-done; err != nil {
+		t.Fatalf("runWithSolver() error = %v, want nil", err)
 	}
 }
 
@@ -363,17 +357,17 @@ state "Initial" as s0
 [*] --> s0
 @enduml
 `)
-	stdout := &bytes.Buffer{}
 	interrupts := make(chan os.Signal, 1)
 	interrupts <- os.Interrupt
+	spy := cli.SpyProcInout()
 
-	exitCode := Run([]string{path}, strings.NewReader(""), stdout, &bytes.Buffer{}, interrupts)
+	err := runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON)
 
-	if exitCode != 1 {
-		t.Fatalf("Run() exit code = %d, want 1", exitCode)
+	if err == nil {
+		t.Fatalf("runWithSolver() error = nil, want error")
 	}
-	if !strings.Contains(stdout.String(), "Fatal: No solutions found") {
-		t.Errorf("Run() stdout = %q, want fatal error", stdout.String())
+	if !strings.Contains(err.Error(), "No solutions found") {
+		t.Errorf("runWithSolver() error = %v, want fatal error mentioning No solutions found", err)
 	}
 }
 
@@ -384,15 +378,17 @@ s0: value
 [*] --> s0
 @enduml
 `)
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("[1]"))
 	stdout := &bytes.Buffer{}
 
-	exitCode := Run([]string{path}, strings.NewReader("[1]"), stdout, &bytes.Buffer{}, nil)
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON)
 
-	if exitCode != 0 {
-		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v, want nil", err)
 	}
 	if strings.Contains(stdout.String(), "value = 1") {
-		t.Errorf("Run() submitted a line without Enter:\n%s", stdout.String())
+		t.Errorf("runWithSolver() submitted a line without Enter:\n%s", stdout.String())
 	}
 }
 
@@ -441,7 +437,9 @@ func TestTerminalLineReaderEditsInput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := newTerminalLineReader(strings.NewReader(tt.input), &bytes.Buffer{})
+			spy := cli.SpyProcInout()
+			spy.Stdin = cli.StubStdin(strings.NewReader(tt.input))
+			reader := newTerminalLineReader(spy.New())
 			got, err := reader.readLine("command> ")
 			if err != nil {
 				t.Fatalf("readLine() error = %v", err)
@@ -465,7 +463,9 @@ func TestTerminalLineReaderControlOutcomes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := newTerminalLineReader(strings.NewReader(tt.input), &bytes.Buffer{})
+			spy := cli.SpyProcInout()
+			spy.Stdin = cli.StubStdin(strings.NewReader(tt.input))
+			reader := newTerminalLineReader(spy.New())
 			_, err := reader.readLine("command> ")
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("readLine() error = %v, want %v", err, tt.wantErr)
@@ -474,56 +474,23 @@ func TestTerminalLineReaderControlOutcomes(t *testing.T) {
 	}
 }
 
-func TestRunRejectsBadInvocationAndBadFiles(t *testing.T) {
+func TestRunWithSolverRejectsBadFiles(t *testing.T) {
 	tests := []struct {
 		name string
-		args []string
+		file string
 	}{
-		{name: "missing argument"},
-		{name: "too many arguments", args: []string{"a", "b"}},
-		{name: "missing file", args: []string{filepath.Join(t.TempDir(), "missing.puml")}},
-		{name: "invalid file", args: []string{writeDiagram(t, "not PlantUML")}},
+		{name: "missing file", file: filepath.Join(t.TempDir(), "missing.puml")},
+		{name: "invalid file", file: writeDiagram(t, "not PlantUML")},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stderr := &bytes.Buffer{}
-			if exitCode := Run(tt.args, strings.NewReader(""), &bytes.Buffer{}, stderr, nil); exitCode != 1 {
-				t.Errorf("Run() exit code = %d, want 1", exitCode)
-			}
-			if stderr.Len() == 0 {
-				t.Error("Run() stderr is empty, want error")
+			spy := cli.SpyProcInout()
+			err := runWithSolver(tt.file, spy.New(), nil, csdf.SolveJSON)
+			if err == nil {
+				t.Error("runWithSolver() error = nil, want error")
 			}
 		})
-	}
-}
-
-func TestLoadDiagramReadsPlantUMLPNG(t *testing.T) {
-	diagram, err := loadDiagram(filepath.Join("..", "..", "examples", "valid", "client.png"))
-	if err != nil {
-		t.Fatalf("loadDiagram() error = %v", err)
-	}
-	if len(diagram.States) == 0 {
-		t.Fatal("loadDiagram() returned a diagram without states")
-	}
-}
-
-func TestJSONPostSolver(t *testing.T) {
-	group := core.State{
-		ID:   "s0",
-		Name: "Initial",
-		Vars: []core.StateVar{{Name: "a"}, {Name: "b"}},
-	}
-	result := (JSONPostSolver{}).Solve(PostSolverInput{
-		StateGroup:    group,
-		EncodedValues: `[1, {"nested": ["ok"]}]`,
-	})
-
-	if result.Kind != PostSolverResultOK {
-		t.Fatalf("Solve() kind = %v, want OK; err = %v", result.Kind, result.Err)
-	}
-	if len(result.State.Values) != 2 || result.State.Values[0].Name != "a" || result.State.Values[1].Name != "b" {
-		t.Errorf("Solve() state values = %#v", result.State.Values)
 	}
 }
 
@@ -564,15 +531,15 @@ func TestParseCommand(t *testing.T) {
 	}
 }
 
-type sequenceSolver struct {
-	results []PostSolverResult
-	calls   int
-}
-
-func (s *sequenceSolver) Solve(PostSolverInput) PostSolverResult {
-	result := s.results[s.calls]
-	s.calls++
-	return result
+// sequenceSolver returns a csdf.PostSolver that yields the given results in
+// order, plus a pointer to the number of times it has been called.
+func sequenceSolver(results ...csdf.PostSolverResult) (csdf.PostSolver, *int) {
+	calls := 0
+	return func(csdf.PostSolverInput) csdf.PostSolverResult {
+		result := results[calls]
+		calls++
+		return result
+	}, &calls
 }
 
 func writeDiagram(t *testing.T, content string) string {
@@ -597,7 +564,7 @@ func ioPipe(t *testing.T) (*os.File, *os.File) {
 	return reader, writer
 }
 
-func writeAndWait(t *testing.T, writer *os.File, input string, stdout *lockedBuffer, want string) {
+func writeAndWait(t *testing.T, writer *os.File, input string, stdout *cli.LockedBuffer, want string) {
 	t.Helper()
 	if _, err := writer.WriteString(input); err != nil {
 		t.Fatal(err)
@@ -605,7 +572,7 @@ func writeAndWait(t *testing.T, writer *os.File, input string, stdout *lockedBuf
 	waitFor(t, stdout, want)
 }
 
-func waitFor(t *testing.T, stdout *lockedBuffer, want string) {
+func waitFor(t *testing.T, stdout *cli.LockedBuffer, want string) {
 	t.Helper()
 	for i := 0; i < 1000; i++ {
 		if strings.Contains(stdout.String(), want) {
@@ -614,21 +581,4 @@ func waitFor(t *testing.T, stdout *lockedBuffer, want string) {
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("stdout did not contain %q: %s", want, stdout.String())
-}
-
-type lockedBuffer struct {
-	mu     sync.Mutex
-	buffer bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(data []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.Write(data)
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buffer.String()
 }

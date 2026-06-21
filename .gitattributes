@@ -1,1 +1,1 @@
-tools/csdfrepl/testdata/*.golden whitespace=-blank-at-eol
+tools/csdfrepl/csdfreplcmd/testdata/*.golden whitespace=-blank-at-eol

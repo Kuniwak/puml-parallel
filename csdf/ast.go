@@ -1,7 +1,8 @@
-package core
+package csdf
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -54,7 +55,14 @@ func (d *Diagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")
 
-	for _, state := range d.States {
+	stateIDs := make([]StateID, 0, len(d.States))
+	for id := range d.States {
+		stateIDs = append(stateIDs, id)
+	}
+	sort.Slice(stateIDs, func(i, j int) bool { return stateIDs[i] < stateIDs[j] })
+
+	for _, id := range stateIDs {
+		state := d.States[id]
 		sb.WriteString(fmt.Sprintf("state \"%s\" as %s\n", state.Name, state.ID))
 		for _, v := range state.Vars {
 			sb.WriteString(fmt.Sprintf("%s: %s", state.ID, v.Name))

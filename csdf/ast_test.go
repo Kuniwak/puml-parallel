@@ -1,6 +1,33 @@
-package core
+package csdf
 
 import "testing"
+
+func TestDiagramStringOrdersStatesByID(t *testing.T) {
+	// Setup: a map literal whose iteration order is not stable across runs.
+	diagram := Diagram{
+		States: map[StateID]State{
+			"s2": {ID: "s2", Name: "Third"},
+			"s0": {ID: "s0", Name: "First"},
+			"s1": {ID: "s1", Name: "Second"},
+		},
+		StartEdge: StartEdge{Dst: "s0", Post: True},
+	}
+	want := `@startuml
+state "First" as s0
+state "Second" as s1
+state "Third" as s2
+[*] --> s0
+@enduml
+`
+
+	// Execute
+	got := diagram.String()
+
+	// Assert
+	if got != want {
+		t.Errorf("Diagram.String() = %q, want %q", got, want)
+	}
+}
 
 func TestDiagramStringIncludesEndEdge(t *testing.T) {
 	// Setup
