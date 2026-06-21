@@ -30,10 +30,8 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 
 	var terminal *terminalLineReader
 	var lines <-chan lineResult
-	stdinFile, stdinIsFile := inout.Stdin.(*os.File)
-	stdoutFile, stdoutIsFile := inout.Stdout.(*os.File)
-	if stdinIsFile && stdoutIsFile && term.IsTerminal(int(stdinFile.Fd())) && term.IsTerminal(int(stdoutFile.Fd())) {
-		terminal = newTerminalLineReader(stdinFile, stdoutFile)
+	if term.IsTerminal(int(inout.Stdin.Fd())) && term.IsTerminal(int(inout.Stdout.Fd())) {
+		terminal = newTerminalLineReader(inout.Stdin, inout.Stdout)
 	} else {
 		lines = newLineReader(inout.Stdin)
 	}
@@ -85,22 +83,14 @@ type terminalLineReader struct {
 	outputFD int
 }
 
-func newTerminalLineReader(reader io.Reader, writer io.Writer) *terminalLineReader {
-	inputFD := -1
-	if file, ok := reader.(*os.File); ok {
-		inputFD = int(file.Fd())
-	}
-	outputFD := -1
-	if file, ok := writer.(*os.File); ok {
-		outputFD = int(file.Fd())
-	}
+func newTerminalLineReader(reader cli.Stdin, writer cli.Stdout) *terminalLineReader {
 	return &terminalLineReader{
 		stream: &terminalReadWriter{
 			reader: bufio.NewReader(reader),
 			writer: writer,
 		},
-		inputFD:  inputFD,
-		outputFD: outputFD,
+		inputFD:  int(reader.Fd()),
+		outputFD: int(writer.Fd()),
 	}
 }
 

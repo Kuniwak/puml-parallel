@@ -16,9 +16,49 @@ func NewEnvFunc(env map[string]string) EnvFunc {
 	}
 }
 
+type Stdin interface {
+	io.Reader
+	Fd() uintptr
+}
+
+type Stdout interface {
+	io.Writer
+	Fd() uintptr
+}
+
+// noFd is an invalid descriptor; term.IsTerminal(int(noFd)) == false, so streams
+// that are not backed by a file are treated as non-interactive.
+const noFd = ^uintptr(0)
+
+type stdinWithoutFd struct{ io.Reader }
+
+func (stdinWithoutFd) Fd() uintptr { return noFd }
+
+type stdoutWithoutFd struct{ io.Writer }
+
+func (stdoutWithoutFd) Fd() uintptr { return noFd }
+
+// NewStdin adapts an arbitrary reader (tests, in-memory streams) into a Stdin.
+// A reader that already exposes Fd() (e.g. *os.File) is passed through unchanged.
+func NewStdin(r io.Reader) Stdin {
+	if s, ok := r.(Stdin); ok {
+		return s
+	}
+	return stdinWithoutFd{r}
+}
+
+// NewStdout adapts an arbitrary writer into a Stdout. A writer that already
+// exposes Fd() (e.g. *os.File) is passed through unchanged.
+func NewStdout(w io.Writer) Stdout {
+	if s, ok := w.(Stdout); ok {
+		return s
+	}
+	return stdoutWithoutFd{w}
+}
+
 type ProcInout struct {
-	Stdin  io.Reader
-	Stdout io.Writer
+	Stdin  Stdin
+	Stdout Stdout
 	Stderr io.Writer
 	Env    EnvFunc
 }
@@ -34,8 +74,8 @@ func NewProcInout() *ProcInout {
 
 func StubProcInout() *ProcInout {
 	return &ProcInout{
-		Stdin:  io.NopCloser(strings.NewReader("")),
-		Stdout: io.Discard,
+		Stdin:  NewStdin(io.NopCloser(strings.NewReader(""))),
+		Stdout: NewStdout(io.Discard),
 		Stderr: io.Discard,
 		Env:    func(name string) string { return "" },
 	}
@@ -50,8 +90,8 @@ type ProcInoutSpy struct {
 
 func (s *ProcInoutSpy) NewProcInout() *ProcInout {
 	return &ProcInout{
-		Stdin:  s.Stdin,
-		Stdout: s.Stdout,
+		Stdin:  NewStdin(s.Stdin),
+		Stdout: NewStdout(s.Stdout),
 		Stderr: s.Stderr,
 		Env:    NewEnvFunc(s.Env),
 	}
