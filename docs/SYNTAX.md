@@ -28,9 +28,10 @@ trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
 inlineSeparator = 1*(HTAB / SP / block_comment)
 line_comment = "'" *unicode_char LF
-ignore_region = ignore_begin *(*unicode_char LF) ignore_end
-ignore_begin = "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
-ignore_end = "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
+ignore_region = ignore_begin *ignore_line ignore_end
+ignore_begin = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
+ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
+ignore_line = *unicode_char LF
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_char = %x20-7F / %x80-10FFFF
 unicode_char_except_dquote_and_backslash = %x20-21 / %x23-5B / %x5D-7F / %x80-10FFFF
@@ -44,8 +45,10 @@ Block comments are accepted wherever horizontal whitespace is accepted, includin
 inside `varType`, `event`, `guard`, and `post`. Comments are discarded while parsing.
 A line comment whose trimmed text is exactly `CSDF-IGNORE-BEGIN` opens an ignore region
 (taking precedence over a plain `line_comment`) that extends through the next line comment
-whose trimmed text is exactly `CSDF-IGNORE-END`. Every line in between, along with both
-marker lines, is discarded. Because the markers are themselves PlantUML line comments, the
+whose trimmed text is exactly `CSDF-IGNORE-END`. `ignore_line` matches any single line that
+does not match `ignore_end`, so the region closes at the *first* `CSDF-IGNORE-END` marker
+rather than the last (the rule is not greedy). Every line in between, along with both marker
+lines, is discarded. Because the markers are themselves PlantUML line comments, the
 wrapped content (for example Graphviz directives such as `left to right direction`) is still
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
 Comment delimiters inside double-quoted strings are treated as ordinary text.

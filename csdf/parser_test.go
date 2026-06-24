@@ -419,6 +419,24 @@ s0 --> s1 : finish
 @enduml
 `,
 		},
+		{
+			// Each region closes at its first CSDF-IGNORE-END (not greedy to the
+			// last one); the state declared between the two regions must survive.
+			name: "two regions close at first end each",
+			input: `@startuml
+' CSDF-IGNORE-BEGIN
+left to right direction
+' CSDF-IGNORE-END
+state "Initial" as s0
+' CSDF-IGNORE-BEGIN
+skinparam backgroundColor #EEEBDC
+' CSDF-IGNORE-END
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : finish
+@enduml
+`,
+		},
 	}
 
 	for _, tt := range tests {
