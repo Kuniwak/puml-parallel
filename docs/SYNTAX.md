@@ -24,10 +24,13 @@ guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
 id = 1*(ALPHA / DIGIT / "_" / "-")
-trivia = *(LF / HTAB / SP / block_comment / line_comment)
+trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
 inlineSeparator = 1*(HTAB / SP / block_comment)
 line_comment = "'" *unicode_char LF
+ignore_region = ignore_begin *(*unicode_char LF) ignore_end
+ignore_begin = "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
+ignore_end = "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_char = %x20-7F / %x80-10FFFF
 unicode_char_except_dquote_and_backslash = %x20-21 / %x23-5B / %x5D-7F / %x80-10FFFF
@@ -39,6 +42,12 @@ unicode_char_except_semicolon = %x20-3A / %x3C-7F / %x80-10FFFF
 Line comments are accepted between declarations and state-variable lines.
 Block comments are accepted wherever horizontal whitespace is accepted, including
 inside `varType`, `event`, `guard`, and `post`. Comments are discarded while parsing.
+A line comment whose trimmed text is exactly `CSDF-IGNORE-BEGIN` opens an ignore region
+(taking precedence over a plain `line_comment`) that extends through the next line comment
+whose trimmed text is exactly `CSDF-IGNORE-END`. Every line in between, along with both
+marker lines, is discarded. Because the markers are themselves PlantUML line comments, the
+wrapped content (for example Graphviz directives such as `left to right direction`) is still
+rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
 Comment delimiters inside double-quoted strings are treated as ordinary text.
 An event must remain non-empty after comments and surrounding whitespace are removed.
 
@@ -124,6 +133,7 @@ Semantics
 | `trivia`                                   | N/A                | Whitespace and comments accepted between declarations.                                                                                                                   |
 | `inlineTrivia`                             | N/A                | Horizontal whitespace and block comments accepted inside declarations.                                                                                                  |
 | `line_comment`                             | N/A                | PlantUML line comment beginning with `'`. It is not retained in the AST.                                                                                                 |
+| `ignore_region`                            | N/A                | Non-interpreted region delimited by `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` line comments, holding PlantUML-only directives. It is discarded while parsing.                  |
 | `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. It is not retained in the AST.                                                                                         |
 | `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
