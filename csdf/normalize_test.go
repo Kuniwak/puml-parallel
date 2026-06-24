@@ -97,7 +97,7 @@ s0 --> s2 : a ; g2 ; p2
 state "{s0}" as s0
 state "{s1, s2}" as s1_s2
 [*] --> s0
-s0 --> s1_s2 : a ; g1 | g2 ; p1 | p2
+s0 --> s1_s2 : a ; g1 ∨ g2 ; p1 ∨ p2
 @enduml
 `
 

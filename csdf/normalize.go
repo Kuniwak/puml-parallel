@@ -143,7 +143,7 @@ func disjoin(preds []string) string {
 		return True
 	}
 	sort.Strings(disjuncts)
-	return strings.Join(disjuncts, " | ")
+	return strings.Join(disjuncts, " ∨ ")
 }
 
 // normalStateID is the canonical identifier of a normal-form state: its member
