@@ -374,6 +374,126 @@ s0 --> s1 : ` + tt.event + `
 	}
 }
 
+func TestParseIgnoreRegion(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{
+			name: "directives wrapped in markers",
+			input: `@startuml
+' CSDF-IGNORE-BEGIN
+left to right direction
+skinparam backgroundColor #EEEBDC
+' CSDF-IGNORE-END
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : finish
+@enduml
+`,
+		},
+		{
+			name: "indented markers",
+			input: `@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+    ' CSDF-IGNORE-BEGIN
+    left to right direction
+    ' CSDF-IGNORE-END
+s0 --> s1 : finish
+@enduml
+`,
+		},
+		{
+			name: "no space after apostrophe",
+			input: `@startuml
+'CSDF-IGNORE-BEGIN
+left to right direction
+'CSDF-IGNORE-END
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : finish
+@enduml
+`,
+		},
+		{
+			// Each region closes at its first CSDF-IGNORE-END (not greedy to the
+			// last one); the state declared between the two regions must survive.
+			name: "two regions close at first end each",
+			input: `@startuml
+' CSDF-IGNORE-BEGIN
+left to right direction
+' CSDF-IGNORE-END
+state "Initial" as s0
+' CSDF-IGNORE-BEGIN
+skinparam backgroundColor #EEEBDC
+' CSDF-IGNORE-END
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : finish
+@enduml
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(tt.input)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if len(diagram.States) != 2 {
+				t.Errorf("Parse() states = %#v, want two states", diagram.States)
+			}
+			if diagram.StartEdge.Dst != "s0" {
+				t.Errorf("Parse() start edge dst = %q, want s0", diagram.StartEdge.Dst)
+			}
+			if len(diagram.Edges) != 1 {
+				t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+			}
+			if diagram.Edges[0].Event != "finish" {
+				t.Errorf("Parse() event = %q, want finish", diagram.Edges[0].Event)
+			}
+
+			// Teardown: no resources to release.
+		})
+	}
+}
+
+func TestParseRejectsUnterminatedIgnoreRegion(t *testing.T) {
+	// Setup
+	parser := NewParser(`@startuml
+' CSDF-IGNORE-BEGIN
+left to right direction
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err == nil {
+		t.Fatal("Parse() error = nil, want unterminated CSDF-IGNORE region error")
+	}
+	if diagram != nil {
+		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+	}
+	if !strings.Contains(err.Error(), "unterminated CSDF-IGNORE region at line 2, col 1") {
+		t.Errorf("Parse() error = %q, want unterminated region at line 2, col 1", err)
+	}
+
+	// Teardown: no resources to release.
+}
+
 func TestParseRejectsUnterminatedBlockComment(t *testing.T) {
 	tests := []struct {
 		name    string

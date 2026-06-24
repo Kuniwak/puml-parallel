@@ -1,0 +1,10 @@
+@startuml
+' CSDF-IGNORE-BEGIN
+left to right direction
+skinparam backgroundColor #EEEBDC
+' CSDF-IGNORE-END
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : finish
+@enduml
