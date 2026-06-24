@@ -208,7 +208,7 @@ func ComposeStateIDs(s1, s2 StateID) StateID {
 }
 
 func ComposeStateNames(s1, s2 string) string {
-	return s1 + " || " + s2
+	return "(" + s1 + ", " + s2 + ")"
 }
 
 func ComposeGuard(g1, g2 string) string {
@@ -218,7 +218,7 @@ func ComposeGuard(g1, g2 string) string {
 	if g2 == "" || g2 == True {
 		return g1
 	}
-	return g1 + " & " + g2
+	return g1 + " ∧ " + g2
 }
 
 func ComposePostConditions(p1, p2 string) string {
@@ -228,5 +228,5 @@ func ComposePostConditions(p1, p2 string) string {
 	if p2 == "" || p2 == True {
 		return p1
 	}
-	return p1 + " & " + p2
+	return p1 + " ∧ " + p2
 }

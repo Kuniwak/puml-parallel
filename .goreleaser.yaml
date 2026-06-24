@@ -61,6 +61,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdfnorm
+    main: ./tools/csdfnorm/main.go
+    binary: csdfnorm
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
 archives:
   - id: default
     format_overrides:
@@ -72,6 +87,7 @@ archives:
       - csdfparse
       - csdfevents
       - csdfrepl
+      - csdfnorm
     files:
       - README.md
       - LICENSE*
