@@ -1,326 +1,333 @@
-# 自然言語ガード付き状態遷移図に対する安定失敗詳細化 — アプローチ比較
+# Stable Failures Refinement for State-Transition Diagrams with Natural-Language Guards — Comparison of Approaches
 
-## 0. このドキュメントの位置づけ
+## 0. Position of This Document
 
-本リポジトリの LTS は「自然言語で書かれたガード（Guard）と事後条件（Post）を持つ
-状態遷移図」として定義されている。これらの図の間で **安定失敗詳細化
-(stable failures refinement)** を計算可能にしたい。難所は遷移の意味が
-**自然言語の述語**に閉じ込められており、そのままでは機械評価できない点にある。
+The LTSs in this repository are defined as “state-transition diagrams with guards (Guard) and postconditions (Post) written in natural language.”
+We want to make **stable failures refinement** computable between these diagrams.
+The difficult point is that the meanings of transitions are confined inside **natural-language predicates**, and therefore cannot be mechanically evaluated as they are.
 
-このドキュメントは実装そのものをゴールとせず、自然言語をどう扱うかについての
-**4つのアプローチ（案1・案2・案3・ハイブリッド）を比較・整理**したもの。
-最終的な方式決定の土台とする。
+This document does not aim at implementation itself. Instead, it compares and organizes **four approaches (Proposal 1, Proposal 2, Proposal 3, and the hybrid approach)** for handling natural language.
+It is intended to serve as the basis for the final method selection.
 
 ---
 
-## 1. 対象モデル（ガード付き記号 LTS with τ）
+## 1. Target Model (Guarded Symbolic LTS with τ)
 
-`docs/SYNTAX.md` の意味論より、各図は次の構造を持つ **記号的ガード付き LTS** と見なせる。
+From the semantics in `docs/SYNTAX.md`, each diagram can be regarded as a **symbolic guarded LTS** with the following structure.
 
-- **制御状態（location）** `State`：変数 `Vars`（型は任意文字列）を持つ。
-- **辺（edge）** `Src --event[Guard]/Post--> Dst`：
-  - `Guard`：現在状態に関する自然言語の述語。
-  - `Post`：前状態と後状態を関係づける自然言語の述語（事後条件＝遷移関係）。
-- **StartEdge**：初期状態とその初期条件 `Post`（初期 valuation を制約する述語）。
-- **EndEdge**：終了状態への辺とその `Guard`（終了条件）。
-- **τ（内部遷移）**：`event` が厳密に `tau` のとき内部遷移。→ **安定性・拒否・τ閉包が
-  非自明**であり、素朴な部分集合構成ではなく**フルの FDR 正規化**が必要。
+- **Control state (location)** `State`: has variables `Vars` (whose types are arbitrary strings).
+- **Edge** `Src --event[Guard]/Post--> Dst`:
+  - `Guard`: a natural-language predicate over the current state.
+  - `Post`: a natural-language predicate relating the pre-state and the post-state (postcondition = transition relation).
+- **StartEdge**: the initial state and its initial condition `Post` (a predicate constraining the initial valuation).
+- **EndEdge**: an edge to a terminal state and its `Guard` (termination condition).
+- **τ (internal transition)**: an internal transition occurs exactly when `event` is `tau`. → **Stability, refusals, and τ-closure are nontrivial**, and the **full FDR normalisation** is required rather than a naive subset construction.
 
-すなわち接地（ground）意味論では、状態は `(location ℓ, valuation v)` の配置（configuration）で、
-遷移 `(ℓ,v) --e--> (ℓ',v')` は「ある辺 `t=(ℓ,e,G,P,ℓ')` が `G(v) ∧ P(v,v')` を満たす」ときに存在する。
-**Guard / Post が自然言語**であること、また valuation の領域が無限になり得ることが本質的な障害。
+Thus, in the ground semantics, a state is a configuration `(location ℓ, valuation v)`, and a transition `(ℓ,v) --e--> (ℓ',v')` exists when some edge `t=(ℓ,e,G,P,ℓ')` satisfies `G(v) ∧ P(v,v')`.
+The essential obstacles are that **Guard / Post are natural language** and that the valuation domain may be infinite.
 
-### enabledness の意味論（以降の前提）
-あるイベント `e` が配置 `(ℓ,v)` で **enabled**（実行可能）なのは、**ガードが成り立ち、かつ
-事後条件を満たす後続が実在する**ときに限る。`Guard` が真でも `Post` が充足不能なら、その辺は
-遷移を与えず、`e` は**拒否され得る（disabled）**。
+### Semantics of Enabledness (Assumption for the Rest of This Document)
+
+An event `e` is **enabled** (executable) at a configuration `(ℓ,v)` only when **the guard holds and there exists a successor satisfying the postcondition**.
+Even if `Guard` is true, if `Post` is unsatisfiable, the edge does not give rise to a transition and `e` can be **refused (disabled)**.
 
 ```text
-Enabled_e(ℓ,v) = ⋁_{辺 (ℓ,e,G,P,·)} ( G(v) ∧ ∃v'. P(v,v') )
+Enabled_e(ℓ,v) = ⋁_{edge (ℓ,e,G,P,·)} ( G(v) ∧ ∃v'. P(v,v') )
 ```
 
-- **同一イベントの複数辺**は論理和で集約する（どれか一つでも実行可能なら `e` は enabled）。
-- **安定性**：`stable(ℓ,v) ⟺ ¬Enabled_τ(ℓ,v)`（実行可能な τ 後続が存在しない）。
-- **受理集合**：`enabled(ℓ,v) = { e ∈ Act | Enabled_e(ℓ,v) }`（可視イベントのみ）。
+- **Multiple edges with the same event** are aggregated by disjunction (if at least one is executable, then `e` is enabled).
+- **Stability**: `stable(ℓ,v) ⟺ ¬Enabled_τ(ℓ,v)` (there is no executable τ-successor).
+- **Acceptance set**: `enabled(ℓ,v) = { e ∈ Act | Enabled_e(ℓ,v) }` (visible events only).
 
-> この区別が以降の健全性の要。`Enabled` を `Guard` だけで近似すると、`Post` 充足不能な辺による
-> 拒否を見逃して**偽 PASS** を出す（§3 の反例参照）。
-
----
-
-## 2. 土台：FDR の安定失敗詳細化アルゴリズム
-
-詳細は調査結果（出典参照）に基づく。`Spec ⊑SF Impl`（Spec が Impl に詳細化される）は
-次の3段で到達可能性問題に帰着する。
-
-1. **Spec を正規化（決定化）** — 部分集合構成。状態は元状態の集合 `U ⊆ S`。
-   - 初期：Spec 初期状態の τ閉包 `{s | ι =⇒ s}`。
-   - 遷移：可視イベント `a` のみ。`U —a→ V`, `V = {t | ∃s∈U: s =a=> t}`（弱遷移 τ*·a·τ*）。
-   - 結果は決定的・τなし・全域的。行き先が無いとき状態 `∅`（＝そのトレースは Spec に無い）。
-   - 各正規形状態 `U` は元の状態集合 `[[U]]` を保持（拒否集合の計算に必要）。
-2. **積 `norm(Spec) ⋈ Impl` を BFS 探索**：Impl の τ は単独で進み（Spec は不動）、
-   可視 `a` は両者同時に進む。
-3. **各到達配置 `(U, i)` で局所的に違反（SF-witness）を判定**：
-   - `U = ∅`（Impl のトレースが Spec に無い → トレース違反）、**または**
-   - `stable(i) ∧ refusals(i) ⊄ refusals([[U]])`。
-
-**実装しやすい局所判定（受理集合＝メニュー形）**：
-
-> `(U,i)` で違反なし ⟺ `i` が不安定、または `[[U]]` の中に
-> `enabled(s) ⊆ enabled(i)` を満たす安定 Spec 状態 `s` が少なくとも1つ存在。
-
-ここで `enabled(·)` は可視イベントの受理集合。直感：安定な Impl がメニュー `A_i` を出すなら、
-Spec 集合 `U` 内に「メニューが `A_i` の部分集合になる安定状態」が必要（Spec も同じだけ拒否できる）。
-
-このグラフアルゴリズム自体は**自然言語を必要としない**。NL は「どの辺が enabled か」
-「どのトレースが実在するか」「拒否を一致できるか」という**述語判定**として現れる。
-4案はこの NL 述語判定を**どこに押し込むか**で分かれる。
+> This distinction is the key soundness point for what follows.
+> If `Enabled` is approximated by `Guard` alone, refusals caused by edges with unsatisfiable `Post` are missed, producing a **false PASS** (see the counterexample in §3).
 
 ---
 
-## 3. 案1：記号的な証明課題（proof obligation）生成
+## 2. Foundation: FDR's Stable Failures Refinement Algorithm
 
-### 考え方
-正規化・積・witness 探索の**制御構造**を骨格とし、Guard / Post を**不透明な述語記号**として扱う。
-そして「これらが妥当なら SF 詳細化が成り立つ（できれば必要十分）」という**検証条件（VC）**を生成する。
-NL の評価はアルゴリズムから切り離し、最後の「課題の解消（discharge）」に押し込む。
+The details are based on the survey results (see the sources).
+`Spec ⊑SF Impl` (Spec is refined by Impl) is reduced to a reachability problem in the following three stages.
 
-> **有限性と規模について**（詳細は [`docs/CONCERN.md`](docs/CONCERN.md)）：
-> 「有限個の監査可能な VC」という性質は **Guard / Post を不透明な述語にするだけでは得られない**。
-> 次のいずれかの**有限化手段が前提**となる：**帰納的不変条件**／**有限抽象化**／**探索深さの制限**。
-> - VC を「経路ごと」に出すと**ループがあれば経路は無限**になり列挙できない（O-feasible）。
->   有限になるのは、積の各**制御状態（辺）ごとの帰納的 VC**として出し、かつ**所与の帰納的不変条件
->   `Inv` を前提**とする場合に限る（下記 O-trace / O-refusal がこれ）。O-feasible は有限化できず
->   **実在性確認・反例生成**にのみ使う。
-> - 有限制御＋帰納的不変条件でも、正規化の部分集合構成により VC 数は最悪 **`O(2^S(I+E_I))`**
->   （`S`=Spec 状態数）と**指数的**になり得る。
-> - 状態変数を正確に扱う記号的正規化では、**制御状態が1個でも記号状態数が無限**になり得る
->   （例：自己ループ `x' = x+1` は `x=0,1,2,…` を生む）。制御状態数・辺数だけからは有限上限を導けない。
+1. **Normalise (determinise) the Spec** — subset construction. A state is a set of original states `U ⊆ S`.
+   - Initial state: the τ-closure of the initial state of the Spec, `{s | ι =⇒ s}`.
+   - Transitions: visible events `a` only. `U —a→ V`, `V = {t | ∃s∈U: s =a=> t}` (weak transition `τ*·a·τ*`).
+   - The result is deterministic, τ-free, and total. When there is no destination, the state is `∅` (= that trace is absent from the Spec).
+   - Each normal-form state `U` keeps the original state set `[[U]]` (needed for computing refusal sets).
+2. **Explore the product `norm(Spec) ⋈ Impl` by BFS**: Impl τ-transitions proceed alone (the Spec does not move), while visible `a` transitions proceed synchronously on both sides.
+3. **At each reachable configuration `(U, i)`, locally decide violation (SF-witness)**:
+   - `U = ∅` (an Impl trace is absent from the Spec → trace violation), **or**
+   - `stable(i) ∧ refusals(i) ⊄ refusals([[U]])`.
+
+**Implementation-friendly local decision (acceptance-set = menu form)**:
+
+> No violation at `(U,i)` iff `i` is unstable, or there exists at least one stable Spec state `s` in `[[U]]`
+> such that `enabled(s) ⊆ enabled(i)`.
+
+Here, `enabled(·)` is the acceptance set of visible events.
+Intuition: if a stable Impl presents menu `A_i`, the Spec set `U` must contain a stable state whose menu is a subset of `A_i` (the Spec must be able to refuse at least as much).
+
+This graph algorithm itself **does not require natural language**.
+Natural language appears as **predicate decisions** about “which edges are enabled,” “which traces are feasible,” and “whether refusals can be matched.”
+The four approaches differ in **where they push these natural-language predicate decisions**.
+
+---
+
+## 3. Proposal 1: Generation of Symbolic Proof Obligations
+
+### Idea
+
+Use the **control structure** of normalisation, product construction, and witness search as the skeleton, and treat Guard / Post as **opaque predicate symbols**.
+Then generate **verification conditions (VCs)** stating that, if these predicates are valid, then SF refinement holds (preferably in an if-and-only-if form).
+Evaluation of natural language is separated from the algorithm and pushed into the final “discharge” of obligations.
+
+> **On finiteness and scale** (for details, see [`docs/CONCERN.md`](docs/CONCERN.md)):
+> The property of “a finite number of auditable VCs” is **not obtained merely by treating Guard / Post as opaque predicates**.
+> One of the following **finitisation mechanisms** must be assumed: **inductive invariants**, **finite abstraction**, or **a search-depth bound**.
+> - If VCs are emitted “per path,” then **in the presence of loops there are infinitely many paths**, so enumeration is impossible (O-feasible).
+>   Finiteness is obtained only when VCs are emitted as inductive VCs for each **control state (edge)** of the product, and when a **given inductive invariant `Inv` is assumed** (this is the O-trace / O-refusal scheme below).
+>   O-feasible cannot be finitised and is used only for **feasibility checking and counterexample generation**.
+> - Even with finite control plus inductive invariants, the number of VCs can be **`O(2^S(I+E_I))`** in the worst case due to the subset construction in normalisation (`S` = number of Spec states), and therefore can be **exponential**.
+> - In symbolic normalisation that handles state variables precisely, **the number of symbolic states can be infinite even with a single control state**
+>   (example: a self-loop `x' = x+1` yields `x=0,1,2,…`). A finite upper bound cannot be derived from only the numbers of control states and edges.
 >
-> → 規模・有限性への対策は §6 の層1（オンザフライ到達積）と層3（有限化戦略）で扱う。
+> → Countermeasures for scale and finiteness are handled by Layer 1 (on-the-fly reachable product) and Layer 3 (finitisation strategies) in §6.
 
-### 出力される証明課題（3族）
-`Inv(v_q, U)` を **Impl 配置 `(ℓq,v_q)`** と **Spec の正規形状態 `U`**（＝Spec configuration の集合。
-非決定的 Spec を扱うため**単一 valuation ではなく集合**。実装上は location ごとの到達 valuation
-述語 `R_p(v)` の族）を関係づける不変条件とする。
+### Emitted Proof Obligations (Three Families)
 
-- **O-feasible（経路の実在性）**：経路上の Guard / Post の連言が充足可能。
+Let `Inv(v_q, U)` be an invariant relating an **Impl configuration `(ℓq,v_q)`** and a **normal-form Spec state `U`** (= a set of Spec configurations).
+Because nondeterministic Spec processes are handled, this is **not a single valuation but a set**.
+In implementation, this corresponds to a family of reachability predicates `R_p(v)` per location.
+
+- **O-feasible (path feasibility)**: the conjunction of Guard / Post along a path is satisfiable.
   `∃v₀..vₙ. Init(v₀) ∧ ⋀ᵢ (Guard_{eᵢ}(vᵢ₋₁) ∧ Post_{eᵢ}(vᵢ₋₁,vᵢ))`
-  → どのトレースが実在するかを決める（有限化不可・反例用）。
+  → determines which traces are feasible (not finitisable; for counterexamples).
 
-- **O-trace（シミュレーション段：トレース包含）**：Impl の各辺について、
+- **O-trace (simulation step: trace inclusion)**: for each Impl edge,
   `Inv(v_q,U) ∧ Guard^I(v_q) ∧ Post^I(v_q,v_q')`
-  `⟹ ∃(ℓp,v_p)∈U. ⋁_{対応する Spec 辺} ∃v_p'. Guard^S(v_p) ∧ Post^S(v_p,v_p') ∧ Inv(v_q',U')`
-  → `traces(Impl) ⊆ traces(Spec)` を保証（`U'` は `U` の `e` 後の正規形後続）。
+  `⟹ ∃(ℓp,v_p)∈U. ⋁_{corresponding Spec edges} ∃v_p'. Guard^S(v_p) ∧ Post^S(v_p,v_p') ∧ Inv(v_q',U')`
+  → guarantees `traces(Impl) ⊆ traces(Spec)` (`U'` is the normal-form successor of `U` after `e`).
 
-- **O-refusal（安定失敗の核心：拒否包含）**：到達可能な安定 Impl 配置ごとに、正規形集合 `U` の中に
-  「自分が enabled とする全イベントが Impl 側でも enabled」な安定分岐が存在。
+- **O-refusal (the core of stable failures: refusal inclusion)**: for each reachable stable Impl configuration, within the normal-form set `U` there exists a stable branch whose enabled events are all also enabled on the Impl side.
   `⋁_{(ℓp,v_p)∈U} [ stable^S(ℓp,v_p) ∧ ⋀_{e∈Act} ( Enabled^S_e(ℓp,v_p) ⟹ Enabled^I_e(ℓq,v_q) ) ]`
-  → `refusals(Impl) ⊆ refusals(Spec)` を保証。
-  ここで `Enabled = Guard ∧ ∃v'.Post`（§1）。**Guard の含意ではなく Enabled の含意**である点が要。
+  → guarantees `refusals(Impl) ⊆ refusals(Spec)`.
+  Here `Enabled = Guard ∧ ∃v'.Post` (§1). The key point is that this is an implication between **Enabled** predicates, not merely between Guard predicates.
 
-> **反例（Guard だけで判定すると不健全）**：Spec の `a` 辺が実行可能（`Guard^S_a` 真かつ `Post^S_a`
-> 充足可能）で、Impl の `a` 辺は `Guard^I_a` が真だが `Post^I_a` が充足不能とする。すると Impl は
-> 実際には `a` を実行できず**拒否**する一方、Spec は `a` を拒否しないため**詳細化違反**。だが
-> `Guard^S_a ⟹ Guard^I_a` は `真⟹真` で成立し、Guard ベースの VC は違反を見逃す。
-> `Enabled^S_a ⟹ Enabled^I_a` は `真⟹偽` で**正しく違反を検出**する。
-> 同様に**安定性**も τ の Guard ではなく `Enabled_τ`（実行可能な τ 後続の有無）で判定する。
-> よって **Post は経路到達性だけでなく enabledness にも効く**。
+> **Counterexample (why Guard-only checking is unsound)**:
+> Suppose the Spec has an executable `a` edge (`Guard^S_a` is true and `Post^S_a` is satisfiable), while the Impl has an `a` edge whose `Guard^I_a` is true but whose `Post^I_a` is unsatisfiable.
+> Then the Impl cannot actually perform `a` and therefore **refuses** it, while the Spec does not refuse `a`; this is a **refinement violation**.
+> However, `Guard^S_a ⟹ Guard^I_a` is `true ⟹ true`, so a Guard-based VC misses the violation.
+> `Enabled^S_a ⟹ Enabled^I_a` is `true ⟹ false`, and therefore **correctly detects the violation**.
+> Similarly, **stability** must be decided using `Enabled_τ` (the presence or absence of executable τ-successors), not the τ Guard.
+> Thus **Post affects not only path reachability but also enabledness**.
 
-### 十分条件 vs 必要十分
-- **十分条件**：帰納的（inductive）な `Inv` を一つ与え、O-* がすべて妥当なら詳細化が成り立つ
-  （シミュレーション ⇒ 失敗詳細化の標準論法）。`Inv` を人が与える／推測する。
-- **必要十分**：`Inv` に**記号的正規化の正準到達不変条件**（各トレースでの最強事後条件＝
-  記号的 subset construction の結果）を使う。Spec が正規化で決定的になるため、
-  決定的側へのシミュレーションはトレース包含について完全になる。ただし
-  **Post 上の ∃ 消去（quantifier elimination）と不動点計算が必要で、一般に停止性は保証されない**。
+### Sufficient Conditions vs Necessary and Sufficient Conditions
 
-### 評価
-| 観点 | 内容 |
+- **Sufficient condition**: give one inductive `Inv`; if all O-* obligations are valid, refinement holds
+  (the standard proof pattern: simulation ⇒ failures refinement). `Inv` is supplied or inferred by humans.
+- **Necessary and sufficient condition**: use as `Inv` the **canonical reachability invariant of symbolic normalisation**
+  (the strongest postcondition for each trace = the result of symbolic subset construction).
+  Since the Spec becomes deterministic by normalisation, simulation against the deterministic side is complete for trace inclusion.
+  However, this requires **quantifier elimination over Post and fixed-point computation, and termination is generally not guaranteed**.
+
+### Evaluation
+
+| Perspective | Content |
 |:--|:--|
-| 健全性 | ◎ `Enabled` ベースに修正すれば、妥当な VC ⇒ 詳細化。NL とアルゴリズムが分離。 |
-| 完全性 | △ 正準 `Inv`（集合値）を使えば必要十分だが、記号的正規化は一般に決定不能・非停止。 |
-| NL 依存 | **所与の帰納的不変条件のもとで**「有限個の監査可能な VC を解消する」ことに局所化。 |
-| 弱点 | 記号的データ正規化が難所。Post 上の入れ子 ∃ で VC が複雑化し得る。正準 `Inv` の自動構成は非停止。
-  **VC 数は最悪 `O(2^S(I+E_I))`、データ＋ループで記号状態は無限化し得る**（[`docs/CONCERN.md`](docs/CONCERN.md)）。 |
+| Soundness | ◎ If corrected to be `Enabled`-based, valid VCs imply refinement. Natural language and the algorithm are separated. |
+| Completeness | △ Necessary and sufficient if a canonical `Inv` (set-valued) is used, but symbolic normalisation is generally undecidable / non-terminating. |
+| NL dependency | Localized to discharging “a finite number of auditable VCs” **under a given inductive invariant**. |
+| Weaknesses | Symbolic data normalisation is the hard part. Nested existential quantifiers over Post can make VCs complex. Automatic construction of canonical `Inv` may not terminate. **The number of VCs can be `O(2^S(I+E_I))` in the worst case, and data plus loops can make the symbolic state space infinite** ([`docs/CONCERN.md`](docs/CONCERN.md)). |
 
 ---
 
-## 4. 案2：オンデマンドのオラクル評価
+## 4. Proposal 2: On-Demand Oracle Evaluation
 
-### 考え方
-接地アルゴリズムを**具体的に実行**し、判定が必要になった時だけ
-**プラガブルな評価器（オラクル）**へ問い合わせる。評価器は次から選べる：
-- **人間**：VC を提示し yes/no を得る（最小・最確実だが手間）。
-- **LLM**：自然言語のまま述語判定を依頼。
-- **ソルバー**：NL が形式言語として解釈可能なときのみ。
+### Idea
 
-必要な問い合わせは概ね：
-- enabledness：`Enabled_e(v) = Guard_e(v) ∧ ∃v'.Post_e(v,v')` は成り立つか。
-- 後続：`Post(v, ?)` を満たす後続 valuation は**すべて**何か（決定化の後像）。
-- τ閉包：`Enabled_τ` をたどった**完全な**閉包。
-- 拒否一致：`enabled(s) ⊆ enabled(i)` を満たす安定 Spec 状態が `[[U]]` にあるか。
+Execute the ground algorithm **concretely**, and query a **pluggable evaluator (oracle)** only when a decision is required.
+The evaluator can be selected from the following:
 
-### 健全性の条件（重要）
-健全であるための条件は単に「領域が列挙可能」ではなく、**オラクルが次を完全かつ正確に返すこと**：
-全初期 valuation／**全**後続 valuation／Guard・Post の正確な真偽／τ 後続を含む**完全な閉包**。
-LLM や人間への**点ごとの問い合わせでは後続の取りこぼしを検出できない**（1つでも漏らせば
-健全性が崩れる）。キャッシュは**再現性**を改善するが、回答の**正しさ**は改善しない。
+- **Human**: present VCs and obtain yes/no answers (minimal and most reliable, but labor-intensive).
+- **LLM**: ask for predicate decisions directly in natural language.
+- **Solver**: only when the natural language can be interpreted as a formal language.
 
-### 評価
-| 観点 | 内容 |
+The required queries are roughly:
+
+- Enabledness: does `Enabled_e(v) = Guard_e(v) ∧ ∃v'.Post_e(v,v')` hold?
+- Successors: what are **all** successor valuations satisfying `Post(v, ?)` (post-image for determinisation)?
+- τ-closure: the **complete** closure obtained by following `Enabled_τ`.
+- Refusal matching: whether there exists a stable Spec state in `[[U]]` satisfying `enabled(s) ⊆ enabled(i)`.
+
+### Conditions for Soundness (Important)
+
+The condition for soundness is not merely “the domain is enumerable,” but that the **oracle returns the following completely and accurately**:
+all initial valuations, **all** successor valuations, the exact truth values of Guard and Post, and the **complete closure** including τ-successors.
+**Pointwise queries to an LLM or a human cannot detect missed successors** (missing even one successor breaks soundness).
+Caching improves **reproducibility**, but does not improve the **correctness** of answers.
+
+### Evaluation
+
+| Perspective | Content |
 |:--|:--|
-| 健全性 | △ オラクルが上記を完全・正確に返す有限領域でのみ健全。点ごと問い合わせは無限領域の ∀
-  （拒否一致・後像・閉包）を保証できない。 |
-| 実装容易性 | ◎ FDR アルゴリズムにほぼそのまま乗る。具体的**反例トレース**が自然に得られる。 |
-| NL 依存 | 実行のたびに多数の問い合わせ。LLM の**非決定性**が健全性・再現性を脅かす
-  → キャッシュ＋整合性チェックでも正しさは別問題。 |
-| 位置づけ | 単独では完全な検証器にならない。**有界探索・具体シミュレーション・反例候補生成**、および
-  案1の VC を解消する機構として最適。結果は `PASS` でなく `UNKNOWN` / `CANDIDATE_FAILURE` を返す。 |
+| Soundness | △ Sound only over finite domains where the oracle returns the above information completely and accurately. Pointwise queries cannot guarantee universal conditions over infinite domains (refusal matching, post-images, and closures). |
+| Ease of implementation | ◎ Fits almost directly onto the FDR algorithm. Concrete **counterexample traces** are obtained naturally. |
+| NL dependency | Many queries at runtime. **Nondeterminism** in LLMs threatens soundness and reproducibility → caching plus consistency checks still leaves correctness as a separate issue. |
+| Positioning | Not a complete verifier by itself. Best suited for **bounded exploration, concrete simulation, counterexample-candidate generation**, and as a mechanism for discharging the VCs of Proposal 1. Results should be returned as `UNKNOWN` / `CANDIDATE_FAILURE`, not `PASS`. |
 
-> **既存コードの制約**：`csdf/solver.go` の `PostSolver`（`SolveJSON`）は Guard / Post を入力に
-> 受け取るが**実際には評価していない**（入力値を変数に束縛するだけ）。オラクル化にはこの評価器の
-> 新規実装が必要。
+> **Constraint of the existing code**:
+> `PostSolver` (`SolveJSON`) in `csdf/solver.go` receives Guard / Post as inputs, but **does not actually evaluate them**
+> (it only binds input values to variables). Turning this into an oracle requires a new implementation of the evaluator.
 
 ---
 
-## 5. 案3：LLM による事前形式化 → アルゴリズムをそのまま適用
+## 5. Proposal 3: Prior Formalisation by LLM → Apply the Algorithm As Is
 
-### 考え方
-1パスで NL-LTS を**形式 LTS**（形式的な Guard / Post をある決定可能理論で表現）へ翻訳し、
-あとは §2 の厳密なアルゴリズム＋ソルバーをそのまま適用する。NL は最初の翻訳で消える。
+### Idea
 
-### 「決定可能理論なら完全」は成立しない
-個々の Guard / Post の式が決定可能でも、**無限状態遷移系の到達可能性や正規化の不動点計算が
-決定可能とは限らない**（一般に決定不能）。完全な判定器にするには追加で次のいずれかが要る：
-有限 valuation／有限抽象・有限商／到達可能性が決定可能な限定モデル／有界検査／
-ユーザー提供の帰納的不変条件。
+In one pass, translate the NL-LTS into a **formal LTS** (with formal Guard / Post expressed in some decidable theory), and then apply the exact algorithm in §2 plus a solver as is.
+Natural language disappears in the initial translation.
 
-### 現実解
-「任意の自然言語」ではなく、**整数・列挙型・論理演算などの明示的な DSL** を定め、LLM には
-その DSL の**候補を生成**させ、**人間が承認**する方式が現実的（LLM を証明器として使わない）。
+### “If the Theory Is Decidable, Then the Whole Problem Is Complete” Does Not Hold
 
-### 評価
-| 観点 | 内容 |
+Even if each individual Guard / Post formula is decidable, **reachability for infinite-state transition systems and fixed-point computation for normalisation are not necessarily decidable** (in general, they are undecidable).
+To obtain a complete decision procedure, one must additionally have one of the following:
+finite valuations, finite abstraction / finite quotient, a restricted model with decidable reachability, bounded checking, or user-provided inductive invariants.
+
+### Practical Solution
+
+Rather than accepting “arbitrary natural language,” define an **explicit DSL** for integers, enumerations, logical connectives, and so on.
+Let the LLM generate **candidate DSL translations**, and let **a human approve them**.
+This is the practical approach (the LLM is not used as a prover).
+
+### Evaluation
+
+| Perspective | Content |
 |:--|:--|
-| 健全性 | ○ **翻訳に相対的**には健全。ただし「自然言語の意図に対する健全性」とは別物。 |
-| 完全性 | △ 個々の式が決定可能でも、到達可能性・不動点は別。有限化・抽象・有界・不変条件が必要。 |
-| NL 依存 | 1回の翻訳に集約。ただし**正しさは「忠実で人間がレビュー可能な翻訳」に全依存**。 |
-| 弱点 | 曖昧な NL（例：「ユーザが満足している」）は形式化不能。**静かな誤訳が
-  自信満々の誤判定**を生む。対象理論／ソルバーの選定が必要。 |
-| 位置づけ | 強力なフロントエンド。実質「オラクル＝ソルバー」の特殊形。翻訳のレビューが信頼の前提。 |
+| Soundness | ○ Sound **relative to the translation**. This is separate from soundness with respect to the intended meaning of the natural language. |
+| Completeness | △ Even if individual formulae are decidable, reachability and fixed points are separate issues. Finitisation, abstraction, bounds, or invariants are required. |
+| NL dependency | Concentrated in one translation step. However, **correctness depends entirely on faithful, human-reviewable translation**. |
+| Weaknesses | Ambiguous NL (e.g. “the user is satisfied”) cannot be formalised. **Silent mistranslation causes confident wrong decisions**. A target theory / solver must be selected. |
+| Positioning | A strong frontend. Essentially a special case of “oracle = solver.” Trust depends on review of the translation. |
 
 ---
 
-## 6. 案4（ハイブリッド）：4層アーキテクチャ
+## 6. Proposal 4 (Hybrid): Four-Layer Architecture
 
-3案は競合ではなく**合成できる**。ただし**「制御レベルの正規化を NL なしで行う」ことは不可**。
-正規化・τ閉包・stable・受理集合・弱後像はすべて「辺が実行可能か（`Enabled = Guard ∧ ∃v'.Post`）」を
-知らなければ計算できないからである。**構文上の全辺を無条件に採用すると、Spec の偽の遷移が
-違反を隠し、健全な `PASS` を返せない**。よって NL は「意味論バックエンド」に局在させ、
-FDR コアは**意味論解決済みの明示 LTS**を消費する形に分離する。
+The three proposals are not competitors; they can be **composed**.
+However, it is **not possible to perform control-level normalisation without natural language**.
+Normalisation, τ-closure, stability, acceptance sets, and weak post-images all require knowing whether an edge is executable (`Enabled = Guard ∧ ∃v'.Post`).
+If all syntactic edges are accepted unconditionally, false Spec transitions hide violations, and a sound `PASS` cannot be returned.
+Therefore, natural language should be localized in the “semantic backend,” while the FDR core should be separated so that it consumes an **explicit LTS with resolved semantics**.
 
-- **層1：FDR コア** — 有限・明示 LTS 上の正規化・積・SF-witness 探索。NL に触れず**完全にテスト可能**。
-  （これが「NLなし」の正しい範囲＝`docs/REFINEMENT_ALGORITHM.md`。）
-  - **規模対策（問題1：`2^S` 爆発）**：正規形状態を全列挙せず、**Impl との積で到達する状態だけを
-    オンザフライ生成**（到達 `R ≪ I·2^S`）。**決定的 Spec ならシングルトン化**して爆発回避。
-    中期は**アンチチェーン法**（出典の Laveaux ほか）で正規形集合を圧縮。
-- **層2：意味論バックエンド** — `Enabled` / `Successors` / `TauClosure` / `Valid`（充足可能性）を提供。
-  FDR コアに enabledness・後続・閉包・安定性を渡す。**答えられない場合は `Unknown` を返す**。
-- **層3：形式化層＋有限化戦略** — DSL / SMT / 有限列挙。**LLM は形式化案を生成**するが
-  **証明器としては扱わない**（人間が承認）。案1の証明課題 IR と案3の形式化器がここに入る。
-  - **規模対策（問題3：データの無限化）**：①**有限ドメイン型**（enum・有界整数）への制限＝最も単純で
-    接地 LTS を有限化、②**抽象解釈＋ワイドニング**で到達集合述語 `R_p(v)` を自動収束（`x=0,1,2,…`→`x≥0`）、
-    ③**述語抽象＋CEGAR**、④ユーザー提供の帰納的不変条件。
-  - **規模対策（問題2：経路の無限）**：`PASS` は辺ごとの帰納的 VC で閉じ、**反例方向は BMC（深さ制限）/
-    k-帰納**で扱う（解決できなければ `UNKNOWN`）。
-- **層4：判定結果** — `PASS / FAIL / UNKNOWN` の**三値**。
-  - `PASS`：全課題を**証明済み**のときのみ。
-  - `FAIL`：**実行可能性（feasibility）を確認した具体的 witness** がある場合のみ。
-  - `UNKNOWN`：オラクル／ソルバーが解決できなかった課題が残る場合。
+- **Layer 1: FDR core** — normalisation, product construction, and SF-witness search over finite, explicit LTSs.
+  It does not touch natural language and is **fully testable**.
+  (This is the correct scope of “without NL” = `docs/REFINEMENT_ALGORITHM.md`.)
+  - **Scale countermeasure (Problem 1: `2^S` explosion)**:
+    do not enumerate all normal-form states; instead, **generate only states reachable in the product with Impl on the fly**
+    (reachable `R ≪ I·2^S`). **If the Spec is deterministic, reduce to singleton states** and avoid the blow-up.
+    In the medium term, use the **antichain method** (Laveaux et al. in the sources) to compress normal-form sets.
+- **Layer 2: Semantic backend** — provides `Enabled` / `Successors` / `TauClosure` / `Valid` (satisfiability).
+  It passes enabledness, successors, closures, and stability to the FDR core.
+  **If it cannot answer, it returns `Unknown`**.
+- **Layer 3: Formalisation layer + finitisation strategies** — DSL / SMT / finite enumeration.
+  **The LLM generates formalisation candidates**, but is **not treated as a prover** (human approval is required).
+  The proof-obligation IR of Proposal 1 and the formaliser of Proposal 3 live here.
+  - **Scale countermeasure (Problem 3: infinite data)**:
+    ① restrict to **finite-domain types** (enums and bounded integers) = the simplest way to make the ground LTS finite;
+    ② use **abstract interpretation + widening** to make reachability predicates `R_p(v)` converge automatically (`x=0,1,2,…` → `x≥0`);
+    ③ use **predicate abstraction + CEGAR**;
+    ④ use user-provided inductive invariants.
+  - **Scale countermeasure (Problem 2: infinite paths)**:
+    close `PASS` with per-edge inductive VCs, and handle the counterexample direction with BMC (depth bound) / k-induction
+    (return `UNKNOWN` if unresolved).
+- **Layer 4: Verdicts** — a **three-valued** result: `PASS / FAIL / UNKNOWN`.
+  - `PASS`: only when all obligations have been **proved**.
+  - `FAIL`: only when there is a concrete witness whose **feasibility has been confirmed**.
+  - `UNKNOWN`: when unresolved obligations remain because the oracle / solver could not decide them.
 
-### なぜ良いか
-- 難所のグラフアルゴリズム（層1）を NL から切り離し、**TDD でテスト可能**に保てる。
-- NL の接触面を層2/3 に局在させ、**有限個の監査可能な課題**に最小化できる。
-- 最も単純なバックエンドから始め、形式化可能な箇所だけソルバーを足せる
-  ——「単純さ最優先・徐々に積み上げ」に正確に一致。
-- 案2／案3を**排他的に選ばずバックエンドとして共存**でき、後からの差し替えが容易。
-- 三値結果により、**不健全な `PASS` を構造的に防ぐ**（証明できないものは `UNKNOWN`）。
+### Why This Is Good
 
-### 留意点
-- 層3 の正準不変条件（必要十分）の自動構成には記号的正規化（案1の難所）が絡み、一般に非停止。
-  初期は所与の不変条件＋有限列挙に留め、必要十分性はデータ仮定に依存させる現実解がある。
-- LLM を使う層では**キャッシュ（再現性・コスト）**を併用するが、**正しさはキャッシュでは担保されない**
-  ため、重要課題は別バックエンドや人間承認で裏取りする。
+- The difficult graph algorithm (Layer 1) is separated from natural language and can be kept **testable by TDD**.
+- The contact surface with natural language is localized to Layers 2/3 and minimized to **a finite number of auditable obligations**.
+- One can start with the simplest backend and add solvers only where formalisation is possible
+  — this matches “simplicity first, incremental build-up” precisely.
+- Proposal 2 and Proposal 3 need not be chosen exclusively; they can coexist as interchangeable backends, making later replacement easy.
+- The three-valued result structurally prevents an **unsound `PASS`** (anything not proved becomes `UNKNOWN`).
+
+### Notes
+
+- Automatic construction of the canonical invariant in Layer 3 (necessary and sufficient condition) involves symbolic normalisation (the hard part of Proposal 1), and is generally non-terminating.
+  A practical initial approach is to limit the system to given invariants plus finite enumeration, making necessity and sufficiency depend on data assumptions.
+- In layers that use LLMs, **caching (for reproducibility and cost)** should be used, but **correctness is not guaranteed by caching**.
+  Important obligations should be cross-checked by another backend or by human approval.
 
 ---
 
-## 7. 比較表
+## 7. Comparison Table
 
-| 観点 | 案1 記号的VC | 案2 オラクル実行 | 案3 事前形式化 | 案4 ハイブリッド |
+| Perspective | Proposal 1: Symbolic VCs | Proposal 2: Oracle Execution | Proposal 3: Prior Formalisation | Proposal 4: Hybrid |
 |:--|:--|:--|:--|:--|
-| 健全性 | 現状×／**Enabled修正後**○ | 一般×／限定○ | 翻訳モデルに対して○ | 現状×／**再設計後**○ |
-| 完全性 | △（集合値の正準Invなら必要十分／非停止） | △ | △（決定可能式でも到達可能性は別） | ○〜△ |
-| 実装の単純さ | △ | ◎ | ○ | ○（層1から段階的） |
-| NL接触面 | 所与Inv下で有限のVC | 実行時に多数問い合わせ | 1回の翻訳 | 層2/3に局在＋差替可能なProver |
-| 反例の得やすさ | △（VC不成立として） | ◎（具体トレース） | ○ | ◎（feasibility確認済みのみFAIL） |
-| 主なリスク | enabledness誤り／記号正規化の難所／VC複雑化 | 後続取りこぼしで不健全・LLM非決定 | 静かな誤訳 | 統合コスト |
-| 位置づけ | 正しさの仕様 | 探索器／反例候補（UNKNOWN返し） | フロントエンド | 統合方式（三値判定） |
+| Soundness | Currently × / **○ after Enabled correction** | Generally × / ○ under restrictions | ○ with respect to the translated model | Currently × / **○ after redesign** |
+| Completeness | △ (necessary and sufficient with set-valued canonical Inv / non-terminating) | △ | △ (even with decidable formulae, reachability is separate) | ○–△ |
+| Implementation simplicity | △ | ◎ | ○ | ○ (incremental from Layer 1) |
+| NL contact surface | Finite VCs under a given Inv | Many runtime queries | One translation | Localized to Layers 2/3 + replaceable prover |
+| Ease of obtaining counterexamples | △ (as failed VCs) | ◎ (concrete traces) | ○ | ◎ (FAIL only when feasibility is confirmed) |
+| Main risks | Incorrect enabledness / hard symbolic normalisation / VC complexity | Unsoundness from missed successors; LLM nondeterminism | Silent mistranslation | Integration cost |
+| Positioning | Correctness specification | Explorer / counterexample candidate generator (returns UNKNOWN) | Frontend | Integrated method (three-valued verdict) |
 
 ---
 
-## 8. 推奨
+## 8. Recommendation
 
-**案4（ハイブリッド4層）を推奨**。理由は §6 の通り、(a) グラフアルゴリズムを NL から
-分離して検証可能に保ち、(b) NL を有限個の監査可能な課題に最小化し、(c) 単純な
-バックエンドから始めて形式化可能な所だけ強化できるため、本プロジェクトの方針
-（単純さ最優先・段階的な積み上げ）に最も合致する。案1はその「正しさの仕様」、
-案2は「課題の解消機構」、案3は「ソルバー・バックエンドのフロントエンド」として
-ハイブリッドの構成要素になる。
+**Proposal 4 (the four-layer hybrid) is recommended**.
+As described in §6, it (a) keeps the graph algorithm separated from natural language and therefore verifiable, (b) minimizes natural language to a finite number of auditable obligations, and (c) allows the system to start from a simple backend and strengthen only the parts that can be formalised.
+This best fits the project policy of “simplicity first, incremental build-up.”
+Proposal 1 becomes the “correctness specification,” Proposal 2 becomes a “mechanism for discharging obligations,” and Proposal 3 becomes a “frontend for solver backends” within the hybrid architecture.
 
-> 補足：もし将来実装する場合の安全な段階づけは
-> 1. Guard/Post≡true の有限 LTS で **FDR コア（層1）を TDD 実装**（完全にテスト可能）。
-> 2. **有限列挙 valuation の厳密バックエンド（層2）**。
-> 3. **三値判定（PASS/FAIL/UNKNOWN）＋証明課題 IR（層3・層4）**。
-> 4. **制限された形式 DSL＋SMT**。
-> 5. 最後に **LLM 形式化支援**。
+> Supplement: a safe implementation staging, if this is implemented in the future, would be:
+> 1. Implement the **FDR core (Layer 1) with TDD** over finite LTSs where Guard/Post≡true (fully testable).
+> 2. Add a **strict backend for finite-enumeration valuations (Layer 2)**.
+> 3. Add **three-valued verdicts (PASS/FAIL/UNKNOWN) + proof-obligation IR (Layers 3/4)**.
+> 4. Add a **restricted formal DSL + SMT**.
+> 5. Finally add **LLM-assisted formalisation**.
 >
-> 基礎となる有限 LTS の定理（正規化 Spec と Impl の積に SF-witness が存在しないことと
-> stable failures refinement が同値）は証明済みで、FDR3 も Spec を τ のない決定的 GLTS に
-> 正規化してから検査する。本ドキュメントは方式比較が目的であり、実装はゴールに含めない。
+> The foundational finite-LTS theorem—that stable failures refinement is equivalent to the absence of an SF-witness in the product of the normalised Spec and Impl—is proved, and FDR3 also checks after normalising the Spec into a τ-free deterministic GLTS.
+> This document is for comparing methods; implementation is not included as a goal.
 >
-> **規模対策の最小構成**：**オンザフライ到達積（問題1）＋ 変数を有限ドメインに制限（問題3）＋
-> UNKNOWN フォールバック（問題2）**。これで健全なまま実用域に入る。アンチチェーン・抽象解釈・
-> CEGAR は「有限ドメインで足りない」と判明してから積み増す（[`docs/CONCERN.md`](docs/CONCERN.md)）。
+> **Minimal configuration for scale countermeasures**:
+> **on-the-fly reachable product (Problem 1) + restricting variables to finite domains (Problem 3) + UNKNOWN fallback (Problem 2)**.
+> This enters a practical range while remaining sound.
+> Antichains, abstract interpretation, and CEGAR should be added only after finite domains are found insufficient ([`docs/CONCERN.md`](docs/CONCERN.md)).
 
 ---
 
-## 9. 先に確定すべき横断的仕様（方式選定の前提）
+## 9. Cross-Cutting Specifications to Fix First (Prerequisites for Method Selection)
 
-方式を選ぶ前に、意味論の次の点を仕様化する必要がある（健全性に直結）。
+Before choosing a method, the following semantic points must be specified, because they directly affect soundness.
 
-- **StartEdge.Post** が作る複数の初期 valuation の扱い（初期は configuration の集合）。
-- **EndEdge** を CSP の成功終了イベント `✓`(tick) とするのか、単なる停止とするのか。
-  ※現状の並列合成は EndEdge **未対応**（`csdf/composition.go:56-58` で明示的にエラー）。
-- **Post が充足不能な辺は disabled**（§1 の `Enabled = Guard ∧ ∃v'.Post`）。
-- **同一イベントの複数辺**に対する enabledness の**論理和**。
-- **状態ごとに異なる変数のスコープ**と、合成時の**名前衝突**（`ComposeStateIDs` 等の取り扱い）。
-- **発散を許した stable failures** と **divergence-free 前提** の区別。
+- How to handle multiple initial valuations generated by **StartEdge.Post** (initial states are a set of configurations).
+- Whether **EndEdge** should be treated as the CSP successful-termination event `✓` (tick), or as mere stopping.
+  Note: the current parallel composition does **not support EndEdge** (explicitly errors at `csdf/composition.go:56-58`).
+- **Edges with unsatisfiable Post are disabled** (`Enabled = Guard ∧ ∃v'.Post` in §1).
+- Enabledness for **multiple edges with the same event** is their **disjunction**.
+- **Variable scopes that differ by state**, and **name collisions** during composition (handling of `ComposeStateIDs`, etc.).
+- The distinction between **stable failures allowing divergence** and the **divergence-free assumption**.
 
-## 10. 保留事項（今回のスコープ外）
+## 10. Pending Items (Out of Scope Here)
 
-- 高速化のための**状態圧縮**（normalisation 以外の圧縮）。
-- **発散（divergence）を含む failures-divergences 詳細化**（別正準形 `normfdr` と
-  post-divergence obscuring が必要で複雑）。今回は安定失敗（divergence-free 前提）に限定。
-- valuation 領域の具体的決定（有限・列挙可能か無限か）。健全性・完全性に直結するため、
-  方式確定後に詰める。
+- **State compression** for acceleration (compression other than normalisation).
+- **Failures-divergences refinement including divergence** (requires a separate canonical form `normfdr` and post-divergence obscuring, and is complex).
+  This document is limited to stable failures (under the divergence-free assumption).
+- The concrete decision of the valuation domain (finite, enumerable, or infinite).
+  This directly affects soundness and completeness and should be determined after the method is fixed.
 
 ---
 
-## 11. 出典
+## 11. Sources
 
 - Gibson-Robinson et al., *FDR3 — A Modern Refinement Checker for CSP* —
-  正規化の位置づけと単一スレッド詳細化アルゴリズム。
+  the role of normalisation and the single-threaded refinement algorithm.
 - Laveaux, Groote, Willemse, *Correct and Efficient Antichain Algorithms for Refinement
-  Checking*（arXiv:1902.09880）— 拒否・安定失敗・正規形・積・SF-witness の厳密定義。
-- *FDR2 User Manual: CSP Refinement* — 正規化と詳細化の概説。
+  Checking* (arXiv:1902.09880) — precise definitions of refusal, stable failures, normal form, product, and SF-witnesses.
+- *FDR2 User Manual: CSP Refinement* — overview of normalisation and refinement.
