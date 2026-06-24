@@ -5,6 +5,11 @@ import (
 	"strings"
 )
 
+const (
+	ignoreBeginMarker = "CSDF-IGNORE-BEGIN"
+	ignoreEndMarker   = "CSDF-IGNORE-END"
+)
+
 type Parser struct {
 	input string
 	pos   int
@@ -556,11 +561,46 @@ func (p *Parser) skipTrivia() error {
 			continue
 		}
 		if p.peek() == '\'' {
+			if p.lineCommentBody() == ignoreBeginMarker {
+				if err := p.skipIgnoreRegion(); err != nil {
+					return fmt.Errorf("csdf.Parser.skipTrivia: %w", err)
+				}
+				continue
+			}
 			p.skipLine()
 			continue
 		}
 		return nil
 	}
+}
+
+// lineCommentBody returns the trimmed text of the line comment at the current
+// position (the leading "'" excluded). The parser is not advanced.
+func (p *Parser) lineCommentBody() string {
+	end := p.pos + 1
+	for end < len(p.input) && p.input[end] != '\n' {
+		end++
+	}
+	return strings.TrimSpace(p.input[p.pos+1 : end])
+}
+
+// skipIgnoreRegion consumes lines from the "' CSDF-IGNORE-BEGIN" marker (current
+// position) through the matching "' CSDF-IGNORE-END" marker, inclusive.
+func (p *Parser) skipIgnoreRegion() error {
+	startLine := p.line
+	startCol := p.col
+	p.skipLine() // consume the begin-marker line
+	for !p.isAtEnd() {
+		for !p.isAtEnd() && (p.peek() == ' ' || p.peek() == '\t') {
+			p.advance()
+		}
+		if p.peek() == '\'' && p.lineCommentBody() == ignoreEndMarker {
+			p.skipLine() // consume the end-marker line
+			return nil
+		}
+		p.skipLine()
+	}
+	return fmt.Errorf("csdf.Parser.skipIgnoreRegion: unterminated CSDF-IGNORE region at line %d, col %d", startLine, startCol)
 }
 
 func (p *Parser) skipInlineTrivia() error {
