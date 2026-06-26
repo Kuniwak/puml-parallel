@@ -47,6 +47,21 @@ func newFlagSet(name string, inout *cli.ProcInout) *flag.FlagSet {
 	return flags
 }
 
+// setLeafUsage installs a -h/usage block that shows a synopsis, an explanation,
+// and the command's options — detailed enough to guide a coding agent driving
+// the tool non-interactively.
+func setLeafUsage(flags *flag.FlagSet, synopsis, detail string) {
+	flags.Usage = func() {
+		w := flags.Output()
+		fmt.Fprintf(w, "Usage: %s\n\n", synopsis)
+		if detail != "" {
+			fmt.Fprintf(w, "%s\n\n", detail)
+		}
+		fmt.Fprintln(w, "Options:")
+		flags.PrintDefaults()
+	}
+}
+
 // declareConnFlags registers -sock on flags; declareSession and declareJSON add
 // the optional -s and -json toggles where a subcommand supports them.
 func declareConnFlags(flags *flag.FlagSet) *clientFlags {
