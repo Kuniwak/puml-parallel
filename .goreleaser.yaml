@@ -76,6 +76,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdflivelockfree
+    main: ./tools/csdflivelockfree/main.go
+    binary: csdflivelockfree
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
 archives:
   - id: default
     format_overrides:
@@ -88,6 +103,7 @@ archives:
       - csdfevents
       - csdfrepl
       - csdfnorm
+      - csdflivelockfree
     files:
       - README.md
       - LICENSE*
