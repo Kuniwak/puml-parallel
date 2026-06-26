@@ -286,6 +286,10 @@ func TestSessionListAndRemove(t *testing.T) {
 	if len(data.Sessions) != 1 || data.Sessions[0].Session != id || data.Sessions[0].Mode != "values" {
 		t.Errorf("session_list = %+v, want one session %q in values mode", data.Sessions, id)
 	}
+	wantText := "ID\tMODE\tSTATE\tPATH\n" + id + "\tvalues\tInitial\tdiagram.puml\n"
+	if list.Output != wantText {
+		t.Errorf("session_list text = %q, want header + row %q", list.Output, wantText)
+	}
 
 	if resp := service.Handle(Request{Command: CommandSessionRm, Session: id}); !resp.OK {
 		t.Fatalf("session_rm failed: %s", resp.Error)

@@ -2,6 +2,7 @@ package proto
 
 import (
 	"bytes"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"strconv"
@@ -95,10 +96,16 @@ func (s *Service) handleSessionNew(req Request) Response {
 func (s *Service) handleSessionList() Response {
 	infos := make([]SessionInfo, 0, len(s.order))
 	var buf bytes.Buffer
-	for _, id := range s.order {
-		info := sessionInfo(s.sessions[id])
-		infos = append(infos, info)
-		fmt.Fprintf(&buf, "%s\t%s\t%s\t%s\n", info.Session, info.Mode, info.StateName, info.Path)
+	if len(s.order) > 0 {
+		w := csv.NewWriter(&buf)
+		w.Comma = '\t'
+		_ = w.Write([]string{"ID", "MODE", "STATE", "PATH"})
+		for _, id := range s.order {
+			info := sessionInfo(s.sessions[id])
+			infos = append(infos, info)
+			_ = w.Write([]string{info.Session, info.Mode, info.StateName, info.Path})
+		}
+		w.Flush()
 	}
 	return Response{OK: true, Output: buf.String(), Data: mustData(SessionListData{Sessions: infos})}
 }
