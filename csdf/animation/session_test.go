@@ -72,17 +72,17 @@ func TestNewSessionMissingInitialStateErrors(t *testing.T) {
 func TestEnterValuesInitialAdvancesToCommand(t *testing.T) {
 	session := newTwoStateSession(t)
 
-	kind, state, err := session.EnterValues("[0]")
+	result, err := session.EnterValues("[0]")
 	if err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	if kind != csdf.PostSolverResultOK {
-		t.Fatalf("EnterValues() kind = %v, want OK", kind)
+	if result.Kind != csdf.PostSolverResultOK {
+		t.Fatalf("EnterValues() kind = %v, want OK", result.Kind)
 	}
 	if session.Mode() != ModeCommand {
 		t.Errorf("Mode() = %v, want ModeCommand", session.Mode())
 	}
-	if state.ID != "s0" || len(state.Values) != 1 || state.Values[0].Name != "count" {
+	if state := result.State; state.ID != "s0" || len(state.Values) != 1 || state.Values[0].Name != "count" {
 		t.Errorf("state = %+v, want s0 with count", state)
 	}
 	if got := session.Trace(); len(got) != 0 {
@@ -105,9 +105,9 @@ func TestEnterValuesNonOKKeepsValuesMode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			session := newTwoStateSession(t)
-			kind, _, _ := session.EnterValues(tt.encoded)
-			if kind != tt.wantKind {
-				t.Errorf("EnterValues() kind = %v, want %v", kind, tt.wantKind)
+			result, _ := session.EnterValues(tt.encoded)
+			if result.Kind != tt.wantKind {
+				t.Errorf("EnterValues() kind = %v, want %v", result.Kind, tt.wantKind)
 			}
 			if session.Mode() != ModeValues {
 				t.Errorf("Mode() = %v, want ModeValues", session.Mode())
@@ -121,17 +121,17 @@ func TestEnterValuesNonOKKeepsValuesMode(t *testing.T) {
 
 func TestEnterValuesInCommandModeErrors(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	if _, _, err := session.EnterValues("[1]"); err == nil {
+	if _, err := session.EnterValues("[1]"); err == nil {
 		t.Error("EnterValues() in command mode error = nil, want error")
 	}
 }
 
 func TestSelectThenEnterValuesRecordsEventTrace(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 
@@ -149,7 +149,7 @@ func TestSelectThenEnterValuesRecordsEventTrace(t *testing.T) {
 		t.Errorf("pending prev = %v, want s0", prev)
 	}
 
-	if _, _, err := session.EnterValues(`["ok"]`); err != nil {
+	if _, err := session.EnterValues(`["ok"]`); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	trace := session.Trace()
@@ -160,7 +160,7 @@ func TestSelectThenEnterValuesRecordsEventTrace(t *testing.T) {
 
 func TestSelectOutOfRangeErrors(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	if err := session.Select(5); err == nil || err.Error() != "Index out of range" {
@@ -177,13 +177,13 @@ func TestSelectInValuesModeErrors(t *testing.T) {
 
 func TestJumpClonesHistoryEntry(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	if err := session.Select(0); err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
-	if _, _, err := session.EnterValues(`["ok"]`); err != nil {
+	if _, err := session.EnterValues(`["ok"]`); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 
@@ -204,7 +204,7 @@ func TestJumpClonesHistoryEntry(t *testing.T) {
 
 func TestJumpOutOfRangeErrors(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	if err := session.Jump(9); err == nil || err.Error() != "Index out of range" {
@@ -214,7 +214,7 @@ func TestJumpOutOfRangeErrors(t *testing.T) {
 
 func TestBackReturnsToLastHistoryState(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	if err := session.Select(0); err != nil {
@@ -246,9 +246,9 @@ func TestEnterValuesNoSolutionsUsesSolverKind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewSession() error = %v", err)
 	}
-	kind, _, _ := session.EnterValues("[0]")
-	if kind != csdf.PostSolverResultNoSolutions {
-		t.Errorf("EnterValues() kind = %v, want NoSolutions", kind)
+	result, _ := session.EnterValues("[0]")
+	if result.Kind != csdf.PostSolverResultNoSolutions {
+		t.Errorf("EnterValues() kind = %v, want NoSolutions", result.Kind)
 	}
 	if *calls != 1 {
 		t.Errorf("solver calls = %d, want 1", *calls)
@@ -260,7 +260,7 @@ func TestEnterValuesNoSolutionsUsesSolverKind(t *testing.T) {
 
 func TestTransitionsListsOutgoingEdges(t *testing.T) {
 	session := newTwoStateSession(t)
-	if _, _, err := session.EnterValues("[0]"); err != nil {
+	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	edges := session.Transitions()

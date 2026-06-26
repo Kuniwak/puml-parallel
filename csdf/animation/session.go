@@ -11,6 +11,11 @@ import (
 // initial transition (which uses tau) produces an empty trace.
 const tau csdf.Event = "tau"
 
+// ErrIndexOutOfRange is returned by Select and Jump when the given index is not
+// a valid transition or history index. Callers can distinguish this recoverable
+// condition from fatal errors with errors.Is.
+var ErrIndexOutOfRange = errors.New("Index out of range")
+
 // Mode reports whether the session is awaiting state-variable values for a
 // pending transition (ModeValues) or ready for a command on the current state
 // (ModeCommand).
@@ -94,11 +99,13 @@ func (s *Session) Trace() []csdf.Event { return s.currentTrace() }
 
 // EnterValues resolves the entered values against the pending post state group.
 // On PostSolverResultOK it appends a history entry, sets the current state, and
-// switches to ModeCommand. On any other kind the session is unchanged and the
-// kind (plus any syntax error) is returned for the caller to report.
-func (s *Session) EnterValues(encoded string) (csdf.PostSolverResultKind, csdf.RuntimeState, error) {
+// switches to ModeCommand; otherwise the session is unchanged. The returned
+// PostSolverResult carries the kind, the new state, and any syntax error for the
+// caller to report. The error is non-nil only when the session is not awaiting
+// values; callers should check it before inspecting the result.
+func (s *Session) EnterValues(encoded string) (csdf.PostSolverResult, error) {
 	if s.mode != ModeValues {
-		return 0, csdf.RuntimeState{}, errors.New("animation.Session.EnterValues: not awaiting values")
+		return csdf.PostSolverResult{}, errors.New("animation.Session.EnterValues: not awaiting values")
 	}
 
 	result := s.solver(csdf.PostSolverInput{
@@ -109,7 +116,7 @@ func (s *Session) EnterValues(encoded string) (csdf.PostSolverResultKind, csdf.R
 		EncodedValues: encoded,
 	})
 	if result.Kind != csdf.PostSolverResultOK {
-		return result.Kind, csdf.RuntimeState{}, result.Err
+		return result, nil
 	}
 
 	trace := append([]csdf.Event{}, s.currentTrace()...)
@@ -119,7 +126,7 @@ func (s *Session) EnterValues(encoded string) (csdf.PostSolverResultKind, csdf.R
 	s.history = append(s.history, HistoryEntry{State: result.State, Trace: trace})
 	s.current = result.State
 	s.mode = ModeCommand
-	return result.Kind, result.State, nil
+	return result, nil
 }
 
 // Select chooses the idx-th outgoing transition of the current state and
@@ -130,7 +137,7 @@ func (s *Session) Select(idx int) error {
 	}
 	edges := Outgoing(s.diagram, s.current.ID)
 	if idx < 0 || idx >= len(edges) {
-		return errors.New("Index out of range")
+		return ErrIndexOutOfRange
 	}
 	edge := edges[idx]
 	next, ok := s.diagram.States[edge.Dst]
@@ -156,7 +163,7 @@ func (s *Session) Jump(idx int) error {
 		return errors.New("animation.Session.Jump: not in command mode")
 	}
 	if idx < 0 || idx >= len(s.history) {
-		return errors.New("Index out of range")
+		return ErrIndexOutOfRange
 	}
 	entry := cloneHistoryEntry(s.history[idx])
 	s.history = append(s.history, entry)
