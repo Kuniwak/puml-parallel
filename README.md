@@ -139,35 +139,6 @@ prints human-readable text by default and structured JSON with `-json`; `stateva
 instead takes its values via `-json <json-array>` or `-json-file <file>`. Run
 `csdfreplcmd help` for the full command list.
 
-## Project Structure
-
-This repository follows the layout of [go-cli-template](https://github.com/Kuniwak/go-cli-template):
-
-- `cli/` - CLI plumbing: `ProcInout` dependency injection and the `CommandFunc` / `MainFunc` / `ParseOptionsFunc` helpers
-- `csdf/` - CLI-independent CSDF domain: the AST, parser, and composition, plus the operations reused by the tools (loading/parsing diagrams, event collection, parallel composition, the exploration solver)
-  - `csdf/animation/` - the interactive exploration engine (`Session`) and canonical text rendering, shared by the `csdfrepl` REPL and the daemon
-  - `csdf/animation/proto/` - the transport-agnostic remote API (message contract, JSONL framing, the server-side `Service`/`Handle`, and the client stub) reused by `csdfrepld` and `csdfreplcmd`, and available to a future web server
-- `pngsrc/` - Extraction of embedded PlantUML source from `.png` files
-- `version/` - Version variable, overridden at release time by goreleaser
-- `slograw/`, `slogtest/` - Structured logging handler and test helpers
-- `tools/` - One executable per subdirectory; each `tools/<tool>/main.go` is a thin entrypoint that wires `tools/<tool>/<tool>cmd` (CLI-dependent options + command). Shared options live in `tools/commonopts.go`
-- `examples/` - Sample PlantUML files
-- `docs/` - Documentation including requirements and specifications
-
-Every tool accepts the common options `-v` / `-version` (print version), `-silent`, and `-debug`.
-
-Build a tool with, e.g., `go build ./tools/csdfparallel`.
-
-## Limitations
-
-The interface parallel tool has the following limitations:
-
-- **Start edge requirement**: State diagrams without a start edge (`[*] --> state`) cannot be composed in parallel. Each diagram must have exactly one start edge to define the initial state for composition.
-
-- **End edge restriction**: State diagrams containing end edges (`state --> [*]`) are not currently supported for interface parallel. While technically possible, the semantics of interface parallel with terminating processes would be complex to define and implement, so this feature is not yet supported.
-
-These limitations are implementation choices made to keep the interface parallel semantics manageable in the current version.
-
 ## Documentation
 
 - [Requirements](docs/REQUIREMENTS.md) - Project requirements (Japanese)
