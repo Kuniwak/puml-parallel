@@ -84,7 +84,10 @@ func SolveJSON(input PostSolverInput) PostSolverResult {
 		}
 	}
 	if len(values) != len(input.StateGroup.Vars) {
-		return PostSolverResult{Kind: PostSolverResultInvalidStateVarValuesLength}
+		return PostSolverResult{
+			Kind: PostSolverResultInvalidStateVarValuesLength,
+			Err:  fmt.Errorf("expected %d value(s) for [%s], got %d", len(input.StateGroup.Vars), joinVarNames(input.StateGroup.Vars), len(values)),
+		}
 	}
 
 	stateValues := make([]StateValue, len(values))
@@ -111,6 +114,14 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 		return fmt.Errorf("csdf.ensureJSONEOF: invalid JSON array: %w", err)
 	}
 	return fmt.Errorf("csdf.ensureJSONEOF: invalid JSON array: %w", errMultipleValues)
+}
+
+func joinVarNames(vars []StateVar) string {
+	names := make([]string, len(vars))
+	for i, v := range vars {
+		names[i] = string(v.Name)
+	}
+	return strings.Join(names, ", ")
 }
 
 func containsNull(value any) bool {

@@ -259,7 +259,11 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 		case csdf.PostSolverResultNoSolutions:
 			r.displayError("No solutions")
 		case csdf.PostSolverResultInvalidStateVarValuesLength:
-			r.displayError("State variable values length mismatch")
+			if result.Err == nil {
+				r.displayError("state variable values length mismatch")
+			} else {
+				r.displayError(result.Err.Error())
+			}
 		case csdf.PostSolverResultSyntaxError:
 			if result.Err == nil {
 				r.displayError("invalid state variable values")

@@ -114,7 +114,7 @@ func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 		wantError string
 	}{
 		{name: "syntax", values: "null", wantError: "top-level value must be an array"},
-		{name: "length", values: "[]", wantError: "State variable values length mismatch"},
+		{name: "length", values: "[]", wantError: "expected 1 value(s) for [count], got 0"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

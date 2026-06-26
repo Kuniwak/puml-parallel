@@ -65,7 +65,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateVarsError",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayError("State variable values length mismatch")
+				r.displayError("expected 1 value(s) for [count], got 2")
 			},
 		},
 		{
@@ -279,7 +279,7 @@ s0: value
 	}
 	for _, want := range []string{
 		"invalid JSON array",
-		"State variable values length mismatch",
+		"expected 1 value(s) for [value], got 0",
 		"null is not a supported JSON value",
 		"required an index of transition",
 		"Not a natural number",

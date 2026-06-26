@@ -146,7 +146,10 @@ func (s *Service) handleStatevar(req Request) Response {
 	case csdf.PostSolverResultNoSolutions:
 		return errorResponse("No solutions")
 	case csdf.PostSolverResultInvalidStateVarValuesLength:
-		return errorResponse("State variable values length mismatch")
+		if result.Err == nil {
+			return errorResponse("state variable values length mismatch")
+		}
+		return s.errorFromErr(result.Err)
 	case csdf.PostSolverResultSyntaxError:
 		if result.Err == nil {
 			return errorResponse("invalid state variable values")
