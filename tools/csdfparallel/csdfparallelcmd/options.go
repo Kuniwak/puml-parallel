@@ -31,6 +31,9 @@ type Options struct {
 	Files  []string
 }
 
+// CommonOptions returns the parsed common options.
+func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
+
 func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 	return func(args []string, inout *cli.ProcInout) (*Options, error) {
 		flags := flag.NewFlagSet("csdfparallel", flag.ContinueOnError)

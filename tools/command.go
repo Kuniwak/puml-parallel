@@ -6,6 +6,13 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 )
 
+// CommonOptionsCarrier is implemented by every tool's parsed options so generic
+// command plumbing can read the common options (e.g., the log level for
+// debug-gated error formatting).
+type CommonOptionsCarrier interface {
+	CommonOptions() *CommonOptions
+}
+
 // NewCommandFunc wraps a parser and main function into a cli.CommandFunc. It
 // prints "Error: <msg>" to stderr and exits 1 when either the parser or the
 // main function returns an error.
