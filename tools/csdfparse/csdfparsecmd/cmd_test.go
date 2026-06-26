@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
@@ -23,7 +24,7 @@ s1 --> [*] : complete
 `
 	want := `{"states":{"s0":{"id":"s0","name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}]},"s1":{"id":"s1","name":"Done","vars":[]}},"start_edge":{"dst":"s0","post":"initialize"},"edges":[{"src":"s0","dst":"s1","event":"finish(result)","guard":"ready","post":"done"}],"end_edge":{"src":"s1","guard":"complete"}}` + "\n"
 
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader(input))
 
@@ -46,7 +47,7 @@ s1 --> [*] : complete
 func TestNewMainFuncReadsFileArgument(t *testing.T) {
 	// Arrange: `csdfparse <file>` must be equivalent to reading from stdin.
 	want := `{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"}}` + "\n"
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act
@@ -64,7 +65,7 @@ func TestNewMainFuncReadsFileArgument(t *testing.T) {
 
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act

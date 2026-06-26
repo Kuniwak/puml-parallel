@@ -14,22 +14,22 @@ import (
 func Subcommands() []tools.Subcommand {
 	subs := []tools.Subcommand{
 		{Name: "session", Description: "manage sessions (new, list, rm)", CommandFunc: tools.NewSubcommandFunc("csdfreplcmd session", "Manage csdfrepld sessions.", sessionSubcommands())},
-		{Name: "read", Description: "show the session's current state or value prompt", CommandFunc: cli.NewCommandFunc(parseRead(), newMainFunc())},
-		{Name: "select", Description: "select a transition, or list transitions when no index is given", CommandFunc: cli.NewCommandFunc(parseSelect(), newMainFunc())},
-		{Name: "statevar", Description: "enter state-variable values as a JSON array", CommandFunc: cli.NewCommandFunc(parseStatevar(), newMainFunc())},
-		{Name: "trace", Description: "show the current event trace", CommandFunc: cli.NewCommandFunc(parseTrace(), newMainFunc())},
-		{Name: "history", Description: "show the exploration history", CommandFunc: cli.NewCommandFunc(parseHistory(), newMainFunc())},
-		{Name: "jump", Description: "jump to a history entry", CommandFunc: cli.NewCommandFunc(parseJump(), newMainFunc())},
-		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: cli.NewCommandFunc(parseServerVersion(), newMainFunc())},
+		{Name: "read", Description: "show the session's current state or value prompt", CommandFunc: tools.NewCommandFunc(parseRead(), newMainFunc())},
+		{Name: "select", Description: "select a transition, or list transitions when no index is given", CommandFunc: tools.NewCommandFunc(parseSelect(), newMainFunc())},
+		{Name: "statevar", Description: "enter state-variable values as a JSON array", CommandFunc: tools.NewCommandFunc(parseStatevar(), newMainFunc())},
+		{Name: "trace", Description: "show the current event trace", CommandFunc: tools.NewCommandFunc(parseTrace(), newMainFunc())},
+		{Name: "history", Description: "show the exploration history", CommandFunc: tools.NewCommandFunc(parseHistory(), newMainFunc())},
+		{Name: "jump", Description: "jump to a history entry", CommandFunc: tools.NewCommandFunc(parseJump(), newMainFunc())},
+		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: tools.NewCommandFunc(parseServerVersion(), newMainFunc())},
 	}
 	return append(subs, tools.Subcommand{Name: "help", Description: "show this help", CommandFunc: helpCommand(subs)})
 }
 
 func sessionSubcommands() []tools.Subcommand {
 	return []tools.Subcommand{
-		{Name: "new", Description: "start a session from a .puml/.png file", CommandFunc: cli.NewCommandFunc(parseSessionNew(), newMainFunc())},
-		{Name: "list", Description: "list active sessions", CommandFunc: cli.NewCommandFunc(parseSessionList(), newMainFunc())},
-		{Name: "rm", Description: "remove a session", CommandFunc: cli.NewCommandFunc(parseSessionRm(), newMainFunc())},
+		{Name: "new", Description: "start a session from a .puml/.png file", CommandFunc: tools.NewCommandFunc(parseSessionNew(), newMainFunc())},
+		{Name: "list", Description: "list active sessions", CommandFunc: tools.NewCommandFunc(parseSessionList(), newMainFunc())},
+		{Name: "rm", Description: "remove a session", CommandFunc: tools.NewCommandFunc(parseSessionRm(), newMainFunc())},
 	}
 }
 

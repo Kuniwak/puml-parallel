@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestNewMainFuncReportsLivelockFree(t *testing.T) {
 	// Arrange: a diagram with a tau edge but no tau cycle is livelock free.
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 	want := "livelock free\n"
 
@@ -31,7 +32,7 @@ func TestNewMainFuncReportsLivelockFree(t *testing.T) {
 
 func TestNewMainFuncDetectsLivelock(t *testing.T) {
 	// Arrange: user.puml has a tau self-loop on userIdle (a livelock).
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act
@@ -58,7 +59,7 @@ state "s1" as s1
 s0 --> s1 : a
 @enduml
 `
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader(input))
 	want := "livelock free\n"
@@ -78,7 +79,7 @@ s0 --> s1 : a
 
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act

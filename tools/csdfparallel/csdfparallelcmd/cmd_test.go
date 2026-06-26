@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestNewMainFuncCompose(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 	want := `@startuml
 state "(s0, s0)" as s0_s0
@@ -43,7 +44,7 @@ s2_s1 --> s2_s2 : out
 
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act

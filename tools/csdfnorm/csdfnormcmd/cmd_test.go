@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
@@ -20,7 +21,7 @@ state "{s2, s3}" as s2_s3
 s0_s1 --> s2_s3 : a
 @enduml
 `
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act
@@ -54,7 +55,7 @@ state "{s1, s2}" as s1_s2
 s0 --> s1_s2 : a
 @enduml
 `
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader(input))
 
@@ -73,7 +74,7 @@ s0 --> s1_s2 : a
 
 func TestNewMainFuncRejectsEndEdges(t *testing.T) {
 	// Arrange: end edges are not supported and must yield a clear error.
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act
@@ -90,7 +91,7 @@ func TestNewMainFuncRejectsEndEdges(t *testing.T) {
 
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act
