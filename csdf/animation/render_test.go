@@ -33,7 +33,7 @@ func TestRenderStateValuePromptForInitialState(t *testing.T) {
 		"Post Condition:\n" +
 		"  true\n" +
 		"\n" +
-		"Enter state variable values as a JSON array.\n" +
+		"Enter 2 values as a JSON array in declaration order: [<count>, <metadata>].\n" +
 		"\n"
 	if diff := cmp.Diff(want, buf.String()); diff != "" {
 		t.Error(diff)

@@ -195,7 +195,7 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 		"Post Condition:\n" +
 		"  true\n" +
 		"\n" +
-		"Enter state variable values as a JSON array.\n" +
+		"Enter 2 values as a JSON array in declaration order: [<count>, <metadata>].\n" +
 		"\n" +
 		"state> \n"
 	if stdout.String() != want {

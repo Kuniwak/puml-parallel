@@ -59,8 +59,25 @@ func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf
 
 	_, _ = fmt.Fprintln(w, "Post Condition:")
 	_, _ = fmt.Fprintf(w, "  %s\n\n", renderCondition(post))
-	_, _ = fmt.Fprintln(w, "Enter state variable values as a JSON array.")
+	_, _ = fmt.Fprintln(w, valuePromptInstruction(group.Vars))
 	_, _ = fmt.Fprintln(w)
+}
+
+// valuePromptInstruction tells the user exactly how many values to enter and in
+// what order, using the variable names as placeholders.
+func valuePromptInstruction(vars []csdf.StateVar) string {
+	if len(vars) == 0 {
+		return "Enter an empty JSON array: []."
+	}
+	placeholders := make([]string, len(vars))
+	for i, v := range vars {
+		placeholders[i] = "<" + string(v.Name) + ">"
+	}
+	noun := "value"
+	if len(vars) != 1 {
+		noun = "values"
+	}
+	return fmt.Sprintf("Enter %d %s as a JSON array in declaration order: [%s].", len(vars), noun, strings.Join(placeholders, ", "))
 }
 
 // RenderState renders the current state, its values, and its outgoing
