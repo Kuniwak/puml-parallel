@@ -225,3 +225,33 @@ func TestHelp(t *testing.T) {
 		t.Errorf("help = (exit %d, stdout %q), want command listing", code, stdout)
 	}
 }
+
+func TestHelpAndUnknownDispatch(t *testing.T) {
+	exec := func(args ...string) (int, string, string) {
+		spy := cli.SpyProcInout()
+		code := tools.NewSubcommandFunc("csdfreplcmd", "", Subcommands())(args, spy.New())
+		return code, spy.Stdout.String(), spy.Stderr.String()
+	}
+
+	// A command group's -h and "help" both print group help and exit 0.
+	if code, out, _ := exec("session", "-h"); code != 0 || !strings.Contains(out, "Commands:") {
+		t.Errorf("session -h = (exit %d, stdout %q), want group help exit 0", code, out)
+	}
+	if code, out, _ := exec("session", "help"); code != 0 || !strings.Contains(out, "Commands:") {
+		t.Errorf("session help = (exit %d, stdout %q), want group help exit 0", code, out)
+	}
+
+	// An unknown command prints help and exits 1 with no internal identifier leak.
+	code, _, stderr := exec("frobnicate")
+	if code != 1 || !strings.Contains(stderr, `unknown command "frobnicate"`) {
+		t.Errorf("frobnicate = (exit %d, stderr %q), want unknown-command exit 1", code, stderr)
+	}
+	if strings.Contains(stderr, "tools.") || strings.Contains(stderr, "no such subcommand") {
+		t.Errorf("frobnicate stderr leaks internals: %q", stderr)
+	}
+
+	// "help <command>" delegates to that command's own -h (exit 0).
+	if code, _, _ := exec("help", "select"); code != 0 {
+		t.Errorf("help select exit = %d, want 0", code)
+	}
+}

@@ -22,7 +22,7 @@ func Subcommands() []tools.Subcommand {
 		{Name: "jump", Description: "jump to a history entry", CommandFunc: tools.NewCommandFunc(parseJump(), newMainFunc())},
 		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: tools.NewCommandFunc(parseServerVersion(), newMainFunc())},
 	}
-	return append(subs, tools.Subcommand{Name: "help", Description: "show this help", CommandFunc: helpCommand(subs)})
+	return subs
 }
 
 func sessionSubcommands() []tools.Subcommand {
@@ -30,19 +30,6 @@ func sessionSubcommands() []tools.Subcommand {
 		{Name: "new", Description: "start a session from a .puml/.png file", CommandFunc: tools.NewCommandFunc(parseSessionNew(), newMainFunc())},
 		{Name: "list", Description: "list active sessions", CommandFunc: tools.NewCommandFunc(parseSessionList(), newMainFunc())},
 		{Name: "rm", Description: "remove a session", CommandFunc: tools.NewCommandFunc(parseSessionRm(), newMainFunc())},
-	}
-}
-
-func helpCommand(subs []tools.Subcommand) cli.CommandFunc {
-	return func(_ []string, inout *cli.ProcInout) int {
-		fmt.Fprintln(inout.Stdout, "Usage: csdfreplcmd <command> [options]")
-		fmt.Fprintln(inout.Stdout)
-		fmt.Fprintln(inout.Stdout, "Commands:")
-		for _, sub := range subs {
-			fmt.Fprintf(inout.Stdout, "  %-14s %s\n", sub.Name, sub.Description)
-		}
-		fmt.Fprintf(inout.Stdout, "  %-14s %s\n", "help", "show this help")
-		return 0
 	}
 }
 
