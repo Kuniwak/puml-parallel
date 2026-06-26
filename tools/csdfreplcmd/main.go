@@ -8,7 +8,7 @@ import (
 func main() {
 	tools.NewSubcommandFunc(
 		"csdfreplcmd",
-		"Drives a csdfrepld interactive exploration session.",
+		csdfreplcmdcmd.Description,
 		csdfreplcmdcmd.Subcommands(),
 	).Run()
 }

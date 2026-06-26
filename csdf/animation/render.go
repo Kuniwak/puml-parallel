@@ -38,7 +38,7 @@ func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf
 	if previous == nil {
 		_, _ = fmt.Fprintln(w, "State: (none)")
 	} else {
-		_, _ = fmt.Fprintf(w, "State: %s (%s)\n", previous.Name, previous.ID)
+		_, _ = fmt.Fprintf(w, "State: %s\n", previous.Name)
 		renderStateValues(w, previous.Values, "  ")
 	}
 	_, _ = fmt.Fprintln(w)
@@ -59,15 +59,32 @@ func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf
 
 	_, _ = fmt.Fprintln(w, "Post Condition:")
 	_, _ = fmt.Fprintf(w, "  %s\n\n", renderCondition(post))
-	_, _ = fmt.Fprintln(w, "Enter state variable values as a JSON array.")
+	_, _ = fmt.Fprintln(w, valuePromptInstruction(group.Vars))
 	_, _ = fmt.Fprintln(w)
+}
+
+// valuePromptInstruction tells the user exactly how many values to enter and in
+// what order, using the variable names as placeholders.
+func valuePromptInstruction(vars []csdf.StateVar) string {
+	if len(vars) == 0 {
+		return "Enter an empty JSON array: []."
+	}
+	placeholders := make([]string, len(vars))
+	for i, v := range vars {
+		placeholders[i] = "<" + string(v.Name) + ">"
+	}
+	noun := "value"
+	if len(vars) != 1 {
+		noun = "values"
+	}
+	return fmt.Sprintf("Enter %d %s as a JSON array in declaration order: [%s].", len(vars), noun, strings.Join(placeholders, ", "))
 }
 
 // RenderState renders the current state, its values, and its outgoing
 // transitions (numbered for selection), or a deadlock notice if there are none.
 func RenderState(w io.Writer, diagram *csdf.Diagram, state csdf.RuntimeState) {
 	edges := Outgoing(diagram, state.ID)
-	_, _ = fmt.Fprintf(w, "State: %s (%s)\n", state.Name, state.ID)
+	_, _ = fmt.Fprintf(w, "State: %s\n", state.Name)
 	if len(edges) > 0 {
 		_, _ = fmt.Fprintln(w)
 	}
@@ -86,7 +103,7 @@ func RenderState(w io.Writer, diagram *csdf.Diagram, state csdf.RuntimeState) {
 	_, _ = fmt.Fprintln(w, "Transitions:")
 	for i, edge := range edges {
 		destination := diagram.States[edge.Dst]
-		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s (%s)\n", i, edge.Event, destination.Name, edge.Dst)
+		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s\n", i, edge.Event, destination.Name)
 		_, _ = fmt.Fprintf(w, "      Guard: %s\n", renderCondition(edge.Guard))
 		_, _ = fmt.Fprintf(w, "      Post: %s\n", renderCondition(edge.Post))
 		_, _ = fmt.Fprintln(w)

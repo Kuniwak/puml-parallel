@@ -10,45 +10,58 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
+// Description is the top-level overview shown by "csdfreplcmd help". It mirrors
+// the README's headless-exploration section so an agent can learn the workflow
+// from the tool alone.
+const Description = `csdfreplcmd is a one-shot client for the csdfrepld daemon, which holds CSDF
+exploration sessions in memory and serves them over a Unix domain socket.
+Together they let a coding agent (or any script) drive specification animation
+without an interactive terminal.
+
+Typical workflow:
+  $ csdfrepld &                                     # start the daemon
+  $ SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)
+  $ csdfreplcmd read                                # current state (-s optional with one session)
+  $ csdfreplcmd statevar -json '[["cola","water"]]' # enter the current state's values
+  $ csdfreplcmd select 1                            # choose a transition, then enter its values
+  $ csdfreplcmd trace                               # visible event trace
+  $ csdfreplcmd history                             # exploration history
+  $ csdfreplcmd jump 0                              # branch from an earlier history entry
+  $ csdfreplcmd session rm -s "$SID"                # clean up
+
+Every command prints human-readable text by default and structured JSON with
+-json; statevar takes its values via -json <json-array> or -json-file <file>.
+The socket path comes from -sock, then $CSDFREPLD_SOCK, then
+$XDG_RUNTIME_DIR/csdfrepld.sock, then a temporary directory.`
+
 // Subcommands returns the csdfreplcmd command tree for tools.NewSubcommandFunc.
 func Subcommands() []tools.Subcommand {
 	subs := []tools.Subcommand{
 		{Name: "session", Description: "manage sessions (new, list, rm)", CommandFunc: tools.NewSubcommandFunc("csdfreplcmd session", "Manage csdfrepld sessions.", sessionSubcommands())},
-		{Name: "read", Description: "show the session's current state or value prompt", CommandFunc: cli.NewCommandFunc(parseRead(), newMainFunc())},
-		{Name: "select", Description: "select a transition, or list transitions when no index is given", CommandFunc: cli.NewCommandFunc(parseSelect(), newMainFunc())},
-		{Name: "statevar", Description: "enter state-variable values as a JSON array", CommandFunc: cli.NewCommandFunc(parseStatevar(), newMainFunc())},
-		{Name: "trace", Description: "show the current event trace", CommandFunc: cli.NewCommandFunc(parseTrace(), newMainFunc())},
-		{Name: "history", Description: "show the exploration history", CommandFunc: cli.NewCommandFunc(parseHistory(), newMainFunc())},
-		{Name: "jump", Description: "jump to a history entry", CommandFunc: cli.NewCommandFunc(parseJump(), newMainFunc())},
-		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: cli.NewCommandFunc(parseServerVersion(), newMainFunc())},
+		{Name: "read", Description: "show the session's current state or value prompt", CommandFunc: tools.NewCommandFunc(parseRead(), newMainFunc())},
+		{Name: "select", Description: "select a transition, or list transitions when no index is given", CommandFunc: tools.NewCommandFunc(parseSelect(), newMainFunc())},
+		{Name: "statevar", Description: "enter state-variable values as a JSON array", CommandFunc: tools.NewCommandFunc(parseStatevar(), newMainFunc())},
+		{Name: "trace", Description: "show the current event trace", CommandFunc: tools.NewCommandFunc(parseTrace(), newMainFunc())},
+		{Name: "history", Description: "show the exploration history", CommandFunc: tools.NewCommandFunc(parseHistory(), newMainFunc())},
+		{Name: "jump", Description: "jump to a history entry", CommandFunc: tools.NewCommandFunc(parseJump(), newMainFunc())},
+		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: tools.NewCommandFunc(parseServerVersion(), newMainFunc())},
 	}
-	return append(subs, tools.Subcommand{Name: "help", Description: "show this help", CommandFunc: helpCommand(subs)})
+	return subs
 }
 
 func sessionSubcommands() []tools.Subcommand {
 	return []tools.Subcommand{
-		{Name: "new", Description: "start a session from a .puml/.png file", CommandFunc: cli.NewCommandFunc(parseSessionNew(), newMainFunc())},
-		{Name: "list", Description: "list active sessions", CommandFunc: cli.NewCommandFunc(parseSessionList(), newMainFunc())},
-		{Name: "rm", Description: "remove a session", CommandFunc: cli.NewCommandFunc(parseSessionRm(), newMainFunc())},
-	}
-}
-
-func helpCommand(subs []tools.Subcommand) cli.CommandFunc {
-	return func(_ []string, inout *cli.ProcInout) int {
-		fmt.Fprintln(inout.Stdout, "Usage: csdfreplcmd <command> [options]")
-		fmt.Fprintln(inout.Stdout)
-		fmt.Fprintln(inout.Stdout, "Commands:")
-		for _, sub := range subs {
-			fmt.Fprintf(inout.Stdout, "  %-14s %s\n", sub.Name, sub.Description)
-		}
-		fmt.Fprintf(inout.Stdout, "  %-14s %s\n", "help", "show this help")
-		return 0
+		{Name: "new", Description: "start a session from a .puml/.png file", CommandFunc: tools.NewCommandFunc(parseSessionNew(), newMainFunc())},
+		{Name: "list", Description: "list active sessions", CommandFunc: tools.NewCommandFunc(parseSessionList(), newMainFunc())},
+		{Name: "rm", Description: "remove a session", CommandFunc: tools.NewCommandFunc(parseSessionRm(), newMainFunc())},
 	}
 }
 
 func parseRead() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd read", inout)
+		setLeafUsage(flags, "csdfreplcmd read [-s <id>] [-json]",
+			"Show the session's current state and its outgoing transitions, or the\nvalue prompt when the session is awaiting state-variable values.\n\nExample:\n  csdfreplcmd read")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -67,6 +80,8 @@ func parseRead() cli.ParseOptionsFunc[*clientOptions] {
 func parseTrace() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd trace", inout)
+		setLeafUsage(flags, "csdfreplcmd trace [-s <id>] [-json]",
+			"Show the visible event trace of the current path. The internal tau event\nis hidden.")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -85,6 +100,8 @@ func parseTrace() cli.ParseOptionsFunc[*clientOptions] {
 func parseHistory() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd history", inout)
+		setLeafUsage(flags, "csdfreplcmd history [-s <id>] [-json]",
+			"Show every explored history entry with its trace and state. Branch from\nan earlier entry with \"csdfreplcmd jump <index>\".")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -103,6 +120,8 @@ func parseHistory() cli.ParseOptionsFunc[*clientOptions] {
 func parseSelect() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd select", inout)
+		setLeafUsage(flags, "csdfreplcmd select [<index>] [-s <id>] [-json]",
+			"With no index, list the current state's outgoing transitions. With a\nzero-based <index>, take that transition; the session then awaits the\ndestination's state-variable values (enter them with statevar).\n\nExample:\n  csdfreplcmd select        # list transitions\n  csdfreplcmd select 0      # take transition [0]")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -130,6 +149,8 @@ func parseSelect() cli.ParseOptionsFunc[*clientOptions] {
 func parseJump() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd jump", inout)
+		setLeafUsage(flags, "csdfreplcmd jump <index> [-s <id>] [-json]",
+			"Branch from the zero-based history entry <index>: a copy of that entry is\nappended as a new history entry and becomes the current state, so earlier\nhistory is preserved (jump does not rewind or truncate). Use \"csdfreplcmd\nhistory\" to see the indexes.\n\nExample:\n  csdfreplcmd jump 0")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -152,6 +173,8 @@ func parseJump() cli.ParseOptionsFunc[*clientOptions] {
 func parseStatevar() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd statevar", inout)
+		setLeafUsage(flags, "csdfreplcmd statevar -json <json-array> | -json-file <file> [-s <id>]",
+			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		var jsonText, jsonFile string
@@ -193,6 +216,8 @@ func statevarValues(jsonText, jsonFile string) (string, error) {
 func parseServerVersion() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd serverversion", inout)
+		setLeafUsage(flags, "csdfreplcmd serverversion [-json]",
+			"Print the running csdfrepld daemon's version (use -version for this\nclient's version).")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
 		opts, err := parseLeaf(flags, args, cf)
@@ -210,6 +235,8 @@ func parseServerVersion() cli.ParseOptionsFunc[*clientOptions] {
 func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
+		setLeafUsage(flags, "csdfreplcmd session new <file.puml|file.png> [-json]",
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
 		opts, err := parseLeaf(flags, args, cf)
@@ -222,7 +249,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		path := flags.Arg(0)
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("session new: reading %q: %w", path, err)
+			return nil, fmt.Errorf("session new: cannot read file: %v", err)
 		}
 		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content}
 		return opts, nil
@@ -232,6 +259,8 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 func parseSessionList() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session list", inout)
+		setLeafUsage(flags, "csdfreplcmd session list [-json]",
+			"List active sessions as id, mode, current state, and source path.")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
 		opts, err := parseLeaf(flags, args, cf)
@@ -249,6 +278,8 @@ func parseSessionList() cli.ParseOptionsFunc[*clientOptions] {
 func parseSessionRm() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session rm", inout)
+		setLeafUsage(flags, "csdfreplcmd session rm [-s <id>] [-json]",
+			"Remove a session. When exactly one session is active, -s is optional.")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)

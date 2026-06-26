@@ -1,15 +1,15 @@
-State: Review order (review)
+State: Review order
 
 Values:
   count = 2
   metadata = {"priority":true,"tags":["new","gift"]}
 
 Transitions:
-  [0] approve -> Approved (approved)
+  [0] approve -> Approved
       Guard: count > 0
       Post: status' = "approved"
 
-  [1] reject(reason) -> Rejected (rejected)
+  [1] reject(reason) -> Rejected
       Guard: true
       Post: true
 

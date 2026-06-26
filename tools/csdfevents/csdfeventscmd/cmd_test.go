@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestNewMainFuncOnlyCommon(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 	want := "choose(product)\ndrop(product)\ninsert(coin)\n"
 
@@ -33,7 +34,7 @@ func TestNewMainFuncOnlyCommon(t *testing.T) {
 
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
-	cmdFunc := cli.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
 	// Act

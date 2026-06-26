@@ -14,6 +14,9 @@ type Options struct {
 	Bytes  []byte
 }
 
+// CommonOptions returns the parsed common options.
+func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
+
 func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 	return func(args []string, inout *cli.ProcInout) (*Options, error) {
 		flags := flag.NewFlagSet("csdfparse", flag.ContinueOnError)

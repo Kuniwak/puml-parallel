@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -103,23 +102,6 @@ func (c CommandFunc) Run() {
 	args := os.Args[1:]
 	exitStatus := c(args, NewProcInout())
 	os.Exit(exitStatus)
-}
-
-func NewCommandFunc[T any](parseOpts ParseOptionsFunc[T], mainFunc MainFunc[T]) CommandFunc {
-	return func(args []string, inout *ProcInout) int {
-		opts, err := parseOpts(args, inout)
-		if err != nil {
-			fmt.Fprintf(inout.Stderr, "Error: %s\n", err)
-			return 1
-		}
-
-		if err := mainFunc(opts, inout); err != nil {
-			fmt.Fprintf(inout.Stderr, "Error: %s\n", err)
-			return 1
-		}
-
-		return 0
-	}
 }
 
 type LockedBuffer struct {

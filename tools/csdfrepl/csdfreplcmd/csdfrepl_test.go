@@ -65,7 +65,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateVarsError",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayError("State variable values length mismatch")
+				r.displayError("expected 1 value(s) for [count], got 2")
 			},
 		},
 		{
@@ -195,7 +195,7 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 		"Post Condition:\n" +
 		"  true\n" +
 		"\n" +
-		"Enter state variable values as a JSON array.\n" +
+		"Enter 2 values as a JSON array in declaration order: [<count>, <metadata>].\n" +
 		"\n" +
 		"state> \n"
 	if stdout.String() != want {
@@ -247,11 +247,11 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 		t.Errorf("runWithSolver() stderr = %q, want empty", spy.Stderr.String())
 	}
 	for _, want := range []string{
-		"State: Initial (s0)",
+		"State: Initial",
 		"count' as number",
-		"[0] insert(coin) -> Done (s1)",
+		"[0] insert(coin) -> Done",
 		`"insert(coin)"`,
-		"State: Done (s1)",
+		"State: Done",
 		`result = "ok"`,
 		"Deadlock: no outgoing transitions.",
 		"History:",
@@ -279,7 +279,7 @@ s0: value
 	}
 	for _, want := range []string{
 		"invalid JSON array",
-		"State variable values length mismatch",
+		"expected 1 value(s) for [value], got 0",
 		"null is not a supported JSON value",
 		"required an index of transition",
 		"Not a natural number",
@@ -343,7 +343,7 @@ s0 --> s1 : go
 	writeAndWait(t, inputWriter, "[]\n", spy.Stdout, "command> ")
 	writeAndWait(t, inputWriter, "s 0\n", spy.Stdout, "state> ")
 	interrupts <- os.Interrupt
-	waitFor(t, spy.Stdout, "State: Initial (s0)")
+	waitFor(t, spy.Stdout, "State: Initial")
 	_ = inputWriter.Close()
 
 	if err := <-done; err != nil {

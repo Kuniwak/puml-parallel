@@ -33,7 +33,7 @@ func TestRenderStateValuePromptForInitialState(t *testing.T) {
 		"Post Condition:\n" +
 		"  true\n" +
 		"\n" +
-		"Enter state variable values as a JSON array.\n" +
+		"Enter 2 values as a JSON array in declaration order: [<count>, <metadata>].\n" +
 		"\n"
 	if diff := cmp.Diff(want, buf.String()); diff != "" {
 		t.Error(diff)
@@ -60,13 +60,13 @@ func TestRenderStateWithTransitions(t *testing.T) {
 	RenderState(&buf, diagram, state)
 
 	want := "" +
-		"State: Review order (review)\n" +
+		"State: Review order\n" +
 		"\n" +
 		"Values:\n" +
 		"  count = 2\n" +
 		"\n" +
 		"Transitions:\n" +
-		"  [0] approve -> Approved (approved)\n" +
+		"  [0] approve -> Approved\n" +
 		"      Guard: count > 0\n" +
 		`      Post: status' = "approved"` + "\n" +
 		"\n"
@@ -80,7 +80,7 @@ func TestRenderStateDeadlock(t *testing.T) {
 	RenderState(&buf, &csdf.Diagram{}, csdf.RuntimeState{ID: "end", Name: "End"})
 
 	want := "" +
-		"State: End (end)\n" +
+		"State: End\n" +
 		"Values:\n" +
 		"  (none)\n" +
 		"\n" +

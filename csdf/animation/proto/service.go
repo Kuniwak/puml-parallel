@@ -2,6 +2,7 @@ package proto
 
 import (
 	"bytes"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 // entry is one live session with its origin label.
@@ -28,15 +30,19 @@ type Service struct {
 	nextID   int
 	version  string
 	solver   csdf.PostSolver
+	debug    bool
 }
 
 // NewService returns a Service that reports the given version and resolves
-// state-variable values with csdf.SolveJSON.
-func NewService(version string) *Service {
+// state-variable values with csdf.SolveJSON. When debug is false, errors are
+// surfaced as their deepest (prefix-free) message; when true, the full wrapped
+// chain is surfaced.
+func NewService(version string, debug bool) *Service {
 	return &Service{
 		sessions: map[string]*entry{},
 		version:  version,
 		solver:   csdf.SolveJSON,
+		debug:    debug,
 	}
 }
 
@@ -74,11 +80,11 @@ func (s *Service) Handle(req Request) Response {
 func (s *Service) handleSessionNew(req Request) Response {
 	diagram, err := csdf.ParseDiagram(req.Content)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	session, err := animation.NewSession(diagram, s.solver)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	s.nextID++
 	id := strconv.Itoa(s.nextID)
@@ -90,10 +96,16 @@ func (s *Service) handleSessionNew(req Request) Response {
 func (s *Service) handleSessionList() Response {
 	infos := make([]SessionInfo, 0, len(s.order))
 	var buf bytes.Buffer
-	for _, id := range s.order {
-		info := sessionInfo(s.sessions[id])
-		infos = append(infos, info)
-		fmt.Fprintf(&buf, "%s\t%s\t%s\t%s\n", info.Session, info.Mode, info.StateName, info.Path)
+	if len(s.order) > 0 {
+		w := csv.NewWriter(&buf)
+		w.Comma = '\t'
+		_ = w.Write([]string{"ID", "MODE", "STATE", "PATH"})
+		for _, id := range s.order {
+			info := sessionInfo(s.sessions[id])
+			infos = append(infos, info)
+			_ = w.Write([]string{info.Session, info.Mode, info.StateName, info.Path})
+		}
+		w.Flush()
 	}
 	return Response{OK: true, Output: buf.String(), Data: mustData(SessionListData{Sessions: infos})}
 }
@@ -101,7 +113,7 @@ func (s *Service) handleSessionList() Response {
 func (s *Service) handleSessionRm(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	delete(s.sessions, e.id)
 	s.order = removeString(s.order, e.id)
@@ -111,14 +123,14 @@ func (s *Service) handleSessionRm(req Request) Response {
 func (s *Service) handleSelect(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	if req.Index == nil {
 		// No index: show the current position (the selectable transitions).
 		return viewResponse(e)
 	}
 	if err := e.session.Select(*req.Index); err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	return viewResponse(e)
 }
@@ -126,14 +138,14 @@ func (s *Service) handleSelect(req Request) Response {
 func (s *Service) handleStatevar(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	if e.session.Mode() != animation.ModeValues {
 		return errorResponse("not awaiting values; select a transition first")
 	}
 	result, err := e.session.EnterValues(req.Values)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	switch result.Kind {
 	case csdf.PostSolverResultOK:
@@ -141,12 +153,15 @@ func (s *Service) handleStatevar(req Request) Response {
 	case csdf.PostSolverResultNoSolutions:
 		return errorResponse("No solutions")
 	case csdf.PostSolverResultInvalidStateVarValuesLength:
-		return errorResponse("State variable values length mismatch")
+		if result.Err == nil {
+			return errorResponse("state variable values length mismatch")
+		}
+		return s.errorFromErr(result.Err)
 	case csdf.PostSolverResultSyntaxError:
 		if result.Err == nil {
 			return errorResponse("invalid state variable values")
 		}
-		return errorResponse(result.Err.Error())
+		return s.errorFromErr(result.Err)
 	default:
 		return errorResponse("post solver returned an unknown result")
 	}
@@ -155,7 +170,7 @@ func (s *Service) handleStatevar(req Request) Response {
 func (s *Service) handleTrace(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	trace := e.session.Trace()
 	var buf bytes.Buffer
@@ -166,7 +181,7 @@ func (s *Service) handleTrace(req Request) Response {
 func (s *Service) handleHistory(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	history := e.session.History()
 	var buf bytes.Buffer
@@ -177,13 +192,13 @@ func (s *Service) handleHistory(req Request) Response {
 func (s *Service) handleJump(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	if req.Index == nil {
 		return errorResponse("jump requires a history index")
 	}
 	if err := e.session.Jump(*req.Index); err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	return viewResponse(e)
 }
@@ -192,7 +207,7 @@ func (s *Service) handleJump(req Request) Response {
 func (s *Service) handleRead(req Request) Response {
 	e, err := s.resolve(req.Session)
 	if err != nil {
-		return errorResponse(err.Error())
+		return s.errorFromErr(err)
 	}
 	return viewResponse(e)
 }
@@ -273,6 +288,12 @@ func sessionInfo(e *entry) SessionInfo {
 
 func errorResponse(message string) Response {
 	return Response{OK: false, Error: message}
+}
+
+// errorFromErr surfaces err with the deepest (prefix-free) message by default,
+// or the full wrapped chain when the service is in debug mode.
+func (s *Service) errorFromErr(err error) Response {
+	return errorResponse(tools.UserFacingError(err, s.debug))
 }
 
 func removeString(items []string, target string) []string {

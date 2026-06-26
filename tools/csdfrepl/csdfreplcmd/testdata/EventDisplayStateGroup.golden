@@ -1,4 +1,4 @@
-State: Review order (review)
+State: Review order
   count = 2
   metadata = {"priority":true,"tags":["new","gift"]}
 
@@ -12,6 +12,6 @@ Post State Group:
 Post Condition:
   status' = "reviewing"
 
-Enter state variable values as a JSON array.
+Enter 1 value as a JSON array in declaration order: [<status>].
 
 state> 

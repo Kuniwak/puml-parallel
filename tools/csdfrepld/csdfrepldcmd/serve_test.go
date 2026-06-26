@@ -56,7 +56,7 @@ func TestServeRoundTripAndShutdown(t *testing.T) {
 	interrupts := make(chan os.Signal, 1)
 	spy := cli.SpyProcInout()
 	done := make(chan error, 1)
-	go func() { done <- serve(sock, proto.NewService("test-version"), spy.New(), interrupts) }()
+	go func() { done <- serve(sock, proto.NewService("test-version", false), spy.New(), interrupts) }()
 	waitForDaemon(t, sock)
 
 	if resp := do(t, sock, proto.Request{Command: proto.CommandSessionNew, Content: []byte(twoStateDiagram)}); !resp.OK || resp.Session != "1" {
@@ -91,7 +91,7 @@ func TestServeRemovesStaleSocket(t *testing.T) {
 
 	interrupts := make(chan os.Signal, 1)
 	done := make(chan error, 1)
-	go func() { done <- serve(sock, proto.NewService("test"), cli.SpyProcInout().New(), interrupts) }()
+	go func() { done <- serve(sock, proto.NewService("test", false), cli.SpyProcInout().New(), interrupts) }()
 	waitForDaemon(t, sock)
 
 	if resp := do(t, sock, proto.Request{Command: proto.CommandServerVersion}); !resp.OK {
@@ -108,14 +108,14 @@ func TestServeRejectsLiveDaemon(t *testing.T) {
 	sock := filepath.Join(t.TempDir(), "live.sock")
 	interrupts := make(chan os.Signal, 1)
 	done := make(chan error, 1)
-	go func() { done <- serve(sock, proto.NewService("test"), cli.SpyProcInout().New(), interrupts) }()
+	go func() { done <- serve(sock, proto.NewService("test", false), cli.SpyProcInout().New(), interrupts) }()
 	waitForDaemon(t, sock)
 	defer func() {
 		interrupts <- os.Interrupt
 		<-done
 	}()
 
-	err := serve(sock, proto.NewService("test"), cli.SpyProcInout().New(), make(chan os.Signal, 1))
+	err := serve(sock, proto.NewService("test", false), cli.SpyProcInout().New(), make(chan os.Signal, 1))
 	if err == nil || !strings.Contains(err.Error(), "already listening") {
 		t.Errorf("second serve() error = %v, want \"already listening\"", err)
 	}

@@ -17,6 +17,10 @@ type CommonOptions struct {
 	LogLevel slog.Level
 }
 
+// Debug reports whether debug mode is on, i.e. whether verbose, full-chain
+// error output (and debug-level logging) is requested.
+func (o *CommonOptions) Debug() bool { return o.LogLevel == slog.LevelDebug }
+
 var CommonOptionsHelp = &CommonOptions{Help: true}
 var CommonOptionsVersion = &CommonOptions{Version: true}
 
@@ -65,7 +69,7 @@ func ValidateArgsAsFilePath(args []string, inout *cli.ProcInout) ([]byte, error)
 	case 0:
 		bs, err := io.ReadAll(inout.Stdin)
 		if err != nil {
-			return nil, fmt.Errorf("tools.ValidateArgsAsFilePath: cannot read via stdin: %w", err)
+			return nil, fmt.Errorf("cannot read from stdin: %v", err)
 		}
 		return bs, nil
 
@@ -74,18 +78,18 @@ func ValidateArgsAsFilePath(args []string, inout *cli.ProcInout) ([]byte, error)
 		if file == "-" {
 			bs, err := io.ReadAll(inout.Stdin)
 			if err != nil {
-				return nil, fmt.Errorf("tools.ValidateArgsAsFilePath: cannot read via stdin: %w", err)
+				return nil, fmt.Errorf("cannot read from stdin: %v", err)
 			}
 			return bs, nil
 		}
 
 		bs, err := os.ReadFile(file)
 		if err != nil {
-			return nil, fmt.Errorf("tools.ValidateArgsAsFilePath: cannot read file: %w (%q)", err, file)
+			return nil, fmt.Errorf("cannot read file: %v", err)
 		}
 		return bs, nil
 
 	default:
-		return nil, fmt.Errorf("tools.ValidateArgsAsFilePath: too many arguments")
+		return nil, fmt.Errorf("too many arguments")
 	}
 }

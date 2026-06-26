@@ -31,7 +31,7 @@ func startDaemon(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Listen() error = %v", err)
 	}
-	service := proto.NewService("client-test")
+	service := proto.NewService("client-test", false)
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -111,7 +111,7 @@ func TestStatevarAndReadFlow(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("read exit = %d, stderr = %q", code, stderr)
 	}
-	if !strings.Contains(stdout, "State: Initial (s0)") || !strings.Contains(stdout, "Transitions:") {
+	if !strings.Contains(stdout, "State: Initial") || !strings.Contains(stdout, "Transitions:") {
 		t.Errorf("read stdout = %q, want state + transitions", stdout)
 	}
 }
@@ -223,5 +223,44 @@ func TestHelp(t *testing.T) {
 	code, stdout, _ := run(t, sock, "help")
 	if code != 0 || !strings.Contains(stdout, "Commands:") || !strings.Contains(stdout, "statevar") {
 		t.Errorf("help = (exit %d, stdout %q), want command listing", code, stdout)
+	}
+}
+
+func TestTopLevelHelpShowsOverview(t *testing.T) {
+	spy := cli.SpyProcInout()
+	code := tools.NewSubcommandFunc("csdfreplcmd", Description, Subcommands())([]string{"help"}, spy.New())
+	out := spy.Stdout.String()
+	if code != 0 || !strings.Contains(out, "Typical workflow:") || !strings.Contains(out, "session new") || !strings.Contains(out, "Commands:") {
+		t.Errorf("top-level help = (exit %d, stdout %q), want README-style overview plus command list", code, out)
+	}
+}
+
+func TestHelpAndUnknownDispatch(t *testing.T) {
+	exec := func(args ...string) (int, string, string) {
+		spy := cli.SpyProcInout()
+		code := tools.NewSubcommandFunc("csdfreplcmd", "", Subcommands())(args, spy.New())
+		return code, spy.Stdout.String(), spy.Stderr.String()
+	}
+
+	// A command group's -h and "help" both print group help and exit 0.
+	if code, out, _ := exec("session", "-h"); code != 0 || !strings.Contains(out, "Commands:") {
+		t.Errorf("session -h = (exit %d, stdout %q), want group help exit 0", code, out)
+	}
+	if code, out, _ := exec("session", "help"); code != 0 || !strings.Contains(out, "Commands:") {
+		t.Errorf("session help = (exit %d, stdout %q), want group help exit 0", code, out)
+	}
+
+	// An unknown command prints help and exits 1 with no internal identifier leak.
+	code, _, stderr := exec("frobnicate")
+	if code != 1 || !strings.Contains(stderr, `unknown command "frobnicate"`) {
+		t.Errorf("frobnicate = (exit %d, stderr %q), want unknown-command exit 1", code, stderr)
+	}
+	if strings.Contains(stderr, "tools.") || strings.Contains(stderr, "no such subcommand") {
+		t.Errorf("frobnicate stderr leaks internals: %q", stderr)
+	}
+
+	// "help <command>" delegates to that command's own -h (exit 0).
+	if code, _, _ := exec("help", "select"); code != 0 {
+		t.Errorf("help select exit = %d, want 0", code)
 	}
 }
