@@ -21,6 +21,16 @@ type RuntimeState struct {
 	Values []StateValue `json:"values"`
 }
 
+// Clean, user-facing leaf messages for SolveJSON syntax errors. They are wrapped
+// with package-qualified context so the full chain stays informative under
+// -debug, while unwrapping to the deepest error yields these prefix-free
+// messages for normal output.
+var (
+	errValuesNotArray = errors.New("top-level value must be an array")
+	errNullValue      = errors.New("null is not a supported JSON value")
+	errMultipleValues = errors.New("multiple JSON values")
+)
+
 type PostSolverResultKind int
 
 const (
@@ -66,11 +76,11 @@ func SolveJSON(input PostSolverInput) PostSolverResult {
 	}
 	values, ok := decoded.([]any)
 	if !ok {
-		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("csdf.SolveJSON: invalid JSON array: top-level value must be an array")}
+		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("csdf.SolveJSON: invalid JSON array: %w", errValuesNotArray)}
 	}
 	for _, value := range values {
 		if containsNull(value) {
-			return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: errors.New("csdf.SolveJSON: null is not a supported JSON value")}
+			return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("csdf.SolveJSON: %w", errNullValue)}
 		}
 	}
 	if len(values) != len(input.StateGroup.Vars) {
@@ -100,7 +110,7 @@ func ensureJSONEOF(decoder *json.Decoder) error {
 	if err != nil {
 		return fmt.Errorf("csdf.ensureJSONEOF: invalid JSON array: %w", err)
 	}
-	return errors.New("csdf.ensureJSONEOF: invalid JSON array: multiple JSON values")
+	return fmt.Errorf("csdf.ensureJSONEOF: invalid JSON array: %w", errMultipleValues)
 }
 
 func containsNull(value any) bool {
