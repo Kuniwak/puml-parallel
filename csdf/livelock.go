@@ -34,7 +34,7 @@ func CheckLivelockFree(d *Diagram) (witness *Livelock, ok bool) {
 	// ordered so the witness is reproducible.
 	tauOut := make(map[StateID][]Edge)
 	for _, e := range d.Edges {
-		if e.Event != tau {
+		if e.Event != Tau {
 			continue
 		}
 		if _, ok := reachable[e.Src]; !ok {

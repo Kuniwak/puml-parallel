@@ -37,7 +37,7 @@ s0 --> s0 : tau
 @enduml
 `)
 	want := &Livelock{
-		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: tau, Guard: True, Post: True}},
+		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau, Guard: True, Post: True}},
 	}
 
 	// Execute
@@ -64,8 +64,8 @@ b --> a : tau
 `)
 	want := &Livelock{
 		Cycle: []Edge{
-			{Src: "a", Dst: "b", Event: tau, Guard: True, Post: True},
-			{Src: "b", Dst: "a", Event: tau, Guard: True, Post: True},
+			{Src: "a", Dst: "b", Event: Tau, Guard: True, Post: True},
+			{Src: "b", Dst: "a", Event: Tau, Guard: True, Post: True},
 		},
 	}
 
@@ -139,8 +139,8 @@ sb --> sa : tau
 	want := &Livelock{
 		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a", Guard: True, Post: True}},
 		Cycle: []Edge{
-			{Src: "sa", Dst: "sb", Event: tau, Guard: True, Post: True},
-			{Src: "sb", Dst: "sa", Event: tau, Guard: True, Post: True},
+			{Src: "sa", Dst: "sb", Event: Tau, Guard: True, Post: True},
+			{Src: "sb", Dst: "sa", Event: Tau, Guard: True, Post: True},
 		},
 	}
 
@@ -177,8 +177,8 @@ b1 --> b0 : tau
 	want := &Livelock{
 		Stem: []Edge{{Src: "s0", Dst: "a0", Event: "a", Guard: True, Post: True}},
 		Cycle: []Edge{
-			{Src: "a0", Dst: "a1", Event: tau, Guard: True, Post: True},
-			{Src: "a1", Dst: "a0", Event: tau, Guard: True, Post: True},
+			{Src: "a0", Dst: "a1", Event: Tau, Guard: True, Post: True},
+			{Src: "a1", Dst: "a0", Event: Tau, Guard: True, Post: True},
 		},
 	}
 
@@ -238,8 +238,8 @@ func TestRenderLivelockFormatsStemAndCycle(t *testing.T) {
 	w := &Livelock{
 		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a"}},
 		Cycle: []Edge{
-			{Src: "sa", Dst: "sb", Event: tau},
-			{Src: "sb", Dst: "sa", Event: tau},
+			{Src: "sa", Dst: "sb", Event: Tau},
+			{Src: "sb", Dst: "sa", Event: Tau},
 		},
 	}
 	want := "s0 --a--> sa\ncycle:\nsa --tau--> sb\nsb --tau--> sa\n"
@@ -253,7 +253,7 @@ func TestRenderLivelockFormatsStemAndCycle(t *testing.T) {
 func TestRenderLivelockFormatsSelfLoopWithEmptyStem(t *testing.T) {
 	// Setup: a self-loop witness has no stem, so only the cycle block is rendered.
 	w := &Livelock{
-		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: tau}},
+		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau}},
 	}
 	want := "cycle:\ns0 --tau--> s0\n"
 

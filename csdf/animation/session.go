@@ -7,10 +7,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
-// tau is the silent/internal event. It is never appended to a trace, so the
-// initial transition (which uses tau) produces an empty trace.
-const tau csdf.Event = "tau"
-
 // ErrIndexOutOfRange is returned by Select and Jump when the given index is not
 // a valid transition or history index. Callers can distinguish this recoverable
 // condition from fatal errors with errors.Is.
@@ -61,7 +57,7 @@ func NewSession(diagram *csdf.Diagram, solver csdf.PostSolver) (*Session, error)
 			group: initial,
 			guard: csdf.True,
 			post:  diagram.StartEdge.Post,
-			event: tau,
+			event: csdf.Tau,
 			prev:  nil,
 		},
 	}, nil
@@ -120,7 +116,7 @@ func (s *Session) EnterValues(encoded string) (csdf.PostSolverResult, error) {
 	}
 
 	trace := append([]csdf.Event{}, s.currentTrace()...)
-	if s.pending.event != tau {
+	if s.pending.event != csdf.Tau {
 		trace = append(trace, s.pending.event)
 	}
 	s.history = append(s.history, HistoryEntry{State: result.State, Trace: trace})
