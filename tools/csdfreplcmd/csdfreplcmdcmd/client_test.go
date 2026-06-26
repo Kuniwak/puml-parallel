@@ -31,7 +31,7 @@ func startDaemon(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Listen() error = %v", err)
 	}
-	service := proto.NewService("client-test")
+	service := proto.NewService("client-test", false)
 	go func() {
 		for {
 			conn, err := listener.Accept()

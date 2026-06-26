@@ -2,7 +2,6 @@ package tools
 
 import (
 	"fmt"
-	"log/slog"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 )
@@ -39,5 +38,5 @@ func NewCommandFunc[T CommonOptionsCarrier](parseOpts cli.ParseOptionsFunc[T], m
 
 func debugEnabled(opts CommonOptionsCarrier) bool {
 	co := opts.CommonOptions()
-	return co != nil && co.LogLevel == slog.LevelDebug
+	return co != nil && co.Debug()
 }

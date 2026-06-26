@@ -23,7 +23,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		sock := tools.ResolveSocketPath(opts.Sock, inout.Env)
-		service := proto.NewService(version.Version)
+		service := proto.NewService(version.Version, opts.Common.Debug())
 
 		interrupts := make(chan os.Signal, 1)
 		signal.Notify(interrupts, os.Interrupt, syscall.SIGTERM)

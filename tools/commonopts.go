@@ -17,6 +17,10 @@ type CommonOptions struct {
 	LogLevel slog.Level
 }
 
+// Debug reports whether debug mode is on, i.e. whether verbose, full-chain
+// error output (and debug-level logging) is requested.
+func (o *CommonOptions) Debug() bool { return o.LogLevel == slog.LevelDebug }
+
 var CommonOptionsHelp = &CommonOptions{Help: true}
 var CommonOptionsVersion = &CommonOptions{Version: true}
 

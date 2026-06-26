@@ -22,7 +22,7 @@ func intPtr(i int) *int { return &i }
 // and returns the service together with the new session id.
 func newSession(t *testing.T) (*Service, string) {
 	t.Helper()
-	service := NewService("test-version")
+	service := NewService("test-version", false)
 	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})
 	if !resp.OK {
 		t.Fatalf("session_new failed: %s", resp.Error)
@@ -52,7 +52,7 @@ func decodeView(t *testing.T, resp Response) View {
 }
 
 func TestHandleSessionNewReturnsID(t *testing.T) {
-	service := NewService("dev")
+	service := NewService("dev", false)
 	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(twoStateDiagram)})
 	if !resp.OK {
 		t.Fatalf("session_new failed: %s", resp.Error)
@@ -67,7 +67,7 @@ func TestHandleSessionNewReturnsID(t *testing.T) {
 }
 
 func TestHandleSessionNewRejectsBadContent(t *testing.T) {
-	service := NewService("dev")
+	service := NewService("dev", false)
 	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte("not plantuml")})
 	if resp.OK {
 		t.Fatalf("session_new OK = true, want failure")
@@ -113,7 +113,7 @@ func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 		values    string
 		wantError string
 	}{
-		{name: "syntax", values: "null", wantError: "invalid JSON array"},
+		{name: "syntax", values: "null", wantError: "top-level value must be an array"},
 		{name: "length", values: "[]", wantError: "State variable values length mismatch"},
 	}
 	for _, tt := range tests {
@@ -127,6 +127,32 @@ func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 				t.Errorf("statevar error = %q, want substring %q", resp.Error, tt.wantError)
 			}
 		})
+	}
+}
+
+func TestHandleStatevarErrorDebugSurfacesChain(t *testing.T) {
+	newAt := func(debug bool) (*Service, string) {
+		t.Helper()
+		s := NewService("dev", debug)
+		resp := s.Handle(Request{Command: CommandSessionNew, Path: "d.puml", Content: []byte(twoStateDiagram)})
+		if !resp.OK {
+			t.Fatalf("session_new failed: %s", resp.Error)
+		}
+		return s, resp.Session
+	}
+
+	// Default: deepest, prefix-free message.
+	s, id := newAt(false)
+	resp := s.Handle(Request{Command: CommandStatevar, Session: id, Values: "null"})
+	if strings.Contains(resp.Error, "csdf.SolveJSON") {
+		t.Errorf("default error %q leaks internal prefix", resp.Error)
+	}
+
+	// Debug: the full wrapped chain including the package-qualified context.
+	sd, idd := newAt(true)
+	respd := sd.Handle(Request{Command: CommandStatevar, Session: idd, Values: "null"})
+	if !strings.Contains(respd.Error, "csdf.SolveJSON") {
+		t.Errorf("debug error %q does not include the full chain", respd.Error)
 	}
 }
 
@@ -273,7 +299,7 @@ func TestSessionListAndRemove(t *testing.T) {
 }
 
 func TestHandleServerVersion(t *testing.T) {
-	service := NewService("v1.2.3")
+	service := NewService("v1.2.3", false)
 	resp := service.Handle(Request{Command: CommandServerVersion})
 	if !resp.OK || resp.Output != "v1.2.3\n" {
 		t.Errorf("server_version = (ok %v, output %q), want \"v1.2.3\\n\"", resp.OK, resp.Output)
@@ -281,7 +307,7 @@ func TestHandleServerVersion(t *testing.T) {
 }
 
 func TestHandleUnknownCommand(t *testing.T) {
-	service := NewService("dev")
+	service := NewService("dev", false)
 	resp := service.Handle(Request{Command: "bogus"})
 	if resp.OK || !strings.Contains(resp.Error, "unknown command") {
 		t.Errorf("unknown command = (ok %v, error %q), want failure", resp.OK, resp.Error)
