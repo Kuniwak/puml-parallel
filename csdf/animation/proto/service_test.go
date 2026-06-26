@@ -95,7 +95,7 @@ func TestHandleStatevarAdvancesToCommand(t *testing.T) {
 	if !resp.OK {
 		t.Fatalf("statevar failed: %s", resp.Error)
 	}
-	if !strings.Contains(resp.Output, "State: Initial (s0)") || !strings.Contains(resp.Output, "Transitions:") {
+	if !strings.Contains(resp.Output, "State: Initial") || !strings.Contains(resp.Output, "Transitions:") {
 		t.Errorf("statevar output = %q, want state + transitions", resp.Output)
 	}
 	view := decodeView(t, resp)

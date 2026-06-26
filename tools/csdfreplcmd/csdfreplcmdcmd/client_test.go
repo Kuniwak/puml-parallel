@@ -111,7 +111,7 @@ func TestStatevarAndReadFlow(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("read exit = %d, stderr = %q", code, stderr)
 	}
-	if !strings.Contains(stdout, "State: Initial (s0)") || !strings.Contains(stdout, "Transitions:") {
+	if !strings.Contains(stdout, "State: Initial") || !strings.Contains(stdout, "Transitions:") {
 		t.Errorf("read stdout = %q, want state + transitions", stdout)
 	}
 }

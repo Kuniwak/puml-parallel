@@ -1,4 +1,4 @@
-State: Review order (review)
+State: Review order
 Values:
   count = 2
   metadata = {"priority":true,"tags":["new","gift"]}

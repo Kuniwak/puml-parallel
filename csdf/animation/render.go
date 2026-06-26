@@ -38,7 +38,7 @@ func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf
 	if previous == nil {
 		_, _ = fmt.Fprintln(w, "State: (none)")
 	} else {
-		_, _ = fmt.Fprintf(w, "State: %s (%s)\n", previous.Name, previous.ID)
+		_, _ = fmt.Fprintf(w, "State: %s\n", previous.Name)
 		renderStateValues(w, previous.Values, "  ")
 	}
 	_, _ = fmt.Fprintln(w)
@@ -84,7 +84,7 @@ func valuePromptInstruction(vars []csdf.StateVar) string {
 // transitions (numbered for selection), or a deadlock notice if there are none.
 func RenderState(w io.Writer, diagram *csdf.Diagram, state csdf.RuntimeState) {
 	edges := Outgoing(diagram, state.ID)
-	_, _ = fmt.Fprintf(w, "State: %s (%s)\n", state.Name, state.ID)
+	_, _ = fmt.Fprintf(w, "State: %s\n", state.Name)
 	if len(edges) > 0 {
 		_, _ = fmt.Fprintln(w)
 	}
@@ -103,7 +103,7 @@ func RenderState(w io.Writer, diagram *csdf.Diagram, state csdf.RuntimeState) {
 	_, _ = fmt.Fprintln(w, "Transitions:")
 	for i, edge := range edges {
 		destination := diagram.States[edge.Dst]
-		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s (%s)\n", i, edge.Event, destination.Name, edge.Dst)
+		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s\n", i, edge.Event, destination.Name)
 		_, _ = fmt.Fprintf(w, "      Guard: %s\n", renderCondition(edge.Guard))
 		_, _ = fmt.Fprintf(w, "      Post: %s\n", renderCondition(edge.Post))
 		_, _ = fmt.Fprintln(w)
