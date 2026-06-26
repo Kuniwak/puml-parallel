@@ -10,6 +10,30 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
+// Description is the top-level overview shown by "csdfreplcmd help". It mirrors
+// the README's headless-exploration section so an agent can learn the workflow
+// from the tool alone.
+const Description = `csdfreplcmd is a one-shot client for the csdfrepld daemon, which holds CSDF
+exploration sessions in memory and serves them over a Unix domain socket.
+Together they let a coding agent (or any script) drive specification animation
+without an interactive terminal.
+
+Typical workflow:
+  $ csdfrepld &                                     # start the daemon
+  $ SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)
+  $ csdfreplcmd read                                # current state (-s optional with one session)
+  $ csdfreplcmd statevar -json '[["cola","water"]]' # enter the current state's values
+  $ csdfreplcmd select 1                            # choose a transition, then enter its values
+  $ csdfreplcmd trace                               # visible event trace
+  $ csdfreplcmd history                             # exploration history
+  $ csdfreplcmd jump 0                              # branch from an earlier history entry
+  $ csdfreplcmd session rm -s "$SID"                # clean up
+
+Every command prints human-readable text by default and structured JSON with
+-json; statevar takes its values via -json <json-array> or -json-file <file>.
+The socket path comes from -sock, then $CSDFREPLD_SOCK, then
+$XDG_RUNTIME_DIR/csdfrepld.sock, then a temporary directory.`
+
 // Subcommands returns the csdfreplcmd command tree for tools.NewSubcommandFunc.
 func Subcommands() []tools.Subcommand {
 	subs := []tools.Subcommand{

@@ -226,6 +226,15 @@ func TestHelp(t *testing.T) {
 	}
 }
 
+func TestTopLevelHelpShowsOverview(t *testing.T) {
+	spy := cli.SpyProcInout()
+	code := tools.NewSubcommandFunc("csdfreplcmd", Description, Subcommands())([]string{"help"}, spy.New())
+	out := spy.Stdout.String()
+	if code != 0 || !strings.Contains(out, "Typical workflow:") || !strings.Contains(out, "session new") || !strings.Contains(out, "Commands:") {
+		t.Errorf("top-level help = (exit %d, stdout %q), want README-style overview plus command list", code, out)
+	}
+}
+
 func TestHelpAndUnknownDispatch(t *testing.T) {
 	exec := func(args ...string) (int, string, string) {
 		spy := cli.SpyProcInout()
