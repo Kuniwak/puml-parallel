@@ -222,7 +222,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		path := flags.Arg(0)
 		content, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("session new: reading %q: %w", path, err)
+			return nil, fmt.Errorf("session new: cannot read file: %v", err)
 		}
 		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content}
 		return opts, nil
