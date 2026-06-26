@@ -20,6 +20,10 @@ type StateVar struct {
 
 const True = "true"
 
+// Tau is the internal (silent) event. An edge whose event is exactly "tau" is a
+// τ-transition (docs/SYNTAX.md, docs/REFINEMENT_ALGORITHM.md §8).
+const Tau Event = "tau"
+
 type Diagram struct {
 	States    map[StateID]State `json:"states"`
 	StartEdge StartEdge         `json:"start_edge"`

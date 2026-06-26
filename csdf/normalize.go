@@ -6,10 +6,6 @@ import (
 	"strings"
 )
 
-// tau is the internal (silent) event. An edge whose event is exactly "tau" is a
-// τ-transition (docs/SYNTAX.md, docs/REFINEMENT_ALGORITHM.md §8).
-const tau Event = "tau"
-
 // Normalize converts a diagram into its normal form via subset construction with
 // τ-closure (docs/REFINEMENT_ALGORITHM.md §4). The result is deterministic and
 // τ-free: each normal-form state is a set of source states, reachable visible
@@ -54,7 +50,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 		byEvent := make(map[Event][]Edge)
 		for s := range u {
 			for _, e := range out[s] {
-				if e.Event == tau {
+				if e.Event == Tau {
 					continue
 				}
 				byEvent[e.Event] = append(byEvent[e.Event], e)
@@ -111,7 +107,7 @@ func tauClosure(set map[StateID]struct{}, out map[StateID][]Edge) map[StateID]st
 		s := queue[0]
 		queue = queue[1:]
 		for _, e := range out[s] {
-			if e.Event != tau {
+			if e.Event != Tau {
 				continue
 			}
 			if _, ok := closure[e.Dst]; !ok {

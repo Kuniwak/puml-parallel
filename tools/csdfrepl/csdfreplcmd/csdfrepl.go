@@ -2,7 +2,6 @@ package csdfreplcmd
 
 import (
 	"bufio"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,15 +11,12 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"golang.org/x/term"
 )
 
-const tau csdf.Event = "tau"
-
-type HistoryEntry struct {
-	State csdf.RuntimeState `json:"state"`
-	Trace []csdf.Event      `json:"trace"`
-}
+// HistoryEntry is the explored-state record; the engine owns the type.
+type HistoryEntry = animation.HistoryEntry
 
 func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver) error {
 	bs, err := os.ReadFile(file)
@@ -33,6 +29,11 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot parse the file: %w: %q", err, file)
 	}
 
+	session, err := animation.NewSession(diagram, solver)
+	if err != nil {
+		return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+	}
+
 	var terminal *terminalLineReader
 	var lines <-chan lineResult
 	if term.IsTerminal(int(inout.Stdin.Fd())) && term.IsTerminal(int(inout.Stdout.Fd())) {
@@ -42,11 +43,11 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 	}
 	repl := repl{
 		diagram:    diagram,
+		session:    session,
 		stdout:     inout.Stdout,
 		interrupts: interrupts,
 		lines:      lines,
 		terminal:   terminal,
-		solver:     solver,
 	}
 	return repl.run()
 }
@@ -139,47 +140,32 @@ func newLineReader(reader io.Reader) <-chan lineResult {
 	return results
 }
 
+// repl is the terminal front-end: it reads lines and renders, delegating all
+// exploration state to the animation engine.
 type repl struct {
 	diagram    *csdf.Diagram
+	session    *animation.Session
 	stdout     io.Writer
 	interrupts <-chan os.Signal
 	lines      <-chan lineResult
 	terminal   *terminalLineReader
-	solver     csdf.PostSolver
-	history    []HistoryEntry
 }
 
 func (r *repl) run() error {
-	initial, ok := r.diagram.States[r.diagram.StartEdge.Dst]
-	if !ok {
-		return fmt.Errorf("csdfreplcmd.repl.run: initial state %q does not exist", r.diagram.StartEdge.Dst)
-	}
-
-	var previous *csdf.RuntimeState
-	stateGroup := initial
-	guard := csdf.True
-	post := r.diagram.StartEdge.Post
-	event := tau
-
 	for {
-		state, outcome, err := r.askStateValues(stateGroup, previous, guard, post, event)
+		outcome, err := r.askStateValues()
 		if err != nil {
 			return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 		}
-		switch outcome {
-		case inputExit:
+		if outcome == inputExit {
 			return nil
-		case inputBack:
-			current := r.history[len(r.history)-1].State
-			previous = &current
-		default:
-			current := state
-			previous = &current
 		}
+		// On inputLine the session advanced to command mode; on inputBack the
+		// session was returned to command mode at the last explored state.
 
-		r.displayState(*previous)
+		current, _ := r.session.Current()
+		r.displayState(current)
 		for {
-			current := *previous
 			command, outcome, err := r.readLine("command> ")
 			if err != nil {
 				return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
@@ -198,38 +184,32 @@ func (r *repl) run() error {
 			case commandEmpty:
 				r.displayEmptyLine()
 			case commandList:
+				current, _ := r.session.Current()
 				r.displayState(current)
 			case commandTrace:
-				r.displayTrace(r.currentTrace())
+				r.displayTrace(r.session.Trace())
 			case commandHistory:
-				r.displayHistory(r.history)
+				r.displayHistory(r.session.History())
 			case commandHelp:
 				r.displayHelp()
 			case commandJump:
-				if index >= len(r.history) {
-					r.displayError("Index out of range")
-					continue
+				if err := r.session.Jump(index); err != nil {
+					if errors.Is(err, animation.ErrIndexOutOfRange) {
+						r.displayError(err.Error())
+						continue
+					}
+					return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 				}
-				entry := cloneHistoryEntry(r.history[index])
-				r.history = append(r.history, entry)
-				jumped := entry.State
-				previous = &jumped
-				r.displayState(jumped)
+				current, _ := r.session.Current()
+				r.displayState(current)
 			case commandSelect:
-				edges := r.outgoing(current.ID)
-				if index >= len(edges) {
-					r.displayError("Index out of range")
-					continue
+				if err := r.session.Select(index); err != nil {
+					if errors.Is(err, animation.ErrIndexOutOfRange) {
+						r.displayError(err.Error())
+						continue
+					}
+					return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 				}
-				edge := edges[index]
-				next, ok := r.diagram.States[edge.Dst]
-				if !ok {
-					return fmt.Errorf("csdfreplcmd.repl.run: destination state %q does not exist", edge.Dst)
-				}
-				stateGroup = next
-				guard = edge.Guard
-				post = edge.Post
-				event = edge.Event
 				goto askValues
 			}
 		}
@@ -248,38 +228,34 @@ const (
 	inputFatal
 )
 
-func (r *repl) askStateValues(group csdf.State, previous *csdf.RuntimeState, guard, post string, event csdf.Event) (csdf.RuntimeState, inputOutcome, error) {
+func (r *repl) askStateValues() (inputOutcome, error) {
 	for {
-		r.displayStateValuePrompt(previous, group, guard, post)
+		group, guard, post, _, prev := r.session.Pending()
+		r.displayStateValuePrompt(prev, group, guard, post)
 		line, outcome, err := r.readLine("state> ")
 		if err != nil {
-			return csdf.RuntimeState{}, inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
+			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
 		}
 		if outcome == inputExit {
-			return csdf.RuntimeState{}, inputExit, nil
+			return inputExit, nil
 		}
 		if outcome == inputInterrupt {
-			if len(r.history) == 0 {
-				return csdf.RuntimeState{}, inputFatal, errors.New("csdfreplcmd.repl.askStateValues: No solutions found")
+			if len(r.session.History()) == 0 {
+				return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: No solutions found")
 			}
-			return csdf.RuntimeState{}, inputBack, nil
+			if err := r.session.Back(); err != nil {
+				return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
+			}
+			return inputBack, nil
 		}
 
-		result := r.solver(csdf.PostSolverInput{
-			StateGroup:    group,
-			Previous:      previous,
-			Guard:         guard,
-			Post:          post,
-			EncodedValues: line,
-		})
+		result, err := r.session.EnterValues(line)
+		if err != nil {
+			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
+		}
 		switch result.Kind {
 		case csdf.PostSolverResultOK:
-			trace := append([]csdf.Event{}, r.currentTrace()...)
-			if event != tau {
-				trace = append(trace, event)
-			}
-			r.history = append(r.history, HistoryEntry{State: result.State, Trace: trace})
-			return result.State, inputLine, nil
+			return inputLine, nil
 		case csdf.PostSolverResultNoSolutions:
 			r.displayError("No solutions")
 		case csdf.PostSolverResultInvalidStateVarValuesLength:
@@ -291,7 +267,7 @@ func (r *repl) askStateValues(group csdf.State, previous *csdf.RuntimeState, gua
 				r.displayError(result.Err.Error())
 			}
 		default:
-			return csdf.RuntimeState{}, inputFatal, errors.New("csdfreplcmd.repl.askStateValues: post solver returned an unknown result")
+			return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: post solver returned an unknown result")
 		}
 	}
 }
@@ -341,147 +317,25 @@ func (r *repl) readLine(prompt string) (string, inputOutcome, error) {
 	}
 }
 
-func (r *repl) displayError(message string) {
-	_, _ = fmt.Fprintf(r.stdout, "Error: %s\n\n", message)
-}
+// The display* methods bind the engine's renderers to the REPL's stdout and
+// diagram so the run loop and the renderer tests share one rendering.
+func (r *repl) displayError(message string) { animation.RenderError(r.stdout, message) }
 
-func (r *repl) displayEmptyLine() {
-	_, _ = fmt.Fprintln(r.stdout)
-}
+func (r *repl) displayEmptyLine() { animation.RenderEmptyLine(r.stdout) }
 
 func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group csdf.State, guard, post string) {
-	if previous == nil {
-		_, _ = fmt.Fprintln(r.stdout, "State: (none)")
-	} else {
-		_, _ = fmt.Fprintf(r.stdout, "State: %s (%s)\n", previous.Name, previous.ID)
-		r.displayStateValues(previous.Values, "  ")
-	}
-	_, _ = fmt.Fprintln(r.stdout)
-
-	_, _ = fmt.Fprintln(r.stdout, "Guard:")
-	_, _ = fmt.Fprintf(r.stdout, "  %s\n\n", displayCondition(guard))
-
-	_, _ = fmt.Fprintln(r.stdout, "Post State Group:")
-	_, _ = fmt.Fprintf(r.stdout, "  %s\n", group.Name)
-	for _, variable := range group.Vars {
-		variableType := variable.Type
-		if variableType == "" {
-			variableType = "any"
-		}
-		_, _ = fmt.Fprintf(r.stdout, "    %s' as %s\n", variable.Name, variableType)
-	}
-	_, _ = fmt.Fprintln(r.stdout)
-
-	_, _ = fmt.Fprintln(r.stdout, "Post Condition:")
-	_, _ = fmt.Fprintf(r.stdout, "  %s\n\n", displayCondition(post))
-	_, _ = fmt.Fprintln(r.stdout, "Enter state variable values as a JSON array.")
-	_, _ = fmt.Fprintln(r.stdout)
+	animation.RenderStateValuePrompt(r.stdout, previous, group, guard, post)
 }
 
 func (r *repl) displayState(state csdf.RuntimeState) {
-	edges := r.outgoing(state.ID)
-	_, _ = fmt.Fprintf(r.stdout, "State: %s (%s)\n", state.Name, state.ID)
-	if len(edges) > 0 {
-		_, _ = fmt.Fprintln(r.stdout)
-	}
-	_, _ = fmt.Fprintln(r.stdout, "Values:")
-	if len(state.Values) == 0 {
-		_, _ = fmt.Fprintln(r.stdout, "  (none)")
-	}
-	r.displayStateValues(state.Values, "  ")
-	_, _ = fmt.Fprintln(r.stdout)
-
-	if len(edges) == 0 {
-		_, _ = fmt.Fprintln(r.stdout, "Deadlock: no outgoing transitions.")
-		_, _ = fmt.Fprintln(r.stdout)
-		return
-	}
-	_, _ = fmt.Fprintln(r.stdout, "Transitions:")
-	for i, edge := range edges {
-		destination := r.diagram.States[edge.Dst]
-		_, _ = fmt.Fprintf(r.stdout, "  [%d] %s -> %s (%s)\n", i, edge.Event, destination.Name, edge.Dst)
-		_, _ = fmt.Fprintf(r.stdout, "      Guard: %s\n", displayCondition(edge.Guard))
-		_, _ = fmt.Fprintf(r.stdout, "      Post: %s\n", displayCondition(edge.Post))
-		_, _ = fmt.Fprintln(r.stdout)
-	}
+	animation.RenderState(r.stdout, r.diagram, state)
 }
 
-func (r *repl) displayStateValues(values []csdf.StateValue, indent string) {
-	for _, value := range values {
-		_, _ = fmt.Fprintf(r.stdout, "%s%s = %s\n", indent, value.Name, encodeJSON(value.Value))
-	}
-}
+func (r *repl) displayTrace(trace []csdf.Event) { animation.RenderTrace(r.stdout, trace) }
 
-func encodeJSON(value any) string {
-	encoded, _ := json.Marshal(value)
-	return string(encoded)
-}
+func (r *repl) displayHistory(history []HistoryEntry) { animation.RenderHistory(r.stdout, history) }
 
-func displayCondition(condition string) string {
-	if condition == "" {
-		return csdf.True
-	}
-	return condition
-}
-
-func (r *repl) displayTrace(trace []csdf.Event) {
-	encoded, err := json.MarshalIndent(trace, "", "  ")
-	if err != nil {
-		r.displayError(fmt.Sprintf("encoding trace: %v", err))
-		return
-	}
-	indented := strings.ReplaceAll(string(encoded), "\n", "\n  ")
-	_, _ = fmt.Fprintf(r.stdout, "Trace:\n  %s\n\n", indented)
-}
-
-func (r *repl) displayHistory(history []HistoryEntry) {
-	_, _ = fmt.Fprintln(r.stdout, "History:")
-	for i, entry := range history {
-		_, _ = fmt.Fprintf(r.stdout, "  [%d] Trace:\n", i)
-		for _, event := range entry.Trace {
-			_, _ = fmt.Fprintf(r.stdout, "        %s\n", event)
-		}
-		_, _ = fmt.Fprintln(r.stdout)
-		_, _ = fmt.Fprintln(r.stdout, "      State:")
-		_, _ = fmt.Fprintf(r.stdout, "        %s\n", entry.State.Name)
-		r.displayStateValues(entry.State.Values, "          ")
-		_, _ = fmt.Fprintln(r.stdout)
-	}
-}
-
-func (r *repl) displayHelp() {
-	_, _ = fmt.Fprintln(r.stdout, "Commands:")
-	_, _ = fmt.Fprintln(r.stdout, "  l         list the current state and transitions")
-	_, _ = fmt.Fprintln(r.stdout, "  t         display the current trace")
-	_, _ = fmt.Fprintln(r.stdout, "  h         display history")
-	_, _ = fmt.Fprintln(r.stdout, "  s INDEX   select a transition")
-	_, _ = fmt.Fprintln(r.stdout, "  j INDEX   jump to a history entry")
-	_, _ = fmt.Fprintln(r.stdout, "  ?, help   display this help")
-	_, _ = fmt.Fprintln(r.stdout)
-}
-
-func (r *repl) outgoing(stateID csdf.StateID) []csdf.Edge {
-	var edges []csdf.Edge
-	for _, edge := range r.diagram.Edges {
-		if edge.Src == stateID {
-			edges = append(edges, edge)
-		}
-	}
-	return edges
-}
-
-func (r *repl) currentTrace() []csdf.Event {
-	if len(r.history) == 0 {
-		return nil
-	}
-	return r.history[len(r.history)-1].Trace
-}
-
-func cloneHistoryEntry(entry HistoryEntry) HistoryEntry {
-	entry.State.Values = append([]csdf.StateValue{}, entry.State.Values...)
-	entry.Trace = append([]csdf.Event{}, entry.Trace...)
-	return entry
-}
+func (r *repl) displayHelp() { animation.RenderHelp(r.stdout) }
 
 type commandKind int
 
