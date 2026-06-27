@@ -70,22 +70,28 @@ End edges (`state --> [*]`) are not currently supported.
 
 ## Livelock freedom
 
-`csdflivelockfree` verifies that a single CSDF diagram is livelock free, i.e. has
-no divergence: no cycle reachable from the start state consisting entirely of
-internal `tau` transitions. The analysis is purely structural over event labels;
-natural-language guards and postconditions are not evaluated, so a diagram with no
-`tau` edges is trivially livelock free.
+`csdflivelockfree` emits a proof-obligation IR for the livelock freedom of a single
+CSDF diagram and exits 0. Livelock freedom — no divergence: no reachable cycle of
+internal `tau` transitions that can actually run forever — depends on the
+natural-language guards and postconditions, which this tool does not interpret. So
+rather than decide the verdict via exit status, it produces a prover-agnostic JSON
+obligation that leaves each predicate opaque as a line-named symbol (`Guard_L<line>`,
+`Post_L<line>`, `Init`) to be discharged downstream.
 
 ```console
 $ csdflivelockfree examples/valid/vending_machine.puml
-livelock free
+{"goal":"livelock_free","structurally_livelock_free":true,"states":[...],...}
 $ csdfparallel a.puml b.puml | csdflivelockfree -
 ```
 
-When the diagram is livelock free it prints `livelock free` and exits 0. Otherwise
-it prints a witness — the path from the start state into the offending `tau` cycle,
-followed by the cycle itself — and exits non-zero. A file argument, a `-` argument,
-and stdin are all equivalent.
+The IR describes the state space as an ADT (one constructor per state, fields from
+its variables), the transitions, the initial predicate, and the opaque predicate
+symbols with their argument signatures. `structurally_livelock_free` is `true` when
+no reachable `tau` cycle exists, in which case the obligation holds regardless of the
+predicates. A file argument, a `-` argument, and stdin are all equivalent.
+
+Turning the natural-language predicates into formal definitions and generating Lean
+or Isabelle source from the IR are separate steps, out of scope for this tool.
 
 ## Interactive exploration
 
