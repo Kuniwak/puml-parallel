@@ -251,6 +251,7 @@ func (p *Parser) parseStateName() (string, error) {
 }
 
 func (p *Parser) parseStartEdge() (StartEdge, error) {
+	line := p.line
 	if !p.expectString("[*]") {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected '[*]' at line %d, col %d", p.line, p.col)
 	}
@@ -292,10 +293,12 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 	return StartEdge{
 		Dst:  StateID(dst),
 		Post: post,
+		Line: line,
 	}, nil
 }
 
 func (p *Parser) parseEdge() (Edge, error) {
+	line := p.line
 	src, err := p.parseID()
 	if err != nil {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
@@ -372,6 +375,7 @@ func (p *Parser) parseEdge() (Edge, error) {
 		Event: event,
 		Guard: guard,
 		Post:  post,
+		Line:  line,
 	}, nil
 }
 

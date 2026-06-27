@@ -285,6 +285,40 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 	// Teardown: no resources to release.
 }
 
+func TestParseRecordsEdgeLine(t *testing.T) {
+	// Setup: each edge sits on a known source line.
+	parser := NewParser(`@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : tau
+b --> a : e1
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if diagram.StartEdge.Line != 4 {
+		t.Errorf("Parse() start edge line = %d, want 4", diagram.StartEdge.Line)
+	}
+	if len(diagram.Edges) != 2 {
+		t.Fatalf("Parse() edges = %#v, want two edges", diagram.Edges)
+	}
+	if diagram.Edges[0].Line != 5 {
+		t.Errorf("Parse() edges[0] line = %d, want 5", diagram.Edges[0].Line)
+	}
+	if diagram.Edges[1].Line != 6 {
+		t.Errorf("Parse() edges[1] line = %d, want 6", diagram.Edges[1].Line)
+	}
+
+	// Teardown: no resources to release.
+}
+
 func TestParseFreeFormEvents(t *testing.T) {
 	tests := []struct {
 		name      string

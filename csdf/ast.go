@@ -40,6 +40,7 @@ type State struct {
 type StartEdge struct {
 	Dst  StateID `json:"dst"`
 	Post string  `json:"post"`
+	Line int     `json:"-"` // 1-based source line of the start edge.
 }
 
 type Edge struct {
@@ -48,6 +49,7 @@ type Edge struct {
 	Event Event   `json:"event"`
 	Guard string  `json:"guard"`
 	Post  string  `json:"post"`
+	Line  int     `json:"-"` // 1-based source line of the transition.
 }
 
 type EndEdge struct {

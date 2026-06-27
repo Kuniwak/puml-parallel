@@ -4,7 +4,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
+
+// ignoreEdgeLine drops the source-line field when comparing witness edges, which
+// is positional metadata rather than part of the livelock witness identity.
+var ignoreEdgeLine = cmpopts.IgnoreFields(Edge{}, "Line")
 
 func TestCheckLivelockFreeReportsFreeWhenNoTauEdges(t *testing.T) {
 	// Setup: a visible-only chain has no tau edges, so it is livelock free.
@@ -47,7 +52,7 @@ s0 --> s0 : tau
 	if ok {
 		t.Error("want livelock detected, got livelock free")
 	}
-	if diff := cmp.Diff(want, witness); diff != "" {
+	if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -76,7 +81,7 @@ b --> a : tau
 	if ok {
 		t.Error("want livelock detected, got livelock free")
 	}
-	if diff := cmp.Diff(want, witness); diff != "" {
+	if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -151,7 +156,7 @@ sb --> sa : tau
 	if ok {
 		t.Error("want livelock detected, got livelock free")
 	}
-	if diff := cmp.Diff(want, witness); diff != "" {
+	if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -188,7 +193,7 @@ b1 --> b0 : tau
 		if ok {
 			t.Fatal("want livelock detected, got livelock free")
 		}
-		if diff := cmp.Diff(want, witness); diff != "" {
+		if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 			t.Fatal(diff)
 		}
 	}
