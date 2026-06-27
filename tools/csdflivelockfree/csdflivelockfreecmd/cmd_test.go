@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
@@ -15,7 +15,7 @@ import (
 
 // runAndDecode runs the command and decodes stdout as an ObligationIR, asserting a
 // zero exit status and empty stderr.
-func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) csdf.ObligationIR {
+func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) obligationir.ObligationIR {
 	t.Helper()
 	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
 	if exitStatus != 0 {
@@ -24,7 +24,7 @@ func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) csdf.Oblig
 	if spy.Stderr.String() != "" {
 		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
 	}
-	var ir csdf.ObligationIR
+	var ir obligationir.ObligationIR
 	if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
 		t.Fatalf("stdout is not valid ObligationIR JSON: %v\n%s", err, spy.Stdout.String())
 	}
@@ -80,7 +80,7 @@ a --> a : tau ; False ; True
 	if ir.StructurallyLivelockFree {
 		t.Error("want structurally_livelock_free false (the tau self-loop is a candidate)")
 	}
-	var guard *csdf.IRPredicate
+	var guard *obligationir.IRPredicate
 	for i := range ir.Predicates {
 		if ir.Predicates[i].Sym == "Guard_L4" {
 			guard = &ir.Predicates[i]

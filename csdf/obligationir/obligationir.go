@@ -1,8 +1,10 @@
-package csdf
+package obligationir
 
 import (
 	"fmt"
 	"sort"
+
+	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 // ObligationIR is a prover-agnostic intermediate representation of the proof
@@ -81,8 +83,8 @@ type IRInit struct {
 // structural τ-cycle check (CheckLivelockFree) is used only to set
 // StructurallyLivelockFree; the obligation itself is the global property and does
 // not depend on a particular witness.
-func BuildObligationIR(d *Diagram) ObligationIR {
-	_, free := CheckLivelockFree(d)
+func BuildObligationIR(d *csdf.Diagram) ObligationIR {
+	_, free := csdf.CheckLivelockFree(d)
 
 	ir := ObligationIR{
 		Goal:                     "livelock_free",
@@ -132,7 +134,7 @@ func BuildObligationIR(d *Diagram) ObligationIR {
 			Src:         string(e.Src),
 			Dst:         string(e.Dst),
 			Event:       string(e.Event),
-			Tau:         e.Event == Tau,
+			Tau:         e.Event == csdf.Tau,
 			EventParams: []IRArg{},
 			Guard:       guardSym,
 			Post:        postSym,
@@ -159,12 +161,12 @@ func BuildObligationIR(d *Diagram) ObligationIR {
 // which renders as the literal True rather than an opaque symbol. The capitalised
 // "True"/"False" written by an author are ordinary natural-language predicates.
 func isDefaultPred(s string) bool {
-	return s == "" || s == True
+	return s == "" || s == csdf.True
 }
 
 // varsAsArgs renders a state's variables as predicate arguments, marking them
 // primed when they refer to the post-state.
-func varsAsArgs(d *Diagram, id StateID, primed bool) []IRArg {
+func varsAsArgs(d *csdf.Diagram, id csdf.StateID, primed bool) []IRArg {
 	st, ok := d.States[id]
 	if !ok {
 		return []IRArg{}
@@ -176,8 +178,8 @@ func varsAsArgs(d *Diagram, id StateID, primed bool) []IRArg {
 	return args
 }
 
-func sortedStateMapIDs(states map[StateID]State) []StateID {
-	ids := make([]StateID, 0, len(states))
+func sortedStateMapIDs(states map[csdf.StateID]csdf.State) []csdf.StateID {
+	ids := make([]csdf.StateID, 0, len(states))
 	for id := range states {
 		ids = append(ids, id)
 	}

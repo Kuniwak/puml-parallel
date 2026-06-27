@@ -1,10 +1,20 @@
-package csdf
+package obligationir
 
 import (
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/google/go-cmp/cmp"
 )
+
+func mustParse(t *testing.T, input string) *csdf.Diagram {
+	t.Helper()
+	d, err := csdf.ParseDiagram([]byte(input))
+	if err != nil {
+		t.Fatalf("ParseDiagram() error = %v", err)
+	}
+	return d
+}
 
 func TestBuildObligationIRTauSelfLoopWithVars(t *testing.T) {
 	// Setup: a guarded tau self-loop carrying a state variable. The cycle is a
