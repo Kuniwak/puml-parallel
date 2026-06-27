@@ -25,9 +25,12 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			w := flags.Output()
 			fmt.Fprintf(w, `Usage: csdflivelockfree [options] [file.puml|file.png]
 
-Verifies that a Composable State Diagram is livelock free, i.e. has no cycle
-reachable from the start state consisting entirely of internal "tau" transitions.
-Prints "livelock free" and exits 0 when free; otherwise prints a witness and exits 1.
+Emits a JSON proof-obligation IR for livelock freedom of a Composable State
+Diagram and exits 0. Whether the diagram is livelock free depends on the
+natural-language Guard/Post predicates, which this tool leaves opaque as
+line-named symbols (Guard_L<line>, Post_L<line>, Init). Discharging the
+obligation and generating Lean/Isabelle source from the IR are separate steps.
+The IR sets structurally_livelock_free=true when no reachable "tau" cycle exists.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:

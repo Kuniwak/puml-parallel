@@ -1,17 +1,13 @@
 package csdflivelockfreecmd
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/version"
 )
-
-// ErrLivelockDetected is returned when the diagram is not livelock free. The CLI
-// layer turns it into a non-zero exit status; the witness is printed to stdout.
-var ErrLivelockDetected = errors.New("livelock detected")
 
 func NewMainFunc() cli.MainFunc[*Options] {
 	return func(opts *Options, inout *cli.ProcInout) error {
@@ -28,13 +24,12 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", err)
 		}
 
-		witness, ok := csdf.CheckLivelockFree(diagram)
-		if ok {
-			fmt.Fprintln(inout.Stdout, "livelock free")
-			return nil
+		// Emit the proof-obligation IR and exit 0. Livelock freedom depends on the
+		// natural-language predicates, which this tool does not interpret, so it
+		// never decides the verdict via exit status.
+		if err := json.NewEncoder(inout.Stdout).Encode(csdf.BuildObligationIR(diagram)); err != nil {
+			return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", err)
 		}
-
-		fmt.Fprint(inout.Stdout, csdf.RenderLivelock(witness))
-		return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", ErrLivelockDetected)
+		return nil
 	}
 }
