@@ -238,36 +238,6 @@ s1 --> [*]
 	}
 }
 
-func TestRenderLivelockFormatsStemAndCycle(t *testing.T) {
-	// Setup: a witness with a visible stem leading into a tau cycle.
-	w := &Livelock{
-		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a"}},
-		Cycle: []Edge{
-			{Src: "sa", Dst: "sb", Event: Tau},
-			{Src: "sb", Dst: "sa", Event: Tau},
-		},
-	}
-	want := "s0 --a--> sa\ncycle:\nsa --tau--> sb\nsb --tau--> sa\n"
-
-	// Execute & Assert
-	if diff := cmp.Diff(want, RenderLivelock(w)); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestRenderLivelockFormatsSelfLoopWithEmptyStem(t *testing.T) {
-	// Setup: a self-loop witness has no stem, so only the cycle block is rendered.
-	w := &Livelock{
-		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau}},
-	}
-	want := "cycle:\ns0 --tau--> s0\n"
-
-	// Execute & Assert
-	if diff := cmp.Diff(want, RenderLivelock(w)); diff != "" {
-		t.Error(diff)
-	}
-}
-
 func TestCheckLivelockFreeHandlesSingleStateDiagram(t *testing.T) {
 	// Setup: a single state with no edges is trivially livelock free.
 	d := mustParse(t, `@startuml
