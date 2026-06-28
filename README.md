@@ -102,7 +102,9 @@ a `tau_step` relation, then states the livelock-freedom theorem (well-foundednes
 `tau_step`) left as `sorry`/`oops`. Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
 predicate becomes a `True` placeholder definition preceded by a comment carrying its
 original natural-language text, so a human or LLM can fill in the real predicate body and
-discharge the proof.
+discharge the proof. State-variable values are arbitrary JSON, so each variable is typed
+with a generated `json` datatype (floats folded into the integer case for now); any
+declared `; Type` annotation is preserved as a comment on the state constructor.
 
 ## Compiling the obligation IR separately
 
