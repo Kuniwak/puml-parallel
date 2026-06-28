@@ -90,8 +90,30 @@ symbols with their argument signatures. `structurally_livelock_free` is `true` w
 no reachable `tau` cycle exists, in which case the obligation holds regardless of the
 predicates. A file argument, a `-` argument, and stdin are all equivalent.
 
-Turning the natural-language predicates into formal definitions and generating Lean
-or Isabelle source from the IR are separate steps, out of scope for this tool.
+Turning the natural-language predicates into formal definitions remains a manual (or
+LLM-assisted) step, but `obligationirc` compiles the IR into a Lean or Isabelle
+proof-obligation skeleton to start from.
+
+## Compiling the obligation IR
+
+`obligationirc` reads the JSON IR (from `csdflivelockfree`, or a file) and compiles it
+to the target chosen by `-target`:
+
+- `ir-json` (default) — the IR itself, re-encoded as JSON.
+- `isabelle` — an Isabelle/HOL proof-obligation skeleton.
+- `lean` — a Lean 4 proof-obligation skeleton.
+
+```console
+$ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target lean
+$ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target isabelle
+```
+
+For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT
+and a `tau_step` relation, then states the livelock-freedom theorem (well-foundedness
+of `tau_step`) left as `sorry`/`oops`. Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
+predicate becomes a `True` placeholder definition preceded by a comment carrying its
+original natural-language text, so a human or LLM can fill in the real predicate body
+and discharge the proof. A file argument, a `-` argument, and stdin are all equivalent.
 
 ## Interactive exploration
 
