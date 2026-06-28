@@ -83,6 +83,39 @@ end
 	}
 }
 
+func TestCompileUntypedVariableUsesPlaceholderType(t *testing.T) {
+	// An untyped state variable must not produce " ⇒ bool"; a placeholder type is
+	// declared and used so the skeleton parses.
+	got := compile(t, `@startuml
+state "a" as a
+a: n
+[*] --> a
+a --> a : tau ; n > 0 ; n' = n - 1
+@enduml
+`)
+
+	want := `theory Livelock_Obligation imports Main begin
+(* structurally_livelock_free: false *)
+typedecl val (* placeholder for untyped state variables *)
+datatype st = a val
+
+(* "n > 0" *)
+definition Guard_L5 :: "val ⇒ bool" where "Guard_L5 n ≡ True"
+(* "n' = n - 1" *)
+definition Post_L5 :: "val ⇒ val ⇒ bool" where "Post_L5 n n' ≡ True"
+
+definition tau_step :: "st ⇒ st ⇒ bool" where
+  "tau_step s s' ≡ ∃n n'. s = a n ∧ s' = a n' ∧ Guard_L5 n ∧ Post_L5 n n'"
+
+theorem livelock_free: "wf {(s', s). tau_step s s'}"
+  oops
+end
+`
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestCompileMultipleTauEdgesAreParenthesisedDisjuncts(t *testing.T) {
 	// Two tau edges become a parenthesised disjunction inside the where-clause so
 	// neither existential captures the other's clause.

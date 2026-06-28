@@ -20,6 +20,9 @@ func Compile(w io.Writer, ir obligationir.ObligationIR) error {
 	b.WriteString("theory Livelock_Obligation imports Main begin\n")
 	fmt.Fprintf(&b, "(* structurally_livelock_free: %t *)\n", ir.StructurallyLivelockFree)
 
+	if hasUntyped(ir) {
+		b.WriteString("typedecl val (* placeholder for untyped state variables *)\n")
+	}
 	ctors := make([]string, 0, len(ir.States))
 	for _, st := range ir.States {
 		c := st.Ctor
@@ -172,6 +175,8 @@ func argName(a obligationir.IRArg) string {
 // through verbatim for the reader to adjust.
 func isaType(t string) string {
 	switch t {
+	case "":
+		return "val"
 	case "nat", "Nat":
 		return "nat"
 	case "bool", "Bool":
@@ -181,6 +186,19 @@ func isaType(t string) string {
 	default:
 		return t
 	}
+}
+
+// hasUntyped reports whether any state variable lacks a declared type, in which case
+// a placeholder type is introduced so the skeleton still parses.
+func hasUntyped(ir obligationir.ObligationIR) bool {
+	for _, st := range ir.States {
+		for _, f := range st.Fields {
+			if f.Type == "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // comment renders a natural-language predicate text as a single quoted span safe to

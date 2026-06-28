@@ -18,6 +18,9 @@ func Compile(w io.Writer, ir obligationir.ObligationIR) error {
 
 	fmt.Fprintf(&b, "-- structurally_livelock_free: %t\n", ir.StructurallyLivelockFree)
 
+	if hasUntyped(ir) {
+		b.WriteString("axiom Val : Type -- placeholder for untyped state variables\n")
+	}
 	b.WriteString("inductive St where\n")
 	for _, st := range ir.States {
 		b.WriteString("  | " + st.Ctor)
@@ -156,6 +159,8 @@ func argName(a obligationir.IRArg) string {
 // verbatim for the reader to adjust.
 func leanType(t string) string {
 	switch t {
+	case "":
+		return "Val"
 	case "nat", "Nat":
 		return "Nat"
 	case "bool", "Bool":
@@ -165,6 +170,19 @@ func leanType(t string) string {
 	default:
 		return t
 	}
+}
+
+// hasUntyped reports whether any state variable lacks a declared type, in which case
+// a placeholder type is introduced so the skeleton still parses.
+func hasUntyped(ir obligationir.ObligationIR) bool {
+	for _, st := range ir.States {
+		for _, f := range st.Fields {
+			if f.Type == "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // sanitizeComment collapses newlines so a multi-line predicate text stays on one

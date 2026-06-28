@@ -111,6 +111,38 @@ theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
 	}
 }
 
+func TestCompileUntypedVariableUsesPlaceholderType(t *testing.T) {
+	// An untyped state variable must not produce "(n : )"; a placeholder type is
+	// declared and used so the skeleton parses.
+	got := compile(t, `@startuml
+state "a" as a
+a: n
+[*] --> a
+a --> a : tau ; n > 0 ; n' = n - 1
+@enduml
+`)
+
+	want := `-- structurally_livelock_free: false
+axiom Val : Type -- placeholder for untyped state variables
+inductive St where
+  | a (n : Val)
+
+-- "n > 0"
+def Guard_L5 (n : Val) : Prop := True
+-- "n' = n - 1"
+def Post_L5 (n : Val) (n' : Val) : Prop := True
+
+def tauStep (s s' : St) : Prop :=
+  ∃ n n', s = .a n ∧ s' = .a n' ∧ Guard_L5 n ∧ Post_L5 n n'
+
+theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+  sorry
+`
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestCompileEscapesNewlineInPredicateText(t *testing.T) {
 	// A multi-line natural-language predicate must stay on a single comment line.
 	got := compile(t, `@startuml
