@@ -86,7 +86,7 @@ func TestNewMainFuncIsabelleTarget(t *testing.T) {
 	for _, want := range []string{
 		"theory Livelock_Obligation imports Main begin",
 		`(* "n > 0" *)`,
-		`definition Guard_L5 :: "nat ⇒ bool" where "Guard_L5 n ≡ True"`,
+		`definition Guard_L5 :: "json ⇒ bool" where "Guard_L5 n ≡ True"`,
 		`theorem livelock_free: "wf {(s', s). tau_step s s'}"`,
 	} {
 		if !strings.Contains(out, want) {

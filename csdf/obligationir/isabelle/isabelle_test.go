@@ -37,12 +37,14 @@ a --> a : tau ; n > 0 ; n' = n - 1
 
 	want := `theory Livelock_Obligation imports Main begin
 (* structurally_livelock_free: false *)
-datatype st = a nat
+datatype json = JSONInt int | JSONString string | JSONBool bool | JSONArray "json list" | JSONDict "(string × json) list"
+datatype st =
+    a json (* declared: Nat *)
 
 (* "n > 0" *)
-definition Guard_L5 :: "nat ⇒ bool" where "Guard_L5 n ≡ True"
+definition Guard_L5 :: "json ⇒ bool" where "Guard_L5 n ≡ True"
 (* "n' = n - 1" *)
-definition Post_L5 :: "nat ⇒ nat ⇒ bool" where "Post_L5 n n' ≡ True"
+definition Post_L5 :: "json ⇒ json ⇒ bool" where "Post_L5 n n' ≡ True"
 
 definition tau_step :: "st ⇒ st ⇒ bool" where
   "tau_step s s' ≡ ∃n n'. s = a n ∧ s' = a n' ∧ Guard_L5 n ∧ Post_L5 n n'"
@@ -69,7 +71,9 @@ s0 --> s1 : a
 
 	want := `theory Livelock_Obligation imports Main begin
 (* structurally_livelock_free: true *)
-datatype st = s0 | s1
+datatype st =
+    s0
+  | s1
 
 definition tau_step :: "st ⇒ st ⇒ bool" where
   "tau_step s s' ≡ False"
@@ -83,9 +87,9 @@ end
 	}
 }
 
-func TestCompileUntypedVariableUsesPlaceholderType(t *testing.T) {
-	// An untyped state variable must not produce " ⇒ bool"; a placeholder type is
-	// declared and used so the skeleton parses.
+func TestCompileUntypedVariableIsJson(t *testing.T) {
+	// An untyped state variable is still a json value; no declared-type comment is
+	// emitted because nothing was declared.
 	got := compile(t, `@startuml
 state "a" as a
 a: n
@@ -96,13 +100,14 @@ a --> a : tau ; n > 0 ; n' = n - 1
 
 	want := `theory Livelock_Obligation imports Main begin
 (* structurally_livelock_free: false *)
-typedecl val (* placeholder for untyped state variables *)
-datatype st = a val
+datatype json = JSONInt int | JSONString string | JSONBool bool | JSONArray "json list" | JSONDict "(string × json) list"
+datatype st =
+    a json
 
 (* "n > 0" *)
-definition Guard_L5 :: "val ⇒ bool" where "Guard_L5 n ≡ True"
+definition Guard_L5 :: "json ⇒ bool" where "Guard_L5 n ≡ True"
 (* "n' = n - 1" *)
-definition Post_L5 :: "val ⇒ val ⇒ bool" where "Post_L5 n n' ≡ True"
+definition Post_L5 :: "json ⇒ json ⇒ bool" where "Post_L5 n n' ≡ True"
 
 definition tau_step :: "st ⇒ st ⇒ bool" where
   "tau_step s s' ≡ ∃n n'. s = a n ∧ s' = a n' ∧ Guard_L5 n ∧ Post_L5 n n'"
@@ -130,7 +135,9 @@ b --> a : tau
 
 	want := `theory Livelock_Obligation imports Main begin
 (* structurally_livelock_free: false *)
-datatype st = a | b
+datatype st =
+    a
+  | b
 
 definition tau_step :: "st ⇒ st ⇒ bool" where
   "tau_step s s' ≡

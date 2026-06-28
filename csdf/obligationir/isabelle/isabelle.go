@@ -20,27 +20,32 @@ func Compile(w io.Writer, ir obligationir.ObligationIR) error {
 	b.WriteString("theory Livelock_Obligation imports Main begin\n")
 	fmt.Fprintf(&b, "(* structurally_livelock_free: %t *)\n", ir.StructurallyLivelockFree)
 
-	if hasUntyped(ir) {
-		b.WriteString("typedecl val (* placeholder for untyped state variables *)\n")
+	if hasVars(ir) {
+		b.WriteString(jsonPrelude)
 	}
-	ctors := make([]string, 0, len(ir.States))
-	for _, st := range ir.States {
-		c := st.Ctor
-		for _, f := range st.Fields {
-			c += " " + isaType(f.Type)
+	b.WriteString("datatype st =")
+	for i, st := range ir.States {
+		if i == 0 {
+			b.WriteString("\n    " + st.Ctor)
+		} else {
+			b.WriteString("\n  | " + st.Ctor)
 		}
-		ctors = append(ctors, c)
+		for range st.Fields {
+			b.WriteString(" json")
+		}
+		if c := declaredComment(st); c != "" {
+			b.WriteString(" (* declared: " + c + " *)")
+		}
 	}
-	b.WriteString("datatype st = " + strings.Join(ctors, " | ") + "\n")
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	for _, p := range ir.Predicates {
 		fmt.Fprintf(&b, "(* %s *)\n", comment(p.Text))
 		sig := "bool"
 		if len(p.Args) > 0 {
-			types := make([]string, 0, len(p.Args))
-			for _, a := range p.Args {
-				types = append(types, isaType(a.Type))
+			types := make([]string, len(p.Args))
+			for i := range p.Args {
+				types[i] = "json"
 			}
 			sig = strings.Join(types, " ⇒ ") + " ⇒ bool"
 		}
@@ -171,34 +176,43 @@ func argName(a obligationir.IRArg) string {
 	return a.Name
 }
 
-// isaType maps an IR type name to its Isabelle/HOL spelling, passing unknown types
-// through verbatim for the reader to adjust.
-func isaType(t string) string {
-	switch t {
-	case "":
-		return "val"
-	case "nat", "Nat":
-		return "nat"
-	case "bool", "Bool":
-		return "bool"
-	case "int", "Int":
-		return "int"
-	default:
-		return t
-	}
-}
+// jsonPrelude is the value type of every state variable: csdfrepl state-var values are
+// arbitrary JSON, so each variable is a json. Floats are folded into JSONInt for now.
+const jsonPrelude = `datatype json = JSONInt int | JSONString string | JSONBool bool | JSONArray "json list" | JSONDict "(string × json) list"
+`
 
-// hasUntyped reports whether any state variable lacks a declared type, in which case
-// a placeholder type is introduced so the skeleton still parses.
-func hasUntyped(ir obligationir.ObligationIR) bool {
+// hasVars reports whether any state has a variable, in which case the json datatype is
+// emitted (otherwise it would be unused).
+func hasVars(ir obligationir.ObligationIR) bool {
 	for _, st := range ir.States {
-		for _, f := range st.Fields {
-			if f.Type == "" {
-				return true
-			}
+		if len(st.Fields) > 0 {
+			return true
 		}
 	}
 	return false
+}
+
+// declaredComment renders the state's original declared variable types, positionally and
+// comma-joined (an undeclared field shows as "any"). It returns "" when nothing was
+// declared, so no comment is emitted.
+func declaredComment(st obligationir.IRState) string {
+	if len(st.Fields) == 0 {
+		return ""
+	}
+	declared := false
+	parts := make([]string, len(st.Fields))
+	for i, f := range st.Fields {
+		if f.Type != "" {
+			declared = true
+			parts[i] = f.Type
+		} else {
+			parts[i] = "any"
+		}
+	}
+	if !declared {
+		return ""
+	}
+	return strings.Join(parts, ", ")
 }
 
 // comment renders a natural-language predicate text as a single quoted span safe to
