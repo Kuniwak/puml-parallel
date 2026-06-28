@@ -36,13 +36,20 @@ a --> a : tau ; n > 0 ; n' = n - 1
 `)
 
 	want := `-- structurally_livelock_free: false
+inductive Json where
+  | JSONInt (i : Int)
+  | JSONString (s : String)
+  | JSONBool (b : Bool)
+  | JSONArray (xs : List Json)
+  | JSONDict (kvs : List (String × Json))
+
 inductive St where
-  | a (n : Nat)
+  | a (n : Json) -- declared: Nat
 
 -- "n > 0"
-def Guard_L5 (n : Nat) : Prop := True
+def Guard_L5 (n : Json) : Prop := True
 -- "n' = n - 1"
-def Post_L5 (n : Nat) (n' : Nat) : Prop := True
+def Post_L5 (n : Json) (n' : Json) : Prop := True
 
 def tauStep (s s' : St) : Prop :=
   ∃ n n', s = .a n ∧ s' = .a n' ∧ Guard_L5 n ∧ Post_L5 n n'
@@ -111,9 +118,9 @@ theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
 	}
 }
 
-func TestCompileUntypedVariableUsesPlaceholderType(t *testing.T) {
-	// An untyped state variable must not produce "(n : )"; a placeholder type is
-	// declared and used so the skeleton parses.
+func TestCompileUntypedVariableIsJson(t *testing.T) {
+	// An untyped state variable is still a Json value; no declared-type comment is
+	// emitted because nothing was declared.
 	got := compile(t, `@startuml
 state "a" as a
 a: n
@@ -123,14 +130,20 @@ a --> a : tau ; n > 0 ; n' = n - 1
 `)
 
 	want := `-- structurally_livelock_free: false
-axiom Val : Type -- placeholder for untyped state variables
+inductive Json where
+  | JSONInt (i : Int)
+  | JSONString (s : String)
+  | JSONBool (b : Bool)
+  | JSONArray (xs : List Json)
+  | JSONDict (kvs : List (String × Json))
+
 inductive St where
-  | a (n : Val)
+  | a (n : Json)
 
 -- "n > 0"
-def Guard_L5 (n : Val) : Prop := True
+def Guard_L5 (n : Json) : Prop := True
 -- "n' = n - 1"
-def Post_L5 (n : Val) (n' : Val) : Prop := True
+def Post_L5 (n : Json) (n' : Json) : Prop := True
 
 def tauStep (s s' : St) : Prop :=
   ∃ n n', s = .a n ∧ s' = .a n' ∧ Guard_L5 n ∧ Post_L5 n n'

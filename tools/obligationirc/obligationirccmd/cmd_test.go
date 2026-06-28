@@ -67,7 +67,7 @@ func TestNewMainFuncLeanTarget(t *testing.T) {
 	for _, want := range []string{
 		"inductive St where",
 		`-- "n > 0"`,
-		"def Guard_L5 (n : Nat) : Prop := True",
+		"def Guard_L5 (n : Json) : Prop := True",
 		"theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
 	} {
 		if !strings.Contains(out, want) {

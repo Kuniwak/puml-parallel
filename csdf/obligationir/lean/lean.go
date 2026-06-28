@@ -18,14 +18,17 @@ func Compile(w io.Writer, ir obligationir.ObligationIR) error {
 
 	fmt.Fprintf(&b, "-- structurally_livelock_free: %t\n", ir.StructurallyLivelockFree)
 
-	if hasUntyped(ir) {
-		b.WriteString("axiom Val : Type -- placeholder for untyped state variables\n")
+	if hasVars(ir) {
+		b.WriteString(jsonPrelude)
 	}
 	b.WriteString("inductive St where\n")
 	for _, st := range ir.States {
 		b.WriteString("  | " + st.Ctor)
 		for _, f := range st.Fields {
-			fmt.Fprintf(&b, " (%s : %s)", f.Name, leanType(f.Type))
+			fmt.Fprintf(&b, " (%s : Json)", f.Name)
+		}
+		if c := declaredComment(st); c != "" {
+			b.WriteString(" -- declared: " + c)
 		}
 		b.WriteString("\n")
 	}
@@ -35,7 +38,7 @@ func Compile(w io.Writer, ir obligationir.ObligationIR) error {
 		fmt.Fprintf(&b, "-- %q\n", sanitizeComment(p.Text))
 		b.WriteString("def " + p.Sym)
 		for _, a := range p.Args {
-			fmt.Fprintf(&b, " (%s : %s)", argName(a), leanType(a.Type))
+			fmt.Fprintf(&b, " (%s : Json)", argName(a))
 		}
 		b.WriteString(" : Prop := True\n")
 	}
@@ -155,34 +158,49 @@ func argName(a obligationir.IRArg) string {
 	return a.Name
 }
 
-// leanType maps an IR type name to its Lean spelling, passing unknown types through
-// verbatim for the reader to adjust.
-func leanType(t string) string {
-	switch t {
-	case "":
-		return "Val"
-	case "nat", "Nat":
-		return "Nat"
-	case "bool", "Bool":
-		return "Bool"
-	case "int", "Int":
-		return "Int"
-	default:
-		return t
-	}
-}
+// jsonPrelude is the value type of every state variable: csdfrepl state-var values are
+// arbitrary JSON, so each variable is a Json. Floats are folded into JSONInt for now.
+const jsonPrelude = `inductive Json where
+  | JSONInt (i : Int)
+  | JSONString (s : String)
+  | JSONBool (b : Bool)
+  | JSONArray (xs : List Json)
+  | JSONDict (kvs : List (String × Json))
 
-// hasUntyped reports whether any state variable lacks a declared type, in which case
-// a placeholder type is introduced so the skeleton still parses.
-func hasUntyped(ir obligationir.ObligationIR) bool {
+`
+
+// hasVars reports whether any state has a variable, in which case the Json datatype is
+// emitted (otherwise it would be unused).
+func hasVars(ir obligationir.ObligationIR) bool {
 	for _, st := range ir.States {
-		for _, f := range st.Fields {
-			if f.Type == "" {
-				return true
-			}
+		if len(st.Fields) > 0 {
+			return true
 		}
 	}
 	return false
+}
+
+// declaredComment renders the state's original declared variable types, positionally and
+// comma-joined (an undeclared field shows as "any"). It returns "" when nothing was
+// declared, so no comment is emitted.
+func declaredComment(st obligationir.IRState) string {
+	if len(st.Fields) == 0 {
+		return ""
+	}
+	declared := false
+	parts := make([]string, len(st.Fields))
+	for i, f := range st.Fields {
+		if f.Type != "" {
+			declared = true
+			parts[i] = f.Type
+		} else {
+			parts[i] = "any"
+		}
+	}
+	if !declared {
+		return ""
+	}
+	return strings.Join(parts, ", ")
 }
 
 // sanitizeComment collapses newlines so a multi-line predicate text stays on one
