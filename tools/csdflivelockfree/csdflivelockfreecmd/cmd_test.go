@@ -115,6 +115,71 @@ s0 --> s1 : a
 	}
 }
 
+func TestNewMainFuncLeanTarget(t *testing.T) {
+	// -target lean compiles the obligation straight to a Lean skeleton, the same
+	// output as piping the default IR through obligationirc -target lean.
+	input := `@startuml
+state "a" as a
+a: n ; Nat
+[*] --> a
+a --> a : tau ; n > 0 ; n' = n - 1
+@enduml
+`
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(input))
+
+	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())([]string{"-target", "lean"}, spy.New())
+
+	if exitStatus != 0 {
+		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+	}
+	if spy.Stderr.String() != "" {
+		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{
+		"inductive St where",
+		`-- "n > 0"`,
+		"theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lean output missing %q\n%s", want, out)
+		}
+	}
+}
+
+func TestNewMainFuncIsabelleTarget(t *testing.T) {
+	// -target isabelle compiles the obligation straight to an Isabelle skeleton.
+	input := `@startuml
+state "a" as a
+a: n ; Nat
+[*] --> a
+a --> a : tau ; n > 0 ; n' = n - 1
+@enduml
+`
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(input))
+
+	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())([]string{"-target", "isabelle"}, spy.New())
+
+	if exitStatus != 0 {
+		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+	}
+	if spy.Stderr.String() != "" {
+		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{
+		"theory Livelock_Obligation imports Main begin",
+		`(* "n > 0" *)`,
+		`theorem livelock_free: "wf {(s', s). tau_step s s'}"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("isabelle output missing %q\n%s", want, out)
+		}
+	}
+}
+
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())

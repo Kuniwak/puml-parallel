@@ -1,12 +1,12 @@
 package csdflivelockfreecmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -25,10 +25,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", err)
 		}
 
-		// Emit the proof-obligation IR and exit 0. Livelock freedom depends on the
-		// natural-language predicates, which this tool does not interpret, so it
-		// never decides the verdict via exit status.
-		if err := json.NewEncoder(inout.Stdout).Encode(obligationir.BuildObligationIR(diagram)); err != nil {
+		// Compile the proof-obligation IR to the selected target and exit 0. Livelock
+		// freedom depends on the natural-language predicates, which this tool does not
+		// interpret, so it never decides the verdict via exit status.
+		ir := obligationir.BuildObligationIR(diagram)
+		if err := target.Compile(inout.Stdout, ir, opts.Target); err != nil {
 			return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", err)
 		}
 		return nil

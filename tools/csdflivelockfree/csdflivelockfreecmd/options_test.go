@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -40,6 +41,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
+				Target: target.IRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -48,6 +50,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
+				Target: target.IRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -55,6 +58,34 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
+				Target: target.IRJSON,
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
+		},
+		"-target isabelle": {
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{"-target", "isabelle"},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Target: target.Isabelle,
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
+		},
+		"-target lean": {
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{"-target", "lean"},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Target: target.Lean,
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
+		},
+		"-target ir-json": {
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{"-target", "ir-json"},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Target: target.IRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -90,6 +121,9 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 	testCases := map[string]testCase{
 		"too many arguments (representative value)": {
 			Args: []string{"a.puml", "b.puml"},
+		},
+		"unknown target": {
+			Args: []string{"-target", "bogus"},
 		},
 	}
 
