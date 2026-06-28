@@ -6,9 +6,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
-	irjson "github.com/Kuniwak/puml-parallel/csdf/obligationir/json"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir/lean"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -27,17 +25,8 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("obligationirccmd.NewMainFunc: invalid obligation IR JSON: %w", err)
 		}
 
-		var compileErr error
-		switch opts.Target {
-		case TargetIsabelle:
-			compileErr = isabelle.Compile(inout.Stdout, ir)
-		case TargetLean:
-			compileErr = lean.Compile(inout.Stdout, ir)
-		default: // TargetIRJSON
-			compileErr = irjson.Compile(inout.Stdout, ir)
-		}
-		if compileErr != nil {
-			return fmt.Errorf("obligationirccmd.NewMainFunc: %w", compileErr)
+		if err := target.Compile(inout.Stdout, ir, opts.Target); err != nil {
+			return fmt.Errorf("obligationirccmd.NewMainFunc: %w", err)
 		}
 		return nil
 	}

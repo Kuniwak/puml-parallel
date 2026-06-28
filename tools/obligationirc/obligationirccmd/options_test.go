@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -40,7 +41,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: TargetIRJSON,
+				Target: target.IRJSON,
 				Bytes:  []byte("{}\n"),
 			},
 		},
@@ -49,7 +50,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: TargetIRJSON,
+				Target: target.IRJSON,
 				Bytes:  []byte("{}\n"),
 			},
 		},
@@ -57,7 +58,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{filepath.Join("testdata", "ir.json")},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: TargetIRJSON,
+				Target: target.IRJSON,
 				Bytes:  []byte("{\"goal\":\"livelock_free\"}\n"),
 			},
 		},
@@ -66,7 +67,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-target", "isabelle"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: TargetIsabelle,
+				Target: target.Isabelle,
 				Bytes:  []byte("{}\n"),
 			},
 		},
@@ -75,7 +76,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-target", "lean"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: TargetLean,
+				Target: target.Lean,
 				Bytes:  []byte("{}\n"),
 			},
 		},
@@ -84,7 +85,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-target", "ir-json"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: TargetIRJSON,
+				Target: target.IRJSON,
 				Bytes:  []byte("{}\n"),
 			},
 		},

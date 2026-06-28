@@ -6,14 +6,8 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
-)
-
-// Output targets selectable via -target.
-const (
-	TargetIRJSON   = "ir-json"
-	TargetIsabelle = "isabelle"
-	TargetLean     = "lean"
 )
 
 type Options struct {
@@ -56,8 +50,8 @@ Examples:
 `)
 		}
 
-		var target string
-		flags.StringVar(&target, "target", TargetIRJSON, "output target: ir-json|isabelle|lean")
+		var tgt string
+		flags.StringVar(&tgt, "target", target.IRJSON, "output target: ir-json|isabelle|lean")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -77,7 +71,7 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if err := validateTarget(target); err != nil {
+		if err := target.Validate(tgt); err != nil {
 			return nil, fmt.Errorf("obligationirccmd.NewParseOptionsFunc: %w", err)
 		}
 
@@ -85,15 +79,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("obligationirccmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Target: target, Bytes: bs}, nil
-	}
-}
-
-func validateTarget(target string) error {
-	switch target {
-	case TargetIRJSON, TargetIsabelle, TargetLean:
-		return nil
-	default:
-		return fmt.Errorf("unknown -target %q (want ir-json, isabelle, or lean)", target)
+		return &Options{Common: commonOpts, Target: tgt, Bytes: bs}, nil
 	}
 }
