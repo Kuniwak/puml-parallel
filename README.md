@@ -70,50 +70,53 @@ End edges (`state --> [*]`) are not currently supported.
 
 ## Livelock freedom
 
-`csdflivelockfree` emits a proof-obligation IR for the livelock freedom of a single
-CSDF diagram and exits 0. Livelock freedom — no divergence: no reachable cycle of
-internal `tau` transitions that can actually run forever — depends on the
-natural-language guards and postconditions, which this tool does not interpret. So
-rather than decide the verdict via exit status, it produces a prover-agnostic JSON
-obligation that leaves each predicate opaque as a line-named symbol (`Guard_L<line>`,
-`Post_L<line>`, `Init`) to be discharged downstream.
+`csdflivelockfree` compiles a livelock-freedom proof obligation for a single CSDF
+diagram and exits 0. Livelock freedom — no divergence: no reachable cycle of internal
+`tau` transitions that can actually run forever — depends on the natural-language guards
+and postconditions, which this tool does not interpret. So rather than decide the verdict
+via exit status, it emits a proof obligation that leaves each predicate opaque as a
+line-named symbol (`Guard_L<line>`, `Post_L<line>`, `Init`) to be discharged downstream.
 
-```console
-$ csdflivelockfree examples/valid/vending_machine.puml
-{"goal":"livelock_free","structurally_livelock_free":true,"states":[...],...}
-$ csdfparallel a.puml b.puml | csdflivelockfree -
-```
+The output format is chosen with `-target`:
 
-The IR describes the state space as an ADT (one constructor per state, fields from
-its variables), the transitions, the initial predicate, and the opaque predicate
-symbols with their argument signatures. `structurally_livelock_free` is `true` when
-no reachable `tau` cycle exists, in which case the obligation holds regardless of the
-predicates. A file argument, a `-` argument, and stdin are all equivalent.
-
-Turning the natural-language predicates into formal definitions remains a manual (or
-LLM-assisted) step, but `obligationirc` compiles the IR into a Lean or Isabelle
-proof-obligation skeleton to start from.
-
-## Compiling the obligation IR
-
-`obligationirc` reads the JSON IR (from `csdflivelockfree`, or a file) and compiles it
-to the target chosen by `-target`:
-
-- `ir-json` (default) — the IR itself, re-encoded as JSON.
+- `ir-json` (default) — a prover-agnostic JSON obligation IR.
 - `isabelle` — an Isabelle/HOL proof-obligation skeleton.
 - `lean` — a Lean 4 proof-obligation skeleton.
 
 ```console
-$ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target lean
-$ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target isabelle
+$ csdflivelockfree examples/valid/vending_machine.puml
+{"goal":"livelock_free","structurally_livelock_free":true,"states":[...],...}
+$ csdflivelockfree -target lean examples/valid/vending_machine.puml
+$ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
+$ csdfparallel a.puml b.puml | csdflivelockfree -
 ```
 
-For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT
-and a `tau_step` relation, then states the livelock-freedom theorem (well-foundedness
-of `tau_step`) left as `sorry`/`oops`. Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
+The JSON IR describes the state space as an ADT (one constructor per state, fields from
+its variables), the transitions, the initial predicate, and the opaque predicate symbols
+with their argument signatures. `structurally_livelock_free` is `true` when no reachable
+`tau` cycle exists, in which case the obligation holds regardless of the predicates.
+Options precede the file; a file argument, a `-` argument, and stdin are all equivalent.
+
+For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT and
+a `tau_step` relation, then states the livelock-freedom theorem (well-foundedness of
+`tau_step`) left as `sorry`/`oops`. Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
 predicate becomes a `True` placeholder definition preceded by a comment carrying its
-original natural-language text, so a human or LLM can fill in the real predicate body
-and discharge the proof. A file argument, a `-` argument, and stdin are all equivalent.
+original natural-language text, so a human or LLM can fill in the real predicate body and
+discharge the proof.
+
+## Compiling the obligation IR separately
+
+`obligationirc` is the same IR compiler as a standalone tool: it reads the JSON IR (from
+`csdflivelockfree`, or a file) and compiles it with the same `-target` values. So these
+are equivalent:
+
+```console
+$ csdflivelockfree -target lean examples/valid/vending_machine.puml
+$ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target lean
+```
+
+This is handy when the IR is produced or stored separately. A file argument, a `-`
+argument, and stdin are all equivalent.
 
 ## Interactive exploration
 
