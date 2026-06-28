@@ -4,7 +4,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
+
+// ignoreEdgeLine drops the source-line field when comparing witness edges, which
+// is positional metadata rather than part of the livelock witness identity.
+var ignoreEdgeLine = cmpopts.IgnoreFields(Edge{}, "Line")
 
 func TestCheckLivelockFreeReportsFreeWhenNoTauEdges(t *testing.T) {
 	// Setup: a visible-only chain has no tau edges, so it is livelock free.
@@ -47,7 +52,7 @@ s0 --> s0 : tau
 	if ok {
 		t.Error("want livelock detected, got livelock free")
 	}
-	if diff := cmp.Diff(want, witness); diff != "" {
+	if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -76,7 +81,7 @@ b --> a : tau
 	if ok {
 		t.Error("want livelock detected, got livelock free")
 	}
-	if diff := cmp.Diff(want, witness); diff != "" {
+	if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -151,7 +156,7 @@ sb --> sa : tau
 	if ok {
 		t.Error("want livelock detected, got livelock free")
 	}
-	if diff := cmp.Diff(want, witness); diff != "" {
+	if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -188,7 +193,7 @@ b1 --> b0 : tau
 		if ok {
 			t.Fatal("want livelock detected, got livelock free")
 		}
-		if diff := cmp.Diff(want, witness); diff != "" {
+		if diff := cmp.Diff(want, witness, ignoreEdgeLine); diff != "" {
 			t.Fatal(diff)
 		}
 	}
@@ -230,36 +235,6 @@ s1 --> [*]
 	// Assert
 	if !ok {
 		t.Errorf("want livelock free, got witness %+v", witness)
-	}
-}
-
-func TestRenderLivelockFormatsStemAndCycle(t *testing.T) {
-	// Setup: a witness with a visible stem leading into a tau cycle.
-	w := &Livelock{
-		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a"}},
-		Cycle: []Edge{
-			{Src: "sa", Dst: "sb", Event: Tau},
-			{Src: "sb", Dst: "sa", Event: Tau},
-		},
-	}
-	want := "s0 --a--> sa\ncycle:\nsa --tau--> sb\nsb --tau--> sa\n"
-
-	// Execute & Assert
-	if diff := cmp.Diff(want, RenderLivelock(w)); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestRenderLivelockFormatsSelfLoopWithEmptyStem(t *testing.T) {
-	// Setup: a self-loop witness has no stem, so only the cycle block is rendered.
-	w := &Livelock{
-		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau}},
-	}
-	want := "cycle:\ns0 --tau--> s0\n"
-
-	// Execute & Assert
-	if diff := cmp.Diff(want, RenderLivelock(w)); diff != "" {
-		t.Error(diff)
 	}
 }
 

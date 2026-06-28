@@ -70,22 +70,58 @@ End edges (`state --> [*]`) are not currently supported.
 
 ## Livelock freedom
 
-`csdflivelockfree` verifies that a single CSDF diagram is livelock free, i.e. has
-no divergence: no cycle reachable from the start state consisting entirely of
-internal `tau` transitions. The analysis is purely structural over event labels;
-natural-language guards and postconditions are not evaluated, so a diagram with no
-`tau` edges is trivially livelock free.
+`csdflivelockfree` compiles a livelock-freedom proof obligation for a single CSDF
+diagram and exits 0. Livelock freedom — no divergence: no reachable cycle of internal
+`tau` transitions that can actually run forever — depends on the natural-language guards
+and postconditions, which this tool does not interpret. So rather than decide the verdict
+via exit status, it emits a proof obligation that leaves each predicate opaque as a
+line-named symbol (`Guard_L<line>`, `Post_L<line>`, `Init`) to be discharged downstream.
+
+The output format is chosen with `-target`:
+
+- `ir-json` (default) — a prover-agnostic JSON obligation IR.
+- `isabelle` — an Isabelle/HOL proof-obligation skeleton.
+- `lean` — a Lean 4 proof-obligation skeleton.
 
 ```console
 $ csdflivelockfree examples/valid/vending_machine.puml
-livelock free
+{"goal":"livelock_free","structurally_livelock_free":true,"states":[...],...}
+$ csdflivelockfree -target lean examples/valid/vending_machine.puml
+$ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
 $ csdfparallel a.puml b.puml | csdflivelockfree -
 ```
 
-When the diagram is livelock free it prints `livelock free` and exits 0. Otherwise
-it prints a witness — the path from the start state into the offending `tau` cycle,
-followed by the cycle itself — and exits non-zero. A file argument, a `-` argument,
-and stdin are all equivalent.
+The JSON IR describes the state space as an ADT (one constructor per state, fields from
+its variables), the transitions, the initial predicate, and the opaque predicate symbols
+with their argument signatures. `structurally_livelock_free` is `true` when no reachable
+`tau` cycle exists, in which case the obligation holds regardless of the predicates.
+Options precede the file; a file argument, a `-` argument, and stdin are all equivalent.
+
+For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT and
+a `tau_step` relation. When the structural check was inconclusive
+(`structurally_livelock_free` false) it then states the livelock-freedom theorem
+(well-foundedness of `tau_step`) left as `sorry`/`oops`; when the diagram is structurally
+livelock free the obligation is already discharged, so only a note is emitted instead.
+Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
+predicate becomes a `True` placeholder definition preceded by a comment carrying its
+original natural-language text, so a human or LLM can fill in the real predicate body and
+discharge the proof. State-variable values are arbitrary JSON, so each variable is typed
+with a generated `json` datatype (floats folded into the integer case for now); any
+declared `; Type` annotation is preserved as a comment on the state constructor.
+
+## Compiling the obligation IR separately
+
+`obligationirc` is the same IR compiler as a standalone tool: it reads the JSON IR (from
+`csdflivelockfree`, or a file) and compiles it with the same `-target` values. So these
+are equivalent:
+
+```console
+$ csdflivelockfree -target lean examples/valid/vending_machine.puml
+$ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target lean
+```
+
+This is handy when the IR is produced or stored separately. A file argument, a `-`
+argument, and stdin are all equivalent.
 
 ## Interactive exploration
 

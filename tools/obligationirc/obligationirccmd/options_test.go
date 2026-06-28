@@ -1,4 +1,4 @@
-package csdflivelockfreecmd
+package obligationirccmd
 
 import (
 	"path/filepath"
@@ -36,57 +36,57 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:     []string{"--version"},
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"no args means stdin (representative value)": {
-			Stdin: "@startuml\n@enduml\n",
+		"no args means stdin, default target": {
+			Stdin: "{}\n",
 			Args:  []string{},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Target: target.IRJSON,
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Bytes:  []byte("{}\n"),
 			},
 		},
-		"dash means stdin (representative value)": {
-			Stdin: "@startuml\n@enduml\n",
+		"dash means stdin": {
+			Stdin: "{}\n",
 			Args:  []string{"-"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Target: target.IRJSON,
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Bytes:  []byte("{}\n"),
 			},
 		},
-		"file argument (representative value)": {
-			Args: []string{filepath.Join("testdata", "a.puml")},
+		"file argument": {
+			Args: []string{filepath.Join("testdata", "ir.json")},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Target: target.IRJSON,
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Bytes:  []byte("{\"goal\":\"livelock_free\"}\n"),
 			},
 		},
 		"-target isabelle": {
-			Stdin: "@startuml\n@enduml\n",
+			Stdin: "{}\n",
 			Args:  []string{"-target", "isabelle"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Target: target.Isabelle,
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Bytes:  []byte("{}\n"),
 			},
 		},
 		"-target lean": {
-			Stdin: "@startuml\n@enduml\n",
+			Stdin: "{}\n",
 			Args:  []string{"-target", "lean"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Target: target.Lean,
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Bytes:  []byte("{}\n"),
 			},
 		},
 		"-target ir-json": {
-			Stdin: "@startuml\n@enduml\n",
+			Stdin: "{}\n",
 			Args:  []string{"-target", "ir-json"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Target: target.IRJSON,
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Bytes:  []byte("{}\n"),
 			},
 		},
 	}
@@ -119,8 +119,8 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 	}
 
 	testCases := map[string]testCase{
-		"too many arguments (representative value)": {
-			Args: []string{"a.puml", "b.puml"},
+		"too many arguments": {
+			Args: []string{"a.json", "b.json"},
 		},
 		"unknown target": {
 			Args: []string{"-target", "bogus"},
