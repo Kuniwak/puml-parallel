@@ -58,9 +58,10 @@ end
 	}
 }
 
-func TestCompileStructurallyFreeHasFalseRelation(t *testing.T) {
-	// A visible-only chain has no tau edge, so tau_step is False and no predicate
-	// definitions are emitted.
+func TestCompileStructurallyFreeEmitsNoObligation(t *testing.T) {
+	// A visible-only chain has no tau edge, so tau_step is False, no predicate
+	// definitions are emitted, and — being structurally livelock free — no oops
+	// obligation is emitted, only a note.
 	got := compile(t, `@startuml
 state "s0" as s0
 state "s1" as s1
@@ -78,8 +79,7 @@ datatype st =
 definition tau_step :: "st ⇒ st ⇒ bool" where
   "tau_step s s' ≡ False"
 
-theorem livelock_free: "wf {(s', s). tau_step s s'}"
-  oops
+(* Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation. *)
 end
 `
 	if diff := cmp.Diff(want, got); diff != "" {

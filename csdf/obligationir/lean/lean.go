@@ -49,8 +49,12 @@ func Compile(w io.Writer, ir obligationir.ObligationIR) error {
 	b.WriteString(tauStep(ir))
 	b.WriteString("\n")
 
-	b.WriteString("theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by\n")
-	b.WriteString("  sorry\n")
+	if ir.StructurallyLivelockFree {
+		b.WriteString("-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.\n")
+	} else {
+		b.WriteString("theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by\n")
+		b.WriteString("  sorry\n")
+	}
 
 	_, err := io.WriteString(w, b.String())
 	return err

@@ -62,9 +62,10 @@ theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
 	}
 }
 
-func TestCompileStructurallyFreeHasFalseRelation(t *testing.T) {
-	// A visible-only chain has no tau edge, so the tau-step relation is False and
-	// no predicate defs are emitted.
+func TestCompileStructurallyFreeEmitsNoObligation(t *testing.T) {
+	// A visible-only chain has no tau edge, so the tau-step relation is False, no
+	// predicate defs are emitted, and — being structurally livelock free — no
+	// sorry obligation is emitted, only a note.
 	got := compile(t, `@startuml
 state "s0" as s0
 state "s1" as s1
@@ -80,8 +81,7 @@ inductive St where
 
 def tauStep (s s' : St) : Prop := False
 
-theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
-  sorry
+-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.
 `
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Error(diff)

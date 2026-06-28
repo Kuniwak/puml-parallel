@@ -98,8 +98,11 @@ with their argument signatures. `structurally_livelock_free` is `true` when no r
 Options precede the file; a file argument, a `-` argument, and stdin are all equivalent.
 
 For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT and
-a `tau_step` relation, then states the livelock-freedom theorem (well-foundedness of
-`tau_step`) left as `sorry`/`oops`. Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
+a `tau_step` relation. When the structural check was inconclusive
+(`structurally_livelock_free` false) it then states the livelock-freedom theorem
+(well-foundedness of `tau_step`) left as `sorry`/`oops`; when the diagram is structurally
+livelock free the obligation is already discharged, so only a note is emitted instead.
+Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
 predicate becomes a `True` placeholder definition preceded by a comment carrying its
 original natural-language text, so a human or LLM can fill in the real predicate body and
 discharge the proof. State-variable values are arbitrary JSON, so each variable is typed
