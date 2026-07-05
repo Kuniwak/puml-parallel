@@ -13,7 +13,7 @@ var ignoreEdgeLine = cmpopts.IgnoreFields(Edge{}, "Line")
 
 func TestCheckLivelockFreeReportsFreeWhenNoTauEdges(t *testing.T) {
 	// Setup: a visible-only chain has no tau edges, so it is livelock free.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 state "s1" as s1
 [*] --> s0
@@ -35,14 +35,14 @@ s0 --> s1 : a
 
 func TestCheckLivelockFreeDetectsTauSelfLoop(t *testing.T) {
 	// Setup: a tau self-loop on the start state is the degenerate livelock.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 [*] --> s0
 s0 --> s0 : tau
 @enduml
 `)
 	want := &Livelock{
-		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau, Guard: True, Post: True}},
+		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue}},
 	}
 
 	// Execute
@@ -59,7 +59,7 @@ s0 --> s0 : tau
 
 func TestCheckLivelockFreeDetectsTauTwoCycle(t *testing.T) {
 	// Setup: a two-state tau cycle a -> b -> a.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "a" as a
 state "b" as b
 [*] --> a
@@ -69,8 +69,8 @@ b --> a : tau
 `)
 	want := &Livelock{
 		Cycle: []Edge{
-			{Src: "a", Dst: "b", Event: Tau, Guard: True, Post: True},
-			{Src: "b", Dst: "a", Event: Tau, Guard: True, Post: True},
+			{Src: "a", Dst: "b", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "b", Dst: "a", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
 		},
 	}
 
@@ -88,7 +88,7 @@ b --> a : tau
 
 func TestCheckLivelockFreeIgnoresMixedCycleWithVisibleEvent(t *testing.T) {
 	// Setup: a cycle s0 -> s1 -> s0 containing a visible event is not a livelock.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 state "s1" as s1
 [*] --> s0
@@ -108,7 +108,7 @@ s1 --> s0 : e
 
 func TestCheckLivelockFreeIgnoresUnreachableTauCycle(t *testing.T) {
 	// Setup: a tau cycle x <-> y exists but is not reachable from the start state.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 state "s1" as s1
 state "x" as x
@@ -131,7 +131,7 @@ y --> x : tau
 
 func TestCheckLivelockFreeBuildsStemThroughVisibleEvents(t *testing.T) {
 	// Setup: a visible event leads from the start state into a tau cycle.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 state "sa" as sa
 state "sb" as sb
@@ -142,10 +142,10 @@ sb --> sa : tau
 @enduml
 `)
 	want := &Livelock{
-		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a", Guard: True, Post: True}},
+		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a", Guard: PredicateTrue, Post: PredicateTrue}},
 		Cycle: []Edge{
-			{Src: "sa", Dst: "sb", Event: Tau, Guard: True, Post: True},
-			{Src: "sb", Dst: "sa", Event: Tau, Guard: True, Post: True},
+			{Src: "sa", Dst: "sb", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "sb", Dst: "sa", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
 		},
 	}
 
@@ -164,7 +164,7 @@ sb --> sa : tau
 func TestCheckLivelockFreeChoosesDeterministicCycle(t *testing.T) {
 	// Setup: two disjoint reachable tau cycles; the witness must be the
 	// deterministically-first one (smallest state IDs) and stable across runs.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 state "a0" as a0
 state "a1" as a1
@@ -180,10 +180,10 @@ b1 --> b0 : tau
 @enduml
 `)
 	want := &Livelock{
-		Stem: []Edge{{Src: "s0", Dst: "a0", Event: "a", Guard: True, Post: True}},
+		Stem: []Edge{{Src: "s0", Dst: "a0", Event: "a", Guard: PredicateTrue, Post: PredicateTrue}},
 		Cycle: []Edge{
-			{Src: "a0", Dst: "a1", Event: Tau, Guard: True, Post: True},
-			{Src: "a1", Dst: "a0", Event: Tau, Guard: True, Post: True},
+			{Src: "a0", Dst: "a1", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "a1", Dst: "a0", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
 		},
 	}
 
@@ -201,7 +201,7 @@ b1 --> b0 : tau
 
 func TestCheckLivelockFreeIgnoresEndEdge(t *testing.T) {
 	// Setup: an end edge must not be rejected; the tau cycle is still detected.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 [*] --> s0
 s0 --> s0 : tau
@@ -220,7 +220,7 @@ s0 --> [*]
 
 func TestCheckLivelockFreeReportsFreeForEndEdgeWithoutTauCycle(t *testing.T) {
 	// Setup: a terminating diagram with no tau edges is livelock free.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 state "s1" as s1
 [*] --> s0
@@ -240,7 +240,7 @@ s1 --> [*]
 
 func TestCheckLivelockFreeHandlesSingleStateDiagram(t *testing.T) {
 	// Setup: a single state with no edges is trivially livelock free.
-	d := mustParse(t, `@startuml
+	d := MustParse(`@startuml
 state "s0" as s0
 [*] --> s0
 @enduml

@@ -9,16 +9,32 @@ import (
 
 // ParseDiagram parses a Composable State Diagram from raw .puml text or .png
 // bytes (the embedded PlantUML source is extracted from PNG inputs).
-func ParseDiagram(content []byte) (*Diagram, error) {
+func ParseBytes(content []byte) (*Diagram, error) {
 	source, err := pngsrc.Extract(content)
 	if err != nil {
-		return nil, fmt.Errorf("csdf.ParseDiagram: reading PlantUML source: %w", err)
+		return nil, fmt.Errorf("csdf.ParseBytes: reading PlantUML source: %w", err)
 	}
 	diagram, err := NewParser(source).Parse()
 	if err != nil {
-		return nil, fmt.Errorf("csdf.ParseDiagram: parse: %w", err)
+		return nil, fmt.Errorf("csdf.ParseBytes: parse: %w", err)
 	}
 	return diagram, nil
+}
+
+func Parse(content string) (*Diagram, error) {
+	diagram, err := NewParser(content).Parse()
+	if err != nil {
+		return nil, fmt.Errorf("csdf.Parse: parse: %w", err)
+	}
+	return diagram, nil
+}
+
+func MustParse(content string) *Diagram {
+	d, err := Parse(content)
+	if err != nil {
+		panic(fmt.Errorf("csdf.MustParse: %w", err))
+	}
+	return d
 }
 
 func LoadDiagrams(files []string) ([]*Diagram, error) {
@@ -29,7 +45,7 @@ func LoadDiagrams(files []string) ([]*Diagram, error) {
 			return nil, fmt.Errorf("csdf.LoadDiagrams: cannot read file: %w: %q", err, file)
 		}
 
-		diagram, err := ParseDiagram(bs)
+		diagram, err := ParseBytes(bs)
 		if err != nil {
 			return nil, fmt.Errorf("csdf.LoadDiagrams: cannot parse file: %w: %q", err, file)
 		}

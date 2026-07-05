@@ -10,7 +10,7 @@ func TestDiagramStringOrdersStatesByID(t *testing.T) {
 			"s0": {ID: "s0", Name: "First"},
 			"s1": {ID: "s1", Name: "Second"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 	}
 	want := `@startuml
 state "First" as s0
@@ -35,13 +35,13 @@ func TestDiagramStringIncludesEndEdge(t *testing.T) {
 		States: map[StateID]State{
 			"s0": {ID: "s0", Name: "SKIP"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
-		EndEdge:   &EndEdge{Src: "s0", Guard: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
+		EndEdge:   &EndEdge{Src: "s0", Guard: PredicateTrue},
 	}
 	want := `@startuml
 state "SKIP" as s0
 [*] --> s0
-s0 --> [*] : true
+s0 --> [*]
 @enduml
 `
 
@@ -69,7 +69,7 @@ func TestDiagramStringIncludesStateVarTypes(t *testing.T) {
 				},
 			},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 	}
 	want := `@startuml
 state "Initial" as s0
@@ -95,9 +95,9 @@ func TestDiagramStringIncludesFreeFormEvent(t *testing.T) {
 		States: map[StateID]State{
 			"s0": {ID: "s0", Name: "Initial"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 		Edges: []Edge{
-			{Src: "s0", Dst: "s0", Event: "finish(result, status)", Guard: True, Post: True},
+			{Src: "s0", Dst: "s0", Event: "finish(result, status)", Guard: PredicateTrue, Post: PredicateTrue},
 		},
 	}
 	want := `@startuml

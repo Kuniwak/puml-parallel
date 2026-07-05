@@ -31,13 +31,14 @@ func Validate(name string) error {
 }
 
 // Compile writes ir to w in the format named by name.
-func Compile(w io.Writer, ir obligationir.ObligationIR, name string) error {
+func Compile(w io.Writer, ir obligationir.IRLivelockFree, name string) error {
 	switch name {
 	case Isabelle:
-		return isabelle.Compile(w, ir)
+		isabelle.WriteLivelockFree(w, ir)
+		return nil
 	case Lean:
-		return lean.Compile(w, ir)
+		return lean.WriteLivelockFree(w, ir)
 	default: // IRJSON
-		return irjson.Compile(w, ir)
+		return irjson.WriteLivelockFree(w, ir)
 	}
 }

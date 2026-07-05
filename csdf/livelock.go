@@ -41,7 +41,7 @@ func CheckLivelockFree(d *Diagram) (witness *Livelock, ok bool) {
 		tauOut[e.Src] = append(tauOut[e.Src], e)
 	}
 	for s := range tauOut {
-		sortEdges(tauOut[s])
+		SortEdges(tauOut[s])
 	}
 
 	cycle := findTauCycle(tauOut)
@@ -157,7 +157,7 @@ func stemTo(start, target StateID, out map[StateID][]Edge) []Edge {
 		s := queue[0]
 		queue = queue[1:]
 		edges := append([]Edge(nil), out[s]...)
-		sortEdges(edges)
+		SortEdges(edges)
 		for _, e := range edges {
 			if _, ok := visited[e.Dst]; ok {
 				continue

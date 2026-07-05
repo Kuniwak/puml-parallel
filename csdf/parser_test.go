@@ -132,7 +132,7 @@ done --> [*]
 			if diagram.EndEdge.Src != tt.wantSrc {
 				t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
 			}
-			if diagram.EndEdge.Guard != tt.wantGuard {
+			if diagram.EndEdge.Guard != Predicate(tt.wantGuard) {
 				t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
 			}
 

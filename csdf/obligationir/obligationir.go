@@ -1,7 +1,9 @@
 package obligationir
 
 import (
-	"fmt"
+	"hash"
+	"hash/crc32"
+	"slices"
 	"sort"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -13,22 +15,55 @@ import (
 // are left opaque as line-named symbols (Guard_L<line>, Post_L<line>, Init); a
 // downstream generator expands this IR into Lean or Isabelle, and the predicate
 // bodies are supplied separately. Both are out of scope here.
-type ObligationIR struct {
-	Goal string `json:"goal"` // always "livelock_free"
+type IRLivelockFree struct {
 	// StructurallyLivelockFree is true when no reachable τ-only cycle exists, in
 	// which case the obligation holds regardless of the predicates.
-	StructurallyLivelockFree bool          `json:"structurally_livelock_free"`
-	States                   []IRState     `json:"states"`     // the state space as an ADT
-	Constants                []IRConst     `json:"constants"`  // global opaque constants in scope
-	Predicates               []IRPredicate `json:"predicates"` // opaque predicate symbols + signatures
-	Edges                    []IREdge      `json:"edges"`      // the labelled transitions
-	Init                     IRInit        `json:"init"`
+	Structurally bool                     `json:"structurally"`
+	States       map[csdf.StateID]IRState `json:"states"`    // the state space as an ADT
+	Constants    []IRConst                `json:"constants"` // global opaque constants in scope
+	Edges        []IREdge                 `json:"edges"`     // the labelled transitions
+	Init         IRInit                   `json:"init"`
 }
 
-// IRState is one ADT constructor: a diagram state whose fields are its variables.
+func (ir IRLivelockFree) CollectPredicates() []IRPredicate {
+	ps := make([]IRPredicate, 0, 1+len(ir.Edges))
+	ps = append(ps, ir.Init.Post)
+	for _, e := range ir.Edges {
+		ps = append(ps, e.Guard)
+		ps = append(ps, e.Post)
+	}
+	return ps
+}
+
 type IRState struct {
-	Ctor   string    `json:"ctor"`
 	Fields []IRField `json:"fields"`
+	Line   int       `json:"line"` // 1-based
+}
+
+type IRStateWithID struct {
+	StateID csdf.StateID
+	Fields  []IRField
+	Line    int // 1-based
+}
+
+func SortIRStates(m map[csdf.StateID]IRState) []IRStateWithID {
+	linesMap := make(map[int]IRStateWithID, len(m))
+	lines := make([]int, 0, len(m))
+	for id, s := range m {
+		linesMap[s.Line] = IRStateWithID{
+			StateID: id,
+			Fields:  s.Fields,
+			Line:    s.Line,
+		}
+		lines = append(lines, s.Line)
+	}
+	slices.Sort(lines)
+
+	res := make([]IRStateWithID, 0, len(m))
+	for _, line := range lines {
+		res = append(res, linesMap[line])
+	}
+	return res
 }
 
 type IRField struct {
@@ -50,49 +85,127 @@ type IRArg struct {
 	Primed bool   `json:"primed"`
 }
 
+func (a IRArg) Hash(h hash.Hash) {
+	h.Write([]byte(a.Name))
+	h.Write([]byte{0x00})
+	h.Write([]byte(a.Type))
+	h.Write([]byte{0x00})
+	if a.Primed {
+		h.Write([]byte{0x00})
+	} else {
+		h.Write([]byte{0x01})
+	}
+}
+
+type IRPredicateKind string
+
+const (
+	IRPredicateKindInit  IRPredicateKind = "init"
+	IRPredicateKindGuard IRPredicateKind = "guard"
+	IRPredicateKindPost  IRPredicateKind = "post"
+)
+
+func ComparePredicateKind(a, b IRPredicateKind) int {
+	if a == b {
+		return 0
+	}
+
+	if a == IRPredicateKindInit {
+		return -1
+	}
+
+	if b == IRPredicateKindInit {
+		return 1
+	}
+
+	if a == IRPredicateKindGuard {
+		return -1
+	}
+
+	return 1
+}
+
 // IRPredicate is an opaque predicate symbol with its argument signature and the
 // verbatim natural-language text it stands for. Kind is "guard", "post", or "init".
 type IRPredicate struct {
-	Sym  string  `json:"sym"`
-	Kind string  `json:"kind"`
-	Line int     `json:"line"`
-	Args []IRArg `json:"args"`
-	Text string  `json:"text"`
+	Kind IRPredicateKind `json:"kind"`
+	Args []IRArg         `json:"args"`
+	Text csdf.Predicate  `json:"text"`
+	Line int             `json:"int"`
+}
+
+func (p IRPredicate) Hash(h hash.Hash) {
+	h.Write([]byte(p.Kind))
+	for _, arg := range p.Args {
+		h.Write([]byte{0x00})
+		arg.Hash(h)
+	}
+	h.Write([]byte{0x00})
+	h.Write([]byte(p.Text))
+}
+
+func (p IRPredicate) WithHash(h hash.Hash32) IRPredicateWithHash {
+	p.Hash(h)
+	x := h.Sum32()
+	h.Reset()
+	return IRPredicateWithHash{
+		Predicate: p,
+		Hash:      x,
+	}
+}
+
+func IRPredicatesWithHash(ps []IRPredicate) []IRPredicateWithHash {
+	h := crc32.NewIEEE()
+	res := make([]IRPredicateWithHash, len(ps))
+	for i, p := range ps {
+		res[i] = p.WithHash(h)
+	}
+	return res
+}
+
+type IRPredicateWithHash struct {
+	Predicate IRPredicate `json:"predicate"`
+	Hash      uint32      `json:"hash"`
+}
+
+func ComparePredicate(a, b IRPredicate) int {
+	x := a.Line - b.Line
+	if x != 0 {
+		return x
+	}
+	return ComparePredicateKind(a.Kind, b.Kind)
 }
 
 // IREdge is one transition. Guard/Post hold either a predicate symbol or the
 // literal "True" when the predicate is omitted.
 type IREdge struct {
-	Line        int     `json:"line"`
-	Src         string  `json:"src"`
-	Dst         string  `json:"dst"`
-	Event       string  `json:"event"`
-	Tau         bool    `json:"tau"`
-	EventParams []IRArg `json:"event_params"`
-	Guard       string  `json:"guard"`
-	Post        string  `json:"post"`
+	Src         csdf.StateID `json:"src"`
+	Dst         csdf.StateID `json:"dst"`
+	Event       csdf.Event   `json:"event"`
+	EventParams []IRArg      `json:"event_params"`
+	Guard       IRPredicate  `json:"guard"`
+	Post        IRPredicate  `json:"post"`
+	Line        int          `json:"line"` // 1-based
 }
 
-// IRInit names the start state and its initialisation predicate ("Init" or "True").
+// IRInit names the start state.
 type IRInit struct {
-	State string `json:"state"`
-	Pred  string `json:"pred"`
+	Dst  csdf.StateID `json:"state"`
+	Post IRPredicate  `json:"post"`
 }
 
 // BuildObligationIR builds the livelock-freedom proof obligation IR for d. The
 // structural τ-cycle check (CheckLivelockFree) is used only to set
 // StructurallyLivelockFree; the obligation itself is the global property and does
 // not depend on a particular witness.
-func BuildObligationIR(d *csdf.Diagram) ObligationIR {
+func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 	_, free := csdf.CheckLivelockFree(d)
 
-	ir := ObligationIR{
-		Goal:                     "livelock_free",
-		StructurallyLivelockFree: free,
-		States:                   make([]IRState, 0, len(d.States)),
-		Constants:                []IRConst{},
-		Predicates:               []IRPredicate{},
-		Edges:                    make([]IREdge, 0, len(d.Edges)),
+	ir := IRLivelockFree{
+		Structurally: free,
+		States:       make(map[csdf.StateID]IRState, len(d.States)),
+		Constants:    []IRConst{},
+		Edges:        make([]IREdge, 0, len(d.Edges)),
 	}
 
 	for _, id := range sortedStateMapIDs(d.States) {
@@ -101,67 +214,82 @@ func BuildObligationIR(d *csdf.Diagram) ObligationIR {
 		for _, v := range st.Vars {
 			fields = append(fields, IRField{Name: string(v.Name), Type: v.Type})
 		}
-		ir.States = append(ir.States, IRState{Ctor: string(id), Fields: fields})
+		ir.States[id] = IRState{
+			Fields: fields,
+			Line:   st.Line,
+		}
 	}
 
 	for _, e := range d.Edges {
-		guardSym := "True"
-		if !isDefaultPred(e.Guard) {
-			guardSym = fmt.Sprintf("Guard_L%d", e.Line)
-			ir.Predicates = append(ir.Predicates, IRPredicate{
-				Sym:  guardSym,
-				Kind: "guard",
-				Line: e.Line,
-				Args: varsAsArgs(d, e.Src, false),
-				Text: e.Guard,
+		var evParams []csdf.StateVar // TODO
+		preVars := ir.States[e.Src]
+		postVars := ir.States[e.Dst]
+
+		guardArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields))
+		for _, evParam := range evParams {
+			guardArgs = append(guardArgs, IRArg{
+				Name: string(evParam.Name),
+				Type: evParam.Type,
 			})
 		}
-		postSym := "True"
-		if !isDefaultPred(e.Post) {
-			postSym = fmt.Sprintf("Post_L%d", e.Line)
-			args := varsAsArgs(d, e.Src, false)
-			args = append(args, varsAsArgs(d, e.Dst, true)...)
-			ir.Predicates = append(ir.Predicates, IRPredicate{
-				Sym:  postSym,
-				Kind: "post",
-				Line: e.Line,
-				Args: args,
-				Text: e.Post,
+		for _, preVar := range preVars.Fields {
+			guardArgs = append(guardArgs, IRArg{
+				Name: preVar.Name,
+				Type: preVar.Type,
 			})
 		}
+
+		postArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields)+len(postVars.Fields))
+		for _, evParam := range evParams {
+			postArgs = append(postArgs, IRArg{
+				Name: string(evParam.Name),
+				Type: evParam.Type,
+			})
+		}
+		for _, preVar := range preVars.Fields {
+			postArgs = append(postArgs, IRArg{
+				Name: preVar.Name,
+				Type: preVar.Type,
+			})
+		}
+		for _, postVar := range postVars.Fields {
+			postArgs = append(postArgs, IRArg{
+				Name:   postVar.Name,
+				Type:   postVar.Type,
+				Primed: true,
+			})
+		}
+
 		ir.Edges = append(ir.Edges, IREdge{
-			Line:        e.Line,
-			Src:         string(e.Src),
-			Dst:         string(e.Dst),
-			Event:       string(e.Event),
-			Tau:         e.Event == csdf.Tau,
+			Src:         e.Src,
+			Dst:         e.Dst,
+			Event:       e.Event,
 			EventParams: []IRArg{},
-			Guard:       guardSym,
-			Post:        postSym,
+			Guard: IRPredicate{
+				Kind: IRPredicateKindGuard,
+				Args: guardArgs,
+				Text: e.Guard,
+				Line: e.Line,
+			},
+			Post: IRPredicate{
+				Kind: IRPredicateKindPost,
+				Args: postArgs,
+				Text: e.Post,
+				Line: e.Line,
+			},
 		})
 	}
 
-	initPred := "True"
-	if !isDefaultPred(d.StartEdge.Post) {
-		initPred = "Init"
-		ir.Predicates = append(ir.Predicates, IRPredicate{
-			Sym:  "Init",
-			Kind: "init",
-			Line: d.StartEdge.Line,
-			Args: varsAsArgs(d, d.StartEdge.Dst, false),
+	ir.Init = IRInit{
+		Dst: d.StartEdge.Dst,
+		Post: IRPredicate{
+			Kind: IRPredicateKindInit,
+			Args: []IRArg{},
 			Text: d.StartEdge.Post,
-		})
+			Line: d.StartEdge.Line,
+		},
 	}
-	ir.Init = IRInit{State: string(d.StartEdge.Dst), Pred: initPred}
-
 	return ir
-}
-
-// isDefaultPred reports whether a predicate string is the omitted/default value,
-// which renders as the literal True rather than an opaque symbol. The capitalised
-// "True"/"False" written by an author are ordinary natural-language predicates.
-func isDefaultPred(s string) bool {
-	return s == "" || s == csdf.True
 }
 
 // varsAsArgs renders a state's variables as predicate arguments, marking them

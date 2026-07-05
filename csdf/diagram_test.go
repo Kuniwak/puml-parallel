@@ -13,7 +13,7 @@ func TestLoadDiagramReadsPlantUMLPNG(t *testing.T) {
 		t.Fatalf("TestLoadDiagramReadsPlantUMLPNG: cannot read file: %q", p)
 	}
 
-	diagram, err := ParseDiagram(bs)
+	diagram, err := ParseBytes(bs)
 	if err != nil {
 		t.Fatalf("LoadDiagram() error = %v", err)
 	}

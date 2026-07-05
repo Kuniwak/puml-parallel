@@ -146,6 +146,7 @@ func (p *Parser) parseState() (State, error) {
 		ID:   StateID(id),
 		Name: name,
 		Vars: []StateVar{},
+		Line: p.line,
 	}
 
 	if err := p.skipInlineTrivia(); err != nil {
@@ -292,7 +293,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 
 	return StartEdge{
 		Dst:  StateID(dst),
-		Post: post,
+		Post: Predicate(post),
 		Line: line,
 	}, nil
 }
@@ -373,8 +374,8 @@ func (p *Parser) parseEdge() (Edge, error) {
 		Src:   StateID(src),
 		Dst:   StateID(dst),
 		Event: event,
-		Guard: guard,
-		Post:  post,
+		Guard: Predicate(guard),
+		Post:  Predicate(post),
 		Line:  line,
 	}, nil
 }
@@ -579,7 +580,7 @@ func (p *Parser) skipTrivia() error {
 }
 
 // lineCommentBody returns the trimmed text of the line comment at the current
-// position (the leading "'" excluded). The parser is not advanced.
+// position (the leading "'" excluded). The Parser is not advanced.
 func (p *Parser) lineCommentBody() string {
 	end := p.pos + 1
 	for end < len(p.input) && p.input[end] != '\n' {
@@ -697,7 +698,8 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 
 	return EndEdge{
 		Src:   StateID(src),
-		Guard: guard,
+		Guard: Predicate(guard),
+		Line:  p.line,
 	}, nil
 }
 

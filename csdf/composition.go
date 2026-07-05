@@ -74,7 +74,7 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 		States: states,
 		StartEdge: StartEdge{
 			Dst:  initStatePair.ID(),
-			Post: ComposePostConditions(dL.StartEdge.Post, dR.StartEdge.Post),
+			Post: Conjunction(dL.StartEdge.Post, dR.StartEdge.Post),
 		},
 		Edges: make([]Edge, 0),
 	}
@@ -136,8 +136,8 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 										Src:   currentPairID,
 										Dst:   nextStatePair.ID(),
 										Event: ev,
-										Guard: ComposeGuard(eL.Guard, eR.Guard),
-										Post:  ComposePostConditions(eL.Post, eR.Post),
+										Guard: Conjunction(eL.Guard, eR.Guard),
+										Post:  Conjunction(eL.Post, eR.Post),
 									})
 									if _, ok := (*marked)[nextStatePair.ID()]; !ok {
 										*queue = append(*queue, nextStatePair)
@@ -209,24 +209,4 @@ func ComposeStateIDs(s1, s2 StateID) StateID {
 
 func ComposeStateNames(s1, s2 string) string {
 	return "(" + s1 + ", " + s2 + ")"
-}
-
-func ComposeGuard(g1, g2 string) string {
-	if g1 == "" || g1 == True {
-		return g2
-	}
-	if g2 == "" || g2 == True {
-		return g1
-	}
-	return g1 + " ∧ " + g2
-}
-
-func ComposePostConditions(p1, p2 string) string {
-	if p1 == "" || p1 == True {
-		return p2
-	}
-	if p2 == "" || p2 == True {
-		return p1
-	}
-	return p1 + " ∧ " + p2
 }
