@@ -28,6 +28,25 @@ a --> a : tau ; n > 0 ; n' = n - 1
 				Line:   2,
 			},
 		},
+		Predicates: map[IRPredicateID]IRPredicate{
+			1661950304: {
+				Args: []IRArg{
+					{Name: "n", Type: "Nat", Primed: false},
+				},
+				Text: "n > 0",
+			},
+			2835127098: {
+				Args: []IRArg{
+					{Name: "n", Type: "Nat", Primed: false},
+					{Name: "n", Type: "Nat", Primed: true},
+				},
+				Text: "n' = n - 1",
+			},
+			4261170317: {
+				Args: []IRArg{},
+				Text: csdf.PredicateTrue,
+			},
+		},
 		Constants: []IRConst{},
 		Edges: []IREdge{
 			{
@@ -35,33 +54,15 @@ a --> a : tau ; n > 0 ; n' = n - 1
 				Dst:         "a",
 				Event:       "tau",
 				EventParams: []IRArg{},
-				Guard: IRPredicate{
-					Kind: IRPredicateKindGuard,
-					Args: []IRArg{
-						{Name: "n", Type: "Nat", Primed: false},
-					},
-					Text: "n > 0",
-					Line: 5,
-				},
-				Post: IRPredicate{
-					Kind: IRPredicateKindPost,
-					Args: []IRArg{
-						{Name: "n", Type: "Nat", Primed: false},
-						{Name: "n", Type: "Nat", Primed: true},
-					},
-					Text: "n' = n - 1",
-					Line: 5,
-				},
+				Guard:       1661950304,
+				Post:        2835127098,
+				Line:        5,
 			},
 		},
 		Init: IRInit{
-			Dst: "a",
-			Post: IRPredicate{
-				Kind: IRPredicateKindInit,
-				Args: []IRArg{},
-				Text: csdf.PredicateTrue,
-				Line: 4,
-			},
+			Dst:  "a",
+			Post: 4261170317,
+			Line: 4,
 		},
 	}
 
@@ -91,6 +92,12 @@ s0 --> s1 : a
 			"s0": {Fields: []IRField{}, Line: 2},
 			"s1": {Fields: []IRField{}, Line: 3},
 		},
+		Predicates: map[IRPredicateID]IRPredicate{
+			4261170317: {
+				Args: []IRArg{},
+				Text: csdf.PredicateTrue,
+			},
+		},
 		Constants: []IRConst{},
 		Edges: []IREdge{
 			{
@@ -98,28 +105,15 @@ s0 --> s1 : a
 				Dst:         "s1",
 				Event:       "a",
 				EventParams: []IRArg{},
-				Guard: IRPredicate{
-					Kind: IRPredicateKindGuard,
-					Args: []IRArg{},
-					Text: csdf.PredicateTrue,
-					Line: 5,
-				},
-				Post: IRPredicate{
-					Kind: IRPredicateKindPost,
-					Args: []IRArg{},
-					Text: csdf.PredicateTrue,
-					Line: 5,
-				},
+				Guard:       4261170317,
+				Post:        4261170317,
+				Line:        5,
 			},
 		},
 		Init: IRInit{
-			Dst: "s0",
-			Post: IRPredicate{
-				Kind: IRPredicateKindInit,
-				Args: []IRArg{},
-				Text: csdf.PredicateTrue,
-				Line: 4,
-			},
+			Dst:  "s0",
+			Post: 4261170317,
+			Line: 4,
 		},
 	}
 
@@ -156,16 +150,18 @@ s0: ready ; bool
 				Line: 2,
 			},
 		},
+		Predicates: map[IRPredicateID]IRPredicate{
+			2612241710: {
+				Args: []IRArg{},
+				Text: "initialized",
+			},
+		},
 		Constants: []IRConst{},
 		Edges:     []IREdge{},
 		Init: IRInit{
-			Dst: "s0",
-			Post: IRPredicate{
-				Kind: IRPredicateKindInit,
-				Args: []IRArg{},
-				Text: "initialized",
-				Line: 4,
-			},
+			Dst:  "s0",
+			Post: 2612241710,
+			Line: 4,
 		},
 	}
 

@@ -2,7 +2,7 @@ package csdf
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -43,10 +43,34 @@ type Diagram struct {
 }
 
 type State struct {
-	ID   StateID    `json:"id"`
 	Name string     `json:"name"`
 	Vars []StateVar `json:"vars"`
 	Line int        `json:"line"` // 1-based source line of the start edge.
+}
+
+func CompareState(a, b State) int {
+	return a.Line - b.Line
+}
+
+type StateWithID struct {
+	State
+	ID StateID
+}
+
+func CompareStateWithID(a, b StateWithID) int {
+	return CompareState(a.State, b.State)
+}
+
+func SortedStates(m map[StateID]State) []StateWithID {
+	ss := make([]StateWithID, 0, len(m))
+	for id, s := range m {
+		ss = append(ss, StateWithID{
+			ID:    id,
+			State: s,
+		})
+	}
+	slices.SortFunc(ss, CompareStateWithID)
+	return ss
 }
 
 type StartEdge struct {
@@ -74,14 +98,9 @@ func (d *Diagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")
 
-	stateIDs := make([]StateID, 0, len(d.States))
-	for id := range d.States {
-		stateIDs = append(stateIDs, id)
-	}
-	sort.Slice(stateIDs, func(i, j int) bool { return stateIDs[i] < stateIDs[j] })
+	ss := SortedStates(d.States)
 
-	for _, id := range stateIDs {
-		state := d.States[id]
+	for _, state := range ss {
 		sb.WriteString(fmt.Sprintf("state \"%s\" as %s\n", state.Name, state.ID))
 		for _, v := range state.Vars {
 			sb.WriteString(fmt.Sprintf("%s: %s", state.ID, v.Name))

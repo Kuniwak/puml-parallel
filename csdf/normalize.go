@@ -35,7 +35,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 		StartEdge: StartEdge{Dst: initID, Post: d.StartEdge.Post},
 		Edges:     make([]Edge, 0),
 	}
-	result.States[initID] = State{ID: initID, Name: normalStateName(initSet)}
+	result.States[initID] = State{Name: normalStateName(initSet)}
 
 	marked := map[StateID]struct{}{initID: {}}
 	queue := []map[StateID]struct{}{initSet}
@@ -74,7 +74,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 			}
 			vID := normalStateID(v)
 			if _, ok := result.States[vID]; !ok {
-				result.States[vID] = State{ID: vID, Name: normalStateName(v)}
+				result.States[vID] = State{Name: normalStateName(v)}
 			}
 			result.Edges = append(result.Edges, Edge{
 				Src:   uID,

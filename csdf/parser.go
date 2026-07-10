@@ -67,11 +67,11 @@ func (p *Parser) Parse() (*Diagram, error) {
 		}
 
 		if p.peekString("state") {
-			state, err := p.parseState()
+			state, err := p.parseStateWithID()
 			if err != nil {
 				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
-			diagram.States[state.ID] = state
+			diagram.States[state.ID] = state.State
 		} else if p.peekString("[*]") {
 			startEdge, err := p.parseStartEdge()
 			if err != nil {
@@ -114,91 +114,93 @@ func (p *Parser) Parse() (*Diagram, error) {
 	return diagram, nil
 }
 
-func (p *Parser) parseState() (State, error) {
+func (p *Parser) parseStateWithID() (StateWithID, error) {
 	if !p.expectString("state") {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: expected 'state' at line %d, col %d", p.line, p.col)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: expected 'state' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	name, err := p.parseStateName()
 	if err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	if !p.expectString("as") {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: expected 'as' at line %d, col %d", p.line, p.col)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: expected 'as' at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	id, err := p.parseID()
 	if err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
-	state := State{
-		ID:   StateID(id),
-		Name: name,
-		Vars: []StateVar{},
-		Line: p.line,
+	state := StateWithID{
+		ID: StateID(id),
+		State: State{
+			Name: name,
+			Vars: []StateVar{},
+			Line: p.line,
+		},
 	}
 
 	if err := p.skipInlineTrivia(); err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 	if !p.expectNewlines() {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: expected newline after state declaration at line %d, col %d", p.line, p.col)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: expected newline after state declaration at line %d, col %d", p.line, p.col)
 	}
 	if err := p.skipTrivia(); err != nil {
-		return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
 	for !p.isAtEnd() {
 		isStateVar, err := p.isStateVar(state.ID)
 		if err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if !isStateVar {
 			break
 		}
 
 		if _, err := p.parseID(); err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if !p.expectChar(':') {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: expected ':' after state ID in variable declaration at line %d, col %d", p.line, p.col)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		varName, err := p.parseID()
 		if err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 		if err := p.skipInlineTrivia(); err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 
 		var varType string
 		if p.expectChar(';') {
 			if err := p.skipInlineTrivia(); err != nil {
-				return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+				return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 			}
 			varType, err = p.parseUntilSemicolon()
 			if err != nil {
-				return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+				return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 			}
 			if p.peek() == ';' {
-				return State{}, fmt.Errorf("csdf.Parser.parseState: unexpected ';' in variable type at line %d, col %d", p.line, p.col)
+				return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: unexpected ';' in variable type at line %d, col %d", p.line, p.col)
 			}
 		}
 
@@ -207,10 +209,10 @@ func (p *Parser) parseState() (State, error) {
 			Type: varType,
 		})
 		if !p.expectNewlines() {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: expected newline after variable declaration at line %d, col %d", p.line, p.col)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: expected newline after variable declaration at line %d, col %d", p.line, p.col)
 		}
 		if err := p.skipTrivia(); err != nil {
-			return State{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
+			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
 	}
 

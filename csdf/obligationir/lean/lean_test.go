@@ -48,6 +48,7 @@ inductive St where
 
 -- "n > 0"
 def Guard_L5 (n : Json) : Prop := True
+
 -- "n' = n - 1"
 def Post_L5 (n : Json) (n' : Json) : Prop := True
 

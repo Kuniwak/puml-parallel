@@ -8,7 +8,6 @@ package isabelle
 import (
 	"fmt"
 	"io"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -45,154 +44,169 @@ func MustCompileLivelockFreeString(input string) string {
 }
 
 // WriteLivelockFree writes an Isabelle/HOL obligation skeleton for ir to w.
-func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) {
+func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 	io.WriteString(w, `theory Livelock_Obligation
   imports Main
-begin
-
-`)
-
-	ps := ir.CollectPredicates()
-	slices.SortFunc(ps, obligationir.ComparePredicate)
-	hs := obligationir.IRPredicatesWithHash(ps)
-
-	taus := make([]obligationir.IREdge, 0, len(ir.Edges))
-	for _, e := range ir.Edges {
-		if e.Event == csdf.Tau {
-			taus = append(taus, e)
-		}
-	}
-
-	if hasVars(ir) {
-		io.WriteString(w, ValPrelude)
-	}
-	io.WriteString(w, `datatype st = `)
-	stateIDs := obligationir.SortIRStates(ir.States)
-	for i, st := range stateIDs {
-		if i == 0 {
-			io.WriteString(w, string(st.StateID))
-		} else {
-			io.WriteString(w, `
-            | `)
-			io.WriteString(w, string(st.StateID))
-		}
-		for range st.Fields {
-			io.WriteString(w, ` val`)
-		}
-		if len(st.Fields) > 0 {
-			io.WriteString(w, ` `)
-			WriteDeclaredComment(w, st.Fields)
-		}
-	}
-	io.WriteString(w, `
-
-`)
-
-	if len(taus) > 0 {
-		for _, h := range hs {
-			if h.Predicate.Kind == obligationir.IRPredicateKindInit {
-				// NOTE: init always do not get used in tau_step.
-				continue
-			}
-
-			io.WriteString(w, `(* `)
-			io.WriteString(w, string(h.Predicate.Text))
-			io.WriteString(w, ` *)
-`)
-			io.WriteString(w, `definition `)
-			WritePredicateName(w, h)
-			io.WriteString(w, ` :: "`)
-			for range len(h.Predicate.Args) {
-				io.WriteString(w, `val \<Rightarrow> `)
-			}
-			io.WriteString(w, `bool"
-  where "`)
-			WritePredicateName(w, h)
-			io.WriteString(w, ` `)
-			for _, arg := range h.Predicate.Args {
-				WriteArg(w, arg)
-				io.WriteString(w, ` `)
-			}
-			io.WriteString(w, `\<equiv> True"
-
-`)
-		}
-	}
-
-	WriteTauStep(w, ir, hs, taus)
-	io.WriteString(w, `
-`)
+begin`)
+	WriteNewLine(w, 2)
 
 	if ir.Structurally {
-		io.WriteString(w, `(* Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation. *)
-`)
+		io.WriteString(w, `(* Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation. *)`)
+		WriteNewLine(w, 2)
 	} else {
-		io.WriteString(w, `theorem livelock_free: "wf {(s', s). tau_step s s'}"
-`)
-		io.WriteString(w, `  oops
-`)
-	}
-	io.WriteString(w, `end
-`)
-}
-
-// WriteTauStep renders the tau_step relation as a disjunction over the tau edges. With no
-// tau edge the relation is False; a single disjunct is emitted inline, several are
-// parenthesised and joined with ∨ (each ∃ would otherwise capture the disjunction).
-func WriteTauStep(w io.Writer, ir obligationir.IRLivelockFree, hs []obligationir.IRPredicateWithHash, taus []obligationir.IREdge) {
-	predicates := ir.CollectPredicates()
-	preds := make(map[string]obligationir.IRPredicate, len(predicates))
-	var b strings.Builder
-	for _, h := range hs {
-		WritePredicateName(&b, h)
-		sym := b.String()
-		(&b).Reset()
-		preds[sym] = h.Predicate
-	}
-
-	m := make(map[int]map[obligationir.IRPredicateKind]obligationir.IRPredicateWithHash, len(hs))
-	for _, h := range hs {
-		var ok bool
-		var m2 map[obligationir.IRPredicateKind]obligationir.IRPredicateWithHash
-		if m2, ok = m[h.Predicate.Line]; !ok {
-			m2 = make(map[obligationir.IRPredicateKind]obligationir.IRPredicateWithHash)
-			m[h.Predicate.Line] = m2
+		if obligationir.HasVars(ir) {
+			io.WriteString(w, ValPrelude)
+			WriteNewLine(w, 2)
 		}
-		m2[h.Predicate.Kind] = h
 
-	}
+		if err := WriteStateTypeDeclaration(w, obligationir.SortIRStates(ir.States)); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+		}
+		WriteNewLine(w, 2)
 
-	io.WriteString(w, `definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where `)
-	switch len(taus) {
-	case 0:
-		io.WriteString(w, `"tau_step s s' \<equiv> False"
-`)
-	case 1:
-		io.WriteString(w, `"tau_step s s' \<equiv> `)
-
-		WriteTauDisjunct(w, taus[0], ir.States, m)
-		io.WriteString(w, `"
-`)
-	default:
-		io.WriteString(w, `"tau_step s s' \<equiv>
-`)
-		for i, tau := range taus {
-			if i == 0 {
-				io.WriteString(w, `    (`)
-			} else {
-				io.WriteString(w, `
-     \<or> (`)
+		for i, p := range obligationir.OnlyPredicateWithUsedID(ir.Predicates, ir.UsedMap()) {
+			if i > 0 {
+				WriteNewLine(w, 2)
 			}
-			WriteTauDisjunct(w, tau, ir.States, m)
-			io.WriteString(w, `)`)
+			if err := WritePredicate(w, p); err != nil {
+				return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+			}
 		}
-		io.WriteString(w, `"
-`)
+		WriteNewLine(w, 2)
+
+		taus := obligationir.TauEdges(ir.Edges)
+		for i, tau := range taus {
+			if i > 0 {
+				WriteNewLine(w, 2)
+			}
+			if err := WriteEdge(w, tau, ir.Predicates); err != nil {
+				return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+			}
+		}
+		WriteNewLine(w, 2)
+
+		WriteTauStep(w, ir.States, taus, ir.Predicates)
+		WriteNewLine(w, 2)
+
+		io.WriteString(w, `theorem livelock_free: "wf {(s', s). tau_step s s'}"
+  oops`)
+		WriteNewLine(w, 2)
 	}
+	io.WriteString(w, `end`)
+	WriteNewLine(w, 1)
+	return nil
 }
 
-func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[int]map[obligationir.IRPredicateKind]obligationir.IRPredicateWithHash) {
+func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
+	if err := WriteLineComment(w, NewConstWriter(string(p.Predicate.Text))); err != nil {
+		return fmt.Errorf("isabelle.WritePredicate: %w", err)
+	}
+	WriteNewLine(w, 1)
+	if err := WriteDefinition(
+		w,
+		NewWritePredicateNameWithIDFunc("pred_", p.ID),
+		NewWriteArgTypeFunc(p.Predicate.Args),
+		NewConstWriter("bool"),
+		NewWriteArgNameFunc(p.Predicate.Args),
+		NewConstWriter("True"),
+		len(p.Predicate.Args),
+		len(p.Predicate.Args),
+	); err != nil {
+		return fmt.Errorf("isabelle.WritePredicate: %w", err)
+	}
+	return nil
+}
+
+func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+	guard := m[tau.Guard]
+	if err := WriteLineComment(w, NewConstWriter(string(guard.Text))); err != nil {
+		return fmt.Errorf("isabelle.WriteEdge: pre-guard comment: %w", err)
+	}
+	WriteNewLine(w, 1)
+	if err := WriteDefinition(
+		w,
+		NewWritePredicateNameWithLineFunc("guard_L", tau.Line),
+		NewWriteArgTypeFunc(guard.Args),
+		NewConstWriter("bool"),
+		NewWriteArgNameFunc(nil),
+		NewWritePredicateNameWithIDFunc("pred_", tau.Guard),
+		len(guard.Args),
+		0,
+	); err != nil {
+		return fmt.Errorf("isabelle.WriteEdge: %w", err)
+	}
+
+	WriteNewLine(w, 2)
+
+	post := m[tau.Post]
+	if err := WriteLineComment(w, NewConstWriter(string(post.Text))); err != nil {
+		return fmt.Errorf("isabelle.WriteEdge: pre-post comment: %w", err)
+	}
+	WriteNewLine(w, 1)
+	if err := WriteDefinition(
+		w,
+		NewWritePredicateNameWithLineFunc("post_L", tau.Line),
+		NewWriteArgTypeFunc(post.Args),
+		NewConstWriter("bool"),
+		NewWriteArgNameFunc(nil),
+		NewWritePredicateNameWithIDFunc("pred_", tau.Post),
+		len(post.Args),
+		0,
+	); err != nil {
+		return fmt.Errorf("isabelle.WriteEdge: %w", err)
+	}
+	return nil
+}
+
+func WriteTauStep(w io.Writer, states map[csdf.StateID]obligationir.IRState, taus []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+	if err := WriteDefinition(
+		w,
+		NewConstWriter("tau_step"),
+		func(w io.Writer, _ int) error {
+			io.WriteString(w, "st")
+			return nil
+		},
+		NewConstWriter("bool"),
+		func(w io.Writer, i int) error {
+			switch i {
+			case 0:
+				io.WriteString(w, "s")
+			case 1:
+				io.WriteString(w, "s'")
+			default:
+				panic(fmt.Sprintf("isabelle.WriteTauStep: index out of range: %d", i))
+			}
+			return nil
+		},
+		func(w io.Writer) error {
+			switch len(taus) {
+			case 0:
+				io.WriteString(w, `False`)
+			case 1:
+				WriteTauDisjunct(w, taus[0], states, m)
+			default:
+				for i, tau := range taus {
+					if i == 0 {
+						io.WriteString(w, `(`)
+					} else {
+						WriteNewLine(w, 1)
+						io.WriteString(w, `    \<or> (`)
+					}
+					WriteTauDisjunct(w, tau, states, m)
+					io.WriteString(w, `)`)
+				}
+			}
+			return nil
+		},
+		2,
+		2,
+	); err != nil {
+		return fmt.Errorf("isabelle.WriteTauStep: %w", err)
+	}
+	return nil
+}
+
+func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	src := states[e.Src]
 	dst := states[e.Dst]
 
@@ -221,68 +235,72 @@ func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateI
 	WriteStatePattern(w, e.Src, src, false)
 	io.WriteString(w, ` \<and> s' = `)
 	WriteStatePattern(w, e.Src, src, true)
-	io.WriteString(w, ` \<and> `)
-	WriteApplyPred(w, m[e.Guard.Line][obligationir.IRPredicateKindGuard])
-	io.WriteString(w, ` \<and> `)
-	WriteApplyPred(w, m[e.Post.Line][obligationir.IRPredicateKindPost])
+	io.WriteString(w, ` \<and> guard_L`)
+	WriteLineNumber(w, e.Line)
+	for _, arg := range m[e.Guard].Args {
+		io.WriteString(w, ` `)
+		WriteArgName(w, arg)
+	}
+	io.WriteString(w, ` \<and> post_L`)
+	WriteLineNumber(w, e.Line)
+	for _, arg := range m[e.Post].Args {
+		io.WriteString(w, ` `)
+		WriteArgName(w, arg)
+	}
 }
 
-// statePattern renders a constructor application like "a n" (or "a n'" for the primed
-// post-state), or just "a" when the state has no variables.
 func WriteStatePattern(w io.Writer, ctor csdf.StateID, st obligationir.IRState, primed bool) {
 	io.WriteString(w, string(ctor))
 	for _, f := range st.Fields {
 		io.WriteString(w, ` `)
-		io.WriteString(w, f.Name)
-		if primed {
-			io.WriteString(w, `'`)
-		}
+		WriteField(w, f, primed)
 	}
 }
 
-// applyPred renders a predicate symbol applied to its arguments, or the literal True
-// when the predicate was omitted.
-func WriteApplyPred(w io.Writer, h obligationir.IRPredicateWithHash) {
-	WritePredicateName(w, h)
-	for _, a := range h.Predicate.Args {
-		io.WriteString(w, ` `)
-		WriteArg(w, a)
-	}
-}
-
-func WriteArg(w io.Writer, a obligationir.IRArg) {
-	io.WriteString(w, a.Name)
-	if a.Primed {
+func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
+	io.WriteString(w, f.Name)
+	if primed {
 		io.WriteString(w, `'`)
 	}
 }
 
-// jsonPrelude is the value type of every state variable: csdfrepl state-var values are
-// arbitrary JSON, so each variable is a json. Floats are folded into JSONInt for now.
-const ValPrelude = `datatype val = ValInt int
-             | ValString string
-			 | ValBool bool
-			 | ValArray "val list"
-			 | ValDict "(string \<times> val) list"
-
-`
-
-// hasVars reports whether any state has a variable, in which case the json datatype is
-// emitted (otherwise it would be unused).
-func hasVars(ir obligationir.IRLivelockFree) bool {
-	for _, st := range ir.States {
-		if len(st.Fields) > 0 {
-			return true
-		}
+func WriteStateTypeDeclaration(w io.Writer, ss []obligationir.IRStateWithID) error {
+	if err := WriteDatatype(
+		w,
+		NewConstWriter("st"),
+		func(w io.Writer, i int) error {
+			io.WriteString(w, string(ss[i].StateID))
+			return nil
+		},
+		func(w io.Writer, i, j int) error {
+			io.WriteString(w, "val")
+			return nil
+		},
+		func(n int) bool {
+			return len(ss[n].Fields) > 0
+		},
+		func(w io.Writer, n int) error {
+			WriteVarTypesCommentContent(w, ss[n].Fields)
+			return nil
+		},
+		func(n int) int {
+			return len(ss[n].Fields)
+		},
+		len(ss),
+	); err != nil {
+		return fmt.Errorf("isabelle.WriteStateTypeDeclaration: writeDatatype: %w", err)
 	}
-	return false
+	return nil
 }
 
-// declaredComment renders the state's original declared variable types, positionally and
-// comma-joined (an undeclared field shows as "any"). It returns "" when nothing was
-// declared, so no comment is emitted.
-func WriteDeclaredComment(w io.Writer, fs []obligationir.IRField) {
-	io.WriteString(w, `(* declared:`)
+const ValPrelude = `datatype val = ValInt int
+  | ValString string
+  | ValBool bool
+  | ValArray "val list"
+  | ValDict "(string \<times> val) list"`
+
+func WriteVarTypesCommentContent(w io.Writer, fs []obligationir.IRField) {
+	io.WriteString(w, `type:`)
 	for _, f := range fs {
 		io.WriteString(w, ` (`)
 		io.WriteString(w, f.Name)
@@ -294,20 +312,172 @@ func WriteDeclaredComment(w io.Writer, fs []obligationir.IRField) {
 		}
 		io.WriteString(w, `)`)
 	}
-	io.WriteString(w, ` *)`)
 }
 
-func WritePredicateName(w io.Writer, h obligationir.IRPredicateWithHash) {
-	switch h.Predicate.Kind {
-	case obligationir.IRPredicateKindInit:
-		io.WriteString(w, "init_")
-	case obligationir.IRPredicateKindGuard:
-		io.WriteString(w, "guard_")
-	case obligationir.IRPredicateKindPost:
-		io.WriteString(w, "post_")
-	default:
-		panic(fmt.Sprintf("isabelle.WritePredicateName: unknown kind: %#v", h))
+func WritePredicateID(w io.Writer, id obligationir.IRPredicateID) {
+	io.WriteString(w, strconv.FormatUint(uint64(id), 36))
+}
+
+func WriteLineNumber(w io.Writer, line int) {
+	io.WriteString(w, strconv.Itoa(line))
+}
+
+func NewConstWriter(s string) func(io.Writer) error {
+	return func(w io.Writer) error {
+		io.WriteString(w, s)
+		return nil
+	}
+}
+
+func NewWritePredicateNameWithIDFunc(prefix string, id obligationir.IRPredicateID) func(io.Writer) error {
+	return func(w io.Writer) error {
+		io.WriteString(w, prefix)
+		WritePredicateID(w, id)
+		return nil
+	}
+}
+
+func NewWritePredicateNameWithLineFunc(prefix string, line int) func(io.Writer) error {
+	return func(w io.Writer) error {
+		io.WriteString(w, prefix)
+		io.WriteString(w, strconv.Itoa(line))
+		return nil
+	}
+}
+
+func NewWriteArgTypeFunc(args []obligationir.IRArg) func(io.Writer, int) error {
+	return func(w io.Writer, _ int) error {
+		io.WriteString(w, "val")
+		return nil
+	}
+}
+
+func NewWriteArgNameFunc(args []obligationir.IRArg) func(io.Writer, int) error {
+	return func(w io.Writer, i int) error {
+		arg := args[i]
+		WriteArgName(w, arg)
+		return nil
+	}
+}
+
+func WriteArgName(w io.Writer, arg obligationir.IRArg) {
+	io.WriteString(w, arg.Name)
+	if arg.Primed {
+		io.WriteString(w, `'`)
+	}
+}
+
+func WriteLineComment(
+	w io.Writer,
+	writeContent func(io.Writer) error,
+) error {
+	io.WriteString(w, `(* `)
+	if err := writeContent(w); err != nil {
+		return fmt.Errorf("isabelle.WriteLineComment: %w", err)
+	}
+	io.WriteString(w, ` *)`)
+	return nil
+}
+
+func WriteDefinition(
+	w io.Writer,
+	writeNameFunc func(io.Writer) error,
+	writeArgTypeFunc func(io.Writer, int) error,
+	writeRetTypeFunc func(io.Writer) error,
+	writeArgNameFunc func(io.Writer, int) error,
+	writeBodyFunc func(io.Writer) error,
+	nArgTypes int,
+	nArgNames int,
+) error {
+	if nArgTypes < 0 {
+		panic(fmt.Sprintf("isabelle.WriteDefinition: nArgTypes must be: 1 <= %d", nArgTypes))
+	}
+	if nArgNames > nArgTypes {
+		panic(fmt.Sprintf("isabelle.WriteDefinition: nArgNames must be: nArgTypes %d >= nArgNames %d", nArgTypes, nArgNames))
 	}
 
-	io.WriteString(w, strconv.FormatUint(uint64(h.Hash), 36))
+	io.WriteString(w, `definition `)
+	if err := writeNameFunc(w); err != nil {
+		return fmt.Errorf("isabelle.WriteDefinition: writeNameFunc[0]: %w", err)
+	}
+	io.WriteString(w, ` :: "`)
+	for i := range nArgTypes {
+		if err := writeArgTypeFunc(w, i); err != nil {
+			return fmt.Errorf("isabelle.WriteDefinition: writeArgType[%d]: %w", i, err)
+		}
+		io.WriteString(w, ` \<Rightarrow> `)
+	}
+	if err := writeRetTypeFunc(w); err != nil {
+		return fmt.Errorf("isabelle.WriteDefinition: writeRetType: %w", err)
+	}
+	io.WriteString(w, `"
+  where "`)
+	if err := writeNameFunc(w); err != nil {
+		return fmt.Errorf("isabelle.WriteDefinition: writeNameFunc[1]: %w", err)
+	}
+	io.WriteString(w, ` `)
+	for i := range nArgNames {
+		if err := writeArgNameFunc(w, i); err != nil {
+			return fmt.Errorf("isabelle.WriteDefinition: writeArgName[%d]: %w", i, err)
+		}
+		io.WriteString(w, ` `)
+	}
+	io.WriteString(w, `\<equiv> `)
+	if err := writeBodyFunc(w); err != nil {
+		return fmt.Errorf("isabelle.WriteDefinition: writeBody: %w", err)
+	}
+	io.WriteString(w, `"`)
+	return nil
+}
+
+func WriteDatatype(
+	w io.Writer,
+	writeTypeName func(io.Writer) error,
+	writeCtor func(io.Writer, int) error,
+	writeVar func(io.Writer, int, int) error,
+	hasCtorComment func(int) bool,
+	writeCtorComment func(io.Writer, int) error,
+	nVar func(int) int,
+	nCtor int,
+) error {
+	if nCtor < 1 {
+		panic(fmt.Sprintf("isabelle.WriteDatatype: nCtor must be greater than 1 but: %d", nCtor))
+	}
+
+	io.WriteString(w, `datatype `)
+	if err := writeTypeName(w); err != nil {
+		return fmt.Errorf("isabelle.WriteDatatype: writeTypeName: %w", err)
+	}
+	for i := range nCtor {
+		if i == 0 {
+			io.WriteString(w, ` = `)
+		} else {
+			WriteNewLine(w, 1)
+			io.WriteString(w, `  | `)
+		}
+		if err := writeCtor(w, i); err != nil {
+			return fmt.Errorf("isabelle.WriteDatatype: writeCtor[%d]: %w", i, err)
+		}
+		for j := range nVar(i) {
+			io.WriteString(w, ` `)
+			if err := writeVar(w, i, j); err != nil {
+				return fmt.Errorf("isabelle.WriteDatatype: writeVar[%d]: %w", i, err)
+			}
+		}
+		if hasCtorComment(i) {
+			io.WriteString(w, ` `)
+			if err := WriteLineComment(w, func(w io.Writer) error {
+				return writeCtorComment(w, i)
+			}); err != nil {
+				return fmt.Errorf("isabelle.WriteDatatype: writeComment[%d]: %w", i, err)
+			}
+		}
+	}
+	return nil
+}
+
+func WriteNewLine(w io.Writer, n int) {
+	for range n {
+		io.WriteString(w, "\n")
+	}
 }

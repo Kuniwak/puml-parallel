@@ -1,13 +1,21 @@
 package obligationir
 
 import (
+	"cmp"
+	"fmt"
 	"hash"
 	"hash/crc32"
 	"slices"
-	"sort"
+	"strconv"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
+
+type IRPredicateID uint32
+
+func ComparePredicateID(a, b IRPredicateID) int {
+	return cmp.Compare(a, b)
+}
 
 // ObligationIR is a prover-agnostic intermediate representation of the proof
 // obligation that the diagram is livelock free, i.e. no reachable state admits an
@@ -18,21 +26,25 @@ import (
 type IRLivelockFree struct {
 	// StructurallyLivelockFree is true when no reachable τ-only cycle exists, in
 	// which case the obligation holds regardless of the predicates.
-	Structurally bool                     `json:"structurally"`
-	States       map[csdf.StateID]IRState `json:"states"`    // the state space as an ADT
-	Constants    []IRConst                `json:"constants"` // global opaque constants in scope
-	Edges        []IREdge                 `json:"edges"`     // the labelled transitions
-	Init         IRInit                   `json:"init"`
+	Structurally bool                          `json:"structurally"`
+	Predicates   map[IRPredicateID]IRPredicate `json:"predicates"`
+	States       map[csdf.StateID]IRState      `json:"states"`    // the state space as an ADT
+	Constants    []IRConst                     `json:"constants"` // global opaque constants in scope
+	Edges        []IREdge                      `json:"edges"`     // the labelled transitions
+	Init         IRInit                        `json:"init"`
 }
 
-func (ir IRLivelockFree) CollectPredicates() []IRPredicate {
-	ps := make([]IRPredicate, 0, 1+len(ir.Edges))
-	ps = append(ps, ir.Init.Post)
+func (ir IRLivelockFree) UsedMap() map[IRPredicateID]struct{} {
+	m := make(map[IRPredicateID]struct{}, len(ir.Edges)*2)
 	for _, e := range ir.Edges {
-		ps = append(ps, e.Guard)
-		ps = append(ps, e.Post)
+		if e.Event != csdf.Tau {
+			continue
+		}
+
+		m[e.Guard] = struct{}{}
+		m[e.Post] = struct{}{}
 	}
-	return ps
+	return m
 }
 
 type IRState struct {
@@ -86,112 +98,74 @@ type IRArg struct {
 }
 
 func (a IRArg) Hash(h hash.Hash) {
-	h.Write([]byte(a.Name))
-	h.Write([]byte{0x00})
-	h.Write([]byte(a.Type))
-	h.Write([]byte{0x00})
-	if a.Primed {
-		h.Write([]byte{0x00})
-	} else {
-		h.Write([]byte{0x01})
-	}
-}
-
-type IRPredicateKind string
-
-const (
-	IRPredicateKindInit  IRPredicateKind = "init"
-	IRPredicateKindGuard IRPredicateKind = "guard"
-	IRPredicateKindPost  IRPredicateKind = "post"
-)
-
-func ComparePredicateKind(a, b IRPredicateKind) int {
-	if a == b {
-		return 0
-	}
-
-	if a == IRPredicateKindInit {
-		return -1
-	}
-
-	if b == IRPredicateKindInit {
-		return 1
-	}
-
-	if a == IRPredicateKindGuard {
-		return -1
-	}
-
-	return 1
 }
 
 // IRPredicate is an opaque predicate symbol with its argument signature and the
 // verbatim natural-language text it stands for. Kind is "guard", "post", or "init".
 type IRPredicate struct {
-	Kind IRPredicateKind `json:"kind"`
-	Args []IRArg         `json:"args"`
-	Text csdf.Predicate  `json:"text"`
-	Line int             `json:"int"`
+	Args []IRArg        `json:"args"`
+	Text csdf.Predicate `json:"text"`
 }
 
-func (p IRPredicate) Hash(h hash.Hash) {
-	h.Write([]byte(p.Kind))
+func (p IRPredicate) Hash(h hash.Hash32) IRPredicateID {
+	h.Write([]byte(p.Text))
 	for _, arg := range p.Args {
 		h.Write([]byte{0x00})
-		arg.Hash(h)
+		h.Write([]byte(arg.Type))
 	}
-	h.Write([]byte{0x00})
-	h.Write([]byte(p.Text))
-}
-
-func (p IRPredicate) WithHash(h hash.Hash32) IRPredicateWithHash {
-	p.Hash(h)
-	x := h.Sum32()
+	res := IRPredicateID(h.Sum32())
 	h.Reset()
-	return IRPredicateWithHash{
-		Predicate: p,
-		Hash:      x,
+	fmt.Printf("id: %s", strconv.FormatUint(uint64(res), 36))
+	fmt.Printf(" text: %q", p.Text)
+	for _, arg := range p.Args {
+		fmt.Printf(" type: %q", arg.Type)
 	}
-}
-
-func IRPredicatesWithHash(ps []IRPredicate) []IRPredicateWithHash {
-	h := crc32.NewIEEE()
-	res := make([]IRPredicateWithHash, len(ps))
-	for i, p := range ps {
-		res[i] = p.WithHash(h)
-	}
+	fmt.Printf("\n")
 	return res
 }
 
-type IRPredicateWithHash struct {
-	Predicate IRPredicate `json:"predicate"`
-	Hash      uint32      `json:"hash"`
+type IRPredicateWithID struct {
+	ID        IRPredicateID `json:"hash"`
+	Predicate IRPredicate   `json:"predicate"`
 }
 
-func ComparePredicate(a, b IRPredicate) int {
-	x := a.Line - b.Line
-	if x != 0 {
-		return x
+func (p IRPredicate) WithID(h hash.Hash32) IRPredicateWithID {
+	return IRPredicateWithID{
+		ID:        p.Hash(h),
+		Predicate: p,
 	}
-	return ComparePredicateKind(a.Kind, b.Kind)
+}
+
+func ComparePredicateWithID(a, b IRPredicateWithID) int {
+	return ComparePredicateID(a.ID, b.ID)
+}
+
+func IRPredicatesWithHash(ps []IRPredicate) []IRPredicateWithID {
+	h := crc32.NewIEEE()
+	res := make([]IRPredicateWithID, len(ps))
+	for i, p := range ps {
+		res[i] = p.WithID(h)
+	}
+	return res
 }
 
 // IREdge is one transition. Guard/Post hold either a predicate symbol or the
 // literal "True" when the predicate is omitted.
 type IREdge struct {
-	Src         csdf.StateID `json:"src"`
-	Dst         csdf.StateID `json:"dst"`
-	Event       csdf.Event   `json:"event"`
-	EventParams []IRArg      `json:"event_params"`
-	Guard       IRPredicate  `json:"guard"`
-	Post        IRPredicate  `json:"post"`
-	Line        int          `json:"line"` // 1-based
+	Src         csdf.StateID  `json:"src"`
+	Dst         csdf.StateID  `json:"dst"`
+	Event       csdf.Event    `json:"event"`
+	EventParams []IRArg       `json:"event_params"`
+	Guard       IRPredicateID `json:"guard"`
+	Post        IRPredicateID `json:"post"`
+	Line        int           `json:"line"` // 1-based
 }
 
 // IRInit names the start state.
 type IRInit struct {
-	Dst  csdf.StateID `json:"state"`
-	Post IRPredicate  `json:"post"`
+	Dst  csdf.StateID  `json:"state"`
+	Post IRPredicateID `json:"post"`
+	Line int           `json:"line"` // 1-based
 }
 
 // BuildObligationIR builds the livelock-freedom proof obligation IR for d. The
@@ -204,20 +178,45 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 	ir := IRLivelockFree{
 		Structurally: free,
 		States:       make(map[csdf.StateID]IRState, len(d.States)),
+		Predicates:   make(map[IRPredicateID]IRPredicate, len(d.Edges)*2+1),
 		Constants:    []IRConst{},
 		Edges:        make([]IREdge, 0, len(d.Edges)),
 	}
 
-	for _, id := range sortedStateMapIDs(d.States) {
-		st := d.States[id]
+	ss := csdf.SortedStates(d.States)
+	for _, st := range ss {
 		fields := make([]IRField, 0, len(st.Vars))
 		for _, v := range st.Vars {
 			fields = append(fields, IRField{Name: string(v.Name), Type: v.Type})
 		}
-		ir.States[id] = IRState{
+		ir.States[st.ID] = IRState{
 			Fields: fields,
 			Line:   st.Line,
 		}
+	}
+
+	h := crc32.NewIEEE()
+
+	initPostVars := ir.States[ir.Init.Dst]
+	initArgs := make([]IRArg, 0, len(initPostVars.Fields))
+	for _, initPostVar := range initPostVars.Fields {
+		initArgs = append(initArgs, IRArg{
+			Name: initPostVar.Name,
+			Type: initPostVar.Type,
+		})
+	}
+	init := IRPredicate{
+		Args: initArgs,
+		Text: d.StartEdge.Post,
+	}
+	initID := init.Hash(h)
+
+	ir.Predicates[initID] = init
+
+	ir.Init = IRInit{
+		Dst:  d.StartEdge.Dst,
+		Post: initID,
+		Line: d.StartEdge.Line,
 	}
 
 	for _, e := range d.Edges {
@@ -238,6 +237,12 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 				Type: preVar.Type,
 			})
 		}
+		guard := IRPredicate{
+			Args: guardArgs,
+			Text: e.Guard,
+		}
+		guardID := guard.Hash(h)
+		ir.Predicates[guardID] = guard
 
 		postArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields)+len(postVars.Fields))
 		for _, evParam := range evParams {
@@ -259,58 +264,66 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 				Primed: true,
 			})
 		}
+		post := IRPredicate{
+			Args: postArgs,
+			Text: e.Post,
+		}
+		postID := post.Hash(h)
+		ir.Predicates[postID] = post
 
 		ir.Edges = append(ir.Edges, IREdge{
 			Src:         e.Src,
 			Dst:         e.Dst,
 			Event:       e.Event,
 			EventParams: []IRArg{},
-			Guard: IRPredicate{
-				Kind: IRPredicateKindGuard,
-				Args: guardArgs,
-				Text: e.Guard,
-				Line: e.Line,
-			},
-			Post: IRPredicate{
-				Kind: IRPredicateKindPost,
-				Args: postArgs,
-				Text: e.Post,
-				Line: e.Line,
-			},
+			Guard:       guardID,
+			Post:        postID,
+			Line:        e.Line,
 		})
-	}
-
-	ir.Init = IRInit{
-		Dst: d.StartEdge.Dst,
-		Post: IRPredicate{
-			Kind: IRPredicateKindInit,
-			Args: []IRArg{},
-			Text: d.StartEdge.Post,
-			Line: d.StartEdge.Line,
-		},
 	}
 	return ir
 }
 
-// varsAsArgs renders a state's variables as predicate arguments, marking them
-// primed when they refer to the post-state.
-func varsAsArgs(d *csdf.Diagram, id csdf.StateID, primed bool) []IRArg {
-	st, ok := d.States[id]
-	if !ok {
-		return []IRArg{}
+func TauEdges(es []IREdge) []IREdge {
+	res := make([]IREdge, 0, len(es))
+	for _, e := range es {
+		if e.Event == csdf.Tau {
+			res = append(res, e)
+		}
 	}
-	args := make([]IRArg, 0, len(st.Vars))
-	for _, v := range st.Vars {
-		args = append(args, IRArg{Name: string(v.Name), Type: v.Type, Primed: primed})
-	}
-	return args
+	return res
 }
 
-func sortedStateMapIDs(states map[csdf.StateID]csdf.State) []csdf.StateID {
-	ids := make([]csdf.StateID, 0, len(states))
-	for id := range states {
-		ids = append(ids, id)
+func Predicates(ps map[IRPredicateID]IRPredicate) []IRPredicateWithID {
+	hs := make([]IRPredicateWithID, 0, len(ps))
+	for id, p := range ps {
+		hs = append(hs, IRPredicateWithID{
+			ID:        id,
+			Predicate: p,
+		})
 	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	slices.SortFunc(hs, ComparePredicateWithID)
+	return hs
+}
+
+func OnlyPredicateWithUsedID(m map[IRPredicateID]IRPredicate, used map[IRPredicateID]struct{}) []IRPredicateWithID {
+	ps := Predicates(m)
+	res := make([]IRPredicateWithID, 0, len(ps))
+	for _, p := range ps {
+		if _, ok := used[p.ID]; ok {
+			res = append(res, p)
+		}
+	}
+	return res
+}
+
+// HasVars reports whether any state has a variable, in which case the json datatype is
+// emitted (otherwise it would be unused).
+func HasVars(ir IRLivelockFree) bool {
+	for _, st := range ir.States {
+		if len(st.Fields) > 0 {
+			return true
+		}
+	}
+	return false
 }

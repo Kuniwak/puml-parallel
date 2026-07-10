@@ -5,8 +5,8 @@ import (
 )
 
 type StatePair struct {
-	Left  State
-	Right State
+	Left  StateWithID
+	Right StateWithID
 }
 
 type Trans struct {
@@ -21,9 +21,15 @@ func (s StatePair) ID() StateID {
 
 func (s StatePair) State() State {
 	return State{
-		ID:   s.ID(),
 		Name: ComposeStateNames(s.Left.Name, s.Right.Name),
 		Vars: append(append([]StateVar{}, s.Left.Vars...), s.Right.Vars...),
+	}
+}
+
+func (s StatePair) StateWithID() StateWithID {
+	return StateWithID{
+		ID:    s.ID(),
+		State: s.State(),
 	}
 }
 
@@ -63,8 +69,14 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	}
 
 	initStatePair := StatePair{
-		Left:  dL.States[dL.StartEdge.Dst],
-		Right: dR.States[dR.StartEdge.Dst],
+		Left: StateWithID{
+			ID:    dL.StartEdge.Dst,
+			State: dL.States[dL.StartEdge.Dst],
+		},
+		Right: StateWithID{
+			ID:    dR.StartEdge.Dst,
+			State: dR.States[dR.StartEdge.Dst],
+		},
 	}
 
 	states := make(map[StateID]State)
@@ -128,8 +140,8 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 							for _, eL := range esL {
 								for _, eR := range esR {
 									nextStatePair := StatePair{
-										Left:  dL.States[dstL],
-										Right: dR.States[dstR],
+										Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
+										Right: StateWithID{ID: dstR, State: dR.States[dstR]},
 									}
 									out.States[nextStatePair.ID()] = nextStatePair.State()
 									out.Edges = append(out.Edges, Edge{
@@ -157,7 +169,7 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 			for dstL, esL := range dstLs {
 				for _, eL := range esL {
 					nextStatePair := StatePair{
-						Left:  dL.States[dstL],
+						Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
 						Right: currentPair.Right,
 					}
 					out.States[nextStatePair.ID()] = nextStatePair.State()
@@ -182,7 +194,7 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 				for _, eR := range esR {
 					nextStatePair := StatePair{
 						Left:  currentPair.Left,
-						Right: dR.States[dstR],
+						Right: StateWithID{ID: dstR, State: dR.States[dstR]},
 					}
 					out.States[nextStatePair.ID()] = nextStatePair.State()
 					out.Edges = append(out.Edges, Edge{

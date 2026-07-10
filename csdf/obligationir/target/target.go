@@ -8,22 +8,24 @@ import (
 	"io"
 
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/irjson"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
-	irjson "github.com/Kuniwak/puml-parallel/csdf/obligationir/json"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/lean"
 )
 
+type Name string
+
 // Output targets selectable via -target.
 const (
-	IRJSON   = "ir-json"
-	Isabelle = "isabelle"
-	Lean     = "lean"
+	NameIRJSON   Name = "ir-json"
+	NameIsabelle Name = "isabelle"
+	NameLean     Name = "lean"
 )
 
 // Validate reports whether name is a known target.
-func Validate(name string) error {
+func Validate(name Name) error {
 	switch name {
-	case IRJSON, Isabelle, Lean:
+	case NameIRJSON, NameIsabelle, NameLean:
 		return nil
 	default:
 		return fmt.Errorf("unknown -target %q (want ir-json, isabelle, or lean)", name)
@@ -31,13 +33,14 @@ func Validate(name string) error {
 }
 
 // Compile writes ir to w in the format named by name.
-func Compile(w io.Writer, ir obligationir.IRLivelockFree, name string) error {
+func Compile(w io.Writer, ir obligationir.IRLivelockFree, name Name) error {
 	switch name {
-	case Isabelle:
+	case NameIsabelle:
 		isabelle.WriteLivelockFree(w, ir)
 		return nil
-	case Lean:
-		return lean.WriteLivelockFree(w, ir)
+	case NameLean:
+		lean.WriteLivelockFree(w, ir)
+		return nil
 	default: // IRJSON
 		return irjson.WriteLivelockFree(w, ir)
 	}

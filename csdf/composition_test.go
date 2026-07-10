@@ -61,14 +61,14 @@ func TestComposeParallelRejectsEndEdges(t *testing.T) {
 	// Setup
 	left := &Diagram{
 		States: map[StateID]State{
-			"left": {ID: "left", Name: "Left"},
+			"left": {Name: "Left"},
 		},
 		StartEdge: StartEdge{Dst: "left"},
 		EndEdge:   &EndEdge{Src: "left"},
 	}
 	right := &Diagram{
 		States: map[StateID]State{
-			"right": {ID: "right", Name: "Right"},
+			"right": {Name: "Right"},
 		},
 		StartEdge: StartEdge{Dst: "right"},
 	}
@@ -90,15 +90,19 @@ func TestComposeParallelRejectsEndEdges(t *testing.T) {
 func TestStatePairPreservesStateVarTypes(t *testing.T) {
 	// Setup
 	pair := StatePair{
-		Left: State{
-			ID:   "left",
-			Name: "Left",
-			Vars: []StateVar{{Name: "ready", Type: "bool"}},
+		Left: StateWithID{
+			ID: "left",
+			State: State{
+				Name: "Left",
+				Vars: []StateVar{{Name: "ready", Type: "bool"}},
+			},
 		},
-		Right: State{
-			ID:   "right",
-			Name: "Right",
-			Vars: []StateVar{{Name: "count", Type: "int"}},
+		Right: StateWithID{
+			ID: "right",
+			State: State{
+				Name: "Right",
+				Vars: []StateVar{{Name: "count", Type: "int"}},
+			},
 		},
 	}
 
@@ -125,8 +129,8 @@ func TestStatePairPreservesStateVarTypes(t *testing.T) {
 func TestComposeParallelMatchesWholeEvent(t *testing.T) {
 	left := &Diagram{
 		States: map[StateID]State{
-			"l0": {ID: "l0", Name: "Left 0"},
-			"l1": {ID: "l1", Name: "Left 1"},
+			"l0": {Name: "Left 0"},
+			"l1": {Name: "Left 1"},
 		},
 		StartEdge: StartEdge{Dst: "l0"},
 		Edges: []Edge{
@@ -135,8 +139,8 @@ func TestComposeParallelMatchesWholeEvent(t *testing.T) {
 	}
 	right := &Diagram{
 		States: map[StateID]State{
-			"r0": {ID: "r0", Name: "Right 0"},
-			"r1": {ID: "r1", Name: "Right 1"},
+			"r0": {Name: "Right 0"},
+			"r1": {Name: "Right 1"},
 		},
 		StartEdge: StartEdge{Dst: "r0"},
 		Edges: []Edge{

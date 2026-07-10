@@ -13,19 +13,18 @@ import (
 )
 
 // Compile writes a Lean 4 obligation skeleton for ir to w.
-func Compile(w io.Writer, ir obligationir.ObligationIR) error {
-	var b strings.Builder
-
-	fmt.Fprintf(&b, "-- structurally_livelock_free: %t\n", ir.StructurallyLivelockFree)
-
+func Compile(w io.Writer, ir obligationir.IRLivelockFree) error {
 	if hasVars(ir) {
-		b.WriteString(jsonPrelude)
+		io.WriteString(w, jsonPrelude)
 	}
-	b.WriteString("inductive St where\n")
-	for _, st := range ir.States {
-		b.WriteString("  | " + st.Ctor)
+	io.WriteString(w, "inductive St where\n")
+	for id, st := range ir.States {
+		io.WriteString(w, "  | ")
+		io.WriteString(w, string(id))
 		for _, f := range st.Fields {
-			fmt.Fprintf(&b, " (%s : Json)", f.Name)
+			io.WriteString(w, " (")
+			io.WriteString(w, f.Name)
+			io.WriteString(w, ": Val)")
 		}
 		if c := declaredComment(st); c != "" {
 			b.WriteString(" -- declared: " + c)

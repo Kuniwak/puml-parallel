@@ -2,13 +2,13 @@ package csdf
 
 import "testing"
 
-func TestDiagramStringOrdersStatesByID(t *testing.T) {
+func TestDiagramStringOrdersStatesByLine(t *testing.T) {
 	// Setup: a map literal whose iteration order is not stable across runs.
 	diagram := Diagram{
 		States: map[StateID]State{
-			"s2": {ID: "s2", Name: "Third"},
-			"s0": {ID: "s0", Name: "First"},
-			"s1": {ID: "s1", Name: "Second"},
+			"s2": {Name: "Third", Line: 3},
+			"s0": {Name: "First", Line: 1},
+			"s1": {Name: "Second", Line: 2},
 		},
 		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 	}
@@ -33,7 +33,7 @@ func TestDiagramStringIncludesEndEdge(t *testing.T) {
 	// Setup
 	diagram := Diagram{
 		States: map[StateID]State{
-			"s0": {ID: "s0", Name: "SKIP"},
+			"s0": {Name: "SKIP"},
 		},
 		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 		EndEdge:   &EndEdge{Src: "s0", Guard: PredicateTrue},
@@ -61,7 +61,6 @@ func TestDiagramStringIncludesStateVarTypes(t *testing.T) {
 	diagram := Diagram{
 		States: map[StateID]State{
 			"s0": {
-				ID:   "s0",
 				Name: "Initial",
 				Vars: []StateVar{
 					{Name: "ready", Type: "bool"},
@@ -93,7 +92,7 @@ s0: count
 func TestDiagramStringIncludesFreeFormEvent(t *testing.T) {
 	diagram := Diagram{
 		States: map[StateID]State{
-			"s0": {ID: "s0", Name: "Initial"},
+			"s0": {Name: "Initial"},
 		},
 		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 		Edges: []Edge{

@@ -24,26 +24,35 @@ a --> a : tau ; n > 0 ; n' = n - 1
 begin
 
 datatype val = ValInt int
-             | ValString string
-			 | ValBool bool
-			 | ValArray "val list"
-			 | ValDict "(string \<times> val) list"
+  | ValString string
+  | ValBool bool
+  | ValArray "val list"
+  | ValDict "(string \<times> val) list"
 
-datatype st = a val (* declared: (n :: Nat) *)
+datatype st = a val (* type: (n :: Nat) *)
 
 (* n > 0 *)
-definition guard_1tjwfxe :: "val \<Rightarrow> bool"
-  where "guard_1tjwfxe n \<equiv> True"
+definition pred_rhhd28 :: "val \<Rightarrow> bool"
+  where "pred_rhhd28 n \<equiv> True"
 
 (* n' = n - 1 *)
-definition post_101s3ia :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "post_101s3ia n n' \<equiv> True"
+definition pred_1avym2i :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "pred_1avym2i n n' \<equiv> True"
+
+(* n > 0 *)
+definition guard_L5 :: "val \<Rightarrow> bool"
+  where "guard_L5 \<equiv> pred_rhhd28"
+
+(* n' = n - 1 *)
+definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "post_L5 \<equiv> pred_1avym2i"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_1tjwfxe n \<and> post_101s3ia n n'"
+  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
 
 theorem livelock_free: "wf {(s', s). tau_step s s'}"
   oops
+
 end
 `
 	if want != got {
@@ -67,13 +76,8 @@ s0 --> s1 : a
   imports Main
 begin
 
-datatype st = s0
-            | s1
-
-definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> False"
-
 (* Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation. *)
+
 end
 `
 	if want != got {
@@ -87,7 +91,7 @@ func TestCompileUntypedVariableIsval(t *testing.T) {
 	got := MustCompileLivelockFreeString(`@startuml
 state "a" as a
 a: n
-[*] --> a
+[*] --> a : n = 10
 a --> a : tau ; n > 0 ; n' = n - 1
 @enduml
 `)
@@ -97,26 +101,38 @@ a --> a : tau ; n > 0 ; n' = n - 1
 begin
 
 datatype val = ValInt int
-             | ValString string
-			 | ValBool bool
-			 | ValArray "val list"
-			 | ValDict "(string \<times> val) list"
+  | ValString string
+  | ValBool bool
+  | ValArray "val list"
+  | ValDict "(string \<times> val) list"
 
-datatype st = a val (* declared: (n :: any) *)
+datatype st = a val (* type: (n :: any) *)
 
 (* n > 0 *)
-definition guard_13qjgd2 :: "val \<Rightarrow> bool"
-  where "guard_13qjgd2 n \<equiv> True"
+definition pred_rhhd28 :: "val \<Rightarrow> bool"
+  where "pred_rhhd28 n \<equiv> True"
 
 (* n' = n - 1 *)
-definition post_en24r7 :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "post_en24r7 n n' \<equiv> True"
+definition pred_1avym2i :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "pred_1avym2i n n' \<equiv> True"
+
+definition init :: "val \<Rightarrow> bool"
+  where "pred_
+
+(* n > 0 *)
+definition guard_L5 :: "val \<Rightarrow> bool"
+  where "guard_L5 \<equiv> pred_rhhd28"
+
+(* n' = n - 1 *)
+definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "post_L5 \<equiv> pred_1avym2i"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_13qjgd2 n \<and> post_en24r7 n n'"
 
 theorem livelock_free: "wf {(s', s). tau_step s s'}"
   oops
+
 end
 `
 	if want != got {
@@ -141,15 +157,39 @@ b --> a : tau
 begin
 
 datatype st = a
-            | b
+  | b
+
+(* true *)
+definition pred_1ygzo25 :: "bool"
+  where "pred_1ygzo25 \<equiv> True"
+
+(* true *)
+definition init :: "bool"
+  where "init \<equiv> pred_1ygzo25"
+
+(* true *)
+definition guard_L5 :: "bool"
+  where "guard_L5 \<equiv> pred_1ygzo25"
+
+(* true *)
+definition post_L5 :: "bool"
+  where "post_L5 \<equiv> pred_1ygzo25"
+
+(* true *)
+definition guard_L6 :: "bool"
+  where "guard_L6 \<equiv> pred_1ygzo25"
+
+(* true *)
+definition post_L6 :: "bool"
+  where "post_L6 \<equiv> pred_1ygzo25"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv>
-    (s = a \<and> s' = b \<and> True \<and> True)
-    \<or> (s = b \<and> s' = a \<and> True \<and> True)"
+  where "tau_step s s' \<equiv> (s = a \<and> s' = b \<and> guard_L5 s \<and> post_L5 s s')
+    \<or> (s = b \<and> s' = a \<and> guard_L6 s \<and> post_L6 s s')"
 
 theorem livelock_free: "wf {(s', s). tau_step s s'}"
   oops
+
 end
 `
 	if want != got {
