@@ -1,215 +1,326 @@
 // Package lean compiles the livelock-freedom obligation IR to a Lean 4 proof
-// obligation skeleton. The opaque guard/post/init predicates become True-placeholder
-// definitions, each preceded by a comment holding the original natural-language text,
-// so a human or LLM can fill in the real predicate body and discharge the theorem.
+// obligation skeleton. The opaque guard/post predicates become True-placeholder
+// definitions, each preceded by a comment holding the original natural-language
+// text, so a human or LLM can fill in the real predicate body and discharge the
+// theorem. It mirrors the isabelle backend: the same predicates are emitted under
+// the same names, so the two skeletons can be compared line for line.
 package lean
 
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// Compile writes a Lean 4 obligation skeleton for ir to w.
-func Compile(w io.Writer, ir obligationir.IRLivelockFree) error {
-	if hasVars(ir) {
-		io.WriteString(w, jsonPrelude)
+func CompileLivelockFree(w io.Writer, r io.Reader) error {
+	input, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("lean.CompileLivelockFree: %w", err)
 	}
-	io.WriteString(w, "inductive St where\n")
-	for id, st := range ir.States {
-		io.WriteString(w, "  | ")
-		io.WriteString(w, string(id))
-		for _, f := range st.Fields {
-			io.WriteString(w, " (")
-			io.WriteString(w, f.Name)
-			io.WriteString(w, ": Val)")
-		}
-		if c := declaredComment(st); c != "" {
-			b.WriteString(" -- declared: " + c)
-		}
-		b.WriteString("\n")
+	d, err := csdf.ParseBytes(input)
+	if err != nil {
+		return fmt.Errorf("lean.CompileLivelockFree: %w", err)
 	}
-	b.WriteString("\n")
-
-	for _, p := range ir.Predicates {
-		fmt.Fprintf(&b, "-- %q\n", sanitizeComment(p.Text))
-		b.WriteString("def " + p.Sym)
-		for _, a := range p.Args {
-			fmt.Fprintf(&b, " (%s : Json)", argName(a))
-		}
-		b.WriteString(" : Prop := True\n")
+	if err := WriteLivelockFree(w, obligationir.BuildLivelockFree(d)); err != nil {
+		return fmt.Errorf("lean.CompileLivelockFree: %w", err)
 	}
-	if len(ir.Predicates) > 0 {
-		b.WriteString("\n")
-	}
-
-	b.WriteString(tauStep(ir))
-	b.WriteString("\n")
-
-	if ir.StructurallyLivelockFree {
-		b.WriteString("-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.\n")
-	} else {
-		b.WriteString("theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by\n")
-		b.WriteString("  sorry\n")
-	}
-
-	_, err := io.WriteString(w, b.String())
-	return err
+	return nil
 }
 
-// tauStep renders the tau-step relation as a disjunction over the tau edges. With no
-// tau edge the relation is False; a single disjunct is emitted bare, several are
-// parenthesised and joined with ∨ (each ∃ would otherwise capture the disjunction).
-func tauStep(ir obligationir.ObligationIR) string {
-	states := make(map[string]obligationir.IRState, len(ir.States))
-	for _, st := range ir.States {
-		states[st.Ctor] = st
-	}
-	preds := make(map[string]obligationir.IRPredicate, len(ir.Predicates))
-	for _, p := range ir.Predicates {
-		preds[p.Sym] = p
-	}
-
-	var disjuncts []string
-	for _, e := range ir.Edges {
-		if e.Tau {
-			disjuncts = append(disjuncts, tauDisjunct(e, states, preds))
-		}
-	}
-
-	if len(disjuncts) == 0 {
-		return "def tauStep (s s' : St) : Prop := False\n"
+func CompileLivelockFreeString(input string) (string, error) {
+	d, err := csdf.Parse(input)
+	if err != nil {
+		return "", fmt.Errorf("lean.CompileLivelockFreeString: %w", err)
 	}
 	var b strings.Builder
-	b.WriteString("def tauStep (s s' : St) : Prop :=\n")
-	if len(disjuncts) == 1 {
-		b.WriteString("  " + disjuncts[0] + "\n")
-		return b.String()
+	if err := WriteLivelockFree(&b, obligationir.BuildLivelockFree(d)); err != nil {
+		return "", fmt.Errorf("lean.CompileLivelockFreeString: %w", err)
 	}
-	for i, d := range disjuncts {
-		if i == 0 {
-			b.WriteString("  (" + d + ")\n")
-		} else {
-			b.WriteString("  ∨ (" + d + ")\n")
-		}
-	}
-	return b.String()
+	return b.String(), nil
 }
 
-func tauDisjunct(e obligationir.IREdge, states map[string]obligationir.IRState, preds map[string]obligationir.IRPredicate) string {
+func MustCompileLivelockFreeString(input string) string {
+	s, err := CompileLivelockFreeString(input)
+	if err != nil {
+		panic(err.Error())
+	}
+	return s
+}
+
+// WriteLivelockFree writes a Lean 4 obligation skeleton for ir to w.
+func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
+	if ir.Structurally {
+		io.WriteString(w, `-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.`)
+		WriteNewLine(w, 1)
+		return nil
+	}
+
+	if obligationir.HasVars(ir) {
+		io.WriteString(w, ValPrelude)
+		WriteNewLine(w, 2)
+	}
+
+	if err := WriteStateTypeDeclaration(w, obligationir.SortIRStates(ir.States)); err != nil {
+		return fmt.Errorf("lean.WriteLivelockFree: %w", err)
+	}
+	WriteNewLine(w, 2)
+
+	for _, p := range obligationir.OnlyPredicateWithUsedID(ir.Predicates, ir.UsedMap()) {
+		WritePredicate(w, p)
+		WriteNewLine(w, 2)
+	}
+
+	taus := obligationir.TauEdges(ir.Edges)
+	for _, tau := range taus {
+		WriteEdge(w, tau, ir.Predicates)
+		WriteNewLine(w, 2)
+	}
+
+	WriteTauStep(w, ir.States, taus, ir.Predicates)
+	WriteNewLine(w, 2)
+
+	io.WriteString(w, `theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+  sorry`)
+	WriteNewLine(w, 1)
+	return nil
+}
+
+// WritePredicate writes the shared True placeholder a predicate stands for. The
+// binder groups same-typed arguments, as Lean prefers: (n n' : Val).
+func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) {
+	WriteLineComment(w, string(p.Predicate.Text))
+	WriteNewLine(w, 1)
+	io.WriteString(w, `def pred_`)
+	WritePredicateID(w, p.ID)
+	if len(p.Predicate.Args) > 0 {
+		io.WriteString(w, ` (`)
+		for i, arg := range p.Predicate.Args {
+			if i > 0 {
+				io.WriteString(w, ` `)
+			}
+			WriteArgName(w, arg)
+		}
+		io.WriteString(w, ` : `)
+		io.WriteString(w, ValType)
+		io.WriteString(w, `)`)
+	}
+	io.WriteString(w, ` : Prop := True`)
+}
+
+// WriteEdge writes the guard_L<line> and post_L<line> aliases of the tau edge's
+// predicates. They are eta-reduced, so the arity shows in the type only.
+func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+	guard := m[tau.Guard]
+	WriteLineComment(w, string(guard.Text))
+	WriteNewLine(w, 1)
+	WritePredicateAlias(w, "guard_L", tau.Line, len(guard.Args), tau.Guard)
+
+	WriteNewLine(w, 2)
+
+	post := m[tau.Post]
+	WriteLineComment(w, string(post.Text))
+	WriteNewLine(w, 1)
+	WritePredicateAlias(w, "post_L", tau.Line, len(post.Args), tau.Post)
+}
+
+func WritePredicateAlias(w io.Writer, prefix string, line, nArgs int, id obligationir.IRPredicateID) {
+	io.WriteString(w, `def `)
+	io.WriteString(w, prefix)
+	WriteLineNumber(w, line)
+	io.WriteString(w, ` : `)
+	for range nArgs {
+		io.WriteString(w, ValType)
+		io.WriteString(w, ` → `)
+	}
+	io.WriteString(w, `Prop := pred_`)
+	WritePredicateID(w, id)
+}
+
+// WriteTauStep writes the tau-step relation as a disjunction over the tau edges.
+// With no tau edge the relation is False; a single disjunct is emitted bare,
+// several are parenthesised so neither existential captures the other's clause.
+func WriteTauStep(w io.Writer, states map[csdf.StateID]obligationir.IRState, taus []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+	io.WriteString(w, `def tauStep (s s' : St) : Prop :=`)
+	switch len(taus) {
+	case 0:
+		io.WriteString(w, ` False`)
+	case 1:
+		WriteNewLine(w, 1)
+		io.WriteString(w, `  `)
+		WriteTauDisjunct(w, taus[0], states, m)
+	default:
+		for i, tau := range taus {
+			WriteNewLine(w, 1)
+			if i == 0 {
+				io.WriteString(w, `  (`)
+			} else {
+				io.WriteString(w, `  ∨ (`)
+			}
+			WriteTauDisjunct(w, tau, states, m)
+			io.WriteString(w, `)`)
+		}
+	}
+}
+
+func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	src := states[e.Src]
 	dst := states[e.Dst]
 
-	var binders []string
-	for _, f := range src.Fields {
-		binders = append(binders, f.Name)
-	}
-	for _, f := range dst.Fields {
-		binders = append(binders, f.Name+"'")
-	}
+	if len(src.Fields) > 0 || len(dst.Fields) > 0 {
+		io.WriteString(w, `∃ `)
 
-	var b strings.Builder
-	if len(binders) > 0 {
-		b.WriteString("∃ " + strings.Join(binders, " ") + ", ")
+		first := true
+		for _, f := range src.Fields {
+			if !first {
+				io.WriteString(w, ` `)
+			}
+			first = false
+			WriteField(w, f, false)
+		}
+		for _, f := range dst.Fields {
+			if !first {
+				io.WriteString(w, ` `)
+			}
+			first = false
+			WriteField(w, f, true)
+		}
+		io.WriteString(w, `, `)
 	}
-	b.WriteString("s = " + statePattern(e.Src, src, false))
-	b.WriteString(" ∧ s' = " + statePattern(e.Dst, dst, true))
-	b.WriteString(" ∧ " + applyPred(e.Guard, preds))
-	b.WriteString(" ∧ " + applyPred(e.Post, preds))
-	return b.String()
+	io.WriteString(w, `s = `)
+	WriteStatePattern(w, e.Src, src, false)
+	io.WriteString(w, ` ∧ s' = `)
+	WriteStatePattern(w, e.Dst, dst, true)
+	io.WriteString(w, ` ∧ guard_L`)
+	WriteLineNumber(w, e.Line)
+	for _, arg := range m[e.Guard].Args {
+		io.WriteString(w, ` `)
+		WriteArgName(w, arg)
+	}
+	io.WriteString(w, ` ∧ post_L`)
+	WriteLineNumber(w, e.Line)
+	for _, arg := range m[e.Post].Args {
+		io.WriteString(w, ` `)
+		WriteArgName(w, arg)
+	}
 }
 
-// statePattern renders an anonymous-constructor pattern like ".a n" (or ".a n'" for
-// the primed post-state), or just ".a" when the state has no variables.
-func statePattern(ctor string, st obligationir.IRState, primed bool) string {
-	var b strings.Builder
-	b.WriteString("." + ctor)
+// WriteStatePattern writes an anonymous-constructor pattern like ".a n" (or
+// ".a n'" for the primed post-state), or just ".a" when the state has no
+// variables.
+func WriteStatePattern(w io.Writer, ctor csdf.StateID, st obligationir.IRState, primed bool) {
+	io.WriteString(w, `.`)
+	io.WriteString(w, string(ctor))
 	for _, f := range st.Fields {
-		if primed {
-			b.WriteString(" " + f.Name + "'")
+		io.WriteString(w, ` `)
+		WriteField(w, f, primed)
+	}
+}
+
+func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
+	io.WriteString(w, f.Name)
+	if primed {
+		io.WriteString(w, `'`)
+	}
+}
+
+func WriteStateTypeDeclaration(w io.Writer, ss []obligationir.IRStateWithID) error {
+	if len(ss) < 1 {
+		return fmt.Errorf("lean.WriteStateTypeDeclaration: no states")
+	}
+
+	io.WriteString(w, `inductive St where`)
+	for _, s := range ss {
+		WriteNewLine(w, 1)
+		io.WriteString(w, `  | `)
+		io.WriteString(w, string(s.StateID))
+		for _, f := range s.Fields {
+			io.WriteString(w, ` (`)
+			io.WriteString(w, f.Name)
+			io.WriteString(w, ` : `)
+			io.WriteString(w, ValType)
+			io.WriteString(w, `)`)
+		}
+		if len(s.Fields) > 0 {
+			io.WriteString(w, ` `)
+			WriteLineCommentFunc(w, func(w io.Writer) {
+				WriteVarTypesCommentContent(w, s.Fields)
+			})
+		}
+	}
+	return nil
+}
+
+// ValType is the type of every state variable: csdfrepl state-var values are
+// arbitrary JSON, so each variable is a Val.
+const ValType = `Val`
+
+// ValPrelude declares ValType. Floats are folded into ValInt for now.
+const ValPrelude = `inductive Val where
+  | ValInt (i : Int)
+  | ValString (s : String)
+  | ValBool (b : Bool)
+  | ValArray (xs : List Val)
+  | ValDict (kvs : List (String × Val))`
+
+// WriteVarTypesCommentContent writes the state's originally declared variable
+// types; an undeclared one shows as "any".
+func WriteVarTypesCommentContent(w io.Writer, fs []obligationir.IRField) {
+	io.WriteString(w, `type:`)
+	for _, f := range fs {
+		io.WriteString(w, ` (`)
+		io.WriteString(w, f.Name)
+		io.WriteString(w, ` : `)
+		if f.Type == "" {
+			io.WriteString(w, "any")
 		} else {
-			b.WriteString(" " + f.Name)
+			io.WriteString(w, f.Type)
 		}
+		io.WriteString(w, `)`)
 	}
-	return b.String()
 }
 
-// applyPred renders a predicate symbol applied to its arguments, or the literal True
-// when the predicate was omitted.
-func applyPred(sym string, preds map[string]obligationir.IRPredicate) string {
-	if sym == "True" {
-		return "True"
+func WriteArgName(w io.Writer, arg obligationir.IRArg) {
+	io.WriteString(w, arg.Name)
+	if arg.Primed {
+		io.WriteString(w, `'`)
 	}
-	p, ok := preds[sym]
-	if !ok {
-		return sym
-	}
-	var b strings.Builder
-	b.WriteString(sym)
-	for _, a := range p.Args {
-		b.WriteString(" " + argName(a))
-	}
-	return b.String()
 }
 
-func argName(a obligationir.IRArg) string {
-	if a.Primed {
-		return a.Name + "'"
-	}
-	return a.Name
+func WritePredicateID(w io.Writer, id obligationir.IRPredicateID) {
+	io.WriteString(w, obligationir.FormatPredicateID(id))
 }
 
-// jsonPrelude is the value type of every state variable: csdfrepl state-var values are
-// arbitrary JSON, so each variable is a Json. Floats are folded into JSONInt for now.
-const jsonPrelude = `inductive Json where
-  | JSONInt (i : Int)
-  | JSONString (s : String)
-  | JSONBool (b : Bool)
-  | JSONArray (xs : List Json)
-  | JSONDict (kvs : List (String × Json))
-
-`
-
-// hasVars reports whether any state has a variable, in which case the Json datatype is
-// emitted (otherwise it would be unused).
-func hasVars(ir obligationir.ObligationIR) bool {
-	for _, st := range ir.States {
-		if len(st.Fields) > 0 {
-			return true
-		}
-	}
-	return false
+func WriteLineNumber(w io.Writer, line int) {
+	io.WriteString(w, strconv.Itoa(line))
 }
 
-// declaredComment renders the state's original declared variable types, positionally and
-// comma-joined (an undeclared field shows as "any"). It returns "" when nothing was
-// declared, so no comment is emitted.
-func declaredComment(st obligationir.IRState) string {
-	if len(st.Fields) == 0 {
-		return ""
-	}
-	declared := false
-	parts := make([]string, len(st.Fields))
-	for i, f := range st.Fields {
-		if f.Type != "" {
-			declared = true
-			parts[i] = f.Type
-		} else {
-			parts[i] = "any"
-		}
-	}
-	if !declared {
-		return ""
-	}
-	return strings.Join(parts, ", ")
+// WriteLineComment writes s as a Lean line comment. Newlines are collapsed so a
+// multi-line predicate text stays on one comment line.
+func WriteLineComment(w io.Writer, s string) {
+	WriteLineCommentFunc(w, func(w io.Writer) {
+		io.WriteString(w, SanitizeComment(s))
+	})
 }
 
-// sanitizeComment collapses newlines so a multi-line predicate text stays on one
+func WriteLineCommentFunc(w io.Writer, writeContent func(io.Writer)) {
+	io.WriteString(w, `-- `)
+	writeContent(w)
+}
+
+// SanitizeComment collapses newlines so a multi-line predicate text stays on one
 // Lean line comment.
-func sanitizeComment(s string) string {
+func SanitizeComment(s string) string {
 	return strings.Join(strings.FieldsFunc(s, func(r rune) bool {
 		return r == '\n' || r == '\r'
 	}), " ")
+}
+
+func WriteNewLine(w io.Writer, n int) {
+	for range n {
+		io.WriteString(w, "\n")
+	}
 }

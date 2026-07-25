@@ -20,7 +20,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		var ir obligationir.ObligationIR
+		var ir obligationir.IRLivelockFree
 		if err := json.Unmarshal(opts.Bytes, &ir); err != nil {
 			return fmt.Errorf("obligationirccmd.NewMainFunc: invalid obligation IR JSON: %w", err)
 		}

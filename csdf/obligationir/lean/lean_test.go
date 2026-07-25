@@ -1,73 +1,72 @@
 package lean
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/google/go-cmp/cmp"
 )
 
-func compile(t *testing.T, input string) string {
-	t.Helper()
-	d, err := csdf.ParseBytes([]byte(input))
-	if err != nil {
-		t.Fatalf("ParseBytes() error = %v", err)
-	}
-	var buf bytes.Buffer
-	if err := Compile(&buf, obligationir.BuildLivelockFree(d)); err != nil {
-		t.Fatalf("Compile() error = %v", err)
-	}
-	return buf.String()
-}
-
 func TestCompileTauSelfLoopWithVars(t *testing.T) {
-	// A guarded tau self-loop carrying a variable becomes: the state ADT, the
-	// guard/post as True-placeholder defs (each preceded by its natural-language
-	// text), the tau-step relation, and the livelock_free theorem left as sorry.
-	got := compile(t, `@startuml
+	// A guarded tau self-loop carrying a variable becomes: the state inductive,
+	// the guard/post as True-placeholder definitions (each preceded by its
+	// natural-language text), the tauStep relation, and the livelock_free theorem
+	// left as sorry.
+	got := MustCompileLivelockFreeString(`@startuml
 state "a" as a
-a: n ; Nat
+a: n ; nat
 [*] --> a
 a --> a : tau ; n > 0 ; n' = n - 1
 @enduml
 `)
 
-	want := `-- structurally_livelock_free: false
-inductive Json where
-  | JSONInt (i : Int)
-  | JSONString (s : String)
-  | JSONBool (b : Bool)
-  | JSONArray (xs : List Json)
-  | JSONDict (kvs : List (String × Json))
+	want := `inductive Val where
+  | ValInt (i : Int)
+  | ValString (s : String)
+  | ValBool (b : Bool)
+  | ValArray (xs : List Val)
+  | ValDict (kvs : List (String × Val))
 
 inductive St where
-  | a (n : Json) -- declared: Nat
+  | a (n : Val) -- type: (n : nat)
 
--- "n > 0"
-def Guard_L5 (n : Json) : Prop := True
+-- n > 0
+def pred_1gdozh4 (n : Val) : Prop := True
 
--- "n' = n - 1"
-def Post_L5 (n : Json) (n' : Json) : Prop := True
+-- n' = n - 1
+def pred_1nuhmrf (n n' : Val) : Prop := True
+
+-- n > 0
+def guard_L5 : Val → Prop := pred_1gdozh4
+
+-- n' = n - 1
+def post_L5 : Val → Val → Prop := pred_1nuhmrf
 
 def tauStep (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ Guard_L5 n ∧ Post_L5 n n'
+  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
 
 theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
   sorry
 `
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
+	if want != got {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestSanitizeCommentCollapsesNewlines(t *testing.T) {
+	// Unlike Isabelle's (* ... *), a Lean comment ends at the newline, so a
+	// multi-line predicate text has to be folded onto one line.
+	got := SanitizeComment("n > 0\r\nand n < 10")
+
+	want := "n > 0 and n < 10"
+	if want != got {
+		t.Error(cmp.Diff(want, got))
 	}
 }
 
 func TestCompileStructurallyFreeEmitsNoObligation(t *testing.T) {
-	// A visible-only chain has no tau edge, so the tau-step relation is False, no
-	// predicate defs are emitted, and — being structurally livelock free — no
-	// sorry obligation is emitted, only a note.
-	got := compile(t, `@startuml
+	// A visible-only chain has no tau edge, so — being structurally livelock free
+	// — no declaration and no sorry obligation is emitted, only a note.
+	got := MustCompileLivelockFreeString(`@startuml
 state "s0" as s0
 state "s1" as s1
 [*] --> s0
@@ -75,25 +74,62 @@ s0 --> s1 : a
 @enduml
 `)
 
-	want := `-- structurally_livelock_free: true
-inductive St where
-  | s0
-  | s1
-
-def tauStep (s s' : St) : Prop := False
-
--- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.
+	want := `-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.
 `
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
+	if want != got {
+		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestCompileUntypedVariableIsVal(t *testing.T) {
+	// An untyped state variable is still a Val; the declared-type comment shows it
+	// as "any".
+	got := MustCompileLivelockFreeString(`@startuml
+state "a" as a
+a: n
+[*] --> a : n = 10
+a --> a : tau ; n > 0 ; n' = n - 1
+@enduml
+`)
+
+	want := `inductive Val where
+  | ValInt (i : Int)
+  | ValString (s : String)
+  | ValBool (b : Bool)
+  | ValArray (xs : List Val)
+  | ValDict (kvs : List (String × Val))
+
+inductive St where
+  | a (n : Val) -- type: (n : any)
+
+-- n' = n - 1
+def pred_7ydc3w (n n' : Val) : Prop := True
+
+-- n > 0
+def pred_1e81hjg (n : Val) : Prop := True
+
+-- n > 0
+def guard_L5 : Val → Prop := pred_1e81hjg
+
+-- n' = n - 1
+def post_L5 : Val → Val → Prop := pred_7ydc3w
+
+def tauStep (s s' : St) : Prop :=
+  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+
+theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+  sorry
+`
+	if want != got {
+		t.Error(cmp.Diff(want, got))
 	}
 }
 
 func TestCompileMultipleTauEdgesAreParenthesisedDisjuncts(t *testing.T) {
-	// Two tau edges (a tau cycle over variable-free states) become a parenthesised
-	// disjunction so neither existential captures the other's clause. Omitted
-	// guard/post render as the literal True.
-	got := compile(t, `@startuml
+	// Two tau edges become a parenthesised disjunction so neither existential
+	// captures the other's clause. Variable-free states make every predicate the
+	// same omitted "true", so one shared placeholder backs all four aliases.
+	got := MustCompileLivelockFreeString(`@startuml
 state "a" as a
 state "b" as b
 [*] --> a
@@ -102,73 +138,33 @@ b --> a : tau
 @enduml
 `)
 
-	want := `-- structurally_livelock_free: false
-inductive St where
+	want := `inductive St where
   | a
   | b
 
+-- true
+def pred_1ygzo25 : Prop := True
+
+-- true
+def guard_L5 : Prop := pred_1ygzo25
+
+-- true
+def post_L5 : Prop := pred_1ygzo25
+
+-- true
+def guard_L6 : Prop := pred_1ygzo25
+
+-- true
+def post_L6 : Prop := pred_1ygzo25
+
 def tauStep (s s' : St) : Prop :=
-  (s = .a ∧ s' = .b ∧ True ∧ True)
-  ∨ (s = .b ∧ s' = .a ∧ True ∧ True)
+  (s = .a ∧ s' = .b ∧ guard_L5 ∧ post_L5)
+  ∨ (s = .b ∧ s' = .a ∧ guard_L6 ∧ post_L6)
 
 theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
   sorry
 `
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCompileUntypedVariableIsJson(t *testing.T) {
-	// An untyped state variable is still a Json value; no declared-type comment is
-	// emitted because nothing was declared.
-	got := compile(t, `@startuml
-state "a" as a
-a: n
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
-@enduml
-`)
-
-	want := `-- structurally_livelock_free: false
-inductive Json where
-  | JSONInt (i : Int)
-  | JSONString (s : String)
-  | JSONBool (b : Bool)
-  | JSONArray (xs : List Json)
-  | JSONDict (kvs : List (String × Json))
-
-inductive St where
-  | a (n : Json)
-
--- "n > 0"
-def Guard_L5 (n : Json) : Prop := True
--- "n' = n - 1"
-def Post_L5 (n : Json) (n' : Json) : Prop := True
-
-def tauStep (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ Guard_L5 n ∧ Post_L5 n n'
-
-theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
-  sorry
-`
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCompileEscapesNewlineInPredicateText(t *testing.T) {
-	// A multi-line natural-language predicate must stay on a single comment line.
-	got := compile(t, `@startuml
-state "a" as a
-a: n ; Nat
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
-@enduml
-`)
-	for _, line := range strings.Split(got, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "--") && strings.Contains(line, "\r") {
-			t.Errorf("comment line contains a carriage return: %q", line)
-		}
+	if want != got {
+		t.Error(cmp.Diff(want, got))
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-func mustBuildIR(t *testing.T) obligationir.ObligationIR {
+func mustBuildIR(t *testing.T) obligationir.IRLivelockFree {
 	t.Helper()
 	d, err := csdf.ParseBytes([]byte(`@startuml
 state "a" as a
@@ -26,7 +26,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 }
 
 func TestValidate(t *testing.T) {
-	for _, name := range []string{IRJSON, Isabelle, Lean} {
+	for _, name := range []Name{NameIRJSON, NameIsabelle, NameLean} {
 		if err := Validate(name); err != nil {
 			t.Errorf("Validate(%q) = %v, want nil", name, err)
 		}
@@ -39,9 +39,9 @@ func TestValidate(t *testing.T) {
 func TestCompileRoutesToBackend(t *testing.T) {
 	ir := mustBuildIR(t)
 
-	testCases := map[string]string{
-		Isabelle: "theory Livelock_Obligation imports Main begin",
-		Lean:     "theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
+	testCases := map[Name]string{
+		NameIsabelle: "theorem livelock_free: \"wf {(s', s). tau_step s s'}\"",
+		NameLean:     "theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
 	}
 	for name, marker := range testCases {
 		var buf bytes.Buffer
@@ -54,12 +54,12 @@ func TestCompileRoutesToBackend(t *testing.T) {
 	}
 
 	// ir-json (and the default) emits decodable obligation IR JSON.
-	for _, name := range []string{IRJSON, "anything-else"} {
+	for _, name := range []Name{NameIRJSON, "anything-else"} {
 		var buf bytes.Buffer
 		if err := Compile(&buf, ir, name); err != nil {
 			t.Fatalf("Compile(%q) error = %v", name, err)
 		}
-		var got obligationir.ObligationIR
+		var got obligationir.IRLivelockFree
 		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 			t.Errorf("Compile(%q) output is not ObligationIR JSON: %v", name, err)
 		}
