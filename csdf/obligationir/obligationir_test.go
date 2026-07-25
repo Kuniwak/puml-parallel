@@ -1,6 +1,7 @@
 package obligationir
 
 import (
+	"hash/crc32"
 	"reflect"
 	"testing"
 
@@ -29,18 +30,18 @@ a --> a : tau ; n > 0 ; n' = n - 1
 			},
 		},
 		Predicates: map[IRPredicateID]IRPredicate{
-			1661950304: {
-				Args: []IRArg{
-					{Name: "n", Type: "Nat", Primed: false},
-				},
-				Text: "n > 0",
-			},
-			2835127098: {
+			541149191: {
 				Args: []IRArg{
 					{Name: "n", Type: "Nat", Primed: false},
 					{Name: "n", Type: "Nat", Primed: true},
 				},
 				Text: "n' = n - 1",
+			},
+			2223308920: {
+				Args: []IRArg{
+					{Name: "n", Type: "Nat", Primed: false},
+				},
+				Text: "n > 0",
 			},
 			4261170317: {
 				Args: []IRArg{},
@@ -54,8 +55,8 @@ a --> a : tau ; n > 0 ; n' = n - 1
 				Dst:         "a",
 				Event:       "tau",
 				EventParams: []IRArg{},
-				Guard:       1661950304,
-				Post:        2835127098,
+				Guard:       2223308920,
+				Post:        541149191,
 				Line:        5,
 			},
 		},
@@ -167,5 +168,20 @@ s0: ready ; bool
 
 	if !reflect.DeepEqual(want, got) {
 		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestIRPredicateHash(t *testing.T) {
+	p := IRPredicate{
+		Args: []IRArg{},
+		Text: "true",
+	}
+
+	h := crc32.NewIEEE()
+	t1 := p.Hash(h)
+	t2 := p.Hash(h)
+
+	if t1 != t2 {
+		t.Errorf("want %d, got %d", t1, t2)
 	}
 }

@@ -13,7 +13,7 @@ func TestCompileTauSelfLoopWithVars(t *testing.T) {
 	// left as oops.
 	got := MustCompileLivelockFreeString(`@startuml
 state "a" as a
-a: n ; Nat
+a: n ; nat
 [*] --> a
 a --> a : tau ; n > 0 ; n' = n - 1
 @enduml
@@ -29,23 +29,23 @@ datatype val = ValInt int
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
 
-datatype st = a val (* type: (n :: Nat) *)
+datatype st = a val (* type: (n :: nat) *)
 
 (* n > 0 *)
-definition pred_rhhd28 :: "val \<Rightarrow> bool"
-  where "pred_rhhd28 n \<equiv> True"
+definition pred_1gdozh4 :: "val \<Rightarrow> bool"
+  where "pred_1gdozh4 n \<equiv> True"
 
 (* n' = n - 1 *)
-definition pred_1avym2i :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "pred_1avym2i n n' \<equiv> True"
+definition pred_1nuhmrf :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "pred_1nuhmrf n n' \<equiv> True"
 
 (* n > 0 *)
 definition guard_L5 :: "val \<Rightarrow> bool"
-  where "guard_L5 \<equiv> pred_rhhd28"
+  where "guard_L5 \<equiv> pred_1gdozh4"
 
 (* n' = n - 1 *)
 definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "post_L5 \<equiv> pred_1avym2i"
+  where "post_L5 \<equiv> pred_1nuhmrf"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
@@ -108,27 +108,24 @@ datatype val = ValInt int
 
 datatype st = a val (* type: (n :: any) *)
 
-(* n > 0 *)
-definition pred_rhhd28 :: "val \<Rightarrow> bool"
-  where "pred_rhhd28 n \<equiv> True"
-
 (* n' = n - 1 *)
-definition pred_1avym2i :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "pred_1avym2i n n' \<equiv> True"
+definition pred_7ydc3w :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "pred_7ydc3w n n' \<equiv> True"
 
-definition init :: "val \<Rightarrow> bool"
-  where "pred_
+(* n > 0 *)
+definition pred_1e81hjg :: "val \<Rightarrow> bool"
+  where "pred_1e81hjg n \<equiv> True"
 
 (* n > 0 *)
 definition guard_L5 :: "val \<Rightarrow> bool"
-  where "guard_L5 \<equiv> pred_rhhd28"
+  where "guard_L5 \<equiv> pred_1e81hjg"
 
 (* n' = n - 1 *)
 definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "post_L5 \<equiv> pred_1avym2i"
+  where "post_L5 \<equiv> pred_7ydc3w"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_13qjgd2 n \<and> post_en24r7 n n'"
+  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
 
 theorem livelock_free: "wf {(s', s). tau_step s s'}"
   oops
@@ -164,10 +161,6 @@ definition pred_1ygzo25 :: "bool"
   where "pred_1ygzo25 \<equiv> True"
 
 (* true *)
-definition init :: "bool"
-  where "init \<equiv> pred_1ygzo25"
-
-(* true *)
 definition guard_L5 :: "bool"
   where "guard_L5 \<equiv> pred_1ygzo25"
 
@@ -184,8 +177,8 @@ definition post_L6 :: "bool"
   where "post_L6 \<equiv> pred_1ygzo25"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> (s = a \<and> s' = b \<and> guard_L5 s \<and> post_L5 s s')
-    \<or> (s = b \<and> s' = a \<and> guard_L6 s \<and> post_L6 s s')"
+  where "tau_step s s' \<equiv> (s = a \<and> s' = b \<and> guard_L5 \<and> post_L5)
+    \<or> (s = b \<and> s' = a \<and> guard_L6 \<and> post_L6)"
 
 theorem livelock_free: "wf {(s', s). tau_step s s'}"
   oops

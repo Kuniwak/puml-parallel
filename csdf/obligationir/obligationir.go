@@ -2,11 +2,9 @@ package obligationir
 
 import (
 	"cmp"
-	"fmt"
 	"hash"
 	"hash/crc32"
 	"slices"
-	"strconv"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -115,12 +113,6 @@ func (p IRPredicate) Hash(h hash.Hash32) IRPredicateID {
 	}
 	res := IRPredicateID(h.Sum32())
 	h.Reset()
-	fmt.Printf("id: %s", strconv.FormatUint(uint64(res), 36))
-	fmt.Printf(" text: %q", p.Text)
-	for _, arg := range p.Args {
-		fmt.Printf(" type: %q", arg.Type)
-	}
-	fmt.Printf("\n")
 	return res
 }
 
@@ -309,6 +301,7 @@ func Predicates(ps map[IRPredicateID]IRPredicate) []IRPredicateWithID {
 func OnlyPredicateWithUsedID(m map[IRPredicateID]IRPredicate, used map[IRPredicateID]struct{}) []IRPredicateWithID {
 	ps := Predicates(m)
 	res := make([]IRPredicateWithID, 0, len(ps))
+	slices.SortFunc(res, ComparePredicateWithID)
 	for _, p := range ps {
 		if _, ok := used[p.ID]; ok {
 			res = append(res, p)

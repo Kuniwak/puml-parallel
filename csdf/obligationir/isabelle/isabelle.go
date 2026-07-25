@@ -234,7 +234,7 @@ func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateI
 	io.WriteString(w, `s = `)
 	WriteStatePattern(w, e.Src, src, false)
 	io.WriteString(w, ` \<and> s' = `)
-	WriteStatePattern(w, e.Src, src, true)
+	WriteStatePattern(w, e.Dst, dst, true)
 	io.WriteString(w, ` \<and> guard_L`)
 	WriteLineNumber(w, e.Line)
 	for _, arg := range m[e.Guard].Args {
