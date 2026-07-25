@@ -18,9 +18,9 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 
 func mustParse(t *testing.T, content string) *csdf.Diagram {
 	t.Helper()
-	diagram, err := csdf.ParseDiagram([]byte(content))
+	diagram, err := csdf.ParseBytes([]byte(content))
 	if err != nil {
-		t.Fatalf("ParseDiagram() error = %v", err)
+		t.Fatalf("ParseBytes() error = %v", err)
 	}
 	return diagram
 }

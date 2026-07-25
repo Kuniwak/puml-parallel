@@ -157,7 +157,7 @@ type IRInit struct {
 	Line int           `json:"line"` // 1-based
 }
 
-// BuildObligationIR builds the livelock-freedom proof obligation IR for d. The
+// BuildLivelockFree builds the livelock-freedom proof obligation IR for d. The
 // structural τ-cycle check (CheckLivelockFree) is used only to set
 // StructurallyLivelockFree; the obligation itself is the global property and does
 // not depend on a particular witness.

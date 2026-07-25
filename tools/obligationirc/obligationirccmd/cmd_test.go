@@ -17,7 +17,7 @@ import (
 // as JSON, the kind of input obligationirc consumes from csdflivelockfree.
 func canonicalIRJSON(t *testing.T) string {
 	t.Helper()
-	d, err := csdf.ParseDiagram([]byte(`@startuml
+	d, err := csdf.ParseBytes([]byte(`@startuml
 state "a" as a
 a: n ; Nat
 [*] --> a
@@ -25,9 +25,9 @@ a --> a : tau ; n > 0 ; n' = n - 1
 @enduml
 `))
 	if err != nil {
-		t.Fatalf("ParseDiagram() error = %v", err)
+		t.Fatalf("ParseBytes() error = %v", err)
 	}
-	bs, err := json.Marshal(obligationir.BuildObligationIR(d))
+	bs, err := json.Marshal(obligationir.BuildLivelockFree(d))
 	if err != nil {
 		t.Fatalf("Marshal() error = %v", err)
 	}

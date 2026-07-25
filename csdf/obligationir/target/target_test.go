@@ -12,7 +12,7 @@ import (
 
 func mustBuildIR(t *testing.T) obligationir.ObligationIR {
 	t.Helper()
-	d, err := csdf.ParseDiagram([]byte(`@startuml
+	d, err := csdf.ParseBytes([]byte(`@startuml
 state "a" as a
 a: n ; Nat
 [*] --> a
@@ -20,9 +20,9 @@ a --> a : tau ; n > 0 ; n' = n - 1
 @enduml
 `))
 	if err != nil {
-		t.Fatalf("ParseDiagram() error = %v", err)
+		t.Fatalf("ParseBytes() error = %v", err)
 	}
-	return obligationir.BuildObligationIR(d)
+	return obligationir.BuildLivelockFree(d)
 }
 
 func TestValidate(t *testing.T) {

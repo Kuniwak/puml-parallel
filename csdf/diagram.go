@@ -7,7 +7,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
 
-// ParseDiagram parses a Composable State Diagram from raw .puml text or .png
+// ParseBytes parses a Composable State Diagram from raw .puml text or .png
 // bytes (the embedded PlantUML source is extracted from PNG inputs).
 func ParseBytes(content []byte) (*Diagram, error) {
 	source, err := pngsrc.Extract(content)

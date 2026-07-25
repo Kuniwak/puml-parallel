@@ -24,7 +24,7 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot read the file: %w: %q", err, file)
 	}
 
-	diagram, err := csdf.ParseDiagram(bs)
+	diagram, err := csdf.ParseBytes(bs)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot parse the file: %w: %q", err, file)
 	}

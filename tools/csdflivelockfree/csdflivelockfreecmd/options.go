@@ -12,7 +12,7 @@ import (
 
 type Options struct {
 	Common *tools.CommonOptions
-	Target string
+	Target target.Name
 	Bytes  []byte
 }
 
@@ -54,7 +54,7 @@ Examples:
 		}
 
 		var tgt string
-		flags.StringVar(&tgt, "target", target.IRJSON, "output target: ir-json|isabelle|lean")
+		flags.StringVar(&tgt, "target", string(target.NameIRJSON), "output target: ir-json|isabelle|lean")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -74,7 +74,7 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if err := target.Validate(tgt); err != nil {
+		if err := target.Validate(target.Name(tgt)); err != nil {
 			return nil, fmt.Errorf("csdflivelockfreecmd.NewParseOptionsFunc: %w", err)
 		}
 
@@ -82,6 +82,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdflivelockfreecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Target: tgt, Bytes: bs}, nil
+		return &Options{Common: commonOpts, Target: target.Name(tgt), Bytes: bs}, nil
 	}
 }

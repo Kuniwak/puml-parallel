@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestBuildObligationIRTauSelfLoopWithVars(t *testing.T) {
+func TestBuildLivelockFreeTauSelfLoopWithVars(t *testing.T) {
 	// Setup: a guarded tau self-loop carrying a state variable. The cycle is a
 	// structural candidate, so the obligation is non-trivial and the written
 	// predicates become opaque line-named symbols.
@@ -76,7 +76,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 	}
 }
 
-func TestBuildObligationIRStructurallyFreeDefaults(t *testing.T) {
+func TestBuildLivelockFreeStructurallyFreeDefaults(t *testing.T) {
 	// Setup: a visible-only chain has no tau cycle (structurally livelock free),
 	// and its omitted guard/post default to the literal True (no opaque symbol).
 	d := csdf.MustParse(`@startuml
@@ -127,7 +127,7 @@ s0 --> s1 : a
 	}
 }
 
-func TestBuildObligationIRNamesInitPredicate(t *testing.T) {
+func TestBuildLivelockFreeNamesInitPredicate(t *testing.T) {
 	// Setup: a non-default start post becomes the opaque Init predicate over the
 	// start state's variables.
 	d := csdf.MustParse(`@startuml

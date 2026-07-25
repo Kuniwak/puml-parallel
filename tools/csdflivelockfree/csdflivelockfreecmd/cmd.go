@@ -20,7 +20,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseDiagram(opts.Bytes)
+		diagram, err := csdf.ParseBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", err)
 		}
@@ -28,7 +28,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		// Compile the proof-obligation IR to the selected target and exit 0. Livelock
 		// freedom depends on the natural-language predicates, which this tool does not
 		// interpret, so it never decides the verdict via exit status.
-		ir := obligationir.BuildObligationIR(diagram)
+		ir := obligationir.BuildLivelockFree(diagram)
 		if err := target.Compile(inout.Stdout, ir, opts.Target); err != nil {
 			return fmt.Errorf("csdflivelockfreecmd.NewMainFunc: %w", err)
 		}

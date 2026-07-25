@@ -12,12 +12,12 @@ import (
 
 func compile(t *testing.T, input string) string {
 	t.Helper()
-	d, err := csdf.ParseDiagram([]byte(input))
+	d, err := csdf.ParseBytes([]byte(input))
 	if err != nil {
-		t.Fatalf("ParseDiagram() error = %v", err)
+		t.Fatalf("ParseBytes() error = %v", err)
 	}
 	var buf bytes.Buffer
-	if err := Compile(&buf, obligationir.BuildObligationIR(d)); err != nil {
+	if err := Compile(&buf, obligationir.BuildLivelockFree(d)); err != nil {
 		t.Fatalf("Compile() error = %v", err)
 	}
 	return buf.String()
