@@ -69,23 +69,91 @@ func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 	}
 	WriteNewLine(w, 2)
 
-	for _, p := range obligationir.OnlyPredicateWithUsedID(ir.Predicates, ir.UsedMap()) {
+	for _, p := range obligationir.Predicates(ir.Predicates) {
 		WritePredicate(w, p)
 		WriteNewLine(w, 2)
 	}
 
-	taus := obligationir.TauEdges(ir.Edges)
-	for _, tau := range taus {
-		WriteEdge(w, tau, ir.Predicates)
+	WriteInit(w, ir.Init, ir.Predicates)
+	WriteNewLine(w, 2)
+
+	// Every edge, not only the tau ones: the step relation that Reachable is
+	// built from has to include the visible transitions too.
+	for _, e := range ir.Edges {
+		WriteEdge(w, e, ir.Predicates)
 		WriteNewLine(w, 2)
 	}
 
-	WriteRelation(w, "tauStep", ir.States, taus, ir.Predicates)
+	WriteRelation(w, "step", ir.States, ir.Edges, ir.Predicates)
 	WriteNewLine(w, 2)
 
-	io.WriteString(w, `theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+	if err := WriteReachable(w, ir.Init, ir.States); err != nil {
+		return fmt.Errorf("lean.WriteLivelockFree: %w", err)
+	}
+	WriteNewLine(w, 2)
+
+	WriteRelation(w, "tauStep", ir.States, obligationir.TauEdges(ir.Edges), ir.Predicates)
+	WriteNewLine(w, 2)
+
+	// Restricted to the reachable states: over all of St the property is strictly
+	// stronger than livelock freedom, so a diagram that is livelock free can still
+	// fail it on valuations the diagram can never enter. Reachable is closed under
+	// step, so guarding the source alone matches Isabelle's wf_on without needing
+	// Mathlib's Set.WellFoundedOn.
+	io.WriteString(w, `theorem livelock_free :
+    WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by
   sorry`)
 	WriteNewLine(w, 1)
+	return nil
+}
+
+// WriteInit writes the init alias of the start edge's post predicate, which
+// constrains the start state's variables and so seeds Reachable.
+func WriteInit(w io.Writer, init obligationir.IRInit, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+	post := m[init.Post]
+	WriteLineComment(w, string(post.Text))
+	WriteNewLine(w, 1)
+	WritePredicateAlias(w, "init", len(post.Args), init.Post)
+}
+
+// WriteReachable writes the inductive predicate holding of every state the
+// diagram can actually enter: the start state under init, closed under step.
+func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.StateID]obligationir.IRState) error {
+	start, ok := states[init.Dst]
+	if !ok {
+		return fmt.Errorf("lean.WriteReachable: start state %q does not exist", init.Dst)
+	}
+
+	io.WriteString(w, `inductive Reachable : St → Prop where`)
+	WriteNewLine(w, 1)
+	io.WriteString(w, `  | base`)
+	if len(start.Fields) > 0 {
+		io.WriteString(w, ` (`)
+		for i, f := range start.Fields {
+			if i > 0 {
+				io.WriteString(w, ` `)
+			}
+			WriteField(w, f, false)
+		}
+		io.WriteString(w, ` : `)
+		io.WriteString(w, ValType)
+		io.WriteString(w, `)`)
+	}
+	io.WriteString(w, ` : init`)
+	for _, f := range start.Fields {
+		io.WriteString(w, ` `)
+		WriteField(w, f, false)
+	}
+	io.WriteString(w, ` → Reachable `)
+	if len(start.Fields) > 0 {
+		io.WriteString(w, `(`)
+	}
+	WriteStatePattern(w, init.Dst, start, false)
+	if len(start.Fields) > 0 {
+		io.WriteString(w, `)`)
+	}
+	WriteNewLine(w, 1)
+	io.WriteString(w, `  | step (s s' : St) : Reachable s → step s s' → Reachable s'`)
 	return nil
 }
 
@@ -117,20 +185,28 @@ func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredic
 	guard := m[tau.Guard]
 	WriteLineComment(w, string(guard.Text))
 	WriteNewLine(w, 1)
-	WritePredicateAlias(w, "guard_L", tau.Line, len(guard.Args), tau.Guard)
+	WritePredicateAliasWithLine(w, "guard_L", tau.Line, len(guard.Args), tau.Guard)
 
 	WriteNewLine(w, 2)
 
 	post := m[tau.Post]
 	WriteLineComment(w, string(post.Text))
 	WriteNewLine(w, 1)
-	WritePredicateAlias(w, "post_L", tau.Line, len(post.Args), tau.Post)
+	WritePredicateAliasWithLine(w, "post_L", tau.Line, len(post.Args), tau.Post)
 }
 
-func WritePredicateAlias(w io.Writer, prefix string, line, nArgs int, id obligationir.IRPredicateID) {
+func WritePredicateAliasWithLine(w io.Writer, prefix string, line, nArgs int, id obligationir.IRPredicateID) {
+	var b strings.Builder
+	b.WriteString(prefix)
+	b.WriteString(strconv.Itoa(line))
+	WritePredicateAlias(w, b.String(), nArgs, id)
+}
+
+// WritePredicateAlias writes an eta-reduced alias of a pred_<id> placeholder, so
+// the arity shows in the type only.
+func WritePredicateAlias(w io.Writer, name string, nArgs int, id obligationir.IRPredicateID) {
 	io.WriteString(w, `def `)
-	io.WriteString(w, prefix)
-	WriteLineNumber(w, line)
+	io.WriteString(w, name)
 	io.WriteString(w, ` : `)
 	for range nArgs {
 		io.WriteString(w, ValType)

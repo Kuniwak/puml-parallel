@@ -41,7 +41,7 @@ func TestCompileRoutesToBackend(t *testing.T) {
 
 	testCases := map[Name]string{
 		NameIsabelle: "theorem livelock_free: \"wf_on {s. reachable s} {(s', s). tau_step s s'}\"",
-		NameLean:     "theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
+		NameLean:     "WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by",
 	}
 	for name, marker := range testCases {
 		var buf bytes.Buffer

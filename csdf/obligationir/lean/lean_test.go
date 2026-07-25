@@ -9,12 +9,14 @@ import (
 func TestCompileTauSelfLoopWithVars(t *testing.T) {
 	// A guarded tau self-loop carrying a variable becomes: the state inductive,
 	// the guard/post as True-placeholder definitions (each preceded by its
-	// natural-language text), the tauStep relation, and the livelock_free theorem
-	// left as sorry.
+	// natural-language text), the init predicate, the step and tauStep relations,
+	// the inductive Reachable predicate, and the livelock_free theorem left as
+	// sorry. The theorem is restricted to reachable states: over all of St it
+	// would be strictly stronger than livelock freedom and often false.
 	got := MustCompileLivelockFreeString(`@startuml
 state "a" as a
 a: n ; nat
-[*] --> a
+[*] --> a : n = 10
 a --> a : tau ; n > 0 ; n' = n - 1
 @enduml
 `)
@@ -29,11 +31,17 @@ a --> a : tau ; n > 0 ; n' = n - 1
 inductive St where
   | a (n : Val) -- type: (n : nat)
 
+-- n = 10
+def pred_xjezwh (n : Val) : Prop := True
+
 -- n > 0
 def pred_1gdozh4 (n : Val) : Prop := True
 
 -- n' = n - 1
 def pred_1nuhmrf (n n' : Val) : Prop := True
+
+-- n = 10
+def init : Val → Prop := pred_xjezwh
 
 -- n > 0
 def guard_L5 : Val → Prop := pred_1gdozh4
@@ -41,10 +49,18 @@ def guard_L5 : Val → Prop := pred_1gdozh4
 -- n' = n - 1
 def post_L5 : Val → Val → Prop := pred_1nuhmrf
 
+def step (s s' : St) : Prop :=
+  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+
+inductive Reachable : St → Prop where
+  | base (n : Val) : init n → Reachable (.a n)
+  | step (s s' : St) : Reachable s → step s s' → Reachable s'
+
 def tauStep (s s' : St) : Prop :=
   ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
 
-theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+theorem livelock_free :
+    WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by
   sorry
 `
 	if want != got {
@@ -105,8 +121,14 @@ inductive St where
 -- n' = n - 1
 def pred_7ydc3w (n n' : Val) : Prop := True
 
+-- n = 10
+def pred_icpx2l (n : Val) : Prop := True
+
 -- n > 0
 def pred_1e81hjg (n : Val) : Prop := True
+
+-- n = 10
+def init : Val → Prop := pred_icpx2l
 
 -- n > 0
 def guard_L5 : Val → Prop := pred_1e81hjg
@@ -114,10 +136,18 @@ def guard_L5 : Val → Prop := pred_1e81hjg
 -- n' = n - 1
 def post_L5 : Val → Val → Prop := pred_7ydc3w
 
+def step (s s' : St) : Prop :=
+  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+
+inductive Reachable : St → Prop where
+  | base (n : Val) : init n → Reachable (.a n)
+  | step (s s' : St) : Reachable s → step s s' → Reachable s'
+
 def tauStep (s s' : St) : Prop :=
   ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
 
-theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+theorem livelock_free :
+    WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by
   sorry
 `
 	if want != got {
@@ -128,7 +158,8 @@ theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
 func TestCompileMultipleTauEdgesAreParenthesisedDisjuncts(t *testing.T) {
 	// Two tau edges become a parenthesised disjunction so neither existential
 	// captures the other's clause. Variable-free states make every predicate the
-	// same omitted "true", so one shared placeholder backs all four aliases.
+	// same omitted "true", so init and both edges share one placeholder, and the
+	// base rule takes no binder.
 	got := MustCompileLivelockFreeString(`@startuml
 state "a" as a
 state "b" as b
@@ -146,6 +177,9 @@ b --> a : tau
 def pred_1ygzo25 : Prop := True
 
 -- true
+def init : Prop := pred_1ygzo25
+
+-- true
 def guard_L5 : Prop := pred_1ygzo25
 
 -- true
@@ -157,11 +191,20 @@ def guard_L6 : Prop := pred_1ygzo25
 -- true
 def post_L6 : Prop := pred_1ygzo25
 
+def step (s s' : St) : Prop :=
+  (s = .a ∧ s' = .b ∧ guard_L5 ∧ post_L5)
+  ∨ (s = .b ∧ s' = .a ∧ guard_L6 ∧ post_L6)
+
+inductive Reachable : St → Prop where
+  | base : init → Reachable .a
+  | step (s s' : St) : Reachable s → step s s' → Reachable s'
+
 def tauStep (s s' : St) : Prop :=
   (s = .a ∧ s' = .b ∧ guard_L5 ∧ post_L5)
   ∨ (s = .b ∧ s' = .a ∧ guard_L6 ∧ post_L6)
 
-theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
+theorem livelock_free :
+    WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by
   sorry
 `
 	if want != got {
