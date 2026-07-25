@@ -35,12 +35,13 @@ the target selected by -target and exits 0:
   lean      a Lean 4 proof-obligation skeleton
 
 Whether the diagram is livelock free depends on the natural-language Guard/Post
-predicates, which this tool leaves opaque as line-named symbols (Guard_L<line>,
-Post_L<line>, Init); for isabelle and lean each becomes a True placeholder
-definition preceded by a comment carrying its original text, leaving the
-formalisation and proof to a human or LLM. The IR sets
-structurally_livelock_free=true when no reachable "tau" cycle exists. A file
-argument, a "-" argument, and standard input are all equivalent.
+predicates, which this tool leaves opaque. For isabelle and lean each distinct
+predicate becomes a True placeholder definition named pred_<id> after its hash,
+preceded by a comment carrying its original text; every tau transition then gets
+guard_L<line> and post_L<line> aliases of those placeholders. Filling them in and
+discharging the theorem is left to a human or LLM. The IR sets structurally=true
+when no reachable "tau" cycle exists, in which case no obligation is emitted at
+all. A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:
 `)

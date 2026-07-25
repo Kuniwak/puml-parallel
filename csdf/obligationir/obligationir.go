@@ -23,15 +23,16 @@ func FormatPredicateID(id IRPredicateID) string {
 	return strconv.FormatUint(uint64(id), 36)
 }
 
-// ObligationIR is a prover-agnostic intermediate representation of the proof
+// IRLivelockFree is a prover-agnostic intermediate representation of the proof
 // obligation that the diagram is livelock free, i.e. no reachable state admits an
 // infinite run of internal (τ) transitions. Natural-language Guard/Post predicates
-// are left opaque as line-named symbols (Guard_L<line>, Post_L<line>, Init); a
-// downstream generator expands this IR into Lean or Isabelle, and the predicate
-// bodies are supplied separately. Both are out of scope here.
+// are left opaque, deduplicated into Predicates under the hash of their text and
+// argument types; an edge names one by id. A downstream generator expands this IR
+// into Lean or Isabelle, and the predicate bodies are supplied separately. Both
+// are out of scope here.
 type IRLivelockFree struct {
-	// StructurallyLivelockFree is true when no reachable τ-only cycle exists, in
-	// which case the obligation holds regardless of the predicates.
+	// Structurally is true when no reachable τ-only cycle exists, in which case
+	// the obligation holds regardless of the predicates.
 	Structurally bool                          `json:"structurally"`
 	Predicates   map[IRPredicateID]IRPredicate `json:"predicates"`
 	States       map[csdf.StateID]IRState      `json:"states"`    // the state space as an ADT

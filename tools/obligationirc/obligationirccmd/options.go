@@ -34,10 +34,12 @@ csdflivelockfree) to the target selected by -target and exits 0:
   isabelle  an Isabelle/HOL proof-obligation skeleton
   lean      a Lean 4 proof-obligation skeleton
 
-For isabelle and lean, each opaque Guard_L<line>/Post_L<line>/Init predicate
-becomes a True placeholder definition preceded by a comment carrying its
-original natural-language text, leaving the formalisation and proof to a human
-or LLM. A file argument, a "-" argument, and standard input are all equivalent.
+For isabelle and lean, each distinct opaque predicate becomes a True placeholder
+definition named pred_<id> after its hash, preceded by a comment carrying its
+original natural-language text; every tau transition then gets guard_L<line> and
+post_L<line> aliases of those placeholders. Filling them in and discharging the
+theorem is left to a human or LLM. A file argument, a "-" argument, and standard
+input are all equivalent.
 
 Options:
 `)

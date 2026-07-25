@@ -74,8 +74,8 @@ End edges (`state --> [*]`) are not currently supported.
 diagram and exits 0. Livelock freedom — no divergence: no reachable cycle of internal
 `tau` transitions that can actually run forever — depends on the natural-language guards
 and postconditions, which this tool does not interpret. So rather than decide the verdict
-via exit status, it emits a proof obligation that leaves each predicate opaque as a
-line-named symbol (`Guard_L<line>`, `Post_L<line>`, `Init`) to be discharged downstream.
+via exit status, it emits a proof obligation that leaves each predicate opaque, to be
+discharged downstream.
 
 The output format is chosen with `-target`:
 
@@ -85,28 +85,32 @@ The output format is chosen with `-target`:
 
 ```console
 $ csdflivelockfree examples/valid/vending_machine.puml
-{"goal":"livelock_free","structurally_livelock_free":true,"states":[...],...}
+{"structurally":true,"predicates":{...},"states":{...},"constants":[],"edges":[...],"init":{...}}
 $ csdflivelockfree -target lean examples/valid/vending_machine.puml
 $ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
 $ csdfparallel a.puml b.puml | csdflivelockfree -
 ```
 
 The JSON IR describes the state space as an ADT (one constructor per state, fields from
-its variables), the transitions, the initial predicate, and the opaque predicate symbols
-with their argument signatures. `structurally_livelock_free` is `true` when no reachable
-`tau` cycle exists, in which case the obligation holds regardless of the predicates.
-Options precede the file; a file argument, a `-` argument, and stdin are all equivalent.
+its variables), the transitions, the initial predicate, and the opaque predicates with
+their argument signatures. Predicates are deduplicated: `predicates` is keyed by a hash of
+the text and the argument types, and an edge names its guard and post by that id, so two
+transitions carrying the same condition share one entry. `structurally` is `true` when no
+reachable `tau` cycle exists, in which case the obligation holds regardless of the
+predicates. Options precede the file; a file argument, a `-` argument, and stdin are all
+equivalent.
 
 For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT and
-a `tau_step` relation. When the structural check was inconclusive
-(`structurally_livelock_free` false) it then states the livelock-freedom theorem
-(well-foundedness of `tau_step`) left as `sorry`/`oops`; when the diagram is structurally
-livelock free the obligation is already discharged, so only a note is emitted instead.
-Each opaque `Guard_L<line>`/`Post_L<line>`/`Init`
-predicate becomes a `True` placeholder definition preceded by a comment carrying its
-original natural-language text, so a human or LLM can fill in the real predicate body and
-discharge the proof. State-variable values are arbitrary JSON, so each variable is typed
-with a generated `json` datatype (floats folded into the integer case for now); any
+a `tau_step`/`tauStep` relation, then states the livelock-freedom theorem
+(well-foundedness of that relation) left as `oops`/`sorry`. When the diagram is
+structurally livelock free the obligation is already discharged, so only a note is emitted
+instead. Each distinct opaque predicate becomes a `True` placeholder definition named
+`pred_<id>` after its hash and preceded by a comment carrying its original
+natural-language text; every `tau` transition then gets `guard_L<line>` and `post_L<line>`
+aliases of those placeholders, so a human or LLM can fill in the real predicate body and
+discharge the proof. Both targets name predicates identically, so the two skeletons can be
+read side by side. State-variable values are arbitrary JSON, so each variable is typed
+with a generated `val`/`Val` datatype (floats folded into the integer case for now); any
 declared `; Type` annotation is preserved as a comment on the state constructor.
 
 ## Compiling the obligation IR separately
