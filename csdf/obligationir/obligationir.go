@@ -41,19 +41,6 @@ type IRLivelockFree struct {
 	Init         IRInit                        `json:"init"`
 }
 
-func (ir IRLivelockFree) UsedMap() map[IRPredicateID]struct{} {
-	m := make(map[IRPredicateID]struct{}, len(ir.Edges)*2)
-	for _, e := range ir.Edges {
-		if e.Event != csdf.Tau {
-			continue
-		}
-
-		m[e.Guard] = struct{}{}
-		m[e.Post] = struct{}{}
-	}
-	return m
-}
-
 type IRState struct {
 	Fields []IRField `json:"fields"`
 	Line   int       `json:"line"` // 1-based
@@ -302,17 +289,6 @@ func Predicates(ps map[IRPredicateID]IRPredicate) []IRPredicateWithID {
 	}
 	slices.SortFunc(hs, ComparePredicateWithID)
 	return hs
-}
-
-func OnlyPredicateWithUsedID(m map[IRPredicateID]IRPredicate, used map[IRPredicateID]struct{}) []IRPredicateWithID {
-	ps := Predicates(m)
-	res := make([]IRPredicateWithID, 0, len(ps))
-	for _, p := range ps {
-		if _, ok := used[p.ID]; ok {
-			res = append(res, p)
-		}
-	}
-	return res
 }
 
 // HasVars reports whether any state has a variable, in which case the json datatype is
