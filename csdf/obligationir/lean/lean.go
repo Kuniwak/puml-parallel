@@ -80,7 +80,7 @@ func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 		WriteNewLine(w, 2)
 	}
 
-	WriteTauStep(w, ir.States, taus, ir.Predicates)
+	WriteRelation(w, "tauStep", ir.States, taus, ir.Predicates)
 	WriteNewLine(w, 2)
 
 	io.WriteString(w, `theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by
@@ -140,33 +140,37 @@ func WritePredicateAlias(w io.Writer, prefix string, line, nArgs int, id obligat
 	WritePredicateID(w, id)
 }
 
-// WriteTauStep writes the tau-step relation as a disjunction over the tau edges.
-// With no tau edge the relation is False; a single disjunct is emitted bare,
-// several are parenthesised so neither existential captures the other's clause.
-func WriteTauStep(w io.Writer, states map[csdf.StateID]obligationir.IRState, taus []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
-	io.WriteString(w, `def tauStep (s s' : St) : Prop :=`)
-	switch len(taus) {
+// WriteRelation writes a transition relation over edges as a disjunction. It
+// backs both step (every edge) and tauStep (the tau edges only), which differ in
+// name and edge list alone. With no edge the relation is False; a single disjunct
+// is emitted bare, several are parenthesised so neither existential captures the
+// other's clause.
+func WriteRelation(w io.Writer, name string, states map[csdf.StateID]obligationir.IRState, edges []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+	io.WriteString(w, `def `)
+	io.WriteString(w, name)
+	io.WriteString(w, ` (s s' : St) : Prop :=`)
+	switch len(edges) {
 	case 0:
 		io.WriteString(w, ` False`)
 	case 1:
 		WriteNewLine(w, 1)
 		io.WriteString(w, `  `)
-		WriteTauDisjunct(w, taus[0], states, m)
+		WriteDisjunct(w, edges[0], states, m)
 	default:
-		for i, tau := range taus {
+		for i, e := range edges {
 			WriteNewLine(w, 1)
 			if i == 0 {
 				io.WriteString(w, `  (`)
 			} else {
 				io.WriteString(w, `  ∨ (`)
 			}
-			WriteTauDisjunct(w, tau, states, m)
+			WriteDisjunct(w, e, states, m)
 			io.WriteString(w, `)`)
 		}
 	}
 }
 
-func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+func WriteDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	src := states[e.Src]
 	dst := states[e.Dst]
 

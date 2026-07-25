@@ -85,7 +85,7 @@ begin`)
 		}
 		WriteNewLine(w, 2)
 
-		WriteTauStep(w, ir.States, taus, ir.Predicates)
+		WriteRelation(w, "tau_step", ir.States, taus, ir.Predicates)
 		WriteNewLine(w, 2)
 
 		io.WriteString(w, `theorem livelock_free: "wf {(s', s). tau_step s s'}"
@@ -158,10 +158,13 @@ func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredic
 	return nil
 }
 
-func WriteTauStep(w io.Writer, states map[csdf.StateID]obligationir.IRState, taus []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+// WriteRelation writes a transition relation over edges as a disjunction. It
+// backs both step (every edge) and tau_step (the τ edges only), which differ in
+// name and edge list alone.
+func WriteRelation(w io.Writer, name string, states map[csdf.StateID]obligationir.IRState, edges []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	if err := WriteDefinition(
 		w,
-		NewConstWriter("tau_step"),
+		NewConstWriter(name),
 		func(w io.Writer, _ int) error {
 			io.WriteString(w, "st")
 			return nil
@@ -174,25 +177,25 @@ func WriteTauStep(w io.Writer, states map[csdf.StateID]obligationir.IRState, tau
 			case 1:
 				io.WriteString(w, "s'")
 			default:
-				panic(fmt.Sprintf("isabelle.WriteTauStep: index out of range: %d", i))
+				panic(fmt.Sprintf("isabelle.WriteRelation: index out of range: %d", i))
 			}
 			return nil
 		},
 		func(w io.Writer) error {
-			switch len(taus) {
+			switch len(edges) {
 			case 0:
 				io.WriteString(w, `False`)
 			case 1:
-				WriteTauDisjunct(w, taus[0], states, m)
+				WriteDisjunct(w, edges[0], states, m)
 			default:
-				for i, tau := range taus {
+				for i, e := range edges {
 					if i == 0 {
 						io.WriteString(w, `(`)
 					} else {
 						WriteNewLine(w, 1)
 						io.WriteString(w, `    \<or> (`)
 					}
-					WriteTauDisjunct(w, tau, states, m)
+					WriteDisjunct(w, e, states, m)
 					io.WriteString(w, `)`)
 				}
 			}
@@ -201,12 +204,12 @@ func WriteTauStep(w io.Writer, states map[csdf.StateID]obligationir.IRState, tau
 		2,
 		2,
 	); err != nil {
-		return fmt.Errorf("isabelle.WriteTauStep: %w", err)
+		return fmt.Errorf("isabelle.WriteRelation: %w", err)
 	}
 	return nil
 }
 
-func WriteTauDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+func WriteDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	src := states[e.Src]
 	dst := states[e.Dst]
 
