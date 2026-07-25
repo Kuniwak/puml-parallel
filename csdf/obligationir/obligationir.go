@@ -194,7 +194,7 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 
 	h := crc32.NewIEEE()
 
-	initPostVars := ir.States[ir.Init.Dst]
+	initPostVars := ir.States[d.StartEdge.Dst]
 	initArgs := make([]IRArg, 0, len(initPostVars.Fields))
 	for _, initPostVar := range initPostVars.Fields {
 		initArgs = append(initArgs, IRArg{

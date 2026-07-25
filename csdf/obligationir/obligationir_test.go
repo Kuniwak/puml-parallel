@@ -43,8 +43,10 @@ a --> a : tau ; n > 0 ; n' = n - 1
 				},
 				Text: "n > 0",
 			},
-			4261170317: {
-				Args: []IRArg{},
+			1836624455: {
+				Args: []IRArg{
+					{Name: "n", Type: "Nat", Primed: false},
+				},
 				Text: csdf.PredicateTrue,
 			},
 		},
@@ -62,7 +64,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 		},
 		Init: IRInit{
 			Dst:  "a",
-			Post: 4261170317,
+			Post: 1836624455,
 			Line: 4,
 		},
 	}
@@ -152,8 +154,10 @@ s0: ready ; bool
 			},
 		},
 		Predicates: map[IRPredicateID]IRPredicate{
-			2612241710: {
-				Args: []IRArg{},
+			3809375577: {
+				Args: []IRArg{
+					{Name: "ready", Type: "bool"},
+				},
 				Text: "initialized",
 			},
 		},
@@ -161,7 +165,7 @@ s0: ready ; bool
 		Edges:     []IREdge{},
 		Init: IRInit{
 			Dst:  "s0",
-			Post: 2612241710,
+			Post: 3809375577,
 			Line: 4,
 		},
 	}
