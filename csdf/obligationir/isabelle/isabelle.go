@@ -64,31 +64,46 @@ begin`)
 		}
 		WriteNewLine(w, 2)
 
-		for i, p := range obligationir.OnlyPredicateWithUsedID(ir.Predicates, ir.UsedMap()) {
-			if i > 0 {
-				WriteNewLine(w, 2)
-			}
+		for _, p := range obligationir.Predicates(ir.Predicates) {
 			if err := WritePredicate(w, p); err != nil {
 				return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 			}
+			WriteNewLine(w, 2)
+		}
+
+		if err := WriteInit(w, ir.Init, ir.Predicates); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
 		WriteNewLine(w, 2)
 
-		taus := obligationir.TauEdges(ir.Edges)
-		for i, tau := range taus {
-			if i > 0 {
-				WriteNewLine(w, 2)
-			}
-			if err := WriteEdge(w, tau, ir.Predicates); err != nil {
+		// Every edge, not only the τ ones: the step relation that reachable is
+		// built from has to include the visible transitions too.
+		for _, e := range ir.Edges {
+			if err := WriteEdge(w, e, ir.Predicates); err != nil {
 				return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 			}
+			WriteNewLine(w, 2)
+		}
+
+		if err := WriteRelation(w, "step", ir.States, ir.Edges, ir.Predicates); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
 		WriteNewLine(w, 2)
 
-		WriteRelation(w, "tau_step", ir.States, taus, ir.Predicates)
+		if err := WriteReachable(w, ir.Init, ir.States); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+		}
 		WriteNewLine(w, 2)
 
-		io.WriteString(w, `theorem livelock_free: "wf {(s', s). tau_step s s'}"
+		if err := WriteRelation(w, "tau_step", ir.States, obligationir.TauEdges(ir.Edges), ir.Predicates); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+		}
+		WriteNewLine(w, 2)
+
+		// Restricted to the reachable states: over all of st the property is
+		// strictly stronger than livelock freedom, so a diagram that is livelock
+		// free can still fail it on valuations the diagram can never enter.
+		io.WriteString(w, `theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"
   oops`)
 		WriteNewLine(w, 2)
 	}
@@ -114,6 +129,60 @@ func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
 	); err != nil {
 		return fmt.Errorf("isabelle.WritePredicate: %w", err)
 	}
+	return nil
+}
+
+// WriteInit writes the init alias of the start edge's post predicate, which
+// constrains the start state's variables and so seeds the reachable predicate.
+func WriteInit(w io.Writer, init obligationir.IRInit, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+	post := m[init.Post]
+	if err := WriteLineComment(w, NewConstWriter(string(post.Text))); err != nil {
+		return fmt.Errorf("isabelle.WriteInit: comment: %w", err)
+	}
+	WriteNewLine(w, 1)
+	if err := WriteDefinition(
+		w,
+		NewConstWriter("init"),
+		NewWriteArgTypeFunc(post.Args),
+		NewConstWriter("bool"),
+		NewWriteArgNameFunc(nil),
+		NewWritePredicateNameWithIDFunc("pred_", init.Post),
+		len(post.Args),
+		0,
+	); err != nil {
+		return fmt.Errorf("isabelle.WriteInit: %w", err)
+	}
+	return nil
+}
+
+// WriteReachable writes the inductive predicate holding of every state the
+// diagram can actually enter: the start state under init, closed under step.
+func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.StateID]obligationir.IRState) error {
+	start, ok := states[init.Dst]
+	if !ok {
+		return fmt.Errorf("isabelle.WriteReachable: start state %q does not exist", init.Dst)
+	}
+
+	io.WriteString(w, `inductive reachable :: "st \<Rightarrow> bool" where`)
+	WriteNewLine(w, 1)
+	io.WriteString(w, `  base: "init`)
+	for _, f := range start.Fields {
+		io.WriteString(w, ` `)
+		WriteField(w, f, false)
+	}
+	io.WriteString(w, ` \<Longrightarrow> reachable `)
+	if len(start.Fields) > 0 {
+		io.WriteString(w, `(`)
+	}
+	WriteStatePattern(w, init.Dst, start, false)
+	if len(start.Fields) > 0 {
+		io.WriteString(w, `)`)
+	}
+	io.WriteString(w, `"`)
+	WriteNewLine(w, 1)
+	// The rules are named base/step rather than start/next: "next" is an Isar
+	// keyword and cannot be a rule name.
+	io.WriteString(w, `| step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"`)
 	return nil
 }
 

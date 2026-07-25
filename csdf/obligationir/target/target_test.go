@@ -40,7 +40,7 @@ func TestCompileRoutesToBackend(t *testing.T) {
 	ir := mustBuildIR(t)
 
 	testCases := map[Name]string{
-		NameIsabelle: "theorem livelock_free: \"wf {(s', s). tau_step s s'}\"",
+		NameIsabelle: "theorem livelock_free: \"wf_on {s. reachable s} {(s', s). tau_step s s'}\"",
 		NameLean:     "theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
 	}
 	for name, marker := range testCases {
