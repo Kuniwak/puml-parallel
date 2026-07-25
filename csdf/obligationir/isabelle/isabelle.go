@@ -315,7 +315,7 @@ func WriteVarTypesCommentContent(w io.Writer, fs []obligationir.IRField) {
 }
 
 func WritePredicateID(w io.Writer, id obligationir.IRPredicateID) {
-	io.WriteString(w, strconv.FormatUint(uint64(id), 36))
+	io.WriteString(w, obligationir.FormatPredicateID(id))
 }
 
 func WriteLineNumber(w io.Writer, line int) {

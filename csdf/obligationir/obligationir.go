@@ -5,6 +5,7 @@ import (
 	"hash"
 	"hash/crc32"
 	"slices"
+	"strconv"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -13,6 +14,13 @@ type IRPredicateID uint32
 
 func ComparePredicateID(a, b IRPredicateID) int {
 	return cmp.Compare(a, b)
+}
+
+// FormatPredicateID renders an ID as the base-36 suffix of a generated predicate
+// name (pred_<id>). Every backend must name a given predicate identically, so this
+// is the single definition of that spelling.
+func FormatPredicateID(id IRPredicateID) string {
+	return strconv.FormatUint(uint64(id), 36)
 }
 
 // ObligationIR is a prover-agnostic intermediate representation of the proof
