@@ -47,9 +47,9 @@ definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
 
-inductive reachable :: "st \<Rightarrow> bool" where
-  base: "init n \<Longrightarrow> reachable (a n)"
-| step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
+inductive reachable :: "st \<Rightarrow> bool"
+  where base: "init n \<Longrightarrow> reachable (a n)"
+  | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"

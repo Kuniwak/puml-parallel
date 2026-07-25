@@ -163,9 +163,11 @@ func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.State
 		return fmt.Errorf("isabelle.WriteReachable: start state %q does not exist", init.Dst)
 	}
 
-	io.WriteString(w, `inductive reachable :: "st \<Rightarrow> bool" where`)
+	// where goes on the continuation line as in definition, and the alternatives
+	// are indented like the datatype constructors.
+	io.WriteString(w, `inductive reachable :: "st \<Rightarrow> bool"`)
 	WriteNewLine(w, 1)
-	io.WriteString(w, `  base: "init`)
+	io.WriteString(w, `  where base: "init`)
 	for _, f := range start.Fields {
 		io.WriteString(w, ` `)
 		WriteField(w, f, false)
@@ -182,7 +184,7 @@ func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.State
 	WriteNewLine(w, 1)
 	// The rules are named base/step rather than start/next: "next" is an Isar
 	// keyword and cannot be a rule name.
-	io.WriteString(w, `| step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"`)
+	io.WriteString(w, `  | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"`)
 	return nil
 }
 
