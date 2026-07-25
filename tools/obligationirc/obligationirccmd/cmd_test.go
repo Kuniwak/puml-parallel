@@ -48,12 +48,12 @@ func TestNewMainFuncDefaultTargetReemitsIR(t *testing.T) {
 	if exitStatus != 0 {
 		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
 	}
-	var ir obligationir.ObligationIR
+	var ir obligationir.IRLivelockFree
 	if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
-		t.Fatalf("stdout is not valid ObligationIR JSON: %v\n%s", err, spy.Stdout.String())
+		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, spy.Stdout.String())
 	}
-	if ir.Goal != "livelock_free" {
-		t.Errorf("goal = %q, want livelock_free", ir.Goal)
+	if len(ir.Edges) != 1 {
+		t.Errorf("edges = %d, want 1", len(ir.Edges))
 	}
 }
 
@@ -66,8 +66,8 @@ func TestNewMainFuncLeanTarget(t *testing.T) {
 	out := spy.Stdout.String()
 	for _, want := range []string{
 		"inductive St where",
-		`-- "n > 0"`,
-		"def Guard_L5 (n : Json) : Prop := True",
+		`-- n > 0`,
+		"def guard_L5 : Val → Prop := pred_",
 		"theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
 	} {
 		if !strings.Contains(out, want) {
@@ -84,9 +84,9 @@ func TestNewMainFuncIsabelleTarget(t *testing.T) {
 	}
 	out := spy.Stdout.String()
 	for _, want := range []string{
-		"theory Livelock_Obligation imports Main begin",
-		`(* "n > 0" *)`,
-		`definition Guard_L5 :: "json ⇒ bool" where "Guard_L5 n ≡ True"`,
+		"theory Livelock_Obligation",
+		`(* n > 0 *)`,
+		`definition guard_L5 :: "val \<Rightarrow> bool"`,
 		`theorem livelock_free: "wf {(s', s). tau_step s s'}"`,
 	} {
 		if !strings.Contains(out, want) {

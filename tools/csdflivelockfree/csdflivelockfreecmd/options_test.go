@@ -41,7 +41,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: target.IRJSON,
+				Target: target.NameIRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -50,7 +50,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: target.IRJSON,
+				Target: target.NameIRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -58,7 +58,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: target.IRJSON,
+				Target: target.NameIRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -67,7 +67,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-target", "isabelle"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: target.Isabelle,
+				Target: target.NameIsabelle,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -76,7 +76,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-target", "lean"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: target.Lean,
+				Target: target.NameLean,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
@@ -85,7 +85,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-target", "ir-json"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Target: target.IRJSON,
+				Target: target.NameIRJSON,
 				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},

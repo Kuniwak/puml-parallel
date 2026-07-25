@@ -13,9 +13,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// runAndDecode runs the command and decodes stdout as an ObligationIR, asserting a
-// zero exit status and empty stderr.
-func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) obligationir.ObligationIR {
+// runAndDecode runs the command and decodes stdout as the obligation IR,
+// asserting a zero exit status and empty stderr.
+func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) obligationir.IRLivelockFree {
 	t.Helper()
 	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
 	if exitStatus != 0 {
@@ -24,12 +24,9 @@ func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) obligation
 	if spy.Stderr.String() != "" {
 		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
 	}
-	var ir obligationir.ObligationIR
+	var ir obligationir.IRLivelockFree
 	if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
-		t.Fatalf("stdout is not valid ObligationIR JSON: %v\n%s", err, spy.Stdout.String())
-	}
-	if ir.Goal != "livelock_free" {
-		t.Errorf("goal = %q, want livelock_free", ir.Goal)
+		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, spy.Stdout.String())
 	}
 	return ir
 }
@@ -42,7 +39,7 @@ func TestNewMainFuncEmitsIRForStructurallyFreeDiagram(t *testing.T) {
 	ir := runAndDecode(t, spy, []string{filepath.Join("testdata", "free.puml")})
 
 	// Assert
-	if !ir.StructurallyLivelockFree {
+	if !ir.Structurally {
 		t.Error("want structurally_livelock_free true for a tau-cycle-free diagram")
 	}
 }
@@ -55,7 +52,7 @@ func TestNewMainFuncEmitsIRForLivelockCandidate(t *testing.T) {
 	ir := runAndDecode(t, spy, []string{"../../../examples/valid/user.puml"})
 
 	// Assert
-	if ir.StructurallyLivelockFree {
+	if ir.Structurally {
 		t.Error("want structurally_livelock_free false when a reachable tau cycle exists")
 	}
 }
@@ -77,20 +74,20 @@ a --> a : tau ; False ; True
 	ir := runAndDecode(t, spy, []string{})
 
 	// Assert
-	if ir.StructurallyLivelockFree {
+	if ir.Structurally {
 		t.Error("want structurally_livelock_free false (the tau self-loop is a candidate)")
 	}
-	var guard *obligationir.IRPredicate
-	for i := range ir.Predicates {
-		if ir.Predicates[i].Sym == "Guard_L4" {
-			guard = &ir.Predicates[i]
+	var edge *obligationir.IREdge
+	for i := range ir.Edges {
+		if ir.Edges[i].Line == 4 {
+			edge = &ir.Edges[i]
 		}
 	}
-	if guard == nil {
-		t.Fatalf("want a Guard_L4 predicate, got %#v", ir.Predicates)
+	if edge == nil {
+		t.Fatalf("want an edge on line 4, got %#v", ir.Edges)
 	}
-	if guard.Text != "False" {
-		t.Errorf("Guard_L4 text = %q, want False", guard.Text)
+	if guard := ir.Predicates[edge.Guard].Text; guard != "False" {
+		t.Errorf("guard_L4 text = %q, want False", guard)
 	}
 }
 
@@ -110,7 +107,7 @@ s0 --> s1 : a
 	ir := runAndDecode(t, spy, []string{})
 
 	// Assert
-	if !ir.StructurallyLivelockFree {
+	if !ir.Structurally {
 		t.Error("want structurally_livelock_free true for a visible-only chain")
 	}
 }
@@ -139,7 +136,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 	out := spy.Stdout.String()
 	for _, want := range []string{
 		"inductive St where",
-		`-- "n > 0"`,
+		`-- n > 0`,
 		"theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
 	} {
 		if !strings.Contains(out, want) {
@@ -170,8 +167,8 @@ a --> a : tau ; n > 0 ; n' = n - 1
 	}
 	out := spy.Stdout.String()
 	for _, want := range []string{
-		"theory Livelock_Obligation imports Main begin",
-		`(* "n > 0" *)`,
+		"theory Livelock_Obligation",
+		`(* n > 0 *)`,
 		`theorem livelock_free: "wf {(s', s). tau_step s s'}"`,
 	} {
 		if !strings.Contains(out, want) {
