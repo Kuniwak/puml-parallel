@@ -95,9 +95,6 @@ type IRArg struct {
 	Primed bool   `json:"primed"`
 }
 
-func (a IRArg) Hash(h hash.Hash) {
-}
-
 // IRPredicate is an opaque predicate symbol with its argument signature and the
 // verbatim natural-language text it stands for. Kind is "guard", "post", or "init".
 type IRPredicate struct {
@@ -301,7 +298,6 @@ func Predicates(ps map[IRPredicateID]IRPredicate) []IRPredicateWithID {
 func OnlyPredicateWithUsedID(m map[IRPredicateID]IRPredicate, used map[IRPredicateID]struct{}) []IRPredicateWithID {
 	ps := Predicates(m)
 	res := make([]IRPredicateWithID, 0, len(ps))
-	slices.SortFunc(res, ComparePredicateWithID)
 	for _, p := range ps {
 		if _, ok := used[p.ID]; ok {
 			res = append(res, p)
