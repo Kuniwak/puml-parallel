@@ -132,7 +132,7 @@ done --> [*]
 			if diagram.EndEdge.Src != tt.wantSrc {
 				t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
 			}
-			if diagram.EndEdge.Guard != tt.wantGuard {
+			if diagram.EndEdge.Guard != Predicate(tt.wantGuard) {
 				t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
 			}
 
@@ -280,6 +280,40 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 	}
 	if diagram.EndEdge.Guard != `"guard /' literal '/"` {
 		t.Errorf("Parse() end guard = %q", diagram.EndEdge.Guard)
+	}
+
+	// Teardown: no resources to release.
+}
+
+func TestParseRecordsEdgeLine(t *testing.T) {
+	// Setup: each edge sits on a known source line.
+	parser := NewParser(`@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : tau
+b --> a : e1
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if diagram.StartEdge.Line != 4 {
+		t.Errorf("Parse() start edge line = %d, want 4", diagram.StartEdge.Line)
+	}
+	if len(diagram.Edges) != 2 {
+		t.Fatalf("Parse() edges = %#v, want two edges", diagram.Edges)
+	}
+	if diagram.Edges[0].Line != 5 {
+		t.Errorf("Parse() edges[0] line = %d, want 5", diagram.Edges[0].Line)
+	}
+	if diagram.Edges[1].Line != 6 {
+		t.Errorf("Parse() edges[1] line = %d, want 6", diagram.Edges[1].Line)
 	}
 
 	// Teardown: no resources to release.

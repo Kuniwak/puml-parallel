@@ -5,8 +5,8 @@ import (
 )
 
 type StatePair struct {
-	Left  State
-	Right State
+	Left  StateWithID
+	Right StateWithID
 }
 
 type Trans struct {
@@ -21,9 +21,15 @@ func (s StatePair) ID() StateID {
 
 func (s StatePair) State() State {
 	return State{
-		ID:   s.ID(),
 		Name: ComposeStateNames(s.Left.Name, s.Right.Name),
 		Vars: append(append([]StateVar{}, s.Left.Vars...), s.Right.Vars...),
+	}
+}
+
+func (s StatePair) StateWithID() StateWithID {
+	return StateWithID{
+		ID:    s.ID(),
+		State: s.State(),
 	}
 }
 
@@ -63,8 +69,14 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	}
 
 	initStatePair := StatePair{
-		Left:  dL.States[dL.StartEdge.Dst],
-		Right: dR.States[dR.StartEdge.Dst],
+		Left: StateWithID{
+			ID:    dL.StartEdge.Dst,
+			State: dL.States[dL.StartEdge.Dst],
+		},
+		Right: StateWithID{
+			ID:    dR.StartEdge.Dst,
+			State: dR.States[dR.StartEdge.Dst],
+		},
 	}
 
 	states := make(map[StateID]State)
@@ -74,7 +86,7 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 		States: states,
 		StartEdge: StartEdge{
 			Dst:  initStatePair.ID(),
-			Post: ComposePostConditions(dL.StartEdge.Post, dR.StartEdge.Post),
+			Post: Conjunction(dL.StartEdge.Post, dR.StartEdge.Post),
 		},
 		Edges: make([]Edge, 0),
 	}
@@ -128,16 +140,16 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 							for _, eL := range esL {
 								for _, eR := range esR {
 									nextStatePair := StatePair{
-										Left:  dL.States[dstL],
-										Right: dR.States[dstR],
+										Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
+										Right: StateWithID{ID: dstR, State: dR.States[dstR]},
 									}
 									out.States[nextStatePair.ID()] = nextStatePair.State()
 									out.Edges = append(out.Edges, Edge{
 										Src:   currentPairID,
 										Dst:   nextStatePair.ID(),
 										Event: ev,
-										Guard: ComposeGuard(eL.Guard, eR.Guard),
-										Post:  ComposePostConditions(eL.Post, eR.Post),
+										Guard: Conjunction(eL.Guard, eR.Guard),
+										Post:  Conjunction(eL.Post, eR.Post),
 									})
 									if _, ok := (*marked)[nextStatePair.ID()]; !ok {
 										*queue = append(*queue, nextStatePair)
@@ -157,7 +169,7 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 			for dstL, esL := range dstLs {
 				for _, eL := range esL {
 					nextStatePair := StatePair{
-						Left:  dL.States[dstL],
+						Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
 						Right: currentPair.Right,
 					}
 					out.States[nextStatePair.ID()] = nextStatePair.State()
@@ -182,7 +194,7 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 				for _, eR := range esR {
 					nextStatePair := StatePair{
 						Left:  currentPair.Left,
-						Right: dR.States[dstR],
+						Right: StateWithID{ID: dstR, State: dR.States[dstR]},
 					}
 					out.States[nextStatePair.ID()] = nextStatePair.State()
 					out.Edges = append(out.Edges, Edge{
@@ -209,24 +221,4 @@ func ComposeStateIDs(s1, s2 StateID) StateID {
 
 func ComposeStateNames(s1, s2 string) string {
 	return "(" + s1 + ", " + s2 + ")"
-}
-
-func ComposeGuard(g1, g2 string) string {
-	if g1 == "" || g1 == True {
-		return g2
-	}
-	if g2 == "" || g2 == True {
-		return g1
-	}
-	return g1 + " ∧ " + g2
-}
-
-func ComposePostConditions(p1, p2 string) string {
-	if p1 == "" || p1 == True {
-		return p2
-	}
-	if p2 == "" || p2 == True {
-		return p1
-	}
-	return p1 + " ∧ " + p2
 }

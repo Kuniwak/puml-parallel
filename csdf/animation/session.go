@@ -24,9 +24,9 @@ const (
 
 // pendingTransition is the transition whose post state group is awaiting values.
 type pendingTransition struct {
-	group csdf.State
-	guard string
-	post  string
+	group csdf.StateWithID
+	guard csdf.Predicate
+	post  csdf.Predicate
 	event csdf.Event
 	prev  *csdf.RuntimeState
 }
@@ -54,8 +54,8 @@ func NewSession(diagram *csdf.Diagram, solver csdf.PostSolver) (*Session, error)
 		solver:  solver,
 		mode:    ModeValues,
 		pending: pendingTransition{
-			group: initial,
-			guard: csdf.True,
+			group: csdf.StateWithID{State: initial, ID: diagram.StartEdge.Dst},
+			guard: csdf.PredicateTrue,
 			post:  diagram.StartEdge.Post,
 			event: csdf.Tau,
 			prev:  nil,
@@ -72,7 +72,7 @@ func (s *Session) Mode() Mode { return s.mode }
 // Pending returns the post state group awaiting values together with its guard,
 // post condition, triggering event, and the previous state. Meaningful only in
 // ModeValues.
-func (s *Session) Pending() (group csdf.State, guard, post string, event csdf.Event, prev *csdf.RuntimeState) {
+func (s *Session) Pending() (group csdf.StateWithID, guard, post csdf.Predicate, event csdf.Event, prev *csdf.RuntimeState) {
 	p := s.pending
 	return p.group, p.guard, p.post, p.event, p.prev
 }
@@ -142,7 +142,7 @@ func (s *Session) Select(idx int) error {
 	}
 	prev := s.current
 	s.pending = pendingTransition{
-		group: next,
+		group: csdf.StateWithID{State: next, ID: edge.Dst},
 		guard: edge.Guard,
 		post:  edge.Post,
 		event: edge.Event,

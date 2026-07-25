@@ -121,6 +121,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: obligationirc
+    main: ./tools/obligationirc/main.go
+    binary: obligationirc
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
 archives:
   - id: default
     format_overrides:
@@ -136,6 +151,7 @@ archives:
       - csdflivelockfree
       - csdfrepld
       - csdfreplcmd
+      - obligationirc
     files:
       - README.md
       - LICENSE*

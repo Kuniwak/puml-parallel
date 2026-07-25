@@ -52,11 +52,13 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateGroup",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateValuePrompt(&state, csdf.State{
-					ID:   "approved",
-					Name: "Approved",
-					Vars: []csdf.StateVar{
-						{Name: "status", Type: "string"},
+				r.displayStateValuePrompt(&state, csdf.StateWithID{
+					ID: "approved",
+					State: csdf.State{
+						Name: "Approved",
+						Vars: []csdf.StateVar{
+							{Name: "status", Type: "string"},
+						},
 					},
 				}, "count > 0", `status' = "reviewing"`)
 			},
@@ -80,8 +82,8 @@ func TestEventDisplaysGolden(t *testing.T) {
 			prompt: "command> ",
 			diagram: &csdf.Diagram{
 				States: map[csdf.StateID]csdf.State{
-					"approved": {ID: "approved", Name: "Approved"},
-					"rejected": {ID: "rejected", Name: "Rejected"},
+					"approved": {Name: "Approved"},
+					"rejected": {Name: "Rejected"},
 				},
 				Edges: []csdf.Edge{
 					{
@@ -169,12 +171,14 @@ func TestDisplayStateValuePromptForInitialState(t *testing.T) {
 	close(lines)
 	r := &repl{stdout: stdout, lines: lines}
 
-	r.displayStateValuePrompt(nil, csdf.State{
-		ID:   "initial",
-		Name: "Initial",
-		Vars: []csdf.StateVar{
-			{Name: "count", Type: "number"},
-			{Name: "metadata"},
+	r.displayStateValuePrompt(nil, csdf.StateWithID{
+		ID: "initial",
+		State: csdf.State{
+			Name: "Initial",
+			Vars: []csdf.StateVar{
+				{Name: "count", Type: "number"},
+				{Name: "metadata"},
+			},
 		},
 	}, "", "")
 	if _, outcome, _ := r.readLine("state> "); outcome != inputLine {

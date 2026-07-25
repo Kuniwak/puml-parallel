@@ -78,7 +78,7 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	diagram, err := csdf.ParseDiagram(req.Content)
+	diagram, err := csdf.ParseBytes(req.Content)
 	if err != nil {
 		return s.errorFromErr(err)
 	}

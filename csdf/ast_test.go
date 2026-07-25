@@ -2,15 +2,15 @@ package csdf
 
 import "testing"
 
-func TestDiagramStringOrdersStatesByID(t *testing.T) {
+func TestDiagramStringOrdersStatesByLine(t *testing.T) {
 	// Setup: a map literal whose iteration order is not stable across runs.
 	diagram := Diagram{
 		States: map[StateID]State{
-			"s2": {ID: "s2", Name: "Third"},
-			"s0": {ID: "s0", Name: "First"},
-			"s1": {ID: "s1", Name: "Second"},
+			"s2": {Name: "Third", Line: 3},
+			"s0": {Name: "First", Line: 1},
+			"s1": {Name: "Second", Line: 2},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 	}
 	want := `@startuml
 state "First" as s0
@@ -29,19 +29,34 @@ state "Third" as s2
 	}
 }
 
+func TestCompareStateWithIDBreaksTiesByID(t *testing.T) {
+	// Derived states — those normalize and composition synthesise rather than
+	// parse — carry no source line, so line order alone leaves them tied and the
+	// sort is free to return them in any order. The id has to settle it.
+	a := StateWithID{ID: "s0", State: State{Name: "{s0}"}}
+	b := StateWithID{ID: "s1_s2", State: State{Name: "{s1, s2}"}}
+
+	if got := CompareStateWithID(a, b); got >= 0 {
+		t.Errorf("CompareStateWithID(s0, s1_s2) = %d, want negative", got)
+	}
+	if got := CompareStateWithID(b, a); got <= 0 {
+		t.Errorf("CompareStateWithID(s1_s2, s0) = %d, want positive", got)
+	}
+}
+
 func TestDiagramStringIncludesEndEdge(t *testing.T) {
 	// Setup
 	diagram := Diagram{
 		States: map[StateID]State{
-			"s0": {ID: "s0", Name: "SKIP"},
+			"s0": {Name: "SKIP"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
-		EndEdge:   &EndEdge{Src: "s0", Guard: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
+		EndEdge:   &EndEdge{Src: "s0", Guard: PredicateTrue},
 	}
 	want := `@startuml
 state "SKIP" as s0
 [*] --> s0
-s0 --> [*] : true
+s0 --> [*]
 @enduml
 `
 
@@ -61,7 +76,6 @@ func TestDiagramStringIncludesStateVarTypes(t *testing.T) {
 	diagram := Diagram{
 		States: map[StateID]State{
 			"s0": {
-				ID:   "s0",
 				Name: "Initial",
 				Vars: []StateVar{
 					{Name: "ready", Type: "bool"},
@@ -69,7 +83,7 @@ func TestDiagramStringIncludesStateVarTypes(t *testing.T) {
 				},
 			},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 	}
 	want := `@startuml
 state "Initial" as s0
@@ -93,11 +107,11 @@ s0: count
 func TestDiagramStringIncludesFreeFormEvent(t *testing.T) {
 	diagram := Diagram{
 		States: map[StateID]State{
-			"s0": {ID: "s0", Name: "Initial"},
+			"s0": {Name: "Initial"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: True},
+		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
 		Edges: []Edge{
-			{Src: "s0", Dst: "s0", Event: "finish(result, status)", Guard: True, Post: True},
+			{Src: "s0", Dst: "s0", Event: "finish(result, status)", Guard: PredicateTrue, Post: PredicateTrue},
 		},
 	}
 	want := `@startuml

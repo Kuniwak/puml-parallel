@@ -34,7 +34,7 @@ func RenderEmptyLine(w io.Writer) {
 
 // RenderStateValuePrompt renders the prompt shown before the user enters the
 // state-variable values for the pending post state group.
-func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf.State, guard, post string) {
+func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf.StateWithID, guard, post csdf.Predicate) {
 	if previous == nil {
 		_, _ = fmt.Fprintln(w, "State: (none)")
 	} else {
@@ -121,11 +121,11 @@ func encodeJSON(value any) string {
 	return string(encoded)
 }
 
-func renderCondition(condition string) string {
-	if condition == "" {
-		return csdf.True
+func renderCondition(condition csdf.Predicate) string {
+	if csdf.IsTrue(condition) {
+		return string(csdf.PredicateTrue)
 	}
-	return condition
+	return string(condition)
 }
 
 // RenderTrace renders the event trace of the current path.

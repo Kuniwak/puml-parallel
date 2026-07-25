@@ -18,7 +18,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseDiagram(opts.Bytes)
+		diagram, err := csdf.ParseBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdfnormcmd.NewMainFunc: %w", err)
 		}

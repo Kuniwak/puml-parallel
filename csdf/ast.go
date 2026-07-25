@@ -1,8 +1,9 @@
 package csdf
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -18,7 +19,18 @@ type StateVar struct {
 	Type string `json:"type,omitempty"`
 }
 
-const True = "true"
+type Predicate string
+
+const (
+	PredicateTrue Predicate = "true"
+)
+
+// IsTrue reports whether a predicate string is the omitted/default value,
+// which renders as the literal True rather than an opaque symbol. The capitalised
+// "True"/"False" written by an author are ordinary natural-language predicates.
+func IsTrue(s Predicate) bool {
+	return s == "" || s == PredicateTrue
+}
 
 // Tau is the internal (silent) event. An edge whose event is exactly "tau" is a
 // τ-transition (docs/SYNTAX.md, docs/REFINEMENT_ALGORITHM.md §8).
@@ -32,41 +44,71 @@ type Diagram struct {
 }
 
 type State struct {
-	ID   StateID    `json:"id"`
 	Name string     `json:"name"`
 	Vars []StateVar `json:"vars"`
+	Line int        `json:"line"` // 1-based source line of the start edge.
+}
+
+func CompareState(a, b State) int {
+	return a.Line - b.Line
+}
+
+type StateWithID struct {
+	State
+	ID StateID `json:"id"`
+}
+
+// CompareStateWithID orders states by source line, falling back to the id. The
+// fallback is what makes SortedStates deterministic: normalize and composition
+// synthesise states that never came from a source line, so every such state has
+// line 0 and comparing lines alone leaves them all tied.
+func CompareStateWithID(a, b StateWithID) int {
+	if c := CompareState(a.State, b.State); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.ID, b.ID)
+}
+
+func SortedStates(m map[StateID]State) []StateWithID {
+	ss := make([]StateWithID, 0, len(m))
+	for id, s := range m {
+		ss = append(ss, StateWithID{
+			ID:    id,
+			State: s,
+		})
+	}
+	slices.SortFunc(ss, CompareStateWithID)
+	return ss
 }
 
 type StartEdge struct {
-	Dst  StateID `json:"dst"`
-	Post string  `json:"post"`
+	Dst  StateID   `json:"dst"`
+	Post Predicate `json:"post"`
+	Line int       `json:"line"` // 1-based source line of the start edge.
 }
 
 type Edge struct {
-	Src   StateID `json:"src"`
-	Dst   StateID `json:"dst"`
-	Event Event   `json:"event"`
-	Guard string  `json:"guard"`
-	Post  string  `json:"post"`
+	Src   StateID   `json:"src"`
+	Dst   StateID   `json:"dst"`
+	Event Event     `json:"event"`
+	Guard Predicate `json:"guard"`
+	Post  Predicate `json:"post"`
+	Line  int       `json:"line"` // 1-based source line of the transition.
 }
 
 type EndEdge struct {
-	Src   StateID `json:"src"`
-	Guard string  `json:"guard"`
+	Src   StateID   `json:"src"`
+	Guard Predicate `json:"guard"`
+	Line  int       `json:"line"` // 1-based source line of the transition.
 }
 
 func (d *Diagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")
 
-	stateIDs := make([]StateID, 0, len(d.States))
-	for id := range d.States {
-		stateIDs = append(stateIDs, id)
-	}
-	sort.Slice(stateIDs, func(i, j int) bool { return stateIDs[i] < stateIDs[j] })
+	ss := SortedStates(d.States)
 
-	for _, id := range stateIDs {
-		state := d.States[id]
+	for _, state := range ss {
 		sb.WriteString(fmt.Sprintf("state \"%s\" as %s\n", state.Name, state.ID))
 		for _, v := range state.Vars {
 			sb.WriteString(fmt.Sprintf("%s: %s", state.ID, v.Name))
@@ -78,7 +120,7 @@ func (d *Diagram) String() string {
 	}
 
 	// StartEdge
-	if d.StartEdge.Post == "" || d.StartEdge.Post == True {
+	if IsTrue(d.StartEdge.Post) {
 		sb.WriteString(fmt.Sprintf("[*] --> %s\n", d.StartEdge.Dst))
 	} else {
 		sb.WriteString(fmt.Sprintf("[*] --> %s : %s\n", d.StartEdge.Dst, d.StartEdge.Post))
@@ -87,11 +129,11 @@ func (d *Diagram) String() string {
 	// Regular edges
 	for _, edge := range d.Edges {
 		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event))
-		if edge.Post == "" || edge.Post == True {
+		if IsTrue(edge.Post) {
 			sb.WriteString("\n")
 			continue
 		}
-		if edge.Guard == "" || edge.Guard == True {
+		if IsTrue(edge.Guard) {
 			sb.WriteString(fmt.Sprintf(" ; %s\n", edge.Post))
 			continue
 		}
@@ -100,7 +142,7 @@ func (d *Diagram) String() string {
 
 	if d.EndEdge != nil {
 		sb.WriteString(fmt.Sprintf("%s --> [*]", d.EndEdge.Src))
-		if d.EndEdge.Guard != "" {
+		if !IsTrue(d.EndEdge.Guard) {
 			sb.WriteString(fmt.Sprintf(" : %s", d.EndEdge.Guard))
 		}
 		sb.WriteString("\n")

@@ -1,9 +1,7 @@
 package csdf
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 )
 
 // Livelock is a reachable τ-only cycle: a divergence witness. Stem is a path of
@@ -43,7 +41,7 @@ func CheckLivelockFree(d *Diagram) (witness *Livelock, ok bool) {
 		tauOut[e.Src] = append(tauOut[e.Src], e)
 	}
 	for s := range tauOut {
-		sortEdges(tauOut[s])
+		SortEdges(tauOut[s])
 	}
 
 	cycle := findTauCycle(tauOut)
@@ -52,26 +50,6 @@ func CheckLivelockFree(d *Diagram) (witness *Livelock, ok bool) {
 	}
 	stem := stemTo(d.StartEdge.Dst, cycle[0].Src, out)
 	return &Livelock{Stem: stem, Cycle: cycle}, false
-}
-
-// RenderLivelock renders a witness as human-readable lines, one transition per
-// line as "Src --event--> Dst". The stem (which may carry visible events) is
-// printed first and omitted when empty, followed by a "cycle:" header and the
-// τ-only cycle.
-func RenderLivelock(w *Livelock) string {
-	var sb strings.Builder
-	for _, e := range w.Stem {
-		sb.WriteString(renderEdge(e))
-	}
-	sb.WriteString("cycle:\n")
-	for _, e := range w.Cycle {
-		sb.WriteString(renderEdge(e))
-	}
-	return sb.String()
-}
-
-func renderEdge(e Edge) string {
-	return fmt.Sprintf("%s --%s--> %s\n", e.Src, e.Event, e.Dst)
 }
 
 // reachableStates returns every state reachable from start over all edges.
@@ -179,7 +157,7 @@ func stemTo(start, target StateID, out map[StateID][]Edge) []Edge {
 		s := queue[0]
 		queue = queue[1:]
 		edges := append([]Edge(nil), out[s]...)
-		sortEdges(edges)
+		SortEdges(edges)
 		for _, e := range edges {
 			if _, ok := visited[e.Dst]; ok {
 				continue

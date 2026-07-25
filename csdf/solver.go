@@ -43,10 +43,10 @@ const (
 // PostSolverInput is the request to resolve entered values against a post
 // state group, given the previous state and the guard/post conditions.
 type PostSolverInput struct {
-	StateGroup    State
+	StateGroup    StateWithID
 	Previous      *RuntimeState
-	Guard         string
-	Post          string
+	Guard         Predicate
+	Post          Predicate
 	EncodedValues string
 }
 

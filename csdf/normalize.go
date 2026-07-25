@@ -27,7 +27,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 	}
 
 	// Initial normal-form state: τ-closure of the start state.
-	initSet := tauClosure(map[StateID]struct{}{d.StartEdge.Dst: {}}, out)
+	initSet := TauClosure(map[StateID]struct{}{d.StartEdge.Dst: {}}, out)
 	initID := normalStateID(initSet)
 
 	result := &Diagram{
@@ -35,7 +35,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 		StartEdge: StartEdge{Dst: initID, Post: d.StartEdge.Post},
 		Edges:     make([]Edge, 0),
 	}
-	result.States[initID] = State{ID: initID, Name: normalStateName(initSet)}
+	result.States[initID] = State{Name: normalStateName(initSet)}
 
 	marked := map[StateID]struct{}{initID: {}}
 	queue := []map[StateID]struct{}{initSet}
@@ -57,31 +57,31 @@ func Normalize(d *Diagram) (*Diagram, error) {
 			}
 		}
 
-		for _, ev := range sortedEvents(byEvent) {
+		for _, ev := range SortedEvents(byEvent) {
 			contrib := byEvent[ev]
 			dstSet := make(map[StateID]struct{}, len(contrib))
-			guards := make([]string, 0, len(contrib))
-			posts := make([]string, 0, len(contrib))
+			guards := make([]Predicate, 0, len(contrib))
+			posts := make([]Predicate, 0, len(contrib))
 			for _, e := range contrib {
 				dstSet[e.Dst] = struct{}{}
 				guards = append(guards, e.Guard)
 				posts = append(posts, e.Post)
 			}
 
-			v := tauClosure(dstSet, out)
+			v := TauClosure(dstSet, out)
 			if len(v) == 0 {
 				continue // empty sink ∅: omitted
 			}
 			vID := normalStateID(v)
 			if _, ok := result.States[vID]; !ok {
-				result.States[vID] = State{ID: vID, Name: normalStateName(v)}
+				result.States[vID] = State{Name: normalStateName(v)}
 			}
 			result.Edges = append(result.Edges, Edge{
 				Src:   uID,
 				Dst:   vID,
 				Event: ev,
-				Guard: disjoin(guards),
-				Post:  disjoin(posts),
+				Guard: DisjunctionAll(guards),
+				Post:  DisjunctionAll(posts),
 			})
 			if _, ok := marked[vID]; !ok {
 				marked[vID] = struct{}{}
@@ -90,13 +90,13 @@ func Normalize(d *Diagram) (*Diagram, error) {
 		}
 	}
 
-	sortEdges(result.Edges)
+	SortEdges(result.Edges)
 	return result, nil
 }
 
 // tauClosure returns the set of states reachable from set via zero or more
 // τ-transitions (including the states of set themselves).
-func tauClosure(set map[StateID]struct{}, out map[StateID][]Edge) map[StateID]struct{} {
+func TauClosure(set map[StateID]struct{}, out map[StateID][]Edge) map[StateID]struct{} {
 	closure := make(map[StateID]struct{}, len(set))
 	queue := make([]StateID, 0, len(set))
 	for s := range set {
@@ -119,45 +119,22 @@ func tauClosure(set map[StateID]struct{}, out map[StateID][]Edge) map[StateID]st
 	return closure
 }
 
-// disjoin combines predicates with a true-aware logical OR. "true" (or the empty
-// default) is absorbing: if any disjunct is true the result is "true". Otherwise
-// the distinct disjuncts are sorted and joined with " | " for stable output.
-func disjoin(preds []string) string {
-	seen := make(map[string]struct{}, len(preds))
-	disjuncts := make([]string, 0, len(preds))
-	for _, p := range preds {
-		if p == "" || p == True {
-			return True
-		}
-		if _, ok := seen[p]; ok {
-			continue
-		}
-		seen[p] = struct{}{}
-		disjuncts = append(disjuncts, p)
-	}
-	if len(disjuncts) == 0 {
-		return True
-	}
-	sort.Strings(disjuncts)
-	return strings.Join(disjuncts, " ∨ ")
-}
-
 // normalStateID is the canonical identifier of a normal-form state: its member
 // IDs sorted and joined with "_". Same subset ⇒ same ID.
 func normalStateID(set map[StateID]struct{}) StateID {
 	if len(set) == 0 {
 		return "EMPTY"
 	}
-	return StateID(strings.Join(sortedMemberStrings(set), "_"))
+	return StateID(strings.Join(SortedMemberStrings(set), "_"))
 }
 
 // normalStateName is the human-readable label of a normal-form state, e.g.
 // "{s0, s1}", encoding the underlying source-state set.
 func normalStateName(set map[StateID]struct{}) string {
-	return "{" + strings.Join(sortedMemberStrings(set), ", ") + "}"
+	return "{" + strings.Join(SortedMemberStrings(set), ", ") + "}"
 }
 
-func sortedMemberStrings(set map[StateID]struct{}) []string {
+func SortedMemberStrings(set map[StateID]struct{}) []string {
 	ids := make([]string, 0, len(set))
 	for id := range set {
 		ids = append(ids, string(id))
@@ -166,7 +143,7 @@ func sortedMemberStrings(set map[StateID]struct{}) []string {
 	return ids
 }
 
-func sortedEvents(byEvent map[Event][]Edge) []Event {
+func SortedEvents(byEvent map[Event][]Edge) []Event {
 	events := make([]Event, 0, len(byEvent))
 	for ev := range byEvent {
 		events = append(events, ev)
@@ -175,7 +152,7 @@ func sortedEvents(byEvent map[Event][]Edge) []Event {
 	return events
 }
 
-func sortEdges(edges []Edge) {
+func SortEdges(edges []Edge) {
 	sort.Slice(edges, func(i, j int) bool {
 		if edges[i].Src != edges[j].Src {
 			return edges[i].Src < edges[j].Src

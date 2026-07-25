@@ -6,10 +6,12 @@ import (
 
 func TestSolveJSON(t *testing.T) {
 	// Arrange
-	group := State{
-		ID:   "s0",
-		Name: "Initial",
-		Vars: []StateVar{{Name: "a"}, {Name: "b"}},
+	group := StateWithID{
+		ID: "s0",
+		State: State{
+			Name: "Initial",
+			Vars: []StateVar{{Name: "a"}, {Name: "b"}},
+		},
 	}
 
 	// Act
