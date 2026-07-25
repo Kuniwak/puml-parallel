@@ -1,6 +1,7 @@
 package csdf
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -57,8 +58,15 @@ type StateWithID struct {
 	ID StateID `json:"id"`
 }
 
+// CompareStateWithID orders states by source line, falling back to the id. The
+// fallback is what makes SortedStates deterministic: normalize and composition
+// synthesise states that never came from a source line, so every such state has
+// line 0 and comparing lines alone leaves them all tied.
 func CompareStateWithID(a, b StateWithID) int {
-	return CompareState(a.State, b.State)
+	if c := CompareState(a.State, b.State); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.ID, b.ID)
 }
 
 func SortedStates(m map[StateID]State) []StateWithID {

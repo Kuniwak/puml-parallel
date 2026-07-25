@@ -29,6 +29,21 @@ state "Third" as s2
 	}
 }
 
+func TestCompareStateWithIDBreaksTiesByID(t *testing.T) {
+	// Derived states — those normalize and composition synthesise rather than
+	// parse — carry no source line, so line order alone leaves them tied and the
+	// sort is free to return them in any order. The id has to settle it.
+	a := StateWithID{ID: "s0", State: State{Name: "{s0}"}}
+	b := StateWithID{ID: "s1_s2", State: State{Name: "{s1, s2}"}}
+
+	if got := CompareStateWithID(a, b); got >= 0 {
+		t.Errorf("CompareStateWithID(s0, s1_s2) = %d, want negative", got)
+	}
+	if got := CompareStateWithID(b, a); got <= 0 {
+		t.Errorf("CompareStateWithID(s1_s2, s0) = %d, want positive", got)
+	}
+}
+
 func TestDiagramStringIncludesEndEdge(t *testing.T) {
 	// Setup
 	diagram := Diagram{
