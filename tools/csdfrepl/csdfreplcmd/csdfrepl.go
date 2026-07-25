@@ -327,7 +327,7 @@ func (r *repl) displayError(message string) { animation.RenderError(r.stdout, me
 
 func (r *repl) displayEmptyLine() { animation.RenderEmptyLine(r.stdout) }
 
-func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group csdf.State, guard, post string) {
+func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group csdf.StateWithID, guard, post csdf.Predicate) {
 	animation.RenderStateValuePrompt(r.stdout, previous, group, guard, post)
 }
 

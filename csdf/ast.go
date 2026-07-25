@@ -54,7 +54,7 @@ func CompareState(a, b State) int {
 
 type StateWithID struct {
 	State
-	ID StateID
+	ID StateID `json:"id"`
 }
 
 func CompareStateWithID(a, b StateWithID) int {

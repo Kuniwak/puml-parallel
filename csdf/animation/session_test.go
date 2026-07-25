@@ -54,8 +54,8 @@ func TestNewSessionStartsInValuesModeAtInitial(t *testing.T) {
 	if group.ID != "s0" {
 		t.Errorf("pending group = %q, want s0", group.ID)
 	}
-	if guard != csdf.True {
-		t.Errorf("pending guard = %q, want %q", guard, csdf.True)
+	if guard != csdf.PredicateTrue {
+		t.Errorf("pending guard = %q, want %q", guard, csdf.PredicateTrue)
 	}
 	if prev != nil {
 		t.Errorf("pending prev = %v, want nil", prev)

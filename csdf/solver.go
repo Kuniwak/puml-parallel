@@ -45,8 +45,8 @@ const (
 type PostSolverInput struct {
 	StateGroup    StateWithID
 	Previous      *RuntimeState
-	Guard         string
-	Post          string
+	Guard         Predicate
+	Post          Predicate
 	EncodedValues string
 }
 

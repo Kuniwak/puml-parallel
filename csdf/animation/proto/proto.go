@@ -56,20 +56,20 @@ type View struct {
 
 // Transition is one selectable outgoing edge from the current state.
 type Transition struct {
-	Index   int          `json:"index"`
-	Event   csdf.Event   `json:"event"`
-	Dst     csdf.StateID `json:"dst"`
-	DstName string       `json:"dst_name"`
-	Guard   string       `json:"guard"`
-	Post    string       `json:"post"`
+	Index   int            `json:"index"`
+	Event   csdf.Event     `json:"event"`
+	Dst     csdf.StateID   `json:"dst"`
+	DstName string         `json:"dst_name"`
+	Guard   csdf.Predicate `json:"guard"`
+	Post    csdf.Predicate `json:"post"`
 }
 
 // Pending describes the post state group awaiting values in ModeValues.
 type Pending struct {
 	Previous *csdf.RuntimeState `json:"previous,omitempty"`
-	Group    csdf.State         `json:"group"`
-	Guard    string             `json:"guard"`
-	Post     string             `json:"post"`
+	Group    csdf.StateWithID   `json:"group"`
+	Guard    csdf.Predicate     `json:"guard"`
+	Post     csdf.Predicate     `json:"post"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).

@@ -10,12 +10,14 @@ import (
 
 func TestRenderStateValuePromptForInitialState(t *testing.T) {
 	var buf bytes.Buffer
-	RenderStateValuePrompt(&buf, nil, csdf.State{
-		ID:   "initial",
-		Name: "Initial",
-		Vars: []csdf.StateVar{
-			{Name: "count", Type: "number"},
-			{Name: "metadata"},
+	RenderStateValuePrompt(&buf, nil, csdf.StateWithID{
+		ID: "initial",
+		State: csdf.State{
+			Name: "Initial",
+			Vars: []csdf.StateVar{
+				{Name: "count", Type: "number"},
+				{Name: "metadata"},
+			},
 		},
 	}, "", "")
 
@@ -43,8 +45,8 @@ func TestRenderStateValuePromptForInitialState(t *testing.T) {
 func TestRenderStateWithTransitions(t *testing.T) {
 	diagram := &csdf.Diagram{
 		States: map[csdf.StateID]csdf.State{
-			"review":   {ID: "review", Name: "Review order"},
-			"approved": {ID: "approved", Name: "Approved"},
+			"review":   {Name: "Review order"},
+			"approved": {Name: "Approved"},
 		},
 		Edges: []csdf.Edge{
 			{Src: "review", Dst: "approved", Event: "approve", Guard: "count > 0", Post: `status' = "approved"`},
