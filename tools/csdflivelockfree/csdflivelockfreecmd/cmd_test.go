@@ -40,7 +40,7 @@ func TestNewMainFuncEmitsIRForStructurallyFreeDiagram(t *testing.T) {
 
 	// Assert
 	if !ir.Structurally {
-		t.Error("want structurally_livelock_free true for a tau-cycle-free diagram")
+		t.Error("want structurally true for a tau-cycle-free diagram")
 	}
 }
 
@@ -53,14 +53,14 @@ func TestNewMainFuncEmitsIRForLivelockCandidate(t *testing.T) {
 
 	// Assert
 	if ir.Structurally {
-		t.Error("want structurally_livelock_free false when a reachable tau cycle exists")
+		t.Error("want structurally false when a reachable tau cycle exists")
 	}
 }
 
 func TestNewMainFuncGuardedTauLoopExitsZero(t *testing.T) {
 	// Arrange: the regression case. A tau self-loop guarded by False can never fire,
 	// so it must not be reported as a definite livelock via a non-zero exit status.
-	// Line 4 holds the transition, so its guard becomes Guard_L4 carrying "False".
+	// Line 4 holds the transition, so its guard becomes guard_L4 carrying "False".
 	input := `@startuml
 state "a" as a
 [*] --> a
@@ -75,7 +75,7 @@ a --> a : tau ; False ; True
 
 	// Assert
 	if ir.Structurally {
-		t.Error("want structurally_livelock_free false (the tau self-loop is a candidate)")
+		t.Error("want structurally false (the tau self-loop is a candidate)")
 	}
 	var edge *obligationir.IREdge
 	for i := range ir.Edges {
@@ -108,7 +108,7 @@ s0 --> s1 : a
 
 	// Assert
 	if !ir.Structurally {
-		t.Error("want structurally_livelock_free true for a visible-only chain")
+		t.Error("want structurally true for a visible-only chain")
 	}
 }
 
@@ -137,7 +137,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 	for _, want := range []string{
 		"inductive St where",
 		`-- n > 0`,
-		"theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
+		"WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("lean output missing %q\n%s", want, out)
@@ -169,7 +169,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 	for _, want := range []string{
 		"theory Livelock_Obligation",
 		`(* n > 0 *)`,
-		`theorem livelock_free: "wf {(s', s). tau_step s s'}"`,
+		`theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("isabelle output missing %q\n%s", want, out)

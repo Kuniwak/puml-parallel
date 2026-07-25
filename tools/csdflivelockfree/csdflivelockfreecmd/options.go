@@ -37,11 +37,14 @@ the target selected by -target and exits 0:
 Whether the diagram is livelock free depends on the natural-language Guard/Post
 predicates, which this tool leaves opaque. For isabelle and lean each distinct
 predicate becomes a True placeholder definition named pred_<id> after its hash,
-preceded by a comment carrying its original text; every tau transition then gets
-guard_L<line> and post_L<line> aliases of those placeholders. Filling them in and
-discharging the theorem is left to a human or LLM. The IR sets structurally=true
-when no reachable "tau" cycle exists, in which case no obligation is emitted at
-all. A file argument, a "-" argument, and standard input are all equivalent.
+preceded by a comment carrying its original text; init and every transition then
+get guard_L<line>/post_L<line> aliases of those placeholders. The theorem states
+well-foundedness of the tau relation restricted to the states reachable from init
+via the step relation, so that valuations the diagram can never enter cannot
+falsify it. Filling the placeholders in and discharging the theorem is left to a
+human or LLM. The IR sets structurally=true when no reachable "tau" cycle exists,
+in which case no obligation is emitted at all. A file argument, a "-" argument,
+and standard input are all equivalent.
 
 Options:
 `)

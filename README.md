@@ -100,11 +100,19 @@ reachable `tau` cycle exists, in which case the obligation holds regardless of t
 predicates. Options precede the file; a file argument, a `-` argument, and stdin are all
 equivalent.
 
-For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT and
-a `tau_step`/`tauStep` relation, then states the livelock-freedom theorem
-(well-foundedness of that relation) left as `oops`/`sorry`. When the diagram is
-structurally livelock free the obligation is already discharged, so only a note is emitted
-instead. Each distinct opaque predicate becomes a `True` placeholder definition named
+For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT, an
+`init` predicate over the start state's variables, a `step` relation over every transition,
+an inductive `reachable`/`Reachable` predicate (the start state under `init`, closed under
+`step`), and a `tau_step`/`tauStep` relation over the `tau` transitions only. It then
+states the livelock-freedom theorem — well-foundedness of the `tau` relation **restricted
+to the reachable states** — left as `oops`/`sorry`. The restriction matters: the state ADT
+also holds valuations the diagram can never enter, and a `tau` cycle among those would make
+the unrestricted theorem false even for a diagram that is livelock free. Isabelle uses
+`wf_on {s. reachable s} …`; Lean folds `Reachable s` into the relation instead, which is
+equivalent because `Reachable` is closed under `step`, and keeps the skeleton free of
+imports. When the diagram is structurally livelock free the obligation is already
+discharged, so only a note is emitted instead. Each distinct opaque predicate becomes a
+`True` placeholder definition named
 `pred_<id>` after its hash and preceded by a comment carrying its original
 natural-language text; every `tau` transition then gets `guard_L<line>` and `post_L<line>`
 aliases of those placeholders, so a human or LLM can fill in the real predicate body and

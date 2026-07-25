@@ -68,7 +68,7 @@ func TestNewMainFuncLeanTarget(t *testing.T) {
 		"inductive St where",
 		`-- n > 0`,
 		"def guard_L5 : Val → Prop := pred_",
-		"theorem livelock_free : WellFounded (fun s' s => tauStep s s') := by",
+		"WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("lean output missing %q\n%s", want, out)
@@ -87,7 +87,7 @@ func TestNewMainFuncIsabelleTarget(t *testing.T) {
 		"theory Livelock_Obligation",
 		`(* n > 0 *)`,
 		`definition guard_L5 :: "val \<Rightarrow> bool"`,
-		`theorem livelock_free: "wf {(s', s). tau_step s s'}"`,
+		`theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("isabelle output missing %q\n%s", want, out)
