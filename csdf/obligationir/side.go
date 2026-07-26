@@ -26,9 +26,20 @@ var (
 	SideImpl   = Side{Suffix: "_I", CtorPrefix: "I_"}
 )
 
-// EventCtor is the event datatype constructor standing for a visible event.
+// TauCtor is the event a tau edge performs. Hiding it is what makes it internal:
+// a hidden event produces instability and, on an infinite run of them, divergence,
+// which is exactly what a tau edge means. The name is reserved and cannot clash
+// with a user event, because "tau" itself never becomes a constructor.
+const TauCtor = "HTau"
+
+// EventCtor is the event datatype constructor standing for an event.
 // It is not side-qualified: the two diagrams are compared over one alphabet.
-func EventCtor(e csdf.Event) string { return "Ev_" + string(e) }
+func EventCtor(e csdf.Event) string {
+	if e == csdf.Tau {
+		return TauCtor
+	}
+	return "Ev_" + string(e)
+}
 
 // Ctor is the state datatype constructor standing for the state id.
 func (s Side) Ctor(id csdf.StateID) string { return s.CtorPrefix + string(id) }

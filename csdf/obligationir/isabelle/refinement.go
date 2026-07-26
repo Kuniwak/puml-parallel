@@ -18,14 +18,27 @@ type sideIR struct {
 	// Vars is true when either diagram has a state variable, in which case the
 	// event type is layered and process names are parameterised.
 	Vars bool
+	// Tau is true when either diagram has a tau edge, in which case the alphabet
+	// carries HTau and both top-level processes hide it.
+	Tau bool
 }
 
 func sides(ir obligationir.IRRefinement) []sideIR {
-	vars := hasVars(ir)
+	vars, tau := hasVars(ir), hasTau(ir)
 	return []sideIR{
-		{Side: obligationir.SideSpec, IR: ir.Spec, Proc: "SpecProc", Vars: vars},
-		{Side: obligationir.SideImpl, IR: ir.Impl, Proc: "ImplProc", Vars: vars},
+		{Side: obligationir.SideSpec, IR: ir.Spec, Proc: "SpecProc", Vars: vars, Tau: tau},
+		{Side: obligationir.SideImpl, IR: ir.Impl, Proc: "ImplProc", Vars: vars, Tau: tau},
 	}
+}
+
+// hasTau reports whether either diagram has a tau edge.
+func hasTau(ir obligationir.IRRefinement) bool {
+	for _, s := range []obligationir.IRSide{ir.Spec, ir.Impl} {
+		if len(obligationir.TauEdges(s.Edges)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // hasVars reports whether any state of either diagram carries a variable. The
@@ -61,7 +74,7 @@ func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
 		WriteNewLine(w, 2)
 	}
 
-	if err := WriteEventDatatype(w, ir.Alphabet, hasVars(ir)); err != nil {
+	if err := WriteEventDatatype(w, ir.Alphabet, hasVars(ir), hasTau(ir)); err != nil {
 		return fmt.Errorf("isabelle.WriteRefinement: %w", err)
 	}
 	WriteNewLine(w, 2)
@@ -122,30 +135,40 @@ func refinementImport(mode obligationir.IRRefinementMode) string {
 // type variable), and the only way in is Rep_int_choice_f's injection
 // 'b => 'a. Internal is that injection's target: no process ever performs one, so
 // no trace and no refusal changes, but it lets the choice range over valuations.
-func WriteEventDatatype(w io.Writer, alphabet []csdf.Event, vars bool) error {
+func WriteEventDatatype(w io.Writer, alphabet []csdf.Event, vars, tau bool) error {
 	name := "event"
 	if vars {
 		name = "alphabet"
 	}
 
-	if len(alphabet) == 0 {
+	ctors := make([]string, 0, len(alphabet)+1)
+	for _, e := range alphabet {
+		ctors = append(ctors, obligationir.EventCtor(e))
+	}
+	if tau {
+		// Not part of the visible alphabet, so it goes last rather than into the
+		// sorted union.
+		ctors = append(ctors, obligationir.TauCtor)
+	}
+
+	if len(ctors) == 0 {
 		// A datatype needs at least one constructor, and a process over an empty
 		// alphabet can only ever be STOP or SKIP.
 		io.WriteString(w, `datatype `)
 		io.WriteString(w, name)
-		io.WriteString(w, ` = Ev_none (* neither diagram has a visible event *)`)
+		io.WriteString(w, ` = Ev_none (* neither diagram has an event *)`)
 	} else if err := WriteDatatype(
 		w,
 		NewConstWriter(name),
 		func(w io.Writer, i int) error {
-			io.WriteString(w, obligationir.EventCtor(alphabet[i]))
+			io.WriteString(w, ctors[i])
 			return nil
 		},
 		func(w io.Writer, _, _ int) error { return nil },
 		func(int) bool { return false },
 		func(io.Writer, int) error { return nil },
 		func(int) int { return 0 },
-		len(alphabet),
+		len(ctors),
 	); err != nil {
 		return fmt.Errorf("isabelle.WriteEventDatatype: %w", err)
 	}
@@ -443,6 +466,25 @@ func WriteProcDefinition(w io.Writer, s sideIR) error {
 		func(io.Writer, int) error { return nil },
 		func(w io.Writer) error {
 			start := s.IR.States[s.IR.Init.Dst]
+
+			if s.Tau {
+				// Hidden once, outermost: hiding is what turns the HTau prefixes
+				// into internal steps, and hiding them per state would not compose.
+				// A replicated internal choice already brings its own parentheses.
+				parens := len(start.Fields) == 0
+				if parens {
+					io.WriteString(w, `(`)
+				}
+				defer func() {
+					if parens {
+						io.WriteString(w, `)`)
+					}
+					io.WriteString(w, ` -- {`)
+					io.WriteString(w, s.EventTerm(csdf.Tau))
+					io.WriteString(w, `}`)
+				}()
+			}
+
 			if len(start.Fields) == 0 {
 				io.WriteString(w, `IF `)
 				io.WriteString(w, s.Side.Qualify("init"))

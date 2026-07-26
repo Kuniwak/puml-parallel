@@ -239,6 +239,57 @@ end
 	}
 }
 
+// TestWriteRefinementHidesTau is stage (c): a tau edge becomes a prefix on the
+// reserved event HTau, hidden once at the outermost level. Hiding is what makes
+// it internal - it produces instability, and on an infinite run of tau steps,
+// divergence - which a plain visible event would not.
+func TestWriteRefinementHidesTau(t *testing.T) {
+	diagram := `@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : tau
+b --> b : x
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
+
+	for _, want := range []string{
+		// HTau goes last: it is not part of the visible alphabet.
+		"datatype event = Ev_x\n  | HTau\n",
+		"      THEN HTau -> $(S_b)\n",
+		`where "SpecProc \<equiv> (IF init_S THEN $(S_a) ELSE STOP) -- {HTau}"`,
+		`where "ImplProc \<equiv> (IF init_I THEN $(I_a) ELSE STOP) -- {HTau}"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q\n%s", want, got)
+		}
+	}
+}
+
+func TestWriteRefinementHidesTauUnderTheEventLayer(t *testing.T) {
+	// With valuations in play the event type is layered, so the hidden set names
+	// the wrapped event.
+	diagram := `@startuml
+state "a" as a
+a: n ; nat
+[*] --> a
+a --> a : tau ; n > 0 ; n' < n
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
+
+	for _, want := range []string{
+		"datatype alphabet = HTau\n",
+		`      THEN Alphabet HTau -> (!<\<lambda>n'. Internal [n']> n':{n'. post_S_L5 n n'} .. $(S_a n'))`,
+		`.. $(S_a n)) -- {Alphabet HTau}"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q\n%s", want, got)
+		}
+	}
+}
+
 // TestWriteRefinementTuplesMultipleVars pins the binder a state carrying several
 // variables gets: the internal choice ranges over tuples, injected into the event
 // type as a list.
