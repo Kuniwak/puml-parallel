@@ -339,6 +339,31 @@ a --> [*] : n = 0
 	}
 }
 
+// TestWriteRefinementStableFailures is stage (e): the same encoding, imported
+// into and stated in CSP-Prover's F model.
+func TestWriteRefinementStableFailures(t *testing.T) {
+	diagram := `@startuml
+state "a" as a
+[*] --> a
+a --> a : x
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeStableFailure, diagram, diagram)
+
+	for _, want := range []string{
+		"theory Refinement_Obligation\n  imports CSP_F.CSP_F\nbegin\n",
+		`theorem refines_f: "SpecProc <=F ImplProc"
+  oops`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "<=T") {
+		t.Errorf("want no trace refinement in stable-failures mode\n%s", got)
+	}
+}
+
 // TestWriteRefinementTuplesMultipleVars pins the binder a state carrying several
 // variables gets: the internal choice ranges over tuples, injected into the event
 // type as a list.
