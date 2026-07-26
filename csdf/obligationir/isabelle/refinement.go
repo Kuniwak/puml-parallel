@@ -200,7 +200,7 @@ where`)
 
 			io.WriteString(w, `procfun (`)
 			io.WriteString(w, s.Side.Ctor(st.StateID))
-			io.WriteString(w, `) = `)
+			io.WriteString(w, `) =`)
 			WriteStateBody(w, s, st.StateID, ir.Predicates)
 			io.WriteString(w, `"`)
 		}
@@ -208,9 +208,15 @@ where`)
 	return nil
 }
 
-// stateBodyIndent lines up the [+] branches under the first one, which starts
-// after `| "procfun (<ctor>) = `.
-const stateBodyIndent = `                    `
+// stateBodyIndent indents every line of a process body under its primrec
+// equation, so the branches of a state line up whatever their number.
+const stateBodyIndent = `     `
+
+func writeBodyLine(w io.Writer, s string) {
+	WriteNewLine(w, 1)
+	io.WriteString(w, stateBodyIndent)
+	io.WriteString(w, s)
+}
 
 // WriteStateBody writes the external choice over the out-edges of one state.
 func WriteStateBody(
@@ -225,9 +231,7 @@ func WriteStateBody(
 			continue
 		}
 		if branches > 0 {
-			WriteNewLine(w, 1)
-			io.WriteString(w, stateBodyIndent)
-			io.WriteString(w, `[+] `)
+			writeBodyLine(w, `[+]`)
 		}
 		branches++
 		WriteEdgeBranch(w, s, e, m)
@@ -235,7 +239,7 @@ func WriteStateBody(
 
 	if branches == 0 {
 		// A state with no out-edges offers nothing and never terminates.
-		io.WriteString(w, `STOP`)
+		writeBodyLine(w, `STOP`)
 	}
 }
 
@@ -249,15 +253,19 @@ func WriteEdgeBranch(
 	e obligationir.IREdge,
 	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
 ) {
-	io.WriteString(w, `(IF (`)
+	writeBodyLine(w, `(IF (`)
 	io.WriteString(w, s.Side.GuardName(e.Line))
 	io.WriteString(w, ` \<and> `)
 	io.WriteString(w, s.Side.PostName(e.Line))
-	io.WriteString(w, `) THEN `)
+	io.WriteString(w, `)`)
+
+	writeBodyLine(w, ` THEN `)
 	io.WriteString(w, obligationir.EventCtor(e.Event))
 	io.WriteString(w, ` -> $(`)
 	io.WriteString(w, s.Side.Ctor(e.Dst))
-	io.WriteString(w, `) ELSE STOP)`)
+	io.WriteString(w, `)`)
+
+	writeBodyLine(w, ` ELSE STOP)`)
 }
 
 // WriteProcFunOverloading registers procfun as CSP-Prover's PNfun for this name

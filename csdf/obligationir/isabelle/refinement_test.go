@@ -87,9 +87,18 @@ datatype PN = S_s0
 primrec
   procfun :: "(PN, event) pnfun"
 where
-  "procfun (S_s0) = (IF (guard_S_L4 \<and> post_S_L4) THEN Ev_a -> $(S_s0) ELSE STOP)"
-| "procfun (I_t0) = (IF (guard_I_L4 \<and> post_I_L4) THEN Ev_a -> $(I_t0) ELSE STOP)
-                    [+] (IF (guard_I_L5 \<and> post_I_L5) THEN Ev_b -> $(I_t0) ELSE STOP)"
+  "procfun (S_s0) =
+     (IF (guard_S_L4 \<and> post_S_L4)
+      THEN Ev_a -> $(S_s0)
+      ELSE STOP)"
+| "procfun (I_t0) =
+     (IF (guard_I_L4 \<and> post_I_L4)
+      THEN Ev_a -> $(I_t0)
+      ELSE STOP)
+     [+]
+     (IF (guard_I_L5 \<and> post_I_L5)
+      THEN Ev_b -> $(I_t0)
+      ELSE STOP)"
 
 overloading Set_procfun == "PNfun :: (PN, event) pnfun"
 begin
