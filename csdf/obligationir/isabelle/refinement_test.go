@@ -290,6 +290,55 @@ a --> a : tau ; n > 0 ; n' < n
 	}
 }
 
+// TestWriteRefinementEndEdgeIsSkip is stage (d): an end edge is CSP successful
+// termination, offered alongside the state's other out-edges and guarded like
+// them.
+func TestWriteRefinementEndEdgeIsSkip(t *testing.T) {
+	diagram := `@startuml
+state "a" as a
+[*] --> a
+a --> a : x
+a --> [*] : done
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
+
+	for _, want := range []string{
+		"(* done *)\ndefinition guard_S_L5 :: \"bool\"\n  where \"guard_S_L5 \\<equiv> pred_",
+		`      THEN Ev_x -> $(S_a)
+      ELSE STOP)
+     [+]
+     (IF guard_S_L5
+      THEN SKIP
+      ELSE STOP)"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q\n%s", want, got)
+		}
+	}
+}
+
+func TestWriteRefinementEndEdgeGuardTakesTheStateValuation(t *testing.T) {
+	// The end guard constrains the source state's variables, so its alias is
+	// applied to them.
+	diagram := `@startuml
+state "a" as a
+a: n ; nat
+[*] --> a
+a --> [*] : n = 0
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
+
+	want := `  "procfun (S_a n) =
+     (IF guard_S_L5 n
+      THEN SKIP
+      ELSE STOP)"`
+	if !strings.Contains(got, want) {
+		t.Errorf("output missing %q\n%s", want, got)
+	}
+}
+
 // TestWriteRefinementTuplesMultipleVars pins the binder a state carrying several
 // variables gets: the internal choice ranges over tuples, injected into the event
 // type as a list.

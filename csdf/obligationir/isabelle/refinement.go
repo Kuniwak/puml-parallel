@@ -206,6 +206,36 @@ func WriteSideAliases(
 		}
 		WriteNewLine(w, 2)
 	}
+
+	if s.End != nil {
+		if err := WriteEnd(w, side, *s.End, m); err != nil {
+			return fmt.Errorf("isabelle.WriteSideAliases: %w", err)
+		}
+		WriteNewLine(w, 2)
+	}
+	return nil
+}
+
+// WriteEnd writes the alias of the end edge's guard. It is named after its own
+// source line, like any other edge's.
+func WriteEnd(w io.Writer, side obligationir.Side, end obligationir.IREnd, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+	guard := m[end.Guard]
+	if err := WriteLineComment(w, NewConstWriter(string(guard.Text))); err != nil {
+		return fmt.Errorf("isabelle.WriteEnd: comment: %w", err)
+	}
+	WriteNewLine(w, 1)
+	if err := WriteDefinition(
+		w,
+		NewConstWriter(side.GuardName(end.Line)),
+		NewWriteArgTypeFunc(guard.Args),
+		NewConstWriter("bool"),
+		NewWriteArgNameFunc(nil),
+		NewWritePredicateNameWithIDFunc("pred_", end.Guard),
+		len(guard.Args),
+		0,
+	); err != nil {
+		return fmt.Errorf("isabelle.WriteEnd: %w", err)
+	}
 	return nil
 }
 
@@ -310,6 +340,20 @@ func WriteStateBody(
 		}
 		branches++
 		WriteEdgeBranch(w, s, e, m)
+	}
+
+	// The end edge is CSP successful termination, offered alongside the state's
+	// other out-edges and guarded like them.
+	if end := s.IR.End; end != nil && end.Src == id {
+		if branches > 0 {
+			writeBodyLine(w, `[+]`)
+		}
+		branches++
+
+		writeBodyLine(w, `(IF `)
+		io.WriteString(w, application(s.Side.GuardName(end.Line), m[end.Guard].Args))
+		writeBodyLine(w, ` THEN SKIP`)
+		writeBodyLine(w, ` ELSE STOP)`)
 	}
 
 	if branches == 0 {
