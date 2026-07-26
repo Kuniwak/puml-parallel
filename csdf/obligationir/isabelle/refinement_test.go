@@ -364,6 +364,95 @@ a --> a : x
 	}
 }
 
+// TestWriteRefinementFailuresDivergence is stage (f). CSP-Prover has no FD model,
+// so fd reduces to <=F plus a divergence-freedom obligation per side: the F model
+// cannot observe divergence at all, and for divergence-free processes the two
+// refinements coincide. The divergence-freedom obligation is the csdflivelockfree
+// obligation inlined per side, over side-qualified relations.
+func TestWriteRefinementFailuresDivergence(t *testing.T) {
+	diagram := `@startuml
+state "a" as a
+[*] --> a
+a --> a : tau
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeFailuresDivergence, diagram, diagram)
+
+	for _, want := range []string{
+		"theory Refinement_Obligation\n  imports CSP_F.CSP_F\nbegin\n",
+		// The state datatype's constructors carry St_ because the process-name
+		// datatype in the same theory already claims S_a and I_a.
+		"datatype st_S = St_S_a\n",
+		"datatype st_I = St_I_a\n",
+		`definition step_S :: "st_S \<Rightarrow> st_S \<Rightarrow> bool"`,
+		`inductive reachable_S :: "st_S \<Rightarrow> bool"`,
+		`definition tau_step_I :: "st_I \<Rightarrow> st_I \<Rightarrow> bool"`,
+		`theorem livelock_free_S: "wf_on {s. reachable_S s} {(s', s). tau_step_S s s'}"
+  oops`,
+		`theorem livelock_free_I: "wf_on {s. reachable_I s} {(s', s). tau_step_I s s'}"
+  oops`,
+		`theorem refines_f: "SpecProc <=F ImplProc"
+  oops`,
+		// The reduction has to be stated, or the theory looks like it proves the
+		// wrong thing.
+		"for\n   divergence-free processes, FD refinement coincides with <=F",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q\n%s", want, got)
+		}
+	}
+}
+
+func TestWriteRefinementStableFailuresOmitsTheReductionNote(t *testing.T) {
+	// The reduction is what fd means; in f mode there is nothing to reduce.
+	diagram := `@startuml
+state "a" as a
+[*] --> a
+a --> a : tau
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeStableFailure, diagram, diagram)
+	if strings.Contains(got, "FD refinement") {
+		t.Errorf("want no reduction note in stable-failures mode\n%s", got)
+	}
+	if strings.Contains(got, "wf_on") {
+		t.Errorf("want no divergence-freedom obligation in stable-failures mode\n%s", got)
+	}
+}
+
+func TestWriteRefinementFailuresDivergenceSkipsStructurallyFreeSides(t *testing.T) {
+	// A side with no reachable tau-cycle is divergence free whatever the
+	// predicates say, so it gets a note instead of an obligation - the same rule
+	// csdflivelockfree follows.
+	free := `@startuml
+state "a" as a
+[*] --> a
+a --> a : x
+@enduml
+`
+	diverging := `@startuml
+state "a" as a
+[*] --> a
+a --> a : tau
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeFailuresDivergence, free, diverging)
+
+	if strings.Contains(got, "livelock_free_S") {
+		t.Errorf("want no obligation for a structurally livelock-free spec\n%s", got)
+	}
+	if !strings.Contains(got, "(* Spec is livelock free structurally: no reachable tau-cycle. *)") {
+		t.Errorf("want the structural note for the spec\n%s", got)
+	}
+	if !strings.Contains(got, `theorem livelock_free_I: "wf_on`) {
+		t.Errorf("want the obligation for the diverging impl\n%s", got)
+	}
+	// Its relations are pointless without an obligation to state over them.
+	if strings.Contains(got, "step_S") {
+		t.Errorf("want no transition system for a structurally livelock-free spec\n%s", got)
+	}
+}
+
 // TestWriteRefinementTuplesMultipleVars pins the binder a state carrying several
 // variables gets: the internal choice ranges over tuples, injected into the event
 // type as a list.

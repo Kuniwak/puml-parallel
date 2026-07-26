@@ -21,13 +21,37 @@ type sideIR struct {
 	// Tau is true when either diagram has a tau edge, in which case the alphabet
 	// carries HTau and both top-level processes hide it.
 	Tau bool
+	// States names the side's transition-system layer, which exists only in
+	// failures-divergence mode.
+	States obligationir.Side
+	// Label names the side in prose.
+	Label string
+}
+
+// NeedsLivelockObligation reports whether this side has to carry a
+// divergence-freedom obligation: only in failures-divergence mode, and only when
+// the structural tau-cycle check did not already settle it.
+func (s sideIR) NeedsLivelockObligation() bool {
+	return s.IR.StructurallyLivelockFree != nil && !*s.IR.StructurallyLivelockFree
+}
+
+// HasLivelockLayer reports whether the side carries the divergence-freedom
+// reduction at all, discharged structurally or not.
+func (s sideIR) HasLivelockLayer() bool {
+	return s.IR.StructurallyLivelockFree != nil
 }
 
 func sides(ir obligationir.IRRefinement) []sideIR {
 	vars, tau := hasVars(ir), hasTau(ir)
 	return []sideIR{
-		{Side: obligationir.SideSpec, IR: ir.Spec, Proc: "SpecProc", Vars: vars, Tau: tau},
-		{Side: obligationir.SideImpl, IR: ir.Impl, Proc: "ImplProc", Vars: vars, Tau: tau},
+		{
+			Side: obligationir.SideSpec, States: obligationir.SideSpecStates,
+			IR: ir.Spec, Proc: "SpecProc", Label: "Spec", Vars: vars, Tau: tau,
+		},
+		{
+			Side: obligationir.SideImpl, States: obligationir.SideImplStates,
+			IR: ir.Impl, Proc: "ImplProc", Label: "Impl", Vars: vars, Tau: tau,
+		},
 	}
 }
 
@@ -107,6 +131,12 @@ func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
 			return fmt.Errorf("isabelle.WriteRefinement: %w", err)
 		}
 		WriteNewLine(w, 2)
+	}
+
+	for _, s := range sides(ir) {
+		if err := WriteLivelockLayer(w, s, ir.Predicates); err != nil {
+			return fmt.Errorf("isabelle.WriteRefinement: %w", err)
+		}
 	}
 
 	WriteRefinementTheorem(w, ir.Mode)
@@ -553,6 +583,40 @@ func WriteProcDefinition(w io.Writer, s sideIR) error {
 	return nil
 }
 
+// WriteLivelockLayer writes one side's divergence-freedom reduction: the state
+// datatype, the transition relations and the well-foundedness obligation over
+// them. It is the csdflivelockfree obligation inlined, and exists only in
+// failures-divergence mode, where it is what licenses reading <=F as FD
+// refinement. The wf form is kept rather than restated denotationally because the
+// F model cannot observe divergence at all; the two styles are complementary and
+// coexist in one theory (CSP_F includes Main, so wf_on is available).
+func WriteLivelockLayer(w io.Writer, s sideIR, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+	if !s.HasLivelockLayer() {
+		return nil
+	}
+
+	if !s.NeedsLivelockObligation() {
+		io.WriteString(w, `(* `)
+		io.WriteString(w, s.Label)
+		io.WriteString(w, ` is livelock free structurally: no reachable tau-cycle. *)`)
+		WriteNewLine(w, 2)
+		return nil
+	}
+
+	if err := WriteStateTypeDeclaration(w, s.States, obligationir.SortIRStates(s.IR.States)); err != nil {
+		return fmt.Errorf("isabelle.WriteLivelockLayer: %w", err)
+	}
+	WriteNewLine(w, 2)
+
+	if err := WriteRelations(w, s.States, s.IR.Init, s.IR.States, s.IR.Edges, m); err != nil {
+		return fmt.Errorf("isabelle.WriteLivelockLayer: %w", err)
+	}
+
+	WriteLivelockTheorem(w, s.States, s.Side.Qualify("livelock_free"))
+	WriteNewLine(w, 2)
+	return nil
+}
+
 // WriteRefinementTheorem writes the obligation itself.
 func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode) {
 	if mode == obligationir.IRRefinementModeTrace {
@@ -561,6 +625,14 @@ func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode) {
 theorem refines_t: "SpecProc <=T ImplProc"
   oops`)
 		return
+	}
+
+	if mode == obligationir.IRRefinementModeFailuresDivergence {
+		io.WriteString(w, `(* CSP-Prover has no FD model, so this is the standard reduction: for
+   divergence-free processes, FD refinement coincides with <=F. Divergence of
+   SpecProc/ImplProc arises exactly from infinite HTau runs of the underlying
+   diagram, which the well-foundedness obligations above rule out. *)
+`)
 	}
 
 	io.WriteString(w, `(* Every stable failure of the Impl diagram is one of the Spec diagram: in
