@@ -118,18 +118,36 @@ func WriteTransitionSystem(
 		WriteNewLine(w, 2)
 	}
 
-	if err := WriteRelation(w, side, "step", states, edges, m); err != nil {
+	if err := WriteRelations(w, side, init, states, edges, m); err != nil {
 		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+	}
+	return nil
+}
+
+// WriteRelations writes the step, reachable and tau_step relations of one side,
+// which are what the well-foundedness obligation is stated over. It is separate
+// from the aliases they are built from because the refinement obligation writes
+// those aliases for its own process terms already.
+func WriteRelations(
+	w io.Writer,
+	side obligationir.Side,
+	init obligationir.IRInit,
+	states map[csdf.StateID]obligationir.IRState,
+	edges []obligationir.IREdge,
+	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
+) error {
+	if err := WriteRelation(w, side, "step", states, edges, m); err != nil {
+		return fmt.Errorf("isabelle.WriteRelations: %w", err)
 	}
 	WriteNewLine(w, 2)
 
 	if err := WriteReachable(w, side, init, states); err != nil {
-		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+		return fmt.Errorf("isabelle.WriteRelations: %w", err)
 	}
 	WriteNewLine(w, 2)
 
 	if err := WriteRelation(w, side, "tau_step", states, obligationir.TauEdges(edges), m); err != nil {
-		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+		return fmt.Errorf("isabelle.WriteRelations: %w", err)
 	}
 	WriteNewLine(w, 2)
 	return nil

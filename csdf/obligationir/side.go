@@ -24,6 +24,13 @@ var (
 	SideSingle = Side{}
 	SideSpec   = Side{Suffix: "_S", CtorPrefix: "S_"}
 	SideImpl   = Side{Suffix: "_I", CtorPrefix: "I_"}
+
+	// The transition-system layer of a refinement side. Its state datatype shares
+	// a theory with the process-name datatype, and no two datatypes may declare
+	// the same constructor, so its constructors carry the extra St_ prefix while
+	// everything else (st_S, step_S, guard_S_L<n>, ...) keeps the side's spelling.
+	SideSpecStates = Side{Suffix: "_S", CtorPrefix: "St_S_"}
+	SideImplStates = Side{Suffix: "_I", CtorPrefix: "St_I_"}
 )
 
 // TauCtor is the event a tau edge performs. Hiding it is what makes it internal:
