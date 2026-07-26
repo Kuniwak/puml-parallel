@@ -153,61 +153,74 @@ type IRInit struct {
 	Line int           `json:"line"` // 1-based
 }
 
-// BuildLivelockFree builds the livelock-freedom proof obligation IR for d. The
-// structural τ-cycle check (CheckLivelockFree) is used only to set
-// StructurallyLivelockFree; the obligation itself is the global property and does
-// not depend on a particular witness.
-func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
-	_, free := csdf.CheckLivelockFree(d)
+// PredicateSet accumulates the opaque predicates of one or more diagrams,
+// deduplicating them under the hash of their text and argument types. Sharing one
+// set across diagrams is what makes an identical predicate collapse to a single
+// pred_<id> placeholder in a multi-diagram obligation.
+type PredicateSet struct {
+	h hash.Hash32
+	m map[IRPredicateID]IRPredicate
+}
 
-	ir := IRLivelockFree{
-		Structurally: free,
-		States:       make(map[csdf.StateID]IRState, len(d.States)),
-		Predicates:   make(map[IRPredicateID]IRPredicate, len(d.Edges)*2+1),
-		Constants:    []IRConst{},
-		Edges:        make([]IREdge, 0, len(d.Edges)),
+func NewPredicateSet(capacity int) *PredicateSet {
+	return &PredicateSet{
+		h: crc32.NewIEEE(),
+		m: make(map[IRPredicateID]IRPredicate, capacity),
 	}
+}
 
-	ss := csdf.SortedStates(d.States)
-	for _, st := range ss {
+// Add records p and returns the id every backend names it by.
+func (ps *PredicateSet) Add(p IRPredicate) IRPredicateID {
+	id := p.Hash(ps.h)
+	ps.m[id] = p
+	return id
+}
+
+// Map returns the accumulated predicates keyed by id.
+func (ps *PredicateSet) Map() map[IRPredicateID]IRPredicate { return ps.m }
+
+// BuildStates converts the diagram's states into the IR state space.
+func BuildStates(d *csdf.Diagram) map[csdf.StateID]IRState {
+	states := make(map[csdf.StateID]IRState, len(d.States))
+	for _, st := range csdf.SortedStates(d.States) {
 		fields := make([]IRField, 0, len(st.Vars))
 		for _, v := range st.Vars {
 			fields = append(fields, IRField{Name: string(v.Name), Type: v.Type})
 		}
-		ir.States[st.ID] = IRState{
+		states[st.ID] = IRState{
 			Fields: fields,
 			Line:   st.Line,
 		}
 	}
+	return states
+}
 
-	h := crc32.NewIEEE()
-
-	initPostVars := ir.States[d.StartEdge.Dst]
-	initArgs := make([]IRArg, 0, len(initPostVars.Fields))
-	for _, initPostVar := range initPostVars.Fields {
-		initArgs = append(initArgs, IRArg{
-			Name: initPostVar.Name,
-			Type: initPostVar.Type,
+// BuildInit converts the diagram's start edge into the IR init, registering its
+// post predicate (which constrains the start state's variables) in ps.
+func BuildInit(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) IRInit {
+	start := states[d.StartEdge.Dst]
+	args := make([]IRArg, 0, len(start.Fields))
+	for _, f := range start.Fields {
+		args = append(args, IRArg{
+			Name: f.Name,
+			Type: f.Type,
 		})
 	}
-	init := IRPredicate{
-		Args: initArgs,
-		Text: d.StartEdge.Post,
-	}
-	initID := init.Hash(h)
-
-	ir.Predicates[initID] = init
-
-	ir.Init = IRInit{
+	return IRInit{
 		Dst:  d.StartEdge.Dst,
-		Post: initID,
+		Post: ps.Add(IRPredicate{Args: args, Text: d.StartEdge.Post}),
 		Line: d.StartEdge.Line,
 	}
+}
 
+// BuildEdges converts the diagram's transitions into IR edges, registering each
+// guard and post predicate in ps.
+func BuildEdges(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) []IREdge {
+	edges := make([]IREdge, 0, len(d.Edges))
 	for _, e := range d.Edges {
 		var evParams []csdf.StateVar // TODO
-		preVars := ir.States[e.Src]
-		postVars := ir.States[e.Dst]
+		preVars := states[e.Src]
+		postVars := states[e.Dst]
 
 		guardArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields))
 		for _, evParam := range evParams {
@@ -222,26 +235,10 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 				Type: preVar.Type,
 			})
 		}
-		guard := IRPredicate{
-			Args: guardArgs,
-			Text: e.Guard,
-		}
-		guardID := guard.Hash(h)
-		ir.Predicates[guardID] = guard
+		guardID := ps.Add(IRPredicate{Args: guardArgs, Text: e.Guard})
 
-		postArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields)+len(postVars.Fields))
-		for _, evParam := range evParams {
-			postArgs = append(postArgs, IRArg{
-				Name: string(evParam.Name),
-				Type: evParam.Type,
-			})
-		}
-		for _, preVar := range preVars.Fields {
-			postArgs = append(postArgs, IRArg{
-				Name: preVar.Name,
-				Type: preVar.Type,
-			})
-		}
+		postArgs := make([]IRArg, 0, len(guardArgs)+len(postVars.Fields))
+		postArgs = append(postArgs, guardArgs...)
 		for _, postVar := range postVars.Fields {
 			postArgs = append(postArgs, IRArg{
 				Name:   postVar.Name,
@@ -249,14 +246,9 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 				Primed: true,
 			})
 		}
-		post := IRPredicate{
-			Args: postArgs,
-			Text: e.Post,
-		}
-		postID := post.Hash(h)
-		ir.Predicates[postID] = post
+		postID := ps.Add(IRPredicate{Args: postArgs, Text: e.Post})
 
-		ir.Edges = append(ir.Edges, IREdge{
+		edges = append(edges, IREdge{
 			Src:         e.Src,
 			Dst:         e.Dst,
 			Event:       e.Event,
@@ -266,7 +258,30 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 			Line:        e.Line,
 		})
 	}
-	return ir
+	return edges
+}
+
+// BuildLivelockFree builds the livelock-freedom proof obligation IR for d. The
+// structural τ-cycle check (CheckLivelockFree) is used only to set
+// StructurallyLivelockFree; the obligation itself is the global property and does
+// not depend on a particular witness.
+func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
+	_, free := csdf.CheckLivelockFree(d)
+
+	ps := NewPredicateSet(len(d.Edges)*2 + 1)
+	states := BuildStates(d)
+
+	init := BuildInit(ps, d, states)
+	edges := BuildEdges(ps, d, states)
+
+	return IRLivelockFree{
+		Structurally: free,
+		States:       states,
+		Constants:    []IRConst{},
+		Init:         init,
+		Edges:        edges,
+		Predicates:   ps.Map(),
+	}
 }
 
 func TauEdges(es []IREdge) []IREdge {
