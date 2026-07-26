@@ -93,3 +93,35 @@ func ValidateArgsAsFilePath(args []string, inout *cli.ProcInout) ([]byte, error)
 		return nil, fmt.Errorf("too many arguments")
 	}
 }
+
+// ValidateArgsAsTwoFilePaths reads the two files named by args. At most one may
+// be "-": two diagrams cannot be told apart in a single stream, so there is no
+// "read everything from stdin" fallback here.
+func ValidateArgsAsTwoFilePaths(args []string, inout *cli.ProcInout) ([2][]byte, error) {
+	var bss [2][]byte
+
+	if len(args) != 2 {
+		return bss, fmt.Errorf("want exactly 2 file arguments, got %d", len(args))
+	}
+	if args[0] == "-" && args[1] == "-" {
+		return bss, fmt.Errorf("only one argument may be \"-\"")
+	}
+
+	for i, file := range args {
+		if file == "-" {
+			bs, err := io.ReadAll(inout.Stdin)
+			if err != nil {
+				return bss, fmt.Errorf("cannot read from stdin: %v", err)
+			}
+			bss[i] = bs
+			continue
+		}
+
+		bs, err := os.ReadFile(file)
+		if err != nil {
+			return bss, fmt.Errorf("cannot read file: %v", err)
+		}
+		bss[i] = bs
+	}
+	return bss, nil
+}
