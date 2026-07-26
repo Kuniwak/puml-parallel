@@ -26,6 +26,10 @@ var (
 	SideImpl   = Side{Suffix: "_I", CtorPrefix: "I_"}
 )
 
+// EventCtor is the event datatype constructor standing for a visible event.
+// It is not side-qualified: the two diagrams are compared over one alphabet.
+func EventCtor(e csdf.Event) string { return "Ev_" + string(e) }
+
 // Ctor is the state datatype constructor standing for the state id.
 func (s Side) Ctor(id csdf.StateID) string { return s.CtorPrefix + string(id) }
 
