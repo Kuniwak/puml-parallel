@@ -1,0 +1,5 @@
+@startuml
+state "t0" as t0
+[*] --> t0
+t0 --> t0 : a
+@enduml

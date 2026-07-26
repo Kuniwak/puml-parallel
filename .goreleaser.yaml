@@ -91,6 +91,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdfrefinement
+    main: ./tools/csdfrefinement/main.go
+    binary: csdfrefinement
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
   - id: csdfrepld
     main: ./tools/csdfrepld/main.go
     binary: csdfrepld
@@ -149,6 +164,7 @@ archives:
       - csdfrepl
       - csdfnorm
       - csdflivelockfree
+      - csdfrefinement
       - csdfrepld
       - csdfreplcmd
       - obligationirc
