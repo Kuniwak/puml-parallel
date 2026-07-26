@@ -213,6 +213,28 @@ func BuildInit(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRStat
 	}
 }
 
+// BuildEnd converts the diagram's end edge into the IR end, registering its
+// guard predicate in ps. It returns nil when the diagram cannot terminate.
+func BuildEnd(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) *IREnd {
+	if d.EndEdge == nil {
+		return nil
+	}
+
+	src := states[d.EndEdge.Src]
+	args := make([]IRArg, 0, len(src.Fields))
+	for _, f := range src.Fields {
+		args = append(args, IRArg{
+			Name: f.Name,
+			Type: f.Type,
+		})
+	}
+	return &IREnd{
+		Src:   d.EndEdge.Src,
+		Guard: ps.Add(IRPredicate{Args: args, Text: d.EndEdge.Guard}),
+		Line:  d.EndEdge.Line,
+	}
+}
+
 // BuildEdges converts the diagram's transitions into IR edges, registering each
 // guard and post predicate in ps.
 func BuildEdges(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) []IREdge {
