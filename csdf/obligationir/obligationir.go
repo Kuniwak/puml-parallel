@@ -308,8 +308,8 @@ func Predicates(ps map[IRPredicateID]IRPredicate) []IRPredicateWithID {
 
 // HasVars reports whether any state has a variable, in which case the json datatype is
 // emitted (otherwise it would be unused).
-func HasVars(ir IRLivelockFree) bool {
-	for _, st := range ir.States {
+func HasVars(states map[csdf.StateID]IRState) bool {
+	for _, st := range states {
 		if len(st.Fields) > 0 {
 			return true
 		}

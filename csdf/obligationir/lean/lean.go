@@ -59,7 +59,7 @@ func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 		return nil
 	}
 
-	if obligationir.HasVars(ir) {
+	if obligationir.HasVars(ir.States) {
 		io.WriteString(w, ValPrelude)
 		WriteNewLine(w, 2)
 	}

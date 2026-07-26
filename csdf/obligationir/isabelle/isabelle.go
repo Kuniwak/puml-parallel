@@ -8,7 +8,6 @@ package isabelle
 import (
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -54,62 +53,102 @@ begin`)
 		io.WriteString(w, `(* Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation. *)`)
 		WriteNewLine(w, 2)
 	} else {
-		if obligationir.HasVars(ir) {
+		side := obligationir.SideSingle
+
+		if obligationir.HasVars(ir.States) {
 			io.WriteString(w, ValPrelude)
 			WriteNewLine(w, 2)
 		}
 
-		if err := WriteStateTypeDeclaration(w, obligationir.SortIRStates(ir.States)); err != nil {
+		if err := WriteStateTypeDeclaration(w, side, obligationir.SortIRStates(ir.States)); err != nil {
 			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
 		WriteNewLine(w, 2)
 
-		for _, p := range obligationir.Predicates(ir.Predicates) {
-			if err := WritePredicate(w, p); err != nil {
-				return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
-			}
-			WriteNewLine(w, 2)
-		}
-
-		if err := WriteInit(w, ir.Init, ir.Predicates); err != nil {
+		if err := WritePredicates(w, ir.Predicates); err != nil {
 			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
-		WriteNewLine(w, 2)
 
-		// Every edge, not only the τ ones: the step relation that reachable is
-		// built from has to include the visible transitions too.
-		for _, e := range ir.Edges {
-			if err := WriteEdge(w, e, ir.Predicates); err != nil {
-				return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
-			}
-			WriteNewLine(w, 2)
-		}
-
-		if err := WriteRelation(w, "step", ir.States, ir.Edges, ir.Predicates); err != nil {
+		if err := WriteTransitionSystem(w, side, ir.Init, ir.States, ir.Edges, ir.Predicates); err != nil {
 			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
-		WriteNewLine(w, 2)
 
-		if err := WriteReachable(w, ir.Init, ir.States); err != nil {
-			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
-		}
-		WriteNewLine(w, 2)
-
-		if err := WriteRelation(w, "tau_step", ir.States, obligationir.TauEdges(ir.Edges), ir.Predicates); err != nil {
-			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
-		}
-		WriteNewLine(w, 2)
-
-		// Restricted to the reachable states: over all of st the property is
-		// strictly stronger than livelock freedom, so a diagram that is livelock
-		// free can still fail it on valuations the diagram can never enter.
-		io.WriteString(w, `theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"
-  oops`)
+		WriteLivelockTheorem(w, side, "livelock_free")
 		WriteNewLine(w, 2)
 	}
 	io.WriteString(w, `end`)
 	WriteNewLine(w, 1)
 	return nil
+}
+
+// WritePredicates writes the opaque-predicate placeholder layer, sorted by id.
+// It is shared by every side of an obligation: pred_<id> is never side-qualified,
+// so a predicate occurring in two diagrams is declared (and filled) once.
+func WritePredicates(w io.Writer, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+	for _, p := range obligationir.Predicates(m) {
+		if err := WritePredicate(w, p); err != nil {
+			return fmt.Errorf("isabelle.WritePredicates: %w", err)
+		}
+		WriteNewLine(w, 2)
+	}
+	return nil
+}
+
+// WriteTransitionSystem writes one side's operational layer: the init alias, the
+// per-edge guard/post aliases, and the step, reachable and tau_step relations.
+func WriteTransitionSystem(
+	w io.Writer,
+	side obligationir.Side,
+	init obligationir.IRInit,
+	states map[csdf.StateID]obligationir.IRState,
+	edges []obligationir.IREdge,
+	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
+) error {
+	if err := WriteInit(w, side, init, m); err != nil {
+		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+	}
+	WriteNewLine(w, 2)
+
+	// Every edge, not only the τ ones: the step relation that reachable is
+	// built from has to include the visible transitions too.
+	for _, e := range edges {
+		if err := WriteEdge(w, side, e, m); err != nil {
+			return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+		}
+		WriteNewLine(w, 2)
+	}
+
+	if err := WriteRelation(w, side, "step", states, edges, m); err != nil {
+		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+	}
+	WriteNewLine(w, 2)
+
+	if err := WriteReachable(w, side, init, states); err != nil {
+		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+	}
+	WriteNewLine(w, 2)
+
+	if err := WriteRelation(w, side, "tau_step", states, obligationir.TauEdges(edges), m); err != nil {
+		return fmt.Errorf("isabelle.WriteTransitionSystem: %w", err)
+	}
+	WriteNewLine(w, 2)
+	return nil
+}
+
+// WriteLivelockTheorem writes the well-foundedness obligation for one side.
+// It is restricted to the reachable states: over all of st the property is
+// strictly stronger than livelock freedom, so a diagram that is livelock free can
+// still fail it on valuations the diagram can never enter.
+func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string) {
+	io.WriteString(w, `theorem `)
+	io.WriteString(w, name)
+	io.WriteString(w, `: "wf_on {s. `)
+	io.WriteString(w, side.Qualify("reachable"))
+	io.WriteString(w, ` s} {(s', s). `)
+	io.WriteString(w, side.Qualify("tau_step"))
+	io.WriteString(w, ` s s'}"`)
+	WriteNewLine(w, 1)
+	io.WriteString(w, `  oops`)
 }
 
 func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
@@ -134,7 +173,7 @@ func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
 
 // WriteInit writes the init alias of the start edge's post predicate, which
 // constrains the start state's variables and so seeds the reachable predicate.
-func WriteInit(w io.Writer, init obligationir.IRInit, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+func WriteInit(w io.Writer, side obligationir.Side, init obligationir.IRInit, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	post := m[init.Post]
 	if err := WriteLineComment(w, NewConstWriter(string(post.Text))); err != nil {
 		return fmt.Errorf("isabelle.WriteInit: comment: %w", err)
@@ -142,7 +181,7 @@ func WriteInit(w io.Writer, init obligationir.IRInit, m map[obligationir.IRPredi
 	WriteNewLine(w, 1)
 	if err := WriteDefinition(
 		w,
-		NewConstWriter("init"),
+		NewConstWriter(side.Qualify("init")),
 		NewWriteArgTypeFunc(post.Args),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
@@ -157,7 +196,7 @@ func WriteInit(w io.Writer, init obligationir.IRInit, m map[obligationir.IRPredi
 
 // WriteReachable writes the inductive predicate holding of every state the
 // diagram can actually enter: the start state under init, closed under step.
-func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.StateID]obligationir.IRState) error {
+func WriteReachable(w io.Writer, side obligationir.Side, init obligationir.IRInit, states map[csdf.StateID]obligationir.IRState) error {
 	start, ok := states[init.Dst]
 	if !ok {
 		return fmt.Errorf("isabelle.WriteReachable: start state %q does not exist", init.Dst)
@@ -165,18 +204,25 @@ func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.State
 
 	// where goes on the continuation line as in definition, and the alternatives
 	// are indented like the datatype constructors.
-	io.WriteString(w, `inductive reachable :: "st \<Rightarrow> bool"`)
+	io.WriteString(w, `inductive `)
+	io.WriteString(w, side.Qualify("reachable"))
+	io.WriteString(w, ` :: "`)
+	io.WriteString(w, side.Qualify("st"))
+	io.WriteString(w, ` \<Rightarrow> bool"`)
 	WriteNewLine(w, 1)
-	io.WriteString(w, `  where base: "init`)
+	io.WriteString(w, `  where base: "`)
+	io.WriteString(w, side.Qualify("init"))
 	for _, f := range start.Fields {
 		io.WriteString(w, ` `)
 		WriteField(w, f, false)
 	}
-	io.WriteString(w, ` \<Longrightarrow> reachable `)
+	io.WriteString(w, ` \<Longrightarrow> `)
+	io.WriteString(w, side.Qualify("reachable"))
+	io.WriteString(w, ` `)
 	if len(start.Fields) > 0 {
 		io.WriteString(w, `(`)
 	}
-	WriteStatePattern(w, init.Dst, start, false)
+	WriteStatePattern(w, side, init.Dst, start, false)
 	if len(start.Fields) > 0 {
 		io.WriteString(w, `)`)
 	}
@@ -184,11 +230,18 @@ func WriteReachable(w io.Writer, init obligationir.IRInit, states map[csdf.State
 	WriteNewLine(w, 1)
 	// The rules are named base/step rather than start/next: "next" is an Isar
 	// keyword and cannot be a rule name.
-	io.WriteString(w, `  | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"`)
+	reachable := side.Qualify("reachable")
+	io.WriteString(w, `  | step: "`)
+	io.WriteString(w, reachable)
+	io.WriteString(w, ` s \<Longrightarrow> `)
+	io.WriteString(w, side.Qualify("step"))
+	io.WriteString(w, ` s s' \<Longrightarrow> `)
+	io.WriteString(w, reachable)
+	io.WriteString(w, ` s'"`)
 	return nil
 }
 
-func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	guard := m[tau.Guard]
 	if err := WriteLineComment(w, NewConstWriter(string(guard.Text))); err != nil {
 		return fmt.Errorf("isabelle.WriteEdge: pre-guard comment: %w", err)
@@ -196,7 +249,7 @@ func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredic
 	WriteNewLine(w, 1)
 	if err := WriteDefinition(
 		w,
-		NewWritePredicateNameWithLineFunc("guard_L", tau.Line),
+		NewConstWriter(side.GuardName(tau.Line)),
 		NewWriteArgTypeFunc(guard.Args),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
@@ -216,7 +269,7 @@ func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredic
 	WriteNewLine(w, 1)
 	if err := WriteDefinition(
 		w,
-		NewWritePredicateNameWithLineFunc("post_L", tau.Line),
+		NewConstWriter(side.PostName(tau.Line)),
 		NewWriteArgTypeFunc(post.Args),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
@@ -232,12 +285,12 @@ func WriteEdge(w io.Writer, tau obligationir.IREdge, m map[obligationir.IRPredic
 // WriteRelation writes a transition relation over edges as a disjunction. It
 // backs both step (every edge) and tau_step (the τ edges only), which differ in
 // name and edge list alone.
-func WriteRelation(w io.Writer, name string, states map[csdf.StateID]obligationir.IRState, edges []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
+func WriteRelation(w io.Writer, side obligationir.Side, name string, states map[csdf.StateID]obligationir.IRState, edges []obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	if err := WriteDefinition(
 		w,
-		NewConstWriter(name),
+		NewConstWriter(side.Qualify(name)),
 		func(w io.Writer, _ int) error {
-			io.WriteString(w, "st")
+			io.WriteString(w, side.Qualify("st"))
 			return nil
 		},
 		NewConstWriter("bool"),
@@ -257,7 +310,7 @@ func WriteRelation(w io.Writer, name string, states map[csdf.StateID]obligationi
 			case 0:
 				io.WriteString(w, `False`)
 			case 1:
-				WriteDisjunct(w, edges[0], states, m)
+				WriteDisjunct(w, side, edges[0], states, m)
 			default:
 				for i, e := range edges {
 					if i == 0 {
@@ -266,7 +319,7 @@ func WriteRelation(w io.Writer, name string, states map[csdf.StateID]obligationi
 						WriteNewLine(w, 1)
 						io.WriteString(w, `    \<or> (`)
 					}
-					WriteDisjunct(w, e, states, m)
+					WriteDisjunct(w, side, e, states, m)
 					io.WriteString(w, `)`)
 				}
 			}
@@ -280,7 +333,7 @@ func WriteRelation(w io.Writer, name string, states map[csdf.StateID]obligationi
 	return nil
 }
 
-func WriteDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
+func WriteDisjunct(w io.Writer, side obligationir.Side, e obligationir.IREdge, states map[csdf.StateID]obligationir.IRState, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	src := states[e.Src]
 	dst := states[e.Dst]
 
@@ -306,25 +359,25 @@ func WriteDisjunct(w io.Writer, e obligationir.IREdge, states map[csdf.StateID]o
 		io.WriteString(w, `. `)
 	}
 	io.WriteString(w, `s = `)
-	WriteStatePattern(w, e.Src, src, false)
+	WriteStatePattern(w, side, e.Src, src, false)
 	io.WriteString(w, ` \<and> s' = `)
-	WriteStatePattern(w, e.Dst, dst, true)
-	io.WriteString(w, ` \<and> guard_L`)
-	WriteLineNumber(w, e.Line)
+	WriteStatePattern(w, side, e.Dst, dst, true)
+	io.WriteString(w, ` \<and> `)
+	io.WriteString(w, side.GuardName(e.Line))
 	for _, arg := range m[e.Guard].Args {
 		io.WriteString(w, ` `)
 		WriteArgName(w, arg)
 	}
-	io.WriteString(w, ` \<and> post_L`)
-	WriteLineNumber(w, e.Line)
+	io.WriteString(w, ` \<and> `)
+	io.WriteString(w, side.PostName(e.Line))
 	for _, arg := range m[e.Post].Args {
 		io.WriteString(w, ` `)
 		WriteArgName(w, arg)
 	}
 }
 
-func WriteStatePattern(w io.Writer, ctor csdf.StateID, st obligationir.IRState, primed bool) {
-	io.WriteString(w, string(ctor))
+func WriteStatePattern(w io.Writer, side obligationir.Side, id csdf.StateID, st obligationir.IRState, primed bool) {
+	io.WriteString(w, side.Ctor(id))
 	for _, f := range st.Fields {
 		io.WriteString(w, ` `)
 		WriteField(w, f, primed)
@@ -338,12 +391,12 @@ func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
 	}
 }
 
-func WriteStateTypeDeclaration(w io.Writer, ss []obligationir.IRStateWithID) error {
+func WriteStateTypeDeclaration(w io.Writer, side obligationir.Side, ss []obligationir.IRStateWithID) error {
 	if err := WriteDatatype(
 		w,
-		NewConstWriter("st"),
+		NewConstWriter(side.Qualify("st")),
 		func(w io.Writer, i int) error {
-			io.WriteString(w, string(ss[i].StateID))
+			io.WriteString(w, side.Ctor(ss[i].StateID))
 			return nil
 		},
 		func(w io.Writer, i, j int) error {
@@ -392,10 +445,6 @@ func WritePredicateID(w io.Writer, id obligationir.IRPredicateID) {
 	io.WriteString(w, obligationir.FormatPredicateID(id))
 }
 
-func WriteLineNumber(w io.Writer, line int) {
-	io.WriteString(w, strconv.Itoa(line))
-}
-
 func NewConstWriter(s string) func(io.Writer) error {
 	return func(w io.Writer) error {
 		io.WriteString(w, s)
@@ -407,14 +456,6 @@ func NewWritePredicateNameWithIDFunc(prefix string, id obligationir.IRPredicateI
 	return func(w io.Writer) error {
 		io.WriteString(w, prefix)
 		WritePredicateID(w, id)
-		return nil
-	}
-}
-
-func NewWritePredicateNameWithLineFunc(prefix string, line int) func(io.Writer) error {
-	return func(w io.Writer) error {
-		io.WriteString(w, prefix)
-		io.WriteString(w, strconv.Itoa(line))
 		return nil
 	}
 }
