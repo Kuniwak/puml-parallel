@@ -90,6 +90,7 @@ func TestParseEndEdge(t *testing.T) {
 		input     string
 		wantSrc   StateID
 		wantGuard string
+		wantLine  int
 	}{
 		{
 			name: "with guard",
@@ -101,6 +102,7 @@ s0 --> [*] : true
 `,
 			wantSrc:   StateID("s0"),
 			wantGuard: "true",
+			wantLine:  4,
 		},
 		{
 			name: "without guard",
@@ -110,7 +112,8 @@ state "Done" as done
 done --> [*]
 @enduml
 `,
-			wantSrc: StateID("done"),
+			wantSrc:  StateID("done"),
+			wantLine: 4,
 		},
 	}
 
@@ -134,6 +137,11 @@ done --> [*]
 			}
 			if diagram.EndEdge.Guard != Predicate(tt.wantGuard) {
 				t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
+			}
+			// The line the declaration starts on, like every other edge: it names
+			// the end edge's generated predicate aliases downstream.
+			if diagram.EndEdge.Line != tt.wantLine {
+				t.Errorf("Parse() EndEdge.Line = %d, want %d", diagram.EndEdge.Line, tt.wantLine)
 			}
 
 			// Teardown: no resources to release.

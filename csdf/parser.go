@@ -658,6 +658,7 @@ func (p *Parser) skipLine() {
 }
 
 func (p *Parser) parseEndEdge() (EndEdge, error) {
+	line := p.line
 	src, err := p.parseID()
 	if err != nil {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
@@ -701,7 +702,7 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	return EndEdge{
 		Src:   StateID(src),
 		Guard: Predicate(guard),
-		Line:  p.line,
+		Line:  line,
 	}, nil
 }
 
