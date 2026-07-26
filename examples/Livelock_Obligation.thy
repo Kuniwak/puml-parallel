@@ -58,51 +58,33 @@ inductive reachable :: "st \<Rightarrow> bool"
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
 
-theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}" proof -
-  have "wf {(s', s). tau_step s s'}" unfolding tau_step_def guard_L5_def post_L5_def pred_8y6pdz_def pred_hy1qjl_def pred_10rp854_def proof -
-    have eq: "{(s', s). \<exists>n n'. s = a n \<and> s' = a n' \<and> (case n of ValInt n \<Rightarrow> 0 < n | _ \<Rightarrow> False) \<and> (case n of ValInt n \<Rightarrow> n' = ValInt (n - 1) | _ \<Rightarrow> False)} = (map_prod (a \<circ> ValInt) (a \<circ> ValInt) \<circ> (\<lambda>n. (n - 1, n))) ` Collect ((<) 0)" proof auto
-      fix n n'
-      assume 1: "case n of ValInt x \<Rightarrow> 0 < x | _ \<Rightarrow> False"
-        and 2: "case n of ValInt n \<Rightarrow> n' = ValInt (n - 1) | _ \<Rightarrow> False"
-      obtain n1 where eq1: "n = ValInt n1" and gt: "0 < n1" using 1 by (cases n; simp)
-      have eq2: "n' = ValInt (n1 - 1)" using 2 unfolding eq1 by simp
-      show "(a n', a n) \<in> (\<lambda>x. (a (ValInt (x - 1)), a (ValInt x))) ` Collect ((<) 0)" unfolding eq2 using eq1 gt by blast
-    qed
-    show "wf {(s', s). \<exists>n n'. s = a n \<and> s' = a n' \<and> (case n of ValInt n \<Rightarrow> 0 < n | _ \<Rightarrow> False) \<and> (case n of ValInt n \<Rightarrow> n' = ValInt (n - 1) | _ \<Rightarrow> False)}" unfolding eq proof -
-      have 1: "wf (map_prod (a \<circ> ValInt) (a \<circ> ValInt) ` (((\<lambda>n :: int. (n - 1, n)) ` Collect ((<) 0))))" proof (rule wf_map_prod_image)
-        show "wf ((\<lambda>n :: int. (n - 1, n)) ` Collect ((<) 0))" unfolding wf_def proof auto
-          fix P x
-          assume 1[rule_format]: "\<forall>x. (\<forall>y. (y, x) \<in> (\<lambda>n :: int. (n - 1, n)) ` Collect ((<) 0) \<longrightarrow> P y) \<longrightarrow> P x"
-          show "P x" proof (induct x)
-            case (nonneg n)
-            show ?case proof (induct n)
-              case 0
-              show ?case using 1 by auto
-            next
-              case (Suc n)
-              show ?case proof (rule 1)
-                fix y
-                assume "(y, int (Suc n)) \<in> (\<lambda>n. (n - 1, n)) ` Collect ((<) 0)"
-                thus "P y" using Suc by fastforce
-              qed
-            qed
-          next
-            case (neg n)
-            show "P (- int (Suc n))" proof (rule 1)
-              fix y
-              assume "(y, - int (Suc n)) \<in> (\<lambda>n. (n - 1, n)) ` Collect ((<) 0)"
-              hence False by fastforce
-              thus "P y" by simp
-            qed
-          qed
-        qed
-      next
-        show "inj (a \<circ> ValInt)" by (simp add: linorder_inj_onI')
-      qed
-      show "wf ((map_prod (a \<circ> ValInt) (a \<circ> ValInt) \<circ> (\<lambda>n. (n - 1, n))) ` Collect ((<) 0))" using 1 by (simp add: image_comp)
-    qed
-  qed
-  thus "wf_on {s. reachable s} {(s', s). tau_step s s'}" using wf_on_subset by auto
- qed
+definition n_measure :: "st \<Rightarrow> nat"
+  where "n_measure s \<equiv> case s of a v \<Rightarrow> (case v of ValInt i \<Rightarrow> nat i | _ \<Rightarrow> 0)"
+
+(* The guard forces the variable to be a positive integer and the post condition
+   decrements it, so nat n drops on every tau transition. *)
+lemma tau_step_measure:
+  assumes "tau_step s s'"
+  shows "n_measure s' < n_measure s"
+proof -
+  from assms obtain n n' where
+    s: "s = a n" and s': "s' = a n'" and g: "guard_L5 n" and p: "post_L5 n n'"
+    unfolding tau_step_def by blast
+  from g obtain i where n: "n = ValInt i" and pos: "0 < i"
+    unfolding guard_L5_def pred_10rp854_def by (cases n; simp)
+  from p have n': "n' = ValInt (i - 1)"
+    unfolding post_L5_def pred_8y6pdz_def n by simp
+  show ?thesis unfolding s s' n n' n_measure_def using pos by simp
+qed
+
+(* The tau relation decreases a natural-number measure, so it is well founded
+   outright and the restriction to reachable is not needed here. *)
+theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"
+proof -
+  have "{(s', s). tau_step s s'} \<subseteq> measure n_measure"
+    using tau_step_measure by auto
+  hence "wf {(s', s). tau_step s s'}" using wf_measure wf_subset by blast
+  thus ?thesis using wf_on_subset by auto
+qed
 
 end
