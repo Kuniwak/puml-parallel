@@ -35,14 +35,7 @@ func Validate(name Name) error {
 // ValidateRefinement reports whether name is a target the refinement obligation
 // can be emitted to.
 func ValidateRefinement(name Name) error {
-	switch name {
-	case NameIRJSON, NameIsabelle:
-		return nil
-	case NameLean:
-		return fmt.Errorf("-target lean is not available for refinement obligations yet: it is deferred until the in-house Lean translation of CSP-Prover is published (want ir-json or isabelle)")
-	default:
-		return fmt.Errorf("unknown -target %q (want ir-json or isabelle)", name)
-	}
+	return Validate(name)
 }
 
 // CompileRefinement writes ir to w in the format named by name.
@@ -50,6 +43,8 @@ func CompileRefinement(w io.Writer, ir obligationir.IRRefinement, name Name) err
 	switch name {
 	case NameIsabelle:
 		return isabelle.WriteRefinement(w, ir)
+	case NameLean:
+		return lean.WriteRefinement(w, ir)
 	default: // IRJSON
 		return irjson.WriteRefinement(w, ir)
 	}

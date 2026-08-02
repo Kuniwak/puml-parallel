@@ -64,6 +64,7 @@ Targets selected by -target:
 
   ir-json   a prover-agnostic JSON obligation IR (default)
   isabelle  an Isabelle/HOL skeleton importing CSP-Prover
+  lean      a Lean 4 skeleton importing lean-csp-prover
 
 Whether the refinement holds depends on the natural-language Guard/Post
 predicates, which this tool leaves opaque, so the exit status never encodes the
@@ -77,8 +78,9 @@ CSP-Prover has no failures-divergences model, so -m fd emits the standard
 reduction instead: a divergence-freedom obligation per side - the csdflivelockfree
 obligation inlined - plus the stable-failures refinement.
 
-The isabelle target needs Isabelle2020 with CSP-Prover to check. -target lean is
-deferred until the in-house Lean translation of CSP-Prover is published.
+Checking the emitted theory needs the corresponding library: Isabelle2020 with
+CSP-Prover for isabelle, and lean-csp-prover for lean. The two skeletons mirror
+each other declaration for declaration, so they can be read side by side.
 
 At most one argument may be "-", which reads that diagram from standard input.
 
@@ -97,7 +99,7 @@ Examples:
 		flags.StringVar(&mode, "m", "", "model: t|trace, f|stable-failure, or fd|failures-divergence (required)")
 
 		var tgt string
-		flags.StringVar(&tgt, "target", string(target.NameIRJSON), "output target: ir-json|isabelle")
+		flags.StringVar(&tgt, "target", string(target.NameIRJSON), "output target: ir-json|isabelle|lean")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)

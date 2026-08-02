@@ -112,6 +112,16 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Impl:   implBytes,
 			},
 		},
+		"-target lean": {
+			Args: []string{"-m", "t", "-target", "lean", spec, impl},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Mode:   obligationir.IRRefinementModeTrace,
+				Target: target.NameLean,
+				Spec:   specBytes,
+				Impl:   implBytes,
+			},
+		},
 		"dash means stdin (representative value)": {
 			Stdin: "@startuml\n@enduml\n",
 			Args:  []string{"-m", "t", "-", impl},
@@ -154,13 +164,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 	testCases := map[string][]string{
 		// -m has no default: which model a refinement is stated in changes what
 		// the obligation means, so it cannot be guessed.
-		"missing mode":           {spec, impl},
-		"unknown mode":           {"-m", "bogus", spec, impl},
-		"one file":               {"-m", "t", spec},
-		"three files":            {"-m", "t", spec, impl, spec},
-		"unknown target":         {"-m", "t", "-target", "bogus", spec, impl},
-		"both files from stdin":  {"-m", "t", "-", "-"},
-		"lean target (deferred)": {"-m", "t", "-target", "lean", spec, impl},
+		"missing mode":          {spec, impl},
+		"unknown mode":          {"-m", "bogus", spec, impl},
+		"one file":              {"-m", "t", spec},
+		"three files":           {"-m", "t", spec, impl, spec},
+		"unknown target":        {"-m", "t", "-target", "bogus", spec, impl},
+		"both files from stdin": {"-m", "t", "-", "-"},
 	}
 
 	for name, args := range testCases {
@@ -176,9 +185,6 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 			if err == nil {
 				t.Log(opts)
 				t.Fatal("want not nil, got nil")
-			}
-			if name == "lean target (deferred)" && !strings.Contains(err.Error(), "CSP-Prover") {
-				t.Errorf("want the deferral reason in %q", err)
 			}
 		})
 	}

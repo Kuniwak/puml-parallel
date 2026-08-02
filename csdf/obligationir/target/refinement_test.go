@@ -21,21 +21,13 @@ s0 --> s0 : a
 	return obligationir.BuildRefinement(obligationir.IRRefinementModeTrace, d, d)
 }
 
-func TestValidateRefinementDefersLean(t *testing.T) {
-	for _, name := range []Name{NameIRJSON, NameIsabelle} {
+func TestValidateRefinementAcceptsEveryTarget(t *testing.T) {
+	// Every backend can state the refinement obligation now that the Lean
+	// translation of CSP-Prover exists.
+	for _, name := range []Name{NameIRJSON, NameIsabelle, NameLean} {
 		if err := ValidateRefinement(name); err != nil {
 			t.Errorf("ValidateRefinement(%q) = %v, want nil", name, err)
 		}
-	}
-
-	// lean is blocked on publishing the in-house Lean translation of CSP-Prover,
-	// so it must be rejected saying that, not as an unknown target.
-	err := ValidateRefinement(NameLean)
-	if err == nil {
-		t.Fatal("ValidateRefinement(\"lean\") = nil, want an error")
-	}
-	if !strings.Contains(err.Error(), "CSP-Prover") {
-		t.Errorf("want the deferral reason in %q", err)
 	}
 
 	if err := ValidateRefinement("bogus"); err == nil {
@@ -46,12 +38,18 @@ func TestValidateRefinementDefersLean(t *testing.T) {
 func TestCompileRefinementRoutesToBackend(t *testing.T) {
 	ir := mustBuildRefinementIR(t)
 
-	var buf bytes.Buffer
-	if err := CompileRefinement(&buf, ir, NameIsabelle); err != nil {
-		t.Fatalf("CompileRefinement(isabelle) error = %v", err)
+	testCases := map[Name]string{
+		NameIsabelle: "SpecProc <=T ImplProc",
+		NameLean:     "theorem refines_t : refTfix SpecProc ImplProc",
 	}
-	if marker := "SpecProc <=T ImplProc"; !strings.Contains(buf.String(), marker) {
-		t.Errorf("CompileRefinement(isabelle) output missing %q\n%s", marker, buf.String())
+	for name, marker := range testCases {
+		var buf bytes.Buffer
+		if err := CompileRefinement(&buf, ir, name); err != nil {
+			t.Fatalf("CompileRefinement(%q) error = %v", name, err)
+		}
+		if !strings.Contains(buf.String(), marker) {
+			t.Errorf("CompileRefinement(%q) output missing %q\n%s", name, marker, buf.String())
+		}
 	}
 
 	// ir-json (and the default) emits decodable obligation IR JSON.

@@ -135,9 +135,11 @@ The model is chosen with `-m`, which is mandatory because each model is a differ
 - `f` / `stable-failure` — stable-failures refinement, which subsumes traces.
 - `fd` / `failures-divergence` — failures-divergences refinement.
 
-The output format is chosen with `-target`: `ir-json` (default) or `isabelle`, the latter
-an Isabelle/HOL theory importing [CSP-Prover](https://github.com/yoshinao-isobe/CSP-Prover).
-`-target lean` is deferred until the in-house Lean translation of CSP-Prover is published.
+The output format is chosen with `-target`: `ir-json` (default), `isabelle` (an Isabelle/HOL
+theory importing [CSP-Prover](https://github.com/yoshinao-isobe/CSP-Prover)), or `lean` (a
+Lean 4 file importing `lean-csp-prover`, the Lean translation of the same library). The two
+prover skeletons mirror each other declaration for declaration, so they can be read side by
+side.
 
 ```console
 $ csdfrefinement -m t abs.puml detail.puml
@@ -148,7 +150,7 @@ $ csdfparallel a.puml b.puml | csdfrefinement -m f abs.puml -
 
 At most one argument may be `-`: two diagrams cannot be told apart in a single stream.
 
-The `isabelle` target encodes both diagrams as CSP-Prover process terms and states the
+The prover targets encode both diagrams as CSP-Prover process terms and state the
 obligation as a one-line `<=T`/`<=F` refinement, so the artifact stays small and the
 metatheory that makes it meaningful is CSP-Prover's rather than this tool's. Each state
 becomes a process name — parameterised by its variables — whose body is the external
@@ -173,8 +175,16 @@ divergence-freedom obligation per side — the `csdflivelockfree` obligation inl
 `wf_on` form, since the F model cannot observe divergence at all — plus the stable-failures
 refinement. A side that is structurally livelock free gets a note instead.
 
+One encoding detail is forced by the prover rather than by CSP. A replicated internal
+choice can only be indexed by the event type there — the process datatype has no spare type
+variable — so when the diagrams carry state variables the event type is layered into
+`Alphabet` plus an inert `Internal` index, reached through the library's injection-based
+replicated choice. No process ever performs an `Internal` event, so no trace and no refusal
+changes.
+
 Checking the generated theory needs Isabelle2020 with CSP-Prover, which is a separate
-installation from the one the `csdflivelockfree` skeletons target.
+installation from the one the `csdflivelockfree` skeletons target; the Lean skeleton needs
+`lean-csp-prover` and its pinned toolchain.
 
 ## Compiling the obligation IR separately
 

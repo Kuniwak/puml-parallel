@@ -122,24 +122,27 @@ func TestNewMainFuncIsabelleTarget(t *testing.T) {
 	}
 }
 
-func TestNewMainFuncRejectsLeanTarget(t *testing.T) {
-	// Arrange: lean is deferred until the in-house Lean translation of CSP-Prover
-	// is published, and must say so rather than fail as an unknown target.
+func TestNewMainFuncLeanTarget(t *testing.T) {
 	spy := cli.SpyProcInout()
 
-	// Act
-	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())([]string{
-		"-m", "t", "-target", "lean",
+	out := run(t, spy, []string{
+		"-m", "fd", "-target", "lean",
 		filepath.Join("testdata", "spec.puml"),
 		filepath.Join("testdata", "impl.puml"),
-	}, spy.New())
+	})
 
-	// Assert
-	if exitStatus != 1 {
-		t.Errorf("want exit 1, got %d", exitStatus)
-	}
-	if !strings.Contains(spy.Stderr.String(), "CSP-Prover") {
-		t.Errorf("want the deferral reason on stderr, got %q", spy.Stderr.String())
+	for _, want := range []string{
+		"import LeanCspProver.CSP_F.CSP_F_Main",
+		"instance Set_procfun : HasPNfun PN event where",
+		"theorem refines_f : refFfix SpecProc ImplProc := by",
+		// Neither diagram has a tau edge, so both discharge divergence freedom
+		// structurally and no well-foundedness obligation is emitted.
+		"-- Spec is livelock free structurally: no reachable tau-cycle.",
+		"-- Impl is livelock free structurally: no reachable tau-cycle.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("lean output missing %q\n%s", want, out)
+		}
 	}
 }
 
