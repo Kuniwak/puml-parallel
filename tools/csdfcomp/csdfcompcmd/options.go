@@ -4,9 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"path/filepath"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -67,29 +67,20 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		rest := flags.Args()
-		bs, err := tools.ValidateArgsAsFilePath(rest, inout)
+		treePath, bs, err := tools.ValidateArgsAsFileInput(flags.Args(), inout)
 		if err != nil {
 			return nil, fmt.Errorf("csdfcompcmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
 
+		baseDir := *baseFlag
+		if baseDir == "" {
+			baseDir = csdf.BaseDirOf(treePath)
+		}
+
 		return &Options{
 			Common:  commonOpts,
-			BaseDir: baseDir(*baseFlag, rest),
+			BaseDir: baseDir,
 			Bytes:   bs,
 		}, nil
 	}
-}
-
-// baseDir picks the directory that REFER paths are resolved against: the -base
-// value when given, otherwise the directory holding the tree file, otherwise
-// the current directory (the tree came from standard input).
-func baseDir(baseFlag string, args []string) string {
-	if baseFlag != "" {
-		return baseFlag
-	}
-	if len(args) == 1 && args[0] != "-" {
-		return filepath.Dir(args[0])
-	}
-	return "."
 }

@@ -120,6 +120,17 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 // DiagramLoader resolves the path of a REFER expression to a diagram.
 type DiagramLoader func(path string) (*Diagram, error)
 
+// BaseDirOf returns the directory the relative paths of REFER expressions are
+// resolved against for a composition tree stored at treePath: the directory
+// holding the tree. An empty treePath means the tree has no location of its own
+// (it was read from standard input), whose base is the current directory.
+func BaseDirOf(treePath string) string {
+	if treePath == "" {
+		return "."
+	}
+	return filepath.Dir(treePath)
+}
+
 // NewFileDiagramLoader loads referenced diagrams from the file system,
 // resolving relative paths against baseDir.
 func NewFileDiagramLoader(baseDir string) DiagramLoader {
