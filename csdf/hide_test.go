@@ -27,15 +27,30 @@ s1 --> s2 : b
 }
 
 func TestHideDoesNotModifyTheInputDiagram(t *testing.T) {
-	// Setup: the caller keeps the unhidden diagram usable after hiding.
+	// Setup: the caller keeps the unhidden diagram usable after hiding, so
+	// nothing reachable from the result may alias the input.
 	d := MustParse(`@startuml
+state "s0" as s0
+s0 : n ; Int
+state "s1" as s1
 [*] --> s0
 s0 --> s1 : a
+s1 --> [*]
 @enduml`)
 
-	Hide(d, []Event{"a"})
+	got := Hide(d, []Event{"a"})
 
-	if got := d.Edges[0].Event; got != Event("a") {
-		t.Errorf("want a, got %s", got)
+	got.Edges[0].Event = "mutated"
+	got.States["s0"].Vars[0].Name = "mutated"
+	got.EndEdge.Guard = "mutated"
+
+	if e := d.Edges[0].Event; e != Event("a") {
+		t.Errorf("want a, got %s", e)
+	}
+	if v := d.States["s0"].Vars[0].Name; v != Var("n") {
+		t.Errorf("want n, got %s", v)
+	}
+	if g := d.EndEdge.Guard; !IsTrue(g) {
+		t.Errorf("want true, got %s", g)
 	}
 }

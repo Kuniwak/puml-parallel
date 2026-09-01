@@ -20,13 +20,20 @@ func Hide(d *Diagram, events []Event) *Diagram {
 
 	states := make(map[StateID]State, len(d.States))
 	for id, state := range d.States {
+		state.Vars = append([]StateVar{}, state.Vars...)
 		states[id] = state
+	}
+
+	var endEdge *EndEdge
+	if d.EndEdge != nil {
+		copied := *d.EndEdge
+		endEdge = &copied
 	}
 
 	return &Diagram{
 		States:    states,
 		StartEdge: d.StartEdge,
 		Edges:     edges,
-		EndEdge:   d.EndEdge,
+		EndEdge:   endEdge,
 	}
 }
