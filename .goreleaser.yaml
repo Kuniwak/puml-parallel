@@ -16,6 +16,36 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdfhide
+    main: ./tools/csdfhide/main.go
+    binary: csdfhide
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
+  - id: csdfcomp
+    main: ./tools/csdfcomp/main.go
+    binary: csdfcomp
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
   - id: csdfparse
     main: ./tools/csdfparse/main.go
     binary: csdfparse
@@ -159,6 +189,8 @@ archives:
     name_template: "csdfparallel_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids:
       - csdfparallel
+      - csdfhide
+      - csdfcomp
       - csdfparse
       - csdfevents
       - csdfrepl
