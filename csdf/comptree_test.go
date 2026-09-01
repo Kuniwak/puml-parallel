@@ -135,3 +135,38 @@ func TestBaseDirOf(t *testing.T) {
 		})
 	}
 }
+
+func TestComposeTreeFoldsMoreThanTwoProcs(t *testing.T) {
+	// Setup: three processes synchronised on the single event they share, as
+	// documented in docs/COMPOSITION_TREE.md.
+	load := func(path string) (*Diagram, error) {
+		return MustParse(`@startuml
+state "` + path + `" as s0
+state "` + path + `" as s1
+[*] --> s0
+s0 --> s1 : sync
+@enduml`), nil
+	}
+	expr := Expr(&InterfaceParallelExpr{
+		Sync: []Event{"sync"},
+		Procs: []Expr{
+			&ReferExpr{Path: "A"},
+			&ReferExpr{Path: "B"},
+			&ReferExpr{Path: "C"},
+		},
+	})
+
+	got, err := ComposeTree(expr, load)
+	if err != nil {
+		t.Fatalf("want nil, got %#v", err)
+	}
+
+	// The three processes can only move together, so the composite has exactly
+	// one transition between its two states.
+	if want := 1; len(got.Edges) != want {
+		t.Errorf("want %d edges, got %d: %s", want, len(got.Edges), got.String())
+	}
+	if want := 2; len(got.States) != want {
+		t.Errorf("want %d states, got %d: %s", want, len(got.States), got.String())
+	}
+}
