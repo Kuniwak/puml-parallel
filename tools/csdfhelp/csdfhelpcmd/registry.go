@@ -2,7 +2,9 @@ package csdfhelpcmd
 
 import (
 	"github.com/Kuniwak/puml-parallel/tools"
+	"github.com/Kuniwak/puml-parallel/tools/csdfcomp/csdfcompcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfevents/csdfeventscmd"
+	"github.com/Kuniwak/puml-parallel/tools/csdfhide/csdfhidecmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdflivelockfree/csdflivelockfreecmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfnorm/csdfnormcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparallel/csdfparallelcmd"
@@ -35,6 +37,16 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfparallel",
 			Summary: "Composes Composable State Diagrams in parallel following CSP interface parallel semantics.",
 			Run:     tools.NewCommandFunc(csdfparallelcmd.NewParseOptionsFunc(), csdfparallelcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfhide",
+			Summary: "Hides events of a Composable State Diagram following CSP hiding semantics.",
+			Run:     tools.NewCommandFunc(csdfhidecmd.NewParseOptionsFunc(), csdfhidecmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfcomp",
+			Summary: "Composes the Composable State Diagrams referred to by a composition tree.",
+			Run:     tools.NewCommandFunc(csdfcompcmd.NewParseOptionsFunc(), csdfcompcmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfnorm",
