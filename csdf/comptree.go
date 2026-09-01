@@ -3,7 +3,6 @@ package csdf
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 )
 
@@ -128,15 +127,7 @@ func NewFileDiagramLoader(baseDir string) DiagramLoader {
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(baseDir, path)
 		}
-		bs, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read file: %w", err)
-		}
-		diagram, err := ParseBytes(bs)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse file %q: %w", path, err)
-		}
-		return diagram, nil
+		return LoadDiagram(path)
 	}
 }
 
