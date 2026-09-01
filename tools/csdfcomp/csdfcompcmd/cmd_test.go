@@ -22,51 +22,50 @@ s2_s1 --> s2_s2 : out
 @enduml
 `
 
-func TestNewMainFuncComposesATreeFile(t *testing.T) {
-	// Arrange: paths in the tree are resolved against the directory of the tree file.
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
-
-	// Act
-	exitStatus := cmdFunc([]string{"../../../examples/valid/in_out_tree.json"}, spy.New())
-
-	// Assert
-	if exitStatus != 0 {
-		t.Log(spy.Stderr.String())
-		t.Errorf("want 0, got %d", exitStatus)
-	}
-	if diff := cmp.Diff(composed, spy.Stdout.String()); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestNewMainFuncComposesATreeFromStdinWithBaseDir(t *testing.T) {
-	// Arrange: a tree read from stdin resolves paths against -base.
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
-	spy.Stdin = strings.NewReader(`{
-		"op": "HIDE",
-		"proc": {
-			"op": "INTERFACE_PARALLEL",
-			"sync": ["sync"],
-			"procs": [
-				{"op": "REFER", "path": "in.puml"},
-				{"op": "REFER", "path": "out.puml"}
-			]
+func TestNewMainFuncComposesATree(t *testing.T) {
+	testCases := map[string]struct {
+		Args  []string
+		Stdin string
+	}{
+		"a tree file (paths resolved against the directory of the tree file)": {
+			Args: []string{"../../../examples/valid/in_out_tree.json"},
 		},
-		"events": ["sync"]
-	}`)
-
-	// Act
-	exitStatus := cmdFunc([]string{"-base", "../../../examples/valid", "-"}, spy.New())
-
-	// Assert
-	if exitStatus != 0 {
-		t.Log(spy.Stderr.String())
-		t.Errorf("want 0, got %d", exitStatus)
+		"a tree on standard input (paths resolved against -base)": {
+			Args: []string{"-base", "../../../examples/valid", "-"},
+			Stdin: `{
+				"op": "HIDE",
+				"proc": {
+					"op": "INTERFACE_PARALLEL",
+					"sync": ["sync"],
+					"procs": [
+						{"op": "REFER", "path": "in.puml"},
+						{"op": "REFER", "path": "out.puml"}
+					]
+				},
+				"events": ["sync"]
+			}`,
+		},
 	}
-	if diff := cmp.Diff(composed, spy.Stdout.String()); diff != "" {
-		t.Error(diff)
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+			spy := cli.SpyProcInout()
+			spy.Stdin = strings.NewReader(testCase.Stdin)
+
+			// Act
+			exitStatus := cmdFunc(testCase.Args, spy.New())
+
+			// Assert
+			if exitStatus != 0 {
+				t.Log(spy.Stderr.String())
+				t.Errorf("want 0, got %d", exitStatus)
+			}
+			if diff := cmp.Diff(composed, spy.Stdout.String()); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 

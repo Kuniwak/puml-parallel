@@ -7,45 +7,39 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestParseExprReadsReferExpr(t *testing.T) {
-	// Setup: the leaf of a composition tree is a path to an existing diagram.
-	got, err := ParseExpr([]byte(`{"op": "REFER", "path": "path/to/A.puml"}`))
-	if err != nil {
-		t.Fatalf("want nil, got %#v", err)
+func TestParseExprReadsProcessExpressions(t *testing.T) {
+	testCases := map[string]struct {
+		Source   string
+		Expected Expr
+	}{
+		"refer (the leaf of a composition tree)": {
+			Source:   `{"op": "REFER", "path": "path/to/A.puml"}`,
+			Expected: &ReferExpr{Path: "path/to/A.puml"},
+		},
+		"hide (wrapping a nested expression)": {
+			Source:   `{"op": "HIDE", "events": ["EVT-A"], "proc": {"op": "REFER", "path": "A.puml"}}`,
+			Expected: &HideExpr{Events: []Event{"EVT-A"}, Proc: &ReferExpr{Path: "A.puml"}},
+		},
+		"interface parallel (holding a list of nested expressions)": {
+			Source: `{"op": "INTERFACE_PARALLEL", "sync": ["EVT-A"], "procs": [{"op": "REFER", "path": "A.puml"}, {"op": "REFER", "path": "B.puml"}]}`,
+			Expected: &InterfaceParallelExpr{
+				Sync:  []Event{"EVT-A"},
+				Procs: []Expr{&ReferExpr{Path: "A.puml"}, &ReferExpr{Path: "B.puml"}},
+			},
+		},
 	}
 
-	want := Expr(&ReferExpr{Path: "path/to/A.puml"})
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
-	}
-}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			got, err := ParseExpr([]byte(testCase.Source))
+			if err != nil {
+				t.Fatalf("want nil, got %#v", err)
+			}
 
-func TestParseExprReadsHideExpr(t *testing.T) {
-	// Setup: a hiding wraps a nested process expression.
-	got, err := ParseExpr([]byte(`{"op": "HIDE", "events": ["EVT-A"], "proc": {"op": "REFER", "path": "A.puml"}}`))
-	if err != nil {
-		t.Fatalf("want nil, got %#v", err)
-	}
-
-	want := Expr(&HideExpr{Events: []Event{"EVT-A"}, Proc: &ReferExpr{Path: "A.puml"}})
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestParseExprReadsInterfaceParallelExpr(t *testing.T) {
-	// Setup: an interface parallel holds a list of nested process expressions.
-	got, err := ParseExpr([]byte(`{"op": "INTERFACE_PARALLEL", "sync": ["EVT-A"], "procs": [{"op": "REFER", "path": "A.puml"}, {"op": "REFER", "path": "B.puml"}]}`))
-	if err != nil {
-		t.Fatalf("want nil, got %#v", err)
-	}
-
-	want := Expr(&InterfaceParallelExpr{
-		Sync:  []Event{"EVT-A"},
-		Procs: []Expr{&ReferExpr{Path: "A.puml"}, &ReferExpr{Path: "B.puml"}},
-	})
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
+			if diff := cmp.Diff(testCase.Expected, got); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 
