@@ -17,10 +17,11 @@ const (
 )
 
 // Expr is a process expression of a composition tree: a reference to an
-// existing diagram, a hiding, or an interface parallel composition.
+// existing diagram, a hiding, or an interface parallel composition. The
+// unexported method closes the set of implementations, so a type switch over
+// an Expr is exhaustive.
 type Expr interface {
-	// Op returns the tag of the expression.
-	Op() Op
+	isExpr()
 }
 
 // ReferExpr refers to a Composable State Diagram stored at Path.
@@ -28,24 +29,26 @@ type ReferExpr struct {
 	Path string `json:"path"`
 }
 
-func (e *ReferExpr) Op() Op { return OpRefer }
+func (e *ReferExpr) isExpr() {}
 
-// HideExpr hides Events of Proc (CSP hiding, P \ A).
+// HideExpr hides Events of Proc (CSP hiding, P \ A). Proc is an interface, so
+// the nested expression is read by parseExpr rather than by encoding/json.
 type HideExpr struct {
-	Events []Event `json:"events"`
-	Proc   Expr    `json:"proc"`
+	Events []Event
+	Proc   Expr
 }
 
-func (e *HideExpr) Op() Op { return OpHide }
+func (e *HideExpr) isExpr() {}
 
-// InterfaceParallelExpr composes Procs in parallel synchronising on Sync
-// (CSP interface parallel).
+// InterfaceParallelExpr composes Procs in parallel synchronising on Sync (CSP
+// interface parallel). Procs holds interfaces, so the nested expressions are
+// read by parseExpr rather than by encoding/json.
 type InterfaceParallelExpr struct {
-	Sync  []Event `json:"sync"`
-	Procs []Expr  `json:"procs"`
+	Sync  []Event
+	Procs []Expr
 }
 
-func (e *InterfaceParallelExpr) Op() Op { return OpInterfaceParallel }
+func (e *InterfaceParallelExpr) isExpr() {}
 
 // ParseExpr parses the JSON representation of a composition tree.
 func ParseExpr(bs []byte) (Expr, error) {
