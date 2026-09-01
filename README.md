@@ -10,6 +10,22 @@ This tool takes multiple Composable State Diagram files and composes them into a
 
 Download binaries from [Releases](https://github.com/Kuniwak/puml-parallel/releases).
 
+## Tool index
+
+`csdfhelp` prints the help of every tool in this repository as one Markdown
+document, so a coding agent (or a newcomer) can learn the whole toolbox in one
+call. `-short` narrows it to a one-line summary per tool.
+
+```console
+$ csdfhelp -short
+$ csdfhelp
+$ csdfhelp csdfparse csdfevents
+```
+
+With no argument it shows every tool but `csdfhelp` itself; with tool names, only
+those, `csdfhelp` included. For a command group such as `csdfreplcmd` it also
+expands each subcommand's own help.
+
 ## Usage
 
 ```console
