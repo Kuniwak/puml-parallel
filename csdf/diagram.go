@@ -37,17 +37,27 @@ func MustParse(content string) *Diagram {
 	return d
 }
 
+// LoadDiagram reads and parses the diagram stored at path, which may be either
+// .puml text or a .png image written by PlantUML.
+func LoadDiagram(path string) (*Diagram, error) {
+	bs, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read file: %w: %q", err, path)
+	}
+
+	diagram, err := ParseBytes(bs)
+	if err != nil {
+		return nil, fmt.Errorf("cannot parse file: %w: %q", err, path)
+	}
+	return diagram, nil
+}
+
 func LoadDiagrams(files []string) ([]*Diagram, error) {
 	diagrams := make([]*Diagram, 0, len(files))
 	for _, file := range files {
-		bs, err := os.ReadFile(file)
+		diagram, err := LoadDiagram(file)
 		if err != nil {
-			return nil, fmt.Errorf("csdf.LoadDiagrams: cannot read file: %w: %q", err, file)
-		}
-
-		diagram, err := ParseBytes(bs)
-		if err != nil {
-			return nil, fmt.Errorf("csdf.LoadDiagrams: cannot parse file: %w: %q", err, file)
+			return nil, fmt.Errorf("csdf.LoadDiagrams: %w", err)
 		}
 		diagrams = append(diagrams, diagram)
 	}

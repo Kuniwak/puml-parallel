@@ -1,0 +1,12 @@
+{
+  "op": "HIDE",
+  "proc": {
+    "op": "INTERFACE_PARALLEL",
+    "sync": ["sync"],
+    "procs": [
+      {"op": "REFER", "path": "in.puml"},
+      {"op": "REFER", "path": "out.puml"}
+    ]
+  },
+  "events": ["sync"]
+}
