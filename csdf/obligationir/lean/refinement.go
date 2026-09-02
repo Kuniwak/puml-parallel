@@ -104,6 +104,8 @@ namespace `)
 	io.WriteString(w, Namespace)
 	WriteNewLine(w, 2)
 
+	WriteNameTable(w, obligationir.RefinementNameTable(ir))
+
 	if hasVars(ir) {
 		io.WriteString(w, ValPrelude)
 		WriteNewLine(w, 1)
@@ -291,7 +293,7 @@ func WriteProcessNameDatatype(w io.Writer, ir obligationir.IRRefinement) error {
 			io.WriteString(w, s.Side.Ctor(st.StateID))
 			for _, f := range st.Fields {
 				io.WriteString(w, ` (`)
-				io.WriteString(w, f.Name)
+				io.WriteString(w, obligationir.Mangle(f.Name))
 				io.WriteString(w, ` : `)
 				io.WriteString(w, ValType)
 				io.WriteString(w, `)`)

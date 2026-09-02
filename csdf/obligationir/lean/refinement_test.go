@@ -352,3 +352,35 @@ t0 --> t0 : a ; holds ; holds
 		}
 	}
 }
+
+// TestWriteRefinementManglesNonIdentifierNames pins that names CSDF allows but
+// Lean does not - an event with parentheses and spaces, a hyphenated state id, a
+// state variable that starts with a digit or spells a keyword - reach the theory
+// as identifiers, with a table recording the originals. Emitting them verbatim
+// produced a file Lean cannot parse, so even a diagram compared with itself had
+// no checkable obligation.
+func TestWriteRefinementManglesNonIdentifierNames(t *testing.T) {
+	diagram := `@startuml
+state "vm-idle" as vm-idle
+vm-idle: 1st
+vm-idle: end
+[*] --> vm-idle
+vm-idle --> vm-idle : choose(a product)
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
+
+	for _, want := range []string{
+		"| Ev_choose_u28_a_u20_product_u29_",
+		"| S_vm_u2d_idle (u_1st : Val) (end_ : Val)",
+		"PN.S_vm_u2d_idle u_1st end_ =>",
+		`--   choose_u28_a_u20_product_u29_ = "choose(a product)"`,
+		`--   end_ = "end"`,
+		`--   u_1st = "1st"`,
+		`--   vm_u2d_idle = "vm-idle"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
+	}
+}

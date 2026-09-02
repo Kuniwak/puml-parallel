@@ -45,11 +45,11 @@ func EventCtor(e csdf.Event) string {
 	if e == csdf.Tau {
 		return TauCtor
 	}
-	return "Ev_" + string(e)
+	return "Ev_" + Mangle(string(e))
 }
 
 // Ctor is the state datatype constructor standing for the state id.
-func (s Side) Ctor(id csdf.StateID) string { return s.CtorPrefix + string(id) }
+func (s Side) Ctor(id csdf.StateID) string { return s.CtorPrefix + Mangle(string(id)) }
 
 // Qualify side-qualifies a declaration name shared by both sides (st, step,
 // tau_step, reachable, init, ...).

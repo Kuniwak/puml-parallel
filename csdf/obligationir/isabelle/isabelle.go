@@ -8,6 +8,7 @@ package isabelle
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -54,6 +55,10 @@ begin`)
 		WriteNewLine(w, 2)
 	} else {
 		side := obligationir.SideSingle
+
+		if err := WriteNameTable(w, obligationir.LivelockFreeNameTable(ir)); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+		}
 
 		if obligationir.HasVars(ir.States) {
 			io.WriteString(w, ValPrelude)
@@ -364,15 +369,14 @@ func WriteDisjunct(w io.Writer, side obligationir.Side, e obligationir.IREdge, s
 				io.WriteString(w, ` `)
 			}
 			first = false
-			io.WriteString(w, f.Name)
+			WriteField(w, f, false)
 		}
 		for _, f := range dst.Fields {
 			if !first {
 				io.WriteString(w, ` `)
 			}
 			first = false
-			io.WriteString(w, f.Name)
-			io.WriteString(w, `'`)
+			WriteField(w, f, true)
 		}
 		io.WriteString(w, `. `)
 	}
@@ -403,7 +407,7 @@ func WriteStatePattern(w io.Writer, side obligationir.Side, id csdf.StateID, st 
 }
 
 func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
-	io.WriteString(w, f.Name)
+	io.WriteString(w, obligationir.Mangle(f.Name))
 	if primed {
 		io.WriteString(w, `'`)
 	}
@@ -494,7 +498,7 @@ func NewWriteArgNameFunc(args []obligationir.IRArg) func(io.Writer, int) error {
 }
 
 func WriteArgName(w io.Writer, arg obligationir.IRArg) {
-	io.WriteString(w, arg.Name)
+	io.WriteString(w, obligationir.Mangle(arg.Name))
 	if arg.Primed {
 		io.WriteString(w, `'`)
 	}
@@ -613,4 +617,27 @@ func WriteNewLine(w io.Writer, n int) {
 	for range n {
 		io.WriteString(w, "\n")
 	}
+}
+
+// WriteNameTable writes the correspondence between the identifiers of the
+// generated theory and the CSDF names they encode. CSDF names are not
+// identifiers, so an event like "choose(product)" has to be encoded; without the
+// table the reader cannot tell which diagram element a declaration came from.
+// Nothing is written when every name was already an identifier.
+func WriteNameTable(w io.Writer, names []obligationir.MangledName) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	if err := WriteLineComment(w, NewConstWriter(`Names that are not Isabelle identifiers are encoded; the originals are:`)); err != nil {
+		return fmt.Errorf("isabelle.WriteNameTable: %w", err)
+	}
+	for _, n := range names {
+		WriteNewLine(w, 1)
+		if err := WriteLineComment(w, NewConstWriter(`  `+n.Identifier+` = `+strconv.Quote(n.Original))); err != nil {
+			return fmt.Errorf("isabelle.WriteNameTable: %w", err)
+		}
+	}
+	WriteNewLine(w, 2)
+	return nil
 }

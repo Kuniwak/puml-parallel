@@ -61,6 +61,8 @@ func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 
 	side := obligationir.SideSingle
 
+	WriteNameTable(w, obligationir.LivelockFreeNameTable(ir))
+
 	if obligationir.HasVars(ir.States) {
 		io.WriteString(w, ValPrelude)
 		WriteNewLine(w, 2)
@@ -368,7 +370,7 @@ func WriteStatePattern(w io.Writer, side obligationir.Side, id csdf.StateID, st 
 }
 
 func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
-	io.WriteString(w, f.Name)
+	io.WriteString(w, obligationir.Mangle(f.Name))
 	if primed {
 		io.WriteString(w, `'`)
 	}
@@ -388,7 +390,7 @@ func WriteStateTypeDeclaration(w io.Writer, side obligationir.Side, ss []obligat
 		io.WriteString(w, side.Ctor(s.StateID))
 		for _, f := range s.Fields {
 			io.WriteString(w, ` (`)
-			io.WriteString(w, f.Name)
+			io.WriteString(w, obligationir.Mangle(f.Name))
 			io.WriteString(w, ` : `)
 			io.WriteString(w, ValType)
 			io.WriteString(w, `)`)
@@ -436,7 +438,7 @@ func WriteVarTypesCommentContent(w io.Writer, fs []obligationir.IRField) {
 }
 
 func WriteArgName(w io.Writer, arg obligationir.IRArg) {
-	io.WriteString(w, arg.Name)
+	io.WriteString(w, obligationir.Mangle(arg.Name))
 	if arg.Primed {
 		io.WriteString(w, `'`)
 	}
@@ -475,4 +477,22 @@ func WriteNewLine(w io.Writer, n int) {
 	for range n {
 		io.WriteString(w, "\n")
 	}
+}
+
+// WriteNameTable writes the correspondence between the identifiers of the
+// generated theory and the CSDF names they encode. CSDF names are not
+// identifiers, so an event like "choose(product)" has to be encoded; without the
+// table the reader cannot tell which diagram element a declaration came from.
+// Nothing is written when every name was already an identifier.
+func WriteNameTable(w io.Writer, names []obligationir.MangledName) {
+	if len(names) == 0 {
+		return
+	}
+
+	WriteLineComment(w, `Names that are not Lean identifiers are encoded; the originals are:`)
+	for _, n := range names {
+		WriteNewLine(w, 1)
+		WriteLineComment(w, `  `+n.Identifier+` = `+strconv.Quote(n.Original))
+	}
+	WriteNewLine(w, 2)
 }

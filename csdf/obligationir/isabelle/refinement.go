@@ -93,6 +93,10 @@ func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
 	io.WriteString(w, `begin`)
 	WriteNewLine(w, 2)
 
+	if err := WriteNameTable(w, obligationir.RefinementNameTable(ir)); err != nil {
+		return fmt.Errorf("isabelle.WriteRefinement: %w", err)
+	}
+
 	if hasVars(ir) {
 		io.WriteString(w, ValPrelude)
 		WriteNewLine(w, 2)

@@ -478,3 +478,31 @@ a --> a : step ; true ; n' = m
 		}
 	}
 }
+
+// TestWriteRefinementManglesNonIdentifierNames mirrors the lean backend: names
+// CSDF allows but Isabelle does not have to reach the theory as identifiers,
+// under the same spellings, with a table recording the originals.
+func TestWriteRefinementManglesNonIdentifierNames(t *testing.T) {
+	diagram := `@startuml
+state "vm-idle" as vm-idle
+vm-idle: 1st
+vm-idle: end
+[*] --> vm-idle
+vm-idle --> vm-idle : choose(a product)
+@enduml
+`
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
+
+	for _, want := range []string{
+		"Ev_choose_u28_a_u20_product_u29_",
+		"S_vm_u2d_idle u_1st end_",
+		`   choose_u28_a_u20_product_u29_ = "choose(a product)"`,
+		`   end_ = "end"`,
+		`   u_1st = "1st"`,
+		`   vm_u2d_idle = "vm-idle"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
+	}
+}
