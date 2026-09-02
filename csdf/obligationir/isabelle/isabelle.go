@@ -200,11 +200,11 @@ func WriteInit(w io.Writer, side obligationir.Side, init obligationir.IRInit, m 
 	if err := WriteDefinition(
 		w,
 		NewConstWriter(side.Qualify("init")),
-		NewWriteArgTypeFunc(post.Args),
+		NewWriteArgTypeFunc(init.PostArgs),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
 		NewWritePredicateNameWithIDFunc("pred_", init.Post),
-		len(post.Args),
+		len(init.PostArgs),
 		0,
 	); err != nil {
 		return fmt.Errorf("isabelle.WriteInit: %w", err)
@@ -268,11 +268,11 @@ func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m m
 	if err := WriteDefinition(
 		w,
 		NewConstWriter(side.GuardName(tau.Line)),
-		NewWriteArgTypeFunc(guard.Args),
+		NewWriteArgTypeFunc(tau.GuardArgs),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
 		NewWritePredicateNameWithIDFunc("pred_", tau.Guard),
-		len(guard.Args),
+		len(tau.GuardArgs),
 		0,
 	); err != nil {
 		return fmt.Errorf("isabelle.WriteEdge: %w", err)
@@ -288,11 +288,11 @@ func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m m
 	if err := WriteDefinition(
 		w,
 		NewConstWriter(side.PostName(tau.Line)),
-		NewWriteArgTypeFunc(post.Args),
+		NewWriteArgTypeFunc(tau.PostArgs),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
 		NewWritePredicateNameWithIDFunc("pred_", tau.Post),
-		len(post.Args),
+		len(tau.PostArgs),
 		0,
 	); err != nil {
 		return fmt.Errorf("isabelle.WriteEdge: %w", err)
@@ -382,13 +382,13 @@ func WriteDisjunct(w io.Writer, side obligationir.Side, e obligationir.IREdge, s
 	WriteStatePattern(w, side, e.Dst, dst, true)
 	io.WriteString(w, ` \<and> `)
 	io.WriteString(w, side.GuardName(e.Line))
-	for _, arg := range m[e.Guard].Args {
+	for _, arg := range e.GuardArgs {
 		io.WriteString(w, ` `)
 		WriteArgName(w, arg)
 	}
 	io.WriteString(w, ` \<and> `)
 	io.WriteString(w, side.PostName(e.Line))
-	for _, arg := range m[e.Post].Args {
+	for _, arg := range e.PostArgs {
 		io.WriteString(w, ` `)
 		WriteArgName(w, arg)
 	}

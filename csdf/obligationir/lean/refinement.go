@@ -271,7 +271,7 @@ func WriteEnd(w io.Writer, side obligationir.Side, end obligationir.IREnd, m map
 	guard := m[end.Guard]
 	WriteLineComment(w, string(guard.Text))
 	WriteNewLine(w, 1)
-	WritePredicateAlias(w, side.GuardName(end.Line), len(guard.Args), end.Guard)
+	WritePredicateAlias(w, side.GuardName(end.Line), len(end.GuardArgs), end.Guard)
 }
 
 // WriteProcessNameDatatype writes the process-name datatype covering both sides:
@@ -380,7 +380,7 @@ func WriteStateBody(
 		branches++
 
 		writeBodyLine(w, `procIte (`)
-		io.WriteString(w, application(s.Side.GuardName(end.Line), m[end.Guard].Args))
+		io.WriteString(w, application(s.Side.GuardName(end.Line), end.GuardArgs))
 		io.WriteString(w, `)`)
 		writeBodyLine(w, `  proc.SKIP`)
 		writeBodyLine(w, `  proc.STOP`)
@@ -403,10 +403,10 @@ func WriteEdgeBranch(
 	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
 ) {
 	dst := s.IR.States[e.Dst]
-	postApp := application(s.Side.PostName(e.Line), m[e.Post].Args)
+	postApp := application(s.Side.PostName(e.Line), e.PostArgs)
 
 	writeBodyLine(w, `procIte (`)
-	io.WriteString(w, application(s.Side.GuardName(e.Line), m[e.Guard].Args))
+	io.WriteString(w, application(s.Side.GuardName(e.Line), e.GuardArgs))
 	io.WriteString(w, ` ∧ `)
 	if len(dst.Fields) > 0 {
 		WriteExists(w, dst.Fields)

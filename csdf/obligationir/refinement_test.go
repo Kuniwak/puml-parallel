@@ -43,9 +43,9 @@ s1 --> s0 : b
 				"s1": {Fields: []IRField{}, Line: 3},
 			},
 			Edges: []IREdge{
-				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, Post: truePred, Line: 5},
+				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 5},
 			},
-			Init: IRInit{Dst: "s0", Post: truePred, Line: 4},
+			Init: IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
 		},
 		Impl: IRSide{
 			States: map[csdf.StateID]IRState{
@@ -53,10 +53,10 @@ s1 --> s0 : b
 				"s1": {Fields: []IRField{}, Line: 3},
 			},
 			Edges: []IREdge{
-				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, Post: truePred, Line: 5},
-				{Src: "s1", Dst: "s0", Event: "b", EventParams: []IRArg{}, Guard: truePred, Post: truePred, Line: 6},
+				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 5},
+				{Src: "s1", Dst: "s0", Event: "b", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 6},
 			},
-			Init: IRInit{Dst: "s0", Post: truePred, Line: 4},
+			Init: IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
 		},
 	}
 

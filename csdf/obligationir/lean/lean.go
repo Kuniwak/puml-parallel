@@ -167,7 +167,7 @@ func WriteInit(w io.Writer, side obligationir.Side, init obligationir.IRInit, m 
 	post := m[init.Post]
 	WriteLineComment(w, string(post.Text))
 	WriteNewLine(w, 1)
-	WritePredicateAlias(w, side.Qualify("init"), len(post.Args), init.Post)
+	WritePredicateAlias(w, side.Qualify("init"), len(init.PostArgs), init.Post)
 }
 
 // WriteReachable writes the inductive predicate holding of every state the
@@ -257,14 +257,14 @@ func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m m
 	guard := m[tau.Guard]
 	WriteLineComment(w, string(guard.Text))
 	WriteNewLine(w, 1)
-	WritePredicateAlias(w, side.GuardName(tau.Line), len(guard.Args), tau.Guard)
+	WritePredicateAlias(w, side.GuardName(tau.Line), len(tau.GuardArgs), tau.Guard)
 
 	WriteNewLine(w, 2)
 
 	post := m[tau.Post]
 	WriteLineComment(w, string(post.Text))
 	WriteNewLine(w, 1)
-	WritePredicateAlias(w, side.PostName(tau.Line), len(post.Args), tau.Post)
+	WritePredicateAlias(w, side.PostName(tau.Line), len(tau.PostArgs), tau.Post)
 }
 
 // WritePredicateAlias writes an eta-reduced alias of a pred_<id> placeholder, so
@@ -343,13 +343,13 @@ func WriteDisjunct(w io.Writer, side obligationir.Side, e obligationir.IREdge, s
 	WriteStatePattern(w, side, e.Dst, dst, true)
 	io.WriteString(w, ` ∧ `)
 	io.WriteString(w, side.GuardName(e.Line))
-	for _, arg := range m[e.Guard].Args {
+	for _, arg := range e.GuardArgs {
 		io.WriteString(w, ` `)
 		WriteArgName(w, arg)
 	}
 	io.WriteString(w, ` ∧ `)
 	io.WriteString(w, side.PostName(e.Line))
-	for _, arg := range m[e.Post].Args {
+	for _, arg := range e.PostArgs {
 		io.WriteString(w, ` `)
 		WriteArgName(w, arg)
 	}

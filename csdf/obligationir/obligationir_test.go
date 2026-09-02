@@ -58,14 +58,17 @@ a --> a : tau ; n > 0 ; n' = n - 1
 				Event:       "tau",
 				EventParams: []IRArg{},
 				Guard:       2223308920,
+				GuardArgs:   []IRArg{{Name: "n", Type: "Nat"}},
 				Post:        541149191,
+				PostArgs:    []IRArg{{Name: "n", Type: "Nat"}, {Name: "n", Type: "Nat", Primed: true}},
 				Line:        5,
 			},
 		},
 		Init: IRInit{
-			Dst:  "a",
-			Post: 1836624455,
-			Line: 4,
+			Dst:      "a",
+			Post:     1836624455,
+			PostArgs: []IRArg{{Name: "n", Type: "Nat"}},
+			Line:     4,
 		},
 	}
 
@@ -109,14 +112,17 @@ s0 --> s1 : a
 				Event:       "a",
 				EventParams: []IRArg{},
 				Guard:       4261170317,
+				GuardArgs:   []IRArg{},
 				Post:        4261170317,
+				PostArgs:    []IRArg{},
 				Line:        5,
 			},
 		},
 		Init: IRInit{
-			Dst:  "s0",
-			Post: 4261170317,
-			Line: 4,
+			Dst:      "s0",
+			Post:     4261170317,
+			PostArgs: []IRArg{},
+			Line:     4,
 		},
 	}
 
@@ -164,9 +170,10 @@ s0: ready ; bool
 		Constants: []IRConst{},
 		Edges:     []IREdge{},
 		Init: IRInit{
-			Dst:  "s0",
-			Post: 3809375577,
-			Line: 4,
+			Dst:      "s0",
+			Post:     3809375577,
+			PostArgs: []IRArg{{Name: "ready", Type: "bool"}},
+			Line:     4,
 		},
 	}
 

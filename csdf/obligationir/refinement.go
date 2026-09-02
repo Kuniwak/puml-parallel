@@ -32,10 +32,12 @@ type IRSide struct {
 }
 
 // IREnd is the guarded successful termination of a diagram (its EndEdge).
+// GuardArgs is this occurrence's own argument list; see IREdge.
 type IREnd struct {
-	Src   csdf.StateID  `json:"src"`
-	Guard IRPredicateID `json:"guard"`
-	Line  int           `json:"line"` // 1-based
+	Src       csdf.StateID  `json:"src"`
+	Guard     IRPredicateID `json:"guard"`
+	GuardArgs []IRArg       `json:"guard_args"`
+	Line      int           `json:"line"` // 1-based
 }
 
 // IRRefinement is a prover-agnostic intermediate representation of the proof

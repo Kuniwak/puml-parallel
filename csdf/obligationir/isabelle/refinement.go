@@ -257,11 +257,11 @@ func WriteEnd(w io.Writer, side obligationir.Side, end obligationir.IREnd, m map
 	if err := WriteDefinition(
 		w,
 		NewConstWriter(side.GuardName(end.Line)),
-		NewWriteArgTypeFunc(guard.Args),
+		NewWriteArgTypeFunc(end.GuardArgs),
 		NewConstWriter("bool"),
 		NewWriteArgNameFunc(nil),
 		NewWritePredicateNameWithIDFunc("pred_", end.Guard),
-		len(guard.Args),
+		len(end.GuardArgs),
 		0,
 	); err != nil {
 		return fmt.Errorf("isabelle.WriteEnd: %w", err)
@@ -381,7 +381,7 @@ func WriteStateBody(
 		branches++
 
 		writeBodyLine(w, `(IF `)
-		io.WriteString(w, application(s.Side.GuardName(end.Line), m[end.Guard].Args))
+		io.WriteString(w, application(s.Side.GuardName(end.Line), end.GuardArgs))
 		writeBodyLine(w, ` THEN SKIP`)
 		writeBodyLine(w, ` ELSE STOP)`)
 	}
@@ -404,10 +404,10 @@ func WriteEdgeBranch(
 ) {
 	dst := s.IR.States[e.Dst]
 	post := s.Side.PostName(e.Line)
-	postApp := application(post, m[e.Post].Args)
+	postApp := application(post, e.PostArgs)
 
 	writeBodyLine(w, `(IF (`)
-	io.WriteString(w, application(s.Side.GuardName(e.Line), m[e.Guard].Args))
+	io.WriteString(w, application(s.Side.GuardName(e.Line), e.GuardArgs))
 	io.WriteString(w, ` \<and> `)
 	if len(dst.Fields) > 0 {
 		// The post predicate has to be satisfiable, not merely written: an edge

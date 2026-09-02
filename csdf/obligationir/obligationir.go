@@ -134,23 +134,31 @@ func IRPredicatesWithHash(ps []IRPredicate) []IRPredicateWithID {
 	return res
 }
 
-// IREdge is one transition. Guard/Post hold either a predicate symbol or the
-// literal "True" when the predicate is omitted.
+// IREdge is one transition. Guard/Post name a shared predicate symbol, while
+// GuardArgs/PostArgs are this occurrence's own arguments: the variables the
+// source and target states of *this* edge bind. The two cannot be read off the
+// shared predicate, whose recorded argument names belong to whichever occurrence
+// registered it, so applying a shared symbol to those names would capture or
+// leave free the wrong variables.
 type IREdge struct {
 	Src         csdf.StateID  `json:"src"`
 	Dst         csdf.StateID  `json:"dst"`
 	Event       csdf.Event    `json:"event"`
 	EventParams []IRArg       `json:"event_params"`
 	Guard       IRPredicateID `json:"guard"`
+	GuardArgs   []IRArg       `json:"guard_args"`
 	Post        IRPredicateID `json:"post"`
+	PostArgs    []IRArg       `json:"post_args"`
 	Line        int           `json:"line"` // 1-based
 }
 
-// IRInit names the start state.
+// IRInit names the start state. PostArgs is this occurrence's own argument list;
+// see IREdge.
 type IRInit struct {
-	Dst  csdf.StateID  `json:"state"`
-	Post IRPredicateID `json:"post"`
-	Line int           `json:"line"` // 1-based
+	Dst      csdf.StateID  `json:"state"`
+	Post     IRPredicateID `json:"post"`
+	PostArgs []IRArg       `json:"post_args"`
+	Line     int           `json:"line"` // 1-based
 }
 
 // PredicateSet accumulates the opaque predicates of one or more diagrams,
@@ -207,9 +215,10 @@ func BuildInit(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRStat
 		})
 	}
 	return IRInit{
-		Dst:  d.StartEdge.Dst,
-		Post: ps.Add(IRPredicate{Args: args, Text: d.StartEdge.Post}),
-		Line: d.StartEdge.Line,
+		Dst:      d.StartEdge.Dst,
+		Post:     ps.Add(IRPredicate{Args: args, Text: d.StartEdge.Post}),
+		PostArgs: args,
+		Line:     d.StartEdge.Line,
 	}
 }
 
@@ -229,9 +238,10 @@ func BuildEnd(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState
 		})
 	}
 	return &IREnd{
-		Src:   d.EndEdge.Src,
-		Guard: ps.Add(IRPredicate{Args: args, Text: d.EndEdge.Guard}),
-		Line:  d.EndEdge.Line,
+		Src:       d.EndEdge.Src,
+		Guard:     ps.Add(IRPredicate{Args: args, Text: d.EndEdge.Guard}),
+		GuardArgs: args,
+		Line:      d.EndEdge.Line,
 	}
 }
 
@@ -276,7 +286,9 @@ func BuildEdges(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRSta
 			Event:       e.Event,
 			EventParams: []IRArg{},
 			Guard:       guardID,
+			GuardArgs:   guardArgs,
 			Post:        postID,
+			PostArgs:    postArgs,
 			Line:        e.Line,
 		})
 	}

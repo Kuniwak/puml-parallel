@@ -318,3 +318,37 @@ a --> a : tau
 		t.Errorf("want no transition system for a structurally livelock-free spec\n%s", got)
 	}
 }
+
+// TestWriteRefinementPredicateSharingKeepsOccurrenceArgs pins that an edge
+// applies its guard and post to the variables its own source and target states
+// bind, not to whichever occurrence happened to be recorded last under the shared
+// predicate id. Two edges whose predicates share a text and an argument signature
+// but bind differently named variables must still produce closed terms.
+func TestWriteRefinementPredicateSharingKeepsOccurrenceArgs(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeTrace, `@startuml
+state "s0" as s0
+s0: x
+state "s1" as s1
+s1: y
+[*] --> s0 : holds
+s0 --> s1 : a ; holds ; holds
+s1 --> s0 : b ; holds ; holds
+@enduml
+`, `@startuml
+state "t0" as t0
+t0: z
+[*] --> t0 : holds
+t0 --> t0 : a ; holds ; holds
+@enduml
+`)
+
+	for _, want := range []string{
+		"guard_S_L7 x ∧ ∃ y', post_S_L7 x y'",
+		"guard_S_L8 y ∧ ∃ x', post_S_L8 y x'",
+		"guard_I_L5 z ∧ ∃ z', post_I_L5 z z'",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
+	}
+}
