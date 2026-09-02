@@ -234,3 +234,42 @@ l2_r0 --> l2_r1 : y
 		t.Error(diff)
 	}
 }
+
+func TestComposeParallelOrdersEdgesSharingSourceEventAndDestination(t *testing.T) {
+	// Setup: two `x` edges share both endpoints and differ only in their
+	// predicates, so (src, event, dst) alone cannot order them.
+	left := MustParse(`@startuml
+state "l0" as l0
+state "l1" as l1
+[*] --> l0
+l0 --> l1 : x ; g2 ; p1
+l0 --> l1 : x ; g1 ; p2
+l0 --> l1 : x ; g1 ; p1
+@enduml
+`)
+	right := MustParse(`@startuml
+state "r0" as r0
+[*] --> r0
+@enduml
+`)
+	want := `@startuml
+state "(l0, r0)" as l0_r0
+state "(l1, r0)" as l1_r0
+[*] --> l0_r0
+l0_r0 --> l1_r0 : x ; g1 ; p1
+l0_r0 --> l1_r0 : x ; g1 ; p2
+l0_r0 --> l1_r0 : x ; g2 ; p1
+@enduml
+`
+
+	// Execute
+	composite, err := ComposeParallel([]*Diagram{left, right}, nil)
+	if err != nil {
+		t.Fatalf("ComposeParallel() error = %v", err)
+	}
+
+	// Assert
+	if diff := cmp.Diff(want, composite.String()); diff != "" {
+		t.Error(diff)
+	}
+}

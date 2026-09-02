@@ -81,8 +81,10 @@ func SortedStates(m map[StateID]State) []StateWithID {
 	return ss
 }
 
-// CompareEdge is the canonical order of transitions: source, then event, then
-// destination.
+// CompareEdge is the canonical order of transitions: source, event,
+// destination, guard, then post. Parallel edges differing only in their
+// predicates are common, so the predicates are part of the order; without them
+// the order would not be total and the output would not be deterministic.
 func CompareEdge(a, b Edge) int {
 	if c := cmp.Compare(a.Src, b.Src); c != 0 {
 		return c
@@ -90,7 +92,13 @@ func CompareEdge(a, b Edge) int {
 	if c := cmp.Compare(a.Event, b.Event); c != 0 {
 		return c
 	}
-	return cmp.Compare(a.Dst, b.Dst)
+	if c := cmp.Compare(a.Dst, b.Dst); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(a.Guard, b.Guard); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.Post, b.Post)
 }
 
 func SortEdges(edges []Edge) {
