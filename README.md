@@ -111,12 +111,13 @@ the unrestricted theorem false even for a diagram that is livelock free. Isabell
 `wf_on {s. reachable s} …`; Lean folds `Reachable s` into the relation instead, which is
 equivalent because `Reachable` is closed under `step`, and keeps the skeleton free of
 imports. When the diagram is structurally livelock free the obligation is already
-discharged, so only a note is emitted instead. Each distinct opaque predicate becomes a
-`True` placeholder definition named
-`pred_<id>` after its hash and preceded by a comment carrying its original
+discharged, so only a note is emitted instead. Each distinct opaque predicate becomes an
+uninterpreted declaration named `pred_<id>` after its hash — `opaque` in Lean, `consts` in
+Isabelle — preceded by a `TODO(csdf)` marker and a comment carrying its original
 natural-language text; every `tau` transition then gets `guard_L<line>` and `post_L<line>`
-aliases of those placeholders, so a human or LLM can fill in the real predicate body and
-discharge the proof. Both targets name predicates identically, so the two skeletons can be
+aliases of those declarations, so a human or LLM can replace the declaration by the real
+predicate body and discharge the proof. An omitted guard or postcondition is the one
+exception: its text really is `true`, so it stays a definition. Both targets name predicates identically, so the two skeletons can be
 read side by side. State-variable values are arbitrary JSON, so each variable is typed
 with a generated `val`/`Val` datatype (floats folded into the integer case for now); any
 declared `; Type` annotation is preserved as a comment on the state constructor.
