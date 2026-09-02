@@ -93,10 +93,10 @@ instance Set_FPmode : HasFPmode where
   FPmode := fpmode.CMSmode
 
 def SpecProc : proc PN event :=
-  procIte init_S (proc.Proc_name PN.S_s) proc.STOP
+  procIte init_S (proc.Proc_name PN.S_s) proc.DIV
 
 def ImplProc : proc PN event :=
-  procIte init_I (proc.Proc_name PN.I_p) proc.STOP
+  procIte init_I (proc.Proc_name PN.I_p) proc.DIV
 
 -- Every stable failure of the Impl diagram is one of the Spec diagram: refF
 -- P1 M1 M2 P2 unfolds to semFf P2 M2 <= semFf P1 M1, and it subsumes trace

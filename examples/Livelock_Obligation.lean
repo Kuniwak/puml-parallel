@@ -3,9 +3,10 @@
     go run ./tools/csdflivelockfree -target lean examples/livelock.puml \
       > examples/Livelock_Obligation.lean
 
-  The generator always emits True placeholders and leaves the theorem as sorry;
-  the import, the predicate bodies and the proof below are filled in by hand, so
-  a regeneration discards them (and this comment).
+  The generator emits each predicate as an opaque declaration under a TODO(csdf)
+  marker and leaves the theorem as sorry; the import, the predicate bodies (which
+  replace those declarations) and the proof below are filled in by hand, so a
+  regeneration discards them (and this comment).
 
   Checking this file needs a Lean project with Mathlib:
 

@@ -90,10 +90,10 @@ end
 declare Set_procfun_def [simp]
 
 definition SpecProc :: "(PN, event) proc"
-  where "SpecProc \<equiv> IF init_S THEN $(S_s) ELSE STOP"
+  where "SpecProc \<equiv> IF init_S THEN $(S_s) ELSE DIV"
 
 definition ImplProc :: "(PN, event) proc"
-  where "ImplProc \<equiv> IF init_I THEN $(I_p) ELSE STOP"
+  where "ImplProc \<equiv> IF init_I THEN $(I_p) ELSE DIV"
 
 (* Every stable failure of the Impl diagram is one of the Spec diagram: in
    CSP-Prover P <=F Q unfolds to failures Q <= failures P, and <=F subsumes

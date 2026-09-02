@@ -3,8 +3,9 @@
     go run ./tools/csdflivelockfree -target isabelle examples/livelock.puml \
       > examples/Livelock_Obligation.thy
 
-  The generator always emits True placeholders and leaves the theorem as oops;
-  the predicate bodies and the proof below are filled in by hand, so a
+  The generator emits each predicate as an uninterpreted constant under a
+  TODO(csdf) marker and leaves the theorem as oops; the predicate bodies (which
+  replace those declarations) and the proof below are filled in by hand, so a
   regeneration discards them (and this comment). *)
 theory Livelock_Obligation
   imports Main
