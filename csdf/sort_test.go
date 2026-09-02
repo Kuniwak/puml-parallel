@@ -65,3 +65,30 @@ s0 --> s1 : a
 		t.Error(diff)
 	}
 }
+
+func TestSortIsIdempotentOnTheExamples(t *testing.T) {
+	// Setup: reprinting and reparsing a canonical diagram must be a no-op,
+	// otherwise repeated formatting keeps producing diffs.
+	paths := []string{
+		"../examples/valid/client.puml",
+		"../examples/valid/server.puml",
+		"../examples/valid/vending_machine.puml",
+		"../examples/valid/user.puml",
+		"../examples/valid/skip.puml",
+	}
+
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			// Setup
+			once := Sort(MustLoadDiagrams(path)[0]).String()
+
+			// Execute
+			twice := Sort(MustParse(once)).String()
+
+			// Assert
+			if diff := cmp.Diff(once, twice); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
