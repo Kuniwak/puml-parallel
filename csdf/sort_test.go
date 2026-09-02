@@ -1,6 +1,7 @@
 package csdf
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -68,13 +69,14 @@ s0 --> s1 : a
 
 func TestSortIsIdempotentOnTheExamples(t *testing.T) {
 	// Setup: reprinting and reparsing a canonical diagram must be a no-op,
-	// otherwise repeated formatting keeps producing diffs.
-	paths := []string{
-		"../examples/valid/client.puml",
-		"../examples/valid/server.puml",
-		"../examples/valid/vending_machine.puml",
-		"../examples/valid/user.puml",
-		"../examples/valid/skip.puml",
+	// otherwise repeated formatting keeps producing diffs. Globbing rather than
+	// listing the examples means a new example is covered as soon as it lands.
+	paths, err := filepath.Glob(filepath.Join("..", "examples", "valid", "*.puml"))
+	if err != nil {
+		t.Fatalf("Glob() error = %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("want at least one example, got none")
 	}
 
 	for _, path := range paths {
