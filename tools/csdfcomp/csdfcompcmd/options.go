@@ -15,6 +15,9 @@ type Options struct {
 	// BaseDir is the directory the paths of REFER expressions are resolved against.
 	BaseDir string
 	Bytes   []byte
+	// Args is the raw command line, kept to record the command that generated
+	// the composed diagram.
+	Args []string
 }
 
 // CommonOptions returns the parsed common options.
@@ -81,6 +84,7 @@ Examples:
 			Common:  commonOpts,
 			BaseDir: baseDir,
 			Bytes:   bs,
+			Args:    args,
 		}, nil
 	}
 }

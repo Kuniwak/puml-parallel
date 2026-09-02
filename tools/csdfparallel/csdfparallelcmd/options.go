@@ -14,6 +14,9 @@ type Options struct {
 	Common *tools.CommonOptions
 	Sync   []csdf.Event
 	Files  []string
+	// Args is the raw command line, kept to record the command that generated
+	// the composed diagram.
+	Args []string
 }
 
 // CommonOptions returns the parsed common options.
@@ -67,6 +70,7 @@ Examples:
 			Common: commonOpts,
 			Sync:   tools.ParseEvents(*syncFlag),
 			Files:  files,
+			Args:   args,
 		}, nil
 	}
 }

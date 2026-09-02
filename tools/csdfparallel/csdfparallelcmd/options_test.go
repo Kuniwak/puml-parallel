@@ -27,7 +27,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		},
 		"single file (lower boundary value)": {
 			Args:     []string{"a.puml"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Files: []string{"a.puml"}},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Files: []string{"a.puml"}, Args: []string{"a.puml"}},
 		},
 		"sync with two files (representative value)": {
 			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
@@ -35,6 +35,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Common: tools.NewCommonOptionsDefault(),
 				Sync:   []csdf.Event{"x", "y"},
 				Files:  []string{"a.puml", "b.puml"},
+				Args:   []string{"-sync", "x;y", "a.puml", "b.puml"},
 			},
 		},
 	}

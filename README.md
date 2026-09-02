@@ -131,6 +131,24 @@ postconditions combined as a true-aware disjunction. The internal `tau` event is
 removed by τ-closure. A file argument, a `-` argument, and stdin are all equivalent.
 End edges (`state --> [*]`) are not currently supported.
 
+## Diagram name
+
+The optional name on the `@startuml` line (`@startuml VendingMachine`) carries no
+meaning, but it is kept: parsing retains it and every tool that prints a diagram
+writes it back, so `csdfsort`, `csdfnorm` and `csdfhide` round-trip a hand-written
+name.
+
+`csdfparallel` and `csdfcomp` build a new diagram out of several inputs, so
+instead they record the command that generated it:
+
+```console
+$ csdfparallel -sync 'sync' examples/valid/in.puml examples/valid/out.puml | head -1
+@startuml auto-generated-by: csdfparallel -sync sync examples/valid/in.puml examples/valid/out.puml
+```
+
+Arguments are quoted the way a POSIX shell needs them, so the recorded line can
+be pasted back to reproduce the output.
+
 ## Canonical order
 
 Every tool that prints a diagram prints the same bytes for the same input, so
