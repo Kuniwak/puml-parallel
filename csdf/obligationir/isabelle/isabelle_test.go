@@ -33,17 +33,17 @@ datatype val = ValInt int
 
 datatype st = a val (* type: (n :: nat) *)
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n = 10 *)
-definition pred_xjezwh :: "val \<Rightarrow> bool"
-  where "pred_xjezwh n \<equiv> True"
+consts pred_xjezwh :: "val \<Rightarrow> bool"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n > 0 *)
-definition pred_1gdozh4 :: "val \<Rightarrow> bool"
-  where "pred_1gdozh4 n \<equiv> True"
+consts pred_1gdozh4 :: "val \<Rightarrow> bool"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n' = n - 1 *)
-definition pred_1nuhmrf :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "pred_1nuhmrf n n' \<equiv> True"
+consts pred_1nuhmrf :: "val \<Rightarrow> val \<Rightarrow> bool"
 
 (* n = 10 *)
 definition init :: "val \<Rightarrow> bool"
@@ -125,17 +125,17 @@ datatype val = ValInt int
 
 datatype st = a val (* type: (n :: any) *)
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n' = n - 1 *)
-definition pred_7ydc3w :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "pred_7ydc3w n n' \<equiv> True"
+consts pred_7ydc3w :: "val \<Rightarrow> val \<Rightarrow> bool"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n = 10 *)
-definition pred_icpx2l :: "val \<Rightarrow> bool"
-  where "pred_icpx2l n \<equiv> True"
+consts pred_icpx2l :: "val \<Rightarrow> bool"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n > 0 *)
-definition pred_1e81hjg :: "val \<Rightarrow> bool"
-  where "pred_1e81hjg n \<equiv> True"
+consts pred_1e81hjg :: "val \<Rightarrow> bool"
 
 (* n = 10 *)
 definition init :: "val \<Rightarrow> bool"

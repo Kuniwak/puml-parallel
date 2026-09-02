@@ -1,8 +1,9 @@
 // Package lean compiles the livelock-freedom obligation IR to a Lean 4 proof
-// obligation skeleton. The opaque guard/post predicates become True-placeholder
-// definitions, each preceded by a comment holding the original natural-language
-// text, so a human or LLM can fill in the real predicate body and discharge the
-// theorem. It mirrors the isabelle backend: the same predicates are emitted under
+// obligation skeleton. The guard/post predicates become opaque declarations, each
+// preceded by a TODO marker and a comment holding the original natural-language
+// text, so a human or LLM can replace the declaration by the real predicate body
+// and discharge the theorem. Leaving them uninterpreted rather than True is what
+// keeps an undischarged obligation undischargeable. It mirrors the isabelle backend: the same predicates are emitted under
 // the same names, so the two skeletons can be compared line for line.
 package lean
 
@@ -231,27 +232,59 @@ func WriteReachable(w io.Writer, side obligationir.Side, init obligationir.IRIni
 	return nil
 }
 
-// WritePredicate writes the shared True placeholder a predicate stands for. The
-// binder groups same-typed arguments, as Lean prefers: (n n' : Val).
+// WritePredicate writes the declaration a natural-language predicate stands for.
+//
+// It is an "opaque" declaration, not a definition, because there is no neutral
+// proposition standing for "not formalised yet": defining it as True is not a
+// placeholder but a different diagram, one where every guard fires and every
+// postcondition is satisfiable, and refines_f can then be discharged for a pair
+// of diagrams that do not refine one another. Uninterpreted, the theorem is
+// simply not provable until a reader replaces the declaration by a definition,
+// which the TODO marker asks for.
+//
+// The one predicate that is genuinely known is the omitted one: its CSDF text
+// really is "true", so it stays a definition. The binder groups same-typed
+// arguments, as Lean prefers: (n n' : Val).
 func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) {
+	if p.Predicate.Text == csdf.PredicateTrue {
+		WriteLineComment(w, string(p.Predicate.Text))
+		WriteNewLine(w, 1)
+		io.WriteString(w, `def pred_`)
+		WritePredicateID(w, p.ID)
+		if len(p.Predicate.Args) > 0 {
+			io.WriteString(w, ` (`)
+			for i, arg := range p.Predicate.Args {
+				if i > 0 {
+					io.WriteString(w, ` `)
+				}
+				WriteArgName(w, arg)
+			}
+			io.WriteString(w, ` : `)
+			io.WriteString(w, ValType)
+			io.WriteString(w, `)`)
+		}
+		io.WriteString(w, ` : Prop := True`)
+		return
+	}
+
+	WriteLineComment(w, PredicateTODO)
+	WriteNewLine(w, 1)
 	WriteLineComment(w, string(p.Predicate.Text))
 	WriteNewLine(w, 1)
-	io.WriteString(w, `def pred_`)
+	io.WriteString(w, `opaque pred_`)
 	WritePredicateID(w, p.ID)
-	if len(p.Predicate.Args) > 0 {
-		io.WriteString(w, ` (`)
-		for i, arg := range p.Predicate.Args {
-			if i > 0 {
-				io.WriteString(w, ` `)
-			}
-			WriteArgName(w, arg)
-		}
-		io.WriteString(w, ` : `)
+	io.WriteString(w, ` : `)
+	for range p.Predicate.Args {
 		io.WriteString(w, ValType)
-		io.WriteString(w, `)`)
+		io.WriteString(w, ` → `)
 	}
-	io.WriteString(w, ` : Prop := True`)
+	io.WriteString(w, `Prop`)
 }
+
+// PredicateTODO marks a declaration standing for a predicate nobody has
+// formalised. It is spelled identically by every backend so that a checker can
+// refuse to call an obligation discharged while any marker remains.
+const PredicateTODO = `TODO(csdf): not formalised; this predicate is uninterpreted.`
 
 // WriteEdge writes the guard_L<line> and post_L<line> aliases of the tau edge's
 // predicates. They are eta-reduced, so the arity shows in the type only.

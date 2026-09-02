@@ -1,8 +1,9 @@
 // Package isabelle compiles the livelock-freedom obligation IR to an Isabelle/HOL
-// proof obligation skeleton. The opaque guard/post/init predicates become
-// True-placeholder definitions (Isabelle has no "opaque" keyword), each preceded by a
-// comment holding the original natural-language text, so a human or LLM can fill in
-// the real predicate body and discharge the theorem.
+// proof obligation skeleton. The guard/post/init predicates become uninterpreted
+// constants, each preceded by a TODO marker and a comment holding the original
+// natural-language text, so a human or LLM can replace the declaration by the real
+// predicate body and discharge the theorem. Leaving them uninterpreted rather than
+// True is what keeps an undischarged obligation undischargeable.
 package isabelle
 
 import (
@@ -174,7 +175,40 @@ func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string) {
 	io.WriteString(w, `  oops`)
 }
 
+// WritePredicate writes the declaration a natural-language predicate stands for.
+//
+// It is an uninterpreted constant, not a definition, because there is no neutral
+// proposition standing for "not formalised yet": defining it as True is not a
+// placeholder but a different diagram, one where every guard fires and every
+// postcondition is satisfiable, and refines_f can then be discharged for a pair
+// of diagrams that do not refine one another. Uninterpreted, the theorem is
+// simply not provable until a reader replaces the declaration by a definition,
+// which the TODO marker asks for.
+//
+// The one predicate that is genuinely known is the omitted one: its CSDF text
+// really is "true", so it stays a definition.
 func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
+	if p.Predicate.Text != csdf.PredicateTrue {
+		if err := WriteLineComment(w, NewConstWriter(PredicateTODO)); err != nil {
+			return fmt.Errorf("isabelle.WritePredicate: %w", err)
+		}
+		WriteNewLine(w, 1)
+		if err := WriteLineComment(w, NewConstWriter(string(p.Predicate.Text))); err != nil {
+			return fmt.Errorf("isabelle.WritePredicate: %w", err)
+		}
+		WriteNewLine(w, 1)
+		if err := WriteConsts(
+			w,
+			NewWritePredicateNameWithIDFunc("pred_", p.ID),
+			NewWriteArgTypeFunc(p.Predicate.Args),
+			NewConstWriter("bool"),
+			len(p.Predicate.Args),
+		); err != nil {
+			return fmt.Errorf("isabelle.WritePredicate: %w", err)
+		}
+		return nil
+	}
+
 	if err := WriteLineComment(w, NewConstWriter(string(p.Predicate.Text))); err != nil {
 		return fmt.Errorf("isabelle.WritePredicate: %w", err)
 	}
@@ -639,5 +673,36 @@ func WriteNameTable(w io.Writer, names []obligationir.MangledName) error {
 		}
 	}
 	WriteNewLine(w, 2)
+	return nil
+}
+
+// PredicateTODO marks a declaration standing for a predicate nobody has
+// formalised. It is spelled identically by every backend so that a checker can
+// refuse to call an obligation discharged while any marker remains.
+const PredicateTODO = `TODO(csdf): not formalised; this predicate is uninterpreted.`
+
+// WriteConsts declares an uninterpreted constant of the given signature.
+func WriteConsts(
+	w io.Writer,
+	writeNameFunc func(io.Writer) error,
+	writeArgTypeFunc func(io.Writer, int) error,
+	writeRetTypeFunc func(io.Writer) error,
+	nArgTypes int,
+) error {
+	io.WriteString(w, `consts `)
+	if err := writeNameFunc(w); err != nil {
+		return fmt.Errorf("isabelle.WriteConsts: writeNameFunc: %w", err)
+	}
+	io.WriteString(w, ` :: "`)
+	for i := range nArgTypes {
+		if err := writeArgTypeFunc(w, i); err != nil {
+			return fmt.Errorf("isabelle.WriteConsts: writeArgType[%d]: %w", i, err)
+		}
+		io.WriteString(w, ` \<Rightarrow> `)
+	}
+	if err := writeRetTypeFunc(w); err != nil {
+		return fmt.Errorf("isabelle.WriteConsts: writeRetType: %w", err)
+	}
+	io.WriteString(w, `"`)
 	return nil
 }

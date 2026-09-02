@@ -144,7 +144,7 @@ a --> a : dec ; n > 0 ; n' < n
 		"inductive alphabet where\n  | Ev_dec\nderiving Inhabited\n",
 		"inductive event where\n  | Alphabet (a : alphabet)\n  | Internal (vs : List Val)\nderiving Inhabited\n",
 		// The same predicate ids and alias names as the isabelle skeleton.
-		"def pred_1ini9wn (n n' : Val) : Prop := True",
+		"opaque pred_1ini9wn : Val → Val → Prop",
 		"def post_S_L5 : Val → Val → Prop := pred_1ini9wn",
 		// The enabledness conjunct: without it an edge whose post is unsatisfiable
 		// would still offer its event.
@@ -382,5 +382,45 @@ vm-idle --> vm-idle : choose(a product)
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
 		}
+	}
+}
+
+// TestWriteRefinementLeavesNaturalLanguagePredicatesUninterpreted pins that a
+// predicate the generator cannot formalise is declared uninterpreted rather than
+// defined as True. Defining it as True is not "not yet formalised": it is a
+// different diagram, in which every guard fires and every postcondition is
+// satisfiable, so refines_f can be discharged for a pair of diagrams that do not
+// refine one another. An omitted predicate, whose CSDF text really is "true", is
+// the one case that stays a definition.
+func TestWriteRefinementLeavesNaturalLanguagePredicatesUninterpreted(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeStableFailure, `@startuml
+state "s0" as s0
+s0: n
+[*] --> s0
+s0 --> s0 : a ; n is positive ; n' is n
+@enduml
+`, `@startuml
+state "t0" as t0
+t0: n
+[*] --> t0
+t0 --> t0 : a
+@enduml
+`)
+
+	for _, want := range []string{
+		"-- TODO(csdf): not formalised; this predicate is uninterpreted.",
+		"-- n is positive",
+		"opaque pred_",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "is positive\ndef pred_") {
+		t.Errorf("WriteRefinement() still defines a natural-language predicate; got:\n%s", got)
+	}
+	// The omitted predicates of the Impl side really do say "true".
+	if !strings.Contains(got, "-- true\ndef pred_") {
+		t.Errorf("WriteRefinement() does not define the literal true predicate; got:\n%s", got)
 	}
 }

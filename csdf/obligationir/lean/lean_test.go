@@ -31,14 +31,17 @@ a --> a : tau ; n > 0 ; n' = n - 1
 inductive St where
   | a (n : Val) -- type: (n : nat)
 
+-- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n = 10
-def pred_xjezwh (n : Val) : Prop := True
+opaque pred_xjezwh : Val → Prop
 
+-- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n > 0
-def pred_1gdozh4 (n : Val) : Prop := True
+opaque pred_1gdozh4 : Val → Prop
 
+-- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n' = n - 1
-def pred_1nuhmrf (n n' : Val) : Prop := True
+opaque pred_1nuhmrf : Val → Val → Prop
 
 -- n = 10
 def init : Val → Prop := pred_xjezwh
@@ -118,14 +121,17 @@ a --> a : tau ; n > 0 ; n' = n - 1
 inductive St where
   | a (n : Val) -- type: (n : any)
 
+-- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n' = n - 1
-def pred_7ydc3w (n n' : Val) : Prop := True
+opaque pred_7ydc3w : Val → Val → Prop
 
+-- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n = 10
-def pred_icpx2l (n : Val) : Prop := True
+opaque pred_icpx2l : Val → Prop
 
+-- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n > 0
-def pred_1e81hjg (n : Val) : Prop := True
+opaque pred_1e81hjg : Val → Prop
 
 -- n = 10
 def init : Val → Prop := pred_icpx2l

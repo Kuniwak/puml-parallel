@@ -164,17 +164,17 @@ datatype alphabet = Ev_dec
 datatype event = Alphabet alphabet
   | Internal "val list"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n = 10 *)
-definition pred_xjezwh :: "val \<Rightarrow> bool"
-  where "pred_xjezwh n \<equiv> True"
+consts pred_xjezwh :: "val \<Rightarrow> bool"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n > 0 *)
-definition pred_1gdozh4 :: "val \<Rightarrow> bool"
-  where "pred_1gdozh4 n \<equiv> True"
+consts pred_1gdozh4 :: "val \<Rightarrow> bool"
 
+(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n' < n *)
-definition pred_1ini9wn :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "pred_1ini9wn n n' \<equiv> True"
+consts pred_1ini9wn :: "val \<Rightarrow> val \<Rightarrow> bool"
 
 (* n = 10 *)
 definition init_S :: "val \<Rightarrow> bool"
@@ -504,5 +504,41 @@ vm-idle --> vm-idle : choose(a product)
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
 		}
+	}
+}
+
+// TestWriteRefinementLeavesNaturalLanguagePredicatesUninterpreted mirrors the
+// lean backend: a predicate nobody has formalised is an uninterpreted constant,
+// not a True definition, which would be a different diagram rather than a
+// placeholder.
+func TestWriteRefinementLeavesNaturalLanguagePredicatesUninterpreted(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeStableFailure, `@startuml
+state "s0" as s0
+s0: n
+[*] --> s0
+s0 --> s0 : a ; n is positive ; n' is n
+@enduml
+`, `@startuml
+state "t0" as t0
+t0: n
+[*] --> t0
+t0 --> t0 : a
+@enduml
+`)
+
+	for _, want := range []string{
+		"(* TODO(csdf): not formalised; this predicate is uninterpreted. *)",
+		"(* n is positive *)",
+		"consts pred_",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "is positive *)\ndefinition pred_") {
+		t.Errorf("WriteRefinement() still defines a natural-language predicate; got:\n%s", got)
+	}
+	if !strings.Contains(got, "(* true *)\ndefinition pred_") {
+		t.Errorf("WriteRefinement() does not define the literal true predicate; got:\n%s", got)
 	}
 }
