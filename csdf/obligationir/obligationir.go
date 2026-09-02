@@ -131,24 +131,8 @@ type IRPredicateWithID struct {
 	Predicate IRPredicate   `json:"predicate"`
 }
 
-func (p IRPredicate) WithID(h hash.Hash32) IRPredicateWithID {
-	return IRPredicateWithID{
-		ID:        p.Hash(h),
-		Predicate: p,
-	}
-}
-
 func ComparePredicateWithID(a, b IRPredicateWithID) int {
 	return ComparePredicateID(a.ID, b.ID)
-}
-
-func IRPredicatesWithHash(ps []IRPredicate) []IRPredicateWithID {
-	h := crc32.NewIEEE()
-	res := make([]IRPredicateWithID, len(ps))
-	for i, p := range ps {
-		res[i] = p.WithID(h)
-	}
-	return res
 }
 
 // IREdge is one transition. Guard/Post name a shared predicate symbol, while
