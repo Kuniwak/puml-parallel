@@ -39,13 +39,10 @@ func (p *Parser) Parse() (*Diagram, error) {
 	if err := p.skipInlineTrivia(); err != nil {
 		return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 	}
-	if p.peek() == '"' {
-		if _, err := p.parseStateName(); err != nil {
-			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
-		}
-		if err := p.skipInlineTrivia(); err != nil {
-			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
-		}
+	// The diagram name is accepted for PlantUML compatibility, but discarded:
+	// the rest of the line is free-form text, so it is skipped verbatim.
+	for !p.isAtEnd() && p.peek() != '\n' {
+		p.advance()
 	}
 	if !p.expectNewlines() {
 		return nil, fmt.Errorf("csdf.Parser.Parse: expected newline after @startuml at line %d, col %d", p.line, p.col)

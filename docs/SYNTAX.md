@@ -6,8 +6,8 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" inlineTrivia 0*1(diagramName) inlineTrivia LF trivia 1*(stateDecl trivia) startEdgeDecl trivia *(edgeDecl trivia) 0*1(endEdgeDecl trivia) "@enduml" LF
-diagramName = stateName
+diagram = "@startuml" inlineTrivia 0*1(diagramName) LF trivia 1*(stateDecl trivia) startEdgeDecl trivia *(edgeDecl trivia) 0*1(endEdgeDecl trivia) "@enduml" LF
+diagramName = 1*(HTAB / unicode_char)
 stateDecl = "state" inlineSeparator stateName inlineSeparator "as" inlineSeparator stateID inlineTrivia LF trivia *(stateVarDecl trivia)
 stateVarDecl = stateID inlineTrivia ":" inlineTrivia var inlineTrivia 0*1(";" inlineTrivia varType) LF
 startEdgeDecl = "[*]" inlineSeparator "-->" inlineSeparator stateID 0*1(inlineTrivia ":" inlineSeparator post) inlineTrivia LF
@@ -117,7 +117,7 @@ Semantics
 | Syntax Element                             | Corresponding Type | Meaning                                                                                                                                                                  |
 |:-------------------------------------------|:-------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `diagram`                                  | `Diagram`          | Represents a declaration of a state transition model.                                                                                                                    |
-| `diagramName`                              | N/A                | Optional PlantUML diagram name. It is accepted but not retained in the AST.                                                                                               |
+| `diagramName`                              | N/A                | Optional PlantUML diagram name written on the `@startuml` line. Any text up to the end of the line is accepted, quoted or not, and comment delimiters within it are plain text. It is not retained in the AST, so printing a parsed diagram drops the name. |
 | `stateDecl`                                | `State`            | Represents a state declaration.                                                                                                                                          |
 | `stateVarDecl`                             | `StateVar`         | Represents a state variable name and its optional type.                                                                                                                   |
 | `startEdgeDecl`                            | `StartEdge`        | Represents a declaration of transition to the initial state.                                                                                                             |
