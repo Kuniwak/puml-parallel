@@ -151,15 +151,3 @@ func SortedEvents(byEvent map[Event][]Edge) []Event {
 	sort.Slice(events, func(i, j int) bool { return events[i] < events[j] })
 	return events
 }
-
-func SortEdges(edges []Edge) {
-	sort.Slice(edges, func(i, j int) bool {
-		if edges[i].Src != edges[j].Src {
-			return edges[i].Src < edges[j].Src
-		}
-		if edges[i].Event != edges[j].Event {
-			return edges[i].Event < edges[j].Event
-		}
-		return edges[i].Dst < edges[j].Dst
-	})
-}

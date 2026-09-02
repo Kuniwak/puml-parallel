@@ -81,6 +81,22 @@ func SortedStates(m map[StateID]State) []StateWithID {
 	return ss
 }
 
+// CompareEdge is the canonical order of transitions: source, then event, then
+// destination.
+func CompareEdge(a, b Edge) int {
+	if c := cmp.Compare(a.Src, b.Src); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(a.Event, b.Event); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.Dst, b.Dst)
+}
+
+func SortEdges(edges []Edge) {
+	slices.SortFunc(edges, CompareEdge)
+}
+
 type StartEdge struct {
 	Dst  StateID   `json:"dst"`
 	Post Predicate `json:"post"`
