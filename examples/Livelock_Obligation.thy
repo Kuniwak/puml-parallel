@@ -17,7 +17,7 @@ datatype val = ValInt int
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
 
-datatype st = a val (* type: (n :: Nat) *)
+datatype st = St_a val (* type: (n :: Nat) *)
 
 (* n' = n - 1 *)
 definition pred_8y6pdz :: "val \<Rightarrow> val \<Rightarrow> bool"
@@ -50,17 +50,17 @@ definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
   where "post_L5 \<equiv> pred_8y6pdz"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
+  where "step s s' \<equiv> \<exists>v_n v_n'. s = St_a v_n \<and> s' = St_a v_n' \<and> guard_L5 v_n \<and> post_L5 v_n v_n'"
 
 inductive reachable :: "st \<Rightarrow> bool"
-  where base: "init n \<Longrightarrow> reachable (a n)"
+  where base: "init v_n \<Longrightarrow> reachable (St_a v_n)"
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
+  where "tau_step s s' \<equiv> \<exists>v_n v_n'. s = St_a v_n \<and> s' = St_a v_n' \<and> guard_L5 v_n \<and> post_L5 v_n v_n'"
 
 definition n_measure :: "st \<Rightarrow> nat"
-  where "n_measure s \<equiv> case s of a v \<Rightarrow> (case v of ValInt i \<Rightarrow> nat i | _ \<Rightarrow> 0)"
+  where "n_measure s \<equiv> case s of St_a v \<Rightarrow> (case v of ValInt i \<Rightarrow> nat i | _ \<Rightarrow> 0)"
 
 (* The guard forces the variable to be a positive integer and the post condition
    decrements it, so nat n drops on every tau transition. *)
@@ -69,7 +69,7 @@ lemma tau_step_measure:
   shows "n_measure s' < n_measure s"
 proof -
   from assms obtain n n' where
-    s: "s = a n" and s': "s' = a n'" and g: "guard_L5 n" and p: "post_L5 n n'"
+    s: "s = St_a n" and s': "s' = St_a n'" and g: "guard_L5 n" and p: "post_L5 n n'"
     unfolding tau_step_def by blast
   from g obtain i where n: "n = ValInt i" and pos: "0 < i"
     unfolding guard_L5_def pred_10rp854_def by (cases n; simp)

@@ -148,10 +148,10 @@ a --> a : dec ; n > 0 ; n' < n
 		"def post_S_L5 : Val → Val → Prop := pred_1ini9wn",
 		// The enabledness conjunct: without it an edge whose post is unsatisfiable
 		// would still offer its event.
-		"procIte (guard_S_L5 n ∧ ∃ n', post_S_L5 n n')",
-		"(event.Alphabet alphabet.Ev_dec ~> Rep_int_choice_f (fun n' => event.Internal [n']) {n' | post_S_L5 n n'}",
-		"(fun n' => proc.Proc_name (PN.S_a n')))",
-		"Rep_int_choice_f (fun n => event.Internal [n]) {n | init_S n}",
+		"procIte (guard_S_L5 v_n ∧ ∃ v_n', post_S_L5 v_n v_n')",
+		"(event.Alphabet alphabet.Ev_dec ~> Rep_int_choice_f (fun v_n' => event.Internal [v_n']) {v_n' | post_S_L5 v_n v_n'}",
+		"(fun v_n' => proc.Proc_name (PN.S_a v_n')))",
+		"Rep_int_choice_f (fun v_n => event.Internal [v_n]) {v_n | init_S v_n}",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q\n%s", want, got)
@@ -172,10 +172,10 @@ a --> a : step ; true ; n' = m
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
 	for _, want := range []string{
-		"  | PN.S_a n m =>",
-		"∃ n' m', post_S_L6 n m n' m'",
-		"Rep_int_choice_f (fun (n', m') => event.Internal [n', m']) {(n', m') | post_S_L6 n m n' m'}",
-		"(fun (n', m') => proc.Proc_name (PN.S_a n' m'))",
+		"  | PN.S_a v_n v_m =>",
+		"∃ v_n' v_m', post_S_L6 v_n v_m v_n' v_m'",
+		"Rep_int_choice_f (fun (v_n', v_m') => event.Internal [v_n', v_m']) {(v_n', v_m') | post_S_L6 v_n v_m v_n' v_m'}",
+		"(fun (v_n', v_m') => proc.Proc_name (PN.S_a v_n' v_m'))",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q\n%s", want, got)
@@ -343,9 +343,9 @@ t0 --> t0 : a ; holds ; holds
 `)
 
 	for _, want := range []string{
-		"guard_S_L7 x ∧ ∃ y', post_S_L7 x y'",
-		"guard_S_L8 y ∧ ∃ x', post_S_L8 y x'",
-		"guard_I_L5 z ∧ ∃ z', post_I_L5 z z'",
+		"guard_S_L7 v_x ∧ ∃ v_y', post_S_L7 v_x v_y'",
+		"guard_S_L8 v_y ∧ ∃ v_x', post_S_L8 v_y v_x'",
+		"guard_I_L5 v_z ∧ ∃ v_z', post_I_L5 v_z v_z'",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
@@ -372,15 +372,21 @@ vm-idle --> vm-idle : choose(a product)
 
 	for _, want := range []string{
 		"| Ev_choose_u28_a_u20_product_u29_",
-		"| S_vm_u2d_idle (u_1st : Val) (end_ : Val)",
-		"PN.S_vm_u2d_idle u_1st end_ =>",
+		"| S_vm_u2d_idle (v_1st : Val) (v_end : Val)",
+		"PN.S_vm_u2d_idle v_1st v_end =>",
 		`--   choose_u28_a_u20_product_u29_ = "choose(a product)"`,
-		`--   end_ = "end"`,
-		`--   u_1st = "1st"`,
 		`--   vm_u2d_idle = "vm-idle"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
+	}
+
+	// "1st" and "end" survive the encoding unchanged - it is the v_ prefix, not
+	// the encoding, that makes them identifiers - so the table does not list them.
+	for _, unwanted := range []string{`"1st"`, `"end"`} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("WriteRefinement() names %s in the encoding table; got:\n%s", unwanted, got)
 		}
 	}
 }
@@ -471,7 +477,7 @@ t0 --> t0 : a
 `)
 
 	for _, want := range []string{
-		"theorem initialisable_S : ∃ n, init_S n := by\n  sorry",
+		"theorem initialisable_S : ∃ v_n, init_S v_n := by\n  sorry",
 		"theorem initialisable_I : init_I := by\n  sorry",
 	} {
 		if !strings.Contains(got, want) {

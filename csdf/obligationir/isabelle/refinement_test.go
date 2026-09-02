@@ -206,13 +206,13 @@ datatype PN = S_a val
 primrec
   procfun :: "(PN, event) pnfun"
 where
-  "procfun (S_a n) =
-     (IF (guard_S_L5 n \<and> (\<exists>n'. post_S_L5 n n'))
-      THEN Alphabet Ev_dec -> (!<\<lambda>n'. Internal [n']> n':{n'. post_S_L5 n n'} .. $(S_a n'))
+  "procfun (S_a v_n) =
+     (IF (guard_S_L5 v_n \<and> (\<exists>v_n'. post_S_L5 v_n v_n'))
+      THEN Alphabet Ev_dec -> (!<\<lambda>v_n'. Internal [v_n']> v_n':{v_n'. post_S_L5 v_n v_n'} .. $(S_a v_n'))
       ELSE STOP)"
-| "procfun (I_a n) =
-     (IF (guard_I_L5 n \<and> (\<exists>n'. post_I_L5 n n'))
-      THEN Alphabet Ev_dec -> (!<\<lambda>n'. Internal [n']> n':{n'. post_I_L5 n n'} .. $(I_a n'))
+| "procfun (I_a v_n) =
+     (IF (guard_I_L5 v_n \<and> (\<exists>v_n'. post_I_L5 v_n v_n'))
+      THEN Alphabet Ev_dec -> (!<\<lambda>v_n'. Internal [v_n']> v_n':{v_n'. post_I_L5 v_n v_n'} .. $(I_a v_n'))
       ELSE STOP)"
 
 overloading Set_procfun == "PNfun :: (PN, event) pnfun"
@@ -222,10 +222,10 @@ end
 declare Set_procfun_def [simp]
 
 definition SpecProc :: "(PN, event) proc"
-  where "SpecProc \<equiv> (!<\<lambda>n. Internal [n]> n:{n. init_S n} .. $(S_a n))"
+  where "SpecProc \<equiv> (!<\<lambda>v_n. Internal [v_n]> v_n:{v_n. init_S v_n} .. $(S_a v_n))"
 
 definition ImplProc :: "(PN, event) proc"
-  where "ImplProc \<equiv> (!<\<lambda>n. Internal [n]> n:{n. init_I n} .. $(I_a n))"
+  where "ImplProc \<equiv> (!<\<lambda>v_n. Internal [v_n]> v_n:{v_n. init_I v_n} .. $(I_a v_n))"
 
 (* Every trace of the Impl diagram is a trace of the Spec diagram: in CSP-Prover
    P <=T Q unfolds to traces Q <= traces P. *)
@@ -281,8 +281,8 @@ a --> a : tau ; n > 0 ; n' < n
 
 	for _, want := range []string{
 		"datatype alphabet = HTau\n",
-		`      THEN Alphabet HTau -> (!<\<lambda>n'. Internal [n']> n':{n'. post_S_L5 n n'} .. $(S_a n'))`,
-		`.. $(S_a n)) -- {Alphabet HTau}"`,
+		`      THEN Alphabet HTau -> (!<\<lambda>v_n'. Internal [v_n']> v_n':{v_n'. post_S_L5 v_n v_n'} .. $(S_a v_n'))`,
+		`.. $(S_a v_n)) -- {Alphabet HTau}"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q\n%s", want, got)
@@ -330,8 +330,8 @@ a --> [*] : n = 0
 `
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
-	want := `  "procfun (S_a n) =
-     (IF guard_S_L5 n
+	want := `  "procfun (S_a v_n) =
+     (IF guard_S_L5 v_n
       THEN SKIP
       ELSE STOP)"`
 	if !strings.Contains(got, want) {
@@ -468,10 +468,10 @@ a --> a : step ; true ; n' = m
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
 	for _, want := range []string{
-		`  "procfun (S_a n m) =`,
-		`(\<exists>n' m'. post_S_L6 n m n' m')`,
-		`(!<\<lambda>(n', m'). Internal [n', m']> (n', m'):{(n', m'). post_S_L6 n m n' m'} .. $(S_a n' m'))`,
-		`where "SpecProc \<equiv> (!<\<lambda>(n, m). Internal [n, m]> (n, m):{(n, m). init_S n m} .. $(S_a n m))"`,
+		`  "procfun (S_a v_n v_m) =`,
+		`(\<exists>v_n' v_m'. post_S_L6 v_n v_m v_n' v_m')`,
+		`(!<\<lambda>(v_n', v_m'). Internal [v_n', v_m']> (v_n', v_m'):{(v_n', v_m'). post_S_L6 v_n v_m v_n' v_m'} .. $(S_a v_n' v_m'))`,
+		`where "SpecProc \<equiv> (!<\<lambda>(v_n, v_m). Internal [v_n, v_m]> (v_n, v_m):{(v_n, v_m). init_S v_n v_m} .. $(S_a v_n v_m))"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q\n%s", want, got)
@@ -495,10 +495,8 @@ vm-idle --> vm-idle : choose(a product)
 
 	for _, want := range []string{
 		"Ev_choose_u28_a_u20_product_u29_",
-		"S_vm_u2d_idle u_1st end_",
+		"S_vm_u2d_idle v_1st v_end",
 		`   choose_u28_a_u20_product_u29_ = "choose(a product)"`,
-		`   end_ = "end"`,
-		`   u_1st = "1st"`,
 		`   vm_u2d_idle = "vm-idle"`,
 	} {
 		if !strings.Contains(got, want) {
@@ -586,7 +584,7 @@ t0 --> t0 : a
 `)
 
 	for _, want := range []string{
-		"theorem initialisable_S: \"\\<exists>n. init_S n\"\n  oops",
+		"theorem initialisable_S: \"\\<exists>v_n. init_S v_n\"\n  oops",
 		"theorem initialisable_I: \"init_I\"\n  oops",
 	} {
 		if !strings.Contains(got, want) {

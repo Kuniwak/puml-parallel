@@ -31,7 +31,7 @@ datatype val = ValInt int
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
 
-datatype st = a val (* type: (n :: nat) *)
+datatype st = St_a val (* type: (n :: nat) *)
 
 (* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n = 10 *)
@@ -58,14 +58,14 @@ definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
   where "post_L5 \<equiv> pred_1nuhmrf"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
+  where "step s s' \<equiv> \<exists>v_n v_n'. s = St_a v_n \<and> s' = St_a v_n' \<and> guard_L5 v_n \<and> post_L5 v_n v_n'"
 
 inductive reachable :: "st \<Rightarrow> bool"
-  where base: "init n \<Longrightarrow> reachable (a n)"
+  where base: "init v_n \<Longrightarrow> reachable (St_a v_n)"
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
+  where "tau_step s s' \<equiv> \<exists>v_n v_n'. s = St_a v_n \<and> s' = St_a v_n' \<and> guard_L5 v_n \<and> post_L5 v_n v_n'"
 
 theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"
   oops
@@ -123,7 +123,7 @@ datatype val = ValInt int
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
 
-datatype st = a val (* type: (n :: any) *)
+datatype st = St_a val (* type: (n :: any) *)
 
 (* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n' = n - 1 *)
@@ -150,14 +150,14 @@ definition post_L5 :: "val \<Rightarrow> val \<Rightarrow> bool"
   where "post_L5 \<equiv> pred_7ydc3w"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
+  where "step s s' \<equiv> \<exists>v_n v_n'. s = St_a v_n \<and> s' = St_a v_n' \<and> guard_L5 v_n \<and> post_L5 v_n v_n'"
 
 inductive reachable :: "st \<Rightarrow> bool"
-  where base: "init n \<Longrightarrow> reachable (a n)"
+  where base: "init v_n \<Longrightarrow> reachable (St_a v_n)"
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> \<exists>n n'. s = a n \<and> s' = a n' \<and> guard_L5 n \<and> post_L5 n n'"
+  where "tau_step s s' \<equiv> \<exists>v_n v_n'. s = St_a v_n \<and> s' = St_a v_n' \<and> guard_L5 v_n \<and> post_L5 v_n v_n'"
 
 theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"
   oops
@@ -187,8 +187,8 @@ b --> a : tau
   imports Main
 begin
 
-datatype st = a
-  | b
+datatype st = St_a
+  | St_b
 
 (* true *)
 definition pred_1ygzo25 :: "bool"
@@ -215,16 +215,16 @@ definition post_L6 :: "bool"
   where "post_L6 \<equiv> pred_1ygzo25"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "step s s' \<equiv> (s = a \<and> s' = b \<and> guard_L5 \<and> post_L5)
-    \<or> (s = b \<and> s' = a \<and> guard_L6 \<and> post_L6)"
+  where "step s s' \<equiv> (s = St_a \<and> s' = St_b \<and> guard_L5 \<and> post_L5)
+    \<or> (s = St_b \<and> s' = St_a \<and> guard_L6 \<and> post_L6)"
 
 inductive reachable :: "st \<Rightarrow> bool"
-  where base: "init \<Longrightarrow> reachable a"
+  where base: "init \<Longrightarrow> reachable St_a"
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> (s = a \<and> s' = b \<and> guard_L5 \<and> post_L5)
-    \<or> (s = b \<and> s' = a \<and> guard_L6 \<and> post_L6)"
+  where "tau_step s s' \<equiv> (s = St_a \<and> s' = St_b \<and> guard_L5 \<and> post_L5)
+    \<or> (s = St_b \<and> s' = St_a \<and> guard_L6 \<and> post_L6)"
 
 theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"
   oops

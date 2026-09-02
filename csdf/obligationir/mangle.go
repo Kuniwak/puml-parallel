@@ -10,24 +10,27 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
-// Mangle encodes an arbitrary CSDF name as an identifier both Lean 4 and
-// Isabelle accept. CSDF names are not identifiers: an event is any run of
+// Mangle encodes an arbitrary CSDF name as a run of ASCII letters, digits and
+// underscores. CSDF names are not identifiers: an event is any run of
 // non-semicolon Unicode characters ("choose(product)"), and even an id may carry
-// a hyphen, start with a digit, or spell a keyword of either prover. Emitting
-// them verbatim produced theories that do not parse, which fails completeness
-// outright - a diagram that refines itself must at least yield a checkable
-// obligation.
+// a hyphen or start with a digit. Emitting them verbatim produced theories that
+// do not parse, which fails completeness outright - a diagram that refines itself
+// must at least yield a checkable obligation.
 //
 // The encoding is total and injective, so two distinct names never collide and
 // the original is recoverable:
 //
 //   - an ASCII letter or digit stands for itself;
 //   - "_" doubles to "__";
-//   - every other rune becomes "_u<hex>_" (lower-case hex of its code point);
-//   - a result that would not start with an ASCII letter gets a "u_" prefix,
-//     which no other input can produce because a leading "u" is never escaped;
-//   - a result that spells a reserved word of either prover gets a "_" suffix,
-//     which no other input can produce because a trailing "_" is always doubled.
+//   - every other rune becomes "_u<hex>_" (lower-case hex of its code point).
+//
+// The result is NOT an identifier on its own: it may start with a digit, and it
+// may spell a keyword of either prover or a name the generator itself declares.
+// Every emitted identifier therefore carries a category prefix - EventCtor,
+// Side.Ctor, VarName, pred_, guard_/post_/init_ - which is what makes it a legal
+// identifier distinct from the generator's own vocabulary. Prefixing every
+// category rather than keeping a table of words to avoid is deliberate: a table
+// is only as good as its last update, and the categories are finitely many.
 //
 // Backends must agree on these spellings, so this is their single definition.
 // The original name is kept in a comment beside the declaration.
@@ -46,50 +49,20 @@ func Mangle(s string) string {
 			b.WriteString("_")
 		}
 	}
-
-	res := b.String()
-	if res == "" || !isASCIILetter(rune(res[0])) {
-		res = "u_" + res
-	}
-	if _, reserved := reservedWords[res]; reserved {
-		res += "_"
-	}
-	return res
+	return b.String()
 }
+
+// VarPrefix keeps a state variable out of the generator's own vocabulary. A
+// diagram may name a variable "step", "init" or "and", and an unprefixed binder
+// of that name shadows the constant being defined or is a keyword outright.
+const VarPrefix = "v_"
+
+// VarName is the identifier a state variable is bound by.
+func VarName(name string) string { return VarPrefix + Mangle(name) }
 
 // IsMangled reports whether Mangle changed the name, i.e. whether the generated
 // identifier needs the original spelling recorded beside it.
 func IsMangled(s string) bool { return Mangle(s) != s }
-
-func isASCIILetter(r rune) bool {
-	return ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z')
-}
-
-// reservedWords is the union of the Lean 4 and Isabelle/Isar words that cannot be
-// an identifier. It is deliberately generous: a false positive only appends an
-// underscore, whereas a miss produces a theory that does not parse.
-var reservedWords = func() map[string]struct{} {
-	words := strings.Fields(`
-		abbrev at attribute axiom axiomatization by calc case class corollary
-		deriving do else end example exists extends for forall from fun have
-		if import in inductive instance is lemma let macro match mutual
-		namespace noncomputable notation obtain of opaque open partial
-		primrec private proof protected qed section set_option show sorry
-		structure syntax theorem then this unsafe universe using variable where
-		with
-
-		apply assumes begin consts context datatype definition done fixes
-		imports locale nonterminal notes obtains oops shows theory ALL EX SOME
-		THE
-
-		Prop Sort Type
-	`)
-	res := make(map[string]struct{}, len(words))
-	for _, w := range words {
-		res[w] = struct{}{}
-	}
-	return res
-}()
 
 // MangledName pairs a generated identifier with the CSDF name it encodes.
 type MangledName struct {

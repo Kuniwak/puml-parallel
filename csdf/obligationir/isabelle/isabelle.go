@@ -441,7 +441,7 @@ func WriteStatePattern(w io.Writer, side obligationir.Side, id csdf.StateID, st 
 }
 
 func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
-	io.WriteString(w, obligationir.Mangle(f.Name))
+	io.WriteString(w, obligationir.VarName(f.Name))
 	if primed {
 		io.WriteString(w, `'`)
 	}
@@ -532,7 +532,7 @@ func NewWriteArgNameFunc(args []obligationir.IRArg) func(io.Writer, int) error {
 }
 
 func WriteArgName(w io.Writer, arg obligationir.IRArg) {
-	io.WriteString(w, obligationir.Mangle(arg.Name))
+	io.WriteString(w, obligationir.VarName(arg.Name))
 	if arg.Primed {
 		io.WriteString(w, `'`)
 	}

@@ -13,7 +13,8 @@ import (
 //
 // Predicate names (pred_<id>) are deliberately *not* qualified: the id hashes the
 // text and argument types, so a predicate occurring in both diagrams dedupes into
-// one placeholder that is filled once. Every backend must agree on these
+// one placeholder that is filled once (which holds as long as no two predicates
+// collide under that hash; see PredicateSet). Every backend must agree on these
 // spellings.
 type Side struct {
 	Suffix     string // appended to declaration names: "" | "_S" | "_I"
@@ -21,7 +22,11 @@ type Side struct {
 }
 
 var (
-	SideSingle = Side{}
+	// The single-diagram case still prefixes its state constructors: a state id
+	// is a CSDF name, and an unprefixed constructor can collide with a keyword or
+	// with a constant the generator declares itself (a state called "init" would
+	// be declared twice).
+	SideSingle = Side{CtorPrefix: "St_"}
 	SideSpec   = Side{Suffix: "_S", CtorPrefix: "S_"}
 	SideImpl   = Side{Suffix: "_I", CtorPrefix: "I_"}
 

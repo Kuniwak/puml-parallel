@@ -294,7 +294,7 @@ func WriteProcessNameDatatype(w io.Writer, ir obligationir.IRRefinement) error {
 			io.WriteString(w, s.Side.Ctor(st.StateID))
 			for _, f := range st.Fields {
 				io.WriteString(w, ` (`)
-				io.WriteString(w, obligationir.Mangle(f.Name))
+				io.WriteString(w, obligationir.VarName(f.Name))
 				io.WriteString(w, ` : `)
 				io.WriteString(w, ValType)
 				io.WriteString(w, `)`)

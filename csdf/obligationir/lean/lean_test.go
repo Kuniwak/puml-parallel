@@ -29,7 +29,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
   | ValDict (kvs : List (String × Val))
 
 inductive St where
-  | a (n : Val) -- type: (n : nat)
+  | St_a (v_n : Val) -- type: (n : nat)
 
 -- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n = 10
@@ -53,14 +53,14 @@ def guard_L5 : Val → Prop := pred_1gdozh4
 def post_L5 : Val → Val → Prop := pred_1nuhmrf
 
 def step (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+  ∃ v_n v_n', s = .St_a v_n ∧ s' = .St_a v_n' ∧ guard_L5 v_n ∧ post_L5 v_n v_n'
 
 inductive Reachable : St → Prop where
-  | base (n : Val) : init n → Reachable (.a n)
+  | base (v_n : Val) : init v_n → Reachable (.St_a v_n)
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 def tauStep (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+  ∃ v_n v_n', s = .St_a v_n ∧ s' = .St_a v_n' ∧ guard_L5 v_n ∧ post_L5 v_n v_n'
 
 theorem livelock_free :
     WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by
@@ -119,7 +119,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
   | ValDict (kvs : List (String × Val))
 
 inductive St where
-  | a (n : Val) -- type: (n : any)
+  | St_a (v_n : Val) -- type: (n : any)
 
 -- TODO(csdf): not formalised; this predicate is uninterpreted.
 -- n' = n - 1
@@ -143,14 +143,14 @@ def guard_L5 : Val → Prop := pred_1e81hjg
 def post_L5 : Val → Val → Prop := pred_7ydc3w
 
 def step (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+  ∃ v_n v_n', s = .St_a v_n ∧ s' = .St_a v_n' ∧ guard_L5 v_n ∧ post_L5 v_n v_n'
 
 inductive Reachable : St → Prop where
-  | base (n : Val) : init n → Reachable (.a n)
+  | base (v_n : Val) : init v_n → Reachable (.St_a v_n)
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 def tauStep (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+  ∃ v_n v_n', s = .St_a v_n ∧ s' = .St_a v_n' ∧ guard_L5 v_n ∧ post_L5 v_n v_n'
 
 theorem livelock_free :
     WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by
@@ -176,8 +176,8 @@ b --> a : tau
 `)
 
 	want := `inductive St where
-  | a
-  | b
+  | St_a
+  | St_b
 
 -- true
 def pred_1ygzo25 : Prop := True
@@ -198,16 +198,16 @@ def guard_L6 : Prop := pred_1ygzo25
 def post_L6 : Prop := pred_1ygzo25
 
 def step (s s' : St) : Prop :=
-  (s = .a ∧ s' = .b ∧ guard_L5 ∧ post_L5)
-  ∨ (s = .b ∧ s' = .a ∧ guard_L6 ∧ post_L6)
+  (s = .St_a ∧ s' = .St_b ∧ guard_L5 ∧ post_L5)
+  ∨ (s = .St_b ∧ s' = .St_a ∧ guard_L6 ∧ post_L6)
 
 inductive Reachable : St → Prop where
-  | base : init → Reachable .a
+  | base : init → Reachable .St_a
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 def tauStep (s s' : St) : Prop :=
-  (s = .a ∧ s' = .b ∧ guard_L5 ∧ post_L5)
-  ∨ (s = .b ∧ s' = .a ∧ guard_L6 ∧ post_L6)
+  (s = .St_a ∧ s' = .St_b ∧ guard_L5 ∧ post_L5)
+  ∨ (s = .St_b ∧ s' = .St_a ∧ guard_L6 ∧ post_L6)
 
 theorem livelock_free :
     WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by

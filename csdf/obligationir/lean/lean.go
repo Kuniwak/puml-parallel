@@ -403,7 +403,7 @@ func WriteStatePattern(w io.Writer, side obligationir.Side, id csdf.StateID, st 
 }
 
 func WriteField(w io.Writer, f obligationir.IRField, primed bool) {
-	io.WriteString(w, obligationir.Mangle(f.Name))
+	io.WriteString(w, obligationir.VarName(f.Name))
 	if primed {
 		io.WriteString(w, `'`)
 	}
@@ -423,7 +423,7 @@ func WriteStateTypeDeclaration(w io.Writer, side obligationir.Side, ss []obligat
 		io.WriteString(w, side.Ctor(s.StateID))
 		for _, f := range s.Fields {
 			io.WriteString(w, ` (`)
-			io.WriteString(w, obligationir.Mangle(f.Name))
+			io.WriteString(w, obligationir.VarName(f.Name))
 			io.WriteString(w, ` : `)
 			io.WriteString(w, ValType)
 			io.WriteString(w, `)`)
@@ -471,7 +471,7 @@ func WriteVarTypesCommentContent(w io.Writer, fs []obligationir.IRField) {
 }
 
 func WriteArgName(w io.Writer, arg obligationir.IRArg) {
-	io.WriteString(w, obligationir.Mangle(arg.Name))
+	io.WriteString(w, obligationir.VarName(arg.Name))
 	if arg.Primed {
 		io.WriteString(w, `'`)
 	}

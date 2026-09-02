@@ -3,11 +3,13 @@ package obligationir
 import "testing"
 
 func TestSideSingleKeepsUnqualifiedNames(t *testing.T) {
-	// The single-diagram obligation must keep the spelling it had before sides
-	// existed, or every livelock golden file changes.
+	// The single-diagram obligation leaves every declaration name unqualified.
+	// State constructors are the exception: a state id is a CSDF name, so it
+	// still takes the St_ prefix that keeps it out of the generator's own
+	// vocabulary.
 	s := SideSingle
-	if got := s.Ctor("a"); got != "a" {
-		t.Errorf("Ctor = %q, want a", got)
+	if got := s.Ctor("a"); got != "St_a" {
+		t.Errorf("Ctor = %q, want St_a", got)
 	}
 	if got := s.Qualify("step"); got != "step" {
 		t.Errorf("Qualify = %q, want step", got)

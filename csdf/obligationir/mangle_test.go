@@ -13,11 +13,9 @@ func TestMangle(t *testing.T) {
 		{name: "a space", in: "pay now", want: "pay_u20_now"},
 		{name: "a hyphen in an id", in: "vm-idle", want: "vm_u2d_idle"},
 		{name: "an underscore doubles", in: "a_b", want: "a__b"},
-		{name: "a leading digit", in: "1st", want: "u_1st"},
-		{name: "a reserved word", in: "end", want: "end_"},
-		{name: "a name ending in an underscore is not a reserved word", in: "end_", want: "end__"},
-		{name: "a non-ASCII letter", in: "商品", want: "u__u5546__u54c1_"},
-		{name: "the empty name", in: "", want: "u_"},
+		{name: "a leading digit is left alone; the prefix supplies the letter", in: "1st", want: "1st"},
+		{name: "a non-ASCII letter", in: "商品", want: "_u5546__u54c1_"},
+		{name: "the empty name", in: "", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -32,9 +30,9 @@ func TestMangle(t *testing.T) {
 // collision would silently identify two events or two variables.
 func TestMangleIsInjective(t *testing.T) {
 	names := []string{
-		"", "_", "__", "u_", "u", "a", "a_", "_a", "1st", "u_1st", "end", "end_",
+		"", "_", "__", "u_", "u", "a", "a_", "_a", "1st", "end", "end_",
 		"a b", "a_b", "a__b", "a-b", "choose(product)", "choose_u28_product_u29_",
-		"商品", "u__u5546__u54c1_",
+		"商品",
 	}
 	seen := make(map[string]string, len(names))
 	for _, n := range names {
@@ -46,17 +44,15 @@ func TestMangleIsInjective(t *testing.T) {
 	}
 }
 
-// TestMangleProducesIdentifiers pins the character set both provers accept:
-// an ASCII letter followed by ASCII letters, digits and underscores.
-func TestMangleProducesIdentifiers(t *testing.T) {
+// TestMangleProducesIdentifierCharacters pins the character set both provers
+// accept. Mangle alone may still start with a digit, which is why every emitted
+// identifier carries a category prefix; TestVarName covers one such prefix.
+func TestMangleProducesIdentifierCharacters(t *testing.T) {
 	for _, in := range []string{"", "1st", "choose(product)", "vm-idle", "商品", "end", "\n"} {
 		got := Mangle(in)
-		if got == "" || !isASCIILetter(rune(got[0])) {
-			t.Errorf("Mangle(%q) = %q, want an ASCII letter first", in, got)
-			continue
-		}
-		for _, r := range got[1:] {
-			if !isASCIILetter(r) && !('0' <= r && r <= '9') && r != '_' {
+		for _, r := range got {
+			isLetter := ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z')
+			if !isLetter && !('0' <= r && r <= '9') && r != '_' {
 				t.Errorf("Mangle(%q) = %q contains %q", in, got, r)
 				break
 			}
@@ -64,11 +60,45 @@ func TestMangleProducesIdentifiers(t *testing.T) {
 	}
 }
 
-func TestIsMangled(t *testing.T) {
-	if IsMangled("availableProducts") {
-		t.Error(`IsMangled("availableProducts") = true, want false`)
+// TestVarName pins that a state variable never reaches the theory under the name
+// the diagram gave it. A diagram may call a variable "step", "init" or "and", and
+// an unprefixed binder of that name shadows the constant being defined or is a
+// keyword outright.
+func TestVarName(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "an ordinary name", in: "availableProducts", want: "v_availableProducts"},
+		{name: "a name the generator declares itself", in: "step", want: "v_step"},
+		{name: "an Isabelle keyword", in: "and", want: "v_and"},
+		{name: "a Lean keyword", in: "def", want: "v_def"},
+		{name: "a leading digit", in: "1st", want: "v_1st"},
 	}
-	if !IsMangled("choose(product)") {
-		t.Error(`IsMangled("choose(product)") = false, want true`)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := VarName(tt.in); got != tt.want {
+				t.Errorf("VarName(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsMangled(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "a name that survives verbatim", in: "availableProducts", want: false},
+		{name: "a name that has to be encoded", in: "choose(product)", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsMangled(tt.in); got != tt.want {
+				t.Errorf("IsMangled(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
 	}
 }
