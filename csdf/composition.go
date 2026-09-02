@@ -99,6 +99,9 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 			return nil, fmt.Errorf("csdf.ComposeParallel2: %w", err)
 		}
 	}
+	// The composite is explored through maps, so the edges are appended in a
+	// random order. Ordering them canonically makes the output deterministic.
+	SortEdges(out.Edges)
 	return out, nil
 }
 

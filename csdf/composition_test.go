@@ -174,3 +174,63 @@ func TestComposeParallelMatchesWholeEvent(t *testing.T) {
 		t.Errorf("ComposeParallel2() synchronized destination = %q, want l1_r1", composite.Edges[0].Dst)
 	}
 }
+
+func TestComposeParallelOrdersEdgesCanonically(t *testing.T) {
+	// Setup: both sides offer several interleaving events from their initial
+	// state, so the edges of the composite are discovered in map-iteration
+	// order. The output must still be ordered by (src, event, dst).
+	left := MustParse(`@startuml
+state "l0" as l0
+state "l1" as l1
+state "l2" as l2
+[*] --> l0
+l0 --> l1 : x
+l0 --> l2 : b
+@enduml
+`)
+	right := MustParse(`@startuml
+state "r0" as r0
+state "r1" as r1
+state "r2" as r2
+[*] --> r0
+r0 --> r1 : y
+r0 --> r2 : a
+@enduml
+`)
+	want := `@startuml
+state "(l0, r0)" as l0_r0
+state "(l0, r1)" as l0_r1
+state "(l0, r2)" as l0_r2
+state "(l1, r0)" as l1_r0
+state "(l1, r1)" as l1_r1
+state "(l1, r2)" as l1_r2
+state "(l2, r0)" as l2_r0
+state "(l2, r1)" as l2_r1
+state "(l2, r2)" as l2_r2
+[*] --> l0_r0
+l0_r0 --> l0_r2 : a
+l0_r0 --> l2_r0 : b
+l0_r0 --> l1_r0 : x
+l0_r0 --> l0_r1 : y
+l0_r1 --> l2_r1 : b
+l0_r1 --> l1_r1 : x
+l0_r2 --> l2_r2 : b
+l0_r2 --> l1_r2 : x
+l1_r0 --> l1_r2 : a
+l1_r0 --> l1_r1 : y
+l2_r0 --> l2_r2 : a
+l2_r0 --> l2_r1 : y
+@enduml
+`
+
+	// Execute
+	composite, err := ComposeParallel([]*Diagram{left, right}, nil)
+	if err != nil {
+		t.Fatalf("ComposeParallel() error = %v", err)
+	}
+
+	// Assert
+	if diff := cmp.Diff(want, composite.String()); diff != "" {
+		t.Error(diff)
+	}
+}
