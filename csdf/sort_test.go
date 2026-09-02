@@ -56,14 +56,30 @@ s1 --> s0 : b
 s0 --> s1 : a
 @enduml
 `)
-	want := d.String()
+	// Diagram.String does not print line numbers, and the main thing Sort
+	// rewrites is exactly those, so they are asserted by hand. Snapshotting the
+	// diagram instead would share the map and the slice with the input and so
+	// could not tell an in-place rewrite from a copy.
+	wantPrinted := d.String()
+	wantLines := map[StateID]int{"s1": 2, "s0": 3}
 
 	// Execute
 	Sort(d)
 
 	// Assert
-	if diff := cmp.Diff(want, d.String()); diff != "" {
+	if diff := cmp.Diff(wantPrinted, d.String()); diff != "" {
 		t.Error(diff)
+	}
+	for id, line := range wantLines {
+		if got := d.States[id].Line; got != line {
+			t.Errorf("state %q: want line %d, got %d", id, line, got)
+		}
+	}
+	if got := d.StartEdge.Line; got != 4 {
+		t.Errorf("start edge: want line 4, got %d", got)
+	}
+	if got := []int{d.Edges[0].Line, d.Edges[1].Line}; !cmp.Equal([]int{5, 6}, got) {
+		t.Errorf("edges: want lines [5 6], got %v", got)
 	}
 }
 
