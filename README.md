@@ -191,7 +191,10 @@ divergence-freedom obligation per side — the `csdflivelockfree` obligation inl
 `wf_on` form, since the F model cannot observe divergence at all — plus an initialisability
 obligation per side, since `DIV` diverges on the empty trace and no `tau`-step argument
 rules that out, plus the stable-failures refinement. A side that is structurally livelock
-free gets a note instead of the `wf_on` theorem.
+free gets a note instead of the `wf_on` theorem. Requiring both of the *Spec* is stronger
+than FD refinement needs — `DIV` is the bottom of the FD model, so `Spec ⊑FD Impl` holds
+even for a diverging Spec — but `<=F` cannot see that, so `-m fd` cannot decide a
+refinement whose Spec side diverges.
 
 One encoding detail is forced by the prover rather than by CSP. A replicated internal
 choice can only be indexed by the event type there — the process datatype has no spare type

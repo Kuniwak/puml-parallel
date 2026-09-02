@@ -191,6 +191,13 @@ theorem livelock_free_I: "wf_on {s. reachable_I s} {(s', s). tau_step_I s s'}" o
 theorem refines_f: "SpecProc <=F ImplProc" oops
 ```
 
+Both sides carry both obligations, which is **stronger than FD refinement needs**:
+`DIV` is the bottom of the FD model, so `Spec ⊑FD Impl` holds even when the Spec
+diverges. Reducing to `<=F` cannot see that — a diverging Spec fails `<=F`
+outright — so this reduction cannot decide a refinement whose Spec side
+diverges, and says so rather than reporting a false verdict. Lifting the
+restriction needs a native FD model (the HOL-CSP fallback in §10).
+
 The two `wf_on` obligations are **exactly the `csdflivelockfree` obligation**,
 built by the existing `BuildLivelockFree` on each input and emitted with the
 shared writer (§7), over side-prefixed `step_S`/`tau_step_S`/`reachable_S` (etc.)

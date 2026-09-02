@@ -68,15 +68,32 @@ Targets selected by -target:
 
 Whether the refinement holds depends on the natural-language Guard/Post
 predicates, which this tool leaves opaque, so the exit status never encodes the
-verdict. Each distinct predicate becomes a True placeholder named pred_<id> after
-its hash, shared by both diagrams and by csdflivelockfree's output for the same
-diagram, so formalising a predicate once serves every obligation it appears in.
-Everything named after a source location is side-qualified (guard_S_L<line>,
-post_I_L<line>, ...), because line numbers collide between the two files.
+verdict. Each distinct predicate becomes an uninterpreted declaration named
+pred_<id> after its hash - "opaque" in Lean, "consts" in Isabelle - carrying its
+original text and a TODO(csdf) marker as comments; treat an artifact that still
+carries a marker as undischarged. Nothing is ever defined as True on the
+diagram's behalf, because that is not a placeholder but a different diagram, in
+which every guard fires. An omitted predicate is the exception: its text really
+is "true", so it stays a definition.
+
+The name is shared by both diagrams, and with csdflivelockfree's output for the
+same diagram, so formalising a predicate once serves every obligation it appears
+in - unless two predicates collide under the hash, in which case the later one
+takes the next free id and the two tools may name it differently. Everything
+named after a source location is side-qualified (guard_S_L<line>, post_I_L<line>,
+...), because line numbers collide between the two files. CSDF names are not
+prover identifiers, so events, state ids and variable names are encoded, and the
+theory opens with a table giving the originals of the names that had to be
+encoded.
 
 CSP-Prover has no failures-divergences model, so -m fd emits the standard
 reduction instead: a divergence-freedom obligation per side - the csdflivelockfree
-obligation inlined - plus the stable-failures refinement.
+obligation inlined, plus an initialisability obligation, since a diagram that
+cannot start denotes DIV and DIV diverges on the empty trace - plus the
+stable-failures refinement. Note that the Spec-side obligations are stronger than
+FD refinement needs: DIV is the bottom of the FD model, so Spec ⊑FD Impl holds
+even for a diverging Spec. Reducing to <=F cannot see that, so -m fd cannot
+decide a refinement whose Spec side diverges.
 
 Checking the emitted theory needs the corresponding library: Isabelle2020 with
 CSP-Prover for isabelle, and lean-csp-prover for lean. The two skeletons mirror

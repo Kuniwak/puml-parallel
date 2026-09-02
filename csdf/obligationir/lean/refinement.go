@@ -658,6 +658,12 @@ theorem refines_f : refFfix SpecProc ImplProc := by
 // the reduction of FD refinement to <=F reads divergence as arising only from
 // infinite HTau runs. Without this the well-foundedness obligations do not
 // license that reading.
+//
+// Requiring this of the Spec is stronger than FD refinement needs - DIV is the
+// bottom of the FD model, so Spec refines Impl in FD holds even for a diverging Spec - but
+// the reduction to <=F cannot see that: a diverging Spec fails <=F outright. So
+// fd mode cannot decide a refinement whose Spec side diverges, and this
+// obligation makes that visible rather than reporting a false verdict.
 func WriteInitialisableTheorem(w io.Writer, s sideIR) {
 	if !s.HasLivelockLayer() {
 		return
