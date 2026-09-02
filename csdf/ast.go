@@ -145,15 +145,20 @@ func (d *Diagram) String() string {
 	// Regular edges
 	for _, edge := range d.Edges {
 		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event))
+		// A lone "; x" is a guard (docs/SYNTAX.md), so an edge that only has a
+		// post must spell the omitted guard out as "; true ; x".
 		if IsTrue(edge.Post) {
+			if !IsTrue(edge.Guard) {
+				sb.WriteString(fmt.Sprintf(" ; %s", edge.Guard))
+			}
 			sb.WriteString("\n")
 			continue
 		}
-		if IsTrue(edge.Guard) {
-			sb.WriteString(fmt.Sprintf(" ; %s\n", edge.Post))
-			continue
+		guard := edge.Guard
+		if IsTrue(guard) {
+			guard = PredicateTrue
 		}
-		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
+		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", guard, edge.Post))
 	}
 
 	if d.EndEdge != nil {

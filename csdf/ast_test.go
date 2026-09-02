@@ -1,6 +1,10 @@
 package csdf
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+)
 
 func TestDiagramStringOrdersStatesByLine(t *testing.T) {
 	// Setup: a map literal whose iteration order is not stable across runs.
@@ -125,5 +129,28 @@ s0 --> s0 : finish(result, status)
 
 	if got != want {
 		t.Errorf("Diagram.String() = %q, want %q", got, want)
+	}
+}
+
+func TestDiagramStringRoundTripsGuardsAndPosts(t *testing.T) {
+	// Setup: every combination of an omitted guard and an omitted post must
+	// survive a print/parse round trip. `; g` is a guard, `; true ; p` a post.
+	source := `@startuml
+state "s0" as s0
+state "s1" as s1
+[*] --> s0
+s0 --> s1 : a
+s0 --> s1 : b ; g
+s0 --> s1 : c ; true ; p
+s0 --> s1 : d ; g ; p
+@enduml
+`
+
+	// Execute
+	printed := MustParse(source).String()
+
+	// Assert
+	if diff := cmp.Diff(source, printed); diff != "" {
+		t.Error(diff)
 	}
 }
