@@ -10,8 +10,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const composed = `@startuml
-state "(s0, s0)" as s0_s0
+// composedBody is everything after the @startuml line, whose diagram name
+// records the command that generated the composition and so varies per case.
+const composedBody = `state "(s0, s0)" as s0_s0
 state "(s1, s0)" as s1_s0
 state "(s2, s1)" as s2_s1
 state "(s2, s2)" as s2_s2
@@ -62,7 +63,8 @@ func TestNewMainFuncComposesATree(t *testing.T) {
 				t.Log(spy.Stderr.String())
 				t.Errorf("want 0, got %d", exitStatus)
 			}
-			if diff := cmp.Diff(composed, spy.Stdout.String()); diff != "" {
+			want := "@startuml " + tools.GeneratedBy("csdfcomp", testCase.Args) + "\n" + composedBody
+			if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
 				t.Error(diff)
 			}
 		})

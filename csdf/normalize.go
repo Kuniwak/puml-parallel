@@ -31,6 +31,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 	initID := normalStateID(initSet)
 
 	result := &Diagram{
+		Name:      d.Name,
 		States:    make(map[StateID]State),
 		StartEdge: StartEdge{Dst: initID, Post: d.StartEdge.Post},
 		Edges:     make([]Edge, 0),

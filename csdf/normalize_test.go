@@ -156,3 +156,27 @@ s0_s1 --> s2 : a
 		t.Error(diff)
 	}
 }
+
+func TestNormalizeKeepsTheDiagramName(t *testing.T) {
+	// Setup: the name is authored information, so normalizing must not drop it.
+	d := MustParse(`@startuml VendingMachine
+state "s0" as s0
+state "s1" as s1
+[*] --> s0
+s0 --> s1 : a
+@enduml
+`)
+
+	// Execute
+	normalized, err := Normalize(d)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Normalize() error = %v", err)
+	}
+	if want := "VendingMachine"; normalized.Name != want {
+		t.Errorf("Normalize().Name = %q, want %q", normalized.Name, want)
+	}
+
+	// Teardown: no resources to release.
+}

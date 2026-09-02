@@ -39,14 +39,13 @@ func (p *Parser) Parse() (*Diagram, error) {
 	if err := p.skipInlineTrivia(); err != nil {
 		return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 	}
-	if p.peek() == '"' {
-		if _, err := p.parseStateName(); err != nil {
-			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
-		}
-		if err := p.skipInlineTrivia(); err != nil {
-			return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
-		}
+	// The diagram name carries no meaning, but the rest of the line is kept
+	// verbatim so that printing the diagram round-trips it.
+	nameStart := p.pos
+	for !p.isAtEnd() && p.peek() != '\n' {
+		p.advance()
 	}
+	diagram.Name = strings.TrimSpace(p.input[nameStart:p.pos])
 	if !p.expectNewlines() {
 		return nil, fmt.Errorf("csdf.Parser.Parse: expected newline after @startuml at line %d, col %d", p.line, p.col)
 	}

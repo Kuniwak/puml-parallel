@@ -5,6 +5,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -27,6 +28,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
 		}
+		composite.Name = tools.GeneratedBy("csdfcomp", opts.Args)
 
 		fmt.Fprint(inout.Stdout, composite.String())
 		return nil

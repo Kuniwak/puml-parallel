@@ -13,7 +13,7 @@ func TestNewMainFuncCompose(t *testing.T) {
 	// Arrange
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
-	want := `@startuml
+	want := `@startuml auto-generated-by: csdfparallel -sync sync ../../../examples/valid/in.puml ../../../examples/valid/out.puml
 state "(s0, s0)" as s0_s0
 state "(s1, s0)" as s1_s0
 state "(s2, s1)" as s2_s1

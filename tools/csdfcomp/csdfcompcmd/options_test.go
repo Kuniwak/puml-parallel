@@ -31,12 +31,12 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		"stdin (representative value)": {
 			Args:     []string{"-"},
 			Stdin:    tree,
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), BaseDir: ".", Bytes: []byte(tree)},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), BaseDir: ".", Bytes: []byte(tree), Args: []string{"-"}},
 		},
 		"-base overrides the derived base directory (representative value)": {
 			Args:     []string{"-base", "elsewhere", "-"},
 			Stdin:    tree,
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), BaseDir: "elsewhere", Bytes: []byte(tree)},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), BaseDir: "elsewhere", Bytes: []byte(tree), Args: []string{"-base", "elsewhere", "-"}},
 		},
 	}
 
