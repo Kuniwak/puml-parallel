@@ -80,6 +80,7 @@ type StateVar struct {
 }
 
 type Diagram struct {
+	Name      string
 	States    map[StateID]State
 	StartEdge StartEdge
 	Edges     []Edge
@@ -117,7 +118,7 @@ Semantics
 | Syntax Element                             | Corresponding Type | Meaning                                                                                                                                                                  |
 |:-------------------------------------------|:-------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `diagram`                                  | `Diagram`          | Represents a declaration of a state transition model.                                                                                                                    |
-| `diagramName`                              | N/A                | Optional PlantUML diagram name written on the `@startuml` line. Any text up to the end of the line is accepted, quoted or not, and comment delimiters within it are plain text. It is not retained in the AST, so printing a parsed diagram drops the name. |
+| `diagramName`                              | `string`           | Optional PlantUML diagram name written on the `@startuml` line. Any text up to the end of the line is accepted, quoted or not, and comment delimiters within it are plain text. Leading and trailing whitespace is removed. It carries no meaning, but it is retained so that printing a parsed diagram reproduces it. |
 | `stateDecl`                                | `State`            | Represents a state declaration.                                                                                                                                          |
 | `stateVarDecl`                             | `StateVar`         | Represents a state variable name and its optional type.                                                                                                                   |
 | `startEdgeDecl`                            | `StartEdge`        | Represents a declaration of transition to the initial state.                                                                                                             |

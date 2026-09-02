@@ -37,6 +37,9 @@ func IsTrue(s Predicate) bool {
 const Tau Event = "tau"
 
 type Diagram struct {
+	// Name is the optional PlantUML diagram name written on the @startuml line.
+	// It carries no meaning, but it is preserved so that formatting round-trips.
+	Name      string            `json:"name,omitempty"`
 	States    map[StateID]State `json:"states"`
 	StartEdge StartEdge         `json:"start_edge"`
 	Edges     []Edge            `json:"edges"`
@@ -143,6 +146,7 @@ func (d *Diagram) Clone() *Diagram {
 	}
 
 	return &Diagram{
+		Name:      d.Name,
 		States:    states,
 		StartEdge: d.StartEdge,
 		Edges:     append([]Edge{}, d.Edges...),
@@ -152,7 +156,11 @@ func (d *Diagram) Clone() *Diagram {
 
 func (d *Diagram) String() string {
 	var sb strings.Builder
-	sb.WriteString("@startuml\n")
+	if d.Name == "" {
+		sb.WriteString("@startuml\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("@startuml %s\n", d.Name))
+	}
 
 	ss := SortedStates(d.States)
 
