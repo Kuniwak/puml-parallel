@@ -12,6 +12,7 @@ import (
 	replcmd "github.com/Kuniwak/puml-parallel/tools/csdfrepl/csdfreplcmd"
 	clientcmd "github.com/Kuniwak/puml-parallel/tools/csdfreplcmd/csdfreplcmdcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfrepld/csdfrepldcmd"
+	"github.com/Kuniwak/puml-parallel/tools/csdfsort/csdfsortcmd"
 	"github.com/Kuniwak/puml-parallel/tools/obligationirc/obligationirccmd"
 	"github.com/Kuniwak/puml-parallel/tools/toolsdoc"
 )
@@ -52,6 +53,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfnorm",
 			Summary: "Normalizes a Composable State Diagram via subset construction with tau-closure.",
 			Run:     tools.NewCommandFunc(csdfnormcmd.NewParseOptionsFunc(), csdfnormcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfsort",
+			Summary: "Prints a Composable State Diagram in canonical order without changing its meaning.",
+			Run:     tools.NewCommandFunc(csdfsortcmd.NewParseOptionsFunc(), csdfsortcmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdflivelockfree",
