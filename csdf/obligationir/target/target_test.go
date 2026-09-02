@@ -3,6 +3,7 @@ package target
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
@@ -53,15 +54,19 @@ func TestCompileRoutesToBackend(t *testing.T) {
 		}
 	}
 
-	// ir-json (and the default) emits decodable obligation IR JSON.
-	for _, name := range []Name{NameIRJSON, "anything-else"} {
-		var buf bytes.Buffer
-		if err := Compile(&buf, ir, name); err != nil {
-			t.Fatalf("Compile(%q) error = %v", name, err)
-		}
-		var got obligationir.IRLivelockFree
-		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
-			t.Errorf("Compile(%q) output is not ObligationIR JSON: %v", name, err)
-		}
+	// ir-json emits decodable obligation IR JSON.
+	var buf bytes.Buffer
+	if err := Compile(&buf, ir, NameIRJSON); err != nil {
+		t.Fatalf("Compile(%q) error = %v", NameIRJSON, err)
+	}
+	var got obligationir.IRLivelockFree
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Errorf("Compile(%q) output is not ObligationIR JSON: %v", NameIRJSON, err)
+	}
+
+	// An unknown target is an error rather than a silent fallback to ir-json:
+	// a caller that misspells a target must not get output it did not ask for.
+	if err := Compile(io.Discard, ir, "anything-else"); err == nil {
+		t.Error("Compile(\"anything-else\") error = nil, want an error")
 	}
 }

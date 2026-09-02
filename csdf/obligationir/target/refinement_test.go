@@ -3,6 +3,7 @@ package target
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"strings"
 	"testing"
 
@@ -52,15 +53,19 @@ func TestCompileRefinementRoutesToBackend(t *testing.T) {
 		}
 	}
 
-	// ir-json (and the default) emits decodable obligation IR JSON.
-	for _, name := range []Name{NameIRJSON, "anything-else"} {
-		var buf bytes.Buffer
-		if err := CompileRefinement(&buf, ir, name); err != nil {
-			t.Fatalf("CompileRefinement(%q) error = %v", name, err)
-		}
-		var got obligationir.IRRefinement
-		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
-			t.Errorf("CompileRefinement(%q) output is not obligation IR JSON: %v", name, err)
-		}
+	// ir-json emits decodable obligation IR JSON.
+	var buf bytes.Buffer
+	if err := CompileRefinement(&buf, ir, NameIRJSON); err != nil {
+		t.Fatalf("CompileRefinement(%q) error = %v", NameIRJSON, err)
+	}
+	var got obligationir.IRRefinement
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Errorf("CompileRefinement(%q) output is not obligation IR JSON: %v", NameIRJSON, err)
+	}
+
+	// An unknown target is an error rather than a silent fallback to ir-json:
+	// a caller that misspells a target must not get output it did not ask for.
+	if err := CompileRefinement(io.Discard, ir, "anything-else"); err == nil {
+		t.Error(`CompileRefinement("anything-else") error = nil, want an error`)
 	}
 }

@@ -45,8 +45,10 @@ func CompileRefinement(w io.Writer, ir obligationir.IRRefinement, name Name) err
 		return isabelle.WriteRefinement(w, ir)
 	case NameLean:
 		return lean.WriteRefinement(w, ir)
-	default: // IRJSON
+	case NameIRJSON:
 		return irjson.WriteRefinement(w, ir)
+	default:
+		return fmt.Errorf("target.CompileRefinement: unknown target %q", name)
 	}
 }
 
@@ -59,7 +61,9 @@ func Compile(w io.Writer, ir obligationir.IRLivelockFree, name Name) error {
 	case NameLean:
 		lean.WriteLivelockFree(w, ir)
 		return nil
-	default: // IRJSON
+	case NameIRJSON:
 		return irjson.WriteLivelockFree(w, ir)
+	default:
+		return fmt.Errorf("target.Compile: unknown target %q", name)
 	}
 }
