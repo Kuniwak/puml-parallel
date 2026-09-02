@@ -196,3 +196,43 @@ func TestIRPredicateHash(t *testing.T) {
 		t.Errorf("want %d, got %d", t1, t2)
 	}
 }
+
+// TestPredicateSetSeparatesCRC32Collisions pins that two predicates whose texts
+// happen to share a CRC-32 stay two predicates. The id only names a placeholder;
+// letting a hash collision merge them would silently replace one of the two
+// diagrams' predicates by the other's, adding or removing transitions.
+func TestPredicateSetSeparatesCRC32Collisions(t *testing.T) {
+	// Both texts hash to CRC-32 0x5d5a202a.
+	a := IRPredicate{Args: []IRArg{}, Text: "predicate Sfo2wH6TbLqM"}
+	b := IRPredicate{Args: []IRArg{}, Text: "predicate o4szAcwElsDU"}
+
+	ps := NewPredicateSet(2)
+	idA := ps.Add(a)
+	idB := ps.Add(b)
+
+	if idA == idB {
+		t.Fatalf("Add(%q) and Add(%q) both returned id %v; want distinct ids", a.Text, b.Text, idA)
+	}
+	if got := ps.Map()[idA]; got.Text != a.Text {
+		t.Errorf("Map()[%v].Text = %q, want %q", idA, got.Text, a.Text)
+	}
+	if got := ps.Map()[idB]; got.Text != b.Text {
+		t.Errorf("Map()[%v].Text = %q, want %q", idB, got.Text, b.Text)
+	}
+}
+
+// TestPredicateSetSharesEqualPredicates pins the other half: an identical text
+// and signature must still collapse to one placeholder, which is what lets a
+// predicate occurring in both diagrams be formalised once.
+func TestPredicateSetSharesEqualPredicates(t *testing.T) {
+	p := IRPredicate{Args: []IRArg{{Name: "x", Type: "nat"}}, Text: "x > 0"}
+	q := IRPredicate{Args: []IRArg{{Name: "y", Type: "nat"}}, Text: "x > 0"}
+
+	ps := NewPredicateSet(2)
+	if idP, idQ := ps.Add(p), ps.Add(q); idP != idQ {
+		t.Errorf("Add() returned %v and %v for the same text and signature; want one id", idP, idQ)
+	}
+	if len(ps.Map()) != 1 {
+		t.Errorf("len(Map()) = %d, want 1", len(ps.Map()))
+	}
+}

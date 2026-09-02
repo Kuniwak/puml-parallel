@@ -6,6 +6,7 @@ import (
 	"hash/crc32"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -98,12 +99,28 @@ type IRPredicate struct {
 	Text csdf.Predicate `json:"text"`
 }
 
-func (p IRPredicate) Hash(h hash.Hash32) IRPredicateID {
-	h.Write([]byte(p.Text))
+// Signature is what makes two predicates the same predicate: the natural-language
+// text they stand for and the types of their arguments. Argument *names* are
+// deliberately excluded - the same predicate over differently named variables is
+// still one predicate - so every occurrence carries its own argument list
+// alongside the id (see IREdge).
+//
+// The 0x00 separators are not decorative: without them "ab" + [] and "a" + ["b"]
+// would be the same string.
+func (p IRPredicate) Signature() string {
+	var b strings.Builder
+	b.WriteString(string(p.Text))
 	for _, arg := range p.Args {
-		h.Write([]byte{0x00})
-		h.Write([]byte(arg.Type))
+		b.WriteByte(0x00)
+		b.WriteString(arg.Type)
 	}
+	return b.String()
+}
+
+// Hash is the preferred name of a predicate's placeholder, not its identity:
+// see PredicateSet.
+func (p IRPredicate) Hash(h hash.Hash32) IRPredicateID {
+	h.Write([]byte(p.Signature()))
 	res := IRPredicateID(h.Sum32())
 	h.Reset()
 	return res
@@ -162,24 +179,49 @@ type IRInit struct {
 }
 
 // PredicateSet accumulates the opaque predicates of one or more diagrams,
-// deduplicating them under the hash of their text and argument types. Sharing one
-// set across diagrams is what makes an identical predicate collapse to a single
-// pred_<id> placeholder in a multi-diagram obligation.
+// deduplicating them under their text and argument types. Sharing one set across
+// diagrams is what makes an identical predicate collapse to a single pred_<id>
+// placeholder in a multi-diagram obligation.
+//
+// Identity is the signature itself, never the hash: CRC-32 is 32 bits wide and
+// collides on inputs as short as a predicate text (for instance "predicate
+// Sfo2wH6TbLqM" and "predicate o4szAcwElsDU"), and merging two predicates that a
+// diagram means to distinguish would add or remove transitions. The hash only
+// picks the placeholder's name, and a collision moves the loser to the next free
+// id.
 type PredicateSet struct {
-	h hash.Hash32
-	m map[IRPredicateID]IRPredicate
+	h  hash.Hash32
+	m  map[IRPredicateID]IRPredicate
+	id map[string]IRPredicateID // signature -> assigned id
 }
 
 func NewPredicateSet(capacity int) *PredicateSet {
 	return &PredicateSet{
-		h: crc32.NewIEEE(),
-		m: make(map[IRPredicateID]IRPredicate, capacity),
+		h:  crc32.NewIEEE(),
+		m:  make(map[IRPredicateID]IRPredicate, capacity),
+		id: make(map[string]IRPredicateID, capacity),
 	}
 }
 
 // Add records p and returns the id every backend names it by.
 func (ps *PredicateSet) Add(p IRPredicate) IRPredicateID {
+	sig := p.Signature()
+	if id, ok := ps.id[sig]; ok {
+		return id
+	}
+
+	// Linear probing keeps the assignment a deterministic function of the
+	// predicates added so far, and leaves every collision-free set - which is
+	// every realistic one - named exactly by its hash.
 	id := p.Hash(ps.h)
+	for {
+		if _, taken := ps.m[id]; !taken {
+			break
+		}
+		id++
+	}
+
+	ps.id[sig] = id
 	ps.m[id] = p
 	return id
 }
