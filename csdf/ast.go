@@ -126,6 +126,30 @@ type EndEdge struct {
 	Line  int       `json:"line"` // 1-based source line of the transition.
 }
 
+// Clone returns a deep copy of the diagram: the result shares no state map,
+// state variables, edge slice or end edge with the original, so a caller may
+// rewrite the copy without touching its input.
+func (d *Diagram) Clone() *Diagram {
+	states := make(map[StateID]State, len(d.States))
+	for id, state := range d.States {
+		state.Vars = append([]StateVar{}, state.Vars...)
+		states[id] = state
+	}
+
+	var endEdge *EndEdge
+	if d.EndEdge != nil {
+		copied := *d.EndEdge
+		endEdge = &copied
+	}
+
+	return &Diagram{
+		States:    states,
+		StartEdge: d.StartEdge,
+		Edges:     append([]Edge{}, d.Edges...),
+		EndEdge:   endEdge,
+	}
+}
+
 func (d *Diagram) String() string {
 	var sb strings.Builder
 	sb.WriteString("@startuml\n")

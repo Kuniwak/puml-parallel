@@ -11,34 +11,20 @@ package csdf
 // order of the source text; that is also what makes Diagram.String, which
 // orders states by line first, fall back to ordering them by id.
 func Sort(d *Diagram) *Diagram {
-	states := make(map[StateID]State, len(d.States))
-	for id, state := range d.States {
-		state.Vars = append([]StateVar{}, state.Vars...)
+	out := d.Clone()
+
+	for id, state := range out.States {
 		state.Line = 0
-		states[id] = state
+		out.States[id] = state
+	}
+	for i := range out.Edges {
+		out.Edges[i].Line = 0
+	}
+	out.StartEdge.Line = 0
+	if out.EndEdge != nil {
+		out.EndEdge.Line = 0
 	}
 
-	edges := make([]Edge, 0, len(d.Edges))
-	for _, edge := range d.Edges {
-		edge.Line = 0
-		edges = append(edges, edge)
-	}
-	SortEdges(edges)
-
-	startEdge := d.StartEdge
-	startEdge.Line = 0
-
-	var endEdge *EndEdge
-	if d.EndEdge != nil {
-		copied := *d.EndEdge
-		copied.Line = 0
-		endEdge = &copied
-	}
-
-	return &Diagram{
-		States:    states,
-		StartEdge: startEdge,
-		Edges:     edges,
-		EndEdge:   endEdge,
-	}
+	SortEdges(out.Edges)
+	return out
 }
