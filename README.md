@@ -133,10 +133,11 @@ End edges (`state --> [*]`) are not currently supported.
 
 ## Canonical order
 
-Every tool that prints a diagram — `csdfparallel`, `csdfhide`, `csdfcomp`, and
-`csdfnorm` — prints its transitions in canonical order, so the same input always
-produces the same bytes and committed outputs do not accumulate reordering noise
-in diffs.
+Every tool that prints a diagram prints the same bytes for the same input, so
+committed outputs do not accumulate reordering noise in diffs. `csdfparallel`,
+`csdfcomp`, and `csdfnorm` explore their input through maps and so order their
+transitions canonically; `csdfhide` only renames events and so keeps the order
+of its input.
 
 `csdfsort` applies that same canonical order to a hand-written diagram without
 changing its meaning: states are ordered by id, transitions by source, event,
