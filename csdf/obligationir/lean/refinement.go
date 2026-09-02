@@ -146,6 +146,7 @@ namespace `)
 		if err := WriteLivelockLayer(w, s, ir.Predicates); err != nil {
 			return fmt.Errorf("lean.WriteRefinement: %w", err)
 		}
+		WriteInitialisableTheorem(w, s)
 	}
 
 	WriteRefinementTheorem(w, ir.Mode)
@@ -561,6 +562,15 @@ func WriteProcDefinition(w io.Writer, s sideIR) {
 		io.WriteString(w, `    (`)
 	}
 
+	// The start edge's post denotes a set of initial valuations, and the diagram
+	// picks one internally. An unsatisfiable one leaves the empty set, whose
+	// replicated internal choice is DIV in the F model
+	// (cspF_Rep_int_choice_f_DIV): a diagram that cannot start diverges.
+	//
+	// A variable-free diagram's valuation domain is a one-point set, so an
+	// unsatisfiable init leaves the empty set there too and has to reach the same
+	// DIV. Writing STOP in that branch made an unused state variable observable,
+	// since STOP refuses every event and DIV has no stable failure at all.
 	start := s.IR.States[s.IR.Init.Dst]
 	if len(start.Fields) == 0 {
 		io.WriteString(w, `procIte `)
@@ -569,12 +579,8 @@ func WriteProcDefinition(w io.Writer, s sideIR) {
 		io.WriteString(w, ProcNameType)
 		io.WriteString(w, `.`)
 		io.WriteString(w, s.Side.Ctor(s.IR.Init.Dst))
-		io.WriteString(w, `) proc.STOP`)
+		io.WriteString(w, `) proc.DIV`)
 	} else {
-		// The start edge's post denotes a set of initial valuations, and the
-		// diagram picks one internally. An unsatisfiable one leaves the empty set,
-		// whose replicated internal choice is STOP: a diagram that cannot start
-		// does nothing.
 		WriteSuccessor(w, s, s.IR.Init.Dst, start.Fields, false,
 			application(s.Side.Qualify("init"), fieldArgs(start.Fields)))
 	}
@@ -633,8 +639,9 @@ theorem refines_t : refTfix SpecProc ImplProc := by
 	if mode == obligationir.IRRefinementModeFailuresDivergence {
 		io.WriteString(w, `-- lean-csp-prover has no FD model, so this is the standard reduction: for
 -- divergence-free processes, FD refinement coincides with the F refinement.
--- Divergence of SpecProc/ImplProc arises exactly from infinite HTau runs of the
--- underlying diagram, which the well-foundedness obligations above rule out.
+-- Divergence of SpecProc/ImplProc arises from an infinite HTau run of the
+-- underlying diagram or from a side that cannot start at all, which the
+-- well-foundedness and initialisability obligations above rule out respectively.
 `)
 	}
 
@@ -643,4 +650,43 @@ theorem refines_t : refTfix SpecProc ImplProc := by
 -- inclusion.
 theorem refines_f : refFfix SpecProc ImplProc := by
   sorry`)
+}
+
+// WriteInitialisableTheorem writes the obligation that a side admits an initial
+// valuation at all. It exists only in failures-divergence mode: a side whose
+// start edge is unsatisfiable denotes DIV, which diverges on the empty trace, and
+// the reduction of FD refinement to <=F reads divergence as arising only from
+// infinite HTau runs. Without this the well-foundedness obligations do not
+// license that reading.
+func WriteInitialisableTheorem(w io.Writer, s sideIR) {
+	if !s.HasLivelockLayer() {
+		return
+	}
+
+	io.WriteString(w, `-- `)
+	io.WriteString(w, s.Label)
+	io.WriteString(w, ` admits an initial valuation, so it does not denote DIV. Divergence-freedom
+-- of the process needs this as well as the well-foundedness above: DIV diverges
+-- on the empty trace, which no tau-step argument can rule out.
+theorem `)
+	io.WriteString(w, s.Side.Qualify("initialisable"))
+	io.WriteString(w, ` : `)
+
+	start := s.IR.States[s.IR.Init.Dst]
+	if len(start.Fields) > 0 {
+		io.WriteString(w, `∃ `)
+		for i, f := range start.Fields {
+			if i > 0 {
+				io.WriteString(w, ` `)
+			}
+			WriteField(w, f, false)
+		}
+		io.WriteString(w, `, `)
+		io.WriteString(w, application(s.Side.Qualify("init"), fieldArgs(start.Fields)))
+	} else {
+		io.WriteString(w, s.Side.Qualify("init"))
+	}
+	io.WriteString(w, ` := by
+  sorry`)
+	WriteNewLine(w, 2)
 }

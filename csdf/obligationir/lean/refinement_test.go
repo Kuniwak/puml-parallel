@@ -105,10 +105,10 @@ instance Set_FPmode : HasFPmode where
   FPmode := fpmode.CMSmode
 
 def SpecProc : proc PN event :=
-  procIte init_S (proc.Proc_name PN.S_s0) proc.STOP
+  procIte init_S (proc.Proc_name PN.S_s0) proc.DIV
 
 def ImplProc : proc PN event :=
-  procIte init_I (proc.Proc_name PN.I_t0) proc.STOP
+  procIte init_I (proc.Proc_name PN.I_t0) proc.DIV
 
 -- Every trace of the Impl diagram is a trace of the Spec diagram: refT P1 M1 M2 P2
 -- unfolds to semTf P2 M2 <= semTf P1 M1.
@@ -202,7 +202,7 @@ b --> b : x
 		"(event.HTau ~> proc.Proc_name PN.S_b)",
 		`def SpecProc : proc PN event :=
   proc.Hiding
-    (procIte init_S (proc.Proc_name PN.S_a) proc.STOP)
+    (procIte init_S (proc.Proc_name PN.S_a) proc.DIV)
     {event.HTau}`,
 	} {
 		if !strings.Contains(got, want) {
@@ -422,5 +422,60 @@ t0 --> t0 : a
 	// The omitted predicates of the Impl side really do say "true".
 	if !strings.Contains(got, "-- true\ndef pred_") {
 		t.Errorf("WriteRefinement() does not define the literal true predicate; got:\n%s", got)
+	}
+}
+
+// TestWriteRefinementUnsatisfiableInitIsDIV pins that a diagram whose start edge
+// admits no initial valuation denotes DIV whether or not it has state variables.
+// PLAN.md makes the initial process the replicated internal choice over the set
+// the start edge's post denotes, and that choice over the empty set is DIV in the
+// F model (cspF_Rep_int_choice_f_DIV). A variable-free diagram's valuation domain
+// is a one-point set, so an unsatisfiable init leaves the empty set there too;
+// mapping it to STOP instead made an unused state variable observable, since STOP
+// refuses every event and DIV has no stable failure at all.
+func TestWriteRefinementUnsatisfiableInitIsDIV(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeStableFailure, `@startuml
+state "s0" as s0
+[*] --> s0 : nothing satisfies this
+s0 --> s0 : a
+@enduml
+`, `@startuml
+state "t0" as t0
+[*] --> t0
+t0 --> t0 : a
+@enduml
+`)
+
+	want := "def SpecProc : proc PN event :=\n  procIte init_S (proc.Proc_name PN.S_s0) proc.DIV"
+	if !strings.Contains(got, want) {
+		t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+	}
+}
+
+// TestWriteRefinementFailuresDivergenceRequiresAnInitialValuation pins the fd
+// half of the same rule. DIV diverges on the empty trace, so the reduction of FD
+// refinement to <=F - which reads divergence as arising only from infinite HTau
+// runs - needs each side's initial valuation set to be non-empty as well.
+func TestWriteRefinementFailuresDivergenceRequiresAnInitialValuation(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeFailuresDivergence, `@startuml
+state "s0" as s0
+s0: n
+[*] --> s0 : n' is 0
+s0 --> s0 : a
+@enduml
+`, `@startuml
+state "t0" as t0
+[*] --> t0
+t0 --> t0 : a
+@enduml
+`)
+
+	for _, want := range []string{
+		"theorem initialisable_S : ∃ n, init_S n := by\n  sorry",
+		"theorem initialisable_I : init_I := by\n  sorry",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
 	}
 }

@@ -162,18 +162,35 @@ picks one. Two edges carrying the same event need no special treatment: external
 between identical prefixes is internal choice. A `tau` edge becomes a prefix on the
 reserved event `HTau`, hidden once at the outermost level, which is what produces
 instability and, on an infinite `tau` run, divergence. An end edge becomes
-`IF <guard> THEN SKIP ELSE STOP`.
+`IF <guard> THEN SKIP ELSE STOP`. The start edge becomes the replicated internal choice
+over the initial valuations its postcondition admits; when it admits none that choice is
+over the empty set, which is `DIV` — a diagram that cannot start diverges. A diagram
+without state variables follows the same rule, since its valuation domain is a one-point
+set.
 
 Predicates use the same `pred_<id>` spelling as `csdflivelockfree`, are shared by both
 diagrams, and dedupe across them, so formalising a predicate once serves every obligation
-it appears in. Everything named after a source location is side-qualified — `guard_S_L<line>`,
-`post_I_L<line>`, `init_S` — because line numbers collide between the two files.
+it appears in. They are *uninterpreted* — an `opaque` declaration in Lean, a `consts`
+declaration in Isabelle — carrying the natural-language text and a `TODO(csdf)` marker as
+comments. Defining them as `True` instead would not be a placeholder but a different
+diagram, one in which every guard fires, so the theorem could be discharged for diagrams
+that do not refine one another; treat an artifact that still carries a `TODO(csdf)` marker
+as undischarged. Everything named after a source location is side-qualified —
+`guard_S_L<line>`, `post_I_L<line>`, `init_S` — because line numbers collide between the
+two files.
+
+CSDF names are not prover identifiers — an event is free-form text, an id may be
+hyphenated — so events, state ids and variable names are encoded into a
+letters-digits-underscore identifier; the theory opens with a table giving the originals
+of every name that had to be encoded.
 
 CSP-Prover has no failures-divergences model, so `-m fd` emits the standard reduction: for
 divergence-free processes FD refinement coincides with `<=F`, so the theory carries a
 divergence-freedom obligation per side — the `csdflivelockfree` obligation inlined, in its
-`wf_on` form, since the F model cannot observe divergence at all — plus the stable-failures
-refinement. A side that is structurally livelock free gets a note instead.
+`wf_on` form, since the F model cannot observe divergence at all — plus an initialisability
+obligation per side, since `DIV` diverges on the empty trace and no `tau`-step argument
+rules that out, plus the stable-failures refinement. A side that is structurally livelock
+free gets a note instead of the `wf_on` theorem.
 
 One encoding detail is forced by the prover rather than by CSP. A replicated internal
 choice can only be indexed by the event type there — the process datatype has no spare type

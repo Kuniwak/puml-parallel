@@ -77,7 +77,26 @@ Facts verified about CSP-Prover (github.com/yoshinao-isobe/CSP-Prover):
   where csdfrefinement is *more* permissive than `ComposeParallel`, which rejects
   EndEdge.)
 - **Initial valuations**: `StartEdge.Post` denotes a *set* of initial valuations;
-  the initial process is a replicated internal choice over that set.
+  the initial process is a replicated internal choice over that set. An
+  unsatisfiable Post leaves the empty set, whose replicated internal choice is
+  `DIV` in the F model — a diagram that cannot start *diverges*, it does not
+  deadlock. A diagram without state variables is no exception: its valuation
+  domain is a one-point set, so an unsatisfiable Post leaves the empty set there
+  too, and the `IF init THEN … ELSE …` shape must fall through to `DIV`.
+  Because `DIV` diverges on the empty trace, `fd` mode carries a per-side
+  initialisability obligation (`∃v. init v`) beside the `wf_on` one; without it
+  divergence is not confined to infinite `HTau` runs.
+- **Predicate placeholders**: a natural-language predicate is *uninterpreted*
+  (`opaque` in Lean, `consts` in Isabelle) with a `TODO(csdf)` marker, never
+  defined as `True`. `True` is not a neutral stand-in for "not formalised yet":
+  it is a different diagram, in which every guard fires and every postcondition
+  is satisfiable, so the refinement theorem could be discharged for diagrams
+  that do not refine one another. An *omitted* predicate is the exception — its
+  CSDF text really is `true`.
+- **Names**: CSDF events, ids and variable names are not prover identifiers, so
+  every one of them is mangled into a letters-digits-underscore identifier by a
+  total, injective encoding shared by all backends, and the theory opens with a
+  table giving the originals of the names that had to be encoded.
 - **Alphabet**: the event datatype is the union of the visible events of both
   diagrams (plus `HTau`). Refusal information depends on this; both processes are
   typed over the single shared event datatype.
@@ -97,9 +116,10 @@ begin
 datatype Event = Ev_a | Ev_b | HTau
 
 (* shared opaque-predicate layer, identical to csdflivelockfree:
-   val datatype (when vars exist), pred_<hash> placeholders with the
-   NL text as a comment, and per-edge aliases — but namespaced per side:
-   guard_S_L<line>, post_S_L<line>, init_S, guard_I_L<line>, ... *)
+   val datatype (when vars exist), pred_<hash> *uninterpreted constants* with
+   the NL text and a TODO(csdf) marker as comments, and per-edge aliases — but
+   namespaced per side: guard_S_L<line>, post_S_L<line>, init_S, ... A predicate
+   is never defined as True: that is a different diagram, not a placeholder. *)
 
 (* one process-name datatype covering both sides; CSP-Prover has a single
    PNfun per name type, so the two diagrams share it under S_/I_ ctors *)
@@ -131,7 +151,7 @@ Encoding rules:
 | tau edge | same shape with event `HTau`; hidden once, outermost |
 | state with no out-edges | `STOP` |
 | EndEdge `ℓ --[G]--> [*]` | `IF G v THEN SKIP ELSE STOP` as one more external-choice branch |
-| StartEdge `[*] --P--> ℓ` | `!! v:{v. P v} .. $(ℓ v)` |
+| StartEdge `[*] --P--> ℓ` | `!! v:{v. P v} .. $(ℓ v)`; with no vars, `IF init THEN $(ℓ) ELSE DIV` |
 
 The explicit `∧ (∃v'. …)` in the guard is the enabledness fix from §3 — do not
 "simplify" it away.

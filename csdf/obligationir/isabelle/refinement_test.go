@@ -108,10 +108,10 @@ end
 declare Set_procfun_def [simp]
 
 definition SpecProc :: "(PN, event) proc"
-  where "SpecProc \<equiv> IF init_S THEN $(S_s0) ELSE STOP"
+  where "SpecProc \<equiv> IF init_S THEN $(S_s0) ELSE DIV"
 
 definition ImplProc :: "(PN, event) proc"
-  where "ImplProc \<equiv> IF init_I THEN $(I_t0) ELSE STOP"
+  where "ImplProc \<equiv> IF init_I THEN $(I_t0) ELSE DIV"
 
 (* Every trace of the Impl diagram is a trace of the Spec diagram: in CSP-Prover
    P <=T Q unfolds to traces Q <= traces P. *)
@@ -258,8 +258,8 @@ b --> b : x
 		// HTau goes last: it is not part of the visible alphabet.
 		"datatype event = Ev_x\n  | HTau\n",
 		"      THEN HTau -> $(S_b)\n",
-		`where "SpecProc \<equiv> (IF init_S THEN $(S_a) ELSE STOP) -- {HTau}"`,
-		`where "ImplProc \<equiv> (IF init_I THEN $(I_a) ELSE STOP) -- {HTau}"`,
+		`where "SpecProc \<equiv> (IF init_S THEN $(S_a) ELSE DIV) -- {HTau}"`,
+		`where "ImplProc \<equiv> (IF init_I THEN $(I_a) ELSE DIV) -- {HTau}"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q\n%s", want, got)
@@ -540,5 +540,57 @@ t0 --> t0 : a
 	}
 	if !strings.Contains(got, "(* true *)\ndefinition pred_") {
 		t.Errorf("WriteRefinement() does not define the literal true predicate; got:\n%s", got)
+	}
+}
+
+// TestWriteRefinementUnsatisfiableInitIsDIV mirrors the lean backend: a diagram
+// that cannot start denotes DIV whether or not it has state variables. The
+// replicated internal choice over the empty set is DIV in the F model
+// (cspF_Rep_int_choice_DIV), and a variable-free diagram's valuation domain is a
+// one-point set, so an unsatisfiable init leaves the empty set there too.
+func TestWriteRefinementUnsatisfiableInitIsDIV(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeStableFailure, `@startuml
+state "s0" as s0
+[*] --> s0 : nothing satisfies this
+s0 --> s0 : a
+@enduml
+`, `@startuml
+state "t0" as t0
+[*] --> t0
+t0 --> t0 : a
+@enduml
+`)
+
+	want := `IF init_S THEN $(S_s0) ELSE DIV`
+	if !strings.Contains(got, want) {
+		t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+	}
+}
+
+// TestWriteRefinementFailuresDivergenceRequiresAnInitialValuation mirrors the
+// lean backend's fd obligation: DIV diverges on the empty trace, so each side's
+// initial valuation set has to be non-empty for the reduction of FD refinement to
+// <=F to hold.
+func TestWriteRefinementFailuresDivergenceRequiresAnInitialValuation(t *testing.T) {
+	got := compileRefinement(t, obligationir.IRRefinementModeFailuresDivergence, `@startuml
+state "s0" as s0
+s0: n
+[*] --> s0 : n' is 0
+s0 --> s0 : a
+@enduml
+`, `@startuml
+state "t0" as t0
+[*] --> t0
+t0 --> t0 : a
+@enduml
+`)
+
+	for _, want := range []string{
+		"theorem initialisable_S: \"\\<exists>n. init_S n\"\n  oops",
+		"theorem initialisable_I: \"init_I\"\n  oops",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
+		}
 	}
 }
