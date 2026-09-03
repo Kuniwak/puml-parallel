@@ -1,0 +1,21 @@
+@startuml
+' Every name here is legal CSDF and illegal as a prover identifier: state ids and
+' variables that spell keywords ("init", "step", "and", "def") or a name the
+' generator declares itself, ids with a hyphen or a leading digit, an event with
+' parentheses and spaces, a non-ASCII guard, and names ending in "_" - which
+' Isabelle rejects outright.
+state "init" as init
+init: step
+init: 1st
+state "vm-idle" as vm-idle
+vm-idle: and
+vm-idle: def
+state "s_" as s_
+s_: n_
+[*] --> init : both are set initially
+init --> vm-idle : tau ; step is positive ; and' is step
+vm-idle --> init : choose(a product) ; true ; step' is and
+vm-idle --> vm-idle : tau ; 商品 が残っている ; def' is def
+vm-idle --> s_ : pay_ ; true ; n_' is zero
+s_ --> init : reset ; true ; step' is n_
+@enduml
