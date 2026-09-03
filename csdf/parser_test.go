@@ -613,3 +613,81 @@ s0: ready ; bool ; extra
 
 	// Teardown: no resources to release.
 }
+
+func TestParseDiagramName(t *testing.T) {
+	tests := []struct {
+		name  string
+		title string
+		want  string
+	}{
+		{name: "quoted", title: `"Vending Machine"`, want: `"Vending Machine"`},
+		{name: "bare", title: "VendingMachine", want: "VendingMachine"},
+		{name: "bare with spaces", title: "Vending Machine", want: "Vending Machine"},
+		{name: "bare with extension", title: "vending-machine.png", want: "vending-machine.png"},
+		{name: "trailing whitespace", title: "VendingMachine  ", want: "VendingMachine"},
+		{name: "comment delimiters are plain text", title: "Vending /' Machine", want: "Vending /' Machine"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup
+			parser := NewParser(`@startuml ` + tt.title + `
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : e
+@enduml
+`)
+
+			// Execute
+			diagram, err := parser.Parse()
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Parse() error = %v, want nil", err)
+			}
+			if len(diagram.States) != 2 {
+				t.Errorf("Parse() states = %#v, want two states", diagram.States)
+			}
+			if len(diagram.Edges) != 1 {
+				t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+			}
+			if diagram.Name != tt.want {
+				t.Errorf("Parse().Name = %q, want %q", diagram.Name, tt.want)
+			}
+			// The name survives printing, so formatting keeps it.
+			if want, got := "@startuml "+tt.want+"\n", diagram.String(); !strings.HasPrefix(got, want) {
+				t.Errorf("Parse().String() = %q, want it to start with %q", got, want)
+			}
+
+			// Teardown: no resources to release.
+		})
+	}
+}
+
+func TestParseWithoutDiagramName(t *testing.T) {
+	// Setup
+	parser := NewParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : e
+@enduml
+`)
+
+	// Execute
+	diagram, err := parser.Parse()
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+	if diagram.Name != "" {
+		t.Errorf("Parse().Name = %q, want empty", diagram.Name)
+	}
+	if want, got := "@startuml\n", diagram.String(); !strings.HasPrefix(got, want) {
+		t.Errorf("Parse().String() = %q, want it to start with %q", got, want)
+	}
+
+	// Teardown: no resources to release.
+}

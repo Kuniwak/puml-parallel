@@ -1,17 +1,19 @@
-package csdfparallelcmd
+package csdfsortcmd
 
 import (
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestNewParseOptionsFuncOK(t *testing.T) {
 	type testCase struct {
+		Stdin    string
 		Args     []string
 		Expected *Options
 	}
@@ -21,21 +23,39 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:     []string{"-h"},
 			Expected: &Options{Common: tools.CommonOptionsHelp},
 		},
+		"--help (representative value)": {
+			Args:     []string{"--help"},
+			Expected: &Options{Common: tools.CommonOptionsHelp},
+		},
 		"-v (representative value)": {
 			Args:     []string{"-v"},
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"single file (lower boundary value)": {
-			Args:     []string{"a.puml"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Files: []string{"a.puml"}, Args: []string{"a.puml"}},
+		"--version (representative value)": {
+			Args:     []string{"--version"},
+			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"sync with two files (representative value)": {
-			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
+		"no args means stdin (representative value)": {
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Sync:   []csdf.Event{"x", "y"},
-				Files:  []string{"a.puml", "b.puml"},
-				Args:   []string{"-sync", "x;y", "a.puml", "b.puml"},
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
+		},
+		"dash means stdin (representative value)": {
+			Stdin: "@startuml\n@enduml\n",
+			Args:  []string{"-"},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Bytes:  []byte("@startuml\n@enduml\n"),
+			},
+		},
+		"file argument (representative value)": {
+			Args: []string{filepath.Join("testdata", "a.puml")},
+			Expected: &Options{
+				Common: tools.NewCommonOptionsDefault(),
+				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
 	}
@@ -45,6 +65,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			// Arrange
 			parseOptions := NewParseOptionsFunc()
 			spy := cli.SpyProcInout()
+			spy.Stdin = cli.StubStdin(strings.NewReader(testCase.Stdin))
 
 			// Act
 			opts, err := parseOptions(testCase.Args, spy.New())
@@ -67,8 +88,8 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 	}
 
 	testCases := map[string]testCase{
-		"too few arguments (representative value)": {
-			Args: []string{},
+		"too many arguments (representative value)": {
+			Args: []string{"a.puml", "b.puml"},
 		},
 	}
 

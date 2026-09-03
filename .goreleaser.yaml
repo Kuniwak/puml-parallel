@@ -16,6 +16,36 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdfhide
+    main: ./tools/csdfhide/main.go
+    binary: csdfhide
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
+  - id: csdfcomp
+    main: ./tools/csdfcomp/main.go
+    binary: csdfcomp
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
   - id: csdfparse
     main: ./tools/csdfparse/main.go
     binary: csdfparse
@@ -64,6 +94,21 @@ builds:
   - id: csdfnorm
     main: ./tools/csdfnorm/main.go
     binary: csdfnorm
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
+  - id: csdfsort
+    main: ./tools/csdfsort/main.go
+    binary: csdfsort
     goos:
       - linux
       - darwin
@@ -151,6 +196,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdfhelp
+    main: ./tools/csdfhelp/main.go
+    binary: csdfhelp
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
 archives:
   - id: default
     format_overrides:
@@ -159,15 +219,19 @@ archives:
     name_template: "csdfparallel_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids:
       - csdfparallel
+      - csdfhide
+      - csdfcomp
       - csdfparse
       - csdfevents
       - csdfrepl
       - csdfnorm
+      - csdfsort
       - csdflivelockfree
       - csdfrefinement
       - csdfrepld
       - csdfreplcmd
       - obligationirc
+      - csdfhelp
     files:
       - README.md
       - LICENSE*

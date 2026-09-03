@@ -1,11 +1,11 @@
-package csdfparallelcmd
+package csdfcompcmd
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -13,8 +13,11 @@ import (
 func TestNewParseOptionsFuncOK(t *testing.T) {
 	type testCase struct {
 		Args     []string
+		Stdin    string
 		Expected *Options
 	}
+
+	tree := `{"op": "REFER", "path": "a.puml"}`
 
 	testCases := map[string]testCase{
 		"-h (representative value)": {
@@ -25,18 +28,15 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:     []string{"-v"},
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"single file (lower boundary value)": {
-			Args:     []string{"a.puml"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Files: []string{"a.puml"}, Args: []string{"a.puml"}},
+		"stdin (representative value)": {
+			Args:     []string{"-"},
+			Stdin:    tree,
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), BaseDir: ".", Bytes: []byte(tree), Args: []string{"-"}},
 		},
-		"sync with two files (representative value)": {
-			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
-			Expected: &Options{
-				Common: tools.NewCommonOptionsDefault(),
-				Sync:   []csdf.Event{"x", "y"},
-				Files:  []string{"a.puml", "b.puml"},
-				Args:   []string{"-sync", "x;y", "a.puml", "b.puml"},
-			},
+		"-base overrides the derived base directory (representative value)": {
+			Args:     []string{"-base", "elsewhere", "-"},
+			Stdin:    tree,
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), BaseDir: "elsewhere", Bytes: []byte(tree), Args: []string{"-base", "elsewhere", "-"}},
 		},
 	}
 
@@ -45,6 +45,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			// Arrange
 			parseOptions := NewParseOptionsFunc()
 			spy := cli.SpyProcInout()
+			spy.Stdin = strings.NewReader(testCase.Stdin)
 
 			// Act
 			opts, err := parseOptions(testCase.Args, spy.New())
@@ -61,14 +62,35 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 	}
 }
 
+func TestNewParseOptionsFuncDerivesBaseDirFromTheTreeFile(t *testing.T) {
+	// Arrange
+	parseOptions := NewParseOptionsFunc()
+	spy := cli.SpyProcInout()
+
+	// Act
+	opts, err := parseOptions([]string{"../../../examples/valid/in_out_tree.json"}, spy.New())
+	if err != nil {
+		t.Log(spy.Stderr.String())
+		t.Fatalf("want nil, got %#v", err)
+	}
+
+	// Assert
+	if want := "../../../examples/valid"; opts.BaseDir != want {
+		t.Errorf("want %q, got %q", want, opts.BaseDir)
+	}
+}
+
 func TestNewParseOptionsFuncNG(t *testing.T) {
 	type testCase struct {
 		Args []string
 	}
 
 	testCases := map[string]testCase{
-		"too few arguments (representative value)": {
-			Args: []string{},
+		"too many arguments (representative value)": {
+			Args: []string{"a.json", "b.json"},
+		},
+		"missing file (representative value)": {
+			Args: []string{"missing.json"},
 		},
 	}
 

@@ -1,4 +1,4 @@
-package csdfparallelcmd
+package csdfcompcmd
 
 import (
 	"fmt"
@@ -19,16 +19,16 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagrams, err := csdf.LoadDiagrams(opts.Files)
+		expr, err := csdf.ParseExpr(opts.Bytes)
 		if err != nil {
-			return fmt.Errorf("csdfparallelcmd.NewMainFunc: cannot parse diagrams: %w", err)
+			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
 		}
 
-		composite, err := csdf.ComposeParallel(diagrams, opts.Sync)
+		composite, err := csdf.ComposeTree(expr, csdf.NewFileDiagramLoader(opts.BaseDir))
 		if err != nil {
-			return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
+			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
 		}
-		composite.Name = tools.GeneratedBy("csdfparallel", opts.Args)
+		composite.Name = tools.GeneratedBy("csdfcomp", opts.Args)
 
 		fmt.Fprint(inout.Stdout, composite.String())
 		return nil

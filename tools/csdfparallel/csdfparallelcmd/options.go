@@ -4,31 +4,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
-func parseSyncEvents(s string) []csdf.Event {
-	if s == "" {
-		return nil
-	}
-	var events []csdf.Event
-	for _, event := range strings.Split(s, ";") {
-		trimmed := strings.TrimSpace(event)
-		if trimmed != "" {
-			events = append(events, csdf.Event(trimmed))
-		}
-	}
-	return events
-}
-
 type Options struct {
 	Common *tools.CommonOptions
 	Sync   []csdf.Event
 	Files  []string
+	// Args is the raw command line, kept to record the command that generated
+	// the composed diagram.
+	Args []string
 }
 
 // CommonOptions returns the parsed common options.
@@ -80,8 +68,9 @@ Examples:
 
 		return &Options{
 			Common: commonOpts,
-			Sync:   parseSyncEvents(*syncFlag),
+			Sync:   tools.ParseEvents(*syncFlag),
 			Files:  files,
+			Args:   args,
 		}, nil
 	}
 }

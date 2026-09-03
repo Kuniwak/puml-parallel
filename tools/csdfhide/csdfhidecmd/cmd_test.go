@@ -1,4 +1,4 @@
-package csdfparallelcmd
+package csdfhidecmd
 
 import (
 	"testing"
@@ -9,28 +9,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestNewMainFuncCompose(t *testing.T) {
+func TestNewMainFuncHide(t *testing.T) {
 	// Arrange
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
-	want := `@startuml auto-generated-by: csdfparallel -sync sync ../../../examples/valid/in.puml ../../../examples/valid/out.puml
-state "(s0, s0)" as s0_s0
-state "(s1, s0)" as s1_s0
-state "(s2, s1)" as s2_s1
-state "(s2, s2)" as s2_s2
-[*] --> s0_s0
-s0_s0 --> s1_s0 : in
-s1_s0 --> s2_s1 : sync
-s2_s1 --> s2_s2 : out
+	want := `@startuml
+state "s0" as s0
+state "s1" as s1
+state "s2" as s2
+[*] --> s0
+s0 --> s1 : in
+s1 --> s2 : tau
 @enduml
 `
 
 	// Act
-	exitStatus := cmdFunc([]string{
-		"-sync", "sync",
-		"../../../examples/valid/in.puml",
-		"../../../examples/valid/out.puml",
-	}, spy.New())
+	exitStatus := cmdFunc([]string{"-events", "sync", "../../../examples/valid/in.puml"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {

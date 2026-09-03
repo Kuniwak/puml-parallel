@@ -1,0 +1,8 @@
+@startuml
+state "Second" as s1
+state "First" as s0
+[*] --> s1
+s1 --> s0 : b
+s1 --> s0 : a ; g
+s0 --> s1 : a
+@enduml

@@ -1,11 +1,10 @@
-package csdfparallelcmd
+package csdfhelpcmd
 
 import (
 	"reflect"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -25,18 +24,25 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:     []string{"-v"},
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"single file (lower boundary value)": {
-			Args:     []string{"a.puml"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Files: []string{"a.puml"}, Args: []string{"a.puml"}},
+		"no arguments selects every tool (lower boundary value)": {
+			Args:     []string{},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), ToolNames: []string{}},
 		},
-		"sync with two files (representative value)": {
-			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
-			Expected: &Options{
-				Common: tools.NewCommonOptionsDefault(),
-				Sync:   []csdf.Event{"x", "y"},
-				Files:  []string{"a.puml", "b.puml"},
-				Args:   []string{"-sync", "x;y", "a.puml", "b.puml"},
-			},
+		"-short (representative value)": {
+			Args:     []string{"-short"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Short: true, ToolNames: []string{}},
+		},
+		"single tool name (lower boundary value)": {
+			Args:     []string{"csdfparse"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), ToolNames: []string{"csdfparse"}},
+		},
+		"two tool names (representative value)": {
+			Args:     []string{"csdfparse", "csdfevents"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), ToolNames: []string{"csdfparse", "csdfevents"}},
+		},
+		"csdfhelp itself is a known tool (representative value)": {
+			Args:     []string{"csdfhelp"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), ToolNames: []string{"csdfhelp"}},
 		},
 	}
 
@@ -67,8 +73,14 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 	}
 
 	testCases := map[string]testCase{
-		"too few arguments (representative value)": {
-			Args: []string{},
+		"unknown tool (representative value)": {
+			Args: []string{"csdfrowidx"},
+		},
+		"unknown tool among known ones (representative value)": {
+			Args: []string{"csdfparse", "csdfrowidx"},
+		},
+		"undefined flag (representative value)": {
+			Args: []string{"-unknown"},
 		},
 	}
 

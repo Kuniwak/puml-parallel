@@ -1,7 +1,8 @@
-package csdfparallelcmd
+package csdfhidecmd
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -13,6 +14,7 @@ import (
 func TestNewParseOptionsFuncOK(t *testing.T) {
 	type testCase struct {
 		Args     []string
+		Stdin    string
 		Expected *Options
 	}
 
@@ -25,17 +27,18 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:     []string{"-v"},
 			Expected: &Options{Common: tools.CommonOptionsVersion},
 		},
-		"single file (lower boundary value)": {
-			Args:     []string{"a.puml"},
-			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Files: []string{"a.puml"}, Args: []string{"a.puml"}},
+		"no events (lower boundary value)": {
+			Args:     []string{"-"},
+			Stdin:    "@startuml\n@enduml\n",
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Bytes: []byte("@startuml\n@enduml\n")},
 		},
-		"sync with two files (representative value)": {
-			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
+		"two events (representative value)": {
+			Args:  []string{"-events", "x;y", "-"},
+			Stdin: "@startuml\n@enduml\n",
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Sync:   []csdf.Event{"x", "y"},
-				Files:  []string{"a.puml", "b.puml"},
-				Args:   []string{"-sync", "x;y", "a.puml", "b.puml"},
+				Events: []csdf.Event{"x", "y"},
+				Bytes:  []byte("@startuml\n@enduml\n"),
 			},
 		},
 	}
@@ -45,6 +48,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			// Arrange
 			parseOptions := NewParseOptionsFunc()
 			spy := cli.SpyProcInout()
+			spy.Stdin = strings.NewReader(testCase.Stdin)
 
 			// Act
 			opts, err := parseOptions(testCase.Args, spy.New())
@@ -67,8 +71,8 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 	}
 
 	testCases := map[string]testCase{
-		"too few arguments (representative value)": {
-			Args: []string{},
+		"too many arguments (representative value)": {
+			Args: []string{"a.puml", "b.puml"},
 		},
 	}
 

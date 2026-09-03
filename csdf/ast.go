@@ -37,6 +37,9 @@ func IsTrue(s Predicate) bool {
 const Tau Event = "tau"
 
 type Diagram struct {
+	// Name is the optional PlantUML diagram name written on the @startuml line.
+	// It carries no meaning, but it is preserved so that formatting round-trips.
+	Name      string            `json:"name,omitempty"`
 	States    map[StateID]State `json:"states"`
 	StartEdge StartEdge         `json:"start_edge"`
 	Edges     []Edge            `json:"edges"`
@@ -81,6 +84,30 @@ func SortedStates(m map[StateID]State) []StateWithID {
 	return ss
 }
 
+// CompareEdge is the canonical order of transitions: source, event,
+// destination, guard, then post. Parallel edges differing only in their
+// predicates are common, so the predicates are part of the order; without them
+// the order would not be total and the output would not be deterministic.
+func CompareEdge(a, b Edge) int {
+	if c := cmp.Compare(a.Src, b.Src); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(a.Event, b.Event); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(a.Dst, b.Dst); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(a.Guard, b.Guard); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.Post, b.Post)
+}
+
+func SortEdges(edges []Edge) {
+	slices.SortFunc(edges, CompareEdge)
+}
+
 type StartEdge struct {
 	Dst  StateID   `json:"dst"`
 	Post Predicate `json:"post"`
@@ -102,9 +129,38 @@ type EndEdge struct {
 	Line  int       `json:"line"` // 1-based source line of the transition.
 }
 
+// Clone returns a deep copy of the diagram: the result shares no state map,
+// state variables, edge slice or end edge with the original, so a caller may
+// rewrite the copy without touching its input.
+func (d *Diagram) Clone() *Diagram {
+	states := make(map[StateID]State, len(d.States))
+	for id, state := range d.States {
+		state.Vars = append([]StateVar{}, state.Vars...)
+		states[id] = state
+	}
+
+	var endEdge *EndEdge
+	if d.EndEdge != nil {
+		copied := *d.EndEdge
+		endEdge = &copied
+	}
+
+	return &Diagram{
+		Name:      d.Name,
+		States:    states,
+		StartEdge: d.StartEdge,
+		Edges:     append([]Edge{}, d.Edges...),
+		EndEdge:   endEdge,
+	}
+}
+
 func (d *Diagram) String() string {
 	var sb strings.Builder
-	sb.WriteString("@startuml\n")
+	if d.Name == "" {
+		sb.WriteString("@startuml\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("@startuml %s\n", d.Name))
+	}
 
 	ss := SortedStates(d.States)
 
@@ -129,15 +185,20 @@ func (d *Diagram) String() string {
 	// Regular edges
 	for _, edge := range d.Edges {
 		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event))
+		// A lone "; x" is a guard (docs/SYNTAX.md), so an edge that only has a
+		// post must spell the omitted guard out as "; true ; x".
 		if IsTrue(edge.Post) {
+			if !IsTrue(edge.Guard) {
+				sb.WriteString(fmt.Sprintf(" ; %s", edge.Guard))
+			}
 			sb.WriteString("\n")
 			continue
 		}
-		if IsTrue(edge.Guard) {
-			sb.WriteString(fmt.Sprintf(" ; %s\n", edge.Post))
-			continue
+		guard := edge.Guard
+		if IsTrue(guard) {
+			guard = PredicateTrue
 		}
-		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
+		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", guard, edge.Post))
 	}
 
 	if d.EndEdge != nil {
