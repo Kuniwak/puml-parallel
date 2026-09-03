@@ -15,8 +15,10 @@
 //	CSDF_CSP_PROVER       a github.com/Kuniwak/CSP-Prover checkout (Isabelle2025 fork)
 //	CSDF_ISABELLE         the isabelle executable (default: "isabelle" on PATH)
 //
-// Set CSDF_REQUIRE_PROVERS=1 to turn a skip into a failure, so that CI cannot
-// pass by checking nothing.
+// CSDF_REQUIRE_PROVERS names the provers whose absence is a failure rather than a
+// skip, as a comma-separated list of "lean", "isabelle" and "all". CI sets it to
+// whichever prover the job installs, so a job that lost its library fails instead
+// of reporting a pass having checked nothing.
 package provercheck
 
 import (
@@ -40,6 +42,14 @@ const (
 	envCSP      = "CSDF_CSP_PROVER"
 	envIsabelle = "CSDF_ISABELLE"
 	envRequire  = "CSDF_REQUIRE_PROVERS"
+)
+
+// The provers, named as CSDF_REQUIRE_PROVERS names them. A job that installs one
+// prover cannot be asked to have the other, so the requirement is per prover
+// rather than one flag for the package.
+const (
+	proverLean     = "lean"
+	proverIsabelle = "isabelle"
 )
 
 // proverTimeout bounds one prover invocation. Isabelle takes a few seconds per
@@ -148,7 +158,7 @@ func obligations(t *testing.T) []obligation {
 }
 
 func TestLeanAcceptsTheGeneratedObligations(t *testing.T) {
-	leanDir := requireEnv(t, envLean)
+	leanDir := requireEnv(t, proverLean, envLean)
 	for _, o := range obligations(t) {
 		t.Run(o.name, func(t *testing.T) {
 			out, err := runLean(t, leanDir, o.name+".lean", o.leanSrc)
@@ -163,7 +173,7 @@ func TestLeanAcceptsTheGeneratedObligations(t *testing.T) {
 }
 
 func TestIsabelleAcceptsTheGeneratedObligations(t *testing.T) {
-	cspDir := requireEnv(t, envCSP)
+	cspDir := requireEnv(t, proverIsabelle, envCSP)
 	for _, o := range obligations(t) {
 		t.Run(o.name, func(t *testing.T) {
 			out, err := runIsabelle(t, cspDir, o, o.isaSrc)
@@ -178,7 +188,7 @@ func TestIsabelleAcceptsTheGeneratedObligations(t *testing.T) {
 // predicate bodies and proofs are filled in by hand and so drift out of step with
 // the generator silently.
 func TestLeanAcceptsTheShippedArtifacts(t *testing.T) {
-	leanDir := requireEnv(t, envLean)
+	leanDir := requireEnv(t, proverLean, envLean)
 	for _, path := range []string{
 		"../../../examples/Livelock_Obligation.lean",
 		"../../../examples/Refinement_Obligation.lean",
@@ -200,7 +210,7 @@ func TestLeanAcceptsTheShippedArtifacts(t *testing.T) {
 }
 
 func TestIsabelleAcceptsTheShippedArtifacts(t *testing.T) {
-	cspDir := requireEnv(t, envCSP)
+	cspDir := requireEnv(t, proverIsabelle, envCSP)
 	for _, tt := range []struct {
 		path   string
 		theory string
@@ -226,7 +236,7 @@ func TestIsabelleAcceptsTheShippedArtifacts(t *testing.T) {
 // without it a misconfigured runner that never really invokes Lean would report a
 // clean pass.
 func TestLeanRejectsABrokenObligation(t *testing.T) {
-	leanDir := requireEnv(t, envLean)
+	leanDir := requireEnv(t, proverLean, envLean)
 	o := obligations(t)[0]
 	broken := strings.Replace(o.leanSrc, "inductive St where", "inductive St where BROKEN(", 1)
 	if broken == o.leanSrc {
@@ -238,7 +248,7 @@ func TestLeanRejectsABrokenObligation(t *testing.T) {
 }
 
 func TestIsabelleRejectsABrokenObligation(t *testing.T) {
-	cspDir := requireEnv(t, envCSP)
+	cspDir := requireEnv(t, proverIsabelle, envCSP)
 	o := obligations(t)[0]
 	broken := strings.Replace(o.isaSrc, "datatype st =", "datatype st = BROKEN(", 1)
 	if broken == o.isaSrc {
@@ -256,7 +266,7 @@ func TestIsabelleRejectsABrokenObligation(t *testing.T) {
 // the second half of this test: it shows the probe has teeth rather than failing
 // for some unrelated reason.
 func TestLeanCannotDischargeAnUnformalisedPredicate(t *testing.T) {
-	leanDir := requireEnv(t, envLean)
+	leanDir := requireEnv(t, proverLean, envLean)
 	o := refinementObligation(t, "disabled", obligationir.IRRefinementModeStableFailure,
 		"testdata/disabled_spec.puml", "testdata/disabled_impl.puml")
 
@@ -363,17 +373,29 @@ func unexpectedLeanDiagnostics(out string) []string {
 	return res
 }
 
-// requireEnv returns the configured path, skipping the test when the prover is
-// not available - unless CSDF_REQUIRE_PROVERS says a skip is a failure, which is
-// what stops CI from passing without checking anything.
-func requireEnv(t *testing.T, name string) string {
+// requireEnv returns the path configured for prover, skipping the test when it is
+// not available - unless CSDF_REQUIRE_PROVERS names that prover, which is what
+// stops CI from passing without checking anything.
+func requireEnv(t *testing.T, prover, name string) string {
 	t.Helper()
 	if v := os.Getenv(name); v != "" {
 		return v
 	}
-	if os.Getenv(envRequire) != "" {
-		t.Fatalf("%s is set but %s is not, so this check would silently do nothing", envRequire, name)
+	if isRequired(prover) {
+		t.Fatalf("%s requires %s but %s is not set, so this check would silently do nothing", envRequire, prover, name)
 	}
 	t.Skipf("%s is not set; set it to a checkout of the prover library to run this check", name)
 	return ""
+}
+
+// isRequired reports whether CSDF_REQUIRE_PROVERS names prover, either directly
+// or through "all".
+func isRequired(prover string) bool {
+	for _, want := range strings.Split(os.Getenv(envRequire), ",") {
+		switch strings.TrimSpace(want) {
+		case prover, "all":
+			return true
+		}
+	}
+	return false
 }

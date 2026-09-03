@@ -11,10 +11,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-env:
-  # Without this a misconfigured runner would skip every check and report a pass.
-  CSDF_REQUIRE_PROVERS: '1'
-
 jobs:
   isabelle:
     name: Isabelle
@@ -25,6 +21,10 @@ jobs:
 
     env:
       ISABELLE_VERSION: Isabelle2025
+      # Without this a runner that lost its library would skip every check and
+      # report a pass. Only this job's prover is required: the other's checks
+      # skip here, as they should.
+      CSDF_REQUIRE_PROVERS: isabelle
 
     steps:
       - name: Checkout code
@@ -49,7 +49,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ~/isabelle
-          curl -fsSL "https://isabelle.in.tum.de/dist/${ISABELLE_VERSION}_linux.tar.gz" \
+          # The /dist/ path 301s to an http:// mirror the runners cannot reach
+          # (the connection just times out); the website- path serves the tarball
+          # directly over https.
+          curl -fsSL --retry 3 --retry-connrefused \
+            "https://isabelle.in.tum.de/website-${ISABELLE_VERSION}/dist/${ISABELLE_VERSION}_linux.tar.gz" \
             | tar -xz -C ~/isabelle --strip-components=1
 
       # Upstream CSP-Prover is pinned to Isabelle2020; this is the Isabelle2025
@@ -89,6 +93,9 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+
+    env:
+      CSDF_REQUIRE_PROVERS: lean
 
     steps:
       - name: Checkout code

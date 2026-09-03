@@ -329,8 +329,9 @@ $ CSDF_LEAN_CSP_PROVER=path/to/lean-csp-prover \
   go test ./csdf/obligationir/provercheck/
 ```
 
-`CSDF_ISABELLE` names the `isabelle` executable when it is not on `PATH`, and
-`CSDF_REQUIRE_PROVERS=1` turns a skip into a failure, which is how the Provers workflow
+`CSDF_ISABELLE` names the `isabelle` executable when it is not on `PATH`.
+`CSDF_REQUIRE_PROVERS` names the provers whose absence is a failure rather than a skip
+(`lean`, `isabelle`, `all`, or a comma-separated list), which is how each Provers job
 avoids passing without checking anything.
 
 ## Compiling the obligation IR separately
