@@ -371,11 +371,11 @@ vm-idle --> vm-idle : choose(a product)
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
 	for _, want := range []string{
-		"| Ev_choose_u28_a_u20_product_u29_",
-		"| S_vm_u2d_idle (v_1st : Val) (v_end : Val)",
-		"PN.S_vm_u2d_idle v_1st v_end =>",
-		`--   choose_u28_a_u20_product_u29_ = "choose(a product)"`,
-		`--   vm_u2d_idle = "vm-idle"`,
+		"| Ev_choose_u28ua_u20uproduct_u29u",
+		"| S_vm_u2duidle (v_1st : Val) (v_end : Val)",
+		"PN.S_vm_u2duidle v_1st v_end =>",
+		`--   choose_u28ua_u20uproduct_u29u = "choose(a product)"`,
+		`--   vm_u2duidle = "vm-idle"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)

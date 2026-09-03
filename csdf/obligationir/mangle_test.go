@@ -1,6 +1,9 @@
 package obligationir
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestMangle(t *testing.T) {
 	tests := []struct {
@@ -9,13 +12,18 @@ func TestMangle(t *testing.T) {
 		want string
 	}{
 		{name: "an identifier is left alone", in: "availableProducts", want: "availableProducts"},
-		{name: "an event with parentheses", in: "choose(product)", want: "choose_u28_product_u29_"},
-		{name: "a space", in: "pay now", want: "pay_u20_now"},
-		{name: "a hyphen in an id", in: "vm-idle", want: "vm_u2d_idle"},
+		{name: "an event with parentheses", in: "choose(product)", want: "choose_u28uproduct_u29u"},
+		{name: "a space", in: "pay now", want: "pay_u20unow"},
+		{name: "a hyphen in an id", in: "vm-idle", want: "vm_u2duidle"},
 		{name: "an underscore doubles", in: "a_b", want: "a__b"},
 		{name: "a leading digit is left alone; the prefix supplies the letter", in: "1st", want: "1st"},
-		{name: "a non-ASCII letter", in: "商品", want: "_u5546__u54c1_"},
+		{name: "a non-ASCII letter", in: "商品", want: "_u5546u_u54c1u"},
 		{name: "the empty name", in: "", want: ""},
+		// Isabelle rejects a name ending in "_", so a trailing one is escaped
+		// rather than doubled.
+		{name: "an underscore inside doubles", in: "s0_s1", want: "s0__s1"},
+		{name: "a trailing underscore is escaped", in: "a_", want: "a_u5fu"},
+		{name: "only the last underscore is escaped", in: "a__", want: "a___u5fu"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -31,8 +39,8 @@ func TestMangle(t *testing.T) {
 func TestMangleIsInjective(t *testing.T) {
 	names := []string{
 		"", "_", "__", "u_", "u", "a", "a_", "_a", "1st", "end", "end_",
-		"a b", "a_b", "a__b", "a-b", "choose(product)", "choose_u28_product_u29_",
-		"商品",
+		"a b", "a_b", "a__b", "a-b", "choose(product)", "choose_u28uproduct_u29u",
+		"商品", "a_u5fu", "s0_s1", "s0__s1",
 	}
 	seen := make(map[string]string, len(names))
 	for _, n := range names {
@@ -48,7 +56,7 @@ func TestMangleIsInjective(t *testing.T) {
 // accept. Mangle alone may still start with a digit, which is why every emitted
 // identifier carries a category prefix; TestVarName covers one such prefix.
 func TestMangleProducesIdentifierCharacters(t *testing.T) {
-	for _, in := range []string{"", "1st", "choose(product)", "vm-idle", "商品", "end", "\n"} {
+	for _, in := range []string{"", "1st", "choose(product)", "vm-idle", "商品", "end", "\n", "a_", "a__", "_"} {
 		got := Mangle(in)
 		for _, r := range got {
 			isLetter := ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z')
@@ -56,6 +64,10 @@ func TestMangleProducesIdentifierCharacters(t *testing.T) {
 				t.Errorf("Mangle(%q) = %q contains %q", in, got, r)
 				break
 			}
+		}
+		// Isabelle rejects a name ending in "_" outright ("Bad name").
+		if strings.HasSuffix(got, "_") {
+			t.Errorf("Mangle(%q) = %q ends in an underscore", in, got)
 		}
 	}
 }

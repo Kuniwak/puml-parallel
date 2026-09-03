@@ -21,8 +21,17 @@ import (
 // the original is recoverable:
 //
 //   - an ASCII letter or digit stands for itself;
-//   - "_" doubles to "__";
-//   - every other rune becomes "_u<hex>_" (lower-case hex of its code point).
+//   - "_" doubles to "__", which keeps composed state ids readable
+//     (ComposeStateIDs joins with "_", so underscores are common);
+//   - every other rune becomes "_u<hex>u", the lower-case hex of its code point
+//     between a "_u" introducer and a "u" terminator. "u" is not a hex digit, so
+//     the terminator is unambiguous, and the character after a "_" says which of
+//     the two forms it is.
+//
+// A "_" that ends the name takes the escaped form instead of doubling, because
+// Isabelle rejects a name ending in "_" ("Bad name"). Decoding is unaffected -
+// both forms decode to "_" - so the encoding stays injective, and no encoded name
+// can end in "_".
 //
 // The result is NOT an identifier on its own: it may start with a digit, and it
 // may spell a keyword of either prover or a name the generator itself declares.
@@ -35,18 +44,19 @@ import (
 // Backends must agree on these spellings, so this is their single definition.
 // The original name is kept in a comment beside the declaration.
 func Mangle(s string) string {
+	runes := []rune(s)
 	var b strings.Builder
 	b.Grow(len(s))
-	for _, r := range s {
+	for i, r := range runes {
 		switch {
-		case r == '_':
+		case r == '_' && i < len(runes)-1:
 			b.WriteString("__")
 		case r <= unicode.MaxASCII && (unicode.IsLetter(r) || unicode.IsDigit(r)):
 			b.WriteRune(r)
 		default:
 			b.WriteString("_u")
 			b.WriteString(strconv.FormatInt(int64(r), 16))
-			b.WriteString("_")
+			b.WriteString("u")
 		}
 	}
 	return b.String()
