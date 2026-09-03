@@ -16,9 +16,12 @@
   literal True placeholder the generator emits and there is nothing to fill in:
   only the theorem, left as oops, is yours.
 
-  Checking this file needs Isabelle2020 with CSP-Prover
-  (github.com/yoshinao-isobe/CSP-Prover), which is a separate installation from
-  the one examples/Livelock_Obligation.thy targets.
+  Checking this file needs CSP-Prover. Upstream is pinned to Isabelle2020, so use
+  the Isabelle2025 fork (github.com/Kuniwak/CSP-Prover), which builds against the
+  same Isabelle examples/Livelock_Obligation.thy targets:
+
+    isabelle build -d path/to/CSP-Prover -b CSP_F
+    isabelle build -d path/to/CSP-Prover -d . <session extending CSP_F>
 
   Regenerating discards the proof below (and this comment). *)
 theory Refinement_Obligation

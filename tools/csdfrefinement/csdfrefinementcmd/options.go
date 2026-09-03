@@ -95,8 +95,10 @@ FD refinement needs: DIV is the bottom of the FD model, so Spec ⊑FD Impl holds
 even for a diverging Spec. Reducing to <=F cannot see that, so -m fd cannot
 decide a refinement whose Spec side diverges.
 
-Checking the emitted theory needs the corresponding library: Isabelle2020 with
-CSP-Prover for isabelle, and lean-csp-prover for lean. The two skeletons mirror
+Checking the emitted theory needs the corresponding library: CSP-Prover for
+isabelle (the Isabelle2025 fork at github.com/Kuniwak/CSP-Prover; build its
+CSP_F session, then extend it from the obligation's ROOT), and lean-csp-prover
+for lean (github.com/Kuniwak/lean-csp-prover). The two skeletons mirror
 each other declaration for declaration, so they can be read side by side.
 
 At most one argument may be "-", which reads that diagram from standard input.

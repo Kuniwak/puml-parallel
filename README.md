@@ -203,9 +203,17 @@ variable — so when the diagrams carry state variables the event type is layere
 replicated choice. No process ever performs an `Internal` event, so no trace and no refusal
 changes.
 
-Checking the generated theory needs Isabelle2020 with CSP-Prover, which is a separate
-installation from the one the `csdflivelockfree` skeletons target; the Lean skeleton needs
-`lean-csp-prover` and its pinned toolchain.
+Checking the generated theory needs CSP-Prover. Upstream is pinned to Isabelle2020, so
+use the Isabelle2025 fork at `github.com/Kuniwak/CSP-Prover`, which builds against the same
+Isabelle the `csdflivelockfree` skeletons target:
+
+```
+$ isabelle build -d path/to/CSP-Prover -b CSP_F
+$ isabelle build -d path/to/CSP-Prover -d . <your session>
+```
+
+The Lean skeleton needs `github.com/Kuniwak/lean-csp-prover` and its pinned toolchain
+(`lake exe cache get && lake build`, then `lake env lean path/to/Refinement_Obligation.lean`).
 
 ## Compiling the obligation IR separately
 

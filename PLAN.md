@@ -52,12 +52,12 @@ Facts verified about CSP-Prover (github.com/yoshinao-isobe/CSP-Prover):
 
 - Provides models **T** (`CSP_T`) and **F** (`CSP_F`) only — **no FD model**.
   fd mode therefore uses the divergence-freedom reduction (§5.3).
-- Pinned to **Isabelle2020**; our current verification setup uses a recent
-  Isabelle, so obligations are checked in a separate Isabelle2020 + CSP-Prover
-  installation (§9).
+- Upstream is pinned to **Isabelle2020**, but the **Isabelle2025 fork**
+  (`github.com/Kuniwak/CSP-Prover`) builds against the Isabelle the rest of the
+  repo uses, so no second installation is needed (§9).
 - License is an LGPL-like custom license. Generated theories only *import*
   CSP-Prover, so this should be unproblematic, but confirm before release.
-- Fallback if the Isabelle2020 pin becomes painful or native FD is required:
+- Fallback if the fork falls behind or native FD is required:
   AFP **HOL-CSP** (FD model, maintained through Isabelle2025-2), at the cost of
   weaker refinement tactics and of losing parity with the future Lean backend.
 
@@ -298,21 +298,22 @@ Structural commits (S) strictly precede and never mix with behavioural ones (B).
    (per-side `wf_on` reuse). Golden tests at each stage, one increment at a time.
 8. **(B)** `tools/csdfrefinement/main.go` + build wiring, matching the other
    tools; end-to-end test via `cli.ProcInoutSpy`.
-9. **Validation (not CI-gated at first):** install Isabelle2020 + CSP-Prover in
-   the scratchpad, `isabelle build` a generated obligation for a small example,
+9. **Validation (not CI-gated at first):** build the Isabelle2025 CSP-Prover
+   fork, `isabelle build` a generated obligation for a small example,
    **negative control first** (a deliberately broken theory must fail), then a
    hand-discharged positive example (fill predicates, prove `<=F` via
    `cspF_fp_induct_*` + `cspF_auto`-style tactics) to validate the encoding —
    especially the exact process syntax of §4, which must be corrected against
-   what Isabelle2020 actually accepts. Feed any syntax fixes back into the
-   golden tests.
+   what Isabelle actually accepts. Feed any syntax fixes back into the golden
+   tests. Done for the syntax: the golden tests alone let two unparsable process
+   shapes through, since they compare strings and never ran a prover.
 
 ## 9. Operational Notes
 
-- Obligation checking needs **Isabelle2020 + CSP-Prover** (`-d <csp-prover-dir>`
-  session), separate from the repo's current Isabelle setup. Document the
-  install + a `ROOT` snippet in the tool's usage/README once step 8.9 pins the
-  details.
+- Obligation checking needs **CSP-Prover** (`-d <csp-prover-dir>`), using the
+  Isabelle2025 fork at `github.com/Kuniwak/CSP-Prover`; build its `CSP_F` session
+  once with `isabelle build -d <dir> -b CSP_F`, then give the obligation a `ROOT`
+  whose session extends `CSP_F` (or `CSP_T` for `-m t`).
 - Keep the existing rule: when verifying generated theories, always run a
   negative control before trusting a PASS.
 
@@ -327,5 +328,5 @@ Structural commits (S) strictly precede and never mix with behavioural ones (B).
   no vars). Valuable, but it is a whole FDR core; not in v1.
 - **Event parameters** (`EventParams` TODO shared with livelockfree).
 - **CSP-Prover license check** before shipping/distributing generated theories.
-- **HOL-CSP fallback** if the Isabelle2020 pin becomes untenable or a native FD
+- **HOL-CSP fallback** if the CSP-Prover fork becomes untenable or a native FD
   model obligation is wanted instead of the §5.3 reduction.
