@@ -215,6 +215,21 @@ $ isabelle build -d path/to/CSP-Prover -d . <your session>
 The Lean skeleton needs `github.com/Kuniwak/lean-csp-prover` and its pinned toolchain
 (`lake exe cache get && lake build`, then `lake env lean path/to/Refinement_Obligation.lean`).
 
+`csdf/obligationir/provercheck` runs both provers over a corpus of generated obligations,
+so this is checked rather than assumed — the backend golden tests compare strings and
+cannot tell a well-formed theory from one that does not parse. It skips unless pointed at
+the libraries:
+
+```
+$ CSDF_LEAN_CSP_PROVER=path/to/lean-csp-prover \
+  CSDF_CSP_PROVER=path/to/CSP-Prover \
+  go test ./csdf/obligationir/provercheck/
+```
+
+`CSDF_ISABELLE` names the `isabelle` executable when it is not on `PATH`, and
+`CSDF_REQUIRE_PROVERS=1` turns a skip into a failure, which is how the Provers workflow
+avoids passing without checking anything.
+
 ## Compiling the obligation IR separately
 
 `obligationirc` is the same IR compiler as a standalone tool: it reads the JSON IR (from
