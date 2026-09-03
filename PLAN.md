@@ -267,10 +267,15 @@ Deliberate design constraints so the two tools compose:
    than restated denotationally because CSP-Prover's F model cannot observe
    divergence at all — the two styles are complementary and coexist in one
    theory (`CSP_F` includes `Main`, so `wf_on` is available).
-3. **No behavioural change to csdflivelockfree.** Its CLI and output stay as
-   they are; only internals move into shared packages. If desired later, a
-   follow-up can teach it a CSP-Prover-flavoured output, but nothing here
-   depends on that.
+3. **No CLI change to csdflivelockfree, but its output does change.** The
+   intention was to move internals into shared packages and leave the output
+   alone. Two corrections to the shared predicate and naming layers reach it
+   anyway, and deliberately: a predicate is emitted uninterpreted rather than as
+   `True` (a `True` placeholder is not a placeholder but a different diagram, in
+   which every guard fires), and every generated identifier carries a category
+   prefix so a state id or variable cannot collide with a keyword or with a name
+   the generator declares itself. Its CLI, and the meaning of its obligation,
+   stay as they are.
 
 ## 8. Implementation Steps (TDD, Tidy First)
 
