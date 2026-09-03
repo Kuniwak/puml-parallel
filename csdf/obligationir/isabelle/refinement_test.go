@@ -90,15 +90,15 @@ primrec
 where
   "procfun (S_s0) =
      (IF (guard_S_L4 \<and> post_S_L4)
-      THEN Ev_a -> $(S_s0)
+      THEN (Ev_a -> $(S_s0))
       ELSE STOP)"
 | "procfun (I_t0) =
      (IF (guard_I_L4 \<and> post_I_L4)
-      THEN Ev_a -> $(I_t0)
+      THEN (Ev_a -> $(I_t0))
       ELSE STOP)
      [+]
      (IF (guard_I_L5 \<and> post_I_L5)
-      THEN Ev_b -> $(I_t0)
+      THEN (Ev_b -> $(I_t0))
       ELSE STOP)"
 
 overloading Set_procfun == "PNfun :: (PN, event) pnfun"
@@ -208,11 +208,11 @@ primrec
 where
   "procfun (S_a v_n) =
      (IF (guard_S_L5 v_n \<and> (\<exists>v_n'. post_S_L5 v_n v_n'))
-      THEN Alphabet Ev_dec -> (!<\<lambda>v_n'. Internal [v_n']> v_n':{v_n'. post_S_L5 v_n v_n'} .. $(S_a v_n'))
+      THEN (Alphabet Ev_dec -> (!<(\<lambda>v_n'. Internal [v_n'])> v_n':{v_n'. post_S_L5 v_n v_n'} .. $(S_a v_n')))
       ELSE STOP)"
 | "procfun (I_a v_n) =
      (IF (guard_I_L5 v_n \<and> (\<exists>v_n'. post_I_L5 v_n v_n'))
-      THEN Alphabet Ev_dec -> (!<\<lambda>v_n'. Internal [v_n']> v_n':{v_n'. post_I_L5 v_n v_n'} .. $(I_a v_n'))
+      THEN (Alphabet Ev_dec -> (!<(\<lambda>v_n'. Internal [v_n'])> v_n':{v_n'. post_I_L5 v_n v_n'} .. $(I_a v_n')))
       ELSE STOP)"
 
 overloading Set_procfun == "PNfun :: (PN, event) pnfun"
@@ -222,10 +222,10 @@ end
 declare Set_procfun_def [simp]
 
 definition SpecProc :: "(PN, event) proc"
-  where "SpecProc \<equiv> (!<\<lambda>v_n. Internal [v_n]> v_n:{v_n. init_S v_n} .. $(S_a v_n))"
+  where "SpecProc \<equiv> (!<(\<lambda>v_n. Internal [v_n])> v_n:{v_n. init_S v_n} .. $(S_a v_n))"
 
 definition ImplProc :: "(PN, event) proc"
-  where "ImplProc \<equiv> (!<\<lambda>v_n. Internal [v_n]> v_n:{v_n. init_I v_n} .. $(I_a v_n))"
+  where "ImplProc \<equiv> (!<(\<lambda>v_n. Internal [v_n])> v_n:{v_n. init_I v_n} .. $(I_a v_n))"
 
 (* Every trace of the Impl diagram is a trace of the Spec diagram: in CSP-Prover
    P <=T Q unfolds to traces Q <= traces P. *)
@@ -257,7 +257,7 @@ b --> b : x
 	for _, want := range []string{
 		// HTau goes last: it is not part of the visible alphabet.
 		"datatype event = Ev_x\n  | HTau\n",
-		"      THEN HTau -> $(S_b)\n",
+		"      THEN (HTau -> $(S_b))\n",
 		`where "SpecProc \<equiv> (IF init_S THEN $(S_a) ELSE DIV) -- {HTau}"`,
 		`where "ImplProc \<equiv> (IF init_I THEN $(I_a) ELSE DIV) -- {HTau}"`,
 	} {
@@ -281,7 +281,7 @@ a --> a : tau ; n > 0 ; n' < n
 
 	for _, want := range []string{
 		"datatype alphabet = HTau\n",
-		`      THEN Alphabet HTau -> (!<\<lambda>v_n'. Internal [v_n']> v_n':{v_n'. post_S_L5 v_n v_n'} .. $(S_a v_n'))`,
+		`      THEN (Alphabet HTau -> (!<(\<lambda>v_n'. Internal [v_n'])> v_n':{v_n'. post_S_L5 v_n v_n'} .. $(S_a v_n')))`,
 		`.. $(S_a v_n)) -- {Alphabet HTau}"`,
 	} {
 		if !strings.Contains(got, want) {
@@ -305,7 +305,7 @@ a --> [*] : done
 
 	for _, want := range []string{
 		"(* done *)\ndefinition guard_S_L5 :: \"bool\"\n  where \"guard_S_L5 \\<equiv> pred_",
-		`      THEN Ev_x -> $(S_a)
+		`      THEN (Ev_x -> $(S_a))
       ELSE STOP)
      [+]
      (IF guard_S_L5
@@ -470,8 +470,8 @@ a --> a : step ; true ; n' = m
 	for _, want := range []string{
 		`  "procfun (S_a v_n v_m) =`,
 		`(\<exists>v_n' v_m'. post_S_L6 v_n v_m v_n' v_m')`,
-		`(!<\<lambda>(v_n', v_m'). Internal [v_n', v_m']> (v_n', v_m'):{(v_n', v_m'). post_S_L6 v_n v_m v_n' v_m'} .. $(S_a v_n' v_m'))`,
-		`where "SpecProc \<equiv> (!<\<lambda>(v_n, v_m). Internal [v_n, v_m]> (v_n, v_m):{(v_n, v_m). init_S v_n v_m} .. $(S_a v_n v_m))"`,
+		`(!<(\<lambda>(v_n', v_m'). Internal [v_n', v_m'])> (v_n', v_m'):{(v_n', v_m'). post_S_L6 v_n v_m v_n' v_m'} .. $(S_a v_n' v_m'))`,
+		`where "SpecProc \<equiv> (!<(\<lambda>(v_n, v_m). Internal [v_n, v_m])> (v_n, v_m):{(v_n, v_m). init_S v_n v_m} .. $(S_a v_n v_m))"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q\n%s", want, got)
@@ -494,10 +494,10 @@ vm-idle --> vm-idle : choose(a product)
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
 	for _, want := range []string{
-		"Ev_choose_u28_a_u20_product_u29_",
-		"S_vm_u2d_idle v_1st v_end",
-		`   choose_u28_a_u20_product_u29_ = "choose(a product)"`,
-		`   vm_u2d_idle = "vm-idle"`,
+		"Ev_choose_u28ua_u20uproduct_u29u",
+		"S_vm_u2duidle v_1st v_end",
+		`   choose_u28ua_u20uproduct_u29u = "choose(a product)"`,
+		`   vm_u2duidle = "vm-idle"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)

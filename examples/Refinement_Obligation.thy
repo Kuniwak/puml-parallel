@@ -72,15 +72,15 @@ primrec
 where
   "procfun (S_s) =
      (IF (guard_S_L4 \<and> post_S_L4)
-      THEN Ev_a -> $(S_s)
+      THEN (Ev_a -> $(S_s))
       ELSE STOP)"
 | "procfun (I_p) =
      (IF (guard_I_L5 \<and> post_I_L5)
-      THEN Ev_a -> $(I_q)
+      THEN (Ev_a -> $(I_q))
       ELSE STOP)"
 | "procfun (I_q) =
      (IF (guard_I_L6 \<and> post_I_L6)
-      THEN Ev_a -> $(I_p)
+      THEN (Ev_a -> $(I_p))
       ELSE STOP)"
 
 overloading Set_procfun == "PNfun :: (PN, event) pnfun"

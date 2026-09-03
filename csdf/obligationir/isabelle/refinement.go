@@ -427,10 +427,14 @@ func WriteEdgeBranch(
 	}
 	io.WriteString(w, `)`)
 
-	writeBodyLine(w, ` THEN `)
+	// The prefix is parenthesised because IF _ THEN _ ELSE _ takes its branches at
+	// priority 88, above the prefix operator: an unparenthesised "e -> P" in the
+	// THEN branch does not parse.
+	writeBodyLine(w, ` THEN (`)
 	io.WriteString(w, s.EventTerm(e.Event))
 	io.WriteString(w, ` -> `)
 	WriteSuccessor(w, s, e.Dst, dst.Fields, true, postApp)
+	io.WriteString(w, `)`)
 
 	writeBodyLine(w, ` ELSE STOP)`)
 }
@@ -479,8 +483,11 @@ func WriteSuccessor(w io.Writer, s sideIR, dst csdf.StateID, fields []obligation
 		return
 	}
 
+	// The injection is parenthesised because CSP-Prover's !<_> _:_ .. _ takes it
+	// at priority 0: without the parentheses the lambda body runs on past the
+	// closing ">", which Isabelle then reads as a comparison and fails to parse.
 	pattern := valuationPattern(fields, primed)
-	io.WriteString(w, `(!<\<lambda>`)
+	io.WriteString(w, `(!<(\<lambda>`)
 	io.WriteString(w, pattern)
 	io.WriteString(w, `. Internal [`)
 	for i, f := range fields {
@@ -489,7 +496,7 @@ func WriteSuccessor(w io.Writer, s sideIR, dst csdf.StateID, fields []obligation
 		}
 		WriteField(w, f, primed)
 	}
-	io.WriteString(w, `]> `)
+	io.WriteString(w, `])> `)
 	io.WriteString(w, pattern)
 	io.WriteString(w, `:{`)
 	io.WriteString(w, pattern)
