@@ -6,6 +6,7 @@ import (
 	"hash/crc32"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -98,12 +99,28 @@ type IRPredicate struct {
 	Text csdf.Predicate `json:"text"`
 }
 
-func (p IRPredicate) Hash(h hash.Hash32) IRPredicateID {
-	h.Write([]byte(p.Text))
+// Signature is what makes two predicates the same predicate: the natural-language
+// text they stand for and the types of their arguments. Argument *names* are
+// deliberately excluded - the same predicate over differently named variables is
+// still one predicate - so every occurrence carries its own argument list
+// alongside the id (see IREdge).
+//
+// The 0x00 separators are not decorative: without them "ab" + [] and "a" + ["b"]
+// would be the same string.
+func (p IRPredicate) Signature() string {
+	var b strings.Builder
+	b.WriteString(string(p.Text))
 	for _, arg := range p.Args {
-		h.Write([]byte{0x00})
-		h.Write([]byte(arg.Type))
+		b.WriteByte(0x00)
+		b.WriteString(arg.Type)
 	}
+	return b.String()
+}
+
+// Hash is the preferred name of a predicate's placeholder, not its identity:
+// see PredicateSet.
+func (p IRPredicate) Hash(h hash.Hash32) IRPredicateID {
+	h.Write([]byte(p.Signature()))
 	res := IRPredicateID(h.Sum32())
 	h.Reset()
 	return res
@@ -114,100 +131,154 @@ type IRPredicateWithID struct {
 	Predicate IRPredicate   `json:"predicate"`
 }
 
-func (p IRPredicate) WithID(h hash.Hash32) IRPredicateWithID {
-	return IRPredicateWithID{
-		ID:        p.Hash(h),
-		Predicate: p,
-	}
-}
-
 func ComparePredicateWithID(a, b IRPredicateWithID) int {
 	return ComparePredicateID(a.ID, b.ID)
 }
 
-func IRPredicatesWithHash(ps []IRPredicate) []IRPredicateWithID {
-	h := crc32.NewIEEE()
-	res := make([]IRPredicateWithID, len(ps))
-	for i, p := range ps {
-		res[i] = p.WithID(h)
-	}
-	return res
-}
-
-// IREdge is one transition. Guard/Post hold either a predicate symbol or the
-// literal "True" when the predicate is omitted.
+// IREdge is one transition. Guard/Post name a shared predicate symbol, while
+// GuardArgs/PostArgs are this occurrence's own arguments: the variables the
+// source and target states of *this* edge bind. The two cannot be read off the
+// shared predicate, whose recorded argument names belong to whichever occurrence
+// registered it, so applying a shared symbol to those names would capture or
+// leave free the wrong variables.
 type IREdge struct {
 	Src         csdf.StateID  `json:"src"`
 	Dst         csdf.StateID  `json:"dst"`
 	Event       csdf.Event    `json:"event"`
 	EventParams []IRArg       `json:"event_params"`
 	Guard       IRPredicateID `json:"guard"`
+	GuardArgs   []IRArg       `json:"guard_args"`
 	Post        IRPredicateID `json:"post"`
+	PostArgs    []IRArg       `json:"post_args"`
 	Line        int           `json:"line"` // 1-based
 }
 
-// IRInit names the start state.
+// IRInit names the start state. PostArgs is this occurrence's own argument list;
+// see IREdge.
 type IRInit struct {
-	Dst  csdf.StateID  `json:"state"`
-	Post IRPredicateID `json:"post"`
-	Line int           `json:"line"` // 1-based
+	Dst      csdf.StateID  `json:"state"`
+	Post     IRPredicateID `json:"post"`
+	PostArgs []IRArg       `json:"post_args"`
+	Line     int           `json:"line"` // 1-based
 }
 
-// BuildLivelockFree builds the livelock-freedom proof obligation IR for d. The
-// structural τ-cycle check (CheckLivelockFree) is used only to set
-// StructurallyLivelockFree; the obligation itself is the global property and does
-// not depend on a particular witness.
-func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
-	_, free := csdf.CheckLivelockFree(d)
+// PredicateSet accumulates the opaque predicates of one or more diagrams,
+// deduplicating them under their text and argument types. Sharing one set across
+// diagrams is what makes an identical predicate collapse to a single pred_<id>
+// placeholder in a multi-diagram obligation.
+//
+// Identity is the signature itself, never the hash: CRC-32 is 32 bits wide and
+// collides on inputs as short as a predicate text (for instance "predicate
+// Sfo2wH6TbLqM" and "predicate o4szAcwElsDU"), and merging two predicates that a
+// diagram means to distinguish would add or remove transitions. The hash only
+// picks the placeholder's name, and a collision moves the loser to the next free
+// id.
+type PredicateSet struct {
+	h  hash.Hash32
+	m  map[IRPredicateID]IRPredicate
+	id map[string]IRPredicateID // signature -> assigned id
+}
 
-	ir := IRLivelockFree{
-		Structurally: free,
-		States:       make(map[csdf.StateID]IRState, len(d.States)),
-		Predicates:   make(map[IRPredicateID]IRPredicate, len(d.Edges)*2+1),
-		Constants:    []IRConst{},
-		Edges:        make([]IREdge, 0, len(d.Edges)),
+func NewPredicateSet(capacity int) *PredicateSet {
+	return &PredicateSet{
+		h:  crc32.NewIEEE(),
+		m:  make(map[IRPredicateID]IRPredicate, capacity),
+		id: make(map[string]IRPredicateID, capacity),
+	}
+}
+
+// Add records p and returns the id every backend names it by.
+func (ps *PredicateSet) Add(p IRPredicate) IRPredicateID {
+	sig := p.Signature()
+	if id, ok := ps.id[sig]; ok {
+		return id
 	}
 
-	ss := csdf.SortedStates(d.States)
-	for _, st := range ss {
+	// Linear probing keeps the assignment a deterministic function of the
+	// predicates added so far, and leaves every collision-free set - which is
+	// every realistic one - named exactly by its hash.
+	id := p.Hash(ps.h)
+	for {
+		if _, taken := ps.m[id]; !taken {
+			break
+		}
+		id++
+	}
+
+	ps.id[sig] = id
+	ps.m[id] = p
+	return id
+}
+
+// Map returns the accumulated predicates keyed by id.
+func (ps *PredicateSet) Map() map[IRPredicateID]IRPredicate { return ps.m }
+
+// BuildStates converts the diagram's states into the IR state space.
+func BuildStates(d *csdf.Diagram) map[csdf.StateID]IRState {
+	states := make(map[csdf.StateID]IRState, len(d.States))
+	for _, st := range csdf.SortedStates(d.States) {
 		fields := make([]IRField, 0, len(st.Vars))
 		for _, v := range st.Vars {
 			fields = append(fields, IRField{Name: string(v.Name), Type: v.Type})
 		}
-		ir.States[st.ID] = IRState{
+		states[st.ID] = IRState{
 			Fields: fields,
 			Line:   st.Line,
 		}
 	}
+	return states
+}
 
-	h := crc32.NewIEEE()
-
-	initPostVars := ir.States[d.StartEdge.Dst]
-	initArgs := make([]IRArg, 0, len(initPostVars.Fields))
-	for _, initPostVar := range initPostVars.Fields {
-		initArgs = append(initArgs, IRArg{
-			Name: initPostVar.Name,
-			Type: initPostVar.Type,
+// BuildInit converts the diagram's start edge into the IR init, registering its
+// post predicate (which constrains the start state's variables) in ps.
+func BuildInit(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) IRInit {
+	start := states[d.StartEdge.Dst]
+	args := make([]IRArg, 0, len(start.Fields))
+	for _, f := range start.Fields {
+		args = append(args, IRArg{
+			Name: f.Name,
+			Type: f.Type,
 		})
 	}
-	init := IRPredicate{
-		Args: initArgs,
-		Text: d.StartEdge.Post,
+	return IRInit{
+		Dst:      d.StartEdge.Dst,
+		Post:     ps.Add(IRPredicate{Args: args, Text: d.StartEdge.Post}),
+		PostArgs: args,
+		Line:     d.StartEdge.Line,
 	}
-	initID := init.Hash(h)
+}
 
-	ir.Predicates[initID] = init
-
-	ir.Init = IRInit{
-		Dst:  d.StartEdge.Dst,
-		Post: initID,
-		Line: d.StartEdge.Line,
+// BuildEnd converts the diagram's end edge into the IR end, registering its
+// guard predicate in ps. It returns nil when the diagram cannot terminate.
+func BuildEnd(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) *IREnd {
+	if d.EndEdge == nil {
+		return nil
 	}
 
+	src := states[d.EndEdge.Src]
+	args := make([]IRArg, 0, len(src.Fields))
+	for _, f := range src.Fields {
+		args = append(args, IRArg{
+			Name: f.Name,
+			Type: f.Type,
+		})
+	}
+	return &IREnd{
+		Src:       d.EndEdge.Src,
+		Guard:     ps.Add(IRPredicate{Args: args, Text: d.EndEdge.Guard}),
+		GuardArgs: args,
+		Line:      d.EndEdge.Line,
+	}
+}
+
+// BuildEdges converts the diagram's transitions into IR edges, registering each
+// guard and post predicate in ps.
+func BuildEdges(ps *PredicateSet, d *csdf.Diagram, states map[csdf.StateID]IRState) []IREdge {
+	edges := make([]IREdge, 0, len(d.Edges))
 	for _, e := range d.Edges {
 		var evParams []csdf.StateVar // TODO
-		preVars := ir.States[e.Src]
-		postVars := ir.States[e.Dst]
+		preVars := states[e.Src]
+		postVars := states[e.Dst]
 
 		guardArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields))
 		for _, evParam := range evParams {
@@ -222,26 +293,10 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 				Type: preVar.Type,
 			})
 		}
-		guard := IRPredicate{
-			Args: guardArgs,
-			Text: e.Guard,
-		}
-		guardID := guard.Hash(h)
-		ir.Predicates[guardID] = guard
+		guardID := ps.Add(IRPredicate{Args: guardArgs, Text: e.Guard})
 
-		postArgs := make([]IRArg, 0, len(evParams)+len(preVars.Fields)+len(postVars.Fields))
-		for _, evParam := range evParams {
-			postArgs = append(postArgs, IRArg{
-				Name: string(evParam.Name),
-				Type: evParam.Type,
-			})
-		}
-		for _, preVar := range preVars.Fields {
-			postArgs = append(postArgs, IRArg{
-				Name: preVar.Name,
-				Type: preVar.Type,
-			})
-		}
+		postArgs := make([]IRArg, 0, len(guardArgs)+len(postVars.Fields))
+		postArgs = append(postArgs, guardArgs...)
 		for _, postVar := range postVars.Fields {
 			postArgs = append(postArgs, IRArg{
 				Name:   postVar.Name,
@@ -249,24 +304,44 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 				Primed: true,
 			})
 		}
-		post := IRPredicate{
-			Args: postArgs,
-			Text: e.Post,
-		}
-		postID := post.Hash(h)
-		ir.Predicates[postID] = post
+		postID := ps.Add(IRPredicate{Args: postArgs, Text: e.Post})
 
-		ir.Edges = append(ir.Edges, IREdge{
+		edges = append(edges, IREdge{
 			Src:         e.Src,
 			Dst:         e.Dst,
 			Event:       e.Event,
 			EventParams: []IRArg{},
 			Guard:       guardID,
+			GuardArgs:   guardArgs,
 			Post:        postID,
+			PostArgs:    postArgs,
 			Line:        e.Line,
 		})
 	}
-	return ir
+	return edges
+}
+
+// BuildLivelockFree builds the livelock-freedom proof obligation IR for d. The
+// structural τ-cycle check (CheckLivelockFree) is used only to set
+// StructurallyLivelockFree; the obligation itself is the global property and does
+// not depend on a particular witness.
+func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
+	_, free := csdf.CheckLivelockFree(d)
+
+	ps := NewPredicateSet(len(d.Edges)*2 + 1)
+	states := BuildStates(d)
+
+	init := BuildInit(ps, d, states)
+	edges := BuildEdges(ps, d, states)
+
+	return IRLivelockFree{
+		Structurally: free,
+		States:       states,
+		Constants:    []IRConst{},
+		Init:         init,
+		Edges:        edges,
+		Predicates:   ps.Map(),
+	}
 }
 
 func TauEdges(es []IREdge) []IREdge {
@@ -293,8 +368,8 @@ func Predicates(ps map[IRPredicateID]IRPredicate) []IRPredicateWithID {
 
 // HasVars reports whether any state has a variable, in which case the json datatype is
 // emitted (otherwise it would be unused).
-func HasVars(ir IRLivelockFree) bool {
-	for _, st := range ir.States {
+func HasVars(states map[csdf.StateID]IRState) bool {
+	for _, st := range states {
 		if len(st.Fields) > 0 {
 			return true
 		}

@@ -3,9 +3,10 @@
     go run ./tools/csdflivelockfree -target lean examples/livelock.puml \
       > examples/Livelock_Obligation.lean
 
-  The generator always emits True placeholders and leaves the theorem as sorry;
-  the import, the predicate bodies and the proof below are filled in by hand, so
-  a regeneration discards them (and this comment).
+  The generator emits each predicate as an opaque declaration under a TODO(csdf)
+  marker and leaves the theorem as sorry; the import, the predicate bodies (which
+  replace those declarations) and the proof below are filled in by hand, so a
+  regeneration discards them (and this comment).
 
   Checking this file needs a Lean project with Mathlib:
 
@@ -22,7 +23,7 @@ inductive Val where
   | ValDict (kvs : List (String × Val))
 
 inductive St where
-  | a (n : Val) -- type: (n : Nat)
+  | St_a (v_n : Val) -- type: (n : Nat)
 
 -- n' = n - 1
 def pred_8y6pdz (n n' : Val) : Prop :=
@@ -52,20 +53,20 @@ def guard_L5 : Val → Prop := pred_10rp854
 def post_L5 : Val → Val → Prop := pred_8y6pdz
 
 def step (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+  ∃ v_n v_n', s = .St_a v_n ∧ s' = .St_a v_n' ∧ guard_L5 v_n ∧ post_L5 v_n v_n'
 
 inductive Reachable : St → Prop where
-  | base (n : Val) : init n → Reachable (.a n)
+  | base (v_n : Val) : init v_n → Reachable (.St_a v_n)
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 def tauStep (s s' : St) : Prop :=
-  ∃ n n', s = .a n ∧ s' = .a n' ∧ guard_L5 n ∧ post_L5 n n'
+  ∃ v_n v_n', s = .St_a v_n ∧ s' = .St_a v_n' ∧ guard_L5 v_n ∧ post_L5 v_n v_n'
 
 /-- The measure a tau transition strictly decreases. A state carrying anything
 other than an integer admits no transition at all, so its measure is irrelevant. -/
 def nMeasure : St → Nat
-  | .a (.ValInt i) => i.toNat
-  | .a _ => 0
+  | .St_a (.ValInt i) => i.toNat
+  | .St_a _ => 0
 
 /-- The guard forces the variable to be a positive integer and the post
 condition decrements it, so `n.toNat` drops on every tau transition. -/

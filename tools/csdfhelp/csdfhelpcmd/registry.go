@@ -9,6 +9,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools/csdfnorm/csdfnormcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparallel/csdfparallelcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparse/csdfparsecmd"
+	"github.com/Kuniwak/puml-parallel/tools/csdfrefinement/csdfrefinementcmd"
 	replcmd "github.com/Kuniwak/puml-parallel/tools/csdfrepl/csdfreplcmd"
 	clientcmd "github.com/Kuniwak/puml-parallel/tools/csdfreplcmd/csdfreplcmdcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfrepld/csdfrepldcmd"
@@ -63,6 +64,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdflivelockfree",
 			Summary: "Compiles a livelock-freedom proof obligation as JSON IR, Isabelle/HOL, or Lean 4.",
 			Run:     tools.NewCommandFunc(csdflivelockfreecmd.NewParseOptionsFunc(), csdflivelockfreecmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfrefinement",
+			Summary: "Compiles a refinement proof obligation for two Composable State Diagrams as JSON IR, Isabelle/HOL, or Lean 4.",
+			Run:     tools.NewCommandFunc(csdfrefinementcmd.NewParseOptionsFunc(), csdfrefinementcmd.NewMainFunc()),
 		},
 		{
 			Name:    "obligationirc",

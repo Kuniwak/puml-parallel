@@ -48,7 +48,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 
 	// Ids 3167241880 and 3618715515 are 1gdozh4 and 1nuhmrf in base 36, the
 	// suffixes the isabelle skeleton names pred_1gdozh4 and pred_1nuhmrf after.
-	want := `{"structurally":false,"predicates":{"1429597351":{"args":[{"name":"n","type":"nat","primed":false}],"text":"true"},"3167241880":{"args":[{"name":"n","type":"nat","primed":false}],"text":"n > 0"},"3618715515":{"args":[{"name":"n","type":"nat","primed":false},{"name":"n","type":"nat","primed":true}],"text":"n' = n - 1"}},"states":{"a":{"fields":[{"name":"n","type":"nat"}],"line":2}},"constants":[],"edges":[{"src":"a","dst":"a","event":"tau","event_params":[],"guard":3167241880,"post":3618715515,"line":5}],"init":{"state":"a","post":1429597351,"line":4}}
+	want := `{"structurally":false,"predicates":{"1429597351":{"args":[{"name":"n","type":"nat","primed":false}],"text":"true"},"3167241880":{"args":[{"name":"n","type":"nat","primed":false}],"text":"n > 0"},"3618715515":{"args":[{"name":"n","type":"nat","primed":false},{"name":"n","type":"nat","primed":true}],"text":"n' = n - 1"}},"states":{"a":{"fields":[{"name":"n","type":"nat"}],"line":2}},"constants":[],"edges":[{"src":"a","dst":"a","event":"tau","event_params":[],"guard":3167241880,"guard_args":[{"name":"n","type":"nat","primed":false}],"post":3618715515,"post_args":[{"name":"n","type":"nat","primed":false},{"name":"n","type":"nat","primed":true}],"line":5}],"init":{"state":"a","post":1429597351,"post_args":[{"name":"n","type":"nat","primed":false}],"line":4}}
 `
 	if want != got {
 		t.Error(cmp.Diff(want, got))

@@ -1,0 +1,6 @@
+@startuml
+' Offers "a" forever.
+state "s" as s
+[*] --> s
+s --> s : a
+@enduml

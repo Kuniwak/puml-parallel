@@ -1,0 +1,7 @@
+@startuml
+' Its only "a" edge is guarded by a predicate nobody has formalised, so whether
+' the edge fires is unknown - and must stay unknown in the generated theory.
+state "p" as p
+[*] --> p
+p --> p : a ; the machine is out of order ; nothing changes
+@enduml

@@ -32,6 +32,26 @@ func Validate(name Name) error {
 	}
 }
 
+// ValidateRefinement reports whether name is a target the refinement obligation
+// can be emitted to.
+func ValidateRefinement(name Name) error {
+	return Validate(name)
+}
+
+// CompileRefinement writes ir to w in the format named by name.
+func CompileRefinement(w io.Writer, ir obligationir.IRRefinement, name Name) error {
+	switch name {
+	case NameIsabelle:
+		return isabelle.WriteRefinement(w, ir)
+	case NameLean:
+		return lean.WriteRefinement(w, ir)
+	case NameIRJSON:
+		return irjson.WriteRefinement(w, ir)
+	default:
+		return fmt.Errorf("target.CompileRefinement: unknown target %q", name)
+	}
+}
+
 // Compile writes ir to w in the format named by name.
 func Compile(w io.Writer, ir obligationir.IRLivelockFree, name Name) error {
 	switch name {
@@ -41,7 +61,9 @@ func Compile(w io.Writer, ir obligationir.IRLivelockFree, name Name) error {
 	case NameLean:
 		lean.WriteLivelockFree(w, ir)
 		return nil
-	default: // IRJSON
+	case NameIRJSON:
 		return irjson.WriteLivelockFree(w, ir)
+	default:
+		return fmt.Errorf("target.Compile: unknown target %q", name)
 	}
 }

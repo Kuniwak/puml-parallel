@@ -1,0 +1,150 @@
+name: Provers
+
+# The generated proof obligations are checked by the provers themselves, because
+# the backend golden tests compare strings and so cannot tell a well-formed theory
+# from one that does not parse. This is a workflow of its own because it installs
+# Isabelle and Mathlib, which takes minutes even warm, and the Go tests must stay
+# fast.
+on:
+  push:
+    branches: master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  isabelle:
+    name: Isabelle
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    env:
+      ISABELLE_VERSION: Isabelle2025
+      # Without this a runner that lost its library would skip every check and
+      # report a pass. Only this job's prover is required: the other's checks
+      # skip here, as they should.
+      CSDF_REQUIRE_PROVERS: isabelle
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Cache Isabelle
+        id: cache-isabelle
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/isabelle
+          key: ${{ runner.os }}-${{ env.ISABELLE_VERSION }}
+
+      - name: Install Isabelle
+        if: steps.cache-isabelle.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/isabelle
+          # The /dist/ path 301s to an http:// mirror the runners cannot reach
+          # (the connection just times out); the website- path serves the tarball
+          # directly over https.
+          curl -fsSL --retry 3 --retry-connrefused \
+            "https://isabelle.in.tum.de/website-${ISABELLE_VERSION}/dist/${ISABELLE_VERSION}_linux.tar.gz" \
+            | tar -xz -C ~/isabelle --strip-components=1
+
+      # Upstream CSP-Prover is pinned to Isabelle2020; this is the Isabelle2025
+      # port. Bump the ref when the fork moves.
+      - name: Check out CSP-Prover
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Kuniwak/CSP-Prover
+          ref: 01c2494b83729018b1c571cde92c9afa63771cfc
+          path: csp-prover
+          persist-credentials: false
+
+      # The built heap is what makes each obligation's session take seconds
+      # rather than minutes, so it is worth carrying between runs.
+      - name: Cache the CSP-Prover heaps
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.isabelle
+          key: ${{ runner.os }}-${{ env.ISABELLE_VERSION }}-csp-prover-${{ hashFiles('csp-prover/**/*.thy', 'csp-prover/ROOT') }}
+          restore-keys: ${{ runner.os }}-${{ env.ISABELLE_VERSION }}-csp-prover-
+
+      # Set unconditionally: the install step above is skipped on a cache hit.
+      - name: Put Isabelle on PATH
+        run: echo "$HOME/isabelle/bin" >> "$GITHUB_PATH"
+
+      - name: Build CSP_F
+        run: isabelle build -d csp-prover -b CSP_F
+
+      - name: Check the generated obligations
+        env:
+          CSDF_CSP_PROVER: ${{ github.workspace }}/csp-prover
+        run: go test -v -timeout 40m ./csdf/obligationir/provercheck/
+
+  lean:
+    name: Lean
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    env:
+      CSDF_REQUIRE_PROVERS: lean
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+
+      # Pinned like CSP-Prover, both for reproducibility and so the build cache
+      # below has a stable key. Bump the ref when the library moves.
+      - name: Check out lean-csp-prover
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: Kuniwak/lean-csp-prover
+          ref: f0b3bf3f1caca275988a9222b85919e1d30264a5
+          path: lean-csp-prover
+          persist-credentials: false
+
+      - name: Install elan
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -o elan-init.sh
+          sh elan-init.sh -y --default-toolchain "$(cat lean-csp-prover/lean-toolchain)"
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      # Compiling lean-csp-prover's own modules is the bulk of this job - the
+      # Mathlib oleans arrive from Mathlib's CDN cache in about half a minute,
+      # and everything after that is this library. Only its build output is
+      # cached: the whole .lake is ~8GB because of Mathlib's sources, which does
+      # not fit the Actions cache budget, while this part is ~1.4GB.
+      - name: Cache the lean-csp-prover build
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: lean-csp-prover/.lake/build
+          key: ${{ runner.os }}-lean-csp-prover-build-${{ hashFiles('lean-csp-prover/lean-toolchain', 'lean-csp-prover/lake-manifest.json', 'lean-csp-prover/**/*.lean') }}
+          restore-keys: ${{ runner.os }}-lean-csp-prover-build-
+
+      - name: Build lean-csp-prover
+        working-directory: lean-csp-prover
+        run: |
+          set -euo pipefail
+          lake exe cache get
+          lake build
+
+      - name: Check the generated obligations
+        env:
+          CSDF_LEAN_CSP_PROVER: ${{ github.workspace }}/lean-csp-prover
+        run: go test -v -timeout 40m ./csdf/obligationir/provercheck/
