@@ -48,6 +48,18 @@ func Run(rules []Rule, in *Input) []Finding {
 	return findings
 }
 
+// RunAll applies the rules to every input and returns their findings, the
+// inputs in the order they were given and each input's findings in source
+// order. A front end that lints many files does not decide any of that, so it
+// does not write this loop.
+func RunAll(rules []Rule, inputs []*Input) []Finding {
+	var findings []Finding
+	for _, in := range inputs {
+		findings = append(findings, Run(rules, in)...)
+	}
+	return findings
+}
+
 // HasError reports whether any finding is definitely wrong, which is what makes
 // a run fail.
 func HasError(findings []Finding) bool {

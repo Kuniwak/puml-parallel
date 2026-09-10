@@ -28,10 +28,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		var findings []lint.Finding
+		inputs := make([]*lint.Input, 0, len(opts.Inputs))
 		for _, input := range opts.Inputs {
-			findings = append(findings, lint.Run(rules, lint.NewInput(input.Name, input.Bytes))...)
+			inputs = append(inputs, lint.NewInput(input.Name, input.Bytes))
 		}
+		findings := lint.RunAll(rules, inputs)
 
 		if err := lint.WriteTSV(inout.Stdout, findings); err != nil {
 			return fmt.Errorf("csdflintcmd.NewMainFunc: %w", err)
@@ -40,7 +41,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		// The findings are written either way: a run that fails still has to say
 		// what it found, and the exit status is the verdict on top of them.
 		if lint.HasError(findings) {
-			return fmt.Errorf("csdflintcmd.NewMainFunc: %w", errors.New("the input has errors"))
+			return errors.New("csdflintcmd.NewMainFunc: the input has errors")
 		}
 		return nil
 	}
