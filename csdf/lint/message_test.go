@@ -14,8 +14,8 @@ import (
 func TestMessagesNeedNoQuoting(t *testing.T) {
 	// Arrange: a diagram that trips every rule that reads transitions, and one
 	// that trips the rule that does not.
-	sources := []string{
-		strings.Join([]string{
+	sources := map[string]string{
+		"a diagram that trips every rule reading transitions": strings.Join([]string{
 			"@startuml",
 			`state "働いている" as s0`,
 			"[*] --> s0",
@@ -24,21 +24,23 @@ func TestMessagesNeedNoQuoting(t *testing.T) {
 			"@enduml",
 			"",
 		}, "\n"),
-		"@startuml\nbogus\n@enduml\n",
+		"a source that does not parse": "@startuml\nbogus\n@enduml\n",
 	}
 
-	for _, source := range sources {
-		// Act
-		findings := lint.Run(lint.DefaultRules(), lint.NewInput("a.puml", []byte(source)))
+	for name, source := range sources {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			findings := lint.Run(lint.DefaultRules(), lint.NewInput("a.puml", []byte(source)))
 
-		// Assert
-		if len(findings) == 0 {
-			t.Fatalf("want findings, got none for %q", source)
-		}
-		for _, f := range findings {
-			if strings.ContainsAny(f.Message, "\t\n\r\"") {
-				t.Errorf("%s: the message needs quoting: %q", f.RuleID, f.Message)
+			// Assert
+			if len(findings) == 0 {
+				t.Fatalf("want findings, got none")
 			}
-		}
+			for _, f := range findings {
+				if strings.ContainsAny(f.Message, "\t\n\r\"") {
+					t.Errorf("%s: the message needs quoting: %q", f.RuleID, f.Message)
+				}
+			}
+		})
 	}
 }
