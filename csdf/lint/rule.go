@@ -24,6 +24,8 @@ type Rule interface {
 func DefaultRules() []Rule {
 	return []Rule{
 		SyntaxErrorRule{},
+		SelfTransitionDivergenceRule{},
+		SelfTransitionPostBreaksGuardRule{},
 	}
 }
 
