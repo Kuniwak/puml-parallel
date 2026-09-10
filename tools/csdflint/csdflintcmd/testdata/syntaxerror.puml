@@ -1,0 +1,4 @@
+@startuml
+state "s0" as s0
+bogus
+@enduml

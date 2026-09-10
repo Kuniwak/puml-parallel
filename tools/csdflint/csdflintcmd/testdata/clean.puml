@@ -1,0 +1,7 @@
+@startuml
+state "s0" as s0
+state "s1" as s1
+[*] --> s0
+s0 --> s1 : a
+s1 --> [*]
+@enduml

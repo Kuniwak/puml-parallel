@@ -37,7 +37,7 @@ func TestSelfTransitionDivergenceRuleReportsAnEdgeBackToItsOwnState(t *testing.T
 	if got.StartLine != 5 || got.EndLine != 5 {
 		t.Errorf("want lines 5-5, got %d-%d", got.StartLine, got.EndLine)
 	}
-	if !strings.Contains(got.Message, `"a"`) || !strings.Contains(got.Message, `"s0"`) {
+	if !strings.Contains(got.Message, "`a`") || !strings.Contains(got.Message, "`s0`") {
 		t.Errorf("want the event and the state named, got %q", got.Message)
 	}
 }

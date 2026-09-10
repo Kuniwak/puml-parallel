@@ -47,21 +47,25 @@ func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
 }
 
 func (r SelfTransitionDivergenceRule) message(d *csdf.Diagram, edge csdf.Edge) string {
-	state := fmt.Sprintf("%q", edge.Src)
+	// The label is written once, at the first mention: a state label is a
+	// sentence in some diagrams, and repeating it at every mention would bury
+	// the question the message asks.
+	state := fmt.Sprintf("`%s`", edge.Src)
+	intro := state
 	if name := d.States[edge.Src].Name; name != "" && csdf.StateID(name) != edge.Src {
-		state = fmt.Sprintf("%q (%s)", edge.Src, name)
+		intro = fmt.Sprintf("`%s` (%s)", edge.Src, name)
 	}
 
 	if edge.Event == csdf.Tau {
 		return fmt.Sprintf(
-			"State %s has a tau self-transition, so the diagram admits the trace prefix -> %[1]s -> %[1]s -> ... in which nothing observable ever happens again: that is divergence, not a loop of work. Check whether this tau was meant to leave %[1]s, and if it was not, prove the diagram livelock-free with csdflivelockfree.",
-			state,
+			"State %s has a tau self-transition, so the diagram admits the trace prefix -> %[2]s -> %[2]s -> ... in which nothing observable ever happens again: that is divergence, not a loop of work. Check whether this tau was meant to leave %[2]s, and if it was not, prove the diagram livelock-free with csdflivelockfree.",
+			intro, state,
 		)
 	}
 
 	return fmt.Sprintf(
-		"State %s has a self-transition on %q, so the diagram admits the trace prefix -> %[1]s -> %[1]s -> ... in which %[2]q repeats without bound and no suffix after %[1]s ever begins. Read that trace against the specification and answer: is every number of repetitions of %[2]q really allowed here, and does %[1]s really look the same after each one? If the repetitions are bounded, or if the system is in a different situation after %[2]q than before it, split %[1]s into the states before and after instead of looping.",
-		state, string(edge.Event),
+		"State %s has a self-transition on `%s`, so the diagram admits the trace prefix -> %[3]s -> %[3]s -> ... in which `%[2]s` repeats without bound and no suffix after %[3]s ever begins. Read that trace against the specification and answer: is every number of repetitions of `%[2]s` really allowed here, and does %[3]s really look the same after each one? If the repetitions are bounded, or if the system is in a different situation after `%[2]s` than before it, split %[3]s into the states before and after instead of looping.",
+		intro, string(edge.Event), state,
 	)
 }
 
@@ -102,7 +106,7 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 			RuleID:    r.ID(),
 			Severity:  SeverityHint,
 			Message: fmt.Sprintf(
-				"State %q has a self-transition on %q guarded by %q whose post is %q. Decide whether the post can make the guard false: assume the guard holds, apply the post, and evaluate the guard again in the resulting state. If it can be false, %[1]q is not one state but two - the one where %[3]q holds and the one after %[4]q - and the edge should go to a second state instead of back to %[1]q. If the guard still holds afterwards, say so and leave the loop alone.",
+				"State `%s` has a self-transition on `%s` guarded by `%s` whose post is `%s`. Decide whether the post can make the guard false: assume the guard holds, apply the post, and evaluate the guard again in the resulting state. If it can be false, `%[1]s` is not one state but two - the one where `%[3]s` holds and the one after `%[4]s` - and the edge should go to a second state instead of back to `%[1]s`. If the guard still holds afterwards, say so and leave the loop alone.",
 				string(edge.Src), string(edge.Event), string(edge.Guard), string(edge.Post),
 			),
 		})
