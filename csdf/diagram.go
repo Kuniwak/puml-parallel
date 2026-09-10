@@ -40,6 +40,23 @@ func (e *PromotionHintError) Unwrap() error { return e.err }
 // hint is not unwrapped away on its road to the terminal.
 func (e *PromotionHintError) UserFacing() {}
 
+// ParseError is a parse failure at a known position in the source. The parser
+// already writes the position into its message; this type carries it apart from
+// the prose as well, so that a caller that has to point at the source - a lint
+// reporting a file and a line - does not have to read it back out of English.
+//
+// Its own message is the message of the error it wraps, so wrapping changes
+// nothing a reader sees.
+type ParseError struct {
+	Line int // 1-based line the parser stopped at.
+	Col  int // 1-based column the parser stopped at.
+	err  error
+}
+
+func (e *ParseError) Error() string { return e.err.Error() }
+
+func (e *ParseError) Unwrap() error { return e.err }
+
 // ParseBytes parses a Composable State Diagram from raw .puml text or .png
 // bytes (the embedded PlantUML source is extracted from PNG inputs).
 func ParseBytes(content []byte) (*Diagram, error) {
@@ -47,7 +64,7 @@ func ParseBytes(content []byte) (*Diagram, error) {
 	if err != nil {
 		return nil, fmt.Errorf("csdf.ParseBytes: reading PlantUML source: %w", err)
 	}
-	diagram, err := NewParser(source).Parse()
+	diagram, err := parseAt(source)
 	if err != nil {
 		return nil, fmt.Errorf("csdf.ParseBytes: parse: %w", withHint(err, source))
 	}
@@ -55,9 +72,20 @@ func ParseBytes(content []byte) (*Diagram, error) {
 }
 
 func Parse(content string) (*Diagram, error) {
-	diagram, err := NewParser(content).Parse()
+	diagram, err := parseAt(content)
 	if err != nil {
 		return nil, fmt.Errorf("csdf.Parse: parse: %w", withHint(err, content))
+	}
+	return diagram, nil
+}
+
+// parseAt parses the source and tags a failure with the position the parser
+// stopped at.
+func parseAt(source string) (*Diagram, error) {
+	p := NewParser(source)
+	diagram, err := p.Parse()
+	if err != nil {
+		return nil, &ParseError{Line: p.line, Col: p.col, err: err}
 	}
 	return diagram, nil
 }

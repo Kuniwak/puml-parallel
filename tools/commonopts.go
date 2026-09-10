@@ -138,3 +138,52 @@ func readStdin(inout *cli.ProcInout) ([]byte, error) {
 	}
 	return bs, nil
 }
+
+// FileInput is one input of a tool that takes any number of them: the name to
+// report it by, and its bytes. Name is "-" for standard input, which is what a
+// message pointing at the input has to print for it.
+type FileInput struct {
+	Name  string
+	Bytes []byte
+}
+
+// ValidateArgsAsFileInputs reads every file named by args. No argument, and a
+// "-" argument, both mean standard input. Unlike the single-input helpers this
+// one keeps the names, because a tool with many inputs has to say which one it
+// is talking about.
+func ValidateArgsAsFileInputs(args []string, inout *cli.ProcInout) ([]FileInput, error) {
+	if len(args) == 0 {
+		bs, err := readStdin(inout)
+		if err != nil {
+			return nil, err
+		}
+		return []FileInput{{Name: "-", Bytes: bs}}, nil
+	}
+
+	inputs := make([]FileInput, 0, len(args))
+	stdinRead := false
+	for _, file := range args {
+		if file == "-" {
+			// The stream is exhausted by the first read, so a second "-" would
+			// silently lint nothing rather than lint the same input twice.
+			if stdinRead {
+				return nil, fmt.Errorf("only one argument may be \"-\"")
+			}
+			stdinRead = true
+
+			bs, err := readStdin(inout)
+			if err != nil {
+				return nil, err
+			}
+			inputs = append(inputs, FileInput{Name: "-", Bytes: bs})
+			continue
+		}
+
+		bs, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read file: %v", err)
+		}
+		inputs = append(inputs, FileInput{Name: file, Bytes: bs})
+	}
+	return inputs, nil
+}

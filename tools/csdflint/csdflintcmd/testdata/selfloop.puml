@@ -1,0 +1,6 @@
+@startuml
+state "s0" as s0
+s0 : n ; Nat
+[*] --> s0
+s0 --> s0 : a ; n = 0 ; n' = n + 1
+@enduml

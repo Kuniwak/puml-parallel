@@ -5,6 +5,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools/csdfcomp/csdfcompcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfevents/csdfeventscmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfhide/csdfhidecmd"
+	"github.com/Kuniwak/puml-parallel/tools/csdflint/csdflintcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdflivelockfree/csdflivelockfreecmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfnorm/csdfnormcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparallel/csdfparallelcmd"
@@ -65,6 +66,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfsort",
 			Summary: "Prints a Composable State Diagram in canonical order without changing its meaning.",
 			Run:     tools.NewCommandFunc(csdfsortcmd.NewParseOptionsFunc(), csdfsortcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdflint",
+			Summary: "Checks Composable State Diagrams and reports what it finds as TSV.",
+			Run:     tools.NewCommandFunc(csdflintcmd.NewParseOptionsFunc(), csdflintcmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdflivelockfree",
