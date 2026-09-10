@@ -218,11 +218,9 @@ of a CSDF are natural language and so opaque, and a `HINT` is a question rather
 than a verdict. The self-transition rules are there because a diagram written by
 an AI loops where it should have split a state.
 
-Lint what a person wrote. The expansion of a promotion is one state with many
-self-loops by construction, so linting the output of `csdfpromote` says only
-that.
-
-See [docs/LINT.md](docs/LINT.md) for the rules and for how to add one.
+`csdflint -list-rules` prints every rule with a one-line summary. Lint what a
+person wrote: the expansion of a promotion is one state with many self-loops by
+construction, so linting the output of `csdfpromote` says only that.
 
 ## Livelock freedom
 
@@ -460,7 +458,6 @@ instead takes its values via `-json <json-array>` or `-json-file <file>`. Run
 - [Syntax](docs/SYNTAX.md) - Syntax documentation
 - [Composition Tree](docs/COMPOSITION_TREE.md) - The JSON format read by `csdfcomp`
 - [Promotion](docs/PROMOTION.md) - The directives read by `csdfpromote`
-- [Lint](docs/LINT.md) - The rules read by `csdflint`
 - [Glossary](docs/GLOSSARY.md) - Term definitions
 
 ## License
