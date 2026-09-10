@@ -161,8 +161,16 @@ func ValidateArgsAsFileInputs(args []string, inout *cli.ProcInout) ([]FileInput,
 	}
 
 	inputs := make([]FileInput, 0, len(args))
+	stdinRead := false
 	for _, file := range args {
 		if file == "-" {
+			// The stream is exhausted by the first read, so a second "-" would
+			// silently lint nothing rather than lint the same input twice.
+			if stdinRead {
+				return nil, fmt.Errorf("only one argument may be \"-\"")
+			}
+			stdinRead = true
+
 			bs, err := readStdin(inout)
 			if err != nil {
 				return nil, err
