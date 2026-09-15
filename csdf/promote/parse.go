@@ -10,17 +10,22 @@ import (
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
 
+// idPattern matches an identifier the way csdf.Parser does: Unicode letters and
+// digits, "_" and "-". \w is ASCII-only in RE2, which would reject an id
+// written in Japanese.
+const idPattern = `[\p{L}\p{N}_-]+`
+
 // The directives are all line-shaped, and so is PlantUML's own syntax for them,
 // so they are lifted out line by line. Every line that is lifted is replaced by
 // an empty one rather than dropped, which keeps the line numbers csdf.Parse
 // reports pointing at the source the author wrote.
 var (
-	compositeOpenRe = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+([\w-]+)\s*\{$`)
-	promoteRe       = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+([\w-]+)\s+<<promote>>\s*(\{?)$`)
+	compositeOpenRe = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+(` + idPattern + `)\s*\{$`)
+	promoteRe       = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+(` + idPattern + `)\s+<<promote>>\s*(\{?)$`)
 	closeRe         = regexp.MustCompile(`^}$`)
 	includeRe       = regexp.MustCompile(`^!include\s+(.+)$`)
-	noteFloatingRe  = regexp.MustCompile(`^note\s+as\s+([\w-]+)$`)
-	noteAnchoredRe  = regexp.MustCompile(`^note\s+(?:left|right|top|bottom)\s+of\s+([\w-]+)$`)
+	noteFloatingRe  = regexp.MustCompile(`^note\s+as\s+(` + idPattern + `)$`)
+	noteAnchoredRe  = regexp.MustCompile(`^note\s+(?:left|right|top|bottom)\s+of\s+(` + idPattern + `)$`)
 	noteEndRe       = regexp.MustCompile(`^end\s+note$`)
 	promoteTitleRe  = regexp.MustCompile(`^(\S+)\s*:\s*(.+?)\s*(?:⇸|->>)\s*(\S+)$`)
 	syncBodyRe      = regexp.MustCompile(`^sync\s+([^(;:]+?)\s*:\s*(.+)$`)

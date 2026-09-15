@@ -3,6 +3,8 @@ package csdf
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -395,13 +397,19 @@ func (p *Parser) parseEvent() (Event, error) {
 func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
 
-	if p.isAtEnd() || !p.isIDChar(p.peek()) {
+	if p.isAtEnd() || !isIDRune(p.peekRune()) {
 		return "", fmt.Errorf("csdf.Parser.parseID: expected identifier at line %d, col %d", p.line, p.col)
 	}
 
-	for !p.isAtEnd() && p.isIDChar(p.peek()) {
-		result.WriteByte(p.peek())
-		p.advance()
+	for !p.isAtEnd() {
+		r, size := p.peekRuneSize()
+		if !isIDRune(r) {
+			break
+		}
+		result.WriteRune(r)
+		for i := 0; i < size; i++ {
+			p.advance()
+		}
 	}
 
 	return result.String(), nil
@@ -455,8 +463,23 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 	return strings.TrimSpace(result.String()), nil
 }
 
-func (p *Parser) isIDChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
+// isIDRune reports whether r may appear in an identifier. Unicode letters and
+// digits are accepted so that identifiers can be written in any language;
+// PlantUML accepts them too, which keeps CSDF a subset of PlantUML.
+func isIDRune(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
+}
+
+func (p *Parser) peekRune() rune {
+	r, _ := p.peekRuneSize()
+	return r
+}
+
+func (p *Parser) peekRuneSize() (rune, int) {
+	if p.isAtEnd() {
+		return 0, 0
+	}
+	return utf8.DecodeRuneInString(p.input[p.pos:])
 }
 
 func (p *Parser) isEdge() (bool, error) {

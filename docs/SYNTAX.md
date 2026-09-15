@@ -23,7 +23,7 @@ event = 1*textElement
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
-id = 1*(ALPHA / DIGIT / "_" / "-")
+id = 1*(unicode_letter / unicode_digit / "_" / "-")
 trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
 inlineSeparator = 1*(HTAB / SP / block_comment)
@@ -33,6 +33,8 @@ ignore_begin = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
 ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 ignore_line = *unicode_char LF
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
+unicode_letter = <any character in Unicode general category L>
+unicode_digit = <any character in Unicode general category N>
 unicode_char = %x20-7F / %x80-10FFFF
 unicode_char_except_dquote_and_backslash = %x20-21 / %x23-5B / %x5D-7F / %x80-10FFFF
 unicode_char_except_squote = %x20-26 / %x28-7F / %x80-10FFFF
@@ -54,10 +56,12 @@ rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a p
 Comment delimiters inside double-quoted strings are treated as ordinary text.
 An event must remain non-empty after comments and surrounding whitespace are removed.
 
+Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
+state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
+PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
+
 The following symbols are ABNF core rules:
 
-* `ALPHA`: ASCII uppercase and lowercase letters
-* `DIGIT`: Decimal digits
 * `DQUOTE`: Double quote
 * `SP`: Space
 * `LF`: Line feed

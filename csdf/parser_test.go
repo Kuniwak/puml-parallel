@@ -691,3 +691,29 @@ s0 --> s1 : e
 
 	// Teardown: no resources to release.
 }
+
+func TestParseUnicodeIdentifiers(t *testing.T) {
+	input := `@startuml "ja"
+[*] --> 約定済み
+state "約定済み" as 約定済み
+約定済み: 約定内容
+約定済み --> [*]: 完了
+@enduml
+`
+
+	diagram, err := NewParser(input).Parse()
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	state, ok := diagram.States["約定済み"]
+	if !ok {
+		t.Fatalf("diagram.States has no state 約定済み, got %v", diagram.States)
+	}
+	if len(state.Vars) != 1 || state.Vars[0].Name != "約定内容" {
+		t.Errorf("state.Vars = %v, want [約定内容]", state.Vars)
+	}
+	if diagram.StartEdge.Dst != "約定済み" {
+		t.Errorf("diagram.StartEdge.Dst = %q, want %q", diagram.StartEdge.Dst, "約定済み")
+	}
+}
