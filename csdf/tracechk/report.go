@@ -75,8 +75,9 @@ func joinStates(states []csdf.StateID) string {
 
 func writeAcceptance(sb *strings.Builder, d *csdf.Diagram, r Result) {
 	fmt.Fprintf(sb, "# %s: ACCEPTED when every guard is true\n\n", r.Name)
-	fmt.Fprintf(sb, "The diagram performs the trace %s along %s when every guard is taken\nas true. Whether it is a trace of the diagram in fact depends on the\nnatural-language predicates below, which this tool does not evaluate.\n\n",
-		joinEvents(r.Trace), plural(len(r.Paths), "path"))
+	fmt.Fprintf(sb, "The diagram performs the trace along %s when every guard is taken as\ntrue. Whether it is a trace of the diagram in fact depends on the\nnatural-language predicates below, which this tool does not evaluate.\n\n",
+		plural(len(r.Paths), "path"))
+	fmt.Fprintf(sb, "- trace: %s\n\n", joinEvents(r.Trace))
 	for i, path := range r.Paths {
 		fmt.Fprintf(sb, "## Path %d\n\n", i+1)
 		writePath(sb, d, path)

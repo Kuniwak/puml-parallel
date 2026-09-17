@@ -68,9 +68,11 @@ b --> a : tau ; m = 0 ; n' = n
 	// Assert
 	want := "# trace.tsv: ACCEPTED when every guard is true\n" +
 		"\n" +
-		"The diagram performs the trace `x`, `x` along 1 path when every guard is taken\n" +
-		"as true. Whether it is a trace of the diagram in fact depends on the\n" +
+		"The diagram performs the trace along 1 path when every guard is taken as\n" +
+		"true. Whether it is a trace of the diagram in fact depends on the\n" +
 		"natural-language predicates below, which this tool does not evaluate.\n" +
+		"\n" +
+		"- trace: `x`, `x`\n" +
 		"\n" +
 		"## Path 1\n" +
 		"\n" +
