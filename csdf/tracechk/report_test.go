@@ -20,7 +20,7 @@ b --> a : y
 b --> b : z
 @enduml
 `)
-	result := tracechk.Run(d, "trace.tsv", []csdf.Event{"x", "w", "y"})
+	result := tracechk.Run(tracechk.MatchExact, d, "trace.tsv", []csdf.Event{"x", "w", "y"})
 
 	// Act
 	var sb strings.Builder
@@ -57,7 +57,7 @@ a --> b : x ; n < 3 ; n' = n + 1 ∧ m' = 0
 b --> a : tau ; m = 0 ; n' = n
 @enduml
 `)
-	result := tracechk.Run(d, "trace.tsv", []csdf.Event{"x", "x"})
+	result := tracechk.Run(tracechk.MatchExact, d, "trace.tsv", []csdf.Event{"x", "x"})
 
 	// Act
 	var sb strings.Builder

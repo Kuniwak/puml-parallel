@@ -203,3 +203,46 @@ state "a" as a
 		t.Errorf("want one empty path, got %#v", paths)
 	}
 }
+
+func TestCheckPrefixMatchAcceptsATraceEventThatPrefixesTheDiagramEvent(t *testing.T) {
+	// Arrange: the trace was stripped of its parameters (e.g. with qhs), so
+	// "insert" has to match "insert(coin)"; "reset" still matches "reset".
+	d := parse(t, `@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : insert(coin)
+b --> a : reset
+@enduml
+`)
+
+	// Act
+	paths, rejection := tracechk.CheckWith(tracechk.MatchPrefix, d, []csdf.Event{"insert", "reset"})
+
+	// Assert
+	if rejection != nil {
+		t.Fatalf("want accepted, got %#v", rejection)
+	}
+	if len(paths) != 1 || len(paths[0]) != 2 {
+		t.Errorf("want one path of two edges, got %#v", paths)
+	}
+}
+
+func TestCheckExactMatchRejectsAPrefix(t *testing.T) {
+	// Arrange
+	d := parse(t, `@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : insert(coin)
+@enduml
+`)
+
+	// Act
+	_, rejection := tracechk.CheckWith(tracechk.MatchExact, d, []csdf.Event{"insert"})
+
+	// Assert
+	if rejection == nil || rejection.Index != 0 {
+		t.Errorf("want rejection at 0, got %#v", rejection)
+	}
+}

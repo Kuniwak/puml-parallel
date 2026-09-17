@@ -1,10 +1,46 @@
 package tracechk
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
+
+// Match is the rule deciding whether an event of the trace is an event of the
+// diagram. Events are free-form text and their notation is not fixed, so the
+// rules are deliberately simple; anything richer is for sed or qhs to do to the
+// trace before it gets here.
+type Match string
+
+const (
+	// MatchExact accepts an event of the trace only as the identical text.
+	MatchExact Match = "exact"
+	// MatchPrefix accepts an event of the trace as every diagram event it is a
+	// prefix of, so a trace stripped of its parameters ("insert") matches the
+	// parameterised label ("insert(coin)"). It includes the identical text.
+	MatchPrefix Match = "prefix"
+)
+
+// ParseMatch reads a -match spelling.
+func ParseMatch(s string) (Match, error) {
+	switch Match(s) {
+	case MatchExact, MatchPrefix:
+		return Match(s), nil
+	default:
+		return "", fmt.Errorf("unknown match rule %q (want exact or prefix)", s)
+	}
+}
+
+func (m Match) matches(diagramEvent, traceEvent csdf.Event) bool {
+	switch m {
+	case MatchPrefix:
+		return strings.HasPrefix(string(diagramEvent), string(traceEvent))
+	default:
+		return diagramEvent == traceEvent
+	}
+}
 
 // Path is one way the diagram performs a trace: the edges it takes in order,
 // tau edges included, from the start state to the state after the last event.
@@ -23,15 +59,20 @@ type Rejection struct {
 	Enabled []csdf.Event
 }
 
-// Check reports whether trace is a trace of d when every guard is taken as
-// true. When it is, it returns every path performing it; a path never repeats a
+// Check is CheckWith under MatchExact.
+func Check(d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
+	return CheckWith(MatchExact, d, trace)
+}
+
+// CheckWith reports whether trace is a trace of d when every guard is taken as
+// true, deciding which diagram events a trace event is under m. When it is, it returns every path performing it; a path never repeats a
 // state within one run of tau edges, so a tau cycle yields finitely many paths.
 // When it is not, it returns where the trace was rejected.
 //
 // Guards and postconditions are natural language and are not evaluated here:
 // an accepted trace is a trace of the diagram only if some returned path has
 // satisfiable predicates, which is the caller's obligation to state.
-func Check(d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
+func CheckWith(m Match, d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
 	out := outgoing(d)
 
 	states := tauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}}, out)
@@ -39,7 +80,7 @@ func Check(d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
 		next := make(map[csdf.StateID]struct{})
 		for s := range states {
 			for _, e := range out[s] {
-				if e.Event == event {
+				if e.Event != csdf.Tau && m.matches(e.Event, event) {
 					next[e.Dst] = struct{}{}
 				}
 			}
@@ -64,7 +105,7 @@ func Check(d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
 		}
 		for _, e := range out[s] {
 			switch {
-			case e.Event == trace[i]:
+			case e.Event != csdf.Tau && m.matches(e.Event, trace[i]):
 				extend(e.Dst, i+1, append(path, e), map[csdf.StateID]struct{}{e.Dst: {}})
 			case e.Event == csdf.Tau:
 				if _, seen := tauSeen[e.Dst]; seen {

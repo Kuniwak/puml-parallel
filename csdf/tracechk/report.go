@@ -19,9 +19,10 @@ type Result struct {
 // Accepted reports whether the trace is a trace when every guard is true.
 func (r Result) Accepted() bool { return r.Rejection == nil }
 
-// Run checks trace against d and names the result after the file it came from.
-func Run(d *csdf.Diagram, name string, trace []csdf.Event) Result {
-	paths, rejection := Check(d, trace)
+// Run checks trace against d under m and names the result after the file it
+// came from.
+func Run(m Match, d *csdf.Diagram, name string, trace []csdf.Event) Result {
+	paths, rejection := CheckWith(m, d, trace)
 	return Result{Name: name, Trace: trace, Paths: paths, Rejection: rejection}
 }
 
