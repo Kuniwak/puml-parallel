@@ -4,9 +4,9 @@
 package tracechk
 
 import (
+	"encoding/csv"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -15,28 +15,25 @@ import (
 const TSVHeader = "event"
 
 // ReadTSV reads a trace: a TSV whose header is the single column "event" and
-// whose every other row is one event. Events are free-form text, so a row is
-// taken literally: quotes are ordinary characters, and a tab, which would start
-// a second column, is an error. A trailing newline is optional.
+// whose every other row is one event. It is read as CSV with a tab delimiter,
+// so a field may be quoted to hold a tab, a newline or a double quote, and an
+// unquoted field is taken literally; a second column is an error.
 func ReadTSV(r io.Reader) ([]csdf.Event, error) {
-	bs, err := io.ReadAll(r)
+	cr := csv.NewReader(r)
+	cr.Comma = '\t'
+	cr.FieldsPerRecord = 1
+
+	records, err := cr.ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("tracechk.ReadTSV: %w", err)
 	}
-	rows := strings.Split(strings.TrimSuffix(string(bs), "\n"), "\n")
-	for i := range rows {
-		rows[i] = strings.TrimSuffix(rows[i], "\r")
-	}
-	if rows[0] != TSVHeader {
+	if len(records) == 0 || records[0][0] != TSVHeader {
 		return nil, fmt.Errorf("want a header row %q", TSVHeader)
 	}
 
-	events := make([]csdf.Event, 0, len(rows)-1)
-	for i, row := range rows[1:] {
-		if strings.Contains(row, "\t") {
-			return nil, fmt.Errorf("row %d: want one column, got a tab", i+2)
-		}
-		event := csdf.Event(row)
+	events := make([]csdf.Event, 0, len(records)-1)
+	for i, record := range records[1:] {
+		event := csdf.Event(record[0])
 		// A trace is what the environment sees, and it never sees tau.
 		if event == csdf.Tau {
 			return nil, fmt.Errorf("row %d: %q is internal and cannot appear in a trace", i+2, csdf.Tau)

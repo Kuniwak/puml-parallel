@@ -26,10 +26,10 @@ func TestReadTSVReadsOneEventPerRowUnderAnEventHeader(t *testing.T) {
 	}
 }
 
-func TestReadTSVTakesRowsLiterally(t *testing.T) {
-	// Arrange: quotes are ordinary characters, CRLF is accepted, and the last
-	// newline is optional.
-	input := "event\r\nsay \"hi\"\r\n\"quoted\""
+func TestReadTSVReadsQuotedFieldsAsCSVWithATabDelimiter(t *testing.T) {
+	// Arrange: a quoted field may hold a tab and a doubled quote; an unquoted
+	// field is literal; CRLF is accepted and the last newline is optional.
+	input := "event\r\n\"a\tb\"\r\n\"say \"\"hi\"\"\"\nplain (x)"
 
 	// Act
 	got, err := tracechk.ReadTSV(strings.NewReader(input))
@@ -38,7 +38,7 @@ func TestReadTSVTakesRowsLiterally(t *testing.T) {
 	if err != nil {
 		t.Fatalf("want nil, got %v", err)
 	}
-	want := []csdf.Event{"say \"hi\"", "\"quoted\""}
+	want := []csdf.Event{"a\tb", "say \"hi\"", "plain (x)"}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Error(diff)
 	}

@@ -31,7 +31,8 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 Checks whether each trace is a trace of the Composable State Diagram in the
 stable-failures sense, and writes a Markdown report to standard output. A trace
 is a TSV whose header is the single column "event" and whose every other row is
-one visible event, taken literally; the internal event "tau" cannot appear.
+one visible event; it is read as CSV with a tab delimiter, so a field may be
+quoted to hold a tab or a newline. The internal event "tau" cannot appear.
 
 The reading is the one under which an environment offering the events one at a
 time is guaranteed to have each accepted: after every prefix, no stable state
