@@ -16,6 +16,7 @@ import (
 	clientcmd "github.com/Kuniwak/puml-parallel/tools/csdfreplcmd/csdfreplcmdcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfrepld/csdfrepldcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfsort/csdfsortcmd"
+	"github.com/Kuniwak/puml-parallel/tools/csdftracechk/csdftracechkcmd"
 	"github.com/Kuniwak/puml-parallel/tools/obligationirc/obligationirccmd"
 	"github.com/Kuniwak/puml-parallel/tools/toolsdoc"
 )
@@ -76,6 +77,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdflivelockfree",
 			Summary: "Compiles a livelock-freedom proof obligation as JSON IR, Isabelle/HOL, or Lean 4.",
 			Run:     tools.NewCommandFunc(csdflivelockfreecmd.NewParseOptionsFunc(), csdflivelockfreecmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdftracechk",
+			Summary: "Checks whether event-sequence TSVs are traces of a Composable State Diagram and states the obligation on its predicates.",
+			Run:     tools.NewCommandFunc(csdftracechkcmd.NewParseOptionsFunc(), csdftracechkcmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfrefinement",
