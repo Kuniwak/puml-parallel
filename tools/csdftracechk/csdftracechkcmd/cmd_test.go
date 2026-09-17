@@ -93,6 +93,19 @@ func TestNewMainFuncExactMatchRejectsAStrippedTrace(t *testing.T) {
 	}
 }
 
+func TestNewMainFuncMalformedTraceIsAnError(t *testing.T) {
+	// Act: a diagram is not a trace TSV.
+	exitStatus, spy := run(t, filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "a.puml"))
+
+	// Assert
+	if exitStatus != 1 {
+		t.Fatalf("want exit 1, got %d", exitStatus)
+	}
+	if !strings.Contains(spy.Stderr.String(), "a.puml") {
+		t.Errorf("want the file named in stderr, got %q", spy.Stderr.String())
+	}
+}
+
 func TestNewMainFuncVersion(t *testing.T) {
 	// Act
 	exitStatus, spy := run(t, "-v")

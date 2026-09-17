@@ -187,3 +187,21 @@ func ValidateArgsAsFileInputs(args []string, inout *cli.ProcInout) ([]FileInput,
 	}
 	return inputs, nil
 }
+
+// ReadFileInputs reads every file named by args, keeping the names. Unlike
+// ValidateArgsAsFileInputs it refuses "-": it is for the inputs of a tool whose
+// standard input is already spoken for by another input.
+func ReadFileInputs(args []string) ([]FileInput, error) {
+	inputs := make([]FileInput, 0, len(args))
+	for _, file := range args {
+		if file == "-" {
+			return nil, fmt.Errorf("\"-\" is not accepted here; give a file")
+		}
+		bs, err := os.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read file: %v", err)
+		}
+		inputs = append(inputs, FileInput{Name: file, Bytes: bs})
+	}
+	return inputs, nil
+}

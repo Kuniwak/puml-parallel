@@ -29,17 +29,17 @@ b --> a : y ; g2 ; p2
 `)
 
 	// Act
-	paths, rejection := tracechk.Check(d, []csdf.Event{"x", "y"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x", "y"}})
 
 	// Assert
-	if rejection != nil {
-		t.Fatalf("want accepted, got %#v", rejection)
+	if result.Rejection != nil {
+		t.Fatalf("want accepted, got %#v", result.Rejection)
 	}
 	want := []tracechk.Path{{
 		{Src: "a", Dst: "b", Event: "x", Guard: "g1", Post: "p1", Line: 5},
 		{Src: "b", Dst: "a", Event: "y", Guard: "g2", Post: "p2", Line: 6},
 	}}
-	if diff := cmp.Diff(want, paths); diff != "" {
+	if diff := cmp.Diff(want, result.Paths); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -57,11 +57,11 @@ b --> b : z
 `)
 
 	// Act
-	paths, rejection := tracechk.Check(d, []csdf.Event{"x", "w", "y"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x", "w", "y"}})
 
 	// Assert
-	if paths != nil {
-		t.Errorf("want no paths, got %#v", paths)
+	if result.Paths != nil {
+		t.Errorf("want no result.Paths, got %#v", result.Paths)
 	}
 	want := &tracechk.Rejection{
 		Index:   1,
@@ -69,7 +69,7 @@ b --> b : z
 		States:  []csdf.StateID{"b"},
 		Enabled: []csdf.Event{"y", "z"},
 	}
-	if diff := cmp.Diff(want, rejection); diff != "" {
+	if diff := cmp.Diff(want, result.Rejection); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -88,17 +88,17 @@ b --> c : x
 `)
 
 	// Act
-	paths, rejection := tracechk.Check(d, []csdf.Event{"x"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x"}})
 
 	// Assert
-	if rejection != nil {
-		t.Fatalf("want accepted, got %#v", rejection)
+	if result.Rejection != nil {
+		t.Fatalf("want accepted, got %#v", result.Rejection)
 	}
 	want := []tracechk.Path{{
 		{Src: "a", Dst: "b", Event: "tau", Guard: "gt", Post: "pt", Line: 6},
 		{Src: "b", Dst: "c", Event: "x", Guard: "true", Post: "true", Line: 7},
 	}}
-	if diff := cmp.Diff(want, paths); diff != "" {
+	if diff := cmp.Diff(want, result.Paths); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -115,7 +115,7 @@ b --> b : y
 `)
 
 	// Act
-	_, rejection := tracechk.Check(d, []csdf.Event{"x"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x"}})
 
 	// Assert
 	want := &tracechk.Rejection{
@@ -124,13 +124,13 @@ b --> b : y
 		States:  []csdf.StateID{"a", "b"},
 		Enabled: []csdf.Event{"y"},
 	}
-	if diff := cmp.Diff(want, rejection); diff != "" {
+	if diff := cmp.Diff(want, result.Rejection); diff != "" {
 		t.Error(diff)
 	}
 }
 
 func TestCheckReturnsEveryPathOfANondeterministicTrace(t *testing.T) {
-	// Arrange: two edges carry x out of a, so the trace has two paths and the
+	// Arrange: two edges carry x out of a, so the trace has two result.Paths and the
 	// obligation is a disjunction over them.
 	d := parse(t, `@startuml
 state "a" as a
@@ -143,17 +143,17 @@ a --> c : x ; g2
 `)
 
 	// Act
-	paths, rejection := tracechk.Check(d, []csdf.Event{"x"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x"}})
 
 	// Assert
-	if rejection != nil {
-		t.Fatalf("want accepted, got %#v", rejection)
+	if result.Rejection != nil {
+		t.Fatalf("want accepted, got %#v", result.Rejection)
 	}
 	want := []tracechk.Path{
 		{{Src: "a", Dst: "b", Event: "x", Guard: "g1", Post: "true", Line: 6}},
 		{{Src: "a", Dst: "c", Event: "x", Guard: "g2", Post: "true", Line: 7}},
 	}
-	if diff := cmp.Diff(want, paths); diff != "" {
+	if diff := cmp.Diff(want, result.Paths); diff != "" {
 		t.Error(diff)
 	}
 }
@@ -173,14 +173,14 @@ a --> a : x
 `)
 
 	// Act
-	paths, rejection := tracechk.Check(d, []csdf.Event{"x", "x"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x", "x"}})
 
 	// Assert
-	if rejection != nil {
-		t.Fatalf("want accepted, got %#v", rejection)
+	if result.Rejection != nil {
+		t.Fatalf("want accepted, got %#v", result.Rejection)
 	}
-	if len(paths) != 1 {
-		t.Errorf("want 1 path, got %d: %#v", len(paths), paths)
+	if len(result.Paths) != 1 {
+		t.Errorf("want 1 path, got %d: %#v", len(result.Paths), result.Paths)
 	}
 }
 
@@ -193,14 +193,14 @@ state "a" as a
 `)
 
 	// Act
-	paths, rejection := tracechk.Check(d, nil)
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{})
 
 	// Assert
-	if rejection != nil {
-		t.Fatalf("want accepted, got %#v", rejection)
+	if result.Rejection != nil {
+		t.Fatalf("want accepted, got %#v", result.Rejection)
 	}
-	if len(paths) != 1 || len(paths[0]) != 0 {
-		t.Errorf("want one empty path, got %#v", paths)
+	if len(result.Paths) != 1 || len(result.Paths[0]) != 0 {
+		t.Errorf("want one empty path, got %#v", result.Paths)
 	}
 }
 
@@ -217,14 +217,14 @@ b --> a : reset
 `)
 
 	// Act
-	paths, rejection := tracechk.CheckWith(tracechk.MatchPrefix, d, []csdf.Event{"insert", "reset"})
+	result := tracechk.Check(tracechk.MatchPrefix, d, tracechk.Trace{Events: []csdf.Event{"insert", "reset"}})
 
 	// Assert
-	if rejection != nil {
-		t.Fatalf("want accepted, got %#v", rejection)
+	if result.Rejection != nil {
+		t.Fatalf("want accepted, got %#v", result.Rejection)
 	}
-	if len(paths) != 1 || len(paths[0]) != 2 {
-		t.Errorf("want one path of two edges, got %#v", paths)
+	if len(result.Paths) != 1 || len(result.Paths[0]) != 2 {
+		t.Errorf("want one path of two edges, got %#v", result.Paths)
 	}
 }
 
@@ -239,10 +239,10 @@ a --> b : insert(coin)
 `)
 
 	// Act
-	_, rejection := tracechk.CheckWith(tracechk.MatchExact, d, []csdf.Event{"insert"})
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"insert"}})
 
 	// Assert
-	if rejection == nil || rejection.Index != 0 {
-		t.Errorf("want rejection at 0, got %#v", rejection)
+	if result.Rejection == nil || result.Rejection.Index != 0 {
+		t.Errorf("want result.Rejection at 0, got %#v", result.Rejection)
 	}
 }

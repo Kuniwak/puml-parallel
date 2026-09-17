@@ -8,24 +8,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
-// Result is the verdict on one trace, with the name it is reported under.
-type Result struct {
-	Name      string
-	Trace     []csdf.Event
-	Paths     []Path
-	Rejection *Rejection
-}
-
-// Accepted reports whether the trace is a trace when every guard is true.
-func (r Result) Accepted() bool { return r.Rejection == nil }
-
-// Run checks trace against d under m and names the result after the file it
-// came from.
-func Run(m Match, d *csdf.Diagram, name string, trace []csdf.Event) Result {
-	paths, rejection := CheckWith(m, d, trace)
-	return Result{Name: name, Trace: trace, Paths: paths, Rejection: rejection}
-}
-
 // WriteMarkdown writes the result as a Markdown section. A rejection says where
 // the trace stopped being one. An acceptance lists the predicates along every
 // path and states, as a prompt, what has to hold of them for the trace to be a
@@ -46,10 +28,10 @@ func WriteMarkdown(w io.Writer, d *csdf.Diagram, r Result) error {
 
 func writeRejection(sb *strings.Builder, r Result) {
 	rej := r.Rejection
-	fmt.Fprintf(sb, "# %s: REJECTED\n\n", r.Name)
+	fmt.Fprintf(sb, "# %s: REJECTED\n\n", r.Trace.Name)
 	fmt.Fprintf(sb, "Event %d of %d, `%s` (row %d of %s), cannot be performed even when every\nguard is true, so this is not a trace of the diagram.\n\n",
-		rej.Index+1, len(r.Trace), rej.Event, rej.Index+2, r.Name)
-	fmt.Fprintf(sb, "- trace so far: %s\n", joinEvents(r.Trace[:rej.Index]))
+		rej.Index+1, len(r.Trace.Events), rej.Event, rej.Index+2, r.Trace.Name)
+	fmt.Fprintf(sb, "- trace so far: %s\n", joinEvents(r.Trace.Events[:rej.Index]))
 	fmt.Fprintf(sb, "- states the diagram may be in before it: %s\n", joinStates(rej.States))
 	fmt.Fprintf(sb, "- visible events enabled there: %s\n\n", joinEvents(rej.Enabled))
 }
@@ -74,10 +56,10 @@ func joinStates(states []csdf.StateID) string {
 }
 
 func writeAcceptance(sb *strings.Builder, d *csdf.Diagram, r Result) {
-	fmt.Fprintf(sb, "# %s: ACCEPTED when every guard is true\n\n", r.Name)
+	fmt.Fprintf(sb, "# %s: ACCEPTED when every guard is true\n\n", r.Trace.Name)
 	fmt.Fprintf(sb, "The diagram performs the trace along %s when every guard is taken as\ntrue. Whether it is a trace of the diagram in fact depends on the\nnatural-language predicates below, which this tool does not evaluate.\n\n",
 		plural(len(r.Paths), "path"))
-	fmt.Fprintf(sb, "- trace: %s\n\n", joinEvents(r.Trace))
+	fmt.Fprintf(sb, "- trace: %s\n\n", joinEvents(r.Trace.Events))
 	for i, path := range r.Paths {
 		fmt.Fprintf(sb, "## Path %d\n\n", i+1)
 		writePath(sb, d, path)

@@ -60,3 +60,57 @@ func TestValidateArgsAsFileInputs(t *testing.T) {
 		})
 	}
 }
+
+func TestReadFileInputs(t *testing.T) {
+	type testCase struct {
+		Args      []string
+		WantNames []string // nil when an error is wanted.
+	}
+
+	testCases := map[string]testCase{
+		"no argument (lower boundary value)": {
+			Args:      nil,
+			WantNames: []string{},
+		},
+		"two files (representative value)": {
+			Args:      []string{"commonopts.go", "command.go"},
+			WantNames: []string{"commonopts.go", "command.go"},
+		},
+		`"-" is refused, because these inputs cannot come from standard input (representative value)`: {
+			Args: []string{"-"},
+		},
+		"a missing file (representative value)": {
+			Args: []string{"missing.go"},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			inputs, err := ReadFileInputs(testCase.Args)
+
+			// Assert
+			if testCase.WantNames == nil {
+				if err == nil {
+					t.Errorf("want an error, got %#v", inputs)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			names := make([]string, 0, len(inputs))
+			for _, input := range inputs {
+				names = append(names, input.Name)
+			}
+			if len(names) != len(testCase.WantNames) {
+				t.Fatalf("want %v, got %v", testCase.WantNames, names)
+			}
+			for i := range names {
+				if names[i] != testCase.WantNames[i] {
+					t.Errorf("want %v, got %v", testCase.WantNames, names)
+				}
+			}
+		})
+	}
+}

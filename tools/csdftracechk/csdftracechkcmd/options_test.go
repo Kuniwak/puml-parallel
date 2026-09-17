@@ -7,8 +7,6 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -21,8 +19,8 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 	}
 
 	diagram := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert(coin) ; true ; coins' is {coin}\nb --> a : reset\n@enduml\n"
-	okTrace := Trace{Name: filepath.Join("testdata", "ok.tsv"), Events: []csdf.Event{"insert(coin)", "reset"}}
-	ngTrace := Trace{Name: filepath.Join("testdata", "ng.tsv"), Events: []csdf.Event{"reset"}}
+	okTrace := tools.FileInput{Name: filepath.Join("testdata", "ok.tsv"), Bytes: []byte("event\ninsert(coin)\nreset\n")}
+	ngTrace := tools.FileInput{Name: filepath.Join("testdata", "ng.tsv"), Bytes: []byte("event\nreset\n")}
 
 	testCases := map[string]testCase{
 		"-h (representative value)": {
@@ -37,9 +35,9 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{filepath.Join("testdata", "a.puml"), okTrace.Name},
 			Expected: &Options{
 				Common:  tools.NewCommonOptionsDefault(),
-				Match:   tracechk.MatchExact,
+				Match:   MatchNameExact,
 				Diagram: []byte(diagram),
-				Traces:  []Trace{okTrace},
+				Traces:  []tools.FileInput{okTrace},
 			},
 		},
 		"diagram from stdin and two traces": {
@@ -47,18 +45,18 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{"-", okTrace.Name, ngTrace.Name},
 			Expected: &Options{
 				Common:  tools.NewCommonOptionsDefault(),
-				Match:   tracechk.MatchExact,
+				Match:   MatchNameExact,
 				Diagram: []byte(diagram),
-				Traces:  []Trace{okTrace, ngTrace},
+				Traces:  []tools.FileInput{okTrace, ngTrace},
 			},
 		},
 		"-match prefix": {
 			Args: []string{"-match", "prefix", filepath.Join("testdata", "a.puml"), okTrace.Name},
 			Expected: &Options{
 				Common:  tools.NewCommonOptionsDefault(),
-				Match:   tracechk.MatchPrefix,
+				Match:   MatchNamePrefix,
 				Diagram: []byte(diagram),
-				Traces:  []Trace{okTrace},
+				Traces:  []tools.FileInput{okTrace},
 			},
 		},
 	}
@@ -91,7 +89,6 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"diagram without trace": {filepath.Join("testdata", "a.puml")},
 		"unknown match rule":    {"-match", "bogus", filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ok.tsv")},
 		"missing trace file":    {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "missing.tsv")},
-		"malformed trace":       {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "a.puml")},
 		"trace from stdin":      {filepath.Join("testdata", "a.puml"), "-"},
 	}
 

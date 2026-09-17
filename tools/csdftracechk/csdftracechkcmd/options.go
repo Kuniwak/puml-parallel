@@ -4,25 +4,17 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"os"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
-// Trace is one trace to check, named after the file it was read from.
-type Trace struct {
-	Name   string
-	Events []csdf.Event
-}
-
 type Options struct {
 	Common  *tools.CommonOptions
-	Match   tracechk.Match
+	Match   MatchName
 	Diagram []byte
-	Traces  []Trace
+	// Traces are the trace TSVs as read; they are parsed by the main function.
+	Traces []tools.FileInput
 }
 
 // CommonOptions returns the parsed common options.
@@ -77,7 +69,7 @@ Examples:
 		}
 
 		var match string
-		flags.StringVar(&match, "match", string(tracechk.MatchExact), "how a trace event is looked up in the diagram: exact|prefix")
+		flags.StringVar(&match, "match", string(MatchNameExact), "how a trace event is looked up in the diagram: exact|prefix")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -97,7 +89,7 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		m, err := tracechk.ParseMatch(match)
+		m, err := ParseMatchName(match)
 		if err != nil {
 			return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: %w", err)
 		}
@@ -112,34 +104,12 @@ Examples:
 			return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
 
-		traces := make([]Trace, 0, len(rest)-1)
-		for _, path := range rest[1:] {
-			trace, err := readTrace(path)
-			if err != nil {
-				return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: %w", err)
-			}
-			traces = append(traces, trace)
+		// Traces never come from standard input: the diagram may be reading it,
+		// and two traces could not be told apart in one stream anyway.
+		traces, err := tools.ReadFileInputs(rest[1:])
+		if err != nil {
+			return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: validate trace arguments failed: %w", err)
 		}
 		return &Options{Common: commonOpts, Match: m, Diagram: diagram, Traces: traces}, nil
 	}
-}
-
-// readTrace reads one trace TSV. Standard input is not accepted here: the
-// diagram may already be reading it, and two traces could not be told apart in
-// one stream anyway.
-func readTrace(path string) (Trace, error) {
-	if path == "-" {
-		return Trace{}, errors.New("a trace cannot be read from standard input; give it as a file")
-	}
-	f, err := os.Open(path)
-	if err != nil {
-		return Trace{}, fmt.Errorf("cannot read trace: %v", err)
-	}
-	defer f.Close()
-
-	events, err := tracechk.ReadTSV(f)
-	if err != nil {
-		return Trace{}, fmt.Errorf("%s: %w", path, err)
-	}
-	return Trace{Name: path, Events: events}, nil
 }

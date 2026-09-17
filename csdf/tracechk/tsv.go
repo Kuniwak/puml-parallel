@@ -27,7 +27,7 @@ func ReadTSV(r io.Reader) ([]csdf.Event, error) {
 		return nil, fmt.Errorf("tracechk.ReadTSV: %w", err)
 	}
 	if len(records) == 0 || records[0][0] != TSVHeader {
-		return nil, fmt.Errorf("tracechk.ReadTSV: want a header row %q", TSVHeader)
+		return nil, fmt.Errorf("want a header row %q", TSVHeader)
 	}
 
 	events := make([]csdf.Event, 0, len(records)-1)
@@ -35,7 +35,7 @@ func ReadTSV(r io.Reader) ([]csdf.Event, error) {
 		event := csdf.Event(record[0])
 		// A trace is what the environment sees, and it never sees tau.
 		if event == csdf.Tau {
-			return nil, fmt.Errorf("tracechk.ReadTSV: row %d: %q is internal and cannot appear in a trace", i+2, csdf.Tau)
+			return nil, fmt.Errorf("row %d: %q is internal and cannot appear in a trace", i+2, csdf.Tau)
 		}
 		events = append(events, event)
 	}
