@@ -11,105 +11,92 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func run(t *testing.T, args ...string) (int, *cli.ProcInoutSpy) {
-	t.Helper()
-	spy := cli.SpyProcInout()
-	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
-	return exitStatus, spy
-}
-
-func TestNewMainFuncAcceptedTraceExitsZeroWithTheObligation(t *testing.T) {
-	// Act
-	exitStatus, spy := run(t, filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ok.tsv"))
-
-	// Assert
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+func TestNewMainFunc(t *testing.T) {
+	type testCase struct {
+		Args       []string
+		WantExit   int
+		WantStdout []string // substrings
+		WantStderr []string // substrings
 	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"# " + filepath.Join("testdata", "ok.tsv") + ": ACCEPTED",
-		"coins' is {coin}",
-		"Obligation: ∀ x0 x1. post_1(x0, x1) → true",
-		"## Prompt",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("stdout missing %q\n%s", want, out)
-		}
+
+	diagram := filepath.Join("testdata", "a.puml")
+	ok := filepath.Join("testdata", "ok.tsv")
+	ng := filepath.Join("testdata", "ng.tsv")
+	stripped := filepath.Join("testdata", "stripped.tsv")
+
+	testCases := map[string]testCase{
+		"an accepted trace exits 0 with the obligations": {
+			Args:     []string{diagram, ok},
+			WantExit: 0,
+			WantStdout: []string{
+				"# " + ok + ": ACCEPTED",
+				"coins' is {coin}",
+				"Obligation: ∀ x0 x1. post_1(x0, x1) → true",
+				"## Prompt",
+			},
+		},
+		"a rejected trace exits 1 and says where": {
+			Args:     []string{diagram, ng},
+			WantExit: 1,
+			WantStdout: []string{
+				": REJECTED",
+				"After the empty prefix (0 of 1 events) the diagram may be in a.",
+				"a is stable and has no edge for `reset`",
+				"visible events enabled at the refusing states: `insert(coin)`",
+			},
+		},
+		"every trace is reported and any rejection fails the run": {
+			Args:       []string{diagram, ok, ng},
+			WantExit:   1,
+			WantStdout: []string{": ACCEPTED", ": REJECTED"},
+		},
+		"-match prefix accepts a trace stripped of its parameters": {
+			Args:     []string{"-match", "prefix", diagram, stripped},
+			WantExit: 0,
+		},
+		"-match exact rejects a trace stripped of its parameters": {
+			Args:     []string{diagram, stripped},
+			WantExit: 1,
+		},
+		"a malformed trace is an error naming the file": {
+			Args:       []string{diagram, diagram},
+			WantExit:   1,
+			WantStderr: []string{"a.puml"},
+		},
 	}
-}
 
-func TestNewMainFuncRejectedTraceExitsOneAndSaysWhere(t *testing.T) {
-	// Act
-	exitStatus, spy := run(t, filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ng.tsv"))
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			spy := cli.SpyProcInout()
 
-	// Assert
-	if exitStatus != 1 {
-		t.Fatalf("want exit 1, got %d", exitStatus)
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		": REJECTED",
-		"After the empty prefix (0 of 1 events) the diagram may be in a.",
-		"a is stable and has no edge for `reset`",
-		"visible events enabled at the refusing states: `insert(coin)`",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("stdout missing %q\n%s", want, out)
-		}
-	}
-}
+			// Act
+			exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(testCase.Args, spy.New())
 
-func TestNewMainFuncReportsEveryTraceAndFailsIfAnyIsRejected(t *testing.T) {
-	// Act
-	exitStatus, spy := run(t, filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ok.tsv"), filepath.Join("testdata", "ng.tsv"))
-
-	// Assert
-	if exitStatus != 1 {
-		t.Fatalf("want exit 1, got %d", exitStatus)
-	}
-	out := spy.Stdout.String()
-	if !strings.Contains(out, ": ACCEPTED") || !strings.Contains(out, ": REJECTED") {
-		t.Errorf("want both reports\n%s", out)
-	}
-}
-
-func TestNewMainFuncPrefixMatchAcceptsAStrippedTrace(t *testing.T) {
-	// Act: stripped.tsv says "insert", not "insert(coin)".
-	exitStatus, spy := run(t, "-match", "prefix", filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "stripped.tsv"))
-
-	// Assert
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stdout: %s)", exitStatus, spy.Stdout.String())
-	}
-}
-
-func TestNewMainFuncExactMatchRejectsAStrippedTrace(t *testing.T) {
-	// Act
-	exitStatus, _ := run(t, filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "stripped.tsv"))
-
-	// Assert
-	if exitStatus != 1 {
-		t.Fatalf("want exit 1, got %d", exitStatus)
-	}
-}
-
-func TestNewMainFuncMalformedTraceIsAnError(t *testing.T) {
-	// Act: a diagram is not a trace TSV.
-	exitStatus, spy := run(t, filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "a.puml"))
-
-	// Assert
-	if exitStatus != 1 {
-		t.Fatalf("want exit 1, got %d", exitStatus)
-	}
-	if !strings.Contains(spy.Stderr.String(), "a.puml") {
-		t.Errorf("want the file named in stderr, got %q", spy.Stderr.String())
+			// Assert
+			if exitStatus != testCase.WantExit {
+				t.Fatalf("want exit %d, got %d (stdout: %s; stderr: %s)", testCase.WantExit, exitStatus, spy.Stdout.String(), spy.Stderr.String())
+			}
+			for _, want := range testCase.WantStdout {
+				if !strings.Contains(spy.Stdout.String(), want) {
+					t.Errorf("stdout missing %q\n%s", want, spy.Stdout.String())
+				}
+			}
+			for _, want := range testCase.WantStderr {
+				if !strings.Contains(spy.Stderr.String(), want) {
+					t.Errorf("stderr missing %q\n%s", want, spy.Stderr.String())
+				}
+			}
+		})
 	}
 }
 
 func TestNewMainFuncVersion(t *testing.T) {
+	// Arrange
+	spy := cli.SpyProcInout()
+
 	// Act
-	exitStatus, spy := run(t, "-v")
+	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())([]string{"-v"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {

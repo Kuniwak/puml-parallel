@@ -120,7 +120,7 @@ func Check(m Match, d *csdf.Diagram, t Trace) Result {
 	out := outgoing(d)
 	trace := t.Events
 
-	states := tauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}}, out)
+	states := csdf.TauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}}, out)
 	for i, event := range trace {
 		next := make(map[csdf.StateID]struct{})
 		refusing := make(map[csdf.StateID]struct{})
@@ -153,7 +153,7 @@ func Check(m Match, d *csdf.Diagram, t Trace) Result {
 				Paths:    paths,
 			}}
 		}
-		states = tauClosure(next, out)
+		states = csdf.TauClosure(next, out)
 	}
 
 	byIndex := prefixPaths(m, d, out, trace, len(trace))
@@ -228,28 +228,6 @@ func outgoing(d *csdf.Diagram) map[csdf.StateID][]csdf.Edge {
 		csdf.SortEdges(out[s])
 	}
 	return out
-}
-
-// tauClosure adds to states every state reachable from them over tau edges.
-func tauClosure(states map[csdf.StateID]struct{}, out map[csdf.StateID][]csdf.Edge) map[csdf.StateID]struct{} {
-	queue := make([]csdf.StateID, 0, len(states))
-	for s := range states {
-		queue = append(queue, s)
-	}
-	for len(queue) > 0 {
-		s := queue[0]
-		queue = queue[1:]
-		for _, e := range out[s] {
-			if e.Event != csdf.Tau {
-				continue
-			}
-			if _, ok := states[e.Dst]; !ok {
-				states[e.Dst] = struct{}{}
-				queue = append(queue, e.Dst)
-			}
-		}
-	}
-	return states
 }
 
 func sortedStates(states map[csdf.StateID]struct{}) []csdf.StateID {

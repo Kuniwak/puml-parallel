@@ -8,21 +8,8 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
-	"github.com/Kuniwak/puml-parallel/usererr"
 	"github.com/Kuniwak/puml-parallel/version"
 )
-
-// traceReadError says which trace file could not be read as a trace. It is
-// UserFacing because the file name is what the reader needs, and unwrapping to
-// the deepest error would drop it.
-type traceReadError struct {
-	name string
-	err  error
-}
-
-func (e *traceReadError) Error() string { return fmt.Sprintf("%s: %s", e.name, usererr.Message(e.err)) }
-func (e *traceReadError) Unwrap() error { return e.err }
-func (e *traceReadError) UserFacing()   {}
 
 func NewMainFunc() cli.MainFunc[*Options] {
 	return func(opts *Options, inout *cli.ProcInout) error {
@@ -41,11 +28,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		traces := make([]tracechk.Trace, 0, len(opts.Traces))
 		for _, input := range opts.Traces {
-			events, err := tracechk.ReadTSV(bytes.NewReader(input.Bytes))
+			trace, err := tracechk.ReadTrace(input.Name, bytes.NewReader(input.Bytes))
 			if err != nil {
-				return fmt.Errorf("csdftracechkcmd.NewMainFunc: %w", &traceReadError{name: input.Name, err: err})
+				return fmt.Errorf("csdftracechkcmd.NewMainFunc: %w", err)
 			}
-			traces = append(traces, tracechk.Trace{Name: input.Name, Events: events})
+			traces = append(traces, trace)
 		}
 
 		// Every trace is reported, and the exit status is the verdict on top of
