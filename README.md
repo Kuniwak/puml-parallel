@@ -282,7 +282,7 @@ declared `; Type` annotation is preserved as a comment on the state constructor.
 stable-failures sense. The sequence is a TSV whose header is the single column
 `event` and whose every other row is one visible event (`tau` cannot appear).
 It is read as CSV with a tab delimiter, so a field may be quoted to hold a tab
-or a newline. Any number of such files may be given after the diagram, and the
+or a newline, and blank lines are skipped. Any number of such files may be given after the diagram, and the
 diagram may be `-` for standard input.
 
 ```console
