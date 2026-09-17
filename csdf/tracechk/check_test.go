@@ -17,67 +17,46 @@ func parse(t *testing.T, src string) *csdf.Diagram {
 	return d
 }
 
-func TestCheckAcceptsALinearTraceAsOnePath(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
+func check(t *testing.T, m tracechk.Match, src string, events ...csdf.Event) tracechk.Result {
+	t.Helper()
+	return tracechk.Check(m, parse(t, src), tracechk.Trace{Events: events})
+}
+
+func TestCheck(t *testing.T) {
+	type testCase struct {
+		Match   tracechk.Match
+		Diagram string
+		Trace   []csdf.Event
+		// WantSteps is the accepted result; nil when a rejection is wanted.
+		WantSteps     []tracechk.Step
+		WantRejection *tracechk.Rejection
+	}
+
+	linear := `@startuml
 state "a" as a
 state "b" as b
 [*] --> a
 a --> b : x ; g1 ; p1
 b --> a : y ; g2 ; p2
 @enduml
-`)
+`
+	ax := csdf.Edge{Src: "a", Dst: "b", Event: "x", Guard: "g1", Post: "p1", Line: 5}
+	by := csdf.Edge{Src: "b", Dst: "a", Event: "y", Guard: "g2", Post: "p2", Line: 6}
 
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x", "y"}})
-
-	// Assert
-	if result.Rejection != nil {
-		t.Fatalf("want accepted, got %#v", result.Rejection)
-	}
-	want := []tracechk.Path{{
-		{Src: "a", Dst: "b", Event: "x", Guard: "g1", Post: "p1", Line: 5},
-		{Src: "b", Dst: "a", Event: "y", Guard: "g2", Post: "p2", Line: 6},
-	}}
-	if diff := cmp.Diff(want, result.Paths); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCheckRejectsWhereNoEdgeCarriesTheEvent(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
-state "a" as a
-state "b" as b
-[*] --> a
-a --> b : x
-b --> a : y
-b --> b : z
+	forked := `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+[*] --> A
+A --> B : 1
+A --> C : 1
+C --> D : 2
 @enduml
-`)
+`
+	a1b := csdf.Edge{Src: "A", Dst: "B", Event: "1", Guard: "true", Post: "true", Line: 7}
 
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x", "w", "y"}})
-
-	// Assert
-	if result.Paths != nil {
-		t.Errorf("want no result.Paths, got %#v", result.Paths)
-	}
-	want := &tracechk.Rejection{
-		Index:   1,
-		Event:   "w",
-		States:  []csdf.StateID{"b"},
-		Enabled: []csdf.Event{"y", "z"},
-	}
-	if diff := cmp.Diff(want, result.Rejection); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCheckFollowsTauEdgesAndReportsThemInThePath(t *testing.T) {
-	// Arrange: x is only enabled after a silent step, and the tau edge is part
-	// of the path because its predicates constrain the trace too.
-	d := parse(t, `@startuml
+	tauThenX := `@startuml
 state "a" as a
 state "b" as b
 state "c" as c
@@ -85,164 +64,128 @@ state "c" as c
 a --> b : tau ; gt ; pt
 b --> c : x
 @enduml
-`)
+`
+	abTau := csdf.Edge{Src: "a", Dst: "b", Event: "tau", Guard: "gt", Post: "pt", Line: 6}
+	bcX := csdf.Edge{Src: "b", Dst: "c", Event: "x", Guard: "true", Post: "true", Line: 7}
 
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x"}})
-
-	// Assert
-	if result.Rejection != nil {
-		t.Fatalf("want accepted, got %#v", result.Rejection)
-	}
-	want := []tracechk.Path{{
-		{Src: "a", Dst: "b", Event: "tau", Guard: "gt", Post: "pt", Line: 6},
-		{Src: "b", Dst: "c", Event: "x", Guard: "true", Post: "true", Line: 7},
-	}}
-	if diff := cmp.Diff(want, result.Paths); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCheckReportsTheTauClosedStatesOnRejection(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
-state "a" as a
-state "b" as b
-[*] --> a
-a --> b : tau
-b --> b : y
-@enduml
-`)
-
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x"}})
-
-	// Assert
-	want := &tracechk.Rejection{
-		Index:   0,
-		Event:   "x",
-		States:  []csdf.StateID{"a", "b"},
-		Enabled: []csdf.Event{"y"},
-	}
-	if diff := cmp.Diff(want, result.Rejection); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCheckReturnsEveryPathOfANondeterministicTrace(t *testing.T) {
-	// Arrange: two edges carry x out of a, so the trace has two result.Paths and the
-	// obligation is a disjunction over them.
-	d := parse(t, `@startuml
-state "a" as a
-state "b" as b
-state "c" as c
-[*] --> a
-a --> b : x ; g1
-a --> c : x ; g2
-@enduml
-`)
-
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x"}})
-
-	// Assert
-	if result.Rejection != nil {
-		t.Fatalf("want accepted, got %#v", result.Rejection)
-	}
-	want := []tracechk.Path{
-		{{Src: "a", Dst: "b", Event: "x", Guard: "g1", Post: "true", Line: 6}},
-		{{Src: "a", Dst: "c", Event: "x", Guard: "g2", Post: "true", Line: 7}},
-	}
-	if diff := cmp.Diff(want, result.Paths); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCheckDoesNotLoopOnATauCycle(t *testing.T) {
-	// Arrange: a tau cycle between a and b. A path never revisits a state
-	// within one run of tau edges, so the round trip a -tau-> b -tau-> a is not
-	// a path and the only path is the two direct x edges.
-	d := parse(t, `@startuml
+	testCases := map[string]testCase{
+		"a linear trace is accepted with one path per prefix": {
+			Match: tracechk.MatchExact, Diagram: linear, Trace: []csdf.Event{"x", "y"},
+			WantSteps: []tracechk.Step{
+				{Index: 0, Event: "x", Paths: []tracechk.PrefixPath{{Dst: "a", Next: []csdf.Edge{ax}}}},
+				{Index: 1, Event: "y", Paths: []tracechk.PrefixPath{{Path: tracechk.Path{ax}, Dst: "b", Next: []csdf.Edge{by}}}},
+			},
+		},
+		"the empty trace is accepted with no steps": {
+			Match: tracechk.MatchExact, Diagram: linear, Trace: nil,
+			WantSteps: []tracechk.Step{},
+		},
+		"an event no edge carries is rejected there": {
+			Match: tracechk.MatchExact, Diagram: linear, Trace: []csdf.Event{"x", "w", "y"},
+			WantRejection: &tracechk.Rejection{
+				Index: 1, Event: "w",
+				States:   []csdf.StateID{"b"},
+				Refusing: []csdf.StateID{"b"},
+				Enabled:  []csdf.Event{"y"},
+				Paths:    []tracechk.PrefixPath{{Path: tracechk.Path{ax}, Dst: "b", Next: nil}},
+			},
+		},
+		"a nondeterministic branch that refuses the next event rejects the trace": {
+			// After 1 the diagram may be in B, which is stable and cannot do 2:
+			// (<1>, {2}) is a failure, even though C can do 2.
+			Match: tracechk.MatchExact, Diagram: forked, Trace: []csdf.Event{"1", "2"},
+			WantRejection: &tracechk.Rejection{
+				Index: 1, Event: "2",
+				States:   []csdf.StateID{"B", "C"},
+				Refusing: []csdf.StateID{"B"},
+				Enabled:  nil,
+				Paths:    []tracechk.PrefixPath{{Path: tracechk.Path{a1b}, Dst: "B", Next: nil}},
+			},
+		},
+		"an unstable state does not refuse: the tau edge is part of the path": {
+			Match: tracechk.MatchExact, Diagram: tauThenX, Trace: []csdf.Event{"x"},
+			WantSteps: []tracechk.Step{
+				{Index: 0, Event: "x", Paths: []tracechk.PrefixPath{
+					{Dst: "a", Taus: []csdf.Edge{abTau}, Next: nil},
+					{Path: tracechk.Path{abTau}, Dst: "b", Next: []csdf.Edge{bcX}},
+				}},
+			},
+		},
+		"a tau cycle yields finitely many paths": {
+			Match: tracechk.MatchExact,
+			Diagram: `@startuml
 state "a" as a
 state "b" as b
 [*] --> a
 a --> b : tau
 b --> a : tau
 a --> a : x
+b --> b : x
 @enduml
-`)
-
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"x", "x"}})
-
-	// Assert
-	if result.Rejection != nil {
-		t.Fatalf("want accepted, got %#v", result.Rejection)
-	}
-	if len(result.Paths) != 1 {
-		t.Errorf("want 1 path, got %d: %#v", len(result.Paths), result.Paths)
-	}
-}
-
-func TestCheckAcceptsTheEmptyTrace(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
-state "a" as a
-[*] --> a
-@enduml
-`)
-
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{})
-
-	// Assert
-	if result.Rejection != nil {
-		t.Fatalf("want accepted, got %#v", result.Rejection)
-	}
-	if len(result.Paths) != 1 || len(result.Paths[0]) != 0 {
-		t.Errorf("want one empty path, got %#v", result.Paths)
-	}
-}
-
-func TestCheckPrefixMatchAcceptsATraceEventThatPrefixesTheDiagramEvent(t *testing.T) {
-	// Arrange: the trace was stripped of its parameters (e.g. with qhs), so
-	// "insert" has to match "insert(coin)"; "reset" still matches "reset".
-	d := parse(t, `@startuml
-state "a" as a
-state "b" as b
-[*] --> a
-a --> b : insert(coin)
-b --> a : reset
-@enduml
-`)
-
-	// Act
-	result := tracechk.Check(tracechk.MatchPrefix, d, tracechk.Trace{Events: []csdf.Event{"insert", "reset"}})
-
-	// Assert
-	if result.Rejection != nil {
-		t.Fatalf("want accepted, got %#v", result.Rejection)
-	}
-	if len(result.Paths) != 1 || len(result.Paths[0]) != 2 {
-		t.Errorf("want one path of two edges, got %#v", result.Paths)
-	}
-}
-
-func TestCheckExactMatchRejectsAPrefix(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
+`,
+			Trace: []csdf.Event{"x"},
+			WantSteps: []tracechk.Step{
+				{Index: 0, Event: "x", Paths: []tracechk.PrefixPath{
+					{Dst: "a", Taus: []csdf.Edge{{Src: "a", Dst: "b", Event: "tau", Guard: "true", Post: "true", Line: 5}}, Next: []csdf.Edge{{Src: "a", Dst: "a", Event: "x", Guard: "true", Post: "true", Line: 7}}},
+					{Path: tracechk.Path{{Src: "a", Dst: "b", Event: "tau", Guard: "true", Post: "true", Line: 5}}, Dst: "b", Taus: []csdf.Edge{{Src: "b", Dst: "a", Event: "tau", Guard: "true", Post: "true", Line: 6}}, Next: []csdf.Edge{{Src: "b", Dst: "b", Event: "x", Guard: "true", Post: "true", Line: 8}}},
+				}},
+			},
+		},
+		"prefix match accepts a trace stripped of its parameters": {
+			Match: tracechk.MatchPrefix,
+			Diagram: `@startuml
 state "a" as a
 state "b" as b
 [*] --> a
 a --> b : insert(coin)
 @enduml
-`)
+`,
+			Trace: []csdf.Event{"insert"},
+			WantSteps: []tracechk.Step{
+				{Index: 0, Event: "insert", Paths: []tracechk.PrefixPath{{Dst: "a", Next: []csdf.Edge{{Src: "a", Dst: "b", Event: "insert(coin)", Guard: "true", Post: "true", Line: 5}}}}},
+			},
+		},
+		"exact match rejects a prefix": {
+			Match: tracechk.MatchExact,
+			Diagram: `@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : insert(coin)
+@enduml
+`,
+			Trace: []csdf.Event{"insert"},
+			WantRejection: &tracechk.Rejection{
+				Index: 0, Event: "insert",
+				States:   []csdf.StateID{"a"},
+				Refusing: []csdf.StateID{"a"},
+				Enabled:  []csdf.Event{"insert(coin)"},
+				Paths:    []tracechk.PrefixPath{{Dst: "a"}},
+			},
+		},
+	}
 
-	// Act
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Events: []csdf.Event{"insert"}})
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			result := check(t, testCase.Match, testCase.Diagram, testCase.Trace...)
 
-	// Assert
-	if result.Rejection == nil || result.Rejection.Index != 0 {
-		t.Errorf("want result.Rejection at 0, got %#v", result.Rejection)
+			// Assert
+			if testCase.WantSteps != nil {
+				if result.Rejection != nil {
+					t.Fatalf("want accepted, got %#v", result.Rejection)
+				}
+				if diff := cmp.Diff(testCase.WantSteps, result.Steps); diff != "" {
+					t.Error(diff)
+				}
+				return
+			}
+			if result.Steps != nil {
+				t.Errorf("want no steps, got %#v", result.Steps)
+			}
+			if diff := cmp.Diff(testCase.WantRejection, result.Rejection); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }

@@ -30,7 +30,7 @@ func TestNewMainFuncAcceptedTraceExitsZeroWithTheObligation(t *testing.T) {
 	for _, want := range []string{
 		"# " + filepath.Join("testdata", "ok.tsv") + ": ACCEPTED",
 		"coins' is {coin}",
-		"∃ x0 x1 x2. post_1(x0, x1)",
+		"Obligation: ∀ x0 x1. post_1(x0, x1) → true",
 		"## Prompt",
 	} {
 		if !strings.Contains(out, want) {
@@ -50,8 +50,9 @@ func TestNewMainFuncRejectedTraceExitsOneAndSaysWhere(t *testing.T) {
 	out := spy.Stdout.String()
 	for _, want := range []string{
 		": REJECTED",
-		"Event 1 of 1, `reset`, cannot",
-		"visible events enabled there: `insert(coin)`",
+		"After the empty prefix (0 of 1 events) the diagram may be in a.",
+		"a is stable and has no edge for `reset`",
+		"visible events enabled at the refusing states: `insert(coin)`",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("stdout missing %q\n%s", want, out)

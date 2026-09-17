@@ -31,33 +31,60 @@ type Trace struct {
 	Events []csdf.Event
 }
 
-// Result is the verdict on one trace: its paths when it is accepted, or where
+// Path is one way the diagram performs a prefix of the trace: the edges it
+// takes in order, tau edges included, from the start state.
+type Path []csdf.Edge
+
+// PrefixPath is a Path together with what the diagram can do where it ends.
+// Dst is stable exactly when none of Taus is enabled, and it can perform the
+// next event of the trace exactly when some edge of Next is enabled.
+type PrefixPath struct {
+	Path Path
+	Dst  csdf.StateID
+	Taus []csdf.Edge
+	Next []csdf.Edge
+}
+
+// Step is one event of the trace and every way the diagram can have performed
+// the prefix before it. The trace is a trace of the diagram only if, along every
+// path whose predicates hold, the state reached either is unstable or can
+// perform Event.
+type Step struct {
+	Index int
+	Event csdf.Event
+	Paths []PrefixPath
+}
+
+// Rejection says where the trace stops being one, even with every guard true:
+// after Index events, the diagram may be in a stable state that has no edge for
+// Event, so it may refuse Event there.
+type Rejection struct {
+	Index int
+	Event csdf.Event
+	// States are the states the diagram may be in before Event, tau-closed
+	// and sorted.
+	States []csdf.StateID
+	// Refusing are the stable ones among them with no edge for Event, sorted.
+	// It is empty only when nothing can perform Event and no state is stable,
+	// i.e. the diagram diverges instead.
+	Refusing []csdf.StateID
+	// Enabled are the visible events the refusing states can perform, sorted.
+	Enabled []csdf.Event
+	// Paths are the ways the diagram reaches a refusing state. The refusal is
+	// real unless the predicates along every one of them are unsatisfiable.
+	Paths []PrefixPath
+}
+
+// Result is the verdict on one trace: its steps when it is accepted, or where
 // it was rejected.
 type Result struct {
 	Trace     Trace
-	Paths     []Path
+	Steps     []Step
 	Rejection *Rejection
 }
 
-// Accepted reports whether the trace is a trace when every guard is true.
+// Accepted reports whether the trace passed the check with every guard true.
 func (r Result) Accepted() bool { return r.Rejection == nil }
-
-// Path is one way the diagram performs a trace: the edges it takes in order,
-// tau edges included, from the start state to the state after the last event.
-type Path []csdf.Edge
-
-// Rejection says where a trace stops being one, even with every guard true.
-type Rejection struct {
-	// Index is the 0-based position in the trace of the event the diagram
-	// cannot perform.
-	Index int
-	Event csdf.Event
-	// States are the states the diagram may be in just before that event,
-	// tau-closed and sorted.
-	States []csdf.StateID
-	// Enabled are the visible events some of those states can perform, sorted.
-	Enabled []csdf.Event
-}
 
 // CheckAll checks every trace against d under m, in order.
 func CheckAll(m Match, d *csdf.Diagram, traces []Trace) []Result {
@@ -78,56 +105,82 @@ func AnyRejected(results []Result) bool {
 	return false
 }
 
-// Check reports whether t is a trace of d when every guard is taken as true,
-// looking a trace event up in the diagram with m. When it is, the result holds
-// every path performing it; a path never repeats a state within one run of tau
-// edges, so a tau cycle yields finitely many paths, and paths that would need
-// to go round such a cycle are left out. When it is not, the result says where
-// the trace was rejected.
+// Check reports whether t is a trace of d in the stable-failures sense, taking
+// every guard as true: for every prefix, no stable state the diagram may reach
+// by performing it refuses the next event. This is the reading under which an
+// environment offering the events one at a time is guaranteed to have each
+// accepted; under the plain traces reading a nondeterministic branch that gets
+// stuck would not count.
 //
-// Guards and postconditions are natural language and are not evaluated here:
-// an accepted trace is a trace of the diagram only if some returned path has
-// satisfiable predicates, which is the caller's obligation to state.
+// A path never repeats a state within one run of tau edges, so a tau cycle
+// yields finitely many paths, and paths that would go round one are left out.
+// Guards and postconditions are natural language and are not evaluated here;
+// the result carries them so that the caller can state the obligation.
 func Check(m Match, d *csdf.Diagram, t Trace) Result {
-	paths, rejection := check(m, d, t.Events)
-	return Result{Trace: t, Paths: paths, Rejection: rejection}
-}
-
-func check(m Match, d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
 	out := outgoing(d)
+	trace := t.Events
 
 	states := tauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}}, out)
 	for i, event := range trace {
 		next := make(map[csdf.StateID]struct{})
+		refusing := make(map[csdf.StateID]struct{})
 		for s := range states {
+			canPerform := false
 			for _, e := range out[s] {
 				if e.Event != csdf.Tau && m(e.Event, event) {
 					next[e.Dst] = struct{}{}
+					canPerform = true
 				}
 			}
-		}
-		if len(next) == 0 {
-			return nil, &Rejection{
-				Index:   i,
-				Event:   event,
-				States:  sortedStates(states),
-				Enabled: enabledEvents(states, out),
+			if !canPerform && len(taus(out[s])) == 0 {
+				refusing[s] = struct{}{}
 			}
+		}
+		if len(refusing) > 0 || len(next) == 0 {
+			paths := prefixPaths(m, d, out, trace, i+1)[i]
+			if len(refusing) > 0 {
+				paths = slices.DeleteFunc(paths, func(p PrefixPath) bool {
+					_, ok := refusing[p.Dst]
+					return !ok
+				})
+			}
+			return Result{Trace: t, Rejection: &Rejection{
+				Index:    i,
+				Event:    event,
+				States:   sortedStates(states),
+				Refusing: sortedStates(refusing),
+				Enabled:  enabledEvents(refusing, out),
+				Paths:    paths,
+			}}
 		}
 		states = tauClosure(next, out)
 	}
 
-	var paths []Path
+	byIndex := prefixPaths(m, d, out, trace, len(trace))
+	steps := make([]Step, 0, len(trace))
+	for i, event := range trace {
+		steps = append(steps, Step{Index: i, Event: event, Paths: byIndex[i]})
+	}
+	return Result{Trace: t, Steps: steps}
+}
+
+// prefixPaths enumerates, for every i < upto, the paths performing the first i
+// events of the trace, in a deterministic depth-first order.
+func prefixPaths(m Match, d *csdf.Diagram, out map[csdf.StateID][]csdf.Edge, trace []csdf.Event, upto int) [][]PrefixPath {
+	byIndex := make([][]PrefixPath, upto)
 	var extend func(s csdf.StateID, i int, path Path, tauSeen map[csdf.StateID]struct{})
 	extend = func(s csdf.StateID, i int, path Path, tauSeen map[csdf.StateID]struct{}) {
-		if i == len(trace) {
-			paths = append(paths, slices.Clone(path))
+		if i >= upto {
 			return
 		}
+		byIndex[i] = append(byIndex[i], PrefixPath{
+			Path: slices.Clone(path),
+			Dst:  s,
+			Taus: taus(out[s]),
+			Next: nextEdges(m, out[s], trace[i]),
+		})
 		for _, e := range out[s] {
 			switch {
-			case e.Event != csdf.Tau && m(e.Event, trace[i]):
-				extend(e.Dst, i+1, append(path, e), map[csdf.StateID]struct{}{e.Dst: {}})
 			case e.Event == csdf.Tau:
 				if _, seen := tauSeen[e.Dst]; seen {
 					continue
@@ -135,11 +188,33 @@ func check(m Match, d *csdf.Diagram, trace []csdf.Event) ([]Path, *Rejection) {
 				tauSeen[e.Dst] = struct{}{}
 				extend(e.Dst, i, append(path, e), tauSeen)
 				delete(tauSeen, e.Dst)
+			case m(e.Event, trace[i]):
+				extend(e.Dst, i+1, append(path, e), map[csdf.StateID]struct{}{e.Dst: {}})
 			}
 		}
 	}
 	extend(d.StartEdge.Dst, 0, nil, map[csdf.StateID]struct{}{d.StartEdge.Dst: {}})
-	return paths, nil
+	return byIndex
+}
+
+func taus(edges []csdf.Edge) []csdf.Edge {
+	var ts []csdf.Edge
+	for _, e := range edges {
+		if e.Event == csdf.Tau {
+			ts = append(ts, e)
+		}
+	}
+	return ts
+}
+
+func nextEdges(m Match, edges []csdf.Edge, event csdf.Event) []csdf.Edge {
+	var ns []csdf.Edge
+	for _, e := range edges {
+		if e.Event != csdf.Tau && m(e.Event, event) {
+			ns = append(ns, e)
+		}
+	}
+	return ns
 }
 
 // outgoing indexes the edges by source, each list in canonical order so that
@@ -194,6 +269,9 @@ func enabledEvents(states map[csdf.StateID]struct{}, out map[csdf.StateID][]csdf
 				seen[e.Event] = struct{}{}
 			}
 		}
+	}
+	if len(seen) == 0 {
+		return nil
 	}
 	events := make([]csdf.Event, 0, len(seen))
 	for e := range seen {

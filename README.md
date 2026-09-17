@@ -278,11 +278,11 @@ declared `; Type` annotation is preserved as a comment on the state constructor.
 
 ## Trace checking
 
-`csdftracechk` checks whether an event sequence is a trace of a diagram. The
-sequence is a TSV whose header is the single column `event` and whose every
-other row is one visible event, taken literally (`tau` cannot appear, and quotes
-are ordinary characters); any number of such files may be given after the
-diagram, and the diagram may be `-` for standard input.
+`csdftracechk` checks whether an event sequence is a trace of a diagram in the
+stable-failures sense. The sequence is a TSV whose header is the single column
+`event` and whose every other row is one visible event, taken literally (`tau`
+cannot appear, and quotes are ordinary characters); any number of such files
+may be given after the diagram, and the diagram may be `-` for standard input.
 
 ```console
 $ csdftracechk examples/valid/vending_machine.puml trace.tsv
@@ -290,27 +290,42 @@ $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trac
 $ csdfparallel -sync 'insert(coin)' a.puml b.puml | csdftracechk - trace.tsv
 ```
 
+The reading is the one under which an environment offering the events one at a
+time is guaranteed to have each accepted: after every prefix of the trace, no
+stable state the diagram may have reached by performing it refuses the next
+event. So with `A --> B : 1`, `A --> C : 1` and `C --> D : 2`, the sequence
+`1, 2` is rejected: after `1` the diagram may be in `B`, which is stable and has
+no edge for `2`. Under the plain traces reading the branch through `C` would
+have carried it, but a tester driving the diagram cannot choose that branch.
+
 The check first takes every guard as true, following `tau` edges silently and
-keeping every state a nondeterministic diagram may be in. If the diagram cannot
-perform some event even then, the Markdown report says which event, from which
-states, and which events were enabled there, and the tool exits 1. Otherwise,
-for every path the diagram can take along the trace (`tau` steps included; a
-path never revisits a state within one run of `tau` edges, so a `tau` cycle
-yields finitely many), the report tabulates the guards and postconditions along
-it and states the obligation
+keeping every state a nondeterministic diagram may be in. If some stable state
+reachable after a prefix has no edge for the next event, the Markdown report
+says which prefix, which states, and along which paths the refusing state is
+reached, and the tool exits 1. Since a path may be blocked by a guard the tool
+cannot read, it also states the condition under which the refusal is not real:
+every such path is infeasible, i.e. the predicates along it cannot all hold.
+
+Otherwise, for every event of the trace and every path performing the prefix
+before it (`tau` steps included), the report tabulates the guards and
+postconditions along the path and states the obligation
 
 ```
-∃ x0 x1 ... xn. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ guard_2(x1) ∧ post_2(x1, x2) ∧ ...
+∀ x0 x1 ... xi. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ ... → unstable(xi) ∨ enabled(xi)
 ```
 
 where `x0` is the valuation the start edge admits and `xi` the valuation after
-step `i`. It ends with a prompt asking a reader, a person or an LLM, to decide
-whether that holds for at least one path. As with the other checkers the
-predicates are natural language, so the tool never decides that itself: exit 0
-means only that every trace passed the all-guards-true check. Note the
-asymmetry the pruning of `tau` cycles brings: a satisfiable path settles that
-the trace is a trace, while an unsatisfiable answer settles only that no listed
-path admits it, since a path that has to go round a `tau` cycle is not listed.
+step `i`, `unstable(xi)` says some `tau` edge out of the state reached is
+enabled, and `enabled(xi)` says some edge for the event is: its guard holds and
+its post admits a successor, the same enabledness `csdfrefinement` uses. The
+report ends with a prompt asking a reader, a person or an LLM, to decide
+whether every obligation holds. As with the other checkers the predicates are
+natural language, so the tool never decides that itself: exit 0 means only that
+every trace passed the all-guards-true check. A path never revisits a state
+within one run of `tau` edges, so a `tau` cycle yields finitely many paths and
+the ones going round it are not listed; a FAILS answer to the prompt therefore
+settles that the sequence is not a trace, while HOLDS settles it only for the
+listed paths. Divergence is not checked here; that is `csdflivelockfree`'s job.
 
 Events are free-form text and their notation is not fixed, so a trace event is
 looked up in the diagram by one of two simple rules chosen with `-match`:
@@ -327,8 +342,8 @@ $ qhs -t -H -T -O 'select case when event like "choose(%" then event
 $ csdftracechk -match prefix examples/valid/vending_machine.puml stripped.tsv
 ```
 
-A trace event matching several edges is nondeterminism and yields one path per
-edge.
+A trace event matching several edges is nondeterminism: every branch must be
+able to go on.
 
 ## Refinement
 
