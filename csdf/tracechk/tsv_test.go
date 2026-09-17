@@ -26,12 +26,31 @@ func TestReadTSVReadsOneEventPerRowUnderAnEventHeader(t *testing.T) {
 	}
 }
 
+func TestReadTSVTakesRowsLiterally(t *testing.T) {
+	// Arrange: quotes are ordinary characters, CRLF is accepted, and the last
+	// newline is optional.
+	input := "event\r\nsay \"hi\"\r\n\"quoted\""
+
+	// Act
+	got, err := tracechk.ReadTSV(strings.NewReader(input))
+
+	// Assert
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	want := []csdf.Event{"say \"hi\"", "\"quoted\""}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestReadTSVRejectsMalformedInput(t *testing.T) {
 	testCases := map[string]string{
-		"missing header":     "insert(coin)\n",
-		"empty input":        "",
-		"tau is not visible": "event\ntau\n",
-		"two columns":        "event\ninsert(coin)\tfoo\n",
+		"missing header":            "insert(coin)\n",
+		"empty input":               "",
+		"tau is not visible":        "event\ntau\n",
+		"two columns":               "event\ninsert(coin)\tfoo\n",
+		"header only in wrong case": "Event\ninsert(coin)\n",
 	}
 
 	for name, input := range testCases {

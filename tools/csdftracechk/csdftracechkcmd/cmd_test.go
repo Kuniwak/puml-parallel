@@ -50,7 +50,7 @@ func TestNewMainFuncRejectedTraceExitsOneAndSaysWhere(t *testing.T) {
 	out := spy.Stdout.String()
 	for _, want := range []string{
 		": REJECTED",
-		"Event 1 of 1, `reset` (row 2 of",
+		"Event 1 of 1, `reset`, cannot",
 		"visible events enabled there: `insert(coin)`",
 	} {
 		if !strings.Contains(out, want) {

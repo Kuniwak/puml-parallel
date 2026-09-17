@@ -31,8 +31,8 @@ b --> b : z
 	// Assert
 	want := `# trace.tsv: REJECTED
 
-Event 2 of 3, ` + "`w`" + ` (row 3 of trace.tsv), cannot be performed even when every
-guard is true, so this is not a trace of the diagram.
+Event 2 of 3, ` + "`w`" + `, cannot be performed even when every guard is true,
+so this is not a trace of the diagram.
 
 - trace so far: ` + "`x`" + `
 - states the diagram may be in before it: b
@@ -70,7 +70,9 @@ b --> a : tau ; m = 0 ; n' = n
 		"\n" +
 		"The diagram performs the trace along 1 path when every guard is taken as\n" +
 		"true. Whether it is a trace of the diagram in fact depends on the\n" +
-		"natural-language predicates below, which this tool does not evaluate.\n" +
+		"natural-language predicates below, which this tool does not evaluate. A path\n" +
+		"never revisits a state within one run of `tau` edges, so a path that would\n" +
+		"have to go round a `tau` cycle is not listed.\n" +
 		"\n" +
 		"- trace: `x`, `x`\n" +
 		"\n" +
@@ -107,6 +109,8 @@ b --> a : tau ; m = 0 ; n' = n
 		"UNSATISFIABLE naming, for every path, the first conjunct that cannot hold\n" +
 		"together with the ones before it. A guard is not true because it is written\n" +
 		"down: the trace is a trace of the diagram only if the predicates admit it.\n" +
+		"SATISFIABLE settles that it is; UNSATISFIABLE settles only that none of the\n" +
+		"listed paths admits it, since paths going round a `tau` cycle are not listed.\n" +
 		"\n"
 	if diff := cmp.Diff(want, sb.String()); diff != "" {
 		t.Error(diff)

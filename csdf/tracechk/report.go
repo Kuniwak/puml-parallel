@@ -29,8 +29,8 @@ func WriteMarkdown(w io.Writer, d *csdf.Diagram, r Result) error {
 func writeRejection(sb *strings.Builder, r Result) {
 	rej := r.Rejection
 	fmt.Fprintf(sb, "# %s: REJECTED\n\n", r.Trace.Name)
-	fmt.Fprintf(sb, "Event %d of %d, `%s` (row %d of %s), cannot be performed even when every\nguard is true, so this is not a trace of the diagram.\n\n",
-		rej.Index+1, len(r.Trace.Events), rej.Event, rej.Index+2, r.Trace.Name)
+	fmt.Fprintf(sb, "Event %d of %d, `%s`, cannot be performed even when every guard is true,\nso this is not a trace of the diagram.\n\n",
+		rej.Index+1, len(r.Trace.Events), rej.Event)
 	fmt.Fprintf(sb, "- trace so far: %s\n", joinEvents(r.Trace.Events[:rej.Index]))
 	fmt.Fprintf(sb, "- states the diagram may be in before it: %s\n", joinStates(rej.States))
 	fmt.Fprintf(sb, "- visible events enabled there: %s\n\n", joinEvents(rej.Enabled))
@@ -57,7 +57,7 @@ func joinStates(states []csdf.StateID) string {
 
 func writeAcceptance(sb *strings.Builder, d *csdf.Diagram, r Result) {
 	fmt.Fprintf(sb, "# %s: ACCEPTED when every guard is true\n\n", r.Trace.Name)
-	fmt.Fprintf(sb, "The diagram performs the trace along %s when every guard is taken as\ntrue. Whether it is a trace of the diagram in fact depends on the\nnatural-language predicates below, which this tool does not evaluate.\n\n",
+	fmt.Fprintf(sb, "The diagram performs the trace along %s when every guard is taken as\ntrue. Whether it is a trace of the diagram in fact depends on the\nnatural-language predicates below, which this tool does not evaluate. A path\nnever revisits a state within one run of `tau` edges, so a path that would\nhave to go round a `tau` cycle is not listed.\n\n",
 		plural(len(r.Paths), "path"))
 	fmt.Fprintf(sb, "- trace: %s\n\n", joinEvents(r.Trace.Events))
 	for i, path := range r.Paths {
@@ -72,6 +72,8 @@ Answer SATISFIABLE with a witness for every valuation of that path, or
 UNSATISFIABLE naming, for every path, the first conjunct that cannot hold
 together with the ones before it. A guard is not true because it is written
 down: the trace is a trace of the diagram only if the predicates admit it.
+SATISFIABLE settles that it is; UNSATISFIABLE settles only that none of the
+listed paths admits it, since paths going round a ` + "`tau`" + ` cycle are not listed.
 
 `)
 }

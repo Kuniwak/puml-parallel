@@ -280,8 +280,9 @@ declared `; Type` annotation is preserved as a comment on the state constructor.
 
 `csdftracechk` checks whether an event sequence is a trace of a diagram. The
 sequence is a TSV whose header is the single column `event` and whose every
-other row is one visible event (`tau` cannot appear); any number of such files
-may be given after the diagram, and the diagram may be `-` for standard input.
+other row is one visible event, taken literally (`tau` cannot appear, and quotes
+are ordinary characters); any number of such files may be given after the
+diagram, and the diagram may be `-` for standard input.
 
 ```console
 $ csdftracechk examples/valid/vending_machine.puml trace.tsv
@@ -306,7 +307,10 @@ where `x0` is the valuation the start edge admits and `xi` the valuation after
 step `i`. It ends with a prompt asking a reader, a person or an LLM, to decide
 whether that holds for at least one path. As with the other checkers the
 predicates are natural language, so the tool never decides that itself: exit 0
-means only that every trace passed the all-guards-true check.
+means only that every trace passed the all-guards-true check. Note the
+asymmetry the pruning of `tau` cycles brings: a satisfiable path settles that
+the trace is a trace, while an unsatisfiable answer settles only that no listed
+path admits it, since a path that has to go round a `tau` cycle is not listed.
 
 Events are free-form text and their notation is not fixed, so a trace event is
 looked up in the diagram by one of two simple rules chosen with `-match`:
