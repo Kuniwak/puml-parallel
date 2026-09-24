@@ -14,6 +14,10 @@ import (
 type Table struct {
 	Columns []Column
 	Rows    []Row
+	// Unreachable are the states the diagram can never be in, sorted. They
+	// take no part in its behaviour, so they have no row and their events no
+	// column; they are named so that a missing row is never a surprise.
+	Unreachable []csdf.StateID
 }
 
 // Column is one event the environment may offer, or termination.
@@ -66,7 +70,22 @@ func Build(d *csdf.Diagram) (*Table, error) {
 		}
 		rows = append(rows, Row{State: s, Name: d.States[s].Name, Cells: cells})
 	}
-	return &Table{Columns: columns, Rows: rows}, nil
+	return &Table{Columns: columns, Rows: rows, Unreachable: unreachable(d, states)}, nil
+}
+
+func unreachable(d *csdf.Diagram, reachable []csdf.StateID) []csdf.StateID {
+	seen := make(map[csdf.StateID]struct{}, len(reachable))
+	for _, id := range reachable {
+		seen[id] = struct{}{}
+	}
+	var ids []csdf.StateID
+	for id := range d.States {
+		if _, ok := seen[id]; !ok {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // index is the diagram arranged for looking up what a state may do.

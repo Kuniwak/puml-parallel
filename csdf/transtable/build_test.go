@@ -123,6 +123,21 @@ s0 --> s2 : a
 				},
 			},
 		},
+		"an unreachable state is no row, and its events are no columns": {
+			Diagram: `@startuml
+state "S0" as s0
+state "Z" as z
+state "Y" as y
+[*] --> s0
+z --> y : b
+y --> [*]
+@enduml
+`,
+			Want: &transtable.Table{
+				Rows:        []transtable.Row{{State: "s0", Name: "S0"}},
+				Unreachable: []csdf.StateID{"y", "z"},
+			},
+		},
 		"termination is a column after the events, filled in like one": {
 			Diagram: `@startuml
 state "S0" as s0
