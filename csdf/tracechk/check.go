@@ -118,27 +118,27 @@ func AnyRejected(results []Result) bool {
 // the result carries them so that the caller can state the obligation.
 func Check(m Match, d *csdf.Diagram, t Trace) Result {
 	// Each list is in canonical order, so paths come out in a reproducible order.
-	out := csdf.Outgoing(d)
+	g := csdf.NewGraph(d)
 	trace := t.Events
 
-	states := csdf.TauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}}, out)
+	states := g.TauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}})
 	for i, event := range trace {
 		next := make(map[csdf.StateID]struct{})
 		refusing := make(map[csdf.StateID]struct{})
 		for s := range states {
 			canPerform := false
-			for _, e := range out[s] {
+			for _, e := range g.Out(s) {
 				if e.Event != csdf.Tau && m(e.Event, event) {
 					next[e.Dst] = struct{}{}
 					canPerform = true
 				}
 			}
-			if !canPerform && len(csdf.TauEdges(out[s])) == 0 {
+			if !canPerform && len(g.Taus(s)) == 0 {
 				refusing[s] = struct{}{}
 			}
 		}
 		if len(refusing) > 0 || len(next) == 0 {
-			paths := prefixPaths(m, d, out, trace, i+1)[i]
+			paths := prefixPaths(m, d, g, trace, i+1)[i]
 			if len(refusing) > 0 {
 				paths = slices.DeleteFunc(paths, func(p PrefixPath) bool {
 					_, ok := refusing[p.Dst]
@@ -150,14 +150,14 @@ func Check(m Match, d *csdf.Diagram, t Trace) Result {
 				Event:    event,
 				States:   sortedStates(states),
 				Refusing: sortedStates(refusing),
-				Enabled:  enabledEvents(refusing, out),
+				Enabled:  enabledEvents(refusing, g),
 				Paths:    paths,
 			}}
 		}
-		states = csdf.TauClosure(next, out)
+		states = g.TauClosure(next)
 	}
 
-	byIndex := prefixPaths(m, d, out, trace, len(trace))
+	byIndex := prefixPaths(m, d, g, trace, len(trace))
 	steps := make([]Step, 0, len(trace))
 	for i, event := range trace {
 		steps = append(steps, Step{Index: i, Event: event, Paths: byIndex[i]})
@@ -167,7 +167,7 @@ func Check(m Match, d *csdf.Diagram, t Trace) Result {
 
 // prefixPaths enumerates, for every i < upto, the paths performing the first i
 // events of the trace, in a deterministic depth-first order.
-func prefixPaths(m Match, d *csdf.Diagram, out map[csdf.StateID][]csdf.Edge, trace []csdf.Event, upto int) [][]PrefixPath {
+func prefixPaths(m Match, d *csdf.Diagram, g csdf.Graph, trace []csdf.Event, upto int) [][]PrefixPath {
 	byIndex := make([][]PrefixPath, upto)
 	var extend func(s csdf.StateID, i int, path Path, tauSeen map[csdf.StateID]struct{})
 	extend = func(s csdf.StateID, i int, path Path, tauSeen map[csdf.StateID]struct{}) {
@@ -177,10 +177,10 @@ func prefixPaths(m Match, d *csdf.Diagram, out map[csdf.StateID][]csdf.Edge, tra
 		byIndex[i] = append(byIndex[i], PrefixPath{
 			Path: slices.Clone(path),
 			Dst:  s,
-			Taus: csdf.TauEdges(out[s]),
-			Next: nextEdges(m, out[s], trace[i]),
+			Taus: g.Taus(s),
+			Next: nextEdges(m, g.Out(s), trace[i]),
 		})
-		for _, e := range out[s] {
+		for _, e := range g.Out(s) {
 			switch {
 			case e.Event == csdf.Tau:
 				if _, seen := tauSeen[e.Dst]; seen {
@@ -217,10 +217,10 @@ func sortedStates(states map[csdf.StateID]struct{}) []csdf.StateID {
 	return ss
 }
 
-func enabledEvents(states map[csdf.StateID]struct{}, out map[csdf.StateID][]csdf.Edge) []csdf.Event {
+func enabledEvents(states map[csdf.StateID]struct{}, g csdf.Graph) []csdf.Event {
 	seen := make(map[csdf.Event]struct{})
 	for s := range states {
-		for _, e := range out[s] {
+		for _, e := range g.Out(s) {
 			if e.Event != csdf.Tau {
 				seen[e.Event] = struct{}{}
 			}

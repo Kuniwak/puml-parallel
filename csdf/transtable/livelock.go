@@ -17,9 +17,9 @@ type LivelockError struct {
 }
 
 func (e *LivelockError) Error() string {
-	states := []string{string(e.Livelock.Cycle[0].Src)}
-	for _, edge := range e.Livelock.Cycle {
-		states = append(states, string(edge.Dst))
+	var states []string
+	for _, s := range e.Livelock.CycleStates() {
+		states = append(states, string(s))
 	}
 	return fmt.Sprintf("the tau cycle %s is reachable, so the diagram may diverge, which a table of refusals cannot show", strings.Join(states, " -> "))
 }

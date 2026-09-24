@@ -108,8 +108,8 @@ func Build(d *csdf.Diagram) (*Table, error) {
 
 	// Each list is in canonical order, so the table comes out the same for the
 	// same diagram.
-	x := index{out: csdf.Outgoing(d), end: d.EndEdge}
-	states := csdf.Reachable(d.StartEdge.Dst, x.out)
+	x := index{graph: csdf.NewGraph(d), end: d.EndEdge}
+	states := x.graph.Reachable(d.StartEdge.Dst)
 	columns := columnsOf(states, x)
 
 	rows := make([]Row, 0, len(states))
@@ -140,8 +140,8 @@ func unreachable(d *csdf.Diagram, reachable []csdf.StateID) []csdf.StateID {
 
 // index is the diagram arranged for looking up what a state may do.
 type index struct {
-	out map[csdf.StateID][]csdf.Edge
-	end *csdf.EndEdge
+	graph csdf.Graph
+	end   *csdf.EndEdge
 }
 
 // take is one way a state may perform a column: its guard over the values v,
@@ -166,7 +166,7 @@ func (x index) takes(u csdf.StateID, c Column) []take {
 		return []take{{guard: guard, taken: guard, result: Terminate{}}}
 	}
 	var ts []take
-	for _, e := range x.out[u] {
+	for _, e := range x.graph.Out(u) {
 		if e.Event != ec.Event {
 			continue
 		}
@@ -244,7 +244,7 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 		path := conjuncts(steps)
 
 		takes := x.takes(u, c)
-		taus := csdf.TauEdges(x.out[u])
+		taus := x.graph.Taus(u)
 		for _, t := range takes {
 			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(here)), Result: t.result})
 		}
@@ -294,7 +294,7 @@ func columnsOf(states []csdf.StateID, x index) []Column {
 	// The environment cannot offer tau, so it is not a column.
 	seen := map[csdf.Event]struct{}{csdf.Tau: {}}
 	for _, s := range states {
-		for _, e := range x.out[s] {
+		for _, e := range x.graph.Out(s) {
 			if _, ok := seen[e.Event]; !ok {
 				seen[e.Event] = struct{}{}
 				columns = append(columns, EventColumn{Event: e.Event})

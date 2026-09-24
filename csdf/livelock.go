@@ -13,6 +13,16 @@ type Livelock struct {
 	Cycle []Edge
 }
 
+// CycleStates returns the states of the cycle in order, closed on itself: the
+// entry state first and last.
+func (l *Livelock) CycleStates() []StateID {
+	states := []StateID{l.Cycle[0].Src}
+	for _, e := range l.Cycle {
+		states = append(states, e.Dst)
+	}
+	return states
+}
+
 // CheckLivelockFree reports whether d is livelock free, i.e. has no τ-only cycle
 // reachable from the start state. When a livelock exists it returns a
 // deterministic witness and ok == false; otherwise it returns (nil, true).
@@ -20,45 +30,23 @@ type Livelock struct {
 // The analysis is purely structural over event labels: natural-language Guard and
 // Post predicates are not evaluated. A diagram with no τ edges is livelock free.
 func CheckLivelockFree(d *Diagram) (witness *Livelock, ok bool) {
-	// Index all outgoing edges by source state.
-	out := make(map[StateID][]Edge)
-	for _, e := range d.Edges {
-		out[e.Src] = append(out[e.Src], e)
-	}
+	g := NewGraph(d)
 
-	reachable := reachableStates(d.StartEdge.Dst, out)
-
-	// τ-only successor index restricted to reachable sources, deterministically
-	// ordered so the witness is reproducible.
+	// τ-only successor index restricted to reachable sources, in canonical
+	// order so the witness is reproducible.
 	tauOut := make(map[StateID][]Edge)
-	for _, e := range d.Edges {
-		if e.Event != Tau {
-			continue
+	for _, s := range g.Reachable(d.StartEdge.Dst) {
+		if taus := g.Taus(s); taus != nil {
+			tauOut[s] = taus
 		}
-		if _, ok := reachable[e.Src]; !ok {
-			continue
-		}
-		tauOut[e.Src] = append(tauOut[e.Src], e)
-	}
-	for s := range tauOut {
-		SortEdges(tauOut[s])
 	}
 
 	cycle := findTauCycle(tauOut)
 	if cycle == nil {
 		return nil, true
 	}
-	stem := stemTo(d.StartEdge.Dst, cycle[0].Src, out)
+	stem := stemTo(d.StartEdge.Dst, cycle[0].Src, g)
 	return &Livelock{Stem: stem, Cycle: cycle}, false
-}
-
-// reachableStates returns every state reachable from start over all edges.
-func reachableStates(start StateID, out map[StateID][]Edge) map[StateID]struct{} {
-	reachable := make(map[StateID]struct{})
-	for _, s := range Reachable(start, out) {
-		reachable[s] = struct{}{}
-	}
-	return reachable
 }
 
 // dfs coloring states.
@@ -137,8 +125,8 @@ func reconstructCycle(stack []dfsFrame, entryEdge map[StateID]Edge, back Edge) [
 }
 
 // stemTo returns a shortest path of edges from start to target over all edges, or
-// nil when target == start. Edges are scanned in sorted order for determinism.
-func stemTo(start, target StateID, out map[StateID][]Edge) []Edge {
+// nil when target == start. Edges are scanned in canonical order for determinism.
+func stemTo(start, target StateID, g Graph) []Edge {
 	if start == target {
 		return nil
 	}
@@ -148,9 +136,7 @@ func stemTo(start, target StateID, out map[StateID][]Edge) []Edge {
 	for len(queue) > 0 {
 		s := queue[0]
 		queue = queue[1:]
-		edges := append([]Edge(nil), out[s]...)
-		SortEdges(edges)
-		for _, e := range edges {
+		for _, e := range g.Out(s) {
 			if _, ok := visited[e.Dst]; ok {
 				continue
 			}
