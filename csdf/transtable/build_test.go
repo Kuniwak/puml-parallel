@@ -6,49 +6,59 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-// spelled is a table with every outcome written as its line in the logical
-// notation, which says in a line what a struct literal says in five.
-type spelled struct {
-	Columns     []transtable.Column
-	Rows        []spelledRow
-	Unreachable []csdf.StateID
+// The variables of a condition, and shorthands to build conditions with.
+var (
+	x  = transtable.ValuesAfterStep(0)
+	x1 = transtable.ValuesAfterStep(1)
+	x2 = transtable.ValuesAfterStep(2)
+	x3 = transtable.ValuesAfterStep(3)
+	c  = transtable.OfferedParams
+	c1 = transtable.ParamsOfStep(1)
+	c2 = transtable.ParamsOfStep(2)
+	c3 = transtable.ParamsOfStep(3)
+	c4 = transtable.ParamsOfStep(4)
+	xn = transtable.NextValues
+
+	q   = logic.Quoted
+	and = logic.And
+	not = logic.Not
+)
+
+func ex(vars []logic.Var, body logic.Formula) logic.Formula { return logic.Exists(vars, body) }
+func vs(vars ...logic.Var) []logic.Var                      { return vars }
+
+func goTo(cond logic.Formula, s csdf.StateID) transtable.Outcome {
+	return transtable.Outcome{Cond: cond, Result: transtable.Goto{State: s}}
 }
 
-type spelledRow struct {
-	State csdf.StateID
-	Name  string
-	Cells [][]string
+func refuse(cond logic.Formula) transtable.Outcome {
+	return transtable.Outcome{Cond: cond, Result: transtable.Refuse{}}
 }
 
-func spell(t *transtable.Table) *spelled {
-	rows := make([]spelledRow, 0, len(t.Rows))
-	for _, row := range t.Rows {
-		cells := make([][]string, 0, len(row.Cells))
-		for _, cell := range row.Cells {
-			cells = append(cells, spellCell(cell))
-		}
-		rows = append(rows, spelledRow{State: row.State, Name: row.Name, Cells: cells})
+// equalFormulas compares conditions as formulas, by logic.Equal, and leaves
+// the spelling of them out of what Build is tested for.
+var equalFormulas = cmp.Comparer(logic.Equal)
+
+// lines spells outcomes, only to say what went wrong.
+func linesOf(os []transtable.Outcome) string {
+	f := format(transtable.NotationLogical)
+	ls := make([]string, len(os))
+	for i, o := range os {
+		ls[i] = f.Line(o)
 	}
-	return &spelled{Columns: t.Columns, Rows: rows, Unreachable: t.Unreachable}
-}
-
-func spellCell(os []transtable.Outcome) []string {
-	lines := make([]string, 0, len(os))
-	for _, o := range os {
-		lines = append(lines, format(transtable.NotationLogical).Line(o))
-	}
-	return lines
+	return strings.Join(ls, "\n")
 }
 
 func TestBuild(t *testing.T) {
 	type testCase struct {
 		Diagram string
-		Want    *spelled
+		Want    *transtable.Table
 	}
 
 	testCases := map[string]testCase{
@@ -58,8 +68,8 @@ state "Idle" as s0
 [*] --> s0
 @enduml
 `,
-			Want: &spelled{
-				Rows: []spelledRow{{State: "s0", Name: "Idle"}},
+			Want: &transtable.Table{
+				Rows: []transtable.Row{{State: "s0", Name: "Idle"}},
 			},
 		},
 		"an edge is accepted where it starts and refused where it does not": {
@@ -70,15 +80,11 @@ state "S1" as s1
 s0 --> s1 : a
 @enduml
 `,
-			Want: &spelled{
+			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
-				Rows: []spelledRow{
-					{State: "s0", Name: "S0", Cells: [][]string{
-						{"→ s1"},
-					}},
-					{State: "s1", Name: "S1", Cells: [][]string{
-						{"×"},
-					}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{goTo(logic.True, "s1")}}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 				},
 			},
 		},
@@ -90,15 +96,14 @@ state "S1" as s1
 s0 --> s1 : a ; g
 @enduml
 `,
-			Want: &spelled{
+			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
-				Rows: []spelledRow{
-					{State: "s0", Name: "S0", Cells: [][]string{
-						{`["g"(c, x)] → s1`, `[¬"g"(c, x)] ×`},
-					}},
-					{State: "s1", Name: "S1", Cells: [][]string{
-						{"×"},
-					}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
+						goTo(q("g", c, x), "s1"),
+						refuse(not(q("g", c, x))),
+					}}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 				},
 			},
 		},
@@ -112,14 +117,16 @@ s0 --> s1 : a ; g1
 s0 --> s2 : a ; g2
 @enduml
 `,
-			Want: &spelled{
+			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
-				Rows: []spelledRow{
-					{State: "s0", Name: "S0", Cells: [][]string{
-						{`["g1"(c, x)] → s1`, `["g2"(c, x)] → s2`, `[¬"g1"(c, x) ∧ ¬"g2"(c, x)] ×`},
-					}},
-					{State: "s1", Name: "S1", Cells: [][]string{{"×"}}},
-					{State: "s2", Name: "S2", Cells: [][]string{{"×"}}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
+						goTo(q("g1", c, x), "s1"),
+						goTo(q("g2", c, x), "s2"),
+						refuse(and(not(q("g1", c, x)), not(q("g2", c, x)))),
+					}}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
+					{State: "s2", Name: "S2", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 				},
 			},
 		},
@@ -133,14 +140,31 @@ s0 --> s1 : a ; g
 s0 --> s2 : a
 @enduml
 `,
-			Want: &spelled{
+			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
-				Rows: []spelledRow{
-					{State: "s0", Name: "S0", Cells: [][]string{
-						{`["g"(c, x)] → s1`, "→ s2"},
-					}},
-					{State: "s1", Name: "S1", Cells: [][]string{{"×"}}},
-					{State: "s2", Name: "S2", Cells: [][]string{{"×"}}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
+						goTo(q("g", c, x), "s1"),
+						goTo(logic.True, "s2"),
+					}}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
+					{State: "s2", Name: "S2", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
+				},
+			},
+		},
+		"a postcondition is applied to the parameters and the values before and after": {
+			Diagram: `@startuml
+state "S0" as s0
+state "S1" as s1
+[*] --> s0
+s0 --> s1 : a ; true ; p
+@enduml
+`,
+			Want: &transtable.Table{
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{goTo(q("p", c, x, xn), "s1")}}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 				},
 			},
 		},
@@ -154,11 +178,12 @@ z --> y : b
 y --> [*]
 @enduml
 `,
-			Want: &spelled{
-				Rows:        []spelledRow{{State: "s0", Name: "S0"}},
+			Want: &transtable.Table{
+				Rows:        []transtable.Row{{State: "s0", Name: "S0"}},
 				Unreachable: []csdf.StateID{"y", "z"},
 			},
 		},
+		// An end edge has no event, so its guard reads the values only.
 		"termination is a column after the events, filled in like one": {
 			Diagram: `@startuml
 state "S0" as s0
@@ -168,16 +193,19 @@ s0 --> s1 : a
 s1 --> [*] : g
 @enduml
 `,
-			Want: &spelled{
+			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.TerminationColumn{}},
-				Rows: []spelledRow{
-					{State: "s0", Name: "S0", Cells: [][]string{
-						{"→ s1"},
-						{"×"},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
+						{goTo(logic.True, "s1")},
+						{refuse(logic.True)},
 					}},
-					{State: "s1", Name: "S1", Cells: [][]string{
-						{"×"},
-						{`["g"(x)] → [*]`, `[¬"g"(x)] ×`},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
+						{refuse(logic.True)},
+						{
+							{Cond: q("g", x), Result: transtable.Terminate{}},
+							refuse(not(q("g", x))),
+						},
 					}},
 				},
 			},
@@ -194,22 +222,22 @@ counting --> fixed : tau
 fixed --> idle : REPORT
 @enduml
 `,
-			Want: &spelled{
+			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "BOOK"}, transtable.EventColumn{Event: "REPORT"}},
-				Rows: []spelledRow{
-					{State: "idle", Name: "Idle", Cells: [][]string{
-						{"→ counting"},
-						{"×"},
+				Rows: []transtable.Row{
+					{State: "idle", Name: "Idle", Cells: [][]transtable.Outcome{
+						{goTo(logic.True, "counting")},
+						{refuse(logic.True)},
 					}},
 					// Counting never refuses by itself, since its tau always
 					// may fire; Fixed, which the tau leads to, refuses BOOK.
-					{State: "counting", Name: "Counting", Cells: [][]string{
-						{"→ counting", "×"},
-						{"→ idle"},
+					{State: "counting", Name: "Counting", Cells: [][]transtable.Outcome{
+						{goTo(logic.True, "counting"), refuse(logic.True)},
+						{goTo(logic.True, "idle")},
 					}},
-					{State: "fixed", Name: "Fixed", Cells: [][]string{
-						{"×"},
-						{"→ idle"},
+					{State: "fixed", Name: "Fixed", Cells: [][]transtable.Outcome{
+						{refuse(logic.True)},
+						{goTo(logic.True, "idle")},
 					}},
 				},
 			},
@@ -228,11 +256,29 @@ fixed --> idle : REPORT
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
-			if diff := cmp.Diff(testCase.Want, spell(got), cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
+			if !cmp.Equal(testCase.Want, got, equalFormulas, cmpopts.EquateEmpty()) {
+				t.Errorf("want %s, got %s", tableText(testCase.Want), tableText(got))
 			}
 		})
 	}
+}
+
+// tableText spells a table, only to say what went wrong.
+func tableText(t *transtable.Table) string {
+	var sb strings.Builder
+	for _, c := range t.Columns {
+		sb.WriteString("\n  column " + c.Header())
+	}
+	for _, row := range t.Rows {
+		sb.WriteString("\n  row " + string(row.State) + " " + row.Name)
+		for _, cell := range row.Cells {
+			sb.WriteString("\n    " + strings.ReplaceAll(linesOf(cell), "\n", "\n    "))
+		}
+	}
+	for _, s := range t.Unreachable {
+		sb.WriteString("\n  unreachable " + string(s))
+	}
+	return sb.String()
 }
 
 // TestBuildFirstCell looks at one cell only, that of the start state under the
@@ -240,7 +286,7 @@ fixed --> idle : REPORT
 func TestBuildFirstCell(t *testing.T) {
 	type testCase struct {
 		Diagram string
-		Want    []string
+		Want    []transtable.Outcome
 	}
 
 	// Two ways round a diamond that differ only in their postconditions.
@@ -275,17 +321,50 @@ B --> C : tau ; h2
 C --> D : a ; g
 @enduml
 `,
-			Want: []string{
-				`[¬∃c1. "h1"(c1, x)] ×`,
-				`[∃c1 x1. "h1"(c1, x) ∧ ¬∃c2. "h2"(c2, x1)] ×`,
-				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "g"(c, x2)] → D`,
-				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬"g"(c, x2)] ×`,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h1", c1, x)))),
+				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
+				goTo(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), q("g", c, x2))), "D"),
+				refuse(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), not(q("g", c, x2))))),
+			},
+		},
+		"a postcondition along a tau path is applied to the values before and after its step": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; h ; x' = x + 1
+B --> C : a ; g ; y' = x
+@enduml
+`,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h", c1, x)))),
+				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1), q("y' = x", c, x1, xn))), "C"),
+				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", c, x1))))),
+			},
+		},
+		// A true postcondition leaves the values after it free, so a later
+		// predicate reads values that are only bound.
+		"true guards and postconditions add nothing, and the values they leave free stay bound": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau
+B --> C : a ; true ; y' = 0
+C --> A : b
+@enduml
+`,
+			Want: []transtable.Outcome{
+				goTo(ex(vs(x1), q("y' = 0", c, x1, xn)), "C"),
 			},
 		},
 		// Hiding interleaved events makes tau diamonds, and a walk that took
 		// every way round each of them would grow exponentially. Two ways that
-		// reach a state under the same condition and postconditions lead to
-		// the same outcomes, so the second is not walked.
+		// reach a state along the same guards and postconditions lead to the
+		// same outcomes, so the second is not walked.
 		"a tau diamond is walked once": {
 			Diagram: `@startuml
 state "A" as A
@@ -301,9 +380,7 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []string{
-				"→ E",
-			},
+			Want: []transtable.Outcome{goTo(logic.True, "E")},
 		},
 		"tau paths that meet again under different conditions are both walked": {
 			Diagram: `@startuml
@@ -320,10 +397,10 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []string{
-				`[¬(∃c1. "g1"(c1, x)) ∧ ¬∃c1. "g2"(c1, x)] ×`,
-				`[∃c1. "g1"(c1, x)] → E`,
-				`[∃c1. "g2"(c1, x)] → E`,
+			Want: []transtable.Outcome{
+				refuse(and(not(ex(vs(c1), q("g1", c1, x))), not(ex(vs(c1), q("g2", c1, x))))),
+				goTo(ex(vs(c1), q("g1", c1, x)), "E"),
+				goTo(ex(vs(c1), q("g2", c1, x)), "E"),
 			},
 		},
 		// A refusal needs the state stable and unable to take the event, and
@@ -338,15 +415,15 @@ A --> B : a ; g
 A --> C : tau ; h
 @enduml
 `,
-			Want: []string{
-				`["g"(c, x)] → B`,
-				`[¬(∃c1. "h"(c1, x)) ∧ ¬"g"(c, x)] ×`,
-				`[∃c1. "h"(c1, x)] ×`,
+			Want: []transtable.Outcome{
+				goTo(q("g", c, x), "B"),
+				refuse(and(not(ex(vs(c1), q("h", c1, x))), not(q("g", c, x)))),
+				refuse(ex(vs(c1), q("h", c1, x))),
 			},
 		},
-		// The path to D is long enough for its condition to have spare
-		// capacity, so the two tau edges out of D would write their guards
-		// over each other if a branch extended the condition in place.
+		// The path to D is long enough for its steps to have spare capacity,
+		// so the two tau edges out of D would write their steps over each
+		// other if a branch extended the path in place.
 		"sibling tau edges keep their own conditions": {
 			Diagram: `@startuml
 state "A" as A
@@ -366,13 +443,14 @@ E1 --> F : a
 E2 --> F : a
 @enduml
 `,
-			Want: []string{
-				`[¬∃c1. "h1"(c1, x)] ×`,
-				`[∃c1 x1. "h1"(c1, x) ∧ ¬∃c2. "h2"(c2, x1)] ×`,
-				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬∃c3. "h3"(c3, x2)] ×`,
-				`[∃c1 x1 c2 x2 c3 x3. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ ¬(∃c4. "k1"(c4, x3)) ∧ ¬∃c4. "k2"(c4, x3)] ×`,
-				`[∃c1 x1 c2 x2 c3 x3 c4. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ "k1"(c4, x3)] → F`,
-				`[∃c1 x1 c2 x2 c3 x3 c4. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ "k2"(c4, x3)] → F`,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h1", c1, x)))),
+				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
+				refuse(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), not(ex(vs(c3), q("h3", c3, x2)))))),
+				refuse(ex(vs(c1, x1, c2, x2, c3, x3), and(q("h1", c1, x), q("h2", c2, x1), q("h3", c3, x2),
+					not(ex(vs(c4), q("k1", c4, x3))), not(ex(vs(c4), q("k2", c4, x3)))))),
+				goTo(ex(vs(c1, x1, c2, x2, c3, x3, c4), and(q("h1", c1, x), q("h2", c2, x1), q("h3", c3, x2), q("k1", c4, x3))), "F"),
+				goTo(ex(vs(c1, x1, c2, x2, c3, x3, c4), and(q("h1", c1, x), q("h2", c2, x1), q("h3", c3, x2), q("k2", c4, x3))), "F"),
 			},
 		},
 		// The grammar lets a guard hold any character but a semicolon, so one
@@ -387,20 +465,20 @@ E2 --> F : a
 				"B --> D : tau\n" +
 				"D --> E : x\n" +
 				"@enduml\n",
-			Want: []string{
-				`[¬(∃c1. "a\u0000b"(c1, x)) ∧ ¬∃c1. "a"(c1, x)] ×`,
-				`[∃c1. "a\u0000b"(c1, x)] → E`,
-				`[∃c1 x1. "a"(c1, x) ∧ ¬∃c2. "b"(c2, x1)] ×`,
-				`[∃c1 x1 c2. "a"(c1, x) ∧ "b"(c2, x1)] → E`,
+			Want: []transtable.Outcome{
+				refuse(and(not(ex(vs(c1), q("a\x00b", c1, x))), not(ex(vs(c1), q("a", c1, x))))),
+				goTo(ex(vs(c1), q("a\x00b", c1, x)), "E"),
+				refuse(ex(vs(c1, x1), and(q("a", c1, x), not(ex(vs(c2), q("b", c2, x1)))))),
+				goTo(ex(vs(c1, x1, c2), and(q("a", c1, x), q("b", c2, x1))), "E"),
 			},
 		},
 		// A postcondition is part of the condition, so two ways that differ
 		// in one alone are two outcomes.
 		"postconditions along a tau path tell the paths apart": {
 			Diagram: postDiamond,
-			Want: []string{
-				`[∃c1 x1. "p"(c1, x, x1)] → E`,
-				`[∃c1 x1. "q"(c1, x, x1)] → E`,
+			Want: []transtable.Outcome{
+				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
+				goTo(ex(vs(c1, x1), q("q", c1, x, x1)), "E"),
 			},
 		},
 	}
@@ -417,8 +495,9 @@ E2 --> F : a
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
-			if diff := cmp.Diff(testCase.Want, spellCell(got.Rows[0].Cells[0]), cmpopts.EquateEmpty()); diff != "" {
-				t.Error(diff)
+			cell := got.Rows[0].Cells[0]
+			if !cmp.Equal(testCase.Want, cell, equalFormulas) {
+				t.Errorf("want\n%s\ngot\n%s", linesOf(testCase.Want), linesOf(cell))
 			}
 		})
 	}

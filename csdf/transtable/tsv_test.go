@@ -6,26 +6,30 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
 )
 
+// A condition over a tau step, to spell in either notation.
+var afterTau = ex(vs(c1, x1), and(q("h", c1, x), not(q("g", c, x1))))
+
 func TestWriteTSV(t *testing.T) {
 	type testCase struct {
-		Diagram string
-		Format  transtable.Format
-		Want    string
+		Table  *transtable.Table
+		Format transtable.Format
+		Want   string
 	}
 
 	testCases := map[string]testCase{
 		"a state and an event name a row and a column": {
-			Diagram: `@startuml
-state "Zero" as s0
-state "One" as s1
-[*] --> s0
-s0 --> s1 : a
-@enduml
-`,
+			Table: &transtable.Table{
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "Zero", Cells: [][]transtable.Outcome{{goTo(logic.True, "s1")}}},
+					{State: "s1", Name: "One", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
+				},
+			},
 			Format: format(transtable.NotationNatural),
 			Want: "state\tname\ta\n" +
 				"s0\tZero\t→ s1\n" +
@@ -34,138 +38,70 @@ s0 --> s1 : a
 		// Predicates are quoted, and csv.Writer doubles the quotes of a cell
 		// holding them, as CSV does.
 		"a condition comes first in brackets, and a cell holds a line per outcome": {
-			Diagram: `@startuml
-state "S0" as s0
-state "S1" as s1
-[*] --> s0
-s0 --> s1 : a ; product is available
-s1 --> [*] : g
-@enduml
-`,
+			Table: &transtable.Table{
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.TerminationColumn{}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
+						{goTo(q("product is available", c, x), "s1"), refuse(not(q("product is available", c, x)))},
+						{refuse(logic.True)},
+					}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
+						{refuse(logic.True)},
+						{{Cond: q("g", x), Result: transtable.Terminate{}}, refuse(not(q("g", x)))},
+					}},
+				},
+			},
 			Format: format(transtable.NotationNatural),
 			Want: "state\tname\ta\t[*]\n" +
 				"s0\tS0\t\"[\"\"product is available\"\"(c, x)] → s1\n[not \"\"product is available\"\"(c, x)] ×\"\t×\n" +
 				"s1\tS1\t×\t\"[\"\"g\"\"(x)] → [*]\n[not \"\"g\"\"(x)] ×\"\n",
 		},
-		"the logical notation spells the connectives as symbols": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-[*] --> A
-A --> B : tau ; h
-B --> C : a ; g
-@enduml
-`,
-			Format: format(transtable.NotationLogical),
-			Want: tsvOf(
-				[]string{"state", "name", "a"},
-				[]string{"A", "A", lines(
-					`[¬∃c1. "h"(c1, x)] ×`,
-					`[∃c1 x1. "h"(c1, x) ∧ "g"(c, x1)] → C`,
-					`[∃c1 x1. "h"(c1, x) ∧ ¬"g"(c, x1)] ×`,
-				)},
-				[]string{"B", "B", lines(`["g"(c, x)] → C`, `[¬"g"(c, x)] ×`)},
-				[]string{"C", "C", "×"},
-			),
-		},
-		"a postcondition is applied to the values before and after its step": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-[*] --> A
-A --> B : tau ; h ; x' = x + 1
-B --> C : a ; g ; y' = x
-@enduml
-`,
+		"the natural notation spells the connectives as words": {
+			Table: &transtable.Table{
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Rows:    []transtable.Row{{State: "A", Name: "A", Cells: [][]transtable.Outcome{{refuse(afterTau)}}}},
+			},
 			Format: format(transtable.NotationNatural),
 			Want: tsvOf(
 				[]string{"state", "name", "a"},
-				[]string{"A", "A", lines(
-					`[not exists c1. "h"(c1, x)] ×`,
-					`[exists c1 x1. "h"(c1, x) and "x' = x + 1"(c1, x, x1) and "g"(c, x1) and "y' = x"(c, x1, x')] → C`,
-					`[exists c1 x1. "h"(c1, x) and "x' = x + 1"(c1, x, x1) and not "g"(c, x1)] ×`,
-				)},
-				[]string{"B", "B", lines(`["g"(c, x) and "y' = x"(c, x, x')] → C`, `[not "g"(c, x)] ×`)},
-				[]string{"C", "C", "×"},
+				[]string{"A", "A", `[exists c1 x1. "h"(c1, x) and not "g"(c, x1)] ×`},
 			),
 		},
-		// A true postcondition leaves the values after it free, so a later
-		// predicate reads values that are only bound.
-		"true guards and postconditions add nothing, and the values they leave free stay bound": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-[*] --> A
-A --> B : tau
-B --> C : a ; true ; y' = 0
-C --> A : b
-@enduml
-`,
+		"the logical notation spells them as symbols": {
+			Table: &transtable.Table{
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Rows:    []transtable.Row{{State: "A", Name: "A", Cells: [][]transtable.Outcome{{refuse(afterTau)}}}},
+			},
 			Format: format(transtable.NotationLogical),
 			Want: tsvOf(
-				[]string{"state", "name", "a", "b"},
-				[]string{"A", "A", `[∃x1. "y' = 0"(c, x1, x')] → C`, "×"},
-				[]string{"B", "B", `["y' = 0"(c, x, x')] → C`, "×"},
-				[]string{"C", "C", "×", "→ A"},
+				[]string{"state", "name", "a"},
+				[]string{"A", "A", `[∃c1 x1. "h"(c1, x) ∧ ¬"g"(c, x1)] ×`},
 			),
 		},
-		// The two outcomes of A are taken in B and in C, which the table does
-		// not show, so they are one line.
-		"paths that differ only where the table does not look are one line": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-state "E" as E
-[*] --> A
-A --> B : tau
-A --> C : tau
-B --> E : a
-C --> E : a
-@enduml
-`,
-			Format: format(transtable.NotationNatural),
-			Want: "state\tname\ta\n" +
-				"A\tA\t→ E\n" +
-				"B\tB\t→ E\n" +
-				"C\tC\t→ E\n" +
-				"E\tE\t×\n",
-		},
-		// True guards and postconditions say nothing, so paths of different
-		// lengths may come out the same.
-		"outcomes whose postconditions say nothing are one line": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "E" as E
-[*] --> A
-A --> B : tau
-A --> E : a
-B --> E : a
-@enduml
-`,
-			Format: format(transtable.NotationNatural),
-			Want: "state\tname\ta\n" +
-				"A\tA\t→ E\n" +
-				"E\tE\t×\n" +
-				"B\tB\t→ E\n",
+		// The table does not show the states a tau path passes, so two
+		// outcomes may come out the same.
+		"a line already written in a cell is not written again": {
+			Table: &transtable.Table{
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Rows: []transtable.Row{{State: "A", Name: "A", Cells: [][]transtable.Outcome{{
+					goTo(logic.True, "E"), refuse(q("g", c, x)), goTo(logic.True, "E"),
+				}}}},
+			},
+			Format: format(transtable.NotationLogical),
+			Want: tsvOf(
+				[]string{"state", "name", "a"},
+				[]string{"A", "A", lines("→ E", `["g"(c, x)] ×`)},
+			),
 		},
 	}
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
-			table, err := transtable.Build(csdf.MustParse(testCase.Diagram))
-			if err != nil {
-				t.Fatalf("want nil, got %v", err)
-			}
 			var sb strings.Builder
 
 			// Act
-			err = transtable.WriteTSV(&sb, table, testCase.Format)
+			err := transtable.WriteTSV(&sb, testCase.Table, testCase.Format)
 
 			// Assert
 			if err != nil {
@@ -178,65 +114,50 @@ B --> E : a
 	}
 }
 
-// A reader finds a column by its header, so an event spelled like a fixed
-// column would be read as that column.
-func TestWriteTSVRefusesAnEventSpelledLikeAFixedColumn(t *testing.T) {
-	for _, event := range []string{"state", "name", "[*]"} {
-		t.Run(event, func(t *testing.T) {
+// Nothing is written when the table cannot be: a reader finds a column by its
+// header, so an event spelled like a fixed column would be read as that one,
+// and the zero notation spells nothing, which would print a negated guard as
+// the guard itself.
+func TestWriteTSVRefuses(t *testing.T) {
+	type testCase struct {
+		Table       *transtable.Table
+		Format      transtable.Format
+		WantInError string
+	}
+
+	eventNamed := func(event string) *transtable.Table {
+		return &transtable.Table{
+			Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.EventColumn{Event: csdf.Event(event)}},
+			Rows:    []transtable.Row{{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{refuse(logic.True)}, {refuse(logic.True)}}}},
+		}
+	}
+
+	testCases := map[string]testCase{
+		"an event spelled state": {Table: eventNamed("state"), Format: format(transtable.NotationNatural), WantInError: `"state"`},
+		"an event spelled name":  {Table: eventNamed("name"), Format: format(transtable.NotationNatural), WantInError: `"name"`},
+		"an event spelled [*]":   {Table: eventNamed("[*]"), Format: format(transtable.NotationNatural), WantInError: `"[*]"`},
+		"the zero notation":      {Table: eventNamed("b"), Format: transtable.Format{}, WantInError: "zero notation"},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
 			// Arrange
-			table, err := transtable.Build(csdf.MustParse(`@startuml
-state "S0" as s0
-[*] --> s0
-s0 --> s0 : ` + event + `
-@enduml
-`))
-			if err != nil {
-				t.Fatalf("want nil, got %v", err)
-			}
 			var sb strings.Builder
 
 			// Act
-			err = transtable.WriteTSV(&sb, table, format(transtable.NotationNatural))
+			err := transtable.WriteTSV(&sb, testCase.Table, testCase.Format)
 
 			// Assert
 			if err == nil {
 				t.Fatalf("want an error, got the table %q", sb.String())
 			}
-			if !strings.Contains(err.Error(), event) {
-				t.Errorf("want the event %q in the message, got %q", event, err.Error())
+			if !strings.Contains(err.Error(), testCase.WantInError) {
+				t.Errorf("want %q in the message, got %q", testCase.WantInError, err.Error())
 			}
 			if sb.Len() != 0 {
 				t.Errorf("want nothing written, got %q", sb.String())
 			}
 		})
-	}
-}
-
-// The zero notation spells nothing, which would print a negated guard as the
-// guard itself, so it is refused before anything is written.
-func TestWriteTSVRefusesTheZeroNotation(t *testing.T) {
-	// Arrange
-	table, err := transtable.Build(csdf.MustParse(`@startuml
-state "S0" as s0
-state "S1" as s1
-[*] --> s0
-s0 --> s1 : a ; g
-@enduml
-`))
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
-	}
-	var sb strings.Builder
-
-	// Act
-	err = transtable.WriteTSV(&sb, table, transtable.Format{})
-
-	// Assert
-	if err == nil {
-		t.Fatalf("want an error, got the table %q", sb.String())
-	}
-	if sb.Len() != 0 {
-		t.Errorf("want nothing written, got %q", sb.String())
 	}
 }
 
