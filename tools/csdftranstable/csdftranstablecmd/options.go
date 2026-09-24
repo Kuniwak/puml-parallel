@@ -43,7 +43,8 @@ A cell is read in the stable-failures sense, and holds one outcome per line:
   [C] ×     the event may be refused
 
 each when its condition C holds; a line without [C] happens unconditionally.
-Every line holds on its own: a cell is the set of what may happen.
+Every line holds on its own: a cell is the set of what may happen, and a line
+that comes out the same as one before it is written once.
 
 C is a formula of first-order logic whose atoms are the guards and
 postconditions of the diagram, quoted as JSON strings and applied to what they
@@ -66,11 +67,18 @@ no tau edge is enabled and no edge for the event is. Every postcondition is
 taken to admit some values after its step, so an edge is enabled exactly when
 its guard holds for some parameters of a tau edge, or for those offered.
 
+Negation binds tightest; a conjunction inside a disjunction, or the other way
+round, is parenthesised; an implication binds loosest; and a quantifier
+reaches to the end of what it is in, so it is parenthesised exactly when
+something follows it.
+
 The guards and postconditions are natural language and are never evaluated,
 and whether the guards cover every case is left to the reader. A reachable tau
 cycle may make the diagram diverge, which a table of refusals cannot show, so
-such a diagram is refused. Unreachable states have no row, and their IDs are
-written to standard error.
+such a diagram is refused, and so is one naming a state it never declares.
+Unreachable states have no row, and their IDs are written to standard error.
+An event spelled "state", "name" or "[*]" would be read as that column, so it
+is an error.
 
 A file argument, a "-" argument, and standard input are all equivalent.
 

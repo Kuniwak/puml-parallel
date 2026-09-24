@@ -417,8 +417,8 @@ for the event is. With `A --> B : tau ; h1 ; p1`, `B --> C : tau ; h2 ; p2`
 and `C --> D : a ; g ; q`, the cell of `A` under `a` is
 
 ```
-[not (exists c1. "h1"(c1, x))] ×
-[exists c1 x1. "h1"(c1, x) and "p1"(c1, x, x1) and not (exists c2. "h2"(c2, x1))] ×
+[not exists c1. "h1"(c1, x)] ×
+[exists c1 x1. "h1"(c1, x) and "p1"(c1, x, x1) and not exists c2. "h2"(c2, x1)] ×
 [exists c1 x1 c2 x2. "h1"(c1, x) and "p1"(c1, x, x1) and "h2"(c2, x1) and "p2"(c2, x1, x2) and "g"(c, x2) and "q"(c, x2, x')] → D
 [exists c1 x1 c2 x2. "h1"(c1, x) and "p1"(c1, x, x1) and "h2"(c2, x1) and "p2"(c2, x1, x2) and not "g"(c, x2)] ×
 ```
@@ -426,8 +426,12 @@ and `C --> D : a ; g ; q`, the cell of `A` under `a` is
 where the lines come in the order of a depth-first walk along the `tau` edges:
 the diagram may stop and refuse in `A`, in `B` or in `C`, whichever it is
 stable in. A variable is bound in step order, the parameters of a step before
-the values after it; a quantifier binds to the end of what it is in, and a
-negated formula other than an atom is parenthesised.
+the values after it. The spelling is that of `csdf/logic`, which
+`csdftracechk` shares: negation binds tightest; a conjunction and a
+disjunction have no precedence over each other, so one inside the other is
+parenthesised; an implication binds loosest; and a quantifier reaches to the
+end of what it is in, so it is parenthesised exactly when something follows
+it.
 
 A `true` guard or postcondition is dropped from a conjunction, and so is a
 bound variable nothing reads any more; both are equivalences of first-order
@@ -464,7 +468,9 @@ as never refusing. So a diagram with a reachable `tau` cycle is refused with the
 cycle named, by the same structural check `csdflivelockfree` makes. The guards
 are not read, so a cycle they would cut short is refused too. Unreachable
 states take no part in the behaviour, so they have no row, their events no
-column, and their IDs are written to standard error. An event spelled
+column, and their IDs are written to standard error. A state an edge names but
+the diagram never declares has no name and no state variables to tabulate, so
+it is an error. An event spelled
 `state`, `name` or `[*]` would be read as the column of that name, so it is an
 error. For a promotion, tabulate the local diagrams: the expansion is one state
 with a self-loop per local edge.
