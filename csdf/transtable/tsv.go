@@ -1,0 +1,108 @@
+package transtable
+
+import (
+	"encoding/csv"
+	"fmt"
+	"io"
+	"strings"
+)
+
+// Notation spells the connectives of a condition. The guards are natural
+// language, so which spelling reads better depends on the reader.
+type Notation struct {
+	// And joins the literals of a condition.
+	And string
+	// Not comes before a negated guard, which is parenthesised.
+	Not string
+}
+
+var (
+	// NotationNatural spells the connectives as words.
+	NotationNatural = Notation{And: " and ", Not: "not "}
+)
+
+// Format says how WriteTSV spells a table.
+type Format struct {
+	Notation Notation
+}
+
+// Fixed column names of the TSV, before the event columns.
+const (
+	stateColumn = "state"
+	nameColumn  = "name"
+)
+
+// WriteTSV writes t as a tab-separated table with a header row: the state, its
+// name, then a column per event. A cell holds one outcome per line.
+func WriteTSV(w io.Writer, t *Table, f Format) error {
+	cw := csv.NewWriter(w)
+	cw.Comma = '\t'
+
+	header := []string{stateColumn, nameColumn}
+	for _, c := range t.Columns {
+		header = append(header, c.name())
+	}
+	if err := cw.Write(header); err != nil {
+		return fmt.Errorf("transtable.WriteTSV: cannot write the header: %w", err)
+	}
+
+	for _, row := range t.Rows {
+		record := []string{string(row.State), row.Name}
+		for _, cell := range row.Cells {
+			record = append(record, f.cell(cell))
+		}
+		if err := cw.Write(record); err != nil {
+			return fmt.Errorf("transtable.WriteTSV: cannot write the row of %s: %w", row.State, err)
+		}
+	}
+
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		return fmt.Errorf("transtable.WriteTSV: cannot write: %w", err)
+	}
+	return nil
+}
+
+func (f Format) cell(os []Outcome) string {
+	lines := make([]string, 0, len(os))
+	for _, o := range os {
+		lines = append(lines, f.outcome(o))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// name is the header of the column. Termination is spelled the way PlantUML
+// spells the end of a diagram.
+func (c Column) name() string {
+	if c.Termination {
+		return string(Terminated)
+	}
+	return string(c.Event)
+}
+
+// outcome spells one outcome: its condition in brackets, if any, then where the
+// diagram goes, or × for a refusal.
+func (f Format) outcome(o Outcome) string {
+	var sb strings.Builder
+	if len(o.Cond) > 0 {
+		sb.WriteString("[" + f.cond(o.Cond) + "] ")
+	}
+	if o.Refused {
+		sb.WriteString("×")
+	} else {
+		sb.WriteString("→ " + string(o.Dst))
+	}
+	return sb.String()
+}
+
+func (f Format) cond(c Cond) string {
+	literals := make([]string, 0, len(c))
+	for _, l := range c {
+		if l.Negated {
+			literals = append(literals, f.Notation.Not+"("+string(l.Pred)+")")
+		} else {
+			literals = append(literals, string(l.Pred))
+		}
+	}
+	return strings.Join(literals, f.Notation.And)
+}
