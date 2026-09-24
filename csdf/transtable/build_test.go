@@ -1,6 +1,8 @@
 package transtable_test
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -209,5 +211,32 @@ C --> D : a ; g
 	}
 	if diff := cmp.Diff(want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
 		t.Error(diff)
+	}
+}
+
+// A state on a tau cycle may never become stable, so it refuses nothing in the
+// stable-failures sense although it accepts nothing either. A table of refusals
+// cannot show that, so it is not built at all.
+func TestBuildRefusesADiagramThatMayDiverge(t *testing.T) {
+	// Arrange
+	d := parse(t, `@startuml
+state "A" as A
+state "B" as B
+[*] --> A
+A --> B : tau
+B --> A : tau ; g
+@enduml
+`)
+
+	// Act
+	_, err := transtable.Build(d)
+
+	// Assert
+	var livelock *transtable.LivelockError
+	if !errors.As(err, &livelock) {
+		t.Fatalf("want a *LivelockError, got %v", err)
+	}
+	if want := "A -> B -> A"; !strings.Contains(err.Error(), want) {
+		t.Errorf("want the cycle %q in the message, got %q", want, err.Error())
 	}
 }

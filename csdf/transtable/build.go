@@ -39,8 +39,14 @@ type Outcome struct {
 	Dst     csdf.StateID
 }
 
-// Build tabulates d.
+// Build tabulates d. It fails with a *LivelockError when a tau cycle is
+// reachable, since the table reads d in the stable-failures sense and that
+// sense is blind to divergence.
 func Build(d *csdf.Diagram) (*Table, error) {
+	if livelock, ok := csdf.CheckLivelockFree(d); !ok {
+		return nil, &LivelockError{Livelock: livelock}
+	}
+
 	out := outgoing(d)
 	states := reachable(d.StartEdge.Dst, out)
 	columns := columnsOf(states, out)
