@@ -92,6 +92,29 @@ C --> A : b
 				"B\tB\t/ y' = 0 → C\t×\n" +
 				"C\tC\t×\t→ A\n",
 		},
+		"paths that differ only where the table does not look are one line": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau
+A --> C : tau
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`,
+			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Want: "state\tname\ta\n" +
+				"A\tA\t→ E\n" +
+				"B\tB\t→ E\n" +
+				"C\tC\t→ E\n" +
+				"D\tD\t→ E\n" +
+				"E\tE\t×\n",
+		},
 	}
 
 	for name, testCase := range testCases {

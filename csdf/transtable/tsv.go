@@ -76,10 +76,16 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 	return nil
 }
 
+// cell spells the outcomes one per line. Two tau paths that meet again lead to
+// the same outcomes, and whatever the table leaves out - the states passed, and
+// the postconditions unless asked for - may be all that tells two outcomes
+// apart, so a line already written is not written again.
 func (f Format) cell(os []Outcome) string {
 	lines := make([]string, 0, len(os))
 	for _, o := range os {
-		lines = append(lines, f.outcome(o))
+		if line := f.outcome(o); !slices.Contains(lines, line) {
+			lines = append(lines, line)
+		}
 	}
 	return strings.Join(lines, "\n")
 }
