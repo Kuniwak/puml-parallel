@@ -16,10 +16,17 @@ type Table struct {
 	Rows    []Row
 }
 
-// Column is one event the environment may offer.
+// Column is one event the environment may offer, or termination.
 type Column struct {
 	Event csdf.Event
+	// Termination marks the column of successful termination, which an end
+	// edge performs. Event is empty then.
+	Termination bool
 }
+
+// Terminated is where an outcome of the termination column leads. It can never
+// be the ID of a state, since an ID has no brackets.
+const Terminated csdf.StateID = "[*]"
 
 // Row is one state of the diagram. Cells holds, for every column in order,
 // the outcomes of offering that column's event in this state.
@@ -47,7 +54,7 @@ func Build(d *csdf.Diagram) (*Table, error) {
 		return nil, &LivelockError{Livelock: livelock}
 	}
 
-	x := index{out: outgoing(d)}
+	x := index{out: outgoing(d), end: d.EndEdge}
 	states := reachable(d.StartEdge.Dst, x.out)
 	columns := columnsOf(states, x)
 
@@ -65,6 +72,7 @@ func Build(d *csdf.Diagram) (*Table, error) {
 // index is the diagram arranged for looking up what a state may do.
 type index struct {
 	out map[csdf.StateID][]csdf.Edge
+	end *csdf.EndEdge
 }
 
 // take is one way a state may perform a column: under its guard, adding its
@@ -77,6 +85,12 @@ type take struct {
 
 // takes lists the ways u may perform c, in canonical order.
 func (x index) takes(u csdf.StateID, c Column) []take {
+	if c.Termination {
+		if x.end == nil || x.end.Src != u {
+			return nil
+		}
+		return []take{{guard: x.end.Guard, dst: Terminated}}
+	}
 	var ts []take
 	for _, e := range x.out[u] {
 		if e.Event == c.Event {
@@ -148,7 +162,7 @@ func reachable(start csdf.StateID, out map[csdf.StateID][]csdf.Edge) []csdf.Stat
 }
 
 // columnsOf returns the visible events of states, in the order the states and
-// their edges come.
+// their edges come, and then termination when one of the states may terminate.
 func columnsOf(states []csdf.StateID, x index) []Column {
 	var columns []Column
 	// The environment cannot offer tau, so it is not a column.
@@ -160,6 +174,9 @@ func columnsOf(states []csdf.StateID, x index) []Column {
 				columns = append(columns, Column{Event: e.Event})
 			}
 		}
+	}
+	if x.end != nil && slices.Contains(states, x.end.Src) {
+		columns = append(columns, Column{Termination: true})
 	}
 	return columns
 }

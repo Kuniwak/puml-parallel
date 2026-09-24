@@ -123,6 +123,32 @@ s0 --> s2 : a
 				},
 			},
 		},
+		"termination is a column after the events, filled in like one": {
+			Diagram: `@startuml
+state "S0" as s0
+state "S1" as s1
+[*] --> s0
+s0 --> s1 : a
+s1 --> [*] : g
+@enduml
+`,
+			Want: &transtable.Table{
+				Columns: []transtable.Column{{Event: "a"}, {Termination: true}},
+				Rows: []transtable.Row{
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
+						{{Posts: []csdf.Predicate{"true"}, Dst: "s1"}},
+						{{Refused: true}},
+					}},
+					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
+						{{Refused: true}},
+						{
+							{Cond: transtable.Cond{{Pred: "g"}}, Dst: transtable.Terminated},
+							{Cond: transtable.Cond{{Pred: "g", Negated: true}}, Refused: true},
+						},
+					}},
+				},
+			},
+		},
 		"tau is not a column; what the state may do after it is in the cells of the state": {
 			Diagram: `@startuml
 state "Idle" as idle
