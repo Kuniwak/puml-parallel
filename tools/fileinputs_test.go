@@ -114,3 +114,41 @@ func TestReadFileInputs(t *testing.T) {
 		})
 	}
 }
+
+func TestReadFileOrStdin(t *testing.T) {
+	type testCase struct {
+		Path    string
+		WantErr bool
+	}
+
+	testCases := map[string]testCase{
+		`"-" is standard input (representative value)`: {Path: "-"},
+		"a file (representative value)":                {Path: "commonopts.go"},
+		"a missing file (representative value)":        {Path: "missing.go", WantErr: true},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			spy := cli.SpyProcInout()
+			spy.Stdin = strings.NewReader("@startuml\n@enduml\n")
+
+			// Act
+			bs, err := ReadFileOrStdin(testCase.Path, spy.New())
+
+			// Assert
+			if testCase.WantErr {
+				if err == nil {
+					t.Fatalf("want an error, got %q", bs)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("want nil, got %#v", err)
+			}
+			if len(bs) == 0 {
+				t.Errorf("want the bytes of %s, got none", testCase.Path)
+			}
+		})
+	}
+}

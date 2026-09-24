@@ -152,7 +152,7 @@ Examples:
 }
 
 func readTraceList(file string, inout *cli.ProcInout) ([]string, error) {
-	bs, err := tools.ValidateArgsAsFilePath([]string{file}, inout)
+	bs, err := tools.ReadFileOrStdin(file, inout)
 	if err != nil {
 		return nil, err
 	}
