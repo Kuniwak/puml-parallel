@@ -1,9 +1,12 @@
 package csdftracechkcmd
 
 import (
+	"bytes"
+	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/tools"
@@ -26,7 +29,7 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 		flags.SetOutput(inout.Stderr)
 		flags.Usage = func() {
 			w := flags.Output()
-			fmt.Fprintf(w, `Usage: csdftracechk [options] <diagram.puml|diagram.png|-> <trace.tsv> [trace.tsv ...]
+			fmt.Fprintf(w, `Usage: csdftracechk [options] <diagram.puml|diagram.png|-> [trace.tsv ...]
 
 Checks whether each trace is a trace of the Composable State Diagram in the
 stable-failures sense, and writes a Markdown report to standard output. A trace
@@ -68,7 +71,11 @@ event is looked up in the diagram is one of two simple rules chosen by -match:
           parameters were stripped ("insert") matches the label "insert(coin)"
 
 Anything richer is best done to the trace beforehand, e.g. with sed or qhs. The
-diagram may be "-" for standard input; traces must be files.
+diagram may be "-" for standard input; traces must be files. Too many traces
+for the command line can be listed in a TSV given by -traces, whose header is
+the single column "path" and whose every other row is the path of a trace TSV
+(relative to the working directory); it is read as a trace TSV is, is added to
+the trace arguments, and may be "-" for standard input unless the diagram is.
 
 Options:
 `)
@@ -78,11 +85,15 @@ Examples:
   $ csdftracechk examples/valid/vending_machine.puml trace.tsv
   $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trace2.tsv
   $ csdfparallel -sync 'insert(coin)' a.puml b.puml | csdftracechk - trace.tsv
+  $ (echo path; find traces -name '*.tsv') | csdftracechk -traces - examples/valid/vending_machine.puml
 `)
 		}
 
 		var match string
 		flags.StringVar(&match, "match", string(MatchNameExact), "how a trace event is looked up in the diagram: exact|prefix")
+
+		var traceList string
+		flags.StringVar(&traceList, "traces", "", "a TSV listing trace TSV paths under the header \"path\", read in addition to the trace arguments; \"-\" for standard input")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -108,8 +119,11 @@ Examples:
 		}
 
 		rest := flags.Args()
-		if len(rest) < 2 {
-			return nil, errors.New("csdftracechkcmd.NewParseOptionsFunc: want a diagram and at least one trace TSV")
+		if len(rest) < 1 {
+			return nil, errors.New("csdftracechkcmd.NewParseOptionsFunc: want a diagram")
+		}
+		if rest[0] == "-" && traceList == "-" {
+			return nil, errors.New("csdftracechkcmd.NewParseOptionsFunc: the diagram and -traces cannot both be \"-\"")
 		}
 
 		diagram, err := tools.ValidateArgsAsFilePath(rest[:1], inout)
@@ -117,12 +131,58 @@ Examples:
 			return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
 
-		// Traces never come from standard input: the diagram may be reading it,
-		// and two traces could not be told apart in one stream anyway.
-		traces, err := tools.ReadFileInputs(rest[1:])
+		// Traces themselves never come from standard input: two traces could not
+		// be told apart in one stream. Only the list of their paths may.
+		tracePaths := rest[1:]
+		if traceList != "" {
+			listed, err := readTraceList(traceList, inout)
+			if err != nil {
+				return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: read -traces failed: %w", err)
+			}
+			tracePaths = append(tracePaths, listed...)
+		}
+		if len(tracePaths) == 0 {
+			return nil, errors.New("csdftracechkcmd.NewParseOptionsFunc: want at least one trace TSV")
+		}
+		traces, err := tools.ReadFileInputs(tracePaths)
 		if err != nil {
 			return nil, fmt.Errorf("csdftracechkcmd.NewParseOptionsFunc: validate trace arguments failed: %w", err)
 		}
 		return &Options{Common: commonOpts, Match: m, Diagram: diagram, Traces: traces}, nil
 	}
+}
+
+// TraceListHeader is the single column of a -traces TSV.
+const TraceListHeader = "path"
+
+func readTraceList(file string, inout *cli.ProcInout) ([]string, error) {
+	bs, err := tools.ValidateArgsAsFilePath([]string{file}, inout)
+	if err != nil {
+		return nil, err
+	}
+	return ReadTraceList(bytes.NewReader(bs))
+}
+
+// ReadTraceList reads a TSV whose header is the single column "path" and whose
+// every other row is the path of a trace TSV. It is read the way a trace TSV
+// is: as CSV with a tab delimiter, skipping blank lines. A relative path is
+// relative to the working directory, as a trace argument is.
+func ReadTraceList(r io.Reader) ([]string, error) {
+	cr := csv.NewReader(r)
+	cr.Comma = '\t'
+	cr.FieldsPerRecord = 1
+
+	records, err := cr.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("csdftracechkcmd.ReadTraceList: %w", err)
+	}
+	if len(records) == 0 || records[0][0] != TraceListHeader {
+		return nil, fmt.Errorf("csdftracechkcmd.ReadTraceList: want a header row %q", TraceListHeader)
+	}
+
+	paths := make([]string, 0, len(records)-1)
+	for _, record := range records[1:] {
+		paths = append(paths, record[0])
+	}
+	return paths, nil
 }

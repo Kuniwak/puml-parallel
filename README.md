@@ -283,12 +283,17 @@ stable-failures sense. The sequence is a TSV whose header is the single column
 `event` and whose every other row is one visible event (`tau` cannot appear).
 It is read as CSV with a tab delimiter, so a field may be quoted to hold a tab
 or a newline, and blank lines are skipped. Any number of such files may be given after the diagram, and the
-diagram may be `-` for standard input.
+diagram may be `-` for standard input. When there are too many traces for the
+command line, list their paths in a TSV whose header is the single column `path`
+and pass it with `-traces`; the listed traces are added to those given as
+arguments, relative paths are relative to the working directory, and the list
+may be `-` for standard input unless the diagram is.
 
 ```console
 $ csdftracechk examples/valid/vending_machine.puml trace.tsv
 $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trace2.tsv
 $ csdfparallel -sync 'insert(coin)' a.puml b.puml | csdftracechk - trace.tsv
+$ (echo path; find traces -name '*.tsv') | csdftracechk -traces - examples/valid/vending_machine.puml
 ```
 
 The reading is the one under which an environment offering the events one at a

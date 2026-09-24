@@ -50,6 +50,25 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Traces:  []tools.FileInput{okTrace, ngTrace},
 			},
 		},
+		"-traces file": {
+			Args: []string{"-traces", filepath.Join("testdata", "traces.tsv"), filepath.Join("testdata", "a.puml")},
+			Expected: &Options{
+				Common:  tools.NewCommonOptionsDefault(),
+				Match:   MatchNameExact,
+				Diagram: []byte(diagram),
+				Traces:  []tools.FileInput{okTrace, ngTrace},
+			},
+		},
+		"-traces from stdin, added to a trace argument": {
+			Stdin: "path\n" + filepath.Join("testdata", "ng.tsv") + "\n",
+			Args:  []string{"-traces", "-", filepath.Join("testdata", "a.puml"), okTrace.Name},
+			Expected: &Options{
+				Common:  tools.NewCommonOptionsDefault(),
+				Match:   MatchNameExact,
+				Diagram: []byte(diagram),
+				Traces:  []tools.FileInput{okTrace, ngTrace},
+			},
+		},
 		"-match prefix": {
 			Args: []string{"-match", "prefix", filepath.Join("testdata", "a.puml"), okTrace.Name},
 			Expected: &Options{
@@ -85,11 +104,14 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 
 func TestNewParseOptionsFuncNG(t *testing.T) {
 	testCases := map[string][]string{
-		"no arguments":          {},
-		"diagram without trace": {filepath.Join("testdata", "a.puml")},
-		"unknown match rule":    {"-match", "bogus", filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ok.tsv")},
-		"missing trace file":    {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "missing.tsv")},
-		"trace from stdin":      {filepath.Join("testdata", "a.puml"), "-"},
+		"no arguments":                        {},
+		"diagram without trace":               {filepath.Join("testdata", "a.puml")},
+		"unknown match rule":                  {"-match", "bogus", filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ok.tsv")},
+		"missing trace file":                  {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "missing.tsv")},
+		"trace from stdin":                    {filepath.Join("testdata", "a.puml"), "-"},
+		"diagram and -traces both from stdin": {"-traces", "-", "-"},
+		"-traces without the header":          {"-traces", filepath.Join("testdata", "ok.tsv"), filepath.Join("testdata", "a.puml")},
+		"-traces listing nothing":             {"-traces", filepath.Join("testdata", "empty_traces.tsv"), filepath.Join("testdata", "a.puml")},
 	}
 
 	for name, args := range testCases {
