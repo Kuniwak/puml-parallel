@@ -12,6 +12,7 @@ import (
 func TestWriteTSV(t *testing.T) {
 	type testCase struct {
 		Diagram string
+		Options transtable.Options
 		Format  transtable.Format
 		Want    string
 	}
@@ -70,7 +71,8 @@ A --> B : tau ; h ; x' = x + 1
 B --> C : a ; g ; y' = x
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationNatural, Posts: true},
+			Options: transtable.Options{Posts: true},
+			Format:  transtable.Format{Notation: transtable.NotationNatural},
 			Want: "state\tname\ta\n" +
 				"A\tA\t\"[not (h)] ×\n[h and g] / x' = x + 1 then y' = x → C\n[h and not (g)] / x' = x + 1 ×\"\n" +
 				"B\tB\t\"[g] / y' = x → C\n[not (g)] ×\"\n" +
@@ -87,7 +89,8 @@ B --> C : a ; true ; y' = 0
 C --> A : b
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationLogical, Posts: true},
+			Options: transtable.Options{Posts: true},
+			Format:  transtable.Format{Notation: transtable.NotationLogical},
 			Want: "state\tname\ta\tb\n" +
 				"A\tA\t/ true ⨾ y' = 0 → C\t×\n" +
 				"B\tB\t/ y' = 0 → C\t×\n" +
@@ -121,7 +124,7 @@ D --> E : a
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
-			table, err := transtable.Build(csdf.MustParse(testCase.Diagram))
+			table, err := transtable.Build(csdf.MustParse(testCase.Diagram), testCase.Options)
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
@@ -150,9 +153,9 @@ func TestWriteTSVRefusesAnEventSpelledLikeAFixedColumn(t *testing.T) {
 			table, err := transtable.Build(csdf.MustParse(`@startuml
 state "S0" as s0
 [*] --> s0
-s0 --> s0 : ` + event + `
+s0 --> s0 : `+event+`
 @enduml
-`))
+`), transtable.Options{})
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}

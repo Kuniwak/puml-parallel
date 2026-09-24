@@ -34,9 +34,6 @@ var (
 // Format says how WriteTSV spells a table.
 type Format struct {
 	Notation Notation
-	// Posts writes the postconditions along the path of an outcome. They do
-	// not decide whether an event is refused, so they are left out by default.
-	Posts bool
 }
 
 // Fixed column names of the TSV, before the event columns.
@@ -105,7 +102,7 @@ func (c Column) name() string {
 }
 
 // outcome spells one outcome: its condition in brackets, if any, then its
-// postconditions after a slash when they are asked for and say anything, then
+// postconditions after a slash when they were collected and say anything, then
 // where the diagram goes, or × for a refusal.
 func (f Format) outcome(o Outcome) string {
 	var sb strings.Builder
@@ -115,7 +112,7 @@ func (f Format) outcome(o Outcome) string {
 	// A path whose postconditions are all true says nothing about them. One
 	// that says something keeps its true ones too: a true postcondition lets
 	// the values be anything, so it is not the identity of the composition.
-	if f.Posts && slices.ContainsFunc(o.Posts, isNotTrue) {
+	if slices.ContainsFunc(o.Posts, isNotTrue) {
 		sb.WriteString("/ " + f.posts(o.Posts) + " ")
 	}
 	if o.Refused {

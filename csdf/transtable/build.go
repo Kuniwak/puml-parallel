@@ -45,23 +45,33 @@ type Row struct {
 // accepts it and goes to Dst, or it refuses it. It may happen when Cond holds.
 type Outcome struct {
 	Cond Cond
-	// Posts are the postconditions along the way, in order.
+	// Posts are the postconditions along the way, in order, when they were
+	// asked for; nil otherwise.
 	Posts   []csdf.Predicate
 	Refused bool
 	Dst     csdf.StateID
 }
 
+// Options says what Build collects.
+type Options struct {
+	// Posts collects the postconditions along the path of every outcome. They
+	// do not decide whether an event is refused, and two paths that differ in
+	// them alone have to be walked apart, which the orders of interleaved
+	// hidden events multiply; so they are left out unless asked for.
+	Posts bool
+}
+
 // Build tabulates d. It fails with a *LivelockError when a tau cycle is
 // reachable, since the table reads d in the stable-failures sense and that
 // sense is blind to divergence.
-func Build(d *csdf.Diagram) (*Table, error) {
+func Build(d *csdf.Diagram, o Options) (*Table, error) {
 	if livelock, ok := csdf.CheckLivelockFree(d); !ok {
 		return nil, &LivelockError{Livelock: livelock}
 	}
 
 	// Each list is in canonical order, so the table comes out the same for the
 	// same diagram.
-	x := index{out: csdf.Outgoing(d), end: d.EndEdge}
+	x := index{out: csdf.Outgoing(d), end: d.EndEdge, posts: o.Posts}
 	states := csdf.Reachable(d.StartEdge.Dst, x.out)
 	columns := columnsOf(states, x)
 
@@ -91,10 +101,21 @@ func unreachable(d *csdf.Diagram, reachable []csdf.StateID) []csdf.StateID {
 	return ids
 }
 
-// index is the diagram arranged for looking up what a state may do.
+// index is the diagram arranged for looking up what a state may do, and
+// whether postconditions are collected on the way.
 type index struct {
-	out map[csdf.StateID][]csdf.Edge
-	end *csdf.EndEdge
+	out   map[csdf.StateID][]csdf.Edge
+	end   *csdf.EndEdge
+	posts bool
+}
+
+// then returns posts followed by p when postconditions are collected, and nil
+// otherwise. The result never shares its backing array with posts.
+func (x index) then(posts []csdf.Predicate, p ...csdf.Predicate) []csdf.Predicate {
+	if !x.posts {
+		return nil
+	}
+	return slices.Concat(posts, p)
 }
 
 // take is one way a state may perform a column: under its guard, adding its
@@ -147,7 +168,7 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 
 		var takeGuards, tauGuards []csdf.Predicate
 		for _, t := range x.takes(u, c) {
-			os = append(os, Outcome{Cond: cond.and(t.guard), Posts: slices.Concat(posts, t.posts), Dst: t.dst})
+			os = append(os, Outcome{Cond: cond.and(t.guard), Posts: x.then(posts, t.posts...), Dst: t.dst})
 			takeGuards = append(takeGuards, t.guard)
 		}
 		taus := csdf.TauEdges(x.out[u])
@@ -157,10 +178,10 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 		// u refuses c when it is stable and cannot perform c, which is
 		// impossible as soon as one of those guards is true.
 		if !slices.ContainsFunc(takeGuards, csdf.IsTrue) && !slices.ContainsFunc(tauGuards, csdf.IsTrue) {
-			os = append(os, Outcome{Cond: cond.andNot(tauGuards).andNot(takeGuards), Posts: posts, Refused: true})
+			os = append(os, Outcome{Cond: cond.andNot(tauGuards).andNot(takeGuards), Posts: x.then(posts), Refused: true})
 		}
 		for _, e := range taus {
-			visit(e.Dst, cond.and(e.Guard), append(slices.Clip(posts), e.Post))
+			visit(e.Dst, cond.and(e.Guard), x.then(posts, e.Post))
 		}
 	}
 	visit(s, nil, nil)

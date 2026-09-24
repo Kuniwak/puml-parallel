@@ -14,6 +14,7 @@ import (
 func TestBuild(t *testing.T) {
 	type testCase struct {
 		Diagram string
+		Options transtable.Options
 		Want    *transtable.Table
 	}
 
@@ -40,7 +41,7 @@ s0 --> s1 : a
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
-						{{Posts: []csdf.Predicate{"true"}, Dst: "s1"}},
+						{{Dst: "s1"}},
 					}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
 						{{Refused: true}},
@@ -60,7 +61,7 @@ s0 --> s1 : a ; g
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						{Cond: transtable.Cond{{Pred: "g"}}, Posts: []csdf.Predicate{"true"}, Dst: "s1"},
+						{Cond: transtable.Cond{{Pred: "g"}}, Dst: "s1"},
 						{Cond: transtable.Cond{{Pred: "g", Negated: true}}, Refused: true},
 					}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
@@ -83,8 +84,8 @@ s0 --> s2 : a ; g2
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						{Cond: transtable.Cond{{Pred: "g1"}}, Posts: []csdf.Predicate{"true"}, Dst: "s1"},
-						{Cond: transtable.Cond{{Pred: "g2"}}, Posts: []csdf.Predicate{"true"}, Dst: "s2"},
+						{Cond: transtable.Cond{{Pred: "g1"}}, Dst: "s1"},
+						{Cond: transtable.Cond{{Pred: "g2"}}, Dst: "s2"},
 						{Cond: transtable.Cond{{Pred: "g1", Negated: true}, {Pred: "g2", Negated: true}}, Refused: true},
 					}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{{Refused: true}}}},
@@ -106,8 +107,8 @@ s0 --> s2 : a
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						{Cond: transtable.Cond{{Pred: "g"}}, Posts: []csdf.Predicate{"true"}, Dst: "s1"},
-						{Posts: []csdf.Predicate{"true"}, Dst: "s2"},
+						{Cond: transtable.Cond{{Pred: "g"}}, Dst: "s1"},
+						{Dst: "s2"},
 					}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{{Refused: true}}}},
 					{State: "s2", Name: "S2", Cells: [][]transtable.Outcome{{{Refused: true}}}},
@@ -142,7 +143,7 @@ s1 --> [*] : g
 				Columns: []transtable.Column{{Event: "a"}, {Termination: true}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
-						{{Posts: []csdf.Predicate{"true"}, Dst: "s1"}},
+						{{Dst: "s1"}},
 						{{Refused: true}},
 					}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
@@ -171,21 +172,21 @@ fixed --> idle : REPORT
 				Columns: []transtable.Column{{Event: "BOOK"}, {Event: "REPORT"}},
 				Rows: []transtable.Row{
 					{State: "idle", Name: "Idle", Cells: [][]transtable.Outcome{
-						{{Posts: []csdf.Predicate{"true"}, Dst: "counting"}},
+						{{Dst: "counting"}},
 						{{Refused: true}},
 					}},
 					// Counting never refuses by itself, since its tau always
 					// may fire; Fixed, which the tau leads to, refuses BOOK.
 					{State: "counting", Name: "Counting", Cells: [][]transtable.Outcome{
 						{
-							{Posts: []csdf.Predicate{"true"}, Dst: "counting"},
-							{Posts: []csdf.Predicate{"true"}, Refused: true},
+							{Dst: "counting"},
+							{Refused: true},
 						},
-						{{Posts: []csdf.Predicate{"true", "true"}, Dst: "idle"}},
+						{{Dst: "idle"}},
 					}},
 					{State: "fixed", Name: "Fixed", Cells: [][]transtable.Outcome{
 						{{Refused: true}},
-						{{Posts: []csdf.Predicate{"true"}, Dst: "idle"}},
+						{{Dst: "idle"}},
 					}},
 				},
 			},
@@ -198,7 +199,7 @@ fixed --> idle : REPORT
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d)
+			got, err := transtable.Build(d, testCase.Options)
 
 			// Assert
 			if err != nil {
@@ -216,8 +217,25 @@ fixed --> idle : REPORT
 func TestBuildFirstCell(t *testing.T) {
 	type testCase struct {
 		Diagram string
+		Options transtable.Options
 		Want    []transtable.Outcome
 	}
+
+	// Two ways round a diamond that differ only in their postconditions.
+	postDiamond := `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau ; true ; p
+A --> C : tau ; true ; q
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`
 
 	testCases := map[string]testCase{
 		// A tau path is one weak transition, so what it leads to is
@@ -237,9 +255,9 @@ C --> D : a ; g
 `,
 			Want: []transtable.Outcome{
 				{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Posts: []csdf.Predicate{"true"}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g"}}, Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "D"},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g", Negated: true}}, Posts: []csdf.Predicate{"true", "true"}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g"}}, Dst: "D"},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g", Negated: true}}, Refused: true},
 			},
 		},
 		// Hiding interleaved events makes tau diamonds, and a walk that took
@@ -262,7 +280,23 @@ D --> E : a
 @enduml
 `,
 			Want: []transtable.Outcome{
-				{Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "E"},
+				{Dst: "E"},
+			},
+		},
+		// Postconditions left out would otherwise keep apart every order in
+		// which hidden events that change the values interleave.
+		"postconditions not asked for do not tell tau paths apart": {
+			Diagram: postDiamond,
+			Want: []transtable.Outcome{
+				{Dst: "E"},
+			},
+		},
+		"postconditions asked for are collected along the path, and tell tau paths apart": {
+			Diagram: postDiamond,
+			Options: transtable.Options{Posts: true},
+			Want: []transtable.Outcome{
+				{Posts: []csdf.Predicate{"p", "true", "true"}, Dst: "E"},
+				{Posts: []csdf.Predicate{"q", "true", "true"}, Dst: "E"},
 			},
 		},
 	}
@@ -273,7 +307,7 @@ D --> E : a
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d)
+			got, err := transtable.Build(d, testCase.Options)
 
 			// Assert
 			if err != nil {
@@ -301,7 +335,7 @@ B --> A : tau ; g
 `)
 
 	// Act
-	_, err := transtable.Build(d)
+	_, err := transtable.Build(d, transtable.Options{})
 
 	// Assert
 	var livelock *transtable.LivelockError
