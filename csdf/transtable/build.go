@@ -90,7 +90,8 @@ func (Goto) isResult()           {}
 func (Terminate) isResult()      {}
 func (Refuse) isResult()         {}
 
-// Build tabulates d. It fails with a *LivelockError when a tau cycle is
+// Build tabulates d. It fails with an *UndeclaredStateError when an edge names
+// a state d does not declare, and with a *LivelockError when a tau cycle is
 // reachable, since the table reads d in the stable-failures sense and that
 // sense is blind to divergence.
 //
@@ -98,6 +99,9 @@ func (Refuse) isResult()         {}
 // the parameters and the values before. That premise is what lets an edge be
 // enabled exactly when its guard holds, which is where refusals come from.
 func Build(d *csdf.Diagram) (*Table, error) {
+	if ids := undeclared(d); ids != nil {
+		return nil, &UndeclaredStateError{States: ids}
+	}
 	if livelock, ok := csdf.CheckLivelockFree(d); !ok {
 		return nil, &LivelockError{Livelock: livelock}
 	}

@@ -450,3 +450,61 @@ B --> A : tau ; g
 		t.Errorf("want the cycle %q in the message, got %q", want, err.Error())
 	}
 }
+
+// A row is a state with its name and state variables, which an undeclared
+// state has none of, so a diagram with one is not tabulated.
+func TestBuildRefusesAnUndeclaredState(t *testing.T) {
+	type testCase struct {
+		Diagram string
+		Want    []csdf.StateID
+	}
+
+	testCases := map[string]testCase{
+		"one an edge leads to": {
+			Diagram: `@startuml
+state "A" as A
+[*] --> A
+A --> B : a
+@enduml
+`,
+			Want: []csdf.StateID{"B"},
+		},
+		"unreachable ones an edge joins": {
+			Diagram: `@startuml
+state "A" as A
+[*] --> A
+Z --> Y : b
+@enduml
+`,
+			Want: []csdf.StateID{"Y", "Z"},
+		},
+		"one an end edge leaves": {
+			Diagram: `@startuml
+state "A" as A
+[*] --> A
+E --> [*]
+@enduml
+`,
+			Want: []csdf.StateID{"E"},
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			d := csdf.MustParse(testCase.Diagram)
+
+			// Act
+			_, err := transtable.Build(d)
+
+			// Assert
+			var undeclared *transtable.UndeclaredStateError
+			if !errors.As(err, &undeclared) {
+				t.Fatalf("want an *UndeclaredStateError, got %v", err)
+			}
+			if diff := cmp.Diff(testCase.Want, undeclared.States); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}

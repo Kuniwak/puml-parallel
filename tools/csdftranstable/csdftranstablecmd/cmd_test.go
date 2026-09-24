@@ -100,6 +100,15 @@ B --> A : tau
 `,
 			WantStderr: "the tau cycle A -> B -> A is reachable",
 		},
+		"an undeclared state": {
+			Stdin: `@startuml
+state "A" as A
+[*] --> A
+A --> B : a
+@enduml
+`,
+			WantStderr: "the states B are named by edges but never declared",
+		},
 		"a parse error": {
 			Stdin:      "not a diagram\n",
 			WantStderr: "Error: ",
