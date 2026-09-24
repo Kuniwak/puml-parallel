@@ -177,3 +177,42 @@ s0 --> s0 : `+event+`
 		})
 	}
 }
+
+// A notation that spells a connective as nothing would print a negated guard
+// as the guard itself, so it is refused before anything is written.
+func TestWriteTSVRefusesANotationMissingAConnective(t *testing.T) {
+	testCases := map[string]transtable.Notation{
+		"the zero notation": {},
+		"no and":            {Not: "not ", Then: " then "},
+		"no not":            {And: " and ", Then: " then "},
+		"no then":           {And: " and ", Not: "not "},
+	}
+
+	for name, notation := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			table, err := transtable.Build(csdf.MustParse(`@startuml
+state "S0" as s0
+state "S1" as s1
+[*] --> s0
+s0 --> s1 : a ; g
+@enduml
+`), transtable.Options{})
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			var sb strings.Builder
+
+			// Act
+			err = transtable.WriteTSV(&sb, table, transtable.Format{Notation: notation})
+
+			// Assert
+			if err == nil {
+				t.Fatalf("want an error, got the table %q", sb.String())
+			}
+			if sb.Len() != 0 {
+				t.Errorf("want nothing written, got %q", sb.String())
+			}
+		})
+	}
+}

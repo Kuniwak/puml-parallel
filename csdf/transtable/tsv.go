@@ -31,6 +31,15 @@ var (
 	NotationLogical = Notation{And: " ∧ ", Not: "¬", Then: " ⨾ "}
 )
 
+// validate refuses a notation that spells a connective as nothing: a negated
+// guard would then read as the guard itself, and two guards as one.
+func (n Notation) validate() error {
+	if n.And == "" || n.Not == "" || n.Then == "" {
+		return fmt.Errorf("the notation %+v spells a connective as nothing", n)
+	}
+	return nil
+}
+
 // Format says how WriteTSV spells a table.
 type Format struct {
 	Notation Notation
@@ -47,6 +56,10 @@ const (
 // spelled like one of the other columns is refused before anything is written,
 // since a reader finds a column by its header.
 func WriteTSV(w io.Writer, t *Table, f Format) error {
+	if err := f.Notation.validate(); err != nil {
+		return fmt.Errorf("transtable.WriteTSV: %w", err)
+	}
+
 	header := []string{stateColumn, nameColumn}
 	for _, c := range t.Columns {
 		if !c.Termination && slices.Contains([]string{stateColumn, nameColumn, string(Terminated)}, string(c.Event)) {
