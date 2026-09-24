@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
 // WriteMarkdown writes the result as a Markdown section. A rejection says
@@ -45,7 +46,8 @@ func writeRejection(sb *strings.Builder, d *csdf.Diagram, r Result) {
 	for i, p := range rej.Paths {
 		fmt.Fprintf(sb, "## Path %d: reaches %s\n\n", i+1, p.Dst)
 		writePathTable(sb, d, p.Path)
-		fmt.Fprintf(sb, "Infeasible iff: ¬∃%s. %s\n\n", valuations(len(p.Path)), pathPredicates(d, p.Path))
+		infeasible := logic.Not(logic.Exists(valuations(len(p.Path)), pathPredicates(d, p.Path)))
+		fmt.Fprintf(sb, "Infeasible iff: %s\n\n", notation.Spell(infeasible))
 	}
 }
 
@@ -59,8 +61,9 @@ paths going round a ` + "`tau`" + ` cycle, and their obligations, are not listed
 
 `)
 	fmt.Fprintf(sb, "- trace: %s\n", joinEvents(r.Trace.Events))
-	fmt.Fprintf(sb, "- the start edge `[*] --> %s` (L%d) must admit a valuation: ∃ x0. post_0(x0), where post_0 is %s\n\n",
-		d.StartEdge.Dst, d.StartEdge.Line, predicateText(d.StartEdge.Post))
+	admits := logic.Exists(valuations(0), logic.Atom("post_0", valuation(0)))
+	fmt.Fprintf(sb, "- the start edge `[*] --> %s` (L%d) must admit a valuation: %s, where post_0 is %s\n\n",
+		d.StartEdge.Dst, d.StartEdge.Line, notation.Spell(admits), predicateText(d.StartEdge.Post))
 
 	for _, step := range r.Steps {
 		fmt.Fprintf(sb, "## Event %d: `%s` after %s\n\n", step.Index+1, step.Event, prefixText(r.Trace.Events[:step.Index]))
@@ -119,66 +122,72 @@ func writeObligation(sb *strings.Builder, d *csdf.Diagram, p PrefixPath) {
 		sb.WriteString("\n")
 	}
 
-	var conclusion []string
+	var conclusion []logic.Formula
 	for _, e := range p.Taus {
 		conclusion = append(conclusion, enabled(e, n))
 	}
 	for _, e := range p.Next {
 		conclusion = append(conclusion, enabled(e, n))
 	}
-	if len(conclusion) == 0 {
-		conclusion = append(conclusion, "false")
-	}
-	fmt.Fprintf(sb, "Obligation: ∀%s. %s → %s\n\n", valuations(n), pathPredicates(d, p.Path), strings.Join(conclusion, " ∨ "))
+	obligation := logic.Forall(valuations(n), logic.Implies(pathPredicates(d, p.Path), logic.Or(conclusion...)))
+	fmt.Fprintf(sb, "Obligation: %s\n\n", notation.Spell(obligation))
 }
+
+// notation spells the formulas of a report, a space after each quantifier.
+var notation = func() logic.Notation {
+	n, err := logic.NewNotation(logic.Connectives{
+		And: " ∧ ", Or: " ∨ ", Not: "¬", Implies: " → ",
+		Exists: "∃ ", Forall: "∀ ", True: "true", False: "false",
+	})
+	if err != nil {
+		panic(fmt.Sprintf("tracechk: the notation of a report is ill made: %v", err))
+	}
+	return n
+}()
 
 // enabled is the enabledness of an edge at valuation xn: its guard holds and
 // its post admits some successor. A predicate that is exactly true is left out.
-func enabled(e csdf.Edge, n int) string {
-	var parts []string
+func enabled(e csdf.Edge, n int) logic.Formula {
+	var parts []logic.Formula
 	if !csdf.IsTrue(e.Guard) {
-		parts = append(parts, fmt.Sprintf("guard_L%d(x%d)", e.Line, n))
+		parts = append(parts, logic.Atom(fmt.Sprintf("guard_L%d", e.Line), valuation(n)))
 	}
 	if !csdf.IsTrue(e.Post) {
-		parts = append(parts, fmt.Sprintf("∃ x'. post_L%d(x%d, x')", e.Line, n))
+		parts = append(parts, logic.Exists([]logic.Var{"x'"}, logic.Atom(fmt.Sprintf("post_L%d", e.Line), valuation(n), "x'")))
 	}
-	if len(parts) == 0 {
-		return "true"
-	}
-	if len(parts) == 1 {
-		return parts[0]
-	}
-	return "(" + strings.Join(parts, " ∧ ") + ")"
+	return logic.And(parts...)
 }
 
 // pathPredicates is the conjunction of the predicates along a path, over the
 // valuations x0 (admitted by the start edge) to xn. Predicates that are exactly
 // true are left out.
-func pathPredicates(d *csdf.Diagram, path Path) string {
-	var conjuncts []string
+func pathPredicates(d *csdf.Diagram, path Path) logic.Formula {
+	var conjuncts []logic.Formula
 	if !csdf.IsTrue(d.StartEdge.Post) {
-		conjuncts = append(conjuncts, "post_0(x0)")
+		conjuncts = append(conjuncts, logic.Atom("post_0", valuation(0)))
 	}
 	for i, e := range path {
 		if !csdf.IsTrue(e.Guard) {
-			conjuncts = append(conjuncts, fmt.Sprintf("guard_%d(x%d)", i+1, i))
+			conjuncts = append(conjuncts, logic.Atom(fmt.Sprintf("guard_%d", i+1), valuation(i)))
 		}
 		if !csdf.IsTrue(e.Post) {
-			conjuncts = append(conjuncts, fmt.Sprintf("post_%d(x%d, x%d)", i+1, i, i+1))
+			conjuncts = append(conjuncts, logic.Atom(fmt.Sprintf("post_%d", i+1), valuation(i), valuation(i+1)))
 		}
 	}
-	if len(conjuncts) == 0 {
-		return "true"
-	}
-	return strings.Join(conjuncts, " ∧ ")
+	return logic.And(conjuncts...)
 }
 
-func valuations(n int) string {
-	var sb strings.Builder
+// valuation names the valuation after the i-th step, the start edge's being
+// the 0th.
+func valuation(i int) logic.Var { return logic.Var(fmt.Sprintf("x%d", i)) }
+
+// valuations are x0 to xn.
+func valuations(n int) []logic.Var {
+	vars := make([]logic.Var, 0, n+1)
 	for i := 0; i <= n; i++ {
-		fmt.Fprintf(&sb, " x%d", i)
+		vars = append(vars, valuation(i))
 	}
-	return sb.String()
+	return vars
 }
 
 func prefixText(events []csdf.Event) string {
