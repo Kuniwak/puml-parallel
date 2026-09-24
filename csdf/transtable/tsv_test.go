@@ -43,6 +43,22 @@ s1 --> [*] : g
 				"s0\tS0\t\"[product is available] → s1\n[not (product is available)] ×\"\t×\n" +
 				"s1\tS1\t×\t\"[g] → [*]\n[not (g)] ×\"\n",
 		},
+		"the logical notation spells the connectives as symbols": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; h
+B --> C : a ; g
+@enduml
+`,
+			Format: transtable.Format{Notation: transtable.NotationLogical},
+			Want: "state\tname\ta\n" +
+				"A\tA\t\"[¬(h)] ×\n[h ∧ g] → C\n[h ∧ ¬(g)] ×\"\n" +
+				"B\tB\t\"[g] → C\n[¬(g)] ×\"\n" +
+				"C\tC\t×\n",
+		},
 	}
 
 	for name, testCase := range testCases {

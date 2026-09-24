@@ -19,6 +19,9 @@ type Notation struct {
 var (
 	// NotationNatural spells the connectives as words.
 	NotationNatural = Notation{And: " and ", Not: "not "}
+	// NotationLogical spells the connectives as symbols, the conjunction the
+	// way csdf.Conjunction writes it.
+	NotationLogical = Notation{And: " ∧ ", Not: "¬"}
 )
 
 // Format says how WriteTSV spells a table.
