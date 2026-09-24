@@ -23,14 +23,21 @@ func TestNewMainFuncOK(t *testing.T) {
 		"a file argument, with the defaults": {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			WantStdout: "state\tname\tinsert(coin)\treset\n" +
-				"a\ta\t→ b\t×\n" +
+				"a\ta\t\"[\"\"coins' is {coin}\"\"(c, x, x')] → b\"\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
-		"-post and -expr-mode logical": {
-			Args: []string{"-post", "-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
-			WantStdout: "state\tname\tinsert(coin)\treset\n" +
-				"a\ta\t/ coins' is {coin} → b\t×\n" +
-				"b\tb\t×\t→ a\n",
+		"-expr-mode logical": {
+			Stdin: `@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : insert(coin) ; g
+@enduml
+`,
+			Args: []string{"-expr-mode", "logical"},
+			WantStdout: "state\tname\tinsert(coin)\n" +
+				"a\ta\t\"[\"\"g\"\"(c, x)] → b\n[¬\"\"g\"\"(c, x)] ×\"\n" +
+				"b\tb\t×\n",
 		},
 		"the ID of an unreachable state is written to standard error": {
 			Stdin: `@startuml

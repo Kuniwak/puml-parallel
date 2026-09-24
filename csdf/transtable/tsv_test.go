@@ -1,6 +1,7 @@
 package transtable_test
 
 import (
+	"encoding/csv"
 	"strings"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 func TestWriteTSV(t *testing.T) {
 	type testCase struct {
 		Diagram string
-		Options transtable.Options
 		Format  transtable.Format
 		Want    string
 	}
@@ -31,6 +31,8 @@ s0 --> s1 : a
 				"s0\tZero\t→ s1\n" +
 				"s1\tOne\t×\n",
 		},
+		// Predicates are quoted, and csv.Writer doubles the quotes of a cell
+		// holding them, as CSV does.
 		"a condition comes first in brackets, and a cell holds a line per outcome": {
 			Diagram: `@startuml
 state "S0" as s0
@@ -42,8 +44,8 @@ s1 --> [*] : g
 `,
 			Format: transtable.Format{Notation: transtable.NotationNatural},
 			Want: "state\tname\ta\t[*]\n" +
-				"s0\tS0\t\"[product is available] → s1\n[not (product is available)] ×\"\t×\n" +
-				"s1\tS1\t×\t\"[g] → [*]\n[not (g)] ×\"\n",
+				"s0\tS0\t\"[\"\"product is available\"\"(c, x)] → s1\n[not \"\"product is available\"\"(c, x)] ×\"\t×\n" +
+				"s1\tS1\t×\t\"[\"\"g\"\"(x)] → [*]\n[not \"\"g\"\"(x)] ×\"\n",
 		},
 		"the logical notation spells the connectives as symbols": {
 			Diagram: `@startuml
@@ -56,12 +58,18 @@ B --> C : a ; g
 @enduml
 `,
 			Format: transtable.Format{Notation: transtable.NotationLogical},
-			Want: "state\tname\ta\n" +
-				"A\tA\t\"[¬(h)] ×\n[h ∧ g] → C\n[h ∧ ¬(g)] ×\"\n" +
-				"B\tB\t\"[g] → C\n[¬(g)] ×\"\n" +
-				"C\tC\t×\n",
+			Want: tsvOf(
+				[]string{"state", "name", "a"},
+				[]string{"A", "A", lines(
+					`[¬(∃c1. "h"(c1, x))] ×`,
+					`[∃c1 x1. "h"(c1, x) ∧ "g"(c, x1)] → C`,
+					`[∃c1 x1. "h"(c1, x) ∧ ¬"g"(c, x1)] ×`,
+				)},
+				[]string{"B", "B", lines(`["g"(c, x)] → C`, `[¬"g"(c, x)] ×`)},
+				[]string{"C", "C", "×"},
+			),
 		},
-		"postconditions along the path are composed in order after the condition": {
+		"a postcondition is applied to the values before and after its step": {
 			Diagram: `@startuml
 state "A" as A
 state "B" as B
@@ -71,14 +79,21 @@ A --> B : tau ; h ; x' = x + 1
 B --> C : a ; g ; y' = x
 @enduml
 `,
-			Options: transtable.Options{Posts: true},
-			Format:  transtable.Format{Notation: transtable.NotationNatural},
-			Want: "state\tname\ta\n" +
-				"A\tA\t\"[not (h)] ×\n[h and g] / x' = x + 1 then y' = x → C\n[h and not (g)] / x' = x + 1 ×\"\n" +
-				"B\tB\t\"[g] / y' = x → C\n[not (g)] ×\"\n" +
-				"C\tC\t×\n",
+			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Want: tsvOf(
+				[]string{"state", "name", "a"},
+				[]string{"A", "A", lines(
+					`[not (exists c1. "h"(c1, x))] ×`,
+					`[exists c1 x1. "h"(c1, x) and "x' = x + 1"(c1, x, x1) and "g"(c, x1) and "y' = x"(c, x1, x')] → C`,
+					`[exists c1 x1. "h"(c1, x) and "x' = x + 1"(c1, x, x1) and not "g"(c, x1)] ×`,
+				)},
+				[]string{"B", "B", lines(`["g"(c, x) and "y' = x"(c, x, x')] → C`, `[not "g"(c, x)] ×`)},
+				[]string{"C", "C", "×"},
+			),
 		},
-		"postconditions are left out when every one along the path is true, and kept otherwise": {
+		// A true postcondition leaves the values after it free, so a later
+		// predicate reads values that are only bound.
+		"true guards and postconditions add nothing, and the values they leave free stay bound": {
 			Diagram: `@startuml
 state "A" as A
 state "B" as B
@@ -89,12 +104,13 @@ B --> C : a ; true ; y' = 0
 C --> A : b
 @enduml
 `,
-			Options: transtable.Options{Posts: true},
-			Format:  transtable.Format{Notation: transtable.NotationLogical},
-			Want: "state\tname\ta\tb\n" +
-				"A\tA\t/ true ⨾ y' = 0 → C\t×\n" +
-				"B\tB\t/ y' = 0 → C\t×\n" +
-				"C\tC\t×\t→ A\n",
+			Format: transtable.Format{Notation: transtable.NotationLogical},
+			Want: tsvOf(
+				[]string{"state", "name", "a", "b"},
+				[]string{"A", "A", `[∃x1. "y' = 0"(c, x1, x')] → C`, "×"},
+				[]string{"B", "B", `["y' = 0"(c, x, x')] → C`, "×"},
+				[]string{"C", "C", "×", "→ A"},
+			),
 		},
 		// The two outcomes of A are taken in B and in C, which the table does
 		// not show, so they are one line.
@@ -118,8 +134,8 @@ C --> E : a
 				"C\tC\t→ E\n" +
 				"E\tE\t×\n",
 		},
-		// Postconditions all true say nothing, so paths of different lengths
-		// may come out the same even when postconditions are asked for.
+		// True guards and postconditions say nothing, so paths of different
+		// lengths may come out the same.
 		"outcomes whose postconditions say nothing are one line": {
 			Diagram: `@startuml
 state "A" as A
@@ -131,8 +147,7 @@ A --> E : a
 B --> E : a
 @enduml
 `,
-			Options: transtable.Options{Posts: true},
-			Format:  transtable.Format{Notation: transtable.NotationNatural},
+			Format: transtable.Format{Notation: transtable.NotationNatural},
 			Want: "state\tname\ta\n" +
 				"A\tA\t→ E\n" +
 				"E\tE\t×\n" +
@@ -143,7 +158,7 @@ B --> E : a
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
-			table, err := transtable.Build(csdf.MustParse(testCase.Diagram), testCase.Options)
+			table, err := transtable.Build(csdf.MustParse(testCase.Diagram))
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
@@ -172,9 +187,9 @@ func TestWriteTSVRefusesAnEventSpelledLikeAFixedColumn(t *testing.T) {
 			table, err := transtable.Build(csdf.MustParse(`@startuml
 state "S0" as s0
 [*] --> s0
-s0 --> s0 : `+event+`
+s0 --> s0 : ` + event + `
 @enduml
-`), transtable.Options{})
+`))
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
@@ -202,9 +217,9 @@ s0 --> s0 : `+event+`
 func TestWriteTSVRefusesANotationMissingAConnective(t *testing.T) {
 	testCases := map[string]transtable.Notation{
 		"the zero notation": {},
-		"no and":            {Not: "not ", Then: " then "},
-		"no not":            {And: " and ", Then: " then "},
-		"no then":           {And: " and ", Not: "not "},
+		"no and":            {Not: "not ", Exists: "exists "},
+		"no not":            {And: " and ", Exists: "exists "},
+		"no exists":         {And: " and ", Not: "not "},
 	}
 
 	for name, notation := range testCases {
@@ -216,7 +231,7 @@ state "S1" as s1
 [*] --> s0
 s0 --> s1 : a ; g
 @enduml
-`), transtable.Options{})
+`))
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
@@ -235,3 +250,17 @@ s0 --> s1 : a ; g
 		})
 	}
 }
+
+// tsvOf is the TSV WriteTSV writes for records, quoted as csv.Writer quotes.
+func tsvOf(records ...[]string) string {
+	var sb strings.Builder
+	cw := csv.NewWriter(&sb)
+	cw.Comma = '\t'
+	if err := cw.WriteAll(records); err != nil {
+		panic(err)
+	}
+	return sb.String()
+}
+
+// lines is a cell holding one outcome per line.
+func lines(ls ...string) string { return strings.Join(ls, "\n") }

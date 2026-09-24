@@ -46,11 +46,10 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Bytes:    []byte(diagram),
 			},
 		},
-		"-post and -expr-mode logical": {
-			Args: []string{"-post", "-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
+		"-expr-mode logical": {
+			Args: []string{"-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:   tools.NewCommonOptionsDefault(),
-				Post:     true,
 				ExprMode: ExprModeLogical,
 				Bytes:    []byte(diagram),
 			},
@@ -82,6 +81,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 func TestNewParseOptionsFuncNG(t *testing.T) {
 	testCases := map[string][]string{
 		"unknown expression mode": {"-expr-mode", "bogus", filepath.Join("testdata", "a.puml")},
+		"-post, which is gone":    {"-post", filepath.Join("testdata", "a.puml")},
 		"too many arguments":      {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "a.puml")},
 		"missing file":            {filepath.Join("testdata", "missing.puml")},
 	}

@@ -48,7 +48,6 @@ func spellCell(os []transtable.Outcome) []string {
 func TestBuild(t *testing.T) {
 	type testCase struct {
 		Diagram string
-		Options transtable.Options
 		Want    *spelled
 	}
 
@@ -95,7 +94,7 @@ s0 --> s1 : a ; g
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
-						{"[g] → s1", "[¬(g)] ×"},
+						{`["g"(c, x)] → s1`, `[¬"g"(c, x)] ×`},
 					}},
 					{State: "s1", Name: "S1", Cells: [][]string{
 						{"×"},
@@ -117,7 +116,7 @@ s0 --> s2 : a ; g2
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
-						{"[g1] → s1", "[g2] → s2", "[¬(g1) ∧ ¬(g2)] ×"},
+						{`["g1"(c, x)] → s1`, `["g2"(c, x)] → s2`, `[¬"g1"(c, x) ∧ ¬"g2"(c, x)] ×`},
 					}},
 					{State: "s1", Name: "S1", Cells: [][]string{{"×"}}},
 					{State: "s2", Name: "S2", Cells: [][]string{{"×"}}},
@@ -138,7 +137,7 @@ s0 --> s2 : a
 				Columns: []transtable.Column{{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
-						{"[g] → s1", "→ s2"},
+						{`["g"(c, x)] → s1`, "→ s2"},
 					}},
 					{State: "s1", Name: "S1", Cells: [][]string{{"×"}}},
 					{State: "s2", Name: "S2", Cells: [][]string{{"×"}}},
@@ -178,7 +177,7 @@ s1 --> [*] : g
 					}},
 					{State: "s1", Name: "S1", Cells: [][]string{
 						{"×"},
-						{"[g] → [*]", "[¬(g)] ×"},
+						{`["g"(x)] → [*]`, `[¬"g"(x)] ×`},
 					}},
 				},
 			},
@@ -223,7 +222,7 @@ fixed --> idle : REPORT
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d, testCase.Options)
+			got, err := transtable.Build(d)
 
 			// Assert
 			if err != nil {
@@ -241,7 +240,6 @@ fixed --> idle : REPORT
 func TestBuildFirstCell(t *testing.T) {
 	type testCase struct {
 		Diagram string
-		Options transtable.Options
 		Want    []string
 	}
 
@@ -278,10 +276,10 @@ C --> D : a ; g
 @enduml
 `,
 			Want: []string{
-				"[¬(h1)] ×",
-				"[h1 ∧ ¬(h2)] ×",
-				"[h1 ∧ h2 ∧ g] → D",
-				"[h1 ∧ h2 ∧ ¬(g)] ×",
+				`[¬(∃c1. "h1"(c1, x))] ×`,
+				`[∃c1 x1. "h1"(c1, x) ∧ ¬(∃c2. "h2"(c2, x1))] ×`,
+				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "g"(c, x2)] → D`,
+				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬"g"(c, x2)] ×`,
 			},
 		},
 		// Hiding interleaved events makes tau diamonds, and a walk that took
@@ -323,9 +321,9 @@ D --> E : a
 @enduml
 `,
 			Want: []string{
-				"[¬(g1) ∧ ¬(g2)] ×",
-				"[g1] → E",
-				"[g2] → E",
+				`[¬(∃c1. "g1"(c1, x)) ∧ ¬(∃c1. "g2"(c1, x))] ×`,
+				`[∃c1. "g1"(c1, x)] → E`,
+				`[∃c1. "g2"(c1, x)] → E`,
 			},
 		},
 		// A refusal needs the state stable and unable to take the event, and
@@ -341,9 +339,9 @@ A --> C : tau ; h
 @enduml
 `,
 			Want: []string{
-				"[g] → B",
-				"[¬(h) ∧ ¬(g)] ×",
-				"[h] ×",
+				`["g"(c, x)] → B`,
+				`[¬(∃c1. "h"(c1, x)) ∧ ¬"g"(c, x)] ×`,
+				`[∃c1. "h"(c1, x)] ×`,
 			},
 		},
 		// The path to D is long enough for its condition to have spare
@@ -369,12 +367,12 @@ E2 --> F : a
 @enduml
 `,
 			Want: []string{
-				"[¬(h1)] ×",
-				"[h1 ∧ ¬(h2)] ×",
-				"[h1 ∧ h2 ∧ ¬(h3)] ×",
-				"[h1 ∧ h2 ∧ h3 ∧ ¬(k1) ∧ ¬(k2)] ×",
-				"[h1 ∧ h2 ∧ h3 ∧ k1] → F",
-				"[h1 ∧ h2 ∧ h3 ∧ k2] → F",
+				`[¬(∃c1. "h1"(c1, x))] ×`,
+				`[∃c1 x1. "h1"(c1, x) ∧ ¬(∃c2. "h2"(c2, x1))] ×`,
+				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬(∃c3. "h3"(c3, x2))] ×`,
+				`[∃c1 x1 c2 x2 c3 x3. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ ¬(∃c4. "k1"(c4, x3)) ∧ ¬(∃c4. "k2"(c4, x3))] ×`,
+				`[∃c1 x1 c2 x2 c3 x3 c4. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ "k1"(c4, x3)] → F`,
+				`[∃c1 x1 c2 x2 c3 x3 c4. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ "k2"(c4, x3)] → F`,
 			},
 		},
 		// The grammar lets a guard hold any character but a semicolon, so one
@@ -390,26 +388,19 @@ E2 --> F : a
 				"D --> E : x\n" +
 				"@enduml\n",
 			Want: []string{
-				"[¬(a\x00b) ∧ ¬(a)] ×",
-				"[a\x00b] → E",
-				"[a ∧ ¬(b)] ×",
-				"[a ∧ b] → E",
+				`[¬(∃c1. "a\u0000b"(c1, x)) ∧ ¬(∃c1. "a"(c1, x))] ×`,
+				`[∃c1. "a\u0000b"(c1, x)] → E`,
+				`[∃c1 x1. "a"(c1, x) ∧ ¬(∃c2. "b"(c2, x1))] ×`,
+				`[∃c1 x1 c2. "a"(c1, x) ∧ "b"(c2, x1)] → E`,
 			},
 		},
-		// Postconditions left out would otherwise keep apart every order in
-		// which hidden events that change the values interleave.
-		"postconditions not asked for do not tell tau paths apart": {
+		// A postcondition is part of the condition, so two ways that differ
+		// in one alone are two outcomes.
+		"postconditions along a tau path tell the paths apart": {
 			Diagram: postDiamond,
 			Want: []string{
-				"→ E",
-			},
-		},
-		"postconditions asked for are collected along the path, and tell tau paths apart": {
-			Diagram: postDiamond,
-			Options: transtable.Options{Posts: true},
-			Want: []string{
-				"/ p ⨾ true ⨾ true → E",
-				"/ q ⨾ true ⨾ true → E",
+				`[∃c1 x1. "p"(c1, x, x1)] → E`,
+				`[∃c1 x1. "q"(c1, x, x1)] → E`,
 			},
 		},
 	}
@@ -420,7 +411,7 @@ E2 --> F : a
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d, testCase.Options)
+			got, err := transtable.Build(d)
 
 			// Assert
 			if err != nil {
@@ -448,7 +439,7 @@ B --> A : tau ; g
 `)
 
 	// Act
-	_, err := transtable.Build(d, transtable.Options{})
+	_, err := transtable.Build(d)
 
 	// Assert
 	var livelock *transtable.LivelockError
@@ -475,23 +466,29 @@ state "F" as F
 A --> B : tau ; h1
 B --> C : tau ; h2
 C --> D : tau ; h3
-D --> E : a
-D --> F : a
+D --> E : a ; g1
+D --> F : a ; g2
 @enduml
 `)
-	table, err := transtable.Build(d, transtable.Options{})
+	table, err := transtable.Build(d)
 	if err != nil {
 		t.Fatalf("want nil, got %v", err)
 	}
-	cell := table.Rows[0].Cells[0]
-	toE, toF := cell[len(cell)-2], cell[len(cell)-1]
+	var accepted []transtable.Outcome
+	for _, o := range table.Rows[0].Cells[0] {
+		if !o.Refused {
+			accepted = append(accepted, o)
+		}
+	}
+	toE := accepted[0].Cond.(transtable.Exists).Body.(transtable.And)
+	toF := accepted[1].Cond.(transtable.Exists).Body.(transtable.And)
 
 	// Act
-	extendedE := append(toE.Cond, transtable.Literal{Pred: "x"})
-	_ = append(toF.Cond, transtable.Literal{Pred: "y"})
+	extendedE := append(toE.Conjuncts, transtable.Atom{Pred: "x"})
+	_ = append(toF.Conjuncts, transtable.Atom{Pred: "y"})
 
 	// Assert
-	if got := extendedE[len(extendedE)-1].Pred; got != "x" {
-		t.Errorf("want the literal appended to the outcome to E to stay x, got %q", got)
+	if got := extendedE[len(extendedE)-1].(transtable.Atom).Pred; got != "x" {
+		t.Errorf("want the conjunct appended to the outcome to E to stay x, got %q", got)
 	}
 }

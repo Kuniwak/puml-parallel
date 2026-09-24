@@ -11,7 +11,6 @@ import (
 
 type Options struct {
 	Common   *tools.CommonOptions
-	Post     bool
 	ExprMode ExprMode
 	Bytes    []byte
 }
@@ -38,21 +37,38 @@ come in the order a breadth-first walk from the start state meets them.
 
 A cell is read in the stable-failures sense, and holds one outcome per line:
 
-  [c] → s   the event is accepted and the diagram goes to s, when c holds
-  [c] ×     the event is refused, when c holds
+  [C] → s   the event may be accepted, and the diagram be in s
+  [C] ×     the event may be refused
 
-A line without [c] happens unconditionally. The diagram may first take tau
-edges, which the environment cannot see, so an outcome may happen after some;
-its condition then conjoins every guard along the way, in order, and a later
-guard reads the values the postconditions before it left. The diagram refuses
-an event where it is stable (no tau guard holds) and no guard for the event
-holds. Every line holds on its own: a cell is the set of what may happen.
+each when its condition C holds; a line without [C] happens unconditionally.
+Every line holds on its own: a cell is the set of what may happen.
 
-The guards are natural language and are never evaluated; a postcondition is
-taken to admit some next values, and whether the guards cover every case is
-left to the reader. A reachable tau cycle may make the diagram diverge, which a
-table of refusals cannot show, so such a diagram is refused. Unreachable states
-have no row, and their IDs are written to standard error.
+C is a formula of first-order logic whose atoms are the guards and
+postconditions of the diagram, quoted as JSON strings and applied to what they
+read: a guard to the parameters of its event and the values of the state
+variables before its step, a postcondition to those and the values after (an
+end edge reads the values only). The variables are
+
+  x    the values of the row's state
+  c    the parameters of the column's event, as the environment offers them
+  x'   the values of the state an accepted event leads to
+  ci   the parameters of the event of the i-th tau step
+  xi   the values after the i-th tau step
+
+The diagram may first take tau edges, which the environment cannot see, so C
+conjoins every guard and postcondition along the way, in order, and binds the
+values in between and the parameters of the hidden events. The parameters are
+never parsed out of an event: a variable stands for them all, whatever they
+are. The diagram refuses an event where it is stable and cannot perform it:
+no tau edge is enabled and no edge for the event is. Every postcondition is
+taken to admit some values after its step, so an edge is enabled exactly when
+its guard holds for some parameters of a tau edge, or for those offered.
+
+The guards and postconditions are natural language and are never evaluated,
+and whether the guards cover every case is left to the reader. A reachable tau
+cycle may make the diagram diverge, which a table of refusals cannot show, so
+such a diagram is refused. Unreachable states have no row, and their IDs are
+written to standard error.
 
 A file argument, a "-" argument, and standard input are all equivalent.
 
@@ -62,16 +78,13 @@ Options:
 			fmt.Fprintf(w, `
 Examples:
   $ csdftranstable examples/valid/vending_machine.puml
-  $ csdftranstable -post -expr-mode logical examples/valid/vending_machine.puml
+  $ csdftranstable -expr-mode logical examples/valid/vending_machine.puml
   $ csdfcomp tree.json | csdftranstable -
 `)
 		}
 
-		var post bool
-		flags.BoolVar(&post, "post", false, "write the postconditions along the path of each outcome, after a slash")
-
 		var exprMode string
-		flags.StringVar(&exprMode, "expr-mode", string(ExprModeNatural), "how conditions are spelled: natural (and, not, then) or logical (∧, ¬, ⨾)")
+		flags.StringVar(&exprMode, "expr-mode", string(ExprModeNatural), "how conditions are spelled: natural (and, not, exists) or logical (∧, ¬, ∃)")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -100,6 +113,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Post: post, ExprMode: mode, Bytes: bs}, nil
+		return &Options{Common: commonOpts, ExprMode: mode, Bytes: bs}, nil
 	}
 }

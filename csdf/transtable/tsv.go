@@ -2,6 +2,7 @@ package transtable
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io"
 	"slices"
@@ -10,31 +11,29 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
-// Notation spells the connectives of a condition and the composition of
-// postconditions. The predicates are natural language, so which spelling reads
-// better depends on the reader.
+// Notation spells the connectives of a condition. The predicates are natural
+// language, so which spelling reads better depends on the reader.
 type Notation struct {
-	// And joins the literals of a condition.
+	// And joins the conjuncts of a conjunction.
 	And string
-	// Not comes before a negated guard, which is parenthesised.
+	// Not comes before a negated formula.
 	Not string
-	// Then joins the postconditions along a path, in order.
-	Then string
+	// Exists comes before the variables it binds.
+	Exists string
 }
 
 var (
 	// NotationNatural spells the connectives as words.
-	NotationNatural = Notation{And: " and ", Not: "not ", Then: " then "}
-	// NotationLogical spells the connectives as symbols: the conjunction the
-	// way csdf.Conjunction writes it, and the composition of relations the way
-	// Z does.
-	NotationLogical = Notation{And: " ∧ ", Not: "¬", Then: " ⨾ "}
+	NotationNatural = Notation{And: " and ", Not: "not ", Exists: "exists "}
+	// NotationLogical spells the connectives as symbols, the conjunction the
+	// way csdf.Conjunction writes it.
+	NotationLogical = Notation{And: " ∧ ", Not: "¬", Exists: "∃"}
 )
 
 // validate refuses a notation that spells a connective as nothing: a negated
 // guard would then read as the guard itself, and two guards as one.
 func (n Notation) validate() error {
-	if n.And == "" || n.Not == "" || n.Then == "" {
+	if n.And == "" || n.Not == "" || n.Exists == "" {
 		return fmt.Errorf("the notation %+v spells a connective as nothing", n)
 	}
 	return nil
@@ -89,10 +88,10 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 	return nil
 }
 
-// cell spells the outcomes one per line. Two tau paths that meet again lead to
-// the same outcomes, and whatever the table leaves out - the states passed, and
-// the postconditions unless asked for - may be all that tells two outcomes
-// apart, so a line already written is not written again.
+// cell spells the outcomes one per line. The table does not show the states a
+// tau path passes, and true guards and postconditions add nothing to a
+// condition, so two outcomes may come out the same; a line already written is
+// not written again.
 func (f Format) cell(os []Outcome) string {
 	lines := make([]string, 0, len(os))
 	written := make(map[string]struct{}, len(os))
@@ -117,18 +116,11 @@ func (c Column) name() string {
 }
 
 // Line spells one outcome as a line of a cell: its condition in brackets, if
-// any, then its postconditions after a slash when they were collected and say
-// anything, then where the diagram goes, or × for a refusal.
+// any, then where the diagram goes, or × for a refusal.
 func (f Format) Line(o Outcome) string {
 	var sb strings.Builder
-	if len(o.Cond) > 0 {
-		sb.WriteString("[" + f.cond(o.Cond) + "] ")
-	}
-	// A path whose postconditions are all true says nothing about them. One
-	// that says something keeps its true ones too: a true postcondition lets
-	// the values be anything, so it is not the identity of the composition.
-	if slices.ContainsFunc(o.Posts, isNotTrue) {
-		sb.WriteString("/ " + f.posts(o.Posts) + " ")
+	if o.Cond != nil {
+		sb.WriteString("[" + f.formula(o.Cond) + "] ")
 	}
 	if o.Refused {
 		sb.WriteString("×")
@@ -138,27 +130,53 @@ func (f Format) Line(o Outcome) string {
 	return sb.String()
 }
 
-func (f Format) cond(c Cond) string {
-	literals := make([]string, 0, len(c))
-	for _, l := range c {
-		if l.Negated {
-			literals = append(literals, f.Notation.Not+"("+string(l.Pred)+")")
-		} else {
-			literals = append(literals, string(l.Pred))
+// formula spells a condition. A predicate is quoted as a JSON string, so that
+// no text it holds can be read as a connective, and its arguments follow in
+// parentheses. A negated formula other than an atom, and a quantified formula
+// among conjuncts, is parenthesised; a quantifier binds to the end of what it
+// is in.
+func (f Format) formula(fm Formula) string {
+	switch fm := fm.(type) {
+	case Atom:
+		args := make([]string, 0, len(fm.Args))
+		for _, v := range fm.Args {
+			args = append(args, string(v))
 		}
+		return quote(fm.Pred) + "(" + strings.Join(args, ", ") + ")"
+	case Not:
+		if _, ok := fm.Operand.(Atom); ok {
+			return f.Notation.Not + f.formula(fm.Operand)
+		}
+		return f.Notation.Not + "(" + f.formula(fm.Operand) + ")"
+	case And:
+		cs := make([]string, 0, len(fm.Conjuncts))
+		for _, c := range fm.Conjuncts {
+			switch c.(type) {
+			case And, Exists:
+				cs = append(cs, "("+f.formula(c)+")")
+			default:
+				cs = append(cs, f.formula(c))
+			}
+		}
+		return strings.Join(cs, f.Notation.And)
+	case Exists:
+		vars := make([]string, 0, len(fm.Vars))
+		for _, v := range fm.Vars {
+			vars = append(vars, string(v))
+		}
+		return f.Notation.Exists + strings.Join(vars, " ") + ". " + f.formula(fm.Body)
 	}
-	return strings.Join(literals, f.Notation.And)
+	panic(fmt.Sprintf("transtable.Format.formula: unknown formula %T", fm))
 }
 
-func (f Format) posts(ps []csdf.Predicate) string {
-	spelled := make([]string, 0, len(ps))
-	for _, p := range ps {
-		if csdf.IsTrue(p) {
-			p = csdf.PredicateTrue
-		}
-		spelled = append(spelled, string(p))
+// quote writes p as a JSON string. HTML characters are left as they are: the
+// table is no web page.
+func quote(p csdf.Predicate) string {
+	var sb strings.Builder
+	enc := json.NewEncoder(&sb)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(string(p)); err != nil {
+		panic(fmt.Sprintf("transtable.quote: a string always encodes: %v", err))
 	}
-	return strings.Join(spelled, f.Notation.Then)
+	return strings.TrimSuffix(sb.String(), "\n")
 }
-
-func isNotTrue(p csdf.Predicate) bool { return !csdf.IsTrue(p) }

@@ -43,36 +43,30 @@ type Row struct {
 }
 
 // Outcome is one thing that may happen when an event is offered: the diagram
-// accepts it and goes to Dst, or it refuses it. It may happen when Cond holds.
+// accepts it and goes to Dst, or it refuses it. It may happen when Cond holds
+// of the values x of the row's state and the parameters c of the offered
+// event, for some values x' after an accepted event; a nil Cond is true.
 type Outcome struct {
-	Cond Cond
-	// Posts are the postconditions along the way, in order, when they were
-	// asked for; nil otherwise.
-	Posts   []csdf.Predicate
+	Cond    Formula
 	Refused bool
 	Dst     csdf.StateID
-}
-
-// Options says what Build collects.
-type Options struct {
-	// Posts collects the postconditions along the path of every outcome. They
-	// do not decide whether an event is refused, and two paths that differ in
-	// them alone have to be walked apart, which the orders of interleaved
-	// hidden events multiply; so they are left out unless asked for.
-	Posts bool
 }
 
 // Build tabulates d. It fails with a *LivelockError when a tau cycle is
 // reachable, since the table reads d in the stable-failures sense and that
 // sense is blind to divergence.
-func Build(d *csdf.Diagram, o Options) (*Table, error) {
+//
+// Every postcondition is taken to admit some values after its step, whatever
+// the parameters and the values before. That premise is what lets an edge be
+// enabled exactly when its guard holds, which is where refusals come from.
+func Build(d *csdf.Diagram) (*Table, error) {
 	if livelock, ok := csdf.CheckLivelockFree(d); !ok {
 		return nil, &LivelockError{Livelock: livelock}
 	}
 
 	// Each list is in canonical order, so the table comes out the same for the
 	// same diagram.
-	x := index{out: csdf.Outgoing(d), end: d.EndEdge, posts: o.Posts}
+	x := index{out: csdf.Outgoing(d), end: d.EndEdge}
 	states := csdf.Reachable(d.StartEdge.Dst, x.out)
 	columns := columnsOf(states, x)
 
@@ -102,113 +96,160 @@ func unreachable(d *csdf.Diagram, reachable []csdf.StateID) []csdf.StateID {
 	return ids
 }
 
-// index is the diagram arranged for looking up what a state may do, and
-// whether postconditions are collected on the way.
+// index is the diagram arranged for looking up what a state may do.
 type index struct {
-	out   map[csdf.StateID][]csdf.Edge
-	end   *csdf.EndEdge
-	posts bool
+	out map[csdf.StateID][]csdf.Edge
+	end *csdf.EndEdge
 }
 
-// then returns posts followed by p when postconditions are collected, and nil
-// otherwise. The result never shares its backing array with posts.
-func (x index) then(posts []csdf.Predicate, p ...csdf.Predicate) []csdf.Predicate {
-	if !x.posts {
-		return nil
-	}
-	return slices.Concat(posts, p)
-}
-
-// take is one way a state may perform a column: under its guard, adding its
-// postconditions, to dst.
+// take is one way a state may perform a column: the guard it reads the values
+// v by, the conjuncts it adds when taken from v, and where it leads.
 type take struct {
-	guard csdf.Predicate
-	posts []csdf.Predicate
+	guard func(v Var) Formula
+	taken func(v Var) []Formula
 	dst   csdf.StateID
 }
 
-// takes lists the ways u may perform c, in canonical order.
+// takes lists the ways u may perform c, in canonical order. An edge for an
+// event reads the parameters c the environment offers; an end edge has no
+// event and reads the values only, and it has no postcondition.
 func (x index) takes(u csdf.StateID, c Column) []take {
 	if c.Termination {
 		if x.end == nil || x.end.Src != u {
 			return nil
 		}
-		return []take{{guard: x.end.Guard, dst: Terminated}}
+		g := x.end.Guard
+		guard := func(v Var) Formula { return guardAtom(g, v) }
+		return []take{{
+			guard: guard,
+			taken: func(v Var) []Formula { return nonNil(guard(v)) },
+			dst:   Terminated,
+		}}
 	}
 	var ts []take
 	for _, e := range x.out[u] {
-		if e.Event == c.Event {
-			ts = append(ts, take{guard: e.Guard, posts: []csdf.Predicate{e.Post}, dst: e.Dst})
+		if e.Event != c.Event {
+			continue
 		}
+		g, p := e.Guard, e.Post
+		guard := func(v Var) Formula { return guardAtom(g, varParams, v) }
+		ts = append(ts, take{
+			guard: guard,
+			taken: func(v Var) []Formula { return nonNil(guard(v), guardAtom(p, varParams, v, varNext)) },
+			dst:   e.Dst,
+		})
 	}
 	return ts
 }
 
+// tauStep is a tau edge a walk took.
+type tauStep struct {
+	guard, post csdf.Predicate
+}
+
+// conjuncts are what the tau steps conjoin: the guard of the i-th step applied
+// to its parameters and the values before it, and its postcondition to those
+// and the values after it.
+func conjuncts(steps []tauStep) []Formula {
+	var fs []Formula
+	for i, s := range steps {
+		n := i + 1
+		fs = append(fs, nonNil(
+			guardAtom(s.guard, paramsOf(n), valuesAfter(i)),
+			guardAtom(s.post, paramsOf(n), valuesAfter(i), valuesAfter(n)),
+		)...)
+	}
+	return fs
+}
+
+func nonNil(fs ...Formula) []Formula {
+	var kept []Formula
+	for _, f := range fs {
+		if f != nil {
+			kept = append(kept, f)
+		}
+	}
+	return kept
+}
+
 // outcomes lists what may happen when c is offered in state s, in the
-// stable-failures sense. The diagram may first take any number of tau edges
-// whose guards hold, since the environment cannot see them; then, in the state
-// u it has reached, it may perform c in a way whose guard holds, or, when u is
-// stable (no tau guard holds) and no guard for c holds, refuse c. Each outcome
-// is conditioned on every guard along its path, in order, and the outcomes come
-// in the order of a depth-first walk.
+// stable-failures sense. The diagram may first take any number of tau edges,
+// since the environment cannot see them; then, in the state u it has reached,
+// it may perform c, or, when u is stable and cannot perform c, refuse it. The
+// condition of an outcome conjoins, in path order, every guard and
+// postcondition along its path, applied to the values each reads, and binds
+// the values and hidden parameters in between. The outcomes come in the order
+// of a depth-first walk.
+//
+// u is stable when none of its tau edges is enabled, and it cannot perform c
+// when none of its ways of performing c is. Every postcondition admits some
+// values after it, so an edge is enabled exactly when its guard holds for some
+// parameters: those of a tau edge are hidden and so bound, those for c are the
+// ones offered.
 //
 // The walk terminates only when no tau cycle is reachable from s. Two ways
-// that reach a state under the same condition and postconditions lead to the
-// same outcomes, so only the first is walked; otherwise the tau diamonds that
+// that reach a state along the same guards and postconditions lead to the same
+// outcomes, so only the first is walked; otherwise the tau diamonds that
 // hiding interleaved events makes would grow the walk exponentially.
 func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 	var os []Outcome
 	walked := make(map[string]struct{})
-	var visit func(u csdf.StateID, cond Cond, posts []csdf.Predicate)
-	visit = func(u csdf.StateID, cond Cond, posts []csdf.Predicate) {
-		key := walkKey(u, cond, posts)
+	var visit func(u csdf.StateID, steps []tauStep)
+	visit = func(u csdf.StateID, steps []tauStep) {
+		key := walkKey(u, steps)
 		if _, ok := walked[key]; ok {
 			return
 		}
 		walked[key] = struct{}{}
 
-		var takeGuards, tauGuards []csdf.Predicate
-		for _, t := range x.takes(u, c) {
-			os = append(os, Outcome{Cond: cond.and(t.guard), Posts: x.then(posts, t.posts...), Dst: t.dst})
-			takeGuards = append(takeGuards, t.guard)
-		}
+		k := len(steps)
+		here := valuesAfter(k)
+		path := conjuncts(steps)
+
+		takes := x.takes(u, c)
 		taus := csdf.TauEdges(x.out[u])
-		for _, e := range taus {
-			tauGuards = append(tauGuards, e.Guard)
+		for _, t := range takes {
+			os = append(os, Outcome{Cond: closeOver(k, slices.Concat(path, t.taken(here))), Dst: t.dst})
 		}
+
 		// u refuses c when it is stable and cannot perform c, which is
 		// impossible as soon as one of those guards is true.
-		if !slices.ContainsFunc(takeGuards, csdf.IsTrue) && !slices.ContainsFunc(tauGuards, csdf.IsTrue) {
-			os = append(os, Outcome{Cond: cond.andNot(tauGuards).andNot(takeGuards), Posts: x.then(posts), Refused: true})
-		}
+		unconditional := false
+		var refusal []Formula
 		for _, e := range taus {
-			visit(e.Dst, cond.and(e.Guard), x.then(posts, e.Post))
+			g := guardAtom(e.Guard, paramsOf(k+1), here)
+			unconditional = unconditional || g == nil
+			refusal = append(refusal, Not{Operand: Exists{Vars: []Var{paramsOf(k + 1)}, Body: g}})
+		}
+		for _, t := range takes {
+			g := t.guard(here)
+			unconditional = unconditional || g == nil
+			refusal = append(refusal, Not{Operand: g})
+		}
+		if !unconditional {
+			os = append(os, Outcome{Cond: closeOver(k, slices.Concat(path, refusal)), Refused: true})
+		}
+
+		for _, e := range taus {
+			visit(e.Dst, append(slices.Clip(steps), tauStep{guard: e.Guard, post: e.Post}))
 		}
 	}
-	visit(s, nil, nil)
+	visit(s, nil)
 	return os
 }
 
-// walkKey identifies where a walk is and what it has collected on the way. A
-// predicate may hold any character but a semicolon, so no separator can be
-// trusted; every field is written after its length instead, and the literals
-// after their number, which makes the key tell apart any two walks that differ.
-func walkKey(u csdf.StateID, cond Cond, posts []csdf.Predicate) string {
+// walkKey identifies where a walk is and the tau steps it took. A predicate
+// may hold any character but a semicolon, so no separator can be trusted;
+// every field is written after its length instead, which makes the key tell
+// apart any two walks that differ.
+func walkKey(u csdf.StateID, steps []tauStep) string {
 	var sb strings.Builder
 	field := func(s string) { fmt.Fprintf(&sb, "%d:%s", len(s), s) }
 
 	field(string(u))
-	fmt.Fprintf(&sb, "%d;", len(cond))
-	for _, l := range cond {
-		if l.Negated {
-			sb.WriteByte('-')
-		} else {
-			sb.WriteByte('+')
-		}
-		field(string(l.Pred))
-	}
-	for _, p := range posts {
-		field(string(p))
+	for _, s := range steps {
+		field(string(s.guard))
+		field(string(s.post))
 	}
 	return sb.String()
 }

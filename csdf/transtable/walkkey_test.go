@@ -11,8 +11,7 @@ import (
 func TestWalkKeyTellsWalksApart(t *testing.T) {
 	type walk struct {
 		State csdf.StateID
-		Cond  Cond
-		Posts []csdf.Predicate
+		Steps []tauStep
 	}
 	type testCase struct {
 		A, B walk
@@ -20,28 +19,24 @@ func TestWalkKeyTellsWalksApart(t *testing.T) {
 
 	testCases := map[string]testCase{
 		"one guard holding a control character, and two guards": {
-			A: walk{State: "D", Cond: Cond{{Pred: "a\x00b"}}},
-			B: walk{State: "D", Cond: Cond{{Pred: "a"}, {Pred: "b"}}},
-		},
-		"a guard, and its negation": {
-			A: walk{State: "D", Cond: Cond{{Pred: "g"}}},
-			B: walk{State: "D", Cond: Cond{{Pred: "g", Negated: true}}},
+			A: walk{State: "D", Steps: []tauStep{{guard: "a\x00b"}}},
+			B: walk{State: "D", Steps: []tauStep{{guard: "a"}, {guard: "b"}}},
 		},
 		"a guard, and a postcondition spelled the same": {
-			A: walk{State: "D", Cond: Cond{{Pred: "p"}}},
-			B: walk{State: "D", Posts: []csdf.Predicate{"p"}},
+			A: walk{State: "D", Steps: []tauStep{{guard: "p"}}},
+			B: walk{State: "D", Steps: []tauStep{{post: "p"}}},
 		},
 		"one postcondition holding a control character, and two postconditions": {
-			A: walk{State: "D", Posts: []csdf.Predicate{"p\x00q"}},
-			B: walk{State: "D", Posts: []csdf.Predicate{"p", "q"}},
+			A: walk{State: "D", Steps: []tauStep{{post: "p\x00q"}}},
+			B: walk{State: "D", Steps: []tauStep{{post: "p"}, {post: "q"}}},
 		},
 	}
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Act
-			a := walkKey(testCase.A.State, testCase.A.Cond, testCase.A.Posts)
-			b := walkKey(testCase.B.State, testCase.B.Cond, testCase.B.Posts)
+			a := walkKey(testCase.A.State, testCase.A.Steps)
+			b := walkKey(testCase.B.State, testCase.B.Steps)
 
 			// Assert
 			if a == b {
