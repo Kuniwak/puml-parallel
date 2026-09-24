@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
 )
@@ -120,7 +121,7 @@ D --> E : a
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
-			table, err := transtable.Build(parse(t, testCase.Diagram))
+			table, err := transtable.Build(csdf.MustParse(testCase.Diagram))
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
@@ -146,10 +147,10 @@ func TestWriteTSVRefusesAnEventSpelledLikeAFixedColumn(t *testing.T) {
 	for _, event := range []string{"state", "name", "[*]"} {
 		t.Run(event, func(t *testing.T) {
 			// Arrange
-			table, err := transtable.Build(parse(t, `@startuml
+			table, err := transtable.Build(csdf.MustParse(`@startuml
 state "S0" as s0
 [*] --> s0
-s0 --> s0 : `+event+`
+s0 --> s0 : ` + event + `
 @enduml
 `))
 			if err != nil {

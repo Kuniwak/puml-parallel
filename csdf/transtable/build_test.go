@@ -11,15 +11,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-func parse(t *testing.T, src string) *csdf.Diagram {
-	t.Helper()
-	d, err := csdf.Parse(src)
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
-	}
-	return d
-}
-
 func TestBuild(t *testing.T) {
 	type testCase struct {
 		Diagram string
@@ -204,7 +195,7 @@ fixed --> idle : REPORT
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
-			d := parse(t, testCase.Diagram)
+			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
 			got, err := transtable.Build(d)
@@ -220,12 +211,20 @@ fixed --> idle : REPORT
 	}
 }
 
-// A tau path is one weak transition, so what it leads to is conditioned on the
-// conjunction of every guard along it; each state it passes may be where the
-// diagram stops and refuses.
-func TestBuildConjoinsTheGuardsAlongATauPath(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
+// TestBuildFirstCell looks at one cell only, that of the start state under the
+// first column, where the whole table would bury the point.
+func TestBuildFirstCell(t *testing.T) {
+	type testCase struct {
+		Diagram string
+		Want    []transtable.Outcome
+	}
+
+	testCases := map[string]testCase{
+		// A tau path is one weak transition, so what it leads to is
+		// conditioned on the conjunction of every guard along it; each state it
+		// passes may be where the diagram stops and refuses.
+		"the guards along a tau path are conjoined in order": {
+			Diagram: `@startuml
 state "A" as A
 state "B" as B
 state "C" as C
@@ -235,23 +234,55 @@ A --> B : tau ; h1
 B --> C : tau ; h2
 C --> D : a ; g
 @enduml
-`)
-
-	// Act
-	got, err := transtable.Build(d)
-
-	// Assert
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
+`,
+			Want: []transtable.Outcome{
+				{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Posts: []csdf.Predicate{"true"}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g"}}, Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "D"},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g", Negated: true}}, Posts: []csdf.Predicate{"true", "true"}, Refused: true},
+			},
+		},
+		// Hiding interleaved events makes tau diamonds, and a walk that took
+		// every way round each of them would grow exponentially. Two ways that
+		// reach a state under the same condition and postconditions lead to
+		// the same outcomes, so the second is not walked.
+		"a tau diamond is walked once": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau
+A --> C : tau
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`,
+			Want: []transtable.Outcome{
+				{Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "E"},
+			},
+		},
 	}
-	want := []transtable.Outcome{
-		{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
-		{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Posts: []csdf.Predicate{"true"}, Refused: true},
-		{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g"}}, Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "D"},
-		{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g", Negated: true}}, Posts: []csdf.Predicate{"true", "true"}, Refused: true},
-	}
-	if diff := cmp.Diff(want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
-		t.Error(diff)
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			d := csdf.MustParse(testCase.Diagram)
+
+			// Act
+			got, err := transtable.Build(d)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			if diff := cmp.Diff(testCase.Want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 
@@ -260,7 +291,7 @@ C --> D : a ; g
 // cannot show that, so it is not built at all.
 func TestBuildRefusesADiagramThatMayDiverge(t *testing.T) {
 	// Arrange
-	d := parse(t, `@startuml
+	d := csdf.MustParse(`@startuml
 state "A" as A
 state "B" as B
 [*] --> A
@@ -279,41 +310,5 @@ B --> A : tau ; g
 	}
 	if want := "A -> B -> A"; !strings.Contains(err.Error(), want) {
 		t.Errorf("want the cycle %q in the message, got %q", want, err.Error())
-	}
-}
-
-// Hiding interleaved events makes tau diamonds, and a walk that took every way
-// round each of them would grow exponentially. Two ways that reach a state
-// under the same condition and postconditions lead to the same outcomes, so the
-// second is not walked.
-func TestBuildWalksATauDiamondOnce(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-state "D" as D
-state "E" as E
-[*] --> A
-A --> B : tau
-A --> C : tau
-B --> D : tau
-C --> D : tau
-D --> E : a
-@enduml
-`)
-
-	// Act
-	got, err := transtable.Build(d)
-
-	// Assert
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
-	}
-	want := []transtable.Outcome{
-		{Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "E"},
-	}
-	if diff := cmp.Diff(want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
-		t.Error(diff)
 	}
 }
