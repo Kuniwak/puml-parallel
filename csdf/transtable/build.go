@@ -18,7 +18,7 @@ type Table struct {
 	Rows    []Row
 	// Unreachable are the states the diagram can never be in, sorted. They
 	// take no part in its behaviour, so they have no row and their events no
-	// column; they are named so that a missing row is never a surprise.
+	// column; their IDs are kept so that a missing row is never a surprise.
 	Unreachable []csdf.StateID
 }
 

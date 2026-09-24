@@ -430,7 +430,7 @@ as never refusing. So a diagram with a reachable `tau` cycle is refused with the
 cycle named, by the same structural check `csdflivelockfree` makes. The guards
 are not read, so a cycle they would cut short is refused too. Unreachable
 states take no part in the behaviour, so they have no row, their events no
-column, and their names are written to standard error. An event spelled
+column, and their IDs are written to standard error. An event spelled
 `state`, `name` or `[*]` would be read as the column of that name, so it is an
 error. For a promotion, tabulate the local diagrams: the expansion is one state
 with a self-loop per local edge.

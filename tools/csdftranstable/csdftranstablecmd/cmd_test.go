@@ -32,7 +32,7 @@ func TestNewMainFuncOK(t *testing.T) {
 				"a\ta\t/ coins' is {coin} → b\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
-		"an unreachable state is named on standard error": {
+		"the ID of an unreachable state is written to standard error": {
 			Stdin: `@startuml
 state "S0" as s0
 state "Z" as z
@@ -41,7 +41,7 @@ state "Z" as z
 `,
 			WantStdout: "state\tname\n" +
 				"s0\tS0\n",
-			WantStderr: "Warning: unreachable states have no row: z\n",
+			WantStderr: "warning: unreachable states have no row: z\n",
 		},
 		"-v (representative value)": {
 			Args:       []string{"-v"},

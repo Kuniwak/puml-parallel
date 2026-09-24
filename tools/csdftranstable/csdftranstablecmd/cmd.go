@@ -31,11 +31,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		if len(table.Unreachable) > 0 {
-			names := make([]string, 0, len(table.Unreachable))
+			ids := make([]string, 0, len(table.Unreachable))
 			for _, id := range table.Unreachable {
-				names = append(names, string(id))
+				ids = append(ids, string(id))
 			}
-			fmt.Fprintf(inout.Stderr, "Warning: unreachable states have no row: %s\n", strings.Join(names, ", "))
+			fmt.Fprintf(inout.Stderr, "warning: unreachable states have no row: %s\n", strings.Join(ids, ", "))
 		}
 
 		format := transtable.Format{Notation: opts.ExprMode.Notation()}

@@ -52,7 +52,7 @@ The guards are natural language and are never evaluated; a postcondition is
 taken to admit some next values, and whether the guards cover every case is
 left to the reader. A reachable tau cycle may make the diagram diverge, which a
 table of refusals cannot show, so such a diagram is refused. Unreachable states
-have no row, and their names are written to standard error.
+have no row, and their IDs are written to standard error.
 
 A file argument, a "-" argument, and standard input are all equivalent.
 
