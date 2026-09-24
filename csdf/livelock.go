@@ -54,17 +54,9 @@ func CheckLivelockFree(d *Diagram) (witness *Livelock, ok bool) {
 
 // reachableStates returns every state reachable from start over all edges.
 func reachableStates(start StateID, out map[StateID][]Edge) map[StateID]struct{} {
-	reachable := map[StateID]struct{}{start: {}}
-	queue := []StateID{start}
-	for len(queue) > 0 {
-		s := queue[0]
-		queue = queue[1:]
-		for _, e := range out[s] {
-			if _, ok := reachable[e.Dst]; !ok {
-				reachable[e.Dst] = struct{}{}
-				queue = append(queue, e.Dst)
-			}
-		}
+	reachable := make(map[StateID]struct{})
+	for _, s := range Reachable(start, out) {
+		reachable[s] = struct{}{}
 	}
 	return reachable
 }

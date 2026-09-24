@@ -59,8 +59,10 @@ func Build(d *csdf.Diagram) (*Table, error) {
 		return nil, &LivelockError{Livelock: livelock}
 	}
 
-	x := index{out: outgoing(d), end: d.EndEdge}
-	states := reachable(d.StartEdge.Dst, x.out)
+	// Each list is in canonical order, so the table comes out the same for the
+	// same diagram.
+	x := index{out: csdf.Outgoing(d), end: d.EndEdge}
+	states := csdf.Reachable(d.StartEdge.Dst, x.out)
 	columns := columnsOf(states, x)
 
 	rows := make([]Row, 0, len(states))
@@ -148,7 +150,7 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 			os = append(os, Outcome{Cond: cond.and(t.guard), Posts: slices.Concat(posts, t.posts), Dst: t.dst})
 			takeGuards = append(takeGuards, t.guard)
 		}
-		taus := tauEdges(x.out[u])
+		taus := csdf.TauEdges(x.out[u])
 		for _, e := range taus {
 			tauGuards = append(tauGuards, e.Guard)
 		}
@@ -186,32 +188,6 @@ func walkKey(u csdf.StateID, cond Cond, posts []csdf.Predicate) string {
 	return sb.String()
 }
 
-func tauEdges(edges []csdf.Edge) []csdf.Edge {
-	var taus []csdf.Edge
-	for _, e := range edges {
-		if e.Event == csdf.Tau {
-			taus = append(taus, e)
-		}
-	}
-	return taus
-}
-
-// reachable returns the states reachable from start, in the order a
-// breadth-first walk meets them when it follows edges in canonical order.
-func reachable(start csdf.StateID, out map[csdf.StateID][]csdf.Edge) []csdf.StateID {
-	order := []csdf.StateID{start}
-	seen := map[csdf.StateID]struct{}{start: {}}
-	for i := 0; i < len(order); i++ {
-		for _, e := range out[order[i]] {
-			if _, ok := seen[e.Dst]; !ok {
-				seen[e.Dst] = struct{}{}
-				order = append(order, e.Dst)
-			}
-		}
-	}
-	return order
-}
-
 // columnsOf returns the visible events of states, in the order the states and
 // their edges come, and then termination when one of the states may terminate.
 func columnsOf(states []csdf.StateID, x index) []Column {
@@ -230,17 +206,4 @@ func columnsOf(states []csdf.StateID, x index) []Column {
 		columns = append(columns, Column{Termination: true})
 	}
 	return columns
-}
-
-// outgoing indexes the edges by source, each list in canonical order so that
-// the table comes out the same for the same diagram.
-func outgoing(d *csdf.Diagram) map[csdf.StateID][]csdf.Edge {
-	out := make(map[csdf.StateID][]csdf.Edge)
-	for _, e := range d.Edges {
-		out[e.Src] = append(out[e.Src], e)
-	}
-	for s := range out {
-		csdf.SortEdges(out[s])
-	}
-	return out
 }

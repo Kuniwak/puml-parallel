@@ -117,7 +117,8 @@ func AnyRejected(results []Result) bool {
 // Guards and postconditions are natural language and are not evaluated here;
 // the result carries them so that the caller can state the obligation.
 func Check(m Match, d *csdf.Diagram, t Trace) Result {
-	out := outgoing(d)
+	// Each list is in canonical order, so paths come out in a reproducible order.
+	out := csdf.Outgoing(d)
 	trace := t.Events
 
 	states := csdf.TauClosure(map[csdf.StateID]struct{}{d.StartEdge.Dst: {}}, out)
@@ -132,7 +133,7 @@ func Check(m Match, d *csdf.Diagram, t Trace) Result {
 					canPerform = true
 				}
 			}
-			if !canPerform && len(taus(out[s])) == 0 {
+			if !canPerform && len(csdf.TauEdges(out[s])) == 0 {
 				refusing[s] = struct{}{}
 			}
 		}
@@ -176,7 +177,7 @@ func prefixPaths(m Match, d *csdf.Diagram, out map[csdf.StateID][]csdf.Edge, tra
 		byIndex[i] = append(byIndex[i], PrefixPath{
 			Path: slices.Clone(path),
 			Dst:  s,
-			Taus: taus(out[s]),
+			Taus: csdf.TauEdges(out[s]),
 			Next: nextEdges(m, out[s], trace[i]),
 		})
 		for _, e := range out[s] {
@@ -197,16 +198,6 @@ func prefixPaths(m Match, d *csdf.Diagram, out map[csdf.StateID][]csdf.Edge, tra
 	return byIndex
 }
 
-func taus(edges []csdf.Edge) []csdf.Edge {
-	var ts []csdf.Edge
-	for _, e := range edges {
-		if e.Event == csdf.Tau {
-			ts = append(ts, e)
-		}
-	}
-	return ts
-}
-
 func nextEdges(m Match, edges []csdf.Edge, event csdf.Event) []csdf.Edge {
 	var ns []csdf.Edge
 	for _, e := range edges {
@@ -215,19 +206,6 @@ func nextEdges(m Match, edges []csdf.Edge, event csdf.Event) []csdf.Edge {
 		}
 	}
 	return ns
-}
-
-// outgoing indexes the edges by source, each list in canonical order so that
-// paths come out in a reproducible order.
-func outgoing(d *csdf.Diagram) map[csdf.StateID][]csdf.Edge {
-	out := make(map[csdf.StateID][]csdf.Edge)
-	for _, e := range d.Edges {
-		out[e.Src] = append(out[e.Src], e)
-	}
-	for s := range out {
-		csdf.SortEdges(out[s])
-	}
-	return out
 }
 
 func sortedStates(states map[csdf.StateID]struct{}) []csdf.StateID {
