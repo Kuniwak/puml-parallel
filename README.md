@@ -361,7 +361,8 @@ $ csdfcomp tree.json | csdftranstable -
 ```
 
 For `vending_machine.puml` it writes this table (shown here as Markdown, with
-a line break for each line of a cell):
+a line break for each line of a cell, and the parameters of two long event
+names cut to `…`):
 
 | state | name | insert(coin) | showAvailable(…) | showPurchasable(…) | choose(product) | drop(product) |
 |---|---|---|---|---|---|---|
@@ -401,8 +402,8 @@ of `A` under `a` is
 
 where the lines come in the order of a depth-first walk along the `tau` edges:
 the diagram may stop and refuse in `A`, in `B` or in `C`, whichever it is stable
-in. With `CYCLE.puml`, where counting ends by a `tau`, the counting state both
-accepts and may refuse `BOOK`:
+in. With `examples/promote/local/CYCLE.puml`, where counting ends by a `tau`,
+the counting state both accepts and may refuse `BOOK`:
 
 | state | name | BOOK(数量) | REPORT |
 |---|---|---|---|
@@ -412,8 +413,10 @@ accepts and may refuse `BOOK`:
 
 The conjuncts of a condition are in path order, and a later one reads the
 values the postconditions before it left. `-post` writes those postconditions,
-composed in order after a slash (`[c] / p then q → s`); they do not decide
-whether an event is refused, so they are left out by default. A path whose
+composed in order after a slash (`[c] / p then q → s`). They do not decide
+whether an event is refused, and paths that differ in them alone have to be
+kept apart when they are written, which the orders of interleaved hidden events
+that change the values multiply; so they are left out by default. A path whose
 postconditions are all `true` says nothing about them. `-expr-mode` chooses the
 spelling of the connectives: `natural` (the default: `and`, `not`, `then`) or
 `logical` (`∧`, `¬`, and Z's relational composition `⨾`). Lines that come out
