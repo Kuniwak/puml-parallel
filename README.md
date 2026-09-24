@@ -356,7 +356,7 @@ event goes; the table shows, just as plainly, where it is refused, so that
 
 ```console
 $ csdftranstable examples/valid/vending_machine.puml
-$ csdftranstable -post -expr-mode logical examples/valid/vending_machine.puml
+$ csdftranstable -expr-mode logical examples/valid/vending_machine.puml
 $ csdfcomp tree.json | csdftranstable -
 ```
 
@@ -366,66 +366,97 @@ names cut to `…`):
 
 | state | name | insert(coin) | showAvailable(…) | showPurchasable(…) | choose(product) | drop(product) |
 |---|---|---|---|---|---|---|
-| vmIdle | vmIdle | → vmCoinsInserted | → vmIdle | × | × | × |
-| vmCoinsInserted | vmCoinsInserted | × | × | → vmWaitingChoosing | × | × |
-| vmWaitingChoosing | vmWaitingChoosing | → vmCoinsInserted | × | × | [availableProducts contains product] → vmDropping<br>[not (availableProducts contains product)] × | × |
-| vmDropping | vmDropping | × | × | × | × | → vmIdle |
+| vmIdle | vmIdle | ["coins' is {coin}, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | ["availableProducts' remains the same"(c, x, x')] → vmIdle | × | × | × |
+| vmCoinsInserted | vmCoinsInserted | × | × | ["availableProducts' and coins' remain the same"(c, x, x')] → vmWaitingChoosing | × | × |
+| vmWaitingChoosing | vmWaitingChoosing | ["coins' is coins with coin added, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | × | × | ["availableProducts contains product"(c, x) and "product' is product"(c, x, x')] → vmDropping<br>[not "availableProducts contains product"(c, x)] × | × |
+| vmDropping | vmDropping | × | × | × | × | ["availableProducts' is availableProducts minus product"(c, x, x')] → vmIdle |
 
 The columns are `state` (the ID), `name`, the visible events, and `[*]` when a
 reachable state has an end edge. States and events come in the order a
 breadth-first walk from the start state meets them, following edges in
 canonical order, so the rows read roughly in the order of the lifecycle and
-the same diagram always gives the same bytes.
+the same diagram always gives the same bytes. A column is an event as
+`docs/SYNTAX.md` defines one, its whole text, so `insert(coin)` and `insert(c)`
+are two columns.
 
-A cell holds one outcome per line, `[c] → s` (the event is accepted and the
-diagram goes to `s`) or `[c] ×` (the event is refused), each happening when its
-condition `c` holds; a line without one happens unconditionally. Every line
-holds on its own, so a cell is the set of what may happen and several edges for
-one event are simply several lines, whether their guards exclude one another or
-not. A multi-line cell is quoted, as CSV quotes it.
+A cell holds one outcome per line, `[C] → s` (the event may be accepted, and
+the diagram be in `s`) or `[C] ×` (the event may be refused), each when its
+condition `C` holds; a line without one happens unconditionally. Every line
+holds on its own, so a cell is the set of what may happen, and several edges
+for one event are simply several lines, whether their guards exclude one
+another or not. A multi-line cell is quoted, as CSV quotes it.
+
+`C` is a formula of first-order logic whose atoms are the guards and
+postconditions of the diagram, quoted as JSON strings so that no text they hold
+reads as a connective, and applied to what they read, as in the obligation IR:
+a guard to the parameters of its event and the values of the state variables
+before its step, a postcondition to those and the values after. The guard of
+an end edge has no event and reads the values only. The variables are
+
+| variable | stands for |
+|---|---|
+| `x` | the values of the row's state |
+| `c` | the parameters of the column's event, as the environment offers them |
+| `x'` | the values of the state an accepted event leads to |
+| `ci` | the parameters of the event of the `i`-th `tau` step |
+| `xi` | the values after the `i`-th `tau` step |
+
+The parameters are never parsed out of an event: a variable stands for them
+all, whatever they are, so no syntax of parameters is fixed. A line in the
+column of `insert(coin)` speaks of the `coin` offered, so a refusal is one of
+that value, as a stable failure refuses events with their values.
 
 The reading is the stable-failures one that `csdftracechk` and
-`csdfrefinement -m f` use. The environment cannot see `tau`, so `tau` is not a column: the
-diagram may take any number of `tau` edges first, and an outcome reached that
-way is written like any other, with the guards along the way conjoined in order.
-A refusal happens where the diagram is stable - no `tau` guard holds - and no
-guard for the event holds, so its condition conjoins the negations of both.
-With `A --> B : tau ; h1`, `B --> C : tau ; h2` and `C --> D : a ; g`, the cell
-of `A` under `a` is
+`csdfrefinement -m f` use. The environment cannot see `tau`, so `tau` is not a
+column: the diagram may take any number of `tau` edges first, and an outcome
+reached that way conjoins every guard and postcondition along the way, in
+order, binding with `exists` the values in between and the parameters of the
+hidden events, which the diagram chooses. A refusal happens where the diagram
+is stable and cannot perform the event: no `tau` edge is enabled, and no edge
+for the event is. With `A --> B : tau ; h1 ; p1`, `B --> C : tau ; h2 ; p2`
+and `C --> D : a ; g ; q`, the cell of `A` under `a` is
 
 ```
-[not (h1)] ×
-[h1 and not (h2)] ×
-[h1 and h2 and g] → D
-[h1 and h2 and not (g)] ×
+[not (exists c1. "h1"(c1, x))] ×
+[exists c1 x1. "h1"(c1, x) and "p1"(c1, x, x1) and not (exists c2. "h2"(c2, x1))] ×
+[exists c1 x1 c2 x2. "h1"(c1, x) and "p1"(c1, x, x1) and "h2"(c2, x1) and "p2"(c2, x1, x2) and "g"(c, x2) and "q"(c, x2, x')] → D
+[exists c1 x1 c2 x2. "h1"(c1, x) and "p1"(c1, x, x1) and "h2"(c2, x1) and "p2"(c2, x1, x2) and not "g"(c, x2)] ×
 ```
 
 where the lines come in the order of a depth-first walk along the `tau` edges:
-the diagram may stop and refuse in `A`, in `B` or in `C`, whichever it is stable
-in. With `examples/promote/local/CYCLE.puml`, where counting ends by a `tau`,
-the counting state both accepts and may refuse `BOOK`:
+the diagram may stop and refuse in `A`, in `B` or in `C`, whichever it is
+stable in. A variable is bound in step order, the parameters of a step before
+the values after it; a quantifier binds to the end of what it is in, and a
+negated formula other than an atom is parenthesised.
+
+A `true` guard or postcondition is dropped from a conjunction, and so is a
+bound variable nothing reads any more; both are equivalences of first-order
+logic, since every set of values is inhabited. A `true` postcondition still
+leaves the values after it free, which the variable says. With
+`examples/promote/local/CYCLE.puml`, where counting ends by a `tau`, the
+counting state both accepts and may refuse `BOOK`, and its `REPORT` is
+unconditional because the `tau` and the `REPORT` edge are both `true`
+throughout:
 
 | state | name | BOOK(数量) | REPORT |
 |---|---|---|---|
-| cycIdle | 未開始 | → cycCounting | × |
-| cycCounting | 集計中 | → cycCounting<br>× | → cycIdle |
+| cycIdle | 未開始 | ["total は 数量"(c, x, x')] → cycCounting | × |
+| cycCounting | 集計中 | ["total' = total + 数量"(c, x, x')] → cycCounting<br>× | → cycIdle |
 | cycFixed | 確定済み | × | → cycIdle |
 
-The conjuncts of a condition are in path order, and a later one reads the
-values the postconditions before it left. `-post` writes those postconditions,
-composed in order after a slash (`[c] / p then q → s`). They do not decide
-whether an event is refused, and paths that differ in them alone have to be
-kept apart when they are written, which the orders of interleaved hidden events
-that change the values multiply; so they are left out by default. A path whose
-postconditions are all `true` says nothing about them. `-expr-mode` chooses the
-spelling of the connectives: `natural` (the default: `and`, `not`, `then`) or
-`logical` (`∧`, `¬`, and Z's relational composition `⨾`). Lines that come out
-the same, such as those of two `tau` paths that meet again, are written once.
+`-expr-mode` chooses the spelling of the connectives: `natural` (the default:
+`and`, `not`, `exists`) or `logical` (`∧`, `¬`, `∃`). Lines that come out the
+same, such as those of two `tau` paths that meet again, are written once.
 
-As elsewhere, the guards are natural language and are never evaluated: a
-postcondition is taken to admit some next values, and whether the guards of a
-cell cover every case is left to the reader. The table says nothing about what
-the diagram may refuse after a trace, which is `csdftracechk`'s business.
+The table rests on one premise: every postcondition admits some values after
+its step, whatever the parameters and the values before. Under it an edge is
+enabled exactly when its guard holds, for some parameters of a `tau` edge or
+for those offered, which is what the refusals say; a postcondition no values
+satisfy would make a refusal the table does not show. As elsewhere, the guards
+and postconditions are natural language and are never evaluated, and whether
+the guards of a cell cover every case is left to the reader. The table says
+nothing about what the diagram may refuse after a trace, which is
+`csdftracechk`'s business.
 
 A diverging state never becomes stable, so it refuses nothing in the
 stable-failures sense although it accepts nothing either; a table would show it
