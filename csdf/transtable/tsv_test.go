@@ -139,3 +139,37 @@ D --> E : a
 		})
 	}
 }
+
+// A reader finds a column by its header, so an event spelled like a fixed
+// column would be read as that column.
+func TestWriteTSVRefusesAnEventSpelledLikeAFixedColumn(t *testing.T) {
+	for _, event := range []string{"state", "name", "[*]"} {
+		t.Run(event, func(t *testing.T) {
+			// Arrange
+			table, err := transtable.Build(parse(t, `@startuml
+state "S0" as s0
+[*] --> s0
+s0 --> s0 : `+event+`
+@enduml
+`))
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			var sb strings.Builder
+
+			// Act
+			err = transtable.WriteTSV(&sb, table, transtable.Format{Notation: transtable.NotationNatural})
+
+			// Assert
+			if err == nil {
+				t.Fatalf("want an error, got the table %q", sb.String())
+			}
+			if !strings.Contains(err.Error(), event) {
+				t.Errorf("want the event %q in the message, got %q", event, err.Error())
+			}
+			if sb.Len() != 0 {
+				t.Errorf("want nothing written, got %q", sb.String())
+			}
+		})
+	}
+}

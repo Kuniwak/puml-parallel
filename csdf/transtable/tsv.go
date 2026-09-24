@@ -46,15 +46,20 @@ const (
 )
 
 // WriteTSV writes t as a tab-separated table with a header row: the state, its
-// name, then a column per event. A cell holds one outcome per line.
+// name, then a column per event. A cell holds one outcome per line. An event
+// spelled like one of the other columns is refused before anything is written,
+// since a reader finds a column by its header.
 func WriteTSV(w io.Writer, t *Table, f Format) error {
-	cw := csv.NewWriter(w)
-	cw.Comma = '\t'
-
 	header := []string{stateColumn, nameColumn}
 	for _, c := range t.Columns {
+		if !c.Termination && slices.Contains([]string{stateColumn, nameColumn, string(Terminated)}, string(c.Event)) {
+			return fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", c.Event)
+		}
 		header = append(header, c.name())
 	}
+
+	cw := csv.NewWriter(w)
+	cw.Comma = '\t'
 	if err := cw.Write(header); err != nil {
 		return fmt.Errorf("transtable.WriteTSV: cannot write the header: %w", err)
 	}
