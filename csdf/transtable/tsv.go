@@ -46,7 +46,7 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 	for _, row := range t.Rows {
 		record := []string{string(row.State), row.Name}
 		for _, cell := range row.Cells {
-			record = append(record, f.cell(cell))
+			record = append(record, strings.Join(f.Lines(cell), "\n"))
 		}
 		if err := cw.Write(record); err != nil {
 			return fmt.Errorf("transtable.WriteTSV: cannot write the row of %s: %w", row.State, err)
@@ -60,11 +60,11 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 	return nil
 }
 
-// cell spells the outcomes one per line. The table does not show the states a
-// tau path passes, and true guards and postconditions add nothing to a
-// condition, so two outcomes may come out the same; a line already written is
-// not written again.
-func (f Format) cell(os []Outcome) string {
+// Lines spells the outcomes of a cell, one line each. The table does not show
+// the states a tau path passes, and true guards and postconditions add nothing
+// to a condition, so two outcomes may come out the same; a line already
+// spelled is not spelled again.
+func (f Format) Lines(os []Outcome) []string {
 	lines := make([]string, 0, len(os))
 	written := make(map[string]struct{}, len(os))
 	for _, o := range os {
@@ -75,7 +75,7 @@ func (f Format) cell(os []Outcome) string {
 		written[line] = struct{}{}
 		lines = append(lines, line)
 	}
-	return strings.Join(lines, "\n")
+	return lines
 }
 
 // Line spells one outcome as a line of a cell: its condition in brackets,

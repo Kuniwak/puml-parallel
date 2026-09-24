@@ -106,15 +106,15 @@ func Build(d *csdf.Diagram) (*Table, error) {
 
 	// Each list is in canonical order, so the table comes out the same for the
 	// same diagram.
-	x := index{graph: csdf.NewGraph(d), end: d.EndEdge}
-	states := x.graph.Reachable(d.StartEdge.Dst)
-	columns := columnsOf(states, x)
+	ix := index{graph: csdf.NewGraph(d), end: d.EndEdge}
+	states := ix.graph.Reachable(d.StartEdge.Dst)
+	columns := columnsOf(states, ix)
 
 	rows := make([]Row, 0, len(states))
 	for _, s := range states {
 		cells := make([][]Outcome, len(columns))
 		for i, c := range columns {
-			cells[i] = x.outcomes(s, c)
+			cells[i] = ix.outcomes(s, c)
 		}
 		rows = append(rows, Row{State: s, Name: d.States[s].Name, Cells: cells})
 	}
@@ -153,18 +153,18 @@ type take struct {
 // takes lists the ways u may perform c, in canonical order. An edge for an
 // event reads the parameters c the environment offers; an end edge has no
 // event and reads the values only, and it has no postcondition.
-func (x index) takes(u csdf.StateID, c Column) []take {
+func (ix index) takes(u csdf.StateID, c Column) []take {
 	ec, ok := c.(EventColumn)
 	if !ok {
-		if x.end == nil || x.end.Src != u {
+		if ix.end == nil || ix.end.Src != u {
 			return nil
 		}
-		g := x.end.Guard
+		g := ix.end.Guard
 		guard := func(v logic.Var) logic.Formula { return pred(g, v) }
 		return []take{{guard: guard, taken: guard, result: Terminate{}}}
 	}
 	var ts []take
-	for _, e := range x.graph.Out(u) {
+	for _, e := range ix.graph.Out(u) {
 		if e.Event != ec.Event {
 			continue
 		}
@@ -227,7 +227,7 @@ func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula
 // outcomes, so only the first is walked; otherwise the tau diamonds that
 // hiding interleaved events makes would grow the walk exponentially. The steps
 // of a way are named by a path, which is the same for the same steps.
-func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
+func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 	var os []Outcome
 	var paths pathNames
 	walked := make(map[walk]bool)
@@ -243,8 +243,8 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 		values := ValuesAfterStep(k)
 		path := conjuncts(steps)
 
-		takes := x.takes(u, c)
-		taus := x.graph.Taus(u)
+		takes := ix.takes(u, c)
+		taus := ix.graph.Taus(u)
 		for _, t := range takes {
 			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(values)), Result: t.result})
 		}
@@ -308,19 +308,19 @@ func (ns *pathNames) extend(before int, step tauStep) int {
 
 // columnsOf returns the visible events of states, in the order the states and
 // their edges come, and then termination when one of the states may terminate.
-func columnsOf(states []csdf.StateID, x index) []Column {
+func columnsOf(states []csdf.StateID, ix index) []Column {
 	var columns []Column
 	// The environment cannot offer tau, so it is not a column.
 	seen := map[csdf.Event]struct{}{csdf.Tau: {}}
 	for _, s := range states {
-		for _, e := range x.graph.Out(s) {
+		for _, e := range ix.graph.Out(s) {
 			if _, ok := seen[e.Event]; !ok {
 				seen[e.Event] = struct{}{}
 				columns = append(columns, EventColumn{Event: e.Event})
 			}
 		}
 	}
-	if x.end != nil && slices.Contains(states, x.end.Src) {
+	if ix.end != nil && slices.Contains(states, ix.end.Src) {
 		columns = append(columns, TerminationColumn{})
 	}
 	return columns
