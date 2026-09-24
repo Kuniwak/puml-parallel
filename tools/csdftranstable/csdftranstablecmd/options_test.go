@@ -80,14 +80,31 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 }
 
 func TestNewParseOptionsFuncNG(t *testing.T) {
-	testCases := map[string][]string{
-		"unknown expression mode": {"-expr-mode", "bogus", filepath.Join("testdata", "a.puml")},
-		"-post, which is gone":    {"-post", filepath.Join("testdata", "a.puml")},
-		"too many arguments":      {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "a.puml")},
-		"missing file":            {filepath.Join("testdata", "missing.puml")},
+	type testCase struct {
+		Args        []string
+		WantInError string
 	}
 
-	for name, args := range testCases {
+	testCases := map[string]testCase{
+		"unknown expression mode": {
+			Args:        []string{"-expr-mode", "bogus", filepath.Join("testdata", "a.puml")},
+			WantInError: `unknown notation "bogus"`,
+		},
+		"-post, which is gone": {
+			Args:        []string{"-post", filepath.Join("testdata", "a.puml")},
+			WantInError: "flag provided but not defined: -post",
+		},
+		"too many arguments": {
+			Args:        []string{filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "a.puml")},
+			WantInError: "too many arguments",
+		},
+		"missing file": {
+			Args:        []string{filepath.Join("testdata", "missing.puml")},
+			WantInError: "cannot read file",
+		},
+	}
+
+	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
 			parseOptions := NewParseOptionsFunc()
@@ -95,11 +112,14 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 			spy.Stdin = cli.StubStdin(strings.NewReader(""))
 
 			// Act
-			opts, err := parseOptions(args, spy.New())
+			opts, err := parseOptions(testCase.Args, spy.New())
 
 			// Assert
 			if err == nil {
-				t.Errorf("want an error, got %#v", opts)
+				t.Fatalf("want an error, got %#v", opts)
+			}
+			if !strings.Contains(err.Error(), testCase.WantInError) {
+				t.Errorf("want %q in the error, got %q", testCase.WantInError, err.Error())
 			}
 		})
 	}
