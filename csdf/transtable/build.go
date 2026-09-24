@@ -5,9 +5,7 @@
 package transtable
 
 import (
-	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
@@ -227,26 +225,28 @@ func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula
 // The walk terminates only when no tau cycle is reachable from s. Two ways
 // that reach a state along the same guards and postconditions lead to the same
 // outcomes, so only the first is walked; otherwise the tau diamonds that
-// hiding interleaved events makes would grow the walk exponentially.
+// hiding interleaved events makes would grow the walk exponentially. The steps
+// of a way are named by a path, which is the same for the same steps.
 func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 	var os []Outcome
-	walked := make(map[string]struct{})
-	var visit func(u csdf.StateID, steps []tauStep)
-	visit = func(u csdf.StateID, steps []tauStep) {
-		key := walkKey(u, steps)
-		if _, ok := walked[key]; ok {
+	var paths pathNames
+	walked := make(map[walk]bool)
+	var visit func(u csdf.StateID, pathName int, steps []tauStep)
+	visit = func(u csdf.StateID, pathName int, steps []tauStep) {
+		here := walk{state: u, path: pathName}
+		if walked[here] {
 			return
 		}
-		walked[key] = struct{}{}
+		walked[here] = true
 
 		k := len(steps)
-		here := ValuesAfterStep(k)
+		values := ValuesAfterStep(k)
 		path := conjuncts(steps)
 
 		takes := x.takes(u, c)
 		taus := x.graph.Taus(u)
 		for _, t := range takes {
-			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(here)), Result: t.result})
+			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(values)), Result: t.result})
 		}
 
 		// u refuses c when it is stable and cannot perform c. A true guard
@@ -254,37 +254,56 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 		var refusal []logic.Formula
 		for _, e := range taus {
 			hidden := ParamsOfStep(k + 1)
-			refusal = append(refusal, logic.Not(logic.Exists([]logic.Var{hidden}, pred(e.Guard, hidden, here))))
+			refusal = append(refusal, logic.Not(logic.Exists([]logic.Var{hidden}, pred(e.Guard, hidden, values))))
 		}
 		for _, t := range takes {
-			refusal = append(refusal, logic.Not(t.guard(here)))
+			refusal = append(refusal, logic.Not(t.guard(values)))
 		}
 		if cond := closeOver(k, path, refusal...); !logic.IsFalse(cond) {
 			os = append(os, Outcome{Cond: cond, Result: Refuse{}})
 		}
 
 		for _, e := range taus {
-			visit(e.Dst, append(slices.Clip(steps), tauStep{guard: e.Guard, post: e.Post}))
+			step := tauStep{guard: e.Guard, post: e.Post}
+			visit(e.Dst, paths.extend(pathName, step), append(slices.Clip(steps), step))
 		}
 	}
-	visit(s, nil)
+	visit(s, rootPath, nil)
 	return os
 }
 
-// walkKey identifies where a walk is and the tau steps it took. A predicate
-// may hold any character but a semicolon, so no separator can be trusted;
-// every field is written after its length instead, which makes the key tell
-// apart any two walks that differ.
-func walkKey(u csdf.StateID, steps []tauStep) string {
-	var sb strings.Builder
-	field := func(s string) { fmt.Fprintf(&sb, "%d:%s", len(s), s) }
+// walk is where a walk is and the path of tau steps it took there.
+type walk struct {
+	state csdf.StateID
+	path  int
+}
 
-	field(string(u))
-	for _, s := range steps {
-		field(string(s.guard))
-		field(string(s.post))
+// rootPath names the path of no steps.
+const rootPath = 0
+
+// pathNames names paths of tau steps: a path is its last step after the path
+// before it, so two paths get the same name exactly when their steps are the
+// same.
+type pathNames map[struct {
+	before int
+	step   tauStep
+}]int
+
+// extend names the path of step after the path named before.
+func (ns *pathNames) extend(before int, step tauStep) int {
+	if *ns == nil {
+		*ns = make(pathNames)
 	}
-	return sb.String()
+	key := struct {
+		before int
+		step   tauStep
+	}{before: before, step: step}
+	if name, ok := (*ns)[key]; ok {
+		return name
+	}
+	name := len(*ns) + 1
+	(*ns)[key] = name
+	return name
 }
 
 // columnsOf returns the visible events of states, in the order the states and

@@ -472,6 +472,28 @@ E2 --> F : a
 				goTo(ex(vs(c1, x1, c2), and(q("a", c1, x), q("b", c2, x1))), "E"),
 			},
 		},
+		// A guard and a postcondition spelled the same read different
+		// values, so the two ways are two outcomes.
+		"a guard is not taken for a postcondition spelled the same": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau ; p ; true
+A --> C : tau ; true ; p
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`,
+			Want: []transtable.Outcome{
+				goTo(ex(vs(c1), q("p", c1, x)), "E"),
+				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
+			},
+		},
 		// A postcondition is part of the condition, so two ways that differ
 		// in one alone are two outcomes.
 		"postconditions along a tau path tell the paths apart": {
