@@ -40,7 +40,7 @@ func spell(t *transtable.Table) *spelled {
 func spellCell(os []transtable.Outcome) []string {
 	lines := make([]string, 0, len(os))
 	for _, o := range os {
-		lines = append(lines, transtable.Format{Notation: transtable.NotationLogical}.Line(o))
+		lines = append(lines, format(transtable.NotationLogical).Line(o))
 	}
 	return lines
 }
@@ -276,8 +276,8 @@ C --> D : a ; g
 @enduml
 `,
 			Want: []string{
-				`[¬(∃c1. "h1"(c1, x))] ×`,
-				`[∃c1 x1. "h1"(c1, x) ∧ ¬(∃c2. "h2"(c2, x1))] ×`,
+				`[¬∃c1. "h1"(c1, x)] ×`,
+				`[∃c1 x1. "h1"(c1, x) ∧ ¬∃c2. "h2"(c2, x1)] ×`,
 				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "g"(c, x2)] → D`,
 				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬"g"(c, x2)] ×`,
 			},
@@ -321,7 +321,7 @@ D --> E : a
 @enduml
 `,
 			Want: []string{
-				`[¬(∃c1. "g1"(c1, x)) ∧ ¬(∃c1. "g2"(c1, x))] ×`,
+				`[¬(∃c1. "g1"(c1, x)) ∧ ¬∃c1. "g2"(c1, x)] ×`,
 				`[∃c1. "g1"(c1, x)] → E`,
 				`[∃c1. "g2"(c1, x)] → E`,
 			},
@@ -367,10 +367,10 @@ E2 --> F : a
 @enduml
 `,
 			Want: []string{
-				`[¬(∃c1. "h1"(c1, x))] ×`,
-				`[∃c1 x1. "h1"(c1, x) ∧ ¬(∃c2. "h2"(c2, x1))] ×`,
-				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬(∃c3. "h3"(c3, x2))] ×`,
-				`[∃c1 x1 c2 x2 c3 x3. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ ¬(∃c4. "k1"(c4, x3)) ∧ ¬(∃c4. "k2"(c4, x3))] ×`,
+				`[¬∃c1. "h1"(c1, x)] ×`,
+				`[∃c1 x1. "h1"(c1, x) ∧ ¬∃c2. "h2"(c2, x1)] ×`,
+				`[∃c1 x1 c2 x2. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ ¬∃c3. "h3"(c3, x2)] ×`,
+				`[∃c1 x1 c2 x2 c3 x3. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ ¬(∃c4. "k1"(c4, x3)) ∧ ¬∃c4. "k2"(c4, x3)] ×`,
 				`[∃c1 x1 c2 x2 c3 x3 c4. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ "k1"(c4, x3)] → F`,
 				`[∃c1 x1 c2 x2 c3 x3 c4. "h1"(c1, x) ∧ "h2"(c2, x1) ∧ "h3"(c3, x2) ∧ "k2"(c4, x3)] → F`,
 			},
@@ -388,9 +388,9 @@ E2 --> F : a
 				"D --> E : x\n" +
 				"@enduml\n",
 			Want: []string{
-				`[¬(∃c1. "a\u0000b"(c1, x)) ∧ ¬(∃c1. "a"(c1, x))] ×`,
+				`[¬(∃c1. "a\u0000b"(c1, x)) ∧ ¬∃c1. "a"(c1, x)] ×`,
 				`[∃c1. "a\u0000b"(c1, x)] → E`,
-				`[∃c1 x1. "a"(c1, x) ∧ ¬(∃c2. "b"(c2, x1))] ×`,
+				`[∃c1 x1. "a"(c1, x) ∧ ¬∃c2. "b"(c2, x1)] ×`,
 				`[∃c1 x1 c2. "a"(c1, x) ∧ "b"(c2, x1)] → E`,
 			},
 		},
@@ -448,47 +448,5 @@ B --> A : tau ; g
 	}
 	if want := "A -> B -> A"; !strings.Contains(err.Error(), want) {
 		t.Errorf("want the cycle %q in the message, got %q", want, err.Error())
-	}
-}
-
-// A caller may extend the condition of one outcome without touching that of
-// another, even when both were collected along the same path.
-func TestBuildGivesEveryOutcomeItsOwnCondition(t *testing.T) {
-	// Arrange
-	d := csdf.MustParse(`@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-state "D" as D
-state "E" as E
-state "F" as F
-[*] --> A
-A --> B : tau ; h1
-B --> C : tau ; h2
-C --> D : tau ; h3
-D --> E : a ; g1
-D --> F : a ; g2
-@enduml
-`)
-	table, err := transtable.Build(d)
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
-	}
-	var accepted []transtable.Outcome
-	for _, o := range table.Rows[0].Cells[0] {
-		if !o.Refused {
-			accepted = append(accepted, o)
-		}
-	}
-	toE := accepted[0].Cond.(transtable.Exists).Body.(transtable.And)
-	toF := accepted[1].Cond.(transtable.Exists).Body.(transtable.And)
-
-	// Act
-	extendedE := append(toE.Conjuncts, transtable.Atom{Pred: "x"})
-	_ = append(toF.Conjuncts, transtable.Atom{Pred: "y"})
-
-	// Assert
-	if got := extendedE[len(extendedE)-1].(transtable.Atom).Pred; got != "x" {
-		t.Errorf("want the conjunct appended to the outcome to E to stay x, got %q", got)
 	}
 }

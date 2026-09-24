@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
 // Table is the state transition table of a diagram.
@@ -45,9 +46,10 @@ type Row struct {
 // Outcome is one thing that may happen when an event is offered: the diagram
 // accepts it and goes to Dst, or it refuses it. It may happen when Cond holds
 // of the values x of the row's state and the parameters c of the offered
-// event, for some values x' after an accepted event; a nil Cond is true.
+// event, for some values x' after an accepted event. Cond is simplified, and
+// logic.True when the outcome is unconditional.
 type Outcome struct {
-	Cond    Formula
+	Cond    logic.Formula
 	Refused bool
 	Dst     csdf.StateID
 }
@@ -102,11 +104,11 @@ type index struct {
 	end *csdf.EndEdge
 }
 
-// take is one way a state may perform a column: the guard it reads the values
-// v by, the conjuncts it adds when taken from v, and where it leads.
+// take is one way a state may perform a column: its guard over the values v,
+// what holds when it is taken from v, and where it leads.
 type take struct {
-	guard func(v Var) Formula
-	taken func(v Var) []Formula
+	guard func(v logic.Var) logic.Formula
+	taken func(v logic.Var) logic.Formula
 	dst   csdf.StateID
 }
 
@@ -119,12 +121,8 @@ func (x index) takes(u csdf.StateID, c Column) []take {
 			return nil
 		}
 		g := x.end.Guard
-		guard := func(v Var) Formula { return guardAtom(g, v) }
-		return []take{{
-			guard: guard,
-			taken: func(v Var) []Formula { return nonNil(guard(v)) },
-			dst:   Terminated,
-		}}
+		guard := func(v logic.Var) logic.Formula { return pred(g, v) }
+		return []take{{guard: guard, taken: guard, dst: Terminated}}
 	}
 	var ts []take
 	for _, e := range x.out[u] {
@@ -132,11 +130,13 @@ func (x index) takes(u csdf.StateID, c Column) []take {
 			continue
 		}
 		g, p := e.Guard, e.Post
-		guard := func(v Var) Formula { return guardAtom(g, varParams, v) }
+		guard := func(v logic.Var) logic.Formula { return pred(g, OfferedParams, v) }
 		ts = append(ts, take{
 			guard: guard,
-			taken: func(v Var) []Formula { return nonNil(guard(v), guardAtom(p, varParams, v, varNext)) },
-			dst:   e.Dst,
+			taken: func(v logic.Var) logic.Formula {
+				return logic.And(guard(v), pred(p, OfferedParams, v, NextValues))
+			},
+			dst: e.Dst,
 		})
 	}
 	return ts
@@ -150,26 +150,22 @@ type tauStep struct {
 // conjuncts are what the tau steps conjoin: the guard of the i-th step applied
 // to its parameters and the values before it, and its postcondition to those
 // and the values after it.
-func conjuncts(steps []tauStep) []Formula {
-	var fs []Formula
+func conjuncts(steps []tauStep) []logic.Formula {
+	fs := make([]logic.Formula, 0, 2*len(steps))
 	for i, s := range steps {
 		n := i + 1
-		fs = append(fs, nonNil(
-			guardAtom(s.guard, paramsOf(n), valuesAfter(i)),
-			guardAtom(s.post, paramsOf(n), valuesAfter(i), valuesAfter(n)),
-		)...)
+		fs = append(fs,
+			pred(s.guard, ParamsOfStep(n), ValuesAfterStep(i)),
+			pred(s.post, ParamsOfStep(n), ValuesAfterStep(i), ValuesAfterStep(n)),
+		)
 	}
 	return fs
 }
 
-func nonNil(fs ...Formula) []Formula {
-	var kept []Formula
-	for _, f := range fs {
-		if f != nil {
-			kept = append(kept, f)
-		}
-	}
-	return kept
+// closeOver conjoins what k tau steps collected and what holds after them,
+// binds the variables of the steps, and simplifies.
+func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula {
+	return logic.Simplify(logic.Exists(stepVars(k), logic.And(slices.Concat(path, then)...)))
 }
 
 // outcomes lists what may happen when c is offered in state s, in the
@@ -203,31 +199,27 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 		walked[key] = struct{}{}
 
 		k := len(steps)
-		here := valuesAfter(k)
+		here := ValuesAfterStep(k)
 		path := conjuncts(steps)
 
 		takes := x.takes(u, c)
 		taus := csdf.TauEdges(x.out[u])
 		for _, t := range takes {
-			os = append(os, Outcome{Cond: closeOver(k, slices.Concat(path, t.taken(here))), Dst: t.dst})
+			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(here)), Dst: t.dst})
 		}
 
-		// u refuses c when it is stable and cannot perform c, which is
-		// impossible as soon as one of those guards is true.
-		unconditional := false
-		var refusal []Formula
+		// u refuses c when it is stable and cannot perform c. A true guard
+		// makes that false, and then there is no refusal to list.
+		var refusal []logic.Formula
 		for _, e := range taus {
-			g := guardAtom(e.Guard, paramsOf(k+1), here)
-			unconditional = unconditional || g == nil
-			refusal = append(refusal, Not{Operand: Exists{Vars: []Var{paramsOf(k + 1)}, Body: g}})
+			hidden := ParamsOfStep(k + 1)
+			refusal = append(refusal, logic.Not(logic.Exists([]logic.Var{hidden}, pred(e.Guard, hidden, here))))
 		}
 		for _, t := range takes {
-			g := t.guard(here)
-			unconditional = unconditional || g == nil
-			refusal = append(refusal, Not{Operand: g})
+			refusal = append(refusal, logic.Not(t.guard(here)))
 		}
-		if !unconditional {
-			os = append(os, Outcome{Cond: closeOver(k, slices.Concat(path, refusal)), Refused: true})
+		if cond := closeOver(k, path, refusal...); !logic.IsFalse(cond) {
+			os = append(os, Outcome{Cond: cond, Refused: true})
 		}
 
 		for _, e := range taus {

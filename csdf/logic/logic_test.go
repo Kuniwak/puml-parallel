@@ -165,6 +165,15 @@ func TestNewNotationRefusesAConnectiveSpelledAsNothing(t *testing.T) {
 	}
 }
 
+func TestValidTellsAMadeNotationFromTheZeroOne(t *testing.T) {
+	if !mustNotation(t, symbols).Valid() {
+		t.Error("want a notation NewNotation made to be valid")
+	}
+	if (logic.Notation{}).Valid() {
+		t.Error("want the zero notation to be invalid")
+	}
+}
+
 // The zero Notation spells every connective as nothing, which would print a
 // negated formula as the formula itself; spelling with it is a programming
 // error.

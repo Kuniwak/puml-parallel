@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -33,7 +34,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:   tools.NewCommonOptionsDefault(),
-				ExprMode: ExprModeNatural,
+				ExprMode: transtable.NotationNatural,
 				Bytes:    []byte(diagram),
 			},
 		},
@@ -42,7 +43,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{},
 			Expected: &Options{
 				Common:   tools.NewCommonOptionsDefault(),
-				ExprMode: ExprModeNatural,
+				ExprMode: transtable.NotationNatural,
 				Bytes:    []byte(diagram),
 			},
 		},
@@ -50,7 +51,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{"-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:   tools.NewCommonOptionsDefault(),
-				ExprMode: ExprModeLogical,
+				ExprMode: transtable.NotationLogical,
 				Bytes:    []byte(diagram),
 			},
 		},

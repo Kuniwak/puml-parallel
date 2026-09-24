@@ -323,6 +323,9 @@ func NewNotation(c Connectives) (Notation, error) {
 	return Notation{c: c, valid: true}, nil
 }
 
+// Valid reports whether n was made by NewNotation; the zero Notation is not.
+func (n Notation) Valid() bool { return n.valid }
+
 // Spell writes f. Negation binds tightest; a conjunction and a disjunction
 // have no precedence over each other, so one inside the other is
 // parenthesised; an implication binds loosest, and one inside another is

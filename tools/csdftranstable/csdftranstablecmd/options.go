@@ -6,12 +6,14 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 type Options struct {
-	Common   *tools.CommonOptions
-	ExprMode ExprMode
+	Common *tools.CommonOptions
+	// ExprMode names the notation, one transtable.ParseNotation knows.
+	ExprMode string
 	Bytes    []byte
 }
 
@@ -84,7 +86,7 @@ Examples:
 		}
 
 		var exprMode string
-		flags.StringVar(&exprMode, "expr-mode", string(ExprModeNatural), "how conditions are spelled: natural (and, not, exists) or logical (∧, ¬, ∃)")
+		flags.StringVar(&exprMode, "expr-mode", transtable.NotationNatural, "how conditions are spelled: natural (and, not, exists) or logical (∧, ¬, ∃)")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -104,8 +106,7 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		mode, err := ParseExprMode(exprMode)
-		if err != nil {
+		if _, err := transtable.ParseNotation(exprMode); err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
 
@@ -113,6 +114,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, ExprMode: mode, Bytes: bs}, nil
+		return &Options{Common: commonOpts, ExprMode: exprMode, Bytes: bs}, nil
 	}
 }

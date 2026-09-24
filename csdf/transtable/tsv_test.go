@@ -26,7 +26,7 @@ state "One" as s1
 s0 --> s1 : a
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Format: format(transtable.NotationNatural),
 			Want: "state\tname\ta\n" +
 				"s0\tZero\t→ s1\n" +
 				"s1\tOne\t×\n",
@@ -42,7 +42,7 @@ s0 --> s1 : a ; product is available
 s1 --> [*] : g
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Format: format(transtable.NotationNatural),
 			Want: "state\tname\ta\t[*]\n" +
 				"s0\tS0\t\"[\"\"product is available\"\"(c, x)] → s1\n[not \"\"product is available\"\"(c, x)] ×\"\t×\n" +
 				"s1\tS1\t×\t\"[\"\"g\"\"(x)] → [*]\n[not \"\"g\"\"(x)] ×\"\n",
@@ -57,11 +57,11 @@ A --> B : tau ; h
 B --> C : a ; g
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationLogical},
+			Format: format(transtable.NotationLogical),
 			Want: tsvOf(
 				[]string{"state", "name", "a"},
 				[]string{"A", "A", lines(
-					`[¬(∃c1. "h"(c1, x))] ×`,
+					`[¬∃c1. "h"(c1, x)] ×`,
 					`[∃c1 x1. "h"(c1, x) ∧ "g"(c, x1)] → C`,
 					`[∃c1 x1. "h"(c1, x) ∧ ¬"g"(c, x1)] ×`,
 				)},
@@ -79,11 +79,11 @@ A --> B : tau ; h ; x' = x + 1
 B --> C : a ; g ; y' = x
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Format: format(transtable.NotationNatural),
 			Want: tsvOf(
 				[]string{"state", "name", "a"},
 				[]string{"A", "A", lines(
-					`[not (exists c1. "h"(c1, x))] ×`,
+					`[not exists c1. "h"(c1, x)] ×`,
 					`[exists c1 x1. "h"(c1, x) and "x' = x + 1"(c1, x, x1) and "g"(c, x1) and "y' = x"(c, x1, x')] → C`,
 					`[exists c1 x1. "h"(c1, x) and "x' = x + 1"(c1, x, x1) and not "g"(c, x1)] ×`,
 				)},
@@ -104,7 +104,7 @@ B --> C : a ; true ; y' = 0
 C --> A : b
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationLogical},
+			Format: format(transtable.NotationLogical),
 			Want: tsvOf(
 				[]string{"state", "name", "a", "b"},
 				[]string{"A", "A", `[∃x1. "y' = 0"(c, x1, x')] → C`, "×"},
@@ -127,7 +127,7 @@ B --> E : a
 C --> E : a
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Format: format(transtable.NotationNatural),
 			Want: "state\tname\ta\n" +
 				"A\tA\t→ E\n" +
 				"B\tB\t→ E\n" +
@@ -147,7 +147,7 @@ A --> E : a
 B --> E : a
 @enduml
 `,
-			Format: transtable.Format{Notation: transtable.NotationNatural},
+			Format: format(transtable.NotationNatural),
 			Want: "state\tname\ta\n" +
 				"A\tA\t→ E\n" +
 				"E\tE\t×\n" +
@@ -196,7 +196,7 @@ s0 --> s0 : ` + event + `
 			var sb strings.Builder
 
 			// Act
-			err = transtable.WriteTSV(&sb, table, transtable.Format{Notation: transtable.NotationNatural})
+			err = transtable.WriteTSV(&sb, table, format(transtable.NotationNatural))
 
 			// Assert
 			if err == nil {
@@ -212,40 +212,54 @@ s0 --> s0 : ` + event + `
 	}
 }
 
-// A notation that spells a connective as nothing would print a negated guard
-// as the guard itself, so it is refused before anything is written.
-func TestWriteTSVRefusesANotationMissingAConnective(t *testing.T) {
-	testCases := map[string]transtable.Notation{
-		"the zero notation": {},
-		"no and":            {Not: "not ", Exists: "exists "},
-		"no not":            {And: " and ", Exists: "exists "},
-		"no exists":         {And: " and ", Not: "not "},
-	}
-
-	for name, notation := range testCases {
-		t.Run(name, func(t *testing.T) {
-			// Arrange
-			table, err := transtable.Build(csdf.MustParse(`@startuml
+// The zero notation spells nothing, which would print a negated guard as the
+// guard itself, so it is refused before anything is written.
+func TestWriteTSVRefusesTheZeroNotation(t *testing.T) {
+	// Arrange
+	table, err := transtable.Build(csdf.MustParse(`@startuml
 state "S0" as s0
 state "S1" as s1
 [*] --> s0
 s0 --> s1 : a ; g
 @enduml
 `))
-			if err != nil {
-				t.Fatalf("want nil, got %v", err)
-			}
-			var sb strings.Builder
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	var sb strings.Builder
 
+	// Act
+	err = transtable.WriteTSV(&sb, table, transtable.Format{})
+
+	// Assert
+	if err == nil {
+		t.Fatalf("want an error, got the table %q", sb.String())
+	}
+	if sb.Len() != 0 {
+		t.Errorf("want nothing written, got %q", sb.String())
+	}
+}
+
+func TestParseNotation(t *testing.T) {
+	type testCase struct {
+		Name    string
+		WantErr bool
+	}
+
+	testCases := map[string]testCase{
+		"natural": {Name: transtable.NotationNatural},
+		"logical": {Name: transtable.NotationLogical},
+		"unknown": {Name: "bogus", WantErr: true},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
 			// Act
-			err = transtable.WriteTSV(&sb, table, transtable.Format{Notation: notation})
+			_, err := transtable.ParseNotation(testCase.Name)
 
 			// Assert
-			if err == nil {
-				t.Fatalf("want an error, got the table %q", sb.String())
-			}
-			if sb.Len() != 0 {
-				t.Errorf("want nothing written, got %q", sb.String())
+			if (err != nil) != testCase.WantErr {
+				t.Errorf("want an error %t, got %v", testCase.WantErr, err)
 			}
 		})
 	}
@@ -264,3 +278,12 @@ func tsvOf(records ...[]string) string {
 
 // lines is a cell holding one outcome per line.
 func lines(ls ...string) string { return strings.Join(ls, "\n") }
+
+// format is the Format of the notation named name.
+func format(name string) transtable.Format {
+	n, err := transtable.ParseNotation(name)
+	if err != nil {
+		panic(err)
+	}
+	return transtable.Format{Notation: n}
+}
