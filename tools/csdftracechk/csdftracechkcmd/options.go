@@ -2,13 +2,13 @@ package csdftracechkcmd
 
 import (
 	"bytes"
-	"encoding/csv"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -168,21 +168,9 @@ func readTraceList(file string, inout *cli.ProcInout) ([]string, error) {
 // is: as CSV with a tab delimiter, skipping blank lines. A relative path is
 // relative to the working directory, as a trace argument is.
 func ReadTraceList(r io.Reader) ([]string, error) {
-	cr := csv.NewReader(r)
-	cr.Comma = '\t'
-	cr.FieldsPerRecord = 1
-
-	records, err := cr.ReadAll()
+	paths, err := tracechk.ReadSingleColumnTSV(r, TraceListHeader)
 	if err != nil {
 		return nil, fmt.Errorf("csdftracechkcmd.ReadTraceList: %w", err)
-	}
-	if len(records) == 0 || records[0][0] != TraceListHeader {
-		return nil, fmt.Errorf("csdftracechkcmd.ReadTraceList: want a header row %q", TraceListHeader)
-	}
-
-	paths := make([]string, 0, len(records)-1)
-	for _, record := range records[1:] {
-		paths = append(paths, record[0])
 	}
 	return paths, nil
 }

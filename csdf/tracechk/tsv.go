@@ -37,26 +37,16 @@ func ReadTrace(name string, r io.Reader) (Trace, error) {
 }
 
 // ReadTSV reads a trace: a TSV whose header is the single column "event" and
-// whose every other row is one event. It is read as CSV with a tab delimiter,
-// so a field may be quoted to hold a tab, a newline or a double quote, and an
-// unquoted field is taken literally; a second column is an error. Blank lines
-// are skipped, as csv.Reader skips them, so an event can never be empty.
+// whose every other row is one event, read as ReadSingleColumnTSV reads it.
 func ReadTSV(r io.Reader) ([]csdf.Event, error) {
-	cr := csv.NewReader(r)
-	cr.Comma = '\t'
-	cr.FieldsPerRecord = 1
-
-	records, err := cr.ReadAll()
+	fields, err := ReadSingleColumnTSV(r, TSVHeader)
 	if err != nil {
 		return nil, fmt.Errorf("tracechk.ReadTSV: %w", err)
 	}
-	if len(records) == 0 || records[0][0] != TSVHeader {
-		return nil, fmt.Errorf("want a header row %q", TSVHeader)
-	}
 
-	events := make([]csdf.Event, 0, len(records)-1)
-	for i, record := range records[1:] {
-		event := csdf.Event(record[0])
+	events := make([]csdf.Event, 0, len(fields))
+	for i, field := range fields {
+		event := csdf.Event(field)
 		// A trace is what the environment sees, and it never sees tau.
 		if event == csdf.Tau {
 			return nil, fmt.Errorf("row %d: %q is internal and cannot appear in a trace", i+2, csdf.Tau)
@@ -64,4 +54,29 @@ func ReadTSV(r io.Reader) ([]csdf.Event, error) {
 		events = append(events, event)
 	}
 	return events, nil
+}
+
+// ReadSingleColumnTSV reads a TSV whose header is the single column header and
+// returns the field of every other row. It is read as CSV with a tab delimiter,
+// so a field may be quoted to hold a tab, a newline or a double quote, and an
+// unquoted field is taken literally; a second column is an error. Blank lines
+// are skipped, as csv.Reader skips them, so a field can never be empty.
+func ReadSingleColumnTSV(r io.Reader, header string) ([]string, error) {
+	cr := csv.NewReader(r)
+	cr.Comma = '\t'
+	cr.FieldsPerRecord = 1
+
+	records, err := cr.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 || records[0][0] != header {
+		return nil, fmt.Errorf("want a header row %q", header)
+	}
+
+	fields := make([]string, 0, len(records)-1)
+	for _, record := range records[1:] {
+		fields = append(fields, record[0])
+	}
+	return fields, nil
 }
