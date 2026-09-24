@@ -283,6 +283,46 @@ D --> E : a
 				{Dst: "E"},
 			},
 		},
+		"tau paths that meet again under different conditions are both walked": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau ; g1
+A --> C : tau ; g2
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`,
+			Want: []transtable.Outcome{
+				{Cond: transtable.Cond{{Pred: "g1", Negated: true}, {Pred: "g2", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "g1"}}, Dst: "E"},
+				{Cond: transtable.Cond{{Pred: "g2"}}, Dst: "E"},
+			},
+		},
+		// The grammar lets a guard hold any character but a semicolon, so one
+		// guard must never be taken for two.
+		"a guard holding a control character is not taken for two guards": {
+			Diagram: "@startuml\n" +
+				"state \"A\" as A\nstate \"B\" as B\nstate \"C\" as C\nstate \"D\" as D\nstate \"E\" as E\n" +
+				"[*] --> A\n" +
+				"A --> B : tau ; a\x00b\n" +
+				"A --> C : tau ; a\n" +
+				"C --> D : tau ; b\n" +
+				"B --> D : tau\n" +
+				"D --> E : x\n" +
+				"@enduml\n",
+			Want: []transtable.Outcome{
+				{Cond: transtable.Cond{{Pred: "a\x00b", Negated: true}, {Pred: "a", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "a\x00b"}}, Dst: "E"},
+				{Cond: transtable.Cond{{Pred: "a"}, {Pred: "b", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "a"}, {Pred: "b"}}, Dst: "E"},
+			},
+		},
 		// Postconditions left out would otherwise keep apart every order in
 		// which hidden events that change the values interleave.
 		"postconditions not asked for do not tell tau paths apart": {

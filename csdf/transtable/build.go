@@ -5,6 +5,7 @@
 package transtable
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -188,23 +189,26 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 	return os
 }
 
-// walkKey identifies where a walk is and what it has collected on the way. The
-// separators and the mark of a negation are control characters, which the
-// grammar lets no state ID or predicate hold.
+// walkKey identifies where a walk is and what it has collected on the way. A
+// predicate may hold any character but a semicolon, so no separator can be
+// trusted; every field is written after its length instead, and the literals
+// after their number, which makes the key tell apart any two walks that differ.
 func walkKey(u csdf.StateID, cond Cond, posts []csdf.Predicate) string {
 	var sb strings.Builder
-	sb.WriteString(string(u))
+	field := func(s string) { fmt.Fprintf(&sb, "%d:%s", len(s), s) }
+
+	field(string(u))
+	fmt.Fprintf(&sb, "%d;", len(cond))
 	for _, l := range cond {
-		sb.WriteString("\x00")
 		if l.Negated {
-			sb.WriteString("\x02")
+			sb.WriteByte('-')
+		} else {
+			sb.WriteByte('+')
 		}
-		sb.WriteString(string(l.Pred))
+		field(string(l.Pred))
 	}
-	sb.WriteString("\x01")
 	for _, p := range posts {
-		sb.WriteString(string(p))
-		sb.WriteString("\x00")
+		field(string(p))
 	}
 	return sb.String()
 }
