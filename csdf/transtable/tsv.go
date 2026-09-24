@@ -25,14 +25,14 @@ var fixedColumns = []string{"state", "name"}
 // since a reader finds a column by its header.
 func WriteTSV(w io.Writer, t *Table, f Format) error {
 	if !f.Notation.Valid() {
-		return errors.New("transtable.WriteTSV: the zero notation spells nothing; take one from ParseNotation")
+		return fmt.Errorf("transtable.WriteTSV: %w", errors.New("the zero notation spells nothing; take one from ParseNotation"))
 	}
 
 	header := slices.Clone(fixedColumns)
 	reserved := append(slices.Clone(fixedColumns), TerminationColumn{}.Header())
 	for _, c := range t.Columns {
 		if ec, ok := c.(EventColumn); ok && slices.Contains(reserved, ec.Header()) {
-			return fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", ec.Event)
+			return fmt.Errorf("transtable.WriteTSV: %w", fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", ec.Event))
 		}
 		header = append(header, c.Header())
 	}
