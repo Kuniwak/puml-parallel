@@ -45,11 +45,8 @@ type Format struct {
 	Notation Notation
 }
 
-// Fixed column names of the TSV, before the event columns.
-const (
-	stateColumn = "state"
-	nameColumn  = "name"
-)
+// fixedColumns are the columns of the TSV before the event columns.
+var fixedColumns = []string{"state", "name"}
 
 // WriteTSV writes t as a tab-separated table with a header row: the state, its
 // name, then a column per event. A cell holds one outcome per line. An event
@@ -60,9 +57,10 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 		return fmt.Errorf("transtable.WriteTSV: %w", err)
 	}
 
-	header := []string{stateColumn, nameColumn}
+	header := slices.Clone(fixedColumns)
+	reserved := append(slices.Clone(fixedColumns), string(Terminated))
 	for _, c := range t.Columns {
-		if !c.Termination && slices.Contains([]string{stateColumn, nameColumn, string(Terminated)}, string(c.Event)) {
+		if !c.Termination && slices.Contains(reserved, string(c.Event)) {
 			return fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", c.Event)
 		}
 		header = append(header, c.name())
@@ -97,10 +95,14 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 // apart, so a line already written is not written again.
 func (f Format) cell(os []Outcome) string {
 	lines := make([]string, 0, len(os))
+	written := make(map[string]struct{}, len(os))
 	for _, o := range os {
-		if line := f.outcome(o); !slices.Contains(lines, line) {
-			lines = append(lines, line)
+		line := f.outcome(o)
+		if _, ok := written[line]; ok {
+			continue
 		}
+		written[line] = struct{}{}
+		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
 }
