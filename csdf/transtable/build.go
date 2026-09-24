@@ -5,6 +5,8 @@
 package transtable
 
 import (
+	"slices"
+
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
@@ -47,32 +49,49 @@ func Build(d *csdf.Diagram) (*Table, error) {
 	for _, s := range states {
 		cells := make([][]Outcome, len(columns))
 		for i, c := range columns {
-			cells[i] = outcomes(out[s], c.Event)
+			cells[i] = outcomes(out, s, c.Event)
 		}
 		rows = append(rows, Row{State: s, Name: d.States[s].Name, Cells: cells})
 	}
 	return &Table{Columns: columns, Rows: rows}, nil
 }
 
-// outcomes lists what may happen when event is offered to a state with the
-// given edges: it takes an edge for the event when that edge's guard holds, and
-// it refuses the event when no such guard holds.
-func outcomes(edges []csdf.Edge, event csdf.Event) []Outcome {
+// outcomes lists what may happen when event is offered in state s, in the
+// stable-failures sense. The diagram may first take any number of tau edges
+// whose guards hold, since the environment cannot see them; then, in the state
+// u it has reached, it may take an edge for the event whose guard holds, or,
+// when u is stable (no tau guard holds) and no guard for the event holds,
+// refuse the event. Each outcome is conditioned on every guard along its path,
+// in order, and the outcomes come in the order of a depth-first walk.
+//
+// The walk terminates only when no tau cycle is reachable from s.
+func outcomes(out map[csdf.StateID][]csdf.Edge, s csdf.StateID, event csdf.Event) []Outcome {
 	var os []Outcome
-	var guards []csdf.Predicate
-	unconditional := false
-	for _, e := range edges {
-		if e.Event != event {
-			continue
+	var visit func(u csdf.StateID, cond Cond, posts []csdf.Predicate)
+	visit = func(u csdf.StateID, cond Cond, posts []csdf.Predicate) {
+		var eventGuards, tauGuards []csdf.Predicate
+		for _, e := range out[u] {
+			switch e.Event {
+			case event:
+				os = append(os, Outcome{Cond: cond.and(e.Guard), Posts: append(slices.Clip(posts), e.Post), Dst: e.Dst})
+				eventGuards = append(eventGuards, e.Guard)
+			case csdf.Tau:
+				tauGuards = append(tauGuards, e.Guard)
+			}
 		}
-		os = append(os, Outcome{Cond: Cond(nil).and(e.Guard), Posts: []csdf.Predicate{e.Post}, Dst: e.Dst})
-		unconditional = unconditional || csdf.IsTrue(e.Guard)
-		guards = append(guards, e.Guard)
+		// u refuses the event when it is stable and cannot take it, which is
+		// impossible as soon as one of those guards is true.
+		if !slices.ContainsFunc(eventGuards, csdf.IsTrue) && !slices.ContainsFunc(tauGuards, csdf.IsTrue) {
+			os = append(os, Outcome{Cond: cond.andNot(tauGuards).andNot(eventGuards), Posts: posts, Refused: true})
+		}
+		for _, e := range out[u] {
+			if e.Event == csdf.Tau {
+				visit(e.Dst, cond.and(e.Guard), append(slices.Clip(posts), e.Post))
+			}
+		}
 	}
-	if unconditional {
-		return os
-	}
-	return append(os, Outcome{Cond: Cond(nil).andNot(guards), Refused: true})
+	visit(s, nil, nil)
+	return os
 }
 
 // reachable returns the states reachable from start, in the order a
@@ -95,7 +114,8 @@ func reachable(start csdf.StateID, out map[csdf.StateID][]csdf.Edge) []csdf.Stat
 // their edges come.
 func columnsOf(states []csdf.StateID, out map[csdf.StateID][]csdf.Edge) []Column {
 	var columns []Column
-	seen := make(map[csdf.Event]struct{})
+	// The environment cannot offer tau, so it is not a column.
+	seen := map[csdf.Event]struct{}{csdf.Tau: {}}
 	for _, s := range states {
 		for _, e := range out[s] {
 			if _, ok := seen[e.Event]; !ok {

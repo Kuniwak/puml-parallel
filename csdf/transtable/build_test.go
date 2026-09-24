@@ -121,6 +121,41 @@ s0 --> s2 : a
 				},
 			},
 		},
+		"tau is not a column; what the state may do after it is in the cells of the state": {
+			Diagram: `@startuml
+state "Idle" as idle
+state "Counting" as counting
+state "Fixed" as fixed
+[*] --> idle
+idle --> counting : BOOK
+counting --> counting : BOOK
+counting --> fixed : tau
+fixed --> idle : REPORT
+@enduml
+`,
+			Want: &transtable.Table{
+				Columns: []transtable.Column{{Event: "BOOK"}, {Event: "REPORT"}},
+				Rows: []transtable.Row{
+					{State: "idle", Name: "Idle", Cells: [][]transtable.Outcome{
+						{{Posts: []csdf.Predicate{"true"}, Dst: "counting"}},
+						{{Refused: true}},
+					}},
+					// Counting never refuses by itself, since its tau always
+					// may fire; Fixed, which the tau leads to, refuses BOOK.
+					{State: "counting", Name: "Counting", Cells: [][]transtable.Outcome{
+						{
+							{Posts: []csdf.Predicate{"true"}, Dst: "counting"},
+							{Posts: []csdf.Predicate{"true"}, Refused: true},
+						},
+						{{Posts: []csdf.Predicate{"true", "true"}, Dst: "idle"}},
+					}},
+					{State: "fixed", Name: "Fixed", Cells: [][]transtable.Outcome{
+						{{Refused: true}},
+						{{Posts: []csdf.Predicate{"true"}, Dst: "idle"}},
+					}},
+				},
+			},
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -139,5 +174,40 @@ s0 --> s2 : a
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+// A tau path is one weak transition, so what it leads to is conditioned on the
+// conjunction of every guard along it; each state it passes may be where the
+// diagram stops and refuses.
+func TestBuildConjoinsTheGuardsAlongATauPath(t *testing.T) {
+	// Arrange
+	d := parse(t, `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+[*] --> A
+A --> B : tau ; h1
+B --> C : tau ; h2
+C --> D : a ; g
+@enduml
+`)
+
+	// Act
+	got, err := transtable.Build(d)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	want := []transtable.Outcome{
+		{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
+		{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Posts: []csdf.Predicate{"true"}, Refused: true},
+		{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g"}}, Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "D"},
+		{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g", Negated: true}}, Posts: []csdf.Predicate{"true", "true"}, Refused: true},
+	}
+	if diff := cmp.Diff(want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
+		t.Error(diff)
 	}
 }
