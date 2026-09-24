@@ -29,12 +29,12 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 	}
 
 	header := slices.Clone(fixedColumns)
-	reserved := append(slices.Clone(fixedColumns), string(Terminated))
+	reserved := append(slices.Clone(fixedColumns), TerminationColumn{}.Header())
 	for _, c := range t.Columns {
-		if !c.Termination && slices.Contains(reserved, string(c.Event)) {
-			return fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", c.Event)
+		if ec, ok := c.(EventColumn); ok && slices.Contains(reserved, ec.Header()) {
+			return fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", ec.Event)
 		}
-		header = append(header, c.name())
+		header = append(header, c.Header())
 	}
 
 	cw := csv.NewWriter(w)
@@ -78,26 +78,11 @@ func (f Format) cell(os []Outcome) string {
 	return strings.Join(lines, "\n")
 }
 
-// name is the header of the column. Termination is spelled the way PlantUML
-// spells the end of a diagram.
-func (c Column) name() string {
-	if c.Termination {
-		return string(Terminated)
-	}
-	return string(c.Event)
-}
-
 // Line spells one outcome as a line of a cell: its condition in brackets,
-// unless it is true, then where the diagram goes, or × for a refusal.
+// unless it is true, then what it comes to.
 func (f Format) Line(o Outcome) string {
-	var sb strings.Builder
-	if !logic.IsTrue(o.Cond) {
-		sb.WriteString("[" + f.Notation.Spell(o.Cond) + "] ")
+	if logic.IsTrue(o.Cond) {
+		return o.Result.String()
 	}
-	if o.Refused {
-		sb.WriteString("×")
-	} else {
-		sb.WriteString("→ " + string(o.Dst))
-	}
-	return sb.String()
+	return "[" + f.Notation.Spell(o.Cond) + "] " + o.Result.String()
 }

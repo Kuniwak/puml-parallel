@@ -23,36 +23,72 @@ type Table struct {
 	Unreachable []csdf.StateID
 }
 
-// Column is one event the environment may offer, or termination.
-type Column struct {
-	Event csdf.Event
-	// Termination marks the column of successful termination, which an end
-	// edge performs. Event is empty then.
-	Termination bool
+// Column is one column past the state and its name: an EventColumn or the
+// TerminationColumn.
+type Column interface {
+	// Header is the column's header in a table.
+	Header() string
+	isColumn()
 }
 
-// Terminated is where an outcome of the termination column leads. It can never
-// be the ID of a state, since an ID has no brackets.
-const Terminated csdf.StateID = "[*]"
+// EventColumn is the column of an event the environment may offer. Its
+// header is the event's whole text, which is what the event is.
+type EventColumn struct{ Event csdf.Event }
 
-// Row is one state of the diagram. Cells holds, for every column in order,
-// the outcomes of offering that column's event in this state.
+// TerminationColumn is the column of successful termination, which an end
+// edge performs. Its header is spelled the way PlantUML spells the end.
+type TerminationColumn struct{}
+
+func (c EventColumn) Header() string     { return string(c.Event) }
+func (TerminationColumn) Header() string { return "[*]" }
+func (EventColumn) isColumn()            {}
+func (TerminationColumn) isColumn()      {}
+
+// Row is one state of the diagram. Cells holds, for every column of the table
+// in the same order, the outcomes of offering that column's event in this
+// state.
 type Row struct {
 	State csdf.StateID
 	Name  string
 	Cells [][]Outcome
 }
 
-// Outcome is one thing that may happen when an event is offered: the diagram
-// accepts it and goes to Dst, or it refuses it. It may happen when Cond holds
-// of the values x of the row's state and the parameters c of the offered
-// event, for some values x' after an accepted event. Cond is simplified, and
-// logic.True when the outcome is unconditional.
+// Outcome is one thing that may happen when an event is offered. It may happen
+// when Cond holds of the values x of the row's state and the parameters c of
+// the offered event, for some values x' after an accepted event. Cond is
+// simplified, and logic.True when the outcome is unconditional.
 type Outcome struct {
-	Cond    logic.Formula
-	Refused bool
-	Dst     csdf.StateID
+	Cond   logic.Formula
+	Result Result
 }
+
+// Result is what an outcome comes to: Goto, Terminate or Refuse.
+type Result interface {
+	// Accepted reports whether the event is accepted.
+	Accepted() bool
+	// String spells the result as a table does.
+	String() string
+	isResult()
+}
+
+// Goto accepts the event and leaves the diagram in State.
+type Goto struct{ State csdf.StateID }
+
+// Terminate accepts termination: the diagram ends.
+type Terminate struct{}
+
+// Refuse refuses the event.
+type Refuse struct{}
+
+func (Goto) Accepted() bool      { return true }
+func (Terminate) Accepted() bool { return true }
+func (Refuse) Accepted() bool    { return false }
+func (g Goto) String() string    { return "→ " + string(g.State) }
+func (Terminate) String() string { return "→ [*]" }
+func (Refuse) String() string    { return "×" }
+func (Goto) isResult()           {}
+func (Terminate) isResult()      {}
+func (Refuse) isResult()         {}
 
 // Build tabulates d. It fails with a *LivelockError when a tau cycle is
 // reachable, since the table reads d in the stable-failures sense and that
@@ -105,28 +141,29 @@ type index struct {
 }
 
 // take is one way a state may perform a column: its guard over the values v,
-// what holds when it is taken from v, and where it leads.
+// what holds when it is taken from v, and what it comes to.
 type take struct {
-	guard func(v logic.Var) logic.Formula
-	taken func(v logic.Var) logic.Formula
-	dst   csdf.StateID
+	guard  func(v logic.Var) logic.Formula
+	taken  func(v logic.Var) logic.Formula
+	result Result
 }
 
 // takes lists the ways u may perform c, in canonical order. An edge for an
 // event reads the parameters c the environment offers; an end edge has no
 // event and reads the values only, and it has no postcondition.
 func (x index) takes(u csdf.StateID, c Column) []take {
-	if c.Termination {
+	ec, ok := c.(EventColumn)
+	if !ok {
 		if x.end == nil || x.end.Src != u {
 			return nil
 		}
 		g := x.end.Guard
 		guard := func(v logic.Var) logic.Formula { return pred(g, v) }
-		return []take{{guard: guard, taken: guard, dst: Terminated}}
+		return []take{{guard: guard, taken: guard, result: Terminate{}}}
 	}
 	var ts []take
 	for _, e := range x.out[u] {
-		if e.Event != c.Event {
+		if e.Event != ec.Event {
 			continue
 		}
 		g, p := e.Guard, e.Post
@@ -136,7 +173,7 @@ func (x index) takes(u csdf.StateID, c Column) []take {
 			taken: func(v logic.Var) logic.Formula {
 				return logic.And(guard(v), pred(p, OfferedParams, v, NextValues))
 			},
-			dst: e.Dst,
+			result: Goto{State: e.Dst},
 		})
 	}
 	return ts
@@ -205,7 +242,7 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 		takes := x.takes(u, c)
 		taus := csdf.TauEdges(x.out[u])
 		for _, t := range takes {
-			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(here)), Dst: t.dst})
+			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(here)), Result: t.result})
 		}
 
 		// u refuses c when it is stable and cannot perform c. A true guard
@@ -219,7 +256,7 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 			refusal = append(refusal, logic.Not(t.guard(here)))
 		}
 		if cond := closeOver(k, path, refusal...); !logic.IsFalse(cond) {
-			os = append(os, Outcome{Cond: cond, Refused: true})
+			os = append(os, Outcome{Cond: cond, Result: Refuse{}})
 		}
 
 		for _, e := range taus {
@@ -256,12 +293,12 @@ func columnsOf(states []csdf.StateID, x index) []Column {
 		for _, e := range x.out[s] {
 			if _, ok := seen[e.Event]; !ok {
 				seen[e.Event] = struct{}{}
-				columns = append(columns, Column{Event: e.Event})
+				columns = append(columns, EventColumn{Event: e.Event})
 			}
 		}
 	}
 	if x.end != nil && slices.Contains(states, x.end.Src) {
-		columns = append(columns, Column{Termination: true})
+		columns = append(columns, TerminationColumn{})
 	}
 	return columns
 }

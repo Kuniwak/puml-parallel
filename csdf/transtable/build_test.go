@@ -71,7 +71,7 @@ s0 --> s1 : a
 @enduml
 `,
 			Want: &spelled{
-				Columns: []transtable.Column{{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
 						{"→ s1"},
@@ -91,7 +91,7 @@ s0 --> s1 : a ; g
 @enduml
 `,
 			Want: &spelled{
-				Columns: []transtable.Column{{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
 						{`["g"(c, x)] → s1`, `[¬"g"(c, x)] ×`},
@@ -113,7 +113,7 @@ s0 --> s2 : a ; g2
 @enduml
 `,
 			Want: &spelled{
-				Columns: []transtable.Column{{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
 						{`["g1"(c, x)] → s1`, `["g2"(c, x)] → s2`, `[¬"g1"(c, x) ∧ ¬"g2"(c, x)] ×`},
@@ -134,7 +134,7 @@ s0 --> s2 : a
 @enduml
 `,
 			Want: &spelled{
-				Columns: []transtable.Column{{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
 						{`["g"(c, x)] → s1`, "→ s2"},
@@ -169,7 +169,7 @@ s1 --> [*] : g
 @enduml
 `,
 			Want: &spelled{
-				Columns: []transtable.Column{{Event: "a"}, {Termination: true}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.TerminationColumn{}},
 				Rows: []spelledRow{
 					{State: "s0", Name: "S0", Cells: [][]string{
 						{"→ s1"},
@@ -195,7 +195,7 @@ fixed --> idle : REPORT
 @enduml
 `,
 			Want: &spelled{
-				Columns: []transtable.Column{{Event: "BOOK"}, {Event: "REPORT"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: "BOOK"}, transtable.EventColumn{Event: "REPORT"}},
 				Rows: []spelledRow{
 					{State: "idle", Name: "Idle", Cells: [][]string{
 						{"→ counting"},
