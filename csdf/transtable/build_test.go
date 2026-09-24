@@ -11,11 +11,45 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
+// spelled is a table with every outcome written as its line in the logical
+// notation, which says in a line what a struct literal says in five.
+type spelled struct {
+	Columns     []transtable.Column
+	Rows        []spelledRow
+	Unreachable []csdf.StateID
+}
+
+type spelledRow struct {
+	State csdf.StateID
+	Name  string
+	Cells [][]string
+}
+
+func spell(t *transtable.Table) *spelled {
+	rows := make([]spelledRow, 0, len(t.Rows))
+	for _, row := range t.Rows {
+		cells := make([][]string, 0, len(row.Cells))
+		for _, cell := range row.Cells {
+			cells = append(cells, spellCell(cell))
+		}
+		rows = append(rows, spelledRow{State: row.State, Name: row.Name, Cells: cells})
+	}
+	return &spelled{Columns: t.Columns, Rows: rows, Unreachable: t.Unreachable}
+}
+
+func spellCell(os []transtable.Outcome) []string {
+	lines := make([]string, 0, len(os))
+	for _, o := range os {
+		lines = append(lines, transtable.Format{Notation: transtable.NotationLogical}.Line(o))
+	}
+	return lines
+}
+
 func TestBuild(t *testing.T) {
 	type testCase struct {
 		Diagram string
 		Options transtable.Options
-		Want    *transtable.Table
+		Want    *spelled
 	}
 
 	testCases := map[string]testCase{
@@ -25,8 +59,8 @@ state "Idle" as s0
 [*] --> s0
 @enduml
 `,
-			Want: &transtable.Table{
-				Rows: []transtable.Row{{State: "s0", Name: "Idle"}},
+			Want: &spelled{
+				Rows: []spelledRow{{State: "s0", Name: "Idle"}},
 			},
 		},
 		"an edge is accepted where it starts and refused where it does not": {
@@ -37,14 +71,14 @@ state "S1" as s1
 s0 --> s1 : a
 @enduml
 `,
-			Want: &transtable.Table{
+			Want: &spelled{
 				Columns: []transtable.Column{{Event: "a"}},
-				Rows: []transtable.Row{
-					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
-						{{Dst: "s1"}},
+				Rows: []spelledRow{
+					{State: "s0", Name: "S0", Cells: [][]string{
+						{"→ s1"},
 					}},
-					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
-						{{Refused: true}},
+					{State: "s1", Name: "S1", Cells: [][]string{
+						{"×"},
 					}},
 				},
 			},
@@ -57,15 +91,14 @@ state "S1" as s1
 s0 --> s1 : a ; g
 @enduml
 `,
-			Want: &transtable.Table{
+			Want: &spelled{
 				Columns: []transtable.Column{{Event: "a"}},
-				Rows: []transtable.Row{
-					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						{Cond: transtable.Cond{{Pred: "g"}}, Dst: "s1"},
-						{Cond: transtable.Cond{{Pred: "g", Negated: true}}, Refused: true},
-					}}},
-					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
-						{{Refused: true}},
+				Rows: []spelledRow{
+					{State: "s0", Name: "S0", Cells: [][]string{
+						{"[g] → s1", "[¬(g)] ×"},
+					}},
+					{State: "s1", Name: "S1", Cells: [][]string{
+						{"×"},
 					}},
 				},
 			},
@@ -80,16 +113,14 @@ s0 --> s1 : a ; g1
 s0 --> s2 : a ; g2
 @enduml
 `,
-			Want: &transtable.Table{
+			Want: &spelled{
 				Columns: []transtable.Column{{Event: "a"}},
-				Rows: []transtable.Row{
-					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						{Cond: transtable.Cond{{Pred: "g1"}}, Dst: "s1"},
-						{Cond: transtable.Cond{{Pred: "g2"}}, Dst: "s2"},
-						{Cond: transtable.Cond{{Pred: "g1", Negated: true}, {Pred: "g2", Negated: true}}, Refused: true},
-					}}},
-					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{{Refused: true}}}},
-					{State: "s2", Name: "S2", Cells: [][]transtable.Outcome{{{Refused: true}}}},
+				Rows: []spelledRow{
+					{State: "s0", Name: "S0", Cells: [][]string{
+						{"[g1] → s1", "[g2] → s2", "[¬(g1) ∧ ¬(g2)] ×"},
+					}},
+					{State: "s1", Name: "S1", Cells: [][]string{{"×"}}},
+					{State: "s2", Name: "S2", Cells: [][]string{{"×"}}},
 				},
 			},
 		},
@@ -103,15 +134,14 @@ s0 --> s1 : a ; g
 s0 --> s2 : a
 @enduml
 `,
-			Want: &transtable.Table{
+			Want: &spelled{
 				Columns: []transtable.Column{{Event: "a"}},
-				Rows: []transtable.Row{
-					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						{Cond: transtable.Cond{{Pred: "g"}}, Dst: "s1"},
-						{Dst: "s2"},
-					}}},
-					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{{Refused: true}}}},
-					{State: "s2", Name: "S2", Cells: [][]transtable.Outcome{{{Refused: true}}}},
+				Rows: []spelledRow{
+					{State: "s0", Name: "S0", Cells: [][]string{
+						{"[g] → s1", "→ s2"},
+					}},
+					{State: "s1", Name: "S1", Cells: [][]string{{"×"}}},
+					{State: "s2", Name: "S2", Cells: [][]string{{"×"}}},
 				},
 			},
 		},
@@ -125,8 +155,8 @@ z --> y : b
 y --> [*]
 @enduml
 `,
-			Want: &transtable.Table{
-				Rows:        []transtable.Row{{State: "s0", Name: "S0"}},
+			Want: &spelled{
+				Rows:        []spelledRow{{State: "s0", Name: "S0"}},
 				Unreachable: []csdf.StateID{"y", "z"},
 			},
 		},
@@ -139,19 +169,16 @@ s0 --> s1 : a
 s1 --> [*] : g
 @enduml
 `,
-			Want: &transtable.Table{
+			Want: &spelled{
 				Columns: []transtable.Column{{Event: "a"}, {Termination: true}},
-				Rows: []transtable.Row{
-					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
-						{{Dst: "s1"}},
-						{{Refused: true}},
+				Rows: []spelledRow{
+					{State: "s0", Name: "S0", Cells: [][]string{
+						{"→ s1"},
+						{"×"},
 					}},
-					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{
-						{{Refused: true}},
-						{
-							{Cond: transtable.Cond{{Pred: "g"}}, Dst: transtable.Terminated},
-							{Cond: transtable.Cond{{Pred: "g", Negated: true}}, Refused: true},
-						},
+					{State: "s1", Name: "S1", Cells: [][]string{
+						{"×"},
+						{"[g] → [*]", "[¬(g)] ×"},
 					}},
 				},
 			},
@@ -168,25 +195,22 @@ counting --> fixed : tau
 fixed --> idle : REPORT
 @enduml
 `,
-			Want: &transtable.Table{
+			Want: &spelled{
 				Columns: []transtable.Column{{Event: "BOOK"}, {Event: "REPORT"}},
-				Rows: []transtable.Row{
-					{State: "idle", Name: "Idle", Cells: [][]transtable.Outcome{
-						{{Dst: "counting"}},
-						{{Refused: true}},
+				Rows: []spelledRow{
+					{State: "idle", Name: "Idle", Cells: [][]string{
+						{"→ counting"},
+						{"×"},
 					}},
 					// Counting never refuses by itself, since its tau always
 					// may fire; Fixed, which the tau leads to, refuses BOOK.
-					{State: "counting", Name: "Counting", Cells: [][]transtable.Outcome{
-						{
-							{Dst: "counting"},
-							{Refused: true},
-						},
-						{{Dst: "idle"}},
+					{State: "counting", Name: "Counting", Cells: [][]string{
+						{"→ counting", "×"},
+						{"→ idle"},
 					}},
-					{State: "fixed", Name: "Fixed", Cells: [][]transtable.Outcome{
-						{{Refused: true}},
-						{{Dst: "idle"}},
+					{State: "fixed", Name: "Fixed", Cells: [][]string{
+						{"×"},
+						{"→ idle"},
 					}},
 				},
 			},
@@ -205,7 +229,7 @@ fixed --> idle : REPORT
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
-			if diff := cmp.Diff(testCase.Want, got, cmpopts.EquateEmpty()); diff != "" {
+			if diff := cmp.Diff(testCase.Want, spell(got), cmpopts.EquateEmpty()); diff != "" {
 				t.Error(diff)
 			}
 		})
@@ -218,7 +242,7 @@ func TestBuildFirstCell(t *testing.T) {
 	type testCase struct {
 		Diagram string
 		Options transtable.Options
-		Want    []transtable.Outcome
+		Want    []string
 	}
 
 	// Two ways round a diamond that differ only in their postconditions.
@@ -253,11 +277,11 @@ B --> C : tau ; h2
 C --> D : a ; g
 @enduml
 `,
-			Want: []transtable.Outcome{
-				{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g"}}, Dst: "D"},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "g", Negated: true}}, Refused: true},
+			Want: []string{
+				"[¬(h1)] ×",
+				"[h1 ∧ ¬(h2)] ×",
+				"[h1 ∧ h2 ∧ g] → D",
+				"[h1 ∧ h2 ∧ ¬(g)] ×",
 			},
 		},
 		// Hiding interleaved events makes tau diamonds, and a walk that took
@@ -279,8 +303,8 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []transtable.Outcome{
-				{Dst: "E"},
+			Want: []string{
+				"→ E",
 			},
 		},
 		"tau paths that meet again under different conditions are both walked": {
@@ -298,10 +322,10 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []transtable.Outcome{
-				{Cond: transtable.Cond{{Pred: "g1", Negated: true}, {Pred: "g2", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "g1"}}, Dst: "E"},
-				{Cond: transtable.Cond{{Pred: "g2"}}, Dst: "E"},
+			Want: []string{
+				"[¬(g1) ∧ ¬(g2)] ×",
+				"[g1] → E",
+				"[g2] → E",
 			},
 		},
 		// A refusal needs the state stable and unable to take the event, and
@@ -316,10 +340,10 @@ A --> B : a ; g
 A --> C : tau ; h
 @enduml
 `,
-			Want: []transtable.Outcome{
-				{Cond: transtable.Cond{{Pred: "g"}}, Dst: "B"},
-				{Cond: transtable.Cond{{Pred: "h", Negated: true}, {Pred: "g", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h"}}, Refused: true},
+			Want: []string{
+				"[g] → B",
+				"[¬(h) ∧ ¬(g)] ×",
+				"[h] ×",
 			},
 		},
 		// The path to D is long enough for its condition to have spare
@@ -344,13 +368,13 @@ E1 --> F : a
 E2 --> F : a
 @enduml
 `,
-			Want: []transtable.Outcome{
-				{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3"}, {Pred: "k1", Negated: true}, {Pred: "k2", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3"}, {Pred: "k1"}}, Dst: "F"},
-				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3"}, {Pred: "k2"}}, Dst: "F"},
+			Want: []string{
+				"[¬(h1)] ×",
+				"[h1 ∧ ¬(h2)] ×",
+				"[h1 ∧ h2 ∧ ¬(h3)] ×",
+				"[h1 ∧ h2 ∧ h3 ∧ ¬(k1) ∧ ¬(k2)] ×",
+				"[h1 ∧ h2 ∧ h3 ∧ k1] → F",
+				"[h1 ∧ h2 ∧ h3 ∧ k2] → F",
 			},
 		},
 		// The grammar lets a guard hold any character but a semicolon, so one
@@ -365,27 +389,27 @@ E2 --> F : a
 				"B --> D : tau\n" +
 				"D --> E : x\n" +
 				"@enduml\n",
-			Want: []transtable.Outcome{
-				{Cond: transtable.Cond{{Pred: "a\x00b", Negated: true}, {Pred: "a", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "a\x00b"}}, Dst: "E"},
-				{Cond: transtable.Cond{{Pred: "a"}, {Pred: "b", Negated: true}}, Refused: true},
-				{Cond: transtable.Cond{{Pred: "a"}, {Pred: "b"}}, Dst: "E"},
+			Want: []string{
+				"[¬(a\x00b) ∧ ¬(a)] ×",
+				"[a\x00b] → E",
+				"[a ∧ ¬(b)] ×",
+				"[a ∧ b] → E",
 			},
 		},
 		// Postconditions left out would otherwise keep apart every order in
 		// which hidden events that change the values interleave.
 		"postconditions not asked for do not tell tau paths apart": {
 			Diagram: postDiamond,
-			Want: []transtable.Outcome{
-				{Dst: "E"},
+			Want: []string{
+				"→ E",
 			},
 		},
 		"postconditions asked for are collected along the path, and tell tau paths apart": {
 			Diagram: postDiamond,
 			Options: transtable.Options{Posts: true},
-			Want: []transtable.Outcome{
-				{Posts: []csdf.Predicate{"p", "true", "true"}, Dst: "E"},
-				{Posts: []csdf.Predicate{"q", "true", "true"}, Dst: "E"},
+			Want: []string{
+				"/ p ⨾ true ⨾ true → E",
+				"/ q ⨾ true ⨾ true → E",
 			},
 		},
 	}
@@ -402,7 +426,7 @@ E2 --> F : a
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
-			if diff := cmp.Diff(testCase.Want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
+			if diff := cmp.Diff(testCase.Want, spellCell(got.Rows[0].Cells[0]), cmpopts.EquateEmpty()); diff != "" {
 				t.Error(diff)
 			}
 		})

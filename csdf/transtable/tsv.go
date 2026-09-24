@@ -97,7 +97,7 @@ func (f Format) cell(os []Outcome) string {
 	lines := make([]string, 0, len(os))
 	written := make(map[string]struct{}, len(os))
 	for _, o := range os {
-		line := f.outcome(o)
+		line := f.Line(o)
 		if _, ok := written[line]; ok {
 			continue
 		}
@@ -116,10 +116,10 @@ func (c Column) name() string {
 	return string(c.Event)
 }
 
-// outcome spells one outcome: its condition in brackets, if any, then its
-// postconditions after a slash when they were collected and say anything, then
-// where the diagram goes, or × for a refusal.
-func (f Format) outcome(o Outcome) string {
+// Line spells one outcome as a line of a cell: its condition in brackets, if
+// any, then its postconditions after a slash when they were collected and say
+// anything, then where the diagram goes, or × for a refusal.
+func (f Format) Line(o Outcome) string {
 	var sb strings.Builder
 	if len(o.Cond) > 0 {
 		sb.WriteString("[" + f.cond(o.Cond) + "] ")
