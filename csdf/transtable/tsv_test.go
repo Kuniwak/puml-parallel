@@ -59,6 +59,39 @@ B --> C : a ; g
 				"B\tB\t\"[g] → C\n[¬(g)] ×\"\n" +
 				"C\tC\t×\n",
 		},
+		"postconditions along the path are composed in order after the condition": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; h ; x' = x + 1
+B --> C : a ; g ; y' = x
+@enduml
+`,
+			Format: transtable.Format{Notation: transtable.NotationNatural, Posts: true},
+			Want: "state\tname\ta\n" +
+				"A\tA\t\"[not (h)] ×\n[h and g] / x' = x + 1 then y' = x → C\n[h and not (g)] / x' = x + 1 ×\"\n" +
+				"B\tB\t\"[g] / y' = x → C\n[not (g)] ×\"\n" +
+				"C\tC\t×\n",
+		},
+		"postconditions are left out when every one along the path is true, and kept otherwise": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau
+B --> C : a ; true ; y' = 0
+C --> A : b
+@enduml
+`,
+			Format: transtable.Format{Notation: transtable.NotationLogical, Posts: true},
+			Want: "state\tname\ta\tb\n" +
+				"A\tA\t/ true ⨾ y' = 0 → C\t×\n" +
+				"B\tB\t/ y' = 0 → C\t×\n" +
+				"C\tC\t×\t→ A\n",
+		},
 	}
 
 	for name, testCase := range testCases {

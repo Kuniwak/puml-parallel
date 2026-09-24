@@ -4,29 +4,39 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
-// Notation spells the connectives of a condition. The guards are natural
-// language, so which spelling reads better depends on the reader.
+// Notation spells the connectives of a condition and the composition of
+// postconditions. The predicates are natural language, so which spelling reads
+// better depends on the reader.
 type Notation struct {
 	// And joins the literals of a condition.
 	And string
 	// Not comes before a negated guard, which is parenthesised.
 	Not string
+	// Then joins the postconditions along a path, in order.
+	Then string
 }
 
 var (
 	// NotationNatural spells the connectives as words.
-	NotationNatural = Notation{And: " and ", Not: "not "}
-	// NotationLogical spells the connectives as symbols, the conjunction the
-	// way csdf.Conjunction writes it.
-	NotationLogical = Notation{And: " ∧ ", Not: "¬"}
+	NotationNatural = Notation{And: " and ", Not: "not ", Then: " then "}
+	// NotationLogical spells the connectives as symbols: the conjunction the
+	// way csdf.Conjunction writes it, and the composition of relations the way
+	// Z does.
+	NotationLogical = Notation{And: " ∧ ", Not: "¬", Then: " ⨾ "}
 )
 
 // Format says how WriteTSV spells a table.
 type Format struct {
 	Notation Notation
+	// Posts writes the postconditions along the path of an outcome. They do
+	// not decide whether an event is refused, so they are left out by default.
+	Posts bool
 }
 
 // Fixed column names of the TSV, before the event columns.
@@ -83,12 +93,19 @@ func (c Column) name() string {
 	return string(c.Event)
 }
 
-// outcome spells one outcome: its condition in brackets, if any, then where the
-// diagram goes, or × for a refusal.
+// outcome spells one outcome: its condition in brackets, if any, then its
+// postconditions after a slash when they are asked for and say anything, then
+// where the diagram goes, or × for a refusal.
 func (f Format) outcome(o Outcome) string {
 	var sb strings.Builder
 	if len(o.Cond) > 0 {
 		sb.WriteString("[" + f.cond(o.Cond) + "] ")
+	}
+	// A path whose postconditions are all true says nothing about them. One
+	// that says something keeps its true ones too: a true postcondition lets
+	// the values be anything, so it is not the identity of the composition.
+	if f.Posts && slices.ContainsFunc(o.Posts, isNotTrue) {
+		sb.WriteString("/ " + f.posts(o.Posts) + " ")
 	}
 	if o.Refused {
 		sb.WriteString("×")
@@ -109,3 +126,16 @@ func (f Format) cond(c Cond) string {
 	}
 	return strings.Join(literals, f.Notation.And)
 }
+
+func (f Format) posts(ps []csdf.Predicate) string {
+	spelled := make([]string, 0, len(ps))
+	for _, p := range ps {
+		if csdf.IsTrue(p) {
+			p = csdf.PredicateTrue
+		}
+		spelled = append(spelled, string(p))
+	}
+	return strings.Join(spelled, f.Notation.Then)
+}
+
+func isNotTrue(p csdf.Predicate) bool { return !csdf.IsTrue(p) }
