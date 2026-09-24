@@ -82,17 +82,11 @@ func ValidateArgsAsFileInput(args []string, inout *cli.ProcInout) (string, []byt
 		return "", bs, err
 
 	case 1:
-		file := args[0]
-		if file == "-" {
-			bs, err := readStdin(inout)
+		bs, err := ReadFileOrStdin(args[0], inout)
+		if err != nil || args[0] == "-" {
 			return "", bs, err
 		}
-
-		bs, err := os.ReadFile(file)
-		if err != nil {
-			return "", nil, fmt.Errorf("cannot read file: %v", err)
-		}
-		return file, bs, nil
+		return args[0], bs, nil
 
 	default:
 		return "", nil, fmt.Errorf("too many arguments")
@@ -129,6 +123,18 @@ func ValidateArgsAsTwoFilePaths(args []string, inout *cli.ProcInout) ([2][]byte,
 		bss[i] = bs
 	}
 	return bss, nil
+}
+
+// ReadFileOrStdin reads the file at path, or standard input when path is "-".
+func ReadFileOrStdin(path string, inout *cli.ProcInout) ([]byte, error) {
+	if path == "-" {
+		return readStdin(inout)
+	}
+	bs, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read file: %v", err)
+	}
+	return bs, nil
 }
 
 func readStdin(inout *cli.ProcInout) ([]byte, error) {

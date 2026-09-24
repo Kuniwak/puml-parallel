@@ -50,6 +50,25 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Traces:  []tools.FileInput{okTrace, ngTrace},
 			},
 		},
+		"-traces file": {
+			Args: []string{"-traces", filepath.Join("testdata", "traces.tsv"), filepath.Join("testdata", "a.puml")},
+			Expected: &Options{
+				Common:  tools.NewCommonOptionsDefault(),
+				Match:   MatchNameExact,
+				Diagram: []byte(diagram),
+				Traces:  []tools.FileInput{okTrace, ngTrace},
+			},
+		},
+		"-traces from stdin, added to a trace argument": {
+			Stdin: "path\n" + filepath.Join("testdata", "ng.tsv") + "\n",
+			Args:  []string{"-traces", "-", filepath.Join("testdata", "a.puml"), okTrace.Name},
+			Expected: &Options{
+				Common:  tools.NewCommonOptionsDefault(),
+				Match:   MatchNameExact,
+				Diagram: []byte(diagram),
+				Traces:  []tools.FileInput{okTrace, ngTrace},
+			},
+		},
 		"-match prefix": {
 			Args: []string{"-match", "prefix", filepath.Join("testdata", "a.puml"), okTrace.Name},
 			Expected: &Options{
@@ -84,23 +103,41 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 }
 
 func TestNewParseOptionsFuncNG(t *testing.T) {
-	testCases := map[string][]string{
-		"no arguments":          {},
-		"diagram without trace": {filepath.Join("testdata", "a.puml")},
-		"unknown match rule":    {"-match", "bogus", filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "ok.tsv")},
-		"missing trace file":    {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "missing.tsv")},
-		"trace from stdin":      {filepath.Join("testdata", "a.puml"), "-"},
+	type testCase struct {
+		Stdin string
+		Args  []string
 	}
 
-	for name, args := range testCases {
+	puml := filepath.Join("testdata", "a.puml")
+	testCases := map[string]testCase{
+		"no arguments":          {Args: []string{}},
+		"diagram without trace": {Args: []string{puml}},
+		"unknown match rule":    {Args: []string{"-match", "bogus", puml, filepath.Join("testdata", "ok.tsv")}},
+		"missing trace file":    {Args: []string{puml, filepath.Join("testdata", "missing.tsv")}},
+		"trace from stdin":      {Args: []string{puml, "-"}},
+		"diagram and -traces both from stdin": {
+			Stdin: "path\n" + filepath.Join("testdata", "ok.tsv") + "\n",
+			Args:  []string{"-traces", "-", "-"},
+		},
+		"-traces listing nothing": {
+			Stdin: "path\n",
+			Args:  []string{"-traces", "-", puml},
+		},
+		"-traces listing a missing file": {
+			Stdin: "path\n" + filepath.Join("testdata", "missing.tsv") + "\n",
+			Args:  []string{"-traces", "-", puml},
+		},
+	}
+
+	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange
 			parseOptions := NewParseOptionsFunc()
 			spy := cli.SpyProcInout()
-			spy.Stdin = cli.StubStdin(strings.NewReader(""))
+			spy.Stdin = cli.StubStdin(strings.NewReader(testCase.Stdin))
 
 			// Act
-			opts, err := parseOptions(args, spy.New())
+			opts, err := parseOptions(testCase.Args, spy.New())
 
 			// Assert
 			if err == nil {
