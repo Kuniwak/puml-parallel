@@ -281,3 +281,39 @@ B --> A : tau ; g
 		t.Errorf("want the cycle %q in the message, got %q", want, err.Error())
 	}
 }
+
+// Hiding interleaved events makes tau diamonds, and a walk that took every way
+// round each of them would grow exponentially. Two ways that reach a state
+// under the same condition and postconditions lead to the same outcomes, so the
+// second is not walked.
+func TestBuildWalksATauDiamondOnce(t *testing.T) {
+	// Arrange
+	d := parse(t, `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau
+A --> C : tau
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`)
+
+	// Act
+	got, err := transtable.Build(d)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	want := []transtable.Outcome{
+		{Posts: []csdf.Predicate{"true", "true", "true"}, Dst: "E"},
+	}
+	if diff := cmp.Diff(want, got.Rows[0].Cells[0], cmpopts.EquateEmpty()); diff != "" {
+		t.Error(diff)
+	}
+}

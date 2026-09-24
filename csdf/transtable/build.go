@@ -6,6 +6,7 @@ package transtable
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -127,11 +128,21 @@ func (x index) takes(u csdf.StateID, c Column) []take {
 // is conditioned on every guard along its path, in order, and the outcomes come
 // in the order of a depth-first walk.
 //
-// The walk terminates only when no tau cycle is reachable from s.
+// The walk terminates only when no tau cycle is reachable from s. Two ways
+// that reach a state under the same condition and postconditions lead to the
+// same outcomes, so only the first is walked; otherwise the tau diamonds that
+// hiding interleaved events makes would grow the walk exponentially.
 func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 	var os []Outcome
+	walked := make(map[string]struct{})
 	var visit func(u csdf.StateID, cond Cond, posts []csdf.Predicate)
 	visit = func(u csdf.StateID, cond Cond, posts []csdf.Predicate) {
+		key := walkKey(u, cond, posts)
+		if _, ok := walked[key]; ok {
+			return
+		}
+		walked[key] = struct{}{}
+
 		var takeGuards, tauGuards []csdf.Predicate
 		for _, t := range x.takes(u, c) {
 			os = append(os, Outcome{Cond: cond.and(t.guard), Posts: slices.Concat(posts, t.posts), Dst: t.dst})
@@ -152,6 +163,27 @@ func (x index) outcomes(s csdf.StateID, c Column) []Outcome {
 	}
 	visit(s, nil, nil)
 	return os
+}
+
+// walkKey identifies where a walk is and what it has collected on the way. The
+// separators and the mark of a negation are control characters, which the
+// grammar lets no state ID or predicate hold.
+func walkKey(u csdf.StateID, cond Cond, posts []csdf.Predicate) string {
+	var sb strings.Builder
+	sb.WriteString(string(u))
+	for _, l := range cond {
+		sb.WriteString("\x00")
+		if l.Negated {
+			sb.WriteString("\x02")
+		}
+		sb.WriteString(string(l.Pred))
+	}
+	sb.WriteString("\x01")
+	for _, p := range posts {
+		sb.WriteString(string(p))
+		sb.WriteString("\x00")
+	}
+	return sb.String()
 }
 
 func tauEdges(edges []csdf.Edge) []csdf.Edge {
