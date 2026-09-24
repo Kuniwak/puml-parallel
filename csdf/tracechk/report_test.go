@@ -95,7 +95,7 @@ a --> a : y ; n > 0
 				"|-------------------------------|------------|-------|------|\n" +
 				"| next | `a --> b` (L8) | n < 3 | n' = n + 1 ∧ m' = 0 |\n" +
 				"\n" +
-				"Obligation: ∀ x0. post_0(x0) → (guard_L8(x0) ∧ ∃ x'. post_L8(x0, x'))\n" +
+				"Obligation: ∀ x0. post_0(x0) → guard_L8(x0) ∧ ∃ x'. post_L8(x0, x')\n" +
 				"\n" +
 				"## Event 2: `y` after `x`\n" +
 				"\n" +
@@ -164,5 +164,34 @@ a --> a : y ; n > 0
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+// A quantifier reaches to the end of what it is in, so an enabledness ending
+// in one is parenthesised when another disjunct follows it; otherwise the
+// disjunct after it would read as inside it.
+func TestWriteMarkdownParenthesisesAQuantifierThatADisjunctFollows(t *testing.T) {
+	// Arrange
+	d := parse(t, `@startuml
+state "a" as a
+state "b" as b
+state "c" as c
+[*] --> a
+a --> b : x ; true ; p
+a --> c : x ; g
+@enduml
+`)
+	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: []csdf.Event{"x"}})
+	var sb strings.Builder
+
+	// Act
+	err := tracechk.WriteMarkdown(&sb, d, result)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	if want := "Obligation: ∀ x0. true → (∃ x'. post_L6(x0, x')) ∨ guard_L7(x0)\n"; !strings.Contains(sb.String(), want) {
+		t.Errorf("want %q in the report, got\n%s", want, sb.String())
 	}
 }

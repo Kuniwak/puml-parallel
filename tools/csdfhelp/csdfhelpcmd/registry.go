@@ -17,6 +17,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools/csdfrepld/csdfrepldcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfsort/csdfsortcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdftracechk/csdftracechkcmd"
+	"github.com/Kuniwak/puml-parallel/tools/csdftranstable/csdftranstablecmd"
 	"github.com/Kuniwak/puml-parallel/tools/obligationirc/obligationirccmd"
 	"github.com/Kuniwak/puml-parallel/tools/toolsdoc"
 )
@@ -82,6 +83,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdftracechk",
 			Summary: "Checks whether event-sequence TSVs are traces of a Composable State Diagram and states the obligation on its predicates.",
 			Run:     tools.NewCommandFunc(csdftracechkcmd.NewParseOptionsFunc(), csdftracechkcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdftranstable",
+			Summary: "Writes the state transition table of a Composable State Diagram as TSV, showing where each event is refused.",
+			Run:     tools.NewCommandFunc(csdftranstablecmd.NewParseOptionsFunc(), csdftranstablecmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfrefinement",

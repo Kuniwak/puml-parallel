@@ -20,14 +20,10 @@ func Normalize(d *Diagram) (*Diagram, error) {
 		return nil, fmt.Errorf("csdf.Normalize: end edges are not supported")
 	}
 
-	// Index outgoing edges by source state.
-	out := make(map[StateID][]Edge)
-	for _, e := range d.Edges {
-		out[e.Src] = append(out[e.Src], e)
-	}
+	g := NewGraph(d)
 
 	// Initial normal-form state: τ-closure of the start state.
-	initSet := TauClosure(map[StateID]struct{}{d.StartEdge.Dst: {}}, out)
+	initSet := g.TauClosure(map[StateID]struct{}{d.StartEdge.Dst: {}})
 	initID := normalStateID(initSet)
 
 	result := &Diagram{
@@ -50,7 +46,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 		// outgoing edges are exactly those of its members. Group them by event.
 		byEvent := make(map[Event][]Edge)
 		for s := range u {
-			for _, e := range out[s] {
+			for _, e := range g.Out(s) {
 				if e.Event == Tau {
 					continue
 				}
@@ -69,7 +65,7 @@ func Normalize(d *Diagram) (*Diagram, error) {
 				posts = append(posts, e.Post)
 			}
 
-			v := TauClosure(dstSet, out)
+			v := g.TauClosure(dstSet)
 			if len(v) == 0 {
 				continue // empty sink ∅: omitted
 			}
@@ -93,31 +89,6 @@ func Normalize(d *Diagram) (*Diagram, error) {
 
 	SortEdges(result.Edges)
 	return result, nil
-}
-
-// tauClosure returns the set of states reachable from set via zero or more
-// τ-transitions (including the states of set themselves).
-func TauClosure(set map[StateID]struct{}, out map[StateID][]Edge) map[StateID]struct{} {
-	closure := make(map[StateID]struct{}, len(set))
-	queue := make([]StateID, 0, len(set))
-	for s := range set {
-		closure[s] = struct{}{}
-		queue = append(queue, s)
-	}
-	for len(queue) > 0 {
-		s := queue[0]
-		queue = queue[1:]
-		for _, e := range out[s] {
-			if e.Event != Tau {
-				continue
-			}
-			if _, ok := closure[e.Dst]; !ok {
-				closure[e.Dst] = struct{}{}
-				queue = append(queue, e.Dst)
-			}
-		}
-	}
-	return closure
 }
 
 // normalStateID is the canonical identifier of a normal-form state: its member

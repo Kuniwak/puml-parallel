@@ -1,0 +1,7 @@
+@startuml
+state "a" as a
+state "b" as b
+[*] --> a
+a --> b : insert(coin) ; true ; coins' is {coin}
+b --> a : reset
+@enduml
