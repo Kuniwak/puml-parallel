@@ -304,6 +304,24 @@ D --> E : a
 				{Cond: transtable.Cond{{Pred: "g2"}}, Dst: "E"},
 			},
 		},
+		// A refusal needs the state stable and unable to take the event, and
+		// its condition says so in that order.
+		"a refusal negates the tau guards, then the guards for the event": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : a ; g
+A --> C : tau ; h
+@enduml
+`,
+			Want: []transtable.Outcome{
+				{Cond: transtable.Cond{{Pred: "g"}}, Dst: "B"},
+				{Cond: transtable.Cond{{Pred: "h", Negated: true}, {Pred: "g", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h"}}, Refused: true},
+			},
+		},
 		// The path to D is long enough for its condition to have spare
 		// capacity, so the two tau edges out of D would write their guards
 		// over each other if a branch extended the condition in place.
