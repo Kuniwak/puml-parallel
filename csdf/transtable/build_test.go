@@ -304,6 +304,37 @@ D --> E : a
 				{Cond: transtable.Cond{{Pred: "g2"}}, Dst: "E"},
 			},
 		},
+		// The path to D is long enough for its condition to have spare
+		// capacity, so the two tau edges out of D would write their guards
+		// over each other if a branch extended the condition in place.
+		"sibling tau edges keep their own conditions": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E1" as E1
+state "E2" as E2
+state "F" as F
+[*] --> A
+A --> B : tau ; h1
+B --> C : tau ; h2
+C --> D : tau ; h3
+D --> E1 : tau ; k1
+D --> E2 : tau ; k2
+E1 --> F : a
+E2 --> F : a
+@enduml
+`,
+			Want: []transtable.Outcome{
+				{Cond: transtable.Cond{{Pred: "h1", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3"}, {Pred: "k1", Negated: true}, {Pred: "k2", Negated: true}}, Refused: true},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3"}, {Pred: "k1"}}, Dst: "F"},
+				{Cond: transtable.Cond{{Pred: "h1"}, {Pred: "h2"}, {Pred: "h3"}, {Pred: "k2"}}, Dst: "F"},
+			},
+		},
 		// The grammar lets a guard hold any character but a semicolon, so one
 		// guard must never be taken for two.
 		"a guard holding a control character is not taken for two guards": {
@@ -384,5 +415,41 @@ B --> A : tau ; g
 	}
 	if want := "A -> B -> A"; !strings.Contains(err.Error(), want) {
 		t.Errorf("want the cycle %q in the message, got %q", want, err.Error())
+	}
+}
+
+// A caller may extend the condition of one outcome without touching that of
+// another, even when both were collected along the same path.
+func TestBuildGivesEveryOutcomeItsOwnCondition(t *testing.T) {
+	// Arrange
+	d := csdf.MustParse(`@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+state "F" as F
+[*] --> A
+A --> B : tau ; h1
+B --> C : tau ; h2
+C --> D : tau ; h3
+D --> E : a
+D --> F : a
+@enduml
+`)
+	table, err := transtable.Build(d, transtable.Options{})
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	cell := table.Rows[0].Cells[0]
+	toE, toF := cell[len(cell)-2], cell[len(cell)-1]
+
+	// Act
+	extendedE := append(toE.Cond, transtable.Literal{Pred: "x"})
+	_ = append(toF.Cond, transtable.Literal{Pred: "y"})
+
+	// Assert
+	if got := extendedE[len(extendedE)-1].Pred; got != "x" {
+		t.Errorf("want the literal appended to the outcome to E to stay x, got %q", got)
 	}
 }

@@ -17,21 +17,23 @@ type Literal struct {
 // they were collected along. The empty Cond is true.
 type Cond []Literal
 
-// and returns c with the guard g conjoined. A true guard leaves c as it is.
-// The result never shares its backing array with c, so the conditions of two
-// branches of one path cannot overwrite each other.
+// and returns c with the guard g conjoined; a true guard adds nothing. The
+// result has no spare capacity, so appending to it - as the next step of a
+// path does, or a caller of Build - never writes into c or into another
+// result, and the conditions of two branches cannot overwrite each other.
 func (c Cond) and(g csdf.Predicate) Cond {
 	if csdf.IsTrue(g) {
-		return c
+		return slices.Clip(c)
 	}
-	return append(slices.Clip(c), Literal{Pred: g})
+	return slices.Clip(append(slices.Clip(c), Literal{Pred: g}))
 }
 
-// andNot returns c with the negation of every guard in gs conjoined.
+// andNot returns c with the negation of every guard in gs conjoined, with no
+// spare capacity either.
 func (c Cond) andNot(gs []csdf.Predicate) Cond {
 	c = slices.Clip(c)
 	for _, g := range gs {
 		c = append(c, Literal{Pred: g, Negated: true})
 	}
-	return c
+	return slices.Clip(c)
 }
