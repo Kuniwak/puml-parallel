@@ -56,6 +56,20 @@ func ReadTSV(r io.Reader) ([]csdf.Event, error) {
 	return events, nil
 }
 
+// TraceListHeader is the only column of a trace list TSV.
+const TraceListHeader = "path"
+
+// ReadTraceListTSV reads a trace list: a TSV whose header is the single column
+// "path" and whose every other row is the path of a trace TSV, read as
+// ReadSingleColumnTSV reads it. How a relative path resolves is up to the caller.
+func ReadTraceListTSV(r io.Reader) ([]string, error) {
+	paths, err := ReadSingleColumnTSV(r, TraceListHeader)
+	if err != nil {
+		return nil, fmt.Errorf("tracechk.ReadTraceListTSV: %w", err)
+	}
+	return paths, nil
+}
+
 // ReadSingleColumnTSV reads a TSV whose header is the single column header and
 // returns the field of every other row. It is read as CSV with a tab delimiter,
 // so a field may be quoted to hold a tab, a newline or a double quote, and an

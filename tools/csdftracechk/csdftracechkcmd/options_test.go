@@ -110,7 +110,6 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"missing trace file":                  {filepath.Join("testdata", "a.puml"), filepath.Join("testdata", "missing.tsv")},
 		"trace from stdin":                    {filepath.Join("testdata", "a.puml"), "-"},
 		"diagram and -traces both from stdin": {"-traces", "-", "-"},
-		"-traces without the header":          {"-traces", filepath.Join("testdata", "ok.tsv"), filepath.Join("testdata", "a.puml")},
 		"-traces listing nothing":             {"-traces", filepath.Join("testdata", "empty_traces.tsv"), filepath.Join("testdata", "a.puml")},
 	}
 

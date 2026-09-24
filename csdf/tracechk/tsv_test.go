@@ -78,3 +78,53 @@ func TestReadTraceNamesTheTraceInItsError(t *testing.T) {
 		t.Errorf("want %q, got %q", want, err.Error())
 	}
 }
+
+func TestReadTraceListTSV(t *testing.T) {
+	type testCase struct {
+		Input string
+		// Want is the paths; nil when an error is wanted.
+		Want []string
+	}
+
+	testCases := map[string]testCase{
+		"one path per row under a path header": {
+			Input: "path\ntraces/a.tsv\ntraces/b.tsv\n",
+			Want:  []string{"traces/a.tsv", "traces/b.tsv"},
+		},
+		"quoted fields follow CSV with a tab delimiter, blank lines are skipped": {
+			Input: "path\n\"a\tb.tsv\"\n\nc.tsv",
+			Want:  []string{"a\tb.tsv", "c.tsv"},
+		},
+		"header only (lower boundary value)": {
+			Input: "path\n",
+			Want:  []string{},
+		},
+		"trace header instead": {Input: "event\ninsert(coin)\n"},
+		"empty input":          {Input: ""},
+		"two columns":          {Input: "path\na.tsv\tb.tsv\n"},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			r := strings.NewReader(testCase.Input)
+
+			// Act
+			got, err := tracechk.ReadTraceListTSV(r)
+
+			// Assert
+			if testCase.Want == nil {
+				if err == nil {
+					t.Errorf("want an error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			if diff := cmp.Diff(testCase.Want, got); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}

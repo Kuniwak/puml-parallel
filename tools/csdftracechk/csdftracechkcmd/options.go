@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
@@ -152,25 +151,10 @@ Examples:
 	}
 }
 
-// TraceListHeader is the single column of a -traces TSV.
-const TraceListHeader = "path"
-
 func readTraceList(file string, inout *cli.ProcInout) ([]string, error) {
 	bs, err := tools.ValidateArgsAsFilePath([]string{file}, inout)
 	if err != nil {
 		return nil, err
 	}
-	return ReadTraceList(bytes.NewReader(bs))
-}
-
-// ReadTraceList reads a TSV whose header is the single column "path" and whose
-// every other row is the path of a trace TSV. It is read the way a trace TSV
-// is: as CSV with a tab delimiter, skipping blank lines. A relative path is
-// relative to the working directory, as a trace argument is.
-func ReadTraceList(r io.Reader) ([]string, error) {
-	paths, err := tracechk.ReadSingleColumnTSV(r, TraceListHeader)
-	if err != nil {
-		return nil, fmt.Errorf("csdftracechkcmd.ReadTraceList: %w", err)
-	}
-	return paths, nil
+	return tracechk.ReadTraceListTSV(bytes.NewReader(bs))
 }
