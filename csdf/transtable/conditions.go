@@ -54,7 +54,7 @@ func (conds Conditions) discharge(cs []conjunct) []conjunct {
 	read := make(map[logic.Var]bool)
 	kept := make([]conjunct, 0, len(cs))
 	for _, c := range slices.Backward(cs) {
-		if c.binds != "" && !read[c.binds] {
+		if c.isPost() && !read[c.binds] {
 			continue
 		}
 		for _, v := range logic.FreeVars(c.formula) {

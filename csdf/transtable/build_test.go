@@ -285,8 +285,9 @@ func tableText(t *transtable.Table) string {
 // first column, where the whole table would bury the point.
 func TestBuildFirstCell(t *testing.T) {
 	type testCase struct {
-		Diagram string
-		Want    []transtable.Outcome
+		Diagram    string
+		Conditions transtable.Conditions
+		Want       []transtable.Outcome
 	}
 
 	// Two ways round a diamond that differ only in their postconditions.
@@ -521,6 +522,83 @@ D --> E : a
 				goTo(ex(vs(c1, x1), q("q", c1, x, x1)), "E"),
 			},
 		},
+
+		// Every postcondition admits some values after its step, so one whose
+		// values nothing after it reads holds whatever else does, and the
+		// enabling condition leaves it out. One whose values a later guard
+		// reads says what that guard is applied to, and stays.
+		"the postcondition of the accepted event is left out": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+[*] --> A
+A --> B : a ; g ; y' = x
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				goTo(q("g", c, x), "B"),
+				refuse(not(q("g", c, x))),
+			},
+		},
+		"a postcondition along a tau path whose values a later guard reads stays": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; h ; x' = x + 1
+B --> C : a ; g ; y' = x
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h", c1, x)))),
+				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1))), "C"),
+				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", c, x1))))),
+			},
+		},
+		// Nothing after the first step reads its values but the second
+		// postcondition, which nothing reads; leaving that out leaves the first
+		// unread too.
+		"postconditions read only by postconditions left out are left out too": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+[*] --> A
+A --> B : tau ; h ; p
+B --> C : tau ; true ; q
+C --> D : a
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h", c1, x)))),
+				goTo(ex(vs(c1), q("h", c1, x)), "D"),
+			},
+		},
+		// Ways that differ in their postconditions alone come to the same
+		// enabling condition, which is listed once.
+		"ways that differ only in postconditions left out are one outcome": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau ; true ; p
+A --> C : tau ; true ; q
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want:       []transtable.Outcome{goTo(logic.True, "E")},
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -529,7 +607,7 @@ D --> E : a
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d, transtable.ConditionsFull)
+			got, err := transtable.Build(d, testCase.Conditions)
 
 			// Assert
 			if err != nil {
@@ -623,107 +701,6 @@ E --> [*]
 			}
 			if diff := cmp.Diff(testCase.Want, undeclared.States); diff != "" {
 				t.Error(diff)
-			}
-		})
-	}
-}
-
-// Every postcondition admits some values after its step, so one whose values
-// nothing after it reads holds whatever else does, and the enabling condition
-// leaves it out. One whose values a later guard reads says what that guard is
-// applied to, and stays.
-func TestBuildFirstCellEnabling(t *testing.T) {
-	type testCase struct {
-		Diagram string
-		Want    []transtable.Outcome
-	}
-
-	testCases := map[string]testCase{
-		"the postcondition of the accepted event is left out": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-[*] --> A
-A --> B : a ; g ; y' = x
-@enduml
-`,
-			Want: []transtable.Outcome{
-				goTo(q("g", c, x), "B"),
-				refuse(not(q("g", c, x))),
-			},
-		},
-		"a postcondition along a tau path whose values a later guard reads stays": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-[*] --> A
-A --> B : tau ; h ; x' = x + 1
-B --> C : a ; g ; y' = x
-@enduml
-`,
-			Want: []transtable.Outcome{
-				refuse(not(ex(vs(c1), q("h", c1, x)))),
-				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1))), "C"),
-				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", c, x1))))),
-			},
-		},
-		// Nothing after the first step reads its values but the second
-		// postcondition, which nothing reads; leaving that out leaves the first
-		// unread too.
-		"postconditions read only by postconditions left out are left out too": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-state "D" as D
-[*] --> A
-A --> B : tau ; h ; p
-B --> C : tau ; true ; q
-C --> D : a
-@enduml
-`,
-			Want: []transtable.Outcome{
-				refuse(not(ex(vs(c1), q("h", c1, x)))),
-				goTo(ex(vs(c1), q("h", c1, x)), "D"),
-			},
-		},
-		// Ways that differ in their postconditions alone come to the same
-		// enabling condition, which is listed once.
-		"ways that differ only in postconditions left out are one outcome": {
-			Diagram: `@startuml
-state "A" as A
-state "B" as B
-state "C" as C
-state "D" as D
-state "E" as E
-[*] --> A
-A --> B : tau ; true ; p
-A --> C : tau ; true ; q
-B --> D : tau
-C --> D : tau
-D --> E : a
-@enduml
-`,
-			Want: []transtable.Outcome{goTo(logic.True, "E")},
-		},
-	}
-
-	for name, testCase := range testCases {
-		t.Run(name, func(t *testing.T) {
-			// Arrange
-			d := csdf.MustParse(testCase.Diagram)
-
-			// Act
-			got, err := transtable.Build(d, transtable.ConditionsEnabling)
-
-			// Assert
-			if err != nil {
-				t.Fatalf("want nil, got %v", err)
-			}
-			cell := got.Rows[0].Cells[0]
-			if !cmp.Equal(testCase.Want, cell, equalFormulas) {
-				t.Errorf("want\n%s\ngot\n%s", linesOf(testCase.Want), linesOf(cell))
 			}
 		})
 	}

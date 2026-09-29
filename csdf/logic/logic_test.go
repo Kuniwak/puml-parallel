@@ -357,10 +357,12 @@ func TestTreeOf(t *testing.T) {
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Act
+			// Arrange
 			var sb strings.Builder
 			enc := json.NewEncoder(&sb)
 			enc.SetEscapeHTML(false)
+
+			// Act
 			err := enc.Encode(logic.TreeOf(testCase.Formula))
 
 			// Assert

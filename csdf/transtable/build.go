@@ -160,16 +160,23 @@ type take struct {
 	result Result
 }
 
-// conjunct is one of the formulas a condition conjoins. A postcondition binds
-// the values after its step; any other conjunct binds nothing, and binds is
-// empty.
+// conjunct is one of the formulas a condition conjoins. It is made by holds
+// or by binding.
 type conjunct struct {
 	formula logic.Formula
-	binds   logic.Var
+	// binds is the values a postcondition leads to, or empty for a conjunct
+	// that binds nothing.
+	binds logic.Var
 }
 
-// holds is a conjunct that binds nothing.
+// holds is a conjunct that binds nothing: a guard, or a refusal's negation.
 func holds(f logic.Formula) conjunct { return conjunct{formula: f} }
+
+// binding is a postcondition, which binds the values v after its step.
+func binding(f logic.Formula, v logic.Var) conjunct { return conjunct{formula: f, binds: v} }
+
+// isPost reports whether c is a postcondition.
+func (c conjunct) isPost() bool { return c.binds != "" }
 
 // takes lists the ways u may perform c, in canonical order. An edge for an
 // event reads the parameters c the environment offers; an end edge has no
@@ -195,7 +202,7 @@ func (ix index) takes(u csdf.StateID, c Column) []take {
 		ts = append(ts, take{
 			guard: guard,
 			taken: func(v logic.Var) []conjunct {
-				return []conjunct{holds(guard(v)), {formula: pred(p, OfferedParams, v, NextValues), binds: NextValues}}
+				return []conjunct{holds(guard(v)), binding(pred(p, OfferedParams, v, NextValues), NextValues)}
 			},
 			result: Goto{State: e.Dst},
 		})
@@ -217,7 +224,7 @@ func conjuncts(steps []tauStep) []conjunct {
 		n := i + 1
 		cs = append(cs,
 			holds(pred(s.guard, ParamsOfStep(n), ValuesAfterStep(i))),
-			conjunct{formula: pred(s.post, ParamsOfStep(n), ValuesAfterStep(i), ValuesAfterStep(n)), binds: ValuesAfterStep(n)},
+			binding(pred(s.post, ParamsOfStep(n), ValuesAfterStep(i), ValuesAfterStep(n)), ValuesAfterStep(n)),
 		)
 	}
 	return cs
