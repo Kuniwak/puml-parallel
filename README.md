@@ -463,8 +463,9 @@ same, such as those of two `tau` paths that meet again, are written once.
 by. It leaves out every postcondition whose values nothing kept after it reads:
 that of the accepted event always, and that of a `tau` step unless a later
 guard reads the values after the step. Under the premise below such a
-postcondition is true once its values are bound, so a condition holds exactly
-where it did, and only no longer says what the values after are. For
+postcondition is true once its values are bound, so a condition holds of `c`
+and `x` exactly where the full one holds for some `x'`, and only no longer says
+what the values after are. For
 `vending_machine.puml` the cells above become
 
 | state | name | insert(coin) | showAvailable(…) | showPurchasable(…) | choose(product) | drop(product) |
@@ -500,9 +501,13 @@ the columns, as the TSV does; `result` is `goto` with `state`, `terminate` or
 `or`, `implies` (with `operands`), `exists` or `forall` (with `vars` and
 `operands`). Whether an atom is a guard or a postcondition is told by what it
 is applied to: a guard reads two variables, or one for an end edge, and a
-postcondition three. Every list is a list, never `null`. Columns are told
-apart by `kind`, so no event clashes with one, and `-expr-mode` does not
-apply.
+postcondition three. The lists of the table, of a row and of a cell are
+lists, never `null`, even when empty; in a tree, a field its `op` has no use
+for is absent, and so are the `args` of an atom applied to nothing and a
+`quoted` that is false. Columns are told apart by `kind`, so no event clashes
+with one, and `-expr-mode` does not apply. The encoding carries no version of
+its own: like the rest of the output, it is that of the `csdftranstable`
+release, as `-version` prints it.
 
 The table rests on one premise: every postcondition admits some values after
 its step, whatever the parameters and the values before. Under it an edge is

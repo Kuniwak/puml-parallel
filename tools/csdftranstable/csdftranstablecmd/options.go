@@ -73,8 +73,9 @@ its guard holds for some parameters of a tau edge, or for those offered.
 With -conditions enabling, C leaves out every postcondition whose values
 nothing kept after it reads: the one of the accepted event always, and one of
 a tau step unless a later guard reads the values after that step. Since every
-postcondition admits some values, C still holds exactly where it did; it says
-what the outcome is enabled by, and no longer what the values after are.
+postcondition admits some values, C holds of c and x exactly where the full
+condition holds for some x'; it says what the outcome is enabled by, and no
+longer what the values after are.
 
 Negation binds tightest; a conjunction inside a disjunction, or the other way
 round, is parenthesised; an implication binds loosest; and a quantifier

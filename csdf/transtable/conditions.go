@@ -17,9 +17,11 @@ const (
 	ConditionsFull Conditions = iota + 1
 	// ConditionsEnabling keeps what the outcome is enabled by: it leaves out
 	// every postcondition whose values nothing kept after it reads. Every
-	// postcondition admits some values after its step, so binding those
-	// values makes it true, and the condition means what it did; it only no
-	// longer says what the values after are.
+	// postcondition admits some values after its step, so one of a tau step,
+	// whose values are bound, is true, and leaving it out changes nothing.
+	// The postcondition of the accepted event reads x', which the full
+	// condition leaves free; the enabling one holds of c and x exactly where
+	// the full one holds for some x', and no longer says what x' is.
 	ConditionsEnabling
 )
 
