@@ -45,7 +45,15 @@ a --> b : insert(coin) ; g
 				"a\ta\t→ b\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
-		"-format json": {
+		"-format json keeps every postcondition by default": {
+			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
+			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
+				`"rows":[` +
+				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"coins' is {coin}","quoted":true,"args":["c","x","x'"]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
+				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
+				`"unreachable":[]}` + "\n",
+		},
+		"-format json -conditions enabling": {
 			Args: []string{"-format", "json", "-conditions", "enabling", filepath.Join("testdata", "a.puml")},
 			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
 				`"rows":[` +
