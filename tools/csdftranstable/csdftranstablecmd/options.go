@@ -96,8 +96,8 @@ and whether the guards cover every case is left to the reader. A reachable tau
 cycle may make the diagram diverge, which a table of refusals cannot show, so
 such a diagram is refused, and so is one naming a state it never declares.
 Unreachable states have no row, and their IDs are written to standard error.
-An event spelled "state", "name" or "[*]" would be read as that column, so it
-is an error.
+An event spelled "state", "name" or "[*]" would be read as that column of the
+TSV, so it is an error there.
 
 With -format json, the table is written as JSON instead, for a program to read:
 
