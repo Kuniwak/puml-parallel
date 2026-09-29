@@ -5,6 +5,7 @@
 package transtable
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -103,9 +104,12 @@ func (Refuse) isResult()         {}
 // the parameters and the values before. That premise is what lets an edge be
 // enabled exactly when its guard holds, which is where refusals come from.
 //
-// conds says how much the conditions keep; the zero Conditions keeps
-// everything.
+// conds says how much the conditions keep; one Build does not know, the zero
+// Conditions among them, is refused.
 func Build(d *csdf.Diagram, conds Conditions) (*Table, error) {
+	if !conds.known() {
+		return nil, fmt.Errorf("transtable.Build: %w", fmt.Errorf("unknown conditions %d; take them from ParseConditions", conds))
+	}
 	if ids := undeclared(d); ids != nil {
 		return nil, &UndeclaredStateError{States: ids}
 	}

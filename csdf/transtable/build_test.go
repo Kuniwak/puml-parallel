@@ -322,6 +322,7 @@ B --> C : tau ; h2
 C --> D : a ; g
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h1", c1, x)))),
 				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
@@ -339,6 +340,7 @@ A --> B : tau ; h ; x' = x + 1
 B --> C : a ; g ; y' = x
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h", c1, x)))),
 				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1), q("y' = x", c, x1, xn))), "C"),
@@ -358,6 +360,7 @@ B --> C : a ; true ; y' = 0
 C --> A : b
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(ex(vs(x1), q("y' = 0", c, x1, xn)), "C"),
 			},
@@ -381,7 +384,8 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []transtable.Outcome{goTo(logic.True, "E")},
+			Conditions: transtable.ConditionsFull,
+			Want:       []transtable.Outcome{goTo(logic.True, "E")},
 		},
 		"tau paths that meet again under different conditions are both walked": {
 			Diagram: `@startuml
@@ -398,6 +402,7 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(and(not(ex(vs(c1), q("g1", c1, x))), not(ex(vs(c1), q("g2", c1, x))))),
 				goTo(ex(vs(c1), q("g1", c1, x)), "E"),
@@ -416,6 +421,7 @@ A --> B : a ; g
 A --> C : tau ; h
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(q("g", c, x), "B"),
 				refuse(and(not(ex(vs(c1), q("h", c1, x))), not(q("g", c, x)))),
@@ -444,6 +450,7 @@ E1 --> F : a
 E2 --> F : a
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h1", c1, x)))),
 				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
@@ -466,6 +473,7 @@ E2 --> F : a
 				"B --> D : tau\n" +
 				"D --> E : x\n" +
 				"@enduml\n",
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(and(not(ex(vs(c1), q("a\x00b", c1, x))), not(ex(vs(c1), q("a", c1, x))))),
 				goTo(ex(vs(c1), q("a\x00b", c1, x)), "E"),
@@ -490,6 +498,7 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(ex(vs(c1), q("p", c1, x)), "E"),
 				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
@@ -511,12 +520,14 @@ B --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []transtable.Outcome{goTo(logic.True, "E")},
+			Conditions: transtable.ConditionsFull,
+			Want:       []transtable.Outcome{goTo(logic.True, "E")},
 		},
 		// A postcondition is part of the condition, so two ways that differ
 		// in one alone are two outcomes.
 		"postconditions along a tau path tell the paths apart": {
-			Diagram: postDiamond,
+			Diagram:    postDiamond,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
 				goTo(ex(vs(c1, x1), q("q", c1, x, x1)), "E"),
@@ -701,6 +712,37 @@ E --> [*]
 			}
 			if diff := cmp.Diff(testCase.Want, undeclared.States); diff != "" {
 				t.Error(diff)
+			}
+		})
+	}
+}
+
+// The zero Conditions names nothing, so a caller has to say how much the
+// conditions keep, as it has to say how a table is spelled.
+func TestBuildRefusesConditionsItDoesNotKnow(t *testing.T) {
+	type testCase struct {
+		Conditions transtable.Conditions
+	}
+
+	testCases := map[string]testCase{
+		"the zero Conditions":     {Conditions: 0},
+		"one past the last known": {Conditions: transtable.ConditionsEnabling + 1},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			d := csdf.MustParse("@startuml\nstate \"A\" as A\n[*] --> A\n@enduml\n")
+
+			// Act
+			got, err := transtable.Build(d, testCase.Conditions)
+
+			// Assert
+			if err == nil {
+				t.Fatalf("want an error, got %v", got)
+			}
+			if !strings.Contains(err.Error(), "unknown conditions") {
+				t.Errorf("want %q in the message, got %q", "unknown conditions", err.Error())
 			}
 		})
 	}

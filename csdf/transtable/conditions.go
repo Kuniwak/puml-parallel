@@ -8,12 +8,13 @@ import (
 )
 
 // Conditions says how much of what holds along a way the condition of an
-// outcome keeps.
+// outcome keeps. The zero Conditions names nothing, so a caller always says
+// which it means.
 type Conditions int
 
 const (
 	// ConditionsFull keeps every guard and postcondition along the way.
-	ConditionsFull Conditions = iota
+	ConditionsFull Conditions = iota + 1
 	// ConditionsEnabling keeps what the outcome is enabled by: it leaves out
 	// every postcondition whose values nothing kept after it reads. Every
 	// postcondition admits some values after its step, so binding those
@@ -43,13 +44,22 @@ func ParseConditions(name string) (Conditions, error) {
 	return conds, nil
 }
 
+// known reports whether conds is one of the Conditions.
+func (conds Conditions) known() bool {
+	return conds == ConditionsFull || conds == ConditionsEnabling
+}
+
 // discharge leaves out of cs, when conds asks for it, every postcondition whose
 // values no conjunct kept after it reads. Only a later conjunct can read the
 // values of a step, so one pass from the last conjunct leaves out, too, a
 // postcondition whose values only one left out read.
 func (conds Conditions) discharge(cs []conjunct) []conjunct {
-	if conds != ConditionsEnabling {
+	switch conds {
+	case ConditionsFull:
 		return cs
+	case ConditionsEnabling:
+	default:
+		panic(fmt.Sprintf("transtable.Conditions.discharge: unknown conditions %d; Build refuses them", conds))
 	}
 	read := make(map[logic.Var]bool)
 	kept := make([]conjunct, 0, len(cs))
