@@ -455,7 +455,7 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 //
 // and the fields another Op has no use for are left empty.
 type Tree struct {
-	Op       string `json:"op"`
+	Op       Op     `json:"op"`
 	Name     string `json:"name,omitempty"`
 	Quoted   bool   `json:"quoted,omitempty"`
 	Args     []Var  `json:"args,omitempty"`
@@ -463,26 +463,42 @@ type Tree struct {
 	Operands []Tree `json:"operands,omitempty"`
 }
 
+// Op is what a Tree is.
+type Op string
+
+// The Ops of a Tree.
+const (
+	OpTrue    Op = "true"
+	OpFalse   Op = "false"
+	OpAtom    Op = "atom"
+	OpNot     Op = "not"
+	OpAnd     Op = "and"
+	OpOr      Op = "or"
+	OpImplies Op = "implies"
+	OpExists  Op = "exists"
+	OpForall  Op = "forall"
+)
+
 // TreeOf returns the syntax tree of f, the formula as it was built.
 func TreeOf(f Formula) Tree { return f.tree() }
 
 func (c constant) tree() Tree {
 	if c.value {
-		return Tree{Op: "true"}
+		return Tree{Op: OpTrue}
 	}
-	return Tree{Op: "false"}
+	return Tree{Op: OpFalse}
 }
 
 func (a atom) tree() Tree {
-	return Tree{Op: "atom", Name: a.name, Quoted: a.quoted, Args: slices.Clone(a.args)}
+	return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Args: slices.Clone(a.args)}
 }
 
-func (n not) tree() Tree { return Tree{Op: "not", Operands: []Tree{n.operand.tree()}} }
+func (n not) tree() Tree { return Tree{Op: OpNot, Operands: []Tree{n.operand.tree()}} }
 
 func (j junction) tree() Tree {
-	op := "or"
+	op := OpOr
 	if j.and {
-		op = "and"
+		op = OpAnd
 	}
 	operands := make([]Tree, len(j.operands))
 	for i, o := range j.operands {
@@ -492,13 +508,13 @@ func (j junction) tree() Tree {
 }
 
 func (i implies) tree() Tree {
-	return Tree{Op: "implies", Operands: []Tree{i.antecedent.tree(), i.consequent.tree()}}
+	return Tree{Op: OpImplies, Operands: []Tree{i.antecedent.tree(), i.consequent.tree()}}
 }
 
 func (q quantifier) tree() Tree {
-	op := "exists"
+	op := OpExists
 	if q.forall {
-		op = "forall"
+		op = OpForall
 	}
 	return Tree{Op: op, Vars: slices.Clone(q.vars), Operands: []Tree{q.body.tree()}}
 }
