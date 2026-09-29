@@ -163,7 +163,7 @@ Examples:
 		switch format {
 		case FormatTSV:
 		case FormatJSON:
-			if flagGiven(flags, "expr-mode") {
+			if tools.FlagGiven(flags, "expr-mode") {
 				return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", errors.New("-expr-mode has no effect with -format json, where a condition is a syntax tree"))
 			}
 		default:
@@ -180,16 +180,4 @@ Examples:
 		}
 		return &Options{Common: commonOpts, ExprMode: exprMode, Conditions: conditions, Format: format, Bytes: bs}, nil
 	}
-}
-
-// flagGiven reports whether the flag named name was given on the command line,
-// not merely left at its default.
-func flagGiven(flags *flag.FlagSet, name string) bool {
-	given := false
-	flags.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			given = true
-		}
-	})
-	return given
 }
