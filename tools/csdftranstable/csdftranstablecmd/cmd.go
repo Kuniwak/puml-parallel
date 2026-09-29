@@ -42,6 +42,13 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			fmt.Fprintf(inout.Stderr, "warning: unreachable states have no row: %s\n", strings.Join(ids, ", "))
 		}
 
+		if opts.Format == FormatJSON {
+			if err := transtable.WriteJSON(inout.Stdout, table); err != nil {
+				return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
+			}
+			return nil
+		}
+
 		notation, err := transtable.ParseNotation(opts.ExprMode)
 		if err != nil {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)

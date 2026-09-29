@@ -10,6 +10,14 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
+// The names of the formats a table is written in.
+const (
+	// FormatTSV writes it with transtable.WriteTSV, for a reader.
+	FormatTSV = "tsv"
+	// FormatJSON writes it with transtable.WriteJSON, for a program.
+	FormatJSON = "json"
+)
+
 type Options struct {
 	Common *tools.CommonOptions
 	// ExprMode names the notation, one transtable.ParseNotation knows.
@@ -17,7 +25,9 @@ type Options struct {
 	// Conditions names how much conditions keep, a name
 	// transtable.ParseConditions knows.
 	Conditions string
-	Bytes      []byte
+	// Format is FormatTSV or FormatJSON.
+	Format string
+	Bytes  []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -89,6 +99,21 @@ Unreachable states have no row, and their IDs are written to standard error.
 An event spelled "state", "name" or "[*]" would be read as that column, so it
 is an error.
 
+With -format json, the table is written as JSON instead, for a program to read:
+
+  {"columns": [{"kind": "event", "event": E} | {"kind": "termination"}, ...],
+   "rows": [{"state": ID, "name": NAME, "cells": [[OUTCOME, ...], ...]}, ...],
+   "unreachable": [ID, ...]}
+
+with a cell per column in the same order. An OUTCOME is
+{"result": "goto", "state": ID, "condition": C}, or "terminate" or "refuse"
+without "state", and C is a syntax tree: {"op": OP, ...}, where OP is true,
+false, atom (with "name", "quoted" and "args"), not, and, or, implies (with
+"operands"), exists or forall (with "vars" and "operands"). A guard is an atom
+applied to (c, xi) or, for an end edge, (xi); a postcondition to three
+variables. Being no TSV, it has no column to clash with, and -expr-mode does
+not apply.
+
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:
@@ -99,6 +124,7 @@ Examples:
   $ csdftranstable examples/valid/vending_machine.puml
   $ csdftranstable -expr-mode logical examples/valid/vending_machine.puml
   $ csdftranstable -conditions enabling examples/valid/vending_machine.puml
+  $ csdftranstable -format json examples/valid/vending_machine.puml
   $ csdfcomp tree.json | csdftranstable -
 `)
 		}
@@ -108,6 +134,9 @@ Examples:
 
 		var conditions string
 		flags.StringVar(&conditions, "conditions", transtable.ConditionsNameFull, "how much conditions keep: full (every guard and postcondition) or enabling (without the postconditions nothing reads)")
+
+		var format string
+		flags.StringVar(&format, "format", FormatTSV, "what the table is written as: tsv (for a reader) or json (for a program)")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -131,6 +160,16 @@ Examples:
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
 
+		switch format {
+		case FormatTSV:
+		case FormatJSON:
+			if flagGiven(flags, "expr-mode") {
+				return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", errors.New("-expr-mode has no effect with -format json, where a condition is a syntax tree"))
+			}
+		default:
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", fmt.Errorf("unknown format %q (want %s or %s)", format, FormatTSV, FormatJSON))
+		}
+
 		if _, err := transtable.ParseConditions(conditions); err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
@@ -139,6 +178,18 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, ExprMode: exprMode, Conditions: conditions, Bytes: bs}, nil
+		return &Options{Common: commonOpts, ExprMode: exprMode, Conditions: conditions, Format: format, Bytes: bs}, nil
 	}
+}
+
+// flagGiven reports whether the flag named name was given on the command line,
+// not merely left at its default.
+func flagGiven(flags *flag.FlagSet, name string) bool {
+	given := false
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			given = true
+		}
+	})
+	return given
 }

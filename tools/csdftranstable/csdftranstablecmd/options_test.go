@@ -36,6 +36,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Common:     tools.NewCommonOptionsDefault(),
 				ExprMode:   transtable.NotationNatural,
 				Conditions: transtable.ConditionsNameFull,
+				Format:     FormatTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -46,6 +47,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Common:     tools.NewCommonOptionsDefault(),
 				ExprMode:   transtable.NotationNatural,
 				Conditions: transtable.ConditionsNameFull,
+				Format:     FormatTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -55,6 +57,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Common:     tools.NewCommonOptionsDefault(),
 				ExprMode:   transtable.NotationLogical,
 				Conditions: transtable.ConditionsNameFull,
+				Format:     FormatTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -64,6 +67,17 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 				Common:     tools.NewCommonOptionsDefault(),
 				ExprMode:   transtable.NotationNatural,
 				Conditions: transtable.ConditionsNameEnabling,
+				Format:     FormatTSV,
+				Bytes:      []byte(diagram),
+			},
+		},
+		"-format json": {
+			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
+			Expected: &Options{
+				Common:     tools.NewCommonOptionsDefault(),
+				ExprMode:   transtable.NotationNatural,
+				Conditions: transtable.ConditionsNameFull,
+				Format:     FormatJSON,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -105,6 +119,15 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"unknown conditions": {
 			Args:        []string{"-conditions", "guards", filepath.Join("testdata", "a.puml")},
 			WantInError: `unknown conditions "guards"`,
+		},
+		"unknown format": {
+			Args:        []string{"-format", "csv", filepath.Join("testdata", "a.puml")},
+			WantInError: `unknown format "csv"`,
+		},
+		// JSON has no notation: a condition is a syntax tree there.
+		"-expr-mode with -format json": {
+			Args:        []string{"-format", "json", "-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
+			WantInError: "-expr-mode has no effect with -format json",
 		},
 		"-post, which is gone": {
 			Args:        []string{"-post", filepath.Join("testdata", "a.puml")},

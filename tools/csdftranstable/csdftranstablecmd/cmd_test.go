@@ -45,6 +45,14 @@ a --> b : insert(coin) ; g
 				"a\ta\t→ b\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
+		"-format json": {
+			Args: []string{"-format", "json", "-conditions", "enabling", filepath.Join("testdata", "a.puml")},
+			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
+				`"rows":[` +
+				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"true"}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
+				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
+				`"unreachable":[]}` + "\n",
+		},
 		"the ID of an unreachable state is written to standard error": {
 			Stdin: `@startuml
 state "S0" as s0
