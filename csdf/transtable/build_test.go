@@ -592,6 +592,38 @@ C --> D : a
 		},
 		// Ways that differ in their postconditions alone come to the same
 		// enabling condition, which is listed once.
+		// A refusal reads the values after the last step, through the
+		// guards it negates.
+		"a postcondition whose values only a refusal reads stays": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; true ; p
+B --> C : a ; g ; q
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				goTo(ex(vs(c1, x1), and(q("p", c1, x, x1), q("g", c, x1))), "C"),
+				refuse(ex(vs(c1, x1), and(q("p", c1, x, x1), not(q("g", c, x1))))),
+			},
+		},
+		// An end edge has no postcondition, so there is nothing to leave out.
+		"the guard of an end edge stays": {
+			Diagram: `@startuml
+state "A" as A
+[*] --> A
+A --> [*] : g
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				{Cond: q("g", x), Result: transtable.Terminate{}},
+				refuse(not(q("g", x))),
+			},
+		},
 		"ways that differ only in postconditions left out are one outcome": {
 			Diagram: `@startuml
 state "A" as A
