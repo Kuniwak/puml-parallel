@@ -60,6 +60,12 @@ type Outcome struct {
 	Result Result
 }
 
+// equal reports whether o and p are the same outcome: the same result under
+// the same condition, structurally.
+func (o Outcome) equal(p Outcome) bool {
+	return o.Result == p.Result && logic.Equal(o.Cond, p.Cond)
+}
+
 // Result is what an outcome comes to: Goto, Terminate or Refuse.
 type Result interface {
 	// Accepted reports whether the event is accepted.
@@ -214,7 +220,8 @@ func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula
 // condition of an outcome conjoins, in path order, every guard and
 // postcondition along its path, applied to the values each reads, and binds
 // the values and hidden parameters in between. The outcomes come in the order
-// of a depth-first walk.
+// of a depth-first walk, and an outcome that comes out the same as one before
+// it, under logic.Equal, is listed once.
 //
 // u is stable when none of its tau edges is enabled, and it cannot perform c
 // when none of its ways of performing c is. Every postcondition admits some
@@ -229,6 +236,11 @@ func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula
 // of a way are named by a path, which is the same for the same steps.
 func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 	var os []Outcome
+	add := func(o Outcome) {
+		if !slices.ContainsFunc(os, o.equal) {
+			os = append(os, o)
+		}
+	}
 	var paths pathNames
 	walked := make(map[walk]bool)
 	var visit func(u csdf.StateID, pathName int, steps []tauStep)
@@ -246,7 +258,7 @@ func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 		takes := ix.takes(u, c)
 		taus := ix.graph.Taus(u)
 		for _, t := range takes {
-			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(values)), Result: t.result})
+			add(Outcome{Cond: closeOver(k, path, t.taken(values)), Result: t.result})
 		}
 
 		// u refuses c when it is stable and cannot perform c. A true guard
@@ -260,7 +272,7 @@ func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 			refusal = append(refusal, logic.Not(t.guard(values)))
 		}
 		if cond := closeOver(k, path, refusal...); !logic.IsFalse(cond) {
-			os = append(os, Outcome{Cond: cond, Result: Refuse{}})
+			add(Outcome{Cond: cond, Result: Refuse{}})
 		}
 
 		for _, e := range taus {

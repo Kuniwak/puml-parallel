@@ -494,6 +494,24 @@ D --> E : a
 				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
 			},
 		},
+		// Paths of different lengths are different paths, but steps of true
+		// guards and postconditions add nothing, so both come to the same
+		// outcome, which is listed once.
+		"outcomes that come out the same are listed once": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "D" as D
+state "E" as E
+[*] --> A
+A --> D : tau
+A --> B : tau
+B --> D : tau
+D --> E : a
+@enduml
+`,
+			Want: []transtable.Outcome{goTo(logic.True, "E")},
+		},
 		// A postcondition is part of the condition, so two ways that differ
 		// in one alone are two outcomes.
 		"postconditions along a tau path tell the paths apart": {
