@@ -6,28 +6,18 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
-// The names of the formats a table is written in.
-const (
-	// FormatTSV writes it with transtable.WriteTSV, for a reader.
-	FormatTSV = "tsv"
-	// FormatJSON writes it with transtable.WriteJSON, for a program.
-	FormatJSON = "json"
-)
-
 type Options struct {
 	Common *tools.CommonOptions
-	// ExprMode names the notation, one transtable.ParseNotation knows.
-	ExprMode string
-	// Conditions names how much conditions keep, a name
-	// transtable.ParseConditions knows.
-	Conditions string
-	// Format is FormatTSV or FormatJSON.
-	Format string
-	Bytes  []byte
+	// Notation spells the conditions when Output spells them.
+	Notation   logic.Notation
+	Conditions transtable.Conditions
+	Output     transtable.Output
+	Bytes      []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -136,7 +126,7 @@ Examples:
 		flags.StringVar(&conditions, "conditions", transtable.ConditionsNameFull, "how much conditions keep: full (every guard and postcondition) or enabling (without the postconditions nothing reads)")
 
 		var format string
-		flags.StringVar(&format, "format", FormatTSV, "what the table is written as: tsv (for a reader) or json (for a program)")
+		flags.StringVar(&format, "format", transtable.OutputNameTSV, "what the table is written as: tsv (for a reader) or json (for a program)")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -156,21 +146,21 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if _, err := transtable.ParseNotation(exprMode); err != nil {
+		notation, err := transtable.ParseNotation(exprMode)
+		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
 
-		switch format {
-		case FormatTSV:
-		case FormatJSON:
-			if tools.FlagGiven(flags, "expr-mode") {
-				return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", errors.New("-expr-mode has no effect with -format json, where a condition is a syntax tree"))
-			}
-		default:
-			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", fmt.Errorf("unknown format %q (want %s or %s)", format, FormatTSV, FormatJSON))
+		output, err := transtable.ParseOutput(format)
+		if err != nil {
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
+		}
+		if !output.SpellsConditions() && tools.FlagGiven(flags, "expr-mode") {
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", fmt.Errorf("-expr-mode has no effect with -format %s, where a condition is a syntax tree", format))
 		}
 
-		if _, err := transtable.ParseConditions(conditions); err != nil {
+		conds, err := transtable.ParseConditions(conditions)
+		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
 
@@ -178,6 +168,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, ExprMode: exprMode, Conditions: conditions, Format: format, Bytes: bs}, nil
+		return &Options{Common: commonOpts, Notation: notation, Conditions: conds, Output: output, Bytes: bs}, nil
 	}
 }

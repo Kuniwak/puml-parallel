@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
@@ -34,9 +35,9 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:     tools.NewCommonOptionsDefault(),
-				ExprMode:   transtable.NotationNatural,
-				Conditions: transtable.ConditionsNameFull,
-				Format:     FormatTSV,
+				Notation:   notation(transtable.NotationNatural),
+				Conditions: transtable.ConditionsFull,
+				Output:     transtable.OutputTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -45,9 +46,9 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args:  []string{},
 			Expected: &Options{
 				Common:     tools.NewCommonOptionsDefault(),
-				ExprMode:   transtable.NotationNatural,
-				Conditions: transtable.ConditionsNameFull,
-				Format:     FormatTSV,
+				Notation:   notation(transtable.NotationNatural),
+				Conditions: transtable.ConditionsFull,
+				Output:     transtable.OutputTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -55,9 +56,9 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{"-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:     tools.NewCommonOptionsDefault(),
-				ExprMode:   transtable.NotationLogical,
-				Conditions: transtable.ConditionsNameFull,
-				Format:     FormatTSV,
+				Notation:   notation(transtable.NotationLogical),
+				Conditions: transtable.ConditionsFull,
+				Output:     transtable.OutputTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -65,9 +66,9 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{"-conditions", "enabling", filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:     tools.NewCommonOptionsDefault(),
-				ExprMode:   transtable.NotationNatural,
-				Conditions: transtable.ConditionsNameEnabling,
-				Format:     FormatTSV,
+				Notation:   notation(transtable.NotationNatural),
+				Conditions: transtable.ConditionsEnabling,
+				Output:     transtable.OutputTSV,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -75,9 +76,9 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
 				Common:     tools.NewCommonOptionsDefault(),
-				ExprMode:   transtable.NotationNatural,
-				Conditions: transtable.ConditionsNameFull,
-				Format:     FormatJSON,
+				Notation:   notation(transtable.NotationNatural),
+				Conditions: transtable.ConditionsFull,
+				Output:     transtable.OutputJSON,
 				Bytes:      []byte(diagram),
 			},
 		},
@@ -122,7 +123,7 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		},
 		"unknown format": {
 			Args:        []string{"-format", "csv", filepath.Join("testdata", "a.puml")},
-			WantInError: `unknown format "csv"`,
+			WantInError: `unknown output "csv"`,
 		},
 		// JSON has no notation: a condition is a syntax tree there.
 		"-expr-mode with -format json": {
@@ -162,4 +163,13 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 			}
 		})
 	}
+}
+
+// notation is the notation named name.
+func notation(name string) logic.Notation {
+	n, err := transtable.ParseNotation(name)
+	if err != nil {
+		panic(err)
+	}
+	return n
 }
