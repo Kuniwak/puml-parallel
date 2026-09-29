@@ -39,6 +39,28 @@ a --> b : insert(coin) ; g
 				"a\ta\t\"[\"\"g\"\"(c, x)] → b\n[¬\"\"g\"\"(c, x)] ×\"\n" +
 				"b\tb\t×\n",
 		},
+		"-conditions enabling leaves out the postconditions nothing reads": {
+			Args: []string{"-conditions", "enabling", filepath.Join("testdata", "a.puml")},
+			WantStdout: "state\tname\tinsert(coin)\treset\n" +
+				"a\ta\t→ b\t×\n" +
+				"b\tb\t×\t→ a\n",
+		},
+		"-format json keeps every postcondition by default": {
+			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
+			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
+				`"rows":[` +
+				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"coins' is {coin}","quoted":true,"args":["c","x","x'"]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
+				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
+				`"unreachable":[]}` + "\n",
+		},
+		"-format json -conditions enabling": {
+			Args: []string{"-format", "json", "-conditions", "enabling", filepath.Join("testdata", "a.puml")},
+			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
+				`"rows":[` +
+				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"true"}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
+				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
+				`"unreachable":[]}` + "\n",
+		},
 		"the ID of an unreachable state is written to standard error": {
 			Stdin: `@startuml
 state "S0" as s0

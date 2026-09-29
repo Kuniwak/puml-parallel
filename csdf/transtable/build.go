@@ -5,6 +5,7 @@
 package transtable
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -60,6 +61,12 @@ type Outcome struct {
 	Result Result
 }
 
+// equal reports whether o and p are the same outcome: the same result under
+// the same condition, structurally.
+func (o Outcome) equal(p Outcome) bool {
+	return o.Result == p.Result && logic.Equal(o.Cond, p.Cond)
+}
+
 // Result is what an outcome comes to: Goto, Terminate or Refuse.
 type Result interface {
 	// Accepted reports whether the event is accepted.
@@ -96,7 +103,13 @@ func (Refuse) isResult()         {}
 // Every postcondition is taken to admit some values after its step, whatever
 // the parameters and the values before. That premise is what lets an edge be
 // enabled exactly when its guard holds, which is where refusals come from.
-func Build(d *csdf.Diagram) (*Table, error) {
+//
+// conds says how much the conditions keep; one Build does not know, the zero
+// Conditions among them, is refused.
+func Build(d *csdf.Diagram, conds Conditions) (*Table, error) {
+	if !conds.known() {
+		return nil, fmt.Errorf("transtable.Build: %w", fmt.Errorf("unknown conditions %d; take them from ParseConditions", conds))
+	}
 	if ids := undeclared(d); ids != nil {
 		return nil, &UndeclaredStateError{States: ids}
 	}
@@ -106,7 +119,7 @@ func Build(d *csdf.Diagram) (*Table, error) {
 
 	// Each list is in canonical order, so the table comes out the same for the
 	// same diagram.
-	ix := index{graph: csdf.NewGraph(d), end: d.EndEdge}
+	ix := index{graph: csdf.NewGraph(d), end: d.EndEdge, conds: conds}
 	states := ix.graph.Reachable(d.StartEdge.Dst)
 	columns := columnsOf(states, ix)
 
@@ -140,15 +153,34 @@ func unreachable(d *csdf.Diagram, reachable []csdf.StateID) []csdf.StateID {
 type index struct {
 	graph csdf.Graph
 	end   *csdf.EndEdge
+	conds Conditions
 }
 
 // take is one way a state may perform a column: its guard over the values v,
 // what holds when it is taken from v, and what it comes to.
 type take struct {
 	guard  func(v logic.Var) logic.Formula
-	taken  func(v logic.Var) logic.Formula
+	taken  func(v logic.Var) []conjunct
 	result Result
 }
+
+// conjunct is one of the formulas a condition conjoins. It is made by holds
+// or by binding.
+type conjunct struct {
+	formula logic.Formula
+	// binds is the values a postcondition leads to, or empty for a conjunct
+	// that binds nothing.
+	binds logic.Var
+}
+
+// holds is a conjunct that binds nothing: a guard, or a refusal's negation.
+func holds(f logic.Formula) conjunct { return conjunct{formula: f} }
+
+// binding is a postcondition, which binds the values v after its step.
+func binding(f logic.Formula, v logic.Var) conjunct { return conjunct{formula: f, binds: v} }
+
+// isPost reports whether c is a postcondition.
+func (c conjunct) isPost() bool { return c.binds != "" }
 
 // takes lists the ways u may perform c, in canonical order. An edge for an
 // event reads the parameters c the environment offers; an end edge has no
@@ -161,7 +193,8 @@ func (ix index) takes(u csdf.StateID, c Column) []take {
 		}
 		g := ix.end.Guard
 		guard := func(v logic.Var) logic.Formula { return pred(g, v) }
-		return []take{{guard: guard, taken: guard, result: Terminate{}}}
+		taken := func(v logic.Var) []conjunct { return []conjunct{holds(guard(v))} }
+		return []take{{guard: guard, taken: taken, result: Terminate{}}}
 	}
 	var ts []take
 	for _, e := range ix.graph.Out(u) {
@@ -172,8 +205,8 @@ func (ix index) takes(u csdf.StateID, c Column) []take {
 		guard := func(v logic.Var) logic.Formula { return pred(g, OfferedParams, v) }
 		ts = append(ts, take{
 			guard: guard,
-			taken: func(v logic.Var) logic.Formula {
-				return logic.And(guard(v), pred(p, OfferedParams, v, NextValues))
+			taken: func(v logic.Var) []conjunct {
+				return []conjunct{holds(guard(v)), binding(pred(p, OfferedParams, v, NextValues), NextValues)}
 			},
 			result: Goto{State: e.Dst},
 		})
@@ -189,22 +222,28 @@ type tauStep struct {
 // conjuncts are what the tau steps conjoin: the guard of the i-th step applied
 // to its parameters and the values before it, and its postcondition to those
 // and the values after it.
-func conjuncts(steps []tauStep) []logic.Formula {
-	fs := make([]logic.Formula, 0, 2*len(steps))
+func conjuncts(steps []tauStep) []conjunct {
+	cs := make([]conjunct, 0, 2*len(steps))
 	for i, s := range steps {
 		n := i + 1
-		fs = append(fs,
-			pred(s.guard, ParamsOfStep(n), ValuesAfterStep(i)),
-			pred(s.post, ParamsOfStep(n), ValuesAfterStep(i), ValuesAfterStep(n)),
+		cs = append(cs,
+			holds(pred(s.guard, ParamsOfStep(n), ValuesAfterStep(i))),
+			binding(pred(s.post, ParamsOfStep(n), ValuesAfterStep(i), ValuesAfterStep(n)), ValuesAfterStep(n)),
 		)
 	}
-	return fs
+	return cs
 }
 
 // closeOver conjoins what k tau steps collected and what holds after them,
-// binds the variables of the steps, and simplifies.
-func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula {
-	return logic.Simplify(logic.Exists(stepVars(k), logic.And(slices.Concat(path, then)...)))
+// keeping what ix.conds says, binds the variables of the steps, and
+// simplifies.
+func (ix index) closeOver(k int, path []conjunct, then ...conjunct) logic.Formula {
+	cs := ix.conds.discharge(slices.Concat(path, then))
+	fs := make([]logic.Formula, len(cs))
+	for i, c := range cs {
+		fs[i] = c.formula
+	}
+	return logic.Simplify(logic.Exists(stepVars(k), logic.And(fs...)))
 }
 
 // outcomes lists what may happen when c is offered in state s, in the
@@ -214,7 +253,8 @@ func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula
 // condition of an outcome conjoins, in path order, every guard and
 // postcondition along its path, applied to the values each reads, and binds
 // the values and hidden parameters in between. The outcomes come in the order
-// of a depth-first walk.
+// of a depth-first walk, and an outcome that comes out the same as one before
+// it, under logic.Equal, is listed once.
 //
 // u is stable when none of its tau edges is enabled, and it cannot perform c
 // when none of its ways of performing c is. Every postcondition admits some
@@ -229,6 +269,11 @@ func closeOver(k int, path []logic.Formula, then ...logic.Formula) logic.Formula
 // of a way are named by a path, which is the same for the same steps.
 func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 	var os []Outcome
+	add := func(o Outcome) {
+		if !slices.ContainsFunc(os, o.equal) {
+			os = append(os, o)
+		}
+	}
 	var paths pathNames
 	walked := make(map[walk]bool)
 	var visit func(u csdf.StateID, pathName int, steps []tauStep)
@@ -246,21 +291,21 @@ func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 		takes := ix.takes(u, c)
 		taus := ix.graph.Taus(u)
 		for _, t := range takes {
-			os = append(os, Outcome{Cond: closeOver(k, path, t.taken(values)), Result: t.result})
+			add(Outcome{Cond: ix.closeOver(k, path, t.taken(values)...), Result: t.result})
 		}
 
 		// u refuses c when it is stable and cannot perform c. A true guard
 		// makes that false, and then there is no refusal to list.
-		var refusal []logic.Formula
+		var refusal []conjunct
 		for _, e := range taus {
 			hidden := ParamsOfStep(k + 1)
-			refusal = append(refusal, logic.Not(logic.Exists([]logic.Var{hidden}, pred(e.Guard, hidden, values))))
+			refusal = append(refusal, holds(logic.Not(logic.Exists([]logic.Var{hidden}, pred(e.Guard, hidden, values)))))
 		}
 		for _, t := range takes {
-			refusal = append(refusal, logic.Not(t.guard(values)))
+			refusal = append(refusal, holds(logic.Not(t.guard(values))))
 		}
-		if cond := closeOver(k, path, refusal...); !logic.IsFalse(cond) {
-			os = append(os, Outcome{Cond: cond, Result: Refuse{}})
+		if cond := ix.closeOver(k, path, refusal...); !logic.IsFalse(cond) {
+			add(Outcome{Cond: cond, Result: Refuse{}})
 		}
 
 		for _, e := range taus {

@@ -1,6 +1,8 @@
 package logic_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
@@ -312,5 +314,64 @@ func TestIsTrueAndIsFalse(t *testing.T) {
 	}
 	if !logic.IsFalse(logic.False) || logic.IsFalse(p("x")) || logic.IsFalse(logic.True) {
 		t.Error("want IsFalse to hold of false only")
+	}
+}
+
+func TestTreeOf(t *testing.T) {
+	type testCase struct {
+		Formula logic.Formula
+		Want    string
+	}
+
+	testCases := map[string]testCase{
+		"the constants": {
+			Formula: logic.And(logic.True, logic.False),
+			Want:    `{"op":"and","operands":[{"op":"true"},{"op":"false"}]}`,
+		},
+		"an atom is its name and its arguments": {
+			Formula: logic.Atom("guard_1", "x0"),
+			Want:    `{"op":"atom","name":"guard_1","args":["x0"]}`,
+		},
+		"a quoted atom says so, and its text is the name as it is": {
+			Formula: logic.Quoted(`a "b" <c>`, "c", "x"),
+			Want:    `{"op":"atom","name":"a \"b\" <c>","quoted":true,"args":["c","x"]}`,
+		},
+		"a negation has its operand": {
+			Formula: logic.Not(p("x")),
+			Want:    `{"op":"not","operands":[{"op":"atom","name":"p","args":["x"]}]}`,
+		},
+		"a disjunction has its operands in order": {
+			Formula: logic.Or(q("x"), p("x")),
+			Want:    `{"op":"or","operands":[{"op":"atom","name":"q","args":["x"]},{"op":"atom","name":"p","args":["x"]}]}`,
+		},
+		"an implication has its antecedent, then its consequent": {
+			Formula: logic.Implies(p("x"), q("x")),
+			Want:    `{"op":"implies","operands":[{"op":"atom","name":"p","args":["x"]},{"op":"atom","name":"q","args":["x"]}]}`,
+		},
+		"a quantifier has the variables it binds and its body": {
+			Formula: logic.Exists(vs("x", "y"), logic.Forall(vs("z"), p("x", "y", "z"))),
+			Want: `{"op":"exists","vars":["x","y"],"operands":[` +
+				`{"op":"forall","vars":["z"],"operands":[{"op":"atom","name":"p","args":["x","y","z"]}]}]}`,
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			var sb strings.Builder
+			enc := json.NewEncoder(&sb)
+			enc.SetEscapeHTML(false)
+
+			// Act
+			err := enc.Encode(logic.TreeOf(testCase.Formula))
+
+			// Assert
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			if diff := cmp.Diff(testCase.Want+"\n", sb.String()); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }

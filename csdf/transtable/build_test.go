@@ -250,7 +250,7 @@ fixed --> idle : REPORT
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d)
+			got, err := transtable.Build(d, transtable.ConditionsFull)
 
 			// Assert
 			if err != nil {
@@ -285,8 +285,9 @@ func tableText(t *transtable.Table) string {
 // first column, where the whole table would bury the point.
 func TestBuildFirstCell(t *testing.T) {
 	type testCase struct {
-		Diagram string
-		Want    []transtable.Outcome
+		Diagram    string
+		Conditions transtable.Conditions
+		Want       []transtable.Outcome
 	}
 
 	// Two ways round a diamond that differ only in their postconditions.
@@ -321,6 +322,7 @@ B --> C : tau ; h2
 C --> D : a ; g
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h1", c1, x)))),
 				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
@@ -338,6 +340,7 @@ A --> B : tau ; h ; x' = x + 1
 B --> C : a ; g ; y' = x
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h", c1, x)))),
 				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1), q("y' = x", c, x1, xn))), "C"),
@@ -357,6 +360,7 @@ B --> C : a ; true ; y' = 0
 C --> A : b
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(ex(vs(x1), q("y' = 0", c, x1, xn)), "C"),
 			},
@@ -380,7 +384,8 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
-			Want: []transtable.Outcome{goTo(logic.True, "E")},
+			Conditions: transtable.ConditionsFull,
+			Want:       []transtable.Outcome{goTo(logic.True, "E")},
 		},
 		"tau paths that meet again under different conditions are both walked": {
 			Diagram: `@startuml
@@ -397,6 +402,7 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(and(not(ex(vs(c1), q("g1", c1, x))), not(ex(vs(c1), q("g2", c1, x))))),
 				goTo(ex(vs(c1), q("g1", c1, x)), "E"),
@@ -415,6 +421,7 @@ A --> B : a ; g
 A --> C : tau ; h
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(q("g", c, x), "B"),
 				refuse(and(not(ex(vs(c1), q("h", c1, x))), not(q("g", c, x)))),
@@ -443,6 +450,7 @@ E1 --> F : a
 E2 --> F : a
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h1", c1, x)))),
 				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
@@ -465,6 +473,7 @@ E2 --> F : a
 				"B --> D : tau\n" +
 				"D --> E : x\n" +
 				"@enduml\n",
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(and(not(ex(vs(c1), q("a\x00b", c1, x))), not(ex(vs(c1), q("a", c1, x))))),
 				goTo(ex(vs(c1), q("a\x00b", c1, x)), "E"),
@@ -489,19 +498,149 @@ C --> D : tau
 D --> E : a
 @enduml
 `,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(ex(vs(c1), q("p", c1, x)), "E"),
 				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
 			},
 		},
+		// Paths of different lengths are different paths, but steps of true
+		// guards and postconditions add nothing, so both come to the same
+		// outcome, which is listed once.
+		"outcomes that come out the same are listed once": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "D" as D
+state "E" as E
+[*] --> A
+A --> D : tau
+A --> B : tau
+B --> D : tau
+D --> E : a
+@enduml
+`,
+			Conditions: transtable.ConditionsFull,
+			Want:       []transtable.Outcome{goTo(logic.True, "E")},
+		},
 		// A postcondition is part of the condition, so two ways that differ
 		// in one alone are two outcomes.
 		"postconditions along a tau path tell the paths apart": {
-			Diagram: postDiamond,
+			Diagram:    postDiamond,
+			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				goTo(ex(vs(c1, x1), q("p", c1, x, x1)), "E"),
 				goTo(ex(vs(c1, x1), q("q", c1, x, x1)), "E"),
 			},
+		},
+
+		// Every postcondition admits some values after its step, so one whose
+		// values nothing after it reads holds whatever else does, and the
+		// enabling condition leaves it out. One whose values a later guard
+		// reads says what that guard is applied to, and stays.
+		"the postcondition of the accepted event is left out": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+[*] --> A
+A --> B : a ; g ; y' = x
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				goTo(q("g", c, x), "B"),
+				refuse(not(q("g", c, x))),
+			},
+		},
+		"a postcondition along a tau path whose values a later guard reads stays": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; h ; x' = x + 1
+B --> C : a ; g ; y' = x
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h", c1, x)))),
+				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1))), "C"),
+				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", c, x1))))),
+			},
+		},
+		// Nothing after the first step reads its values but the second
+		// postcondition, which nothing reads; leaving that out leaves the first
+		// unread too.
+		"postconditions read only by postconditions left out are left out too": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+[*] --> A
+A --> B : tau ; h ; p
+B --> C : tau ; true ; q
+C --> D : a
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				refuse(not(ex(vs(c1), q("h", c1, x)))),
+				goTo(ex(vs(c1), q("h", c1, x)), "D"),
+			},
+		},
+		// Ways that differ in their postconditions alone come to the same
+		// enabling condition, which is listed once.
+		// A refusal reads the values after the last step, through the
+		// guards it negates.
+		"a postcondition whose values only a refusal reads stays": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+[*] --> A
+A --> B : tau ; true ; p
+B --> C : a ; g ; q
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				goTo(ex(vs(c1, x1), and(q("p", c1, x, x1), q("g", c, x1))), "C"),
+				refuse(ex(vs(c1, x1), and(q("p", c1, x, x1), not(q("g", c, x1))))),
+			},
+		},
+		// An end edge has no postcondition, so there is nothing to leave out.
+		"the guard of an end edge stays": {
+			Diagram: `@startuml
+state "A" as A
+[*] --> A
+A --> [*] : g
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want: []transtable.Outcome{
+				{Cond: q("g", x), Result: transtable.Terminate{}},
+				refuse(not(q("g", x))),
+			},
+		},
+		"ways that differ only in postconditions left out are one outcome": {
+			Diagram: `@startuml
+state "A" as A
+state "B" as B
+state "C" as C
+state "D" as D
+state "E" as E
+[*] --> A
+A --> B : tau ; true ; p
+A --> C : tau ; true ; q
+B --> D : tau
+C --> D : tau
+D --> E : a
+@enduml
+`,
+			Conditions: transtable.ConditionsEnabling,
+			Want:       []transtable.Outcome{goTo(logic.True, "E")},
 		},
 	}
 
@@ -511,7 +650,7 @@ D --> E : a
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d)
+			got, err := transtable.Build(d, testCase.Conditions)
 
 			// Assert
 			if err != nil {
@@ -540,7 +679,7 @@ B --> A : tau ; g
 `)
 
 	// Act
-	_, err := transtable.Build(d)
+	_, err := transtable.Build(d, transtable.ConditionsFull)
 
 	// Assert
 	var livelock *transtable.LivelockError
@@ -596,7 +735,7 @@ E --> [*]
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			_, err := transtable.Build(d)
+			_, err := transtable.Build(d, transtable.ConditionsFull)
 
 			// Assert
 			var undeclared *transtable.UndeclaredStateError
@@ -605,6 +744,37 @@ E --> [*]
 			}
 			if diff := cmp.Diff(testCase.Want, undeclared.States); diff != "" {
 				t.Error(diff)
+			}
+		})
+	}
+}
+
+// The zero Conditions names nothing, so a caller has to say how much the
+// conditions keep, as it has to say how a table is spelled.
+func TestBuildRefusesConditionsItDoesNotKnow(t *testing.T) {
+	type testCase struct {
+		Conditions transtable.Conditions
+	}
+
+	testCases := map[string]testCase{
+		"the zero Conditions":     {Conditions: 0},
+		"one past the last known": {Conditions: transtable.ConditionsEnabling + 1},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			d := csdf.MustParse("@startuml\nstate \"A\" as A\n[*] --> A\n@enduml\n")
+
+			// Act
+			got, err := transtable.Build(d, testCase.Conditions)
+
+			// Assert
+			if err == nil {
+				t.Fatalf("want an error, got %v", got)
+			}
+			if !strings.Contains(err.Error(), "unknown conditions") {
+				t.Errorf("want %q in the message, got %q", "unknown conditions", err.Error())
 			}
 		})
 	}

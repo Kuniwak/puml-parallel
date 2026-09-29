@@ -362,6 +362,8 @@ event goes; the table shows, just as plainly, where it is refused, so that
 ```console
 $ csdftranstable examples/valid/vending_machine.puml
 $ csdftranstable -expr-mode logical examples/valid/vending_machine.puml
+$ csdftranstable -conditions enabling examples/valid/vending_machine.puml
+$ csdftranstable -format json examples/valid/vending_machine.puml
 $ csdfcomp tree.json | csdftranstable -
 ```
 
@@ -457,6 +459,56 @@ throughout:
 `and`, `not`, `exists`) or `logical` (`∧`, `¬`, `∃`). Lines that come out the
 same, such as those of two `tau` paths that meet again, are written once.
 
+`-conditions enabling` shrinks each condition to what the outcome is enabled
+by. It leaves out every postcondition whose values nothing kept after it reads:
+that of the accepted event always, and that of a `tau` step unless a later
+guard reads the values after the step. Under the premise below such a
+postcondition is true once its values are bound, so a condition holds of `c`
+and `x` exactly where the full one holds for some `x'`, and only no longer says
+what the values after are. For
+`vending_machine.puml` the cells above become
+
+| state | name | insert(coin) | showAvailable(…) | showPurchasable(…) | choose(product) | drop(product) |
+|---|---|---|---|---|---|---|
+| vmIdle | vmIdle | → vmCoinsInserted | → vmIdle | × | × | × |
+| vmCoinsInserted | vmCoinsInserted | × | × | → vmWaitingChoosing | × | × |
+| vmWaitingChoosing | vmWaitingChoosing | → vmCoinsInserted | × | × | ["availableProducts contains product"(c, x)] → vmDropping<br>[not "availableProducts contains product"(c, x)] × | × |
+| vmDropping | vmDropping | × | × | × | × | → vmIdle |
+
+In the `tau` example above, `"p2"(c2, x1, x2)` stays, since `"g"(c, x2)` reads
+`x2`, and `"q"(c, x2, x')` goes. `-conditions full`, the default, keeps every
+guard and postcondition.
+
+`-format json` writes the table as JSON, for a program that is to take the
+conditions apart, for instance to number them and move them into footnotes,
+without parsing a notation back:
+
+```json
+{"columns": [{"kind": "event", "event": "choose(product)"}, {"kind": "termination"}],
+ "rows": [{"state": "vmWaitingChoosing", "name": "vmWaitingChoosing", "cells": [
+   [{"result": "goto", "state": "vmDropping",
+     "condition": {"op": "atom", "name": "availableProducts contains product", "quoted": true, "args": ["c", "x"]}},
+    {"result": "refuse",
+     "condition": {"op": "not", "operands": [{"op": "atom", "name": "availableProducts contains product", "quoted": true, "args": ["c", "x"]}]}}],
+   [{"result": "terminate", "condition": {"op": "true"}}]]}],
+ "unreachable": []}
+```
+
+(shortened and laid out by hand). A cell lists its outcomes in the order of
+the columns, as the TSV does; `result` is `goto` with `state`, `terminate` or
+`refuse`; and `condition` is the syntax tree of `csdf/logic`, whose `op` is
+`true`, `false`, `atom` (with `name`, `quoted` and `args`), `not`, `and`,
+`or`, `implies` (with `operands`), `exists` or `forall` (with `vars` and
+`operands`). Whether an atom is a guard or a postcondition is told by what it
+is applied to: a guard reads two variables, or one for an end edge, and a
+postcondition three. The lists of the table, of a row and of a cell are
+lists, never `null`, even when empty; in a tree, a field its `op` has no use
+for is absent, and so are the `args` of an atom applied to nothing and a
+`quoted` that is false. Columns are told apart by `kind`, so no event clashes
+with one, and `-expr-mode` does not apply. The encoding carries no version of
+its own: like the rest of the output, it is that of the `csdftranstable`
+release, as `-version` prints it.
+
 The table rests on one premise: every postcondition admits some values after
 its step, whatever the parameters and the values before. Under it an edge is
 enabled exactly when its guard holds, for some parameters of a `tau` edge or
@@ -476,8 +528,8 @@ states take no part in the behaviour, so they have no row, their events no
 column, and their IDs are written to standard error. A state an edge names but
 the diagram never declares has no name and no state variables to tabulate, so
 it is an error. An event spelled
-`state`, `name` or `[*]` would be read as the column of that name, so it is an
-error. For a promotion, tabulate the local diagrams: the expansion is one state
+`state`, `name` or `[*]` would be read as the column of that name, so in TSV it
+is an error. For a promotion, tabulate the local diagrams: the expansion is one state
 with a self-loop per local edge.
 
 ## Refinement

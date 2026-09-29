@@ -6,15 +6,18 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 type Options struct {
 	Common *tools.CommonOptions
-	// ExprMode names the notation, one transtable.ParseNotation knows.
-	ExprMode string
-	Bytes    []byte
+	// Notation spells the conditions when Output spells them.
+	Notation   logic.Notation
+	Conditions transtable.Conditions
+	Output     transtable.Output
+	Bytes      []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -67,6 +70,13 @@ no tau edge is enabled and no edge for the event is. Every postcondition is
 taken to admit some values after its step, so an edge is enabled exactly when
 its guard holds for some parameters of a tau edge, or for those offered.
 
+With -conditions enabling, C leaves out every postcondition whose values
+nothing kept after it reads: the one of the accepted event always, and one of
+a tau step unless a later guard reads the values after that step. Since every
+postcondition admits some values, C holds of c and x exactly where the full
+condition holds for some x'; it says what the outcome is enabled by, and no
+longer what the values after are.
+
 Negation binds tightest; a conjunction inside a disjunction, or the other way
 round, is parenthesised; an implication binds loosest; and a quantifier
 reaches to the end of what it is in, so it is parenthesised exactly when
@@ -77,8 +87,23 @@ and whether the guards cover every case is left to the reader. A reachable tau
 cycle may make the diagram diverge, which a table of refusals cannot show, so
 such a diagram is refused, and so is one naming a state it never declares.
 Unreachable states have no row, and their IDs are written to standard error.
-An event spelled "state", "name" or "[*]" would be read as that column, so it
-is an error.
+An event spelled "state", "name" or "[*]" would be read as that column of the
+TSV, so it is an error there.
+
+With -format json, the table is written as JSON instead, for a program to read:
+
+  {"columns": [{"kind": "event", "event": E} | {"kind": "termination"}, ...],
+   "rows": [{"state": ID, "name": NAME, "cells": [[OUTCOME, ...], ...]}, ...],
+   "unreachable": [ID, ...]}
+
+with a cell per column in the same order. An OUTCOME is
+{"result": "goto", "state": ID, "condition": C}, or "terminate" or "refuse"
+without "state", and C is a syntax tree: {"op": OP, ...}, where OP is true,
+false, atom (with "name", "quoted" and "args"), not, and, or, implies (with
+"operands"), exists or forall (with "vars" and "operands"). A guard is an atom
+applied to (c, xi) or, for an end edge, (xi); a postcondition to three
+variables. Being no TSV, it has no column to clash with, and -expr-mode does
+not apply.
 
 A file argument, a "-" argument, and standard input are all equivalent.
 
@@ -89,12 +114,20 @@ Options:
 Examples:
   $ csdftranstable examples/valid/vending_machine.puml
   $ csdftranstable -expr-mode logical examples/valid/vending_machine.puml
+  $ csdftranstable -conditions enabling examples/valid/vending_machine.puml
+  $ csdftranstable -format json examples/valid/vending_machine.puml
   $ csdfcomp tree.json | csdftranstable -
 `)
 		}
 
 		var exprMode string
 		flags.StringVar(&exprMode, "expr-mode", transtable.NotationNatural, "how conditions are spelled: natural (and, not, exists) or logical (∧, ¬, ∃)")
+
+		var conditions string
+		flags.StringVar(&conditions, "conditions", transtable.ConditionsNameFull, "how much conditions keep: full (every guard and postcondition) or enabling (without the postconditions nothing reads)")
+
+		var format string
+		flags.StringVar(&format, "format", transtable.OutputNameTSV, "what the table is written as: tsv (for a reader) or json (for a program)")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -114,7 +147,21 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if _, err := transtable.ParseNotation(exprMode); err != nil {
+		notation, err := transtable.ParseNotation(exprMode)
+		if err != nil {
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
+		}
+
+		output, err := transtable.ParseOutput(format)
+		if err != nil {
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
+		}
+		if !output.SpellsConditions() && tools.FlagGiven(flags, "expr-mode") {
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", fmt.Errorf("-expr-mode has no effect with -format %s, where a condition is a syntax tree", format))
+		}
+
+		conds, err := transtable.ParseConditions(conditions)
+		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
 
@@ -122,6 +169,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, ExprMode: exprMode, Bytes: bs}, nil
+		return &Options{Common: commonOpts, Notation: notation, Conditions: conds, Output: output, Bytes: bs}, nil
 	}
 }

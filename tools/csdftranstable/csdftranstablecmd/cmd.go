@@ -25,7 +25,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
 		}
 
-		table, err := transtable.Build(diagram)
+		table, err := transtable.Build(diagram, opts.Conditions)
 		if err != nil {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
 		}
@@ -38,12 +38,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			fmt.Fprintf(inout.Stderr, "warning: unreachable states have no row: %s\n", strings.Join(ids, ", "))
 		}
 
-		notation, err := transtable.ParseNotation(opts.ExprMode)
-		if err != nil {
-			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
-		}
-		format := transtable.Format{Notation: notation}
-		if err := transtable.WriteTSV(inout.Stdout, table, format); err != nil {
+		if err := transtable.Write(inout.Stdout, table, opts.Output, opts.Notation); err != nil {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
 		}
 		return nil
