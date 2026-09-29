@@ -250,7 +250,7 @@ fixed --> idle : REPORT
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d)
+			got, err := transtable.Build(d, transtable.ConditionsFull)
 
 			// Assert
 			if err != nil {
@@ -529,7 +529,7 @@ D --> E : a
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			got, err := transtable.Build(d)
+			got, err := transtable.Build(d, transtable.ConditionsFull)
 
 			// Assert
 			if err != nil {
@@ -558,7 +558,7 @@ B --> A : tau ; g
 `)
 
 	// Act
-	_, err := transtable.Build(d)
+	_, err := transtable.Build(d, transtable.ConditionsFull)
 
 	// Assert
 	var livelock *transtable.LivelockError
@@ -614,7 +614,7 @@ E --> [*]
 			d := csdf.MustParse(testCase.Diagram)
 
 			// Act
-			_, err := transtable.Build(d)
+			_, err := transtable.Build(d, transtable.ConditionsFull)
 
 			// Assert
 			var undeclared *transtable.UndeclaredStateError

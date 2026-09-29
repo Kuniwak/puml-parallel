@@ -25,7 +25,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
 		}
 
-		table, err := transtable.Build(diagram)
+		table, err := transtable.Build(diagram, transtable.ConditionsFull)
 		if err != nil {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
 		}

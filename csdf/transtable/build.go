@@ -102,7 +102,10 @@ func (Refuse) isResult()         {}
 // Every postcondition is taken to admit some values after its step, whatever
 // the parameters and the values before. That premise is what lets an edge be
 // enabled exactly when its guard holds, which is where refusals come from.
-func Build(d *csdf.Diagram) (*Table, error) {
+//
+// conds says how much the conditions keep; the zero Conditions keeps
+// everything.
+func Build(d *csdf.Diagram, conds Conditions) (*Table, error) {
 	if ids := undeclared(d); ids != nil {
 		return nil, &UndeclaredStateError{States: ids}
 	}
@@ -112,7 +115,7 @@ func Build(d *csdf.Diagram) (*Table, error) {
 
 	// Each list is in canonical order, so the table comes out the same for the
 	// same diagram.
-	ix := index{graph: csdf.NewGraph(d), end: d.EndEdge}
+	ix := index{graph: csdf.NewGraph(d), end: d.EndEdge, conds: conds}
 	states := ix.graph.Reachable(d.StartEdge.Dst)
 	columns := columnsOf(states, ix)
 
@@ -146,6 +149,7 @@ func unreachable(d *csdf.Diagram, reachable []csdf.StateID) []csdf.StateID {
 type index struct {
 	graph csdf.Graph
 	end   *csdf.EndEdge
+	conds Conditions
 }
 
 // take is one way a state may perform a column: its guard over the values v,
