@@ -1,6 +1,7 @@
 package transtable
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
@@ -20,6 +21,27 @@ const (
 	// longer says what the values after are.
 	ConditionsEnabling
 )
+
+// The names of the Conditions.
+const (
+	ConditionsNameFull     = "full"
+	ConditionsNameEnabling = "enabling"
+)
+
+var conditionsNamed = map[string]Conditions{
+	ConditionsNameFull:     ConditionsFull,
+	ConditionsNameEnabling: ConditionsEnabling,
+}
+
+// ParseConditions returns the Conditions named name. The names are the core's,
+// so that a front end other than the command line names them the same way.
+func ParseConditions(name string) (Conditions, error) {
+	conds, ok := conditionsNamed[name]
+	if !ok {
+		return 0, fmt.Errorf("unknown conditions %q (want %s or %s)", name, ConditionsNameFull, ConditionsNameEnabling)
+	}
+	return conds, nil
+}
 
 // discharge leaves out of cs, when conds asks for it, every postcondition whose
 // values no conjunct kept after it reads. Only a later conjunct can read the

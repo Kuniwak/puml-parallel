@@ -14,7 +14,10 @@ type Options struct {
 	Common *tools.CommonOptions
 	// ExprMode names the notation, one transtable.ParseNotation knows.
 	ExprMode string
-	Bytes    []byte
+	// Conditions names how much conditions keep, a name
+	// transtable.ParseConditions knows.
+	Conditions string
+	Bytes      []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -67,6 +70,12 @@ no tau edge is enabled and no edge for the event is. Every postcondition is
 taken to admit some values after its step, so an edge is enabled exactly when
 its guard holds for some parameters of a tau edge, or for those offered.
 
+With -conditions enabling, C leaves out every postcondition whose values
+nothing kept after it reads: the one of the accepted event always, and one of
+a tau step unless a later guard reads the values after that step. Since every
+postcondition admits some values, C still holds exactly where it did; it says
+what the outcome is enabled by, and no longer what the values after are.
+
 Negation binds tightest; a conjunction inside a disjunction, or the other way
 round, is parenthesised; an implication binds loosest; and a quantifier
 reaches to the end of what it is in, so it is parenthesised exactly when
@@ -89,12 +98,16 @@ Options:
 Examples:
   $ csdftranstable examples/valid/vending_machine.puml
   $ csdftranstable -expr-mode logical examples/valid/vending_machine.puml
+  $ csdftranstable -conditions enabling examples/valid/vending_machine.puml
   $ csdfcomp tree.json | csdftranstable -
 `)
 		}
 
 		var exprMode string
 		flags.StringVar(&exprMode, "expr-mode", transtable.NotationNatural, "how conditions are spelled: natural (and, not, exists) or logical (∧, ¬, ∃)")
+
+		var conditions string
+		flags.StringVar(&conditions, "conditions", transtable.ConditionsNameFull, "how much conditions keep: full (every guard and postcondition) or enabling (without the postconditions nothing reads)")
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -118,10 +131,14 @@ Examples:
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
 		}
 
+		if _, err := transtable.ParseConditions(conditions); err != nil {
+			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: %w", err)
+		}
+
 		bs, err := tools.ValidateArgsAsFilePath(flags.Args(), inout)
 		if err != nil {
 			return nil, fmt.Errorf("csdftranstablecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, ExprMode: exprMode, Bytes: bs}, nil
+		return &Options{Common: commonOpts, ExprMode: exprMode, Conditions: conditions, Bytes: bs}, nil
 	}
 }

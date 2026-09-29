@@ -33,26 +33,38 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		"a file argument, with the defaults": {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
-				Common:   tools.NewCommonOptionsDefault(),
-				ExprMode: transtable.NotationNatural,
-				Bytes:    []byte(diagram),
+				Common:     tools.NewCommonOptionsDefault(),
+				ExprMode:   transtable.NotationNatural,
+				Conditions: transtable.ConditionsNameFull,
+				Bytes:      []byte(diagram),
 			},
 		},
 		"standard input (equivalent to a file argument)": {
 			Stdin: diagram,
 			Args:  []string{},
 			Expected: &Options{
-				Common:   tools.NewCommonOptionsDefault(),
-				ExprMode: transtable.NotationNatural,
-				Bytes:    []byte(diagram),
+				Common:     tools.NewCommonOptionsDefault(),
+				ExprMode:   transtable.NotationNatural,
+				Conditions: transtable.ConditionsNameFull,
+				Bytes:      []byte(diagram),
 			},
 		},
 		"-expr-mode logical": {
 			Args: []string{"-expr-mode", "logical", filepath.Join("testdata", "a.puml")},
 			Expected: &Options{
-				Common:   tools.NewCommonOptionsDefault(),
-				ExprMode: transtable.NotationLogical,
-				Bytes:    []byte(diagram),
+				Common:     tools.NewCommonOptionsDefault(),
+				ExprMode:   transtable.NotationLogical,
+				Conditions: transtable.ConditionsNameFull,
+				Bytes:      []byte(diagram),
+			},
+		},
+		"-conditions enabling": {
+			Args: []string{"-conditions", "enabling", filepath.Join("testdata", "a.puml")},
+			Expected: &Options{
+				Common:     tools.NewCommonOptionsDefault(),
+				ExprMode:   transtable.NotationNatural,
+				Conditions: transtable.ConditionsNameEnabling,
+				Bytes:      []byte(diagram),
 			},
 		},
 	}
@@ -89,6 +101,10 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"unknown expression mode": {
 			Args:        []string{"-expr-mode", "bogus", filepath.Join("testdata", "a.puml")},
 			WantInError: `unknown notation "bogus"`,
+		},
+		"unknown conditions": {
+			Args:        []string{"-conditions", "guards", filepath.Join("testdata", "a.puml")},
+			WantInError: `unknown conditions "guards"`,
 		},
 		"-post, which is gone": {
 			Args:        []string{"-post", filepath.Join("testdata", "a.puml")},
