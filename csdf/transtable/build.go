@@ -224,9 +224,10 @@ func conjuncts(steps []tauStep) []conjunct {
 }
 
 // closeOver conjoins what k tau steps collected and what holds after them,
-// binds the variables of the steps, and simplifies.
-func closeOver(k int, path []conjunct, then ...conjunct) logic.Formula {
-	cs := slices.Concat(path, then)
+// keeping what ix.conds says, binds the variables of the steps, and
+// simplifies.
+func (ix index) closeOver(k int, path []conjunct, then ...conjunct) logic.Formula {
+	cs := ix.conds.discharge(slices.Concat(path, then))
 	fs := make([]logic.Formula, len(cs))
 	for i, c := range cs {
 		fs[i] = c.formula
@@ -279,7 +280,7 @@ func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 		takes := ix.takes(u, c)
 		taus := ix.graph.Taus(u)
 		for _, t := range takes {
-			add(Outcome{Cond: closeOver(k, path, t.taken(values)...), Result: t.result})
+			add(Outcome{Cond: ix.closeOver(k, path, t.taken(values)...), Result: t.result})
 		}
 
 		// u refuses c when it is stable and cannot perform c. A true guard
@@ -292,7 +293,7 @@ func (ix index) outcomes(s csdf.StateID, c Column) []Outcome {
 		for _, t := range takes {
 			refusal = append(refusal, holds(logic.Not(t.guard(values))))
 		}
-		if cond := closeOver(k, path, refusal...); !logic.IsFalse(cond) {
+		if cond := ix.closeOver(k, path, refusal...); !logic.IsFalse(cond) {
 			add(Outcome{Cond: cond, Result: Refuse{}})
 		}
 
