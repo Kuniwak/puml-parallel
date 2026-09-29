@@ -31,6 +31,8 @@ type Formula interface {
 	simplify() Formula
 	// equal reports whether g is the same formula, structurally.
 	equal(g Formula) bool
+	// tree returns the syntax tree of the formula.
+	tree() Tree
 }
 
 type constant struct{ value bool }
@@ -437,6 +439,68 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 	sb.WriteString("(")
 	f.spell(n, sb, true)
 	sb.WriteString(")")
+}
+
+// Tree is the syntax tree of a formula, for a reader that is to take a formula
+// apart rather than read it: encoded as JSON, it needs no parsing of a
+// notation. Op is one of
+//
+//	true, false            a constant
+//	atom                   Name applied to Args; Quoted when Name is natural
+//	                       language, which Quoted made
+//	not                    the negation of the one operand
+//	and, or                the conjunction or disjunction of the operands
+//	implies                the implication from the first operand to the second
+//	exists, forall         the one operand with Vars bound
+//
+// and the fields another Op has no use for are left empty.
+type Tree struct {
+	Op       string `json:"op"`
+	Name     string `json:"name,omitempty"`
+	Quoted   bool   `json:"quoted,omitempty"`
+	Args     []Var  `json:"args,omitempty"`
+	Vars     []Var  `json:"vars,omitempty"`
+	Operands []Tree `json:"operands,omitempty"`
+}
+
+// TreeOf returns the syntax tree of f, the formula as it was built.
+func TreeOf(f Formula) Tree { return f.tree() }
+
+func (c constant) tree() Tree {
+	if c.value {
+		return Tree{Op: "true"}
+	}
+	return Tree{Op: "false"}
+}
+
+func (a atom) tree() Tree {
+	return Tree{Op: "atom", Name: a.name, Quoted: a.quoted, Args: slices.Clone(a.args)}
+}
+
+func (n not) tree() Tree { return Tree{Op: "not", Operands: []Tree{n.operand.tree()}} }
+
+func (j junction) tree() Tree {
+	op := "or"
+	if j.and {
+		op = "and"
+	}
+	operands := make([]Tree, len(j.operands))
+	for i, o := range j.operands {
+		operands[i] = o.tree()
+	}
+	return Tree{Op: op, Operands: operands}
+}
+
+func (i implies) tree() Tree {
+	return Tree{Op: "implies", Operands: []Tree{i.antecedent.tree(), i.consequent.tree()}}
+}
+
+func (q quantifier) tree() Tree {
+	op := "exists"
+	if q.forall {
+		op = "forall"
+	}
+	return Tree{Op: op, Vars: slices.Clone(q.vars), Operands: []Tree{q.body.tree()}}
 }
 
 // quote writes text as a JSON string. HTML characters are left as they are:
