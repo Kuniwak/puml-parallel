@@ -34,7 +34,8 @@ func (e StartEdge) MarshalJSON() ([]byte, error) {
 	return json.Marshal(startEdgeJSON{Dst: e.Dst, Post: e.Post, PostClauses: e.Post.ClausesJSON(), Line: e.Line})
 }
 
-// UnmarshalJSON reads the post whole; its clauses are derived from it.
+// UnmarshalJSON reads the post whole and derives its clauses from it: the
+// text wins over post_clauses, which are only a reader's convenience.
 func (e *StartEdge) UnmarshalJSON(data []byte) error {
 	var j startEdgeJSON
 	if err := json.Unmarshal(data, &j); err != nil {
@@ -55,7 +56,8 @@ func (e EndEdge) MarshalJSON() ([]byte, error) {
 	return json.Marshal(endEdgeJSON{Src: e.Src, Guard: e.Guard, GuardClauses: e.Guard.ClausesJSON(), Line: e.Line})
 }
 
-// UnmarshalJSON reads the guard whole; its clauses are derived from it.
+// UnmarshalJSON reads the guard whole and derives its clauses from it: the
+// text wins over guard_clauses, which are only a reader's convenience.
 func (e *EndEdge) UnmarshalJSON(data []byte) error {
 	var j endEdgeJSON
 	if err := json.Unmarshal(data, &j); err != nil {

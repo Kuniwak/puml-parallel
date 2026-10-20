@@ -300,7 +300,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 	if !p.expectNewlines() {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected newline after start edge declaration at line %d, col %d", p.line, p.col)
 	}
-	if err := checkClauses(line, Predicate(post)); err != nil {
+	if err := checkClauses(line, "post", Predicate(post)); err != nil {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
@@ -382,7 +382,10 @@ func (p *Parser) parseEdge() (Edge, error) {
 	if !p.expectNewlines() {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected newline after edge declaration at line %d, col %d", p.line, p.col)
 	}
-	if err := checkClauses(line, Predicate(guard), Predicate(post)); err != nil {
+	if err := checkClauses(line, "guard", Predicate(guard)); err != nil {
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
+	}
+	if err := checkClauses(line, "post", Predicate(post)); err != nil {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
@@ -802,7 +805,7 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	if !p.expectNewlines() {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
-	if err := checkClauses(line, Predicate(guard)); err != nil {
+	if err := checkClauses(line, "guard", Predicate(guard)); err != nil {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
 
@@ -813,13 +816,11 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	}, nil
 }
 
-// checkClauses refuses predicates whose clauses use a tool word the tools do
-// not know, saying the line they were written on.
-func checkClauses(line int, predicates ...Predicate) error {
-	for _, p := range predicates {
-		if err := CheckClauses(p); err != nil {
-			return fmt.Errorf("line %d: %w", line, err)
-		}
+// checkClauses refuses a predicate whose clauses CheckClauses refuses, saying
+// the line it was written on and which predicate of the line it is.
+func checkClauses(line int, which string, p Predicate) error {
+	if err := CheckClauses(p); err != nil {
+		return fmt.Errorf("line %d, the %s: %w", line, which, err)
 	}
 	return nil
 }

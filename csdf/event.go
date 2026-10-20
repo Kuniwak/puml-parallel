@@ -120,8 +120,9 @@ func (e Edge) MarshalJSON() ([]byte, error) {
 	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: e.Guard.ClausesJSON(), Post: e.Post, PostClauses: e.Post.ClausesJSON(), Line: e.Line})
 }
 
-// UnmarshalJSON reads the event whole, by the grammar; the channel and fields
-// are derived from it.
+// UnmarshalJSON reads the event, guard and post whole, the event by the
+// grammar, and derives the rest from them: the texts win over the channel,
+// fields and clauses, which are only a reader's convenience.
 func (e *Edge) UnmarshalJSON(data []byte) error {
 	var j edgeJSON
 	if err := json.Unmarshal(data, &j); err != nil {

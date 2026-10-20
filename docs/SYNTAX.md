@@ -69,6 +69,7 @@ text, and `csdfpromote` matches `sync` and `constrain` by the channel.
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
+PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as
@@ -92,7 +93,8 @@ author is an ordinary clause, read by whatever reads the others.
 The tools never write or rewrite the text of a clause, and reserve in it only
 what they must read:
 
-- **Separators**: `;` ends the guard, and ` ∧ ` separates clauses. ` ∧ ` is not an
+- **Separators**: `;` separates the event, the guard and the post, and ` ∧ `
+  separates clauses. ` ∧ ` is not an
   operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
   `a and b`). `∨` and every other symbol belong to the clause.
 - **Tool words** start with `@`. `@opaque` is the one there is: a clause not
@@ -104,7 +106,6 @@ what they must read:
   clause gets it with the escapes removed: csdfparse writes each predicate's
   clauses so, as `guard_clauses` and `post_clauses` (`{"text": …}`, or
   `{"opaque": true}`).
-PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 The following symbols are ABNF core rules:
 
