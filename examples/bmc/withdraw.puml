@@ -1,0 +1,16 @@
+@startuml WITHDRAW
+' A wallet in miniature: a balance, a transfer limit, and a withdrawal that
+' pays the chain fee out of the same balance. The clause "残高で払える" is
+' natural language; what it means is decided by its twin in withdraw_twins.py.
+state "待機中" as idle
+idle : 残高
+state "送信中" as sending
+sending : 残高
+sending : 数量
+
+[*] --> idle : 残高 = 初期残高
+
+idle --> sending : 出庫(数量) ; 数量 ≤ 移転上限 ∧ 残高で払える ; 残高' = 残高 ∧ 数量' = 数量
+sending --> idle : 着金 ; 残高 − 数量 ≥ 手数料 ; 残高' = 残高 − 数量 − 手数料
+idle --> idle : 入金(額) ; true ; 残高' = 残高 + 額
+@enduml

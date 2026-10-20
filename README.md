@@ -674,6 +674,57 @@ $ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target l
 This is handy when the IR is produced or stored separately. A file argument, a `-`
 argument, and stdin are all equivalent.
 
+## Bounded model checking
+
+`csdfbmc` is a Python package (standard library only, Python 3.11 or later)
+that decides the properties the other tools can only state as obligations, by
+walking the reachable states of a diagram over *finite* domains. The Go tools
+own the structure: `csdfparse` prints the diagram as JSON, and
+`csdfpromote -format json` prints an expansion with the clauses of every edge.
+The package owns the values: each clause's *formal twin*, a pure Python
+function keyed by the clause's prose, and the domains the state variables and
+event parameters range over.
+
+```console
+$ csdfparse examples/bmc/withdraw.puml > examples/bmc/withdraw.json
+$ python3 -m csdfbmc examples/bmc/withdraw.json examples/bmc/withdraw_twins.py
+states: 22
+deadlock at sending [3, 3] after ['出庫(数量=3)']
+...
+```
+
+A twins module defines two tables. `DOMAINS` maps a state variable or an event
+parameter to the finite set of its values. `CLAUSES` maps a clause, spelled
+exactly as in the diagram, to a function of the names it reads: the event's
+parameters, the state variables before the step, and the variables after it
+with a trailing underscore (`残高_` for `残高'`). A guard clause reads the first
+two kinds, a post clause all three; a twin is applied to the names its
+signature asks for. The module is restricted to a pure subset of Python — a
+clause is one expression; no assignment inside a function, no loop, no
+exception, no I/O, no randomness, no float — which `load_twins` checks with
+`ast` before importing it, so that evaluating a clause is deterministic and
+decided by enumeration.
+
+The walk is breadth-first over (control state, valuation) pairs, up to
+`--max-states`. It reports every reachable state with no enabled transition and
+no end edge as a deadlock, with the trace that reached it, and every cycle of
+`tau` transitions among the reachable states as a tau cycle. A clause without a
+twin is refused; `--opaque true` takes it as satisfied instead, which
+over-approximates the behaviour (a deadlock it then reports may be spurious; a
+deadlock it misses cannot be hidden by it) and lists the clauses so taken.
+`--json` prints the same as JSON. The exit status is 1 when something was
+found, 2 when the inputs could not be read.
+
+The first worked example, `examples/bmc/withdraw.puml`, is a two-state ledger:
+a transfer is accepted when its twin of `残高で払える` says so and completes when
+the balance also covers the fee. The explorer reports the states with no way
+out and the trace to each; change the twin and the report changes with it,
+which is the point: writing the twin is where the question gets asked.
+
+The Python tests run with
+`python3 -m unittest discover -s csdfbmc/tests -t .`, and `go test ./...` runs
+them too when a `python3` is on the PATH.
+
 ## Interactive exploration
 
 `csdfrepl` interactively explores one CSDF file:
