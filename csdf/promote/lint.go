@@ -268,12 +268,7 @@ func (e *expander) warnAboutNotes() {
 
 		// An opaque clause says nothing about the instance by design; a guard
 		// made only of opaque clauses is not formalised yet, not wrong.
-		var formal []csdf.Predicate
-		for _, clause := range c.Guard.Clauses() {
-			if !csdf.IsOpaque(clause) {
-				formal = append(formal, clause)
-			}
-		}
+		formal := c.Guard.FormalClauses()
 		named := slices.ContainsFunc(c.Params, func(p string) bool {
 			return slices.ContainsFunc(formal, func(clause csdf.Predicate) bool { return strings.Contains(string(clause), p) })
 		})

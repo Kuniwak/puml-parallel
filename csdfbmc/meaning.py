@@ -174,3 +174,8 @@ class ReservedOpaque:
         if is_reserved_opaque(clause):
             return f"the clause {clause.text!r} is not formalised yet; formalise it, or run with opaque='true'"
         return self.inner.opaque_message(clause)
+
+
+def standard(inner: Meaning) -> Meaning:
+    """inner as every walk takes it: with the reserved clause opaque."""
+    return ReservedOpaque(inner)

@@ -44,20 +44,38 @@ class GlueMeaningTest(unittest.TestCase):
         self.assertEqual([[{"n": 1}, {"n": 2}]], self.client.asked)
 
 
-class ReservedOpaqueTest(unittest.TestCase):
-    """The reserved clause opaque has no meaning to ask anyone about."""
+OPAQUE_CLAUSE = Clause("constrain", "opaque")
+FORMAL_CLAUSE = Clause("constrain", "n > 0")
 
-    def test_opaque_is_not_formalised_whatever_the_meaning(self):
-        client = Recording({}, lambda b: True)
-        for name, inner in [("twins", TwinsMeaning(EMPTY, Twins(domains={}, clauses={"opaque": lambda: True}))),
-                            ("glue", GlueMeaning(client))]:
-            meaning = ReservedOpaque(inner)
-            clause = Clause("constrain", "opaque")
+
+class ReservedOpaqueTest(unittest.TestCase):
+    """The reserved clause opaque has no meaning to ask anyone about; any
+    other clause is the inner meaning's."""
+
+    def test_each_question_about_a_clause(self):
+        for name, clause, ask, want, want_asked in [
+            ("opaque has no value", OPAQUE_CLAUSE, lambda m, c: m.evaluate(c, "guard", {"n": 1}), OPAQUE, []),
+            ("opaque reads nothing known", OPAQUE_CLAUSE, lambda m, c: m.names(c, "guard"), None, []),
+            ("opaque reads nothing beyond", OPAQUE_CLAUSE, lambda m, c: m.names_beyond(c, None), None, []),
+            ("opaque is not prefetched", OPAQUE_CLAUSE, lambda m, c: m.prefetch(c, "guard", [{"n": 1}]), None, []),
+            ("another clause is evaluated by the inner meaning", FORMAL_CLAUSE, lambda m, c: m.evaluate(c, "guard", {"n": 1}), True, [[{"n": 1}]]),
+            ("another clause reads what the inner meaning says", FORMAL_CLAUSE, lambda m, c: m.names(c, "guard"), {"n"}, []),
+            ("another clause is prefetched by the inner meaning", FORMAL_CLAUSE, lambda m, c: m.prefetch(c, "guard", [{"n": 1}]), None, [[{"n": 1}]]),
+        ]:
             with self.subTest(name):
-                self.assertIs(OPAQUE, meaning.evaluate(clause, "guard", {}))
-                self.assertIsNone(meaning.names(clause, "guard"))
-                self.assertIn("'opaque'", meaning.opaque_message(clause))
-        self.assertEqual([], client.asked)
+                client = Recording({"n > 0": Analysis(opaque=False, reads=("n",))}, lambda b: b["n"] > 0)
+                meaning = ReservedOpaque(GlueMeaning(client))
+                got = ask(meaning, clause)
+                self.assertEqual(want, got)
+                self.assertEqual(want_asked, client.asked)
+
+    def test_opaque_is_not_formalised_even_when_the_twins_have_it(self):
+        meaning = ReservedOpaque(TwinsMeaning(EMPTY, Twins(domains={}, clauses={"opaque": lambda: True})))
+        self.assertIs(OPAQUE, meaning.evaluate(OPAQUE_CLAUSE, "guard", {}))
+
+    def test_the_message_names_the_reserved_clause(self):
+        meaning = ReservedOpaque(GlueMeaning(Recording({}, lambda b: True)))
+        self.assertIn("'opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
 
 
 if __name__ == "__main__":

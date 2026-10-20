@@ -12,7 +12,7 @@ from contextlib import redirect_stderr, redirect_stdout
 
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
-from csdfbmc.meaning import GlueMeaning
+from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.protocol import Client, EvaluatorError, checked, start_module
 from csdfbmc.twins import Twins
 
@@ -37,8 +37,8 @@ def python_glue() -> Client:
     return start_module("csdfbmc.python_glue", [])
 
 
-def glue(client) -> GlueMeaning:
-    return GlueMeaning(checked(client))
+def glue(client):
+    return standard(GlueMeaning(checked(client)))
 
 
 def counter(**edits) -> Diagram:

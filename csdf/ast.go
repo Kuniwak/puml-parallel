@@ -40,6 +40,18 @@ func IsOpaque(clause Predicate) bool {
 	return strings.TrimSpace(string(clause)) == string(PredicateOpaque)
 }
 
+// FormalClauses are the clauses of p that say something a tool can read: all
+// but the opaque ones.
+func (p Predicate) FormalClauses() []Predicate {
+	var out []Predicate
+	for _, c := range p.Clauses() {
+		if !IsOpaque(c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // Tau is the internal (silent) event. An edge whose event is exactly "tau" is a
 // τ-transition (docs/SYNTAX.md, docs/REFINEMENT_ALGORITHM.md §8).
 const Tau Event = "tau"

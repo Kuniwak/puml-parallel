@@ -56,3 +56,22 @@ func TestIsOpaqueTellsTheReservedClauseOfAClauseNotFormalisedYet(t *testing.T) {
 		})
 	}
 }
+
+func TestFormalClausesLeaveOutTheOpaqueOnes(t *testing.T) {
+	tests := []struct {
+		p    Predicate
+		want []Predicate
+	}{
+		{p: "opaque", want: nil},
+		{p: "opaque ∧ x > 0", want: []Predicate{"x > 0"}},
+		{p: "x > 0 ∧ y", want: []Predicate{"x > 0", "y"}},
+		{p: PredicateTrue, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.p), func(t *testing.T) {
+			if got := tt.p.FormalClauses(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FormalClauses() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
