@@ -13,7 +13,7 @@ import importlib.util
 from typing import Callable
 
 from csdfbmc.formal import FORMAL_GLOBALS, free_names
-from csdfbmc.protocol import handler
+from csdfbmc.protocol import Analysis, handler
 from csdfbmc.twins import check_pure
 from csdfbmc.values import freeze
 
@@ -67,11 +67,11 @@ class Glue:
         code, _, _ = self._compile(clause, role)
         return eval(code, self.globals, dict(binding))
 
-    def analyse(self, clause: str, role: str) -> dict:
+    def analyse(self, clause: str, role: str) -> Analysis:
         if clause.strip() == OPAQUE:
-            return {"opaque": True}
+            return Analysis(opaque=True)
         _, reads, writes = self._compile(clause, role)
-        return {"reads": reads, "writes": writes}
+        return Analysis(opaque=False, reads=tuple(reads), writes=tuple(writes))
 
     def guard(self, clause: str, binding: dict) -> bool:
         return bool(self._eval(clause, "guard", binding))

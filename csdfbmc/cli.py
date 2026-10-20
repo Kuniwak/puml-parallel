@@ -44,8 +44,10 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object]]:
     if a.evaluator is not None:
         client = start_command(shlex.split(a.evaluator))
     elif a.evaluator_module is not None:
-        name, *args = shlex.split(a.evaluator_module) or [""]
-        client = start_module(name, args)
+        words = shlex.split(a.evaluator_module)
+        if not words:
+            raise ValueError("--evaluator-module expects MODULE [ARGS...]")
+        client = start_module(words[0], words[1:])
     try:
         diagram = Diagram.load(a.diagram)
         twins = _load_twins(a)

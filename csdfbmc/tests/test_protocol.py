@@ -6,7 +6,7 @@ import os
 import sys
 import unittest
 
-from csdfbmc.protocol import Analysis, Client, EvaluatorError, from_wire, serve, start_command, start_module, to_wire
+from csdfbmc.protocol import NO_CLOSE, Analysis, Client, EvaluatorError, from_wire, serve, start_command, start_module, to_wire
 from csdfbmc.values import FrozenMap
 
 
@@ -61,17 +61,22 @@ class ClientTest(unittest.TestCase):
     """The client refuses an answer the protocol does not define, rather
     than reading something into it."""
 
+    def test_a_hello_naming_no_language_is_refused(self):
+        with self.assertRaises(EvaluatorError):
+            Client(fake({"hello": {"protocol": 1}}), NO_CLOSE)
+
     def test_a_malformed_answer_is_refused(self):
         for name, answers, ask in [
-            ("hello without a language", {"hello": {"protocol": 1}}, None),
             ("analyse without reads", {"analyse": {"writes": []}}, lambda c: c.analyse("x", "guard")),
             ("reads that are not names", {"analyse": {"reads": [1], "writes": []}}, lambda c: c.analyse("x", "guard")),
             ("a guard that is not a truth value", {"guard": {"results": [1]}}, lambda c: c.guard("x", [{}])),
             ("fewer results than bindings", {"guard": {"results": []}}, lambda c: c.guard("x", [{}])),
             ("a post that is not a list of assignments", {"post": {"results": [[1]]}}, lambda c: c.post("x", [{}])),
+            ("an answer that is not an object", {"guard": [True]}, lambda c: c.guard("x", [{}])),
+            ("an error that is not a message", {"guard": {"error": ["x"]}}, lambda c: c.guard("x", [{}])),
         ]:
+            client = Client(fake({"hello": HELLO, **answers}), NO_CLOSE)
             with self.subTest(name), self.assertRaises(EvaluatorError):
-                client = Client(fake({"hello": HELLO, **answers}))
                 ask(client)
 
 

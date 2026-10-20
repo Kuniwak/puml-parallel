@@ -13,7 +13,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
 from csdfbmc.meaning import GlueMeaning
-from csdfbmc.protocol import Client, checked, start_module
+from csdfbmc.protocol import Client, EvaluatorError, checked, start_module
 from csdfbmc.twins import Twins
 
 COUNTER = {
@@ -85,7 +85,7 @@ class LabelsTest(unittest.TestCase):
 
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
         lying = Lying(python_glue())
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(EvaluatorError) as cm:
             Explorer(counter(), NO_TWINS, meaning=glue(lying)).run()
         self.assertIn("[{'n': n - 1}]", str(cm.exception))
 
@@ -206,6 +206,12 @@ class LabelsCommandTest(unittest.TestCase):
         code, _, err = self.run_main(main, "--evaluator-module", "no.such.glue")
         self.assertEqual(2, code)
         self.assertIn("no.such.glue", err)
+
+    def test_an_empty_glue_module_is_a_loading_error(self):
+        from csdfbmc.__main__ import main
+        code, _, err = self.run_main(main, "--evaluator-module", "")
+        self.assertEqual(2, code)
+        self.assertIn("MODULE", err)
 
     def test_the_two_forms_of_the_glue_exclude_each_other(self):
         from csdfbmc.__main__ import main

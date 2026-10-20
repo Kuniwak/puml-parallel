@@ -119,11 +119,11 @@ def answer_from_wire(op: str, answer: dict) -> dict:
 Handle = Callable[[dict], dict]
 
 
-def handler(language: str, *, analyse: Callable[[str, str], dict], guard: Callable[[str, dict], object],
-            post: Callable[[str, dict], list]) -> Handle:
+def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: Callable[[str, dict], bool],
+            post: Callable[[str, dict], list[dict]]) -> Handle:
     """The Handle of a glue, from what is particular to its language:
-    analyse(text, role) answers the analyse request, guard(text, binding)
-    and post(text, binding) evaluate a clause under one binding. hello, the
+    analyse(text, role) says what a clause reads and writes, guard(text,
+    binding) and post(text, binding) evaluate a clause under one binding. hello, the
     batches and the error answers are the protocol's and are the same for
     every glue."""
 
@@ -133,7 +133,8 @@ def handler(language: str, *, analyse: Callable[[str, str], dict], guard: Callab
             if op == "hello":
                 return {"language": language, "protocol": PROTOCOL}
             if op == "analyse":
-                return analyse(request["clause"], request["role"])
+                a = analyse(request["clause"], request["role"])
+                return {"opaque": True} if a.opaque else {"reads": list(a.reads), "writes": list(a.writes)}
             if op == "guard":
                 return {"results": [guard(request["clause"], b) for b in request["bindings"]]}
             if op == "post":
@@ -225,6 +226,11 @@ class ClientLike(Protocol):
     def close(self) -> None: ...
 
 
+def NO_CLOSE() -> None:
+    """The close of a glue that holds nothing to release, such as one
+    loaded in-process."""
+
+
 @dataclass(frozen=True)
 class Analysis:
     """What a glue says about a clause without evaluating it."""
@@ -238,11 +244,13 @@ class Client:
     typed operations, an error answer raised as EvaluatorError. It says
     hello first and refuses a glue that speaks another protocol version."""
 
-    def __init__(self, handle: Handle, close: Callable[[], None] = lambda: None):
+    def __init__(self, handle: Handle, close: Callable[[], None]):
         self._handle = handle
         self._close = close
         try:
             answer = handle({"op": "hello"})
+            if not isinstance(answer, dict):
+                raise EvaluatorError(f"the glue answered hello with {answer!r}, not an object")
             if answer.get("protocol") != PROTOCOL:
                 raise EvaluatorError(f"the glue speaks protocol {answer.get('protocol')!r}; csdfbmc speaks {PROTOCOL}")
             if not isinstance(answer.get("language"), str) or not answer["language"]:
@@ -254,7 +262,11 @@ class Client:
 
     def _request(self, request: dict) -> dict:
         answer = self._handle(request)
+        if not isinstance(answer, dict):
+            raise self._malformed(request["op"], request.get("clause"), answer, "an answer is an object")
         if "error" in answer:
+            if not isinstance(answer["error"], str):
+                raise self._malformed(request["op"], request.get("clause"), answer, "an error is a message")
             raise EvaluatorError(f"the {self.language} glue answered {request.get('op')} of {request.get('clause')!r}: {answer['error']}")
         return answer
 
@@ -307,7 +319,7 @@ def start_command(argv: list[str], *, cwd: str | None = None, env: dict | None =
 
 def start_module(name: str, args: list[str]) -> Client:
     """A Client of the glue a Python module's evaluator(args) returns, in-process."""
-    return Client(module_handle(name, args))
+    return Client(module_handle(name, args), NO_CLOSE)
 
 
 class Validating:
@@ -317,13 +329,9 @@ class Validating:
     def __init__(self, inner: ClientLike):
         self.inner = inner
         self.language = inner.language
-        self._analyses: dict[tuple[str, str], Analysis] = {}
 
     def analyse(self, clause: str, role: str) -> Analysis:
-        key = (clause, role)
-        if key not in self._analyses:
-            self._analyses[key] = self.inner.analyse(clause, role)
-        return self._analyses[key]
+        return self.inner.analyse(clause, role)
 
     def guard(self, clause: str, bindings: list[dict]) -> list:
         return self.inner.guard(clause, bindings)
@@ -334,7 +342,7 @@ class Validating:
         for result in results:
             for a in result:
                 if set(a) != writes:
-                    raise ValueError(f"the glue answered the post clause {clause!r} with {a!r}, which does not give a value to exactly {sorted(writes)}")
+                    raise EvaluatorError(f"the {self.language} glue answered the post clause {clause!r} with {a!r}, which does not give a value to exactly {sorted(writes)}")
         return results
 
     def close(self) -> None:
