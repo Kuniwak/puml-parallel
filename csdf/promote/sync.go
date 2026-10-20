@@ -165,7 +165,7 @@ func (e *expander) constrain(edges []ExpandedEdge) {
 			}
 
 			for _, clause := range c.Guard.Clauses() {
-				edges[i].Guard = append(edges[i].Guard, ExpandedClause{Kind: ClauseConstrain, Text: string(clause), Formal: c.Formal, Line: c.Line})
+				edges[i].Guard = append(edges[i].Guard, authored(ClauseConstrain, clause, ExpandedClause{Formal: c.Formal, Line: c.Line}))
 			}
 			edges[i].Edge.Guard = conjoin(edges[i].Guard)
 		}

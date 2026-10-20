@@ -22,7 +22,7 @@ s0 --> s1 : finish?result ; ready ; done
 s1 --> [*] : complete
 @enduml
 `
-	want := `{"states":{"s0":{"name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}],"line":2},"s1":{"name":"Done","vars":[],"line":5}},"start_edge":{"dst":"s0","post":"initialize","line":6},"edges":[{"src":"s0","dst":"s1","event":"finish?result","channel":"finish","fields":[{"dir":"?","name":"result"}],"guard":"ready","post":"done","line":7}],"end_edge":{"src":"s1","guard":"complete","line":8},"assumptions":[]}` + "\n"
+	want := `{"states":{"s0":{"name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}],"line":2},"s1":{"name":"Done","vars":[],"line":5}},"start_edge":{"dst":"s0","post":"initialize","post_clauses":[{"text":"initialize"}],"line":6},"edges":[{"src":"s0","dst":"s1","event":"finish?result","channel":"finish","fields":[{"dir":"?","name":"result"}],"guard":"ready","guard_clauses":[{"text":"ready"}],"post":"done","post_clauses":[{"text":"done"}],"line":7}],"end_edge":{"src":"s1","guard":"complete","guard_clauses":[{"text":"complete"}],"line":8},"assumptions":[]}` + "\n"
 
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
@@ -46,7 +46,7 @@ s1 --> [*] : complete
 
 func TestNewMainFuncReadsFileArgument(t *testing.T) {
 	// Arrange: `csdfparse <file>` must be equivalent to reading from stdin.
-	want := `{"states":{"s0":{"name":"SKIP","vars":[],"line":3}},"start_edge":{"dst":"s0","post":"true","line":5},"edges":[],"end_edge":{"src":"s0","guard":"true","line":6},"assumptions":[]}` + "\n"
+	want := `{"states":{"s0":{"name":"SKIP","vars":[],"line":3}},"start_edge":{"dst":"s0","post":"","post_clauses":[],"line":5},"edges":[],"end_edge":{"src":"s0","guard":"","guard_clauses":[],"line":6},"assumptions":[]}` + "\n"
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 

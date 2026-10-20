@@ -1,6 +1,7 @@
 """Findings of one shape are reported once, with their count and the first
 (shortest) trace; --first stops the walk at the first finding."""
 import unittest
+from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
 from csdfbmc.twins import Twins
@@ -31,7 +32,7 @@ MANY_TWINS = Twins(domains={}, clauses={
 
 class GroupTest(unittest.TestCase):
     def test_deadlocks_of_one_shape_are_one_group_with_a_count(self):
-        result = Explorer.of_twins(Diagram.from_json(MANY), MANY_TWINS).run()
+        result = Explorer.of_twins(fixture.diagram(MANY), MANY_TWINS).run()
         self.assertGreater(len(result.deadlocks), 1)
         groups = result.groups()
         deadlock_groups = [g for g in groups if g["kind"] == "deadlock"]
@@ -44,13 +45,13 @@ class GroupTest(unittest.TestCase):
 
     def test_violations_group_by_invariant_and_state(self):
         twins = Twins(domains={}, clauses=MANY_TWINS.clauses, invariants={"n < 5": lambda n: n < 5})
-        result = Explorer.of_twins(Diagram.from_json(MANY), twins).run()
+        result = Explorer.of_twins(fixture.diagram(MANY), twins).run()
         groups = [g for g in result.groups() if g["kind"] == "violation"]
         self.assertEqual([("n < 5", "a")], [(g["invariant"], g["at"]) for g in groups])
         self.assertEqual(2, groups[0]["count"])  # n = 6 and n = 5
 
     def test_first_stops_the_walk_at_the_first_finding(self):
-        result = Explorer.of_twins(Diagram.from_json(MANY), MANY_TWINS, first=True).run()
+        result = Explorer.of_twins(fixture.diagram(MANY), MANY_TWINS, first=True).run()
         self.assertEqual(1, len(result.deadlocks))
         self.assertTrue(result.stopped_early)
 

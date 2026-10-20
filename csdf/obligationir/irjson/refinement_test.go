@@ -72,7 +72,7 @@ s0 --> s0 : b
 		t.Fatalf("WriteRefinement() error = %v", err)
 	}
 
-	want := `{"mode":"trace","alphabet":["a","b"],"predicates":{"4261170317":{"args":[],"text":"true"}},"constants":[],"spec":{"states":{"s0":{"fields":[],"line":2}},"edges":[{"src":"s0","dst":"s0","event":"a","event_params":[],"guard":4261170317,"guard_args":[],"post":4261170317,"post_args":[],"line":4}],"init":{"state":"s0","post":4261170317,"post_args":[],"line":3},"assumptions":[]},"impl":{"states":{"s0":{"fields":[],"line":2}},"edges":[{"src":"s0","dst":"s0","event":"b","event_params":[],"guard":4261170317,"guard_args":[],"post":4261170317,"post_args":[],"line":4}],"init":{"state":"s0","post":4261170317,"post_args":[],"line":3},"assumptions":[]}}
+	want := `{"mode":"trace","alphabet":["a","b"],"predicates":{"0":{"args":[],"text":""}},"constants":[],"spec":{"states":{"s0":{"fields":[],"line":2}},"edges":[{"src":"s0","dst":"s0","event":"a","event_params":[],"guard":0,"guard_args":[],"post":0,"post_args":[],"line":4}],"init":{"state":"s0","post":0,"post_args":[],"line":3},"assumptions":[]},"impl":{"states":{"s0":{"fields":[],"line":2}},"edges":[{"src":"s0","dst":"s0","event":"b","event_params":[],"guard":0,"guard_args":[],"post":0,"post_args":[],"line":4}],"init":{"state":"s0","post":0,"post_args":[],"line":3},"assumptions":[]}}
 `
 	if got := buf.String(); want != got {
 		t.Error(cmp.Diff(want, got))
@@ -86,7 +86,7 @@ func TestWriteRefinementDoesNotEscapeHTML(t *testing.T) {
 state "s0" as s0
 s0: n
 [*] --> s0
-s0 --> s0 : a ; n > 0 ; true
+s0 --> s0 : a ; n > 0
 @enduml
 `)
 

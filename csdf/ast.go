@@ -22,20 +22,22 @@ type StateVar struct {
 type Predicate string
 
 const (
+	// PredicateTrue is how a report spells the omitted predicate, which has
+	// no clause. Written by an author, "true" is an ordinary clause.
 	PredicateTrue Predicate = "true"
-	// PredicateOpaque is the reserved clause of a clause not formalised yet:
-	// it says nothing a tool can read, and a checker takes it by its own rule.
-	PredicateOpaque Predicate = "opaque"
+	// PredicateOpaque is the tool word of a clause not formalised yet: it
+	// says nothing a tool can read, and a checker takes it by its own rule.
+	PredicateOpaque Predicate = "@opaque"
 )
 
-// IsTrue reports whether a predicate string is the omitted/default value,
-// which renders as the literal True rather than an opaque symbol. The capitalised
-// "True"/"False" written by an author are ordinary natural-language predicates.
+// IsTrue reports whether a predicate is omitted: it has no clause, so it
+// holds, and renders as the literal True rather than an opaque symbol. A
+// predicate an author wrote, "true" among them, is made of clauses.
 func IsTrue(s Predicate) bool {
-	return s == "" || s == PredicateTrue
+	return strings.TrimSpace(string(s)) == ""
 }
 
-// IsOpaque reports whether a clause is the reserved clause opaque.
+// IsOpaque reports whether a clause is the tool word @opaque.
 func IsOpaque(clause Predicate) bool {
 	return strings.TrimSpace(string(clause)) == string(PredicateOpaque)
 }
@@ -238,7 +240,7 @@ func (d *Diagram) StringWithEdgeComments(before func(i int) string) string {
 		}
 		sb.WriteString(fmt.Sprintf("%s --> %s : %s", edge.Src, edge.Dst, edge.Event))
 		// A lone "; x" is a guard (docs/SYNTAX.md), so an edge that only has a
-		// post must spell the omitted guard out as "; true ; x".
+		// post writes the omitted guard as nothing between two: "; ; x".
 		if IsTrue(edge.Post) {
 			if !IsTrue(edge.Guard) {
 				sb.WriteString(fmt.Sprintf(" ; %s", edge.Guard))
@@ -246,11 +248,11 @@ func (d *Diagram) StringWithEdgeComments(before func(i int) string) string {
 			sb.WriteString("\n")
 			continue
 		}
-		guard := edge.Guard
-		if IsTrue(guard) {
-			guard = PredicateTrue
+		if IsTrue(edge.Guard) {
+			sb.WriteString(fmt.Sprintf(" ; ; %s\n", edge.Post))
+			continue
 		}
-		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", guard, edge.Post))
+		sb.WriteString(fmt.Sprintf(" ; %s ; %s\n", edge.Guard, edge.Post))
 	}
 
 	if d.EndEdge != nil {

@@ -287,7 +287,8 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 	if diagram.EndEdge == nil {
 		t.Fatal("Parse() end edge = nil")
 	}
-	if diagram.EndEdge.Guard != `"guard /' literal '/"` {
+	// A clause language's quotes are not the tools': the comment is removed.
+	if diagram.EndEdge.Guard != `"guard "` {
 		t.Errorf("Parse() end guard = %q", diagram.EndEdge.Guard)
 	}
 
@@ -720,5 +721,74 @@ state "約定済み" as 約定済み
 	}
 	if diagram.StartEdge.Dst != "約定済み" {
 		t.Errorf("diagram.StartEdge.Dst = %q, want %q", diagram.StartEdge.Dst, "約定済み")
+	}
+}
+
+func TestParseClausesWithTheToolsVocabulary(t *testing.T) {
+	parser := NewParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0 : @opaque
+s0 --> s1 : go ; f(x) \; g(x) ∧ @opaque ; a \∧ b
+s1 --> [*] : mail \@ host
+@enduml
+`)
+
+	diagram, err := parser.Parse()
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got, want := diagram.Edges[0].Guard, Predicate(`f(x) \; g(x) ∧ @opaque`); got != want {
+		t.Errorf("guard = %q, want %q", got, want)
+	}
+	if got, want := diagram.Edges[0].Post, Predicate(`a \∧ b`); got != want {
+		t.Errorf("post = %q, want %q", got, want)
+	}
+}
+
+func TestParseRefusesAnUnknownToolWord(t *testing.T) {
+	for name, line := range map[string]string{
+		"in a guard":      "s0 --> s1 : go ; @opaq",
+		"in a post":       "s0 --> s1 : go ; ; x @ y",
+		"in a start post": "[*] --> s1 : @start",
+	} {
+		t.Run(name, func(t *testing.T) {
+			src := "@startuml\nstate \"Initial\" as s0\nstate \"Done\" as s1\n"
+			if !strings.HasPrefix(line, "[*]") {
+				src += "[*] --> s0\n"
+			}
+			parser := NewParser(src + line + "\n@enduml\n")
+			if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "@opaque is the only one") {
+				t.Errorf("Parse() error = %v, want an unknown tool word refused", err)
+			}
+		})
+	}
+}
+
+func TestParseTakesNoQuotesOfAClauseLanguage(t *testing.T) {
+	parser := NewParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : go ; s == "a;b" ; t == "a\;b" \\; u
+@enduml
+`)
+
+	diagram, err := parser.Parse()
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if got, want := diagram.Edges[0].Guard, Predicate(`s == "a`); got != want {
+		t.Errorf("guard = %q, want %q", got, want)
+	}
+	if got, want := diagram.Edges[0].Post, Predicate(`b" ; t == "a\;b" \\; u`); got != want {
+		t.Errorf("post = %q, want %q", got, want)
+	}
+}
+
+func TestParseRefusesAnEmptyClause(t *testing.T) {
+	parser := NewParser("@startuml\nstate \"Initial\" as s0\n[*] --> s0\ns0 --> s0 : go ; a ∧  ∧ b\n@enduml\n")
+	if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "empty clause") {
+		t.Errorf("Parse() error = %v, want an empty clause refused", err)
 	}
 }

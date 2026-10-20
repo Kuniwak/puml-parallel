@@ -285,7 +285,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
-	post := "true" // Default value when post is omitted
+	post := "" // An omitted post has no clause
 	if p.peek() == ':' {
 		p.advance() // consume ':'
 		if err := p.skipInlineTrivia(); err != nil {
@@ -299,6 +299,9 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 
 	if !p.expectNewlines() {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected newline after start edge declaration at line %d, col %d", p.line, p.col)
+	}
+	if err := checkClauses(line, "post", Predicate(post)); err != nil {
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
 	return StartEdge{
@@ -348,8 +351,8 @@ func (p *Parser) parseEdge() (Edge, error) {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
-	guard := "true" // Default value when guard is omitted
-	post := "true"  // Default value when post is omitted
+	guard := "" // An omitted guard or post has no clause
+	post := ""
 
 	if p.peek() == ';' {
 		p.advance() // consume first ';'
@@ -378,6 +381,12 @@ func (p *Parser) parseEdge() (Edge, error) {
 
 	if !p.expectNewlines() {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected newline after edge declaration at line %d, col %d", p.line, p.col)
+	}
+	if err := checkClauses(line, "guard", Predicate(guard)); err != nil {
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
+	}
+	if err := checkClauses(line, "post", Predicate(post)); err != nil {
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	return Edge{
@@ -436,12 +445,10 @@ func (p *Parser) parseUntilNewline() (string, error) {
 
 func (p *Parser) parseUntil(stops ...byte) (string, error) {
 	var result strings.Builder
-	inString := false
-	escaped := false
 	var lastWritten byte
 
 	for !p.isAtEnd() && !containsByte(stops, p.peek()) {
-		if !inString && p.peekString("/'") {
+		if p.peekString("/'") {
 			needsSeparator := result.Len() > 0 && lastWritten != ' ' && lastWritten != '\t' && lastWritten != '\r' && lastWritten != '\n'
 			if err := p.skipBlockComment(); err != nil {
 				return "", fmt.Errorf("csdf.Parser.parseUntil: %w", err)
@@ -455,20 +462,17 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 		}
 
 		c := p.peek()
-		result.WriteByte(p.peek())
+		result.WriteByte(c)
 		p.advance()
 		lastWritten = c
 
-		if escaped {
-			escaped = false
-			continue
-		}
-		if inString && c == '\\' {
-			escaped = true
-			continue
-		}
-		if c == '"' {
-			inString = !inString
+		// \; is part of the clause rather than the end of it, and \\ is a
+		// backslash that escapes nothing after it (docs/SYNTAX.md). A clause
+		// language's quotes are not the tools', so they protect nothing.
+		if c == '\\' && !p.isAtEnd() && (p.peek() == ';' || p.peek() == '\\') {
+			lastWritten = p.peek()
+			result.WriteByte(lastWritten)
+			p.advance()
 		}
 	}
 	return strings.TrimSpace(result.String()), nil
@@ -801,12 +805,24 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	if !p.expectNewlines() {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
+	if err := checkClauses(line, "guard", Predicate(guard)); err != nil {
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
+	}
 
 	return EndEdge{
 		Src:   StateID(src),
 		Guard: Predicate(guard),
 		Line:  line,
 	}, nil
+}
+
+// checkClauses refuses a predicate whose clauses CheckClauses refuses, saying
+// the line it was written on and which predicate of the line it is.
+func checkClauses(line int, which string, p Predicate) error {
+	if err := CheckClauses(p); err != nil {
+		return fmt.Errorf("line %d, the %s: %w", line, which, err)
+	}
+	return nil
 }
 
 func containsByte(values []byte, target byte) bool {

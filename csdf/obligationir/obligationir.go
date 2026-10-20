@@ -121,6 +121,15 @@ type IRPredicate struct {
 	Text csdf.Predicate `json:"text"`
 }
 
+// Comment is the predicate's text as a comment beside its symbol shows it:
+// the omitted predicate has no text, and is shown as the true it stands for.
+func (p IRPredicate) Comment() string {
+	if csdf.IsTrue(p.Text) {
+		return string(csdf.PredicateTrue)
+	}
+	return string(p.Text)
+}
+
 // Signature is what makes two predicates the same predicate: the natural-language
 // text they stand for and the types of their arguments. Argument *names* are
 // deliberately excluded - the same predicate over differently named variables is

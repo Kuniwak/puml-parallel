@@ -50,12 +50,16 @@ func TestEdgeJSON(t *testing.T) {
 		want string
 	}{
 		"fields taken apart": {
-			edge: Edge{Src: "a", Dst: "b", Event: "c?x!y", Guard: "true", Post: "true", Line: 3},
-			want: `{"src":"a","dst":"b","event":"c?x!y","channel":"c","fields":[{"dir":"?","name":"x"},{"dir":"!","name":"y"}],"guard":"true","post":"true","line":3}`,
+			edge: Edge{Src: "a", Dst: "b", Event: "c?x!y", Line: 3},
+			want: `{"src":"a","dst":"b","event":"c?x!y","channel":"c","fields":[{"dir":"?","name":"x"},{"dir":"!","name":"y"}],"guard":"","guard_clauses":[],"post":"","post_clauses":[],"line":3}`,
 		},
 		"no field is an empty list": {
-			edge: Edge{Src: "a", Dst: "b", Event: "tau", Guard: "true", Post: "true", Line: 3},
-			want: `{"src":"a","dst":"b","event":"tau","channel":"tau","fields":[],"guard":"true","post":"true","line":3}`,
+			edge: Edge{Src: "a", Dst: "b", Event: "tau", Line: 3},
+			want: `{"src":"a","dst":"b","event":"tau","channel":"tau","fields":[],"guard":"","guard_clauses":[],"post":"","post_clauses":[],"line":3}`,
+		},
+		"clauses as their language reads them": {
+			edge: Edge{Src: "a", Dst: "b", Event: "go", Guard: `x \∧ y ∧ @opaque`, Post: "z", Line: 3},
+			want: `{"src":"a","dst":"b","event":"go","channel":"go","fields":[],"guard":"x \\∧ y ∧ @opaque","guard_clauses":[{"text":"x ∧ y"},{"opaque":true}],"post":"z","post_clauses":[{"text":"z"}],"line":3}`,
 		},
 	}
 	for name, tt := range tests {
@@ -77,5 +81,20 @@ func TestEdgeJSONRefusesAnEventOutsideTheGrammar(t *testing.T) {
 	err := json.Unmarshal([]byte(`{"src":"a","dst":"b","event":"f(x)"}`), &e)
 	if err == nil || !strings.Contains(err.Error(), "f(x)") {
 		t.Errorf("json.Unmarshal() error = %v, want one naming f(x)", err)
+	}
+}
+
+func TestStartAndEndEdgeJSONCarryTheirClauses(t *testing.T) {
+	start, _ := json.Marshal(StartEdge{Dst: "a", Post: "n = 0 ∧ @opaque", Line: 1})
+	if want := `{"dst":"a","post":"n = 0 ∧ @opaque","post_clauses":[{"text":"n = 0"},{"opaque":true}],"line":1}`; string(start) != want {
+		t.Errorf("json.Marshal(StartEdge) = %s, want %s", start, want)
+	}
+	end, _ := json.Marshal(EndEdge{Src: "a", Guard: "done", Line: 2})
+	if want := `{"src":"a","guard":"done","guard_clauses":[{"text":"done"}],"line":2}`; string(end) != want {
+		t.Errorf("json.Marshal(EndEdge) = %s, want %s", end, want)
+	}
+	var back StartEdge
+	if err := json.Unmarshal(start, &back); err != nil || back.Post != "n = 0 ∧ @opaque" {
+		t.Errorf("json.Unmarshal(StartEdge) = %#v, %v", back, err)
 	}
 }

@@ -58,7 +58,7 @@ rather than the last (the rule is not greedy). Every line in between, along with
 lines, is discarded. Because the markers are themselves PlantUML line comments, the
 wrapped content (for example Graphviz directives such as `left to right direction`) is still
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
-Comment delimiters inside double-quoted strings are treated as ordinary text.
+Comment delimiters inside a state name are ordinary text. A clause language's quotes are not the tools': a comment delimiter, `;` or ` ∧ ` inside one is read as anywhere else.
 An event is a channel followed by its fields, in the CSP style: `c?x` receives `x`
 (the environment chooses its value) and `c!y` chooses `y` internally (the post gives
 it its value). `tau` is the internal event. An event names its fields and carries
@@ -69,6 +69,7 @@ text, and `csdfpromote` matches `sync` and `constrain` by the channel.
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
+PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as
@@ -82,16 +83,29 @@ and an anchored note (`note left of s`), still go in a `CSDF-IGNORE` region.
 
 A `guard` or a `post` is a conjunction of *clauses* joined by the connective ` ∧ `
 (U+2227 with one space on each side). The clause is the unit the tools treat as
-opaque text: `csdfparallel` conjoins the predicates of two edges with it, and
-`csdfpromote` joins the clauses it generates and the clauses the author wrote with
-it, so a tool that reads an expansion gets the clauses back by splitting on it
-(`Predicate.Clauses`). The connective is grammar, not wording, so a clause must not
-contain it; a natural-language "and" (`a、かつ b`, `a and b`) is part of its clause.
-A `guard` or `post` that is omitted, or is the literal `true`, has no clause.
-The clause `opaque` is reserved for a clause not formalised yet: it says
-nothing a tool can read, and a checker takes it by its own rule (`csdfbmc
---opaque`), whatever language the other clauses are written in.
-PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
+opaque text, written in whatever language its reader takes (natural language, or
+a formal language a `csdfbmc` glue reads): `csdfparallel` conjoins the
+predicates of two edges with it, and `csdfpromote` joins the clauses it
+generates and the clauses the author wrote with it (`Predicate.Clauses`). A
+`guard` or `post` that is omitted has no clause, and holds; `true` written by an
+author is an ordinary clause, read by whatever reads the others.
+
+The tools never write or rewrite the text of a clause, and reserve in it only
+what they must read:
+
+- **Separators**: `;` separates the event, the guard and the post, and ` ∧ `
+  separates clauses. ` ∧ ` is not an
+  operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
+  `a and b`). `∨` and every other symbol belong to the clause.
+- **Tool words** start with `@`. `@opaque` is the one there is: a clause not
+  formalised yet, which says nothing a tool can read, and which a checker takes by
+  its own rule (`csdfbmc --opaque`). Any other word starting with an unescaped `@`
+  is refused.
+- **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
+  A backslash before any other character is part of the clause. A reader of the
+  clause gets it with the escapes removed: csdfparse writes each predicate's
+  clauses so, as `guard_clauses` and `post_clauses` (`{"text": …}`, or
+  `{"opaque": true}`).
 
 The following symbols are ABNF core rules:
 

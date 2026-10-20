@@ -180,22 +180,22 @@ b --> a : tau
   | St_b
 
 -- true
-def pred_1ygzo25 : Prop := True
+def pred_0 : Prop := True
 
 -- true
-def init : Prop := pred_1ygzo25
+def init : Prop := pred_0
 
 -- true
-def guard_L5 : Prop := pred_1ygzo25
+def guard_L5 : Prop := pred_0
 
 -- true
-def post_L5 : Prop := pred_1ygzo25
+def post_L5 : Prop := pred_0
 
 -- true
-def guard_L6 : Prop := pred_1ygzo25
+def guard_L6 : Prop := pred_0
 
 -- true
-def post_L6 : Prop := pred_1ygzo25
+def post_L6 : Prop := pred_0
 
 def step (s s' : St) : Prop :=
   (s = .St_a ∧ s' = .St_b ∧ guard_L5 ∧ post_L5)

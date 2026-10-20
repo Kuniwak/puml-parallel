@@ -31,7 +31,7 @@ state "未開設" as accNone
 state "開設済み" as accOpen
 accOpen: 残高
 [*] --> accNone
-accNone --> accOpen : OPEN ; true ; 残高' = 0
+accNone --> accOpen : OPEN ; ; 残高' = 0
 accOpen --> accOpen : DEPOSIT?額 ; 0 < 額 ; 残高' = 残高 + 額
 @enduml
 `

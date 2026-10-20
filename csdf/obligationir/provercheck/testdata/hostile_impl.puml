@@ -7,6 +7,6 @@ state "vm-idle" as vm-idle
 vm-idle: and
 [*] --> init : both are set initially
 init --> vm-idle : tau ; step is positive ; and' is step
-vm-idle --> init : choose?a-product ; true ; step' is and
+vm-idle --> init : choose?a-product ; ; step' is and
 vm-idle --> [*] : nothing is left
 @enduml

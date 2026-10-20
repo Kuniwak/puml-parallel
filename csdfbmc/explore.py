@@ -176,8 +176,8 @@ class Explorer:
     meaning says what the hand-written and constrain clauses mean
     (csdfbmc.meaning): the twins (TwinsMeaning, which of_twins gives), or a
     glue of the evaluator protocol (GlueMeaning), which reads every clause
-    by its text, each as meaning.standard makes it, with the reserved clause
-    opaque. A clause
+    by its text, each as meaning.standard makes it, with the tool word
+    @opaque. A clause
     the meaning has nothing for follows the opaque rule. symmetry is refused
     when the meaning cannot be read to check SYMMETRIC.
 

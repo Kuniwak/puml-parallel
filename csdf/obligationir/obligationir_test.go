@@ -43,11 +43,11 @@ a --> a : tau ; n > 0 ; n' = n - 1
 				},
 				Text: "n > 0",
 			},
-			1836624455: {
+			1892585493: {
 				Args: []IRArg{
 					{Name: "n", Type: "Nat", Primed: false},
 				},
-				Text: csdf.PredicateTrue,
+				Text: "",
 			},
 		},
 		Constants: []IRConst{},
@@ -66,7 +66,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 		},
 		Init: IRInit{
 			Dst:      "a",
-			Post:     1836624455,
+			Post:     1892585493,
 			PostArgs: []IRArg{{Name: "n", Type: "Nat"}},
 			Line:     4,
 		},
@@ -100,9 +100,9 @@ s0 --> s1 : a
 			"s1": {Fields: []IRField{}, Line: 3},
 		},
 		Predicates: map[IRPredicateID]IRPredicate{
-			4261170317: {
+			0: {
 				Args: []IRArg{},
-				Text: csdf.PredicateTrue,
+				Text: "",
 			},
 		},
 		Constants: []IRConst{},
@@ -112,16 +112,16 @@ s0 --> s1 : a
 				Dst:         "s1",
 				Event:       "a",
 				EventParams: []IRArg{},
-				Guard:       4261170317,
+				Guard:       0,
 				GuardArgs:   []IRArg{},
-				Post:        4261170317,
+				Post:        0,
 				PostArgs:    []IRArg{},
 				Line:        5,
 			},
 		},
 		Init: IRInit{
 			Dst:      "s0",
-			Post:     4261170317,
+			Post:     0,
 			PostArgs: []IRArg{},
 			Line:     4,
 		},
@@ -188,7 +188,7 @@ s0: ready ; bool
 func TestIRPredicateHash(t *testing.T) {
 	p := IRPredicate{
 		Args: []IRArg{},
-		Text: "true",
+		Text: "",
 	}
 
 	h := crc32.NewIEEE()

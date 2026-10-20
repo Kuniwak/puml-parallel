@@ -55,7 +55,7 @@ func NewSession(diagram *csdf.Diagram, solver csdf.PostSolver) (*Session, error)
 		mode:    ModeValues,
 		pending: pendingTransition{
 			group: csdf.StateWithID{State: initial, ID: diagram.StartEdge.Dst},
-			guard: csdf.PredicateTrue,
+			guard: "",
 			post:  diagram.StartEdge.Post,
 			event: csdf.Tau,
 			prev:  nil,

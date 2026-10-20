@@ -248,15 +248,15 @@ func WriteAssumesShows(w io.Writer, hypotheses []string) {
 // simply not provable until a reader replaces the declaration by a definition,
 // which the TODO marker asks for.
 //
-// The one predicate that is genuinely known is the omitted one: its CSDF text
-// really is "true", so it stays a definition.
+// The one predicate that is genuinely known is the omitted one: it has no
+// clause, so it is True and stays a definition.
 func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
-	if p.Predicate.Text != csdf.PredicateTrue {
+	if !csdf.IsTrue(p.Predicate.Text) {
 		if err := WriteLineComment(w, NewConstWriter(PredicateTODO)); err != nil {
 			return fmt.Errorf("isabelle.WritePredicate: %w", err)
 		}
 		WriteNewLine(w, 1)
-		if err := WriteLineComment(w, NewConstWriter(string(p.Predicate.Text))); err != nil {
+		if err := WriteLineComment(w, NewConstWriter(p.Predicate.Comment())); err != nil {
 			return fmt.Errorf("isabelle.WritePredicate: %w", err)
 		}
 		WriteNewLine(w, 1)
@@ -272,7 +272,7 @@ func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
 		return nil
 	}
 
-	if err := WriteLineComment(w, NewConstWriter(string(p.Predicate.Text))); err != nil {
+	if err := WriteLineComment(w, NewConstWriter(p.Predicate.Comment())); err != nil {
 		return fmt.Errorf("isabelle.WritePredicate: %w", err)
 	}
 	WriteNewLine(w, 1)
@@ -295,7 +295,7 @@ func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) error {
 // constrains the start state's variables and so seeds the reachable predicate.
 func WriteInit(w io.Writer, side obligationir.Side, init obligationir.IRInit, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	post := m[init.Post]
-	if err := WriteLineComment(w, NewConstWriter(string(post.Text))); err != nil {
+	if err := WriteLineComment(w, NewConstWriter(post.Comment())); err != nil {
 		return fmt.Errorf("isabelle.WriteInit: comment: %w", err)
 	}
 	WriteNewLine(w, 1)
@@ -363,7 +363,7 @@ func WriteReachable(w io.Writer, side obligationir.Side, init obligationir.IRIni
 
 func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	guard := m[tau.Guard]
-	if err := WriteLineComment(w, NewConstWriter(string(guard.Text))); err != nil {
+	if err := WriteLineComment(w, NewConstWriter(guard.Comment())); err != nil {
 		return fmt.Errorf("isabelle.WriteEdge: pre-guard comment: %w", err)
 	}
 	WriteNewLine(w, 1)
@@ -383,7 +383,7 @@ func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m m
 	WriteNewLine(w, 2)
 
 	post := m[tau.Post]
-	if err := WriteLineComment(w, NewConstWriter(string(post.Text))); err != nil {
+	if err := WriteLineComment(w, NewConstWriter(post.Comment())); err != nil {
 		return fmt.Errorf("isabelle.WriteEdge: pre-post comment: %w", err)
 	}
 	WriteNewLine(w, 1)

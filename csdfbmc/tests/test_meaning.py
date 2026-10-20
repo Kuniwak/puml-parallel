@@ -1,13 +1,14 @@
 """What a clause reads, as the reductions of the walk take it."""
 import unittest
+from csdfbmc.tests import fixture
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, ReservedOpaque, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, TwinsMeaning
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
 from csdfbmc.twins import Twins
 
-EMPTY = Diagram.from_json({"states": {"a": {"name": "a", "vars": [], "line": 1}},
+EMPTY = fixture.diagram({"states": {"a": {"name": "a", "vars": [], "line": 1}},
                            "start_edge": {"dst": "a", "line": 1}, "edges": [], "end_edge": None})
 
 
@@ -44,12 +45,12 @@ class GlueMeaningTest(unittest.TestCase):
         self.assertEqual([[{"n": 1}, {"n": 2}]], self.client.asked)
 
 
-OPAQUE_CLAUSE = Clause("constrain", "opaque")
+OPAQUE_CLAUSE = Clause("constrain", "@opaque", opaque=True)
 FORMAL_CLAUSE = Clause("constrain", "n > 0")
 
 
 class ReservedOpaqueTest(unittest.TestCase):
-    """The reserved clause opaque has no meaning to ask anyone about; any
+    """The tool word @opaque has no meaning to ask anyone about; any
     other clause is the inner meaning's."""
 
     def test_each_question_about_a_clause(self):
@@ -64,18 +65,18 @@ class ReservedOpaqueTest(unittest.TestCase):
         ]:
             with self.subTest(name):
                 client = Recording({"n > 0": Analysis(opaque=False, reads=("n",))}, lambda b: b["n"] > 0)
-                meaning = ReservedOpaque(GlueMeaning(client))
+                meaning = OpaqueWord(GlueMeaning(client))
                 got = ask(meaning, clause)
                 self.assertEqual(want, got)
                 self.assertEqual(want_asked, client.asked)
 
     def test_opaque_is_not_formalised_even_when_the_twins_have_it(self):
-        meaning = ReservedOpaque(TwinsMeaning(EMPTY, Twins(domains={}, clauses={"opaque": lambda: True})))
+        meaning = OpaqueWord(TwinsMeaning(EMPTY, Twins(domains={}, clauses={"@opaque": lambda: True})))
         self.assertIs(OPAQUE, meaning.evaluate(OPAQUE_CLAUSE, "guard", {}))
 
-    def test_the_message_names_the_reserved_clause(self):
-        meaning = ReservedOpaque(GlueMeaning(Recording({}, lambda b: True)))
-        self.assertIn("'opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
+    def test_the_message_names_the_tool_word(self):
+        meaning = OpaqueWord(GlueMeaning(Recording({}, lambda b: True)))
+        self.assertIn("'@opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
 
 
 if __name__ == "__main__":

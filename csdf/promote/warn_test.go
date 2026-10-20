@@ -34,7 +34,7 @@ state "なし" as buyNone
 state "約定済み" as buyBooked
 [*] --> buyNone
 buyNone --> buyBooked : BUY?数量
-buyBooked --> buyNone : BOOK?数量 ; true ; 数量は 0
+buyBooked --> buyNone : BOOK?数量 ; ; 数量は 0
 @enduml
 `),
 			want: `warning: line 6: the post of BOOK?数量 in local/BUY.puml is dropped: the edge deletes the instance it would be about. Write an effect on another map as a sync or a hand-written edge`,
@@ -104,7 +104,7 @@ cycCounting --> cycCounting : BOOK?数量
 			global: strings.Replace(syncGlobal, "@enduml", `state "保守中" as maintenance
 maintenance : buys ; 約定ID ⇸ Buy
 maintenance : cycles ; 基準日 ⇸ Cycle
-running --> maintenance : MAINT ; true ; buys' = buys ∧ cycles' = cycles
+running --> maintenance : MAINT ; ; buys' = buys ∧ cycles' = cycles
 @enduml`, 1),
 			locals: syncLocals,
 			want:   `info: state "maintenance" holds "buys" but has no <<promote>> block for it, so the family is frozen there`,
@@ -149,8 +149,8 @@ func TestExpandWarnsAboutAConstrainThatNamesNoArgumentLeavingOutOpaqueClauses(t 
 		guard string
 		warn  bool
 	}{
-		"only opaque":                        {guard: "opaque", warn: false},
-		"opaque beside a clause naming none": {guard: "opaque ∧ 相場は開いている", warn: true},
+		"only opaque":                        {guard: "@opaque", warn: false},
+		"opaque beside a clause naming none": {guard: "@opaque ∧ 相場は開いている", warn: true},
 		"a clause naming an argument":        {guard: "数量 は正", warn: false},
 		"a clause naming none":               {guard: "相場は開いている", warn: true},
 	}

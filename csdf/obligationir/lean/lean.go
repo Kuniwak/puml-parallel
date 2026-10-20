@@ -213,7 +213,7 @@ func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string, hypo
 // constrains the start state's variables and so seeds Reachable.
 func WriteInit(w io.Writer, side obligationir.Side, init obligationir.IRInit, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	post := m[init.Post]
-	WriteLineComment(w, string(post.Text))
+	WriteLineComment(w, post.Comment())
 	WriteNewLine(w, 1)
 	WritePredicateAlias(w, side.Qualify("init"), len(init.PostArgs), init.Post)
 }
@@ -287,12 +287,12 @@ func WriteReachable(w io.Writer, side obligationir.Side, init obligationir.IRIni
 // simply not provable until a reader replaces the declaration by a definition,
 // which the TODO marker asks for.
 //
-// The one predicate that is genuinely known is the omitted one: its CSDF text
-// really is "true", so it stays a definition. The binder groups same-typed
+// The one predicate that is genuinely known is the omitted one: it has no
+// clause, so it is True and stays a definition. The binder groups same-typed
 // arguments, as Lean prefers: (n n' : Val).
 func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) {
-	if p.Predicate.Text == csdf.PredicateTrue {
-		WriteLineComment(w, string(p.Predicate.Text))
+	if csdf.IsTrue(p.Predicate.Text) {
+		WriteLineComment(w, p.Predicate.Comment())
 		WriteNewLine(w, 1)
 		io.WriteString(w, `def pred_`)
 		WritePredicateID(w, p.ID)
@@ -314,7 +314,7 @@ func WritePredicate(w io.Writer, p obligationir.IRPredicateWithID) {
 
 	WriteLineComment(w, PredicateTODO)
 	WriteNewLine(w, 1)
-	WriteLineComment(w, string(p.Predicate.Text))
+	WriteLineComment(w, p.Predicate.Comment())
 	WriteNewLine(w, 1)
 	io.WriteString(w, `opaque pred_`)
 	WritePredicateID(w, p.ID)
@@ -335,14 +335,14 @@ const PredicateTODO = `TODO(csdf): not formalised; this predicate is uninterpret
 // predicates. They are eta-reduced, so the arity shows in the type only.
 func WriteEdge(w io.Writer, side obligationir.Side, tau obligationir.IREdge, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	guard := m[tau.Guard]
-	WriteLineComment(w, string(guard.Text))
+	WriteLineComment(w, guard.Comment())
 	WriteNewLine(w, 1)
 	WritePredicateAlias(w, side.GuardName(tau.Line), len(tau.GuardArgs), tau.Guard)
 
 	WriteNewLine(w, 2)
 
 	post := m[tau.Post]
-	WriteLineComment(w, string(post.Text))
+	WriteLineComment(w, post.Comment())
 	WriteNewLine(w, 1)
 	WritePredicateAlias(w, side.PostName(tau.Line), len(tau.PostArgs), tau.Post)
 }

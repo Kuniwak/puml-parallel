@@ -5,16 +5,9 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-# The clause connective is grammar (docs/SYNTAX.md): a predicate is its clauses
-# joined by " ∧ ", and the omitted predicate or the literal true has no clause.
-CONNECTIVE = " ∧ "
-
-
-
-def clause_texts(text: str | None) -> tuple[str, ...]:
-    if text is None or text.strip() in ("", "true"):
-        return ()
-    return tuple(part.strip() for part in text.split(CONNECTIVE))
+# The tool word of a clause not formalised yet (docs/SYNTAX.md), which stands
+# for the clause where it has no text, in a report.
+OPAQUE_WORD = "@opaque"
 
 
 def split_event(e: dict) -> tuple[str, tuple[str, ...]]:
@@ -31,7 +24,9 @@ class Clause:
     wrote (map None in a flat diagram, the family's map in an expansion),
     "constrain" for a constrain directive's, and one of the generated kinds of
     csdfpromote - in_dom, not_in_dom, at_state, update, create, delete, frame,
-    and empty on the start edge - whose meaning is built in."""
+    and empty on the start edge - whose meaning is built in. text is the
+    clause as its language reads it; opaque marks the tool word @opaque, whose
+    text is the word itself."""
     kind: str
     text: str
     map: str | None = None
@@ -42,16 +37,23 @@ class Clause:
     line: int = 0
     formal: str | None = None  # a constrain's formal twin, written next to it
     maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
+    opaque: bool = False
 
     @classmethod
     def from_json(cls, c: dict) -> "Clause":
-        return cls(kind=c["kind"], text=c["text"], map=c.get("map"), id=c.get("id"), state=c.get("state"),
+        opaque = c.get("opaque") is True
+        return cls(kind=c["kind"], text=OPAQUE_WORD if opaque else c["text"], opaque=opaque, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
                    maps=tuple(c.get("maps", ())))
 
 
-def local_clauses(text: str | None) -> tuple[Clause, ...]:
-    return tuple(Clause("local", t) for t in clause_texts(text))
+def local_clauses(owner: dict, key: str) -> tuple[Clause, ...]:
+    """The clauses of owner's predicate key, as csdfparse writes them out
+    under key_clauses: the grammar of a clause is read by csdfparse alone."""
+    clauses = owner.get(f"{key}_clauses")
+    if clauses is None:
+        raise ValueError(f"the {key} {owner.get(key)!r} has no {key}_clauses; write the diagram with csdfparse 3 or later")
+    return tuple(Clause.from_json({"kind": "local", **c}) for c in clauses)
 
 
 @dataclass(frozen=True)
@@ -172,16 +174,16 @@ class Diagram:
             if by_text is not None and key in by_text:
                 guard, post = by_text[key]
             else:
-                guard, post = local_clauses(e.get("guard")), local_clauses(e.get("post"))
+                guard, post = local_clauses(e, "guard"), local_clauses(e, "post")
             edges.append(Edge(src=e["src"], dst=e["dst"], event=e["event"], name=name, params=params,
                               guard=guard, post=post, line=e.get("line", 0)))
         end = None
         if d.get("end_edge"):
-            end = EndEdge(src=d["end_edge"]["src"], guard=local_clauses(d["end_edge"].get("guard")))
+            end = EndEdge(src=d["end_edge"]["src"], guard=local_clauses(d["end_edge"], "guard"))
         start = d["start_edge"]
         for sid in (start["dst"], *[e.src for e in edges], *[e.dst for e in edges]):
             vars_.setdefault(sid, ())
-        return cls(vars=vars_, start=start["dst"], start_post=local_clauses(start.get("post")),
+        return cls(vars=vars_, start=start["dst"], start_post=local_clauses(start, "post"),
                    edges=edges, end=end, assumptions=list(d.get("assumptions", [])))
 
     @classmethod

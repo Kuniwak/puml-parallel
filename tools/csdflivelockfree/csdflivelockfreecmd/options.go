@@ -40,7 +40,7 @@ predicate becomes an uninterpreted declaration named pred_<id> after its hash -
 "opaque" in Lean, "consts" in Isabelle - preceded by a TODO(csdf) marker and a
 comment carrying its original text; init and every transition then get
 guard_L<line>/post_L<line> aliases of those declarations. An omitted predicate is
-the exception: its text really is "true", so it stays a definition. Nothing is
+the exception: it has no clause, so it is True and stays a definition. Nothing is
 ever defined as True on the diagram's behalf, because that is not a placeholder
 but a different diagram, in which every guard fires. The theorem states
 well-foundedness of the tau relation restricted to the states reachable from init

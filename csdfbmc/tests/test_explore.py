@@ -5,6 +5,7 @@ clause's prose stands for, keyed by that prose, with the domains the values
 are drawn from.
 """
 import unittest
+from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
 from csdfbmc.twins import Twins
@@ -19,7 +20,7 @@ COUNTER = {
     "start_edge": {"dst": "a", "post": "n = 2", "line": 5},
     "edges": [
         {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "n' = n - 1", "line": 6},
-        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "true", "line": 7},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "", "line": 7},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -40,20 +41,20 @@ COUNTER_TWINS = Twins(
 
 class ExplorerTest(unittest.TestCase):
     def test_reaches_every_valuation_the_clauses_admit(self):
-        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
+        result = Explorer.of_twins(fixture.diagram(COUNTER), COUNTER_TWINS).run()
         self.assertEqual(
             {("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())},
             set(result.states),
         )
 
     def test_reports_a_state_with_no_way_out_as_a_deadlock(self):
-        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
+        result = Explorer.of_twins(fixture.diagram(COUNTER), COUNTER_TWINS).run()
         self.assertEqual([("b", (), ())], result.deadlocks)
         self.assertEqual(["dec", "dec", "stop"], result.trace_to(("b", (), ())))
 
     def test_an_end_edge_is_a_way_out(self):
-        diagram = dict(COUNTER, end_edge={"src": "b", "guard": "true", "line": 8})
-        result = Explorer.of_twins(Diagram.from_json(diagram), COUNTER_TWINS).run()
+        diagram = dict(COUNTER, end_edge={"src": "b", "guard": "", "line": 8})
+        result = Explorer.of_twins(fixture.diagram(diagram), COUNTER_TWINS).run()
         self.assertEqual([], result.deadlocks)
 
     def test_finds_a_tau_cycle_among_the_reachable_states(self):
@@ -61,7 +62,7 @@ class ExplorerTest(unittest.TestCase):
             {"src": "a", "dst": "a", "event": "tau", "channel": "tau", "fields": [], "guard": "n = 0", "post": "n' = n", "line": 9},
         ])
         twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n": lambda n: [{"n": n}]}))
-        result = Explorer.of_twins(Diagram.from_json(diagram), twins).run()
+        result = Explorer.of_twins(fixture.diagram(diagram), twins).run()
         self.assertEqual([[("a", (0,), ())]], result.tau_cycles)
 
     def test_event_parameters_range_over_their_domain(self):
@@ -76,25 +77,25 @@ class ExplorerTest(unittest.TestCase):
                 "n' = n + k": lambda n, k: [{"n": n + k}],
             },
         )
-        result = Explorer.of_twins(Diagram.from_json(diagram), twins).run()
+        result = Explorer.of_twins(fixture.diagram(diagram), twins).run()
         self.assertEqual({("a", (2,), ()), ("a", (3,), ())}, set(result.states))
         self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,), ())))
 
     def test_a_clause_without_a_twin_is_refused_by_default(self):
         twins = Twins(domains={}, clauses={k: v for k, v in COUNTER_TWINS.clauses.items() if k != "n > 0"})
         with self.assertRaises(KeyError) as cm:
-            Explorer.of_twins(Diagram.from_json(COUNTER), twins).run()
+            Explorer.of_twins(fixture.diagram(COUNTER), twins).run()
         self.assertIn("n > 0", str(cm.exception))
 
     def test_a_clause_without_a_twin_may_be_taken_as_true(self):
         twins = Twins(domains={}, clauses={k: v for k, v in COUNTER_TWINS.clauses.items() if k != "n > 0"})
-        result = Explorer.of_twins(Diagram.from_json(COUNTER), twins, opaque="true", max_states=10).run()
+        result = Explorer.of_twins(fixture.diagram(COUNTER), twins, opaque="true", max_states=10).run()
         # dec fires at n = 0 too and counts down past zero, until the bound.
         self.assertIn(("a", (-1,), ()), set(result.states))
         self.assertEqual(["n > 0"], result.opaque_clauses)
 
     def test_the_bound_on_states_stops_the_walk(self):
-        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS, max_states=2).run()
+        result = Explorer.of_twins(fixture.diagram(COUNTER), COUNTER_TWINS, max_states=2).run()
         self.assertEqual(2, len(result.states))
         self.assertTrue(result.truncated)
 
@@ -104,10 +105,10 @@ class PostTwinTest(unittest.TestCase):
     after the step; the successors of an edge are their natural join."""
 
     def diagram(self, post):
-        return Diagram.from_json({
+        return fixture.diagram({
             "states": {"a": {"name": "a", "vars": [{"name": "x"}, {"name": "y"}], "line": 2}},
             "start_edge": {"dst": "a", "post": "init", "line": 3},
-            "edges": [{"src": "a", "dst": "a", "event": "step", "channel": "step", "fields": [], "guard": "true", "post": post, "line": 4}],
+            "edges": [{"src": "a", "dst": "a", "event": "step", "channel": "step", "fields": [], "guard": "", "post": post, "line": 4}],
             "end_edge": None, "assumptions": [],
         })
 
@@ -167,8 +168,8 @@ class PostTwinTest(unittest.TestCase):
 
 class EventFieldsTest(unittest.TestCase):
     def test_an_edge_without_its_channel_and_fields_is_refused(self):
-        diagram = {"states": {"a": {"name": "a", "vars": []}}, "start_edge": {"dst": "a", "post": "true"},
-                   "edges": [{"src": "a", "dst": "a", "event": "c?x", "guard": "true", "post": "true"}],
+        diagram = {"states": {"a": {"name": "a", "vars": []}}, "start_edge": {"dst": "a", "post": ""},
+                   "edges": [{"src": "a", "dst": "a", "event": "c?x", "guard": "", "post": ""}],
                    "end_edge": None, "assumptions": []}
         with self.assertRaisesRegex(ValueError, "no channel and fields"):
             Diagram.from_json(diagram)

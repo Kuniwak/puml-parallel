@@ -24,7 +24,7 @@ func compileRefinement(t *testing.T, mode obligationir.IRRefinementMode, spec, i
 // edge. Each state becomes a process name whose body is the external choice over
 // its out-edges, each guarded by its enabledness, and the obligation is the
 // one-line trace refinement. Both sides share one predicate layer, so the single
-// True placeholder pred_1ygzo25 backs every alias on both sides.
+// True placeholder pred_0 backs every alias on both sides.
 func TestWriteRefinementGroundTrace(t *testing.T) {
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, `@startuml
 state "s0" as s0
@@ -47,40 +47,40 @@ datatype event = Ev_a
   | Ev_b
 
 (* true *)
-definition pred_1ygzo25 :: "bool"
-  where "pred_1ygzo25 \<equiv> True"
+definition pred_0 :: "bool"
+  where "pred_0 \<equiv> True"
 
 (* true *)
 definition init_S :: "bool"
-  where "init_S \<equiv> pred_1ygzo25"
+  where "init_S \<equiv> pred_0"
 
 (* true *)
 definition guard_S_L4 :: "bool"
-  where "guard_S_L4 \<equiv> pred_1ygzo25"
+  where "guard_S_L4 \<equiv> pred_0"
 
 (* true *)
 definition post_S_L4 :: "bool"
-  where "post_S_L4 \<equiv> pred_1ygzo25"
+  where "post_S_L4 \<equiv> pred_0"
 
 (* true *)
 definition init_I :: "bool"
-  where "init_I \<equiv> pred_1ygzo25"
+  where "init_I \<equiv> pred_0"
 
 (* true *)
 definition guard_I_L4 :: "bool"
-  where "guard_I_L4 \<equiv> pred_1ygzo25"
+  where "guard_I_L4 \<equiv> pred_0"
 
 (* true *)
 definition post_I_L4 :: "bool"
-  where "post_I_L4 \<equiv> pred_1ygzo25"
+  where "post_I_L4 \<equiv> pred_0"
 
 (* true *)
 definition guard_I_L5 :: "bool"
-  where "guard_I_L5 \<equiv> pred_1ygzo25"
+  where "guard_I_L5 \<equiv> pred_0"
 
 (* true *)
 definition post_I_L5 :: "bool"
-  where "post_I_L5 \<equiv> pred_1ygzo25"
+  where "post_I_L5 \<equiv> pred_0"
 
 datatype PN = S_s0
   | I_t0
@@ -462,7 +462,7 @@ state "a" as a
 a: n ; nat
 a: m ; nat
 [*] --> a
-a --> a : step ; true ; n' = m
+a --> a : step ; ; n' = m
 @enduml
 `
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)

@@ -32,8 +32,8 @@ state "縮退中" as degraded {
 
 [*] --> running : accounts と audits は空
 
-running --> degraded : DEGRADE ; true ; accounts' = accounts ∧ audits' = audits
-degraded --> running : RECOVER ; true ; accounts' = accounts ∧ audits' = audits
+running --> degraded : DEGRADE ; ; accounts' = accounts ∧ audits' = audits
+degraded --> running : RECOVER ; ; accounts' = accounts ∧ audits' = audits
 
 note bottom of runningAudits
   constrain AUDIT-BEGIN?監査ID?口座ID ; 口座ID は accounts の定義域にある

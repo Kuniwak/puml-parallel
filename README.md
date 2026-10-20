@@ -60,7 +60,9 @@ $ csdfrepl diagram.png
 `snake_case`, and optional end edges are represented by `null` when absent.
 State variables are objects with a `name` and an optional `type`. An edge's `event` is
 written whole and also taken apart into its `channel` and `fields` (each a `dir`,
-`?` or `!`, and a `name`). `assumptions` lists the diagram's assume notes (see
+`?` or `!`, and a `name`). Each guard and post is likewise written whole and
+taken apart into its clauses, `guard_clauses` and `post_clauses`, each
+`{"text": …}` with its escapes removed or `{"opaque": true}`. `assumptions` lists the diagram's assume notes (see
 [SYNTAX.md](./docs/SYNTAX.md)); like `edges` it is a list, never `null`.
 
 ```console
@@ -283,7 +285,7 @@ Isabelle — preceded by a `TODO(csdf)` marker and a comment carrying its origin
 natural-language text; every `tau` transition then gets `guard_L<line>` and `post_L<line>`
 aliases of those declarations, so a human or LLM can replace the declaration by the real
 predicate body and discharge the proof. An omitted guard or postcondition is the one
-exception: its text really is `true`, so it stays a definition. Both targets name predicates identically, so the two skeletons can be
+exception: it has no clause, so it is True and stays a definition. A guard written `true` is a clause like any other. Both targets name predicates identically, so the two skeletons can be
 read side by side. An assume note of the diagram (see [SYNTAX.md](./docs/SYNTAX.md)) —
 what it assumes of its runs as a whole, such as "a transaction whose fee keeps being
 raised is eventually confirmed", which no guard can state — is listed under `assumptions`
@@ -458,13 +460,13 @@ parenthesised; an implication binds loosest; and a quantifier reaches to the
 end of what it is in, so it is parenthesised exactly when something follows
 it.
 
-A `true` guard or postcondition is dropped from a conjunction, and so is a
+An omitted guard or postcondition is dropped from a conjunction, and so is a
 bound variable nothing reads any more; both are equivalences of first-order
-logic, since every set of values is inhabited. A `true` postcondition still
+logic, since every set of values is inhabited. An omitted postcondition still
 leaves the values after it free, which the variable says. With
 `examples/promote/local/CYCLE.puml`, where counting ends by a `tau`, the
 counting state both accepts and may refuse `BOOK`, and its `REPORT` is
-unconditional because the `tau` and the `REPORT` edge are both `true`
+unconditional because the `tau` and the `REPORT` edge are both omitted
 throughout:
 
 | state | name | BOOK?数量 | REPORT |
@@ -794,7 +796,7 @@ the clause's value under each of a batch of bindings. Values are tagged JSON
 them. Clauses must be pure: the checker asks about a clause once per value of
 the names it reads, and about a guard once per edge for every parameter
 valuation still enabled. A clause not formalised yet is written as the
-reserved clause `opaque` in any language; the checker takes it by `--opaque`
+tool word `@opaque` in any language; the checker takes it by `--opaque`
 without asking the glue, and `csdfpromote` does not warn that such a constrain
 names none of its fields. `csdfbmc/protocol.py` states the protocol in full.
 Anyone may add a language by writing a glue; `--evaluator CMD` starts it, and
@@ -805,9 +807,9 @@ and 25 µs for a Ruby one.
 The reference glue, `csdfbmc.python_glue`, reads the pure subset of Python a
 twins module is checked against. A guard is an expression; a post is a list
 or set of dict displays whose keys are the variables, written as strings
-(`[{'残高': 残高 + 額}]`, `[{'y': v} for v in (y, y + 1)]`). It still takes
-`OPAQUE`, its own marker before `opaque` was reserved, which is deprecated and
-goes in the next major version. Its arguments are modules whose public names every
+(`[{'残高': 残高 + 額}]`, `[{'y': v} for v in (y, y + 1)]`). A clause
+written `OPAQUE` or `opaque`, as before `@opaque`, is refused with a pointer to
+`@opaque`. Its arguments are modules whose public names every
 clause may use. The twins module then holds `DOMAINS` and, when wanted,
 `GHOSTS` and `INVARIANTS`; `CLAUSES` and `--local` twins are refused, since
 they would not be used. `--symmetry` is refused too, since the checker cannot
@@ -886,7 +888,7 @@ one, and finds the same deadlocks, cycles, broken invariants, empty posts
 and variables left without a value. Every post clause is still evaluated;
 a left-out variable just has no value in the state (null in `--json`). The
 report lists the kept variables and each left-out one with the edges that
-set it. A clause whose reads are unknown (`opaque`), or an invariant or
+set it. A clause whose reads are unknown (`@opaque`), or an invariant or
 ghost update that takes any keyword, keeps the cone from being computed,
 and the report says so. A replay from such a walk carries nulls, so walk
 without `--cone` to replay a finding in the REPL.

@@ -7,6 +7,7 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from csdfbmc.tests import fixture
 
 from csdfbmc import cone
 from csdfbmc.cone import Cone
@@ -26,7 +27,7 @@ AUDITED = {
     "edges": [
         {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0",
          "post": "[{'n': n - 1}] ∧ [{'log': v} for v in (0, 1)]", "line": 5},
-        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "true", "line": 6},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 6},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -73,7 +74,7 @@ class ConeTest(unittest.TestCase):
     def walk(self, diagram: dict, *, reduce: bool, twins: Twins = NO_TWINS, **options):
         client = start_module("csdfbmc.python_glue", [])
         self.addCleanup(client.close)
-        d = Diagram.from_json(diagram)
+        d = fixture.diagram(diagram)
         meaning = standard(GlueMeaning(checked(client)))
         c = cone.compute(d, twins, meaning, writes=GlueMeaning(checked(client)).writes) if reduce else Cone.keep_all()
         return Explorer(d, twins, meaning, cone=c, **options).run()
@@ -121,7 +122,7 @@ class ConeTest(unittest.TestCase):
 
     def test_what_may_read_anything_keeps_the_cone_from_being_computed(self):
         for name, diagram, twins, blocked in [
-            ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ opaque"), NO_TWINS, "opaque"),
+            ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque"), NO_TWINS, "@opaque"),
             ("an invariant taking any keyword", AUDITED,
              Twins(domains={}, clauses={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
         ]:
@@ -139,7 +140,7 @@ class FramedAndWrittenTest(unittest.TestCase):
         for name, writes in [("a clause that writes it", lambda c: {"log"}), ("a clause whose writes are unknown", cone.NO_WRITES)]:
             post = [{"kind": "frame", "text": "log' = log", "var": "log"}, {"kind": "local", "text": "[{'log': 1}]"}]
             x = {"diagram": {**AUDITED}, "edges": [{"edge": AUDITED["edges"][0], "guard": [{"kind": "local", "text": "n > 0"}], "post": post}]}
-            d = Diagram.from_json(x)
+            d = fixture.diagram(x)
             meaning = standard(GlueMeaning(checked(self.client())))
             with self.subTest(name):
                 self.assertIn("log", cone.compute(d, NO_TWINS, meaning, writes=writes).relevant)
@@ -153,7 +154,7 @@ class FramedAndWrittenTest(unittest.TestCase):
 class TwinsConeTest(unittest.TestCase):
     def test_a_twin_taking_any_keyword_keeps_the_cone_from_being_computed(self):
         from csdfbmc.meaning import TwinsMeaning
-        d = Diagram.from_json(edit(AUDITED, "dec", guard="positive"))
+        d = fixture.diagram(edit(AUDITED, "dec", guard="positive"))
         twins = Twins(domains={}, clauses={"positive": lambda **env: env["n"] > 0})
         c = cone.compute(d, twins, standard(TwinsMeaning(d, twins)), writes=cone.NO_WRITES)
         self.assertIsNone(c.relevant)
@@ -167,7 +168,7 @@ class ConeCommandTest(unittest.TestCase):
         self.addCleanup(d.cleanup)
         path, twins = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(diagram, f)
+            json.dump(fixture.parsed(diagram), f)
         with open(twins, "w", encoding="utf-8") as f:
             f.write("DOMAINS = {}\n")
         out = io.StringIO()
@@ -182,9 +183,9 @@ class ConeCommandTest(unittest.TestCase):
         self.assertIn("left out (nothing that decides a step or a property reads it): log, set by start; a -dec-> a (line 5)\n", out)
 
     def test_the_report_says_why_the_cone_was_not_computed(self):
-        diagram = edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ opaque")
+        diagram = edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque")
         out = self.run_main(diagram, "--evaluator-module", "csdfbmc.python_glue", "--cone", "--opaque", "true")
-        self.assertIn("cone of influence not computed: what opaque reads is unknown\n", out)
+        self.assertIn("cone of influence not computed: what @opaque reads is unknown\n", out)
 
 
 if __name__ == "__main__":

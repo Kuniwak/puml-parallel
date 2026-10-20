@@ -31,40 +31,40 @@ begin
 datatype event = Ev_a
 
 (* true *)
-definition pred_1ygzo25 :: "bool"
-  where "pred_1ygzo25 \<equiv> True"
+definition pred_0 :: "bool"
+  where "pred_0 \<equiv> True"
 
 (* true *)
 definition init_S :: "bool"
-  where "init_S \<equiv> pred_1ygzo25"
+  where "init_S \<equiv> pred_0"
 
 (* true *)
 definition guard_S_L4 :: "bool"
-  where "guard_S_L4 \<equiv> pred_1ygzo25"
+  where "guard_S_L4 \<equiv> pred_0"
 
 (* true *)
 definition post_S_L4 :: "bool"
-  where "post_S_L4 \<equiv> pred_1ygzo25"
+  where "post_S_L4 \<equiv> pred_0"
 
 (* true *)
 definition init_I :: "bool"
-  where "init_I \<equiv> pred_1ygzo25"
+  where "init_I \<equiv> pred_0"
 
 (* true *)
 definition guard_I_L5 :: "bool"
-  where "guard_I_L5 \<equiv> pred_1ygzo25"
+  where "guard_I_L5 \<equiv> pred_0"
 
 (* true *)
 definition post_I_L5 :: "bool"
-  where "post_I_L5 \<equiv> pred_1ygzo25"
+  where "post_I_L5 \<equiv> pred_0"
 
 (* true *)
 definition guard_I_L6 :: "bool"
-  where "guard_I_L6 \<equiv> pred_1ygzo25"
+  where "guard_I_L6 \<equiv> pred_0"
 
 (* true *)
 definition post_I_L6 :: "bool"
-  where "post_I_L6 \<equiv> pred_1ygzo25"
+  where "post_I_L6 \<equiv> pred_0"
 
 datatype PN = S_s
   | I_p

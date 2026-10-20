@@ -2,6 +2,6 @@
 state "a" as a
 state "b" as b
 [*] --> a
-a --> b : insert?coin ; true ; coins' is {coin}
+a --> b : insert?coin ; ; coins' is {coin}
 b --> a : reset
 @enduml

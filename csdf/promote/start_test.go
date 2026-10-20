@@ -22,7 +22,7 @@ func TestTheStartEdgeStartsEveryKeptMapEmpty(t *testing.T) {
 		return promote.ExpandedClause{Kind: promote.ClauseEmpty, Text: m + " = ∅", Map: m}
 	}
 	notHeld := strings.Replace(syncGlobal, "[*] --> running : buys と cycles は空",
-		"state \"待機中\" as idle\n[*] --> idle\nidle --> running : OPEN ; true ; buys と cycles は空", 1)
+		"state \"待機中\" as idle\n[*] --> idle\nidle --> running : OPEN ; ; buys と cycles は空", 1)
 	cases := map[string]struct {
 		global   string
 		keep     []string // nil: no -only
@@ -32,7 +32,7 @@ func TestTheStartEdgeStartsEveryKeptMapEmpty(t *testing.T) {
 		"every map":                    {global: syncGlobal, want: []promote.ExpandedClause{author, empty("buys"), empty("cycles")}, wantPost: "buys と cycles は空"},
 		"with -only buys":              {global: syncGlobal, keep: []string{"buys"}, want: []promote.ExpandedClause{author, empty("buys")}, wantPost: "buys と cycles は空"},
 		"with -only cycles":            {global: syncGlobal, keep: []string{"cycles"}, want: []promote.ExpandedClause{author, empty("cycles")}, wantPost: "buys と cycles は空"},
-		"a start state holding no map": {global: notHeld, want: []promote.ExpandedClause{}, wantPost: csdf.PredicateTrue},
+		"a start state holding no map": {global: notHeld, want: []promote.ExpandedClause{}, wantPost: ""},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

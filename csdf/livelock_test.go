@@ -42,7 +42,7 @@ s0 --> s0 : tau
 @enduml
 `)
 	want := &Livelock{
-		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue}},
+		Cycle: []Edge{{Src: "s0", Dst: "s0", Event: Tau, Guard: "", Post: ""}},
 	}
 
 	// Execute
@@ -69,8 +69,8 @@ b --> a : tau
 `)
 	want := &Livelock{
 		Cycle: []Edge{
-			{Src: "a", Dst: "b", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
-			{Src: "b", Dst: "a", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "a", Dst: "b", Event: Tau, Guard: "", Post: ""},
+			{Src: "b", Dst: "a", Event: Tau, Guard: "", Post: ""},
 		},
 	}
 
@@ -142,10 +142,10 @@ sb --> sa : tau
 @enduml
 `)
 	want := &Livelock{
-		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a", Guard: PredicateTrue, Post: PredicateTrue}},
+		Stem: []Edge{{Src: "s0", Dst: "sa", Event: "a", Guard: "", Post: ""}},
 		Cycle: []Edge{
-			{Src: "sa", Dst: "sb", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
-			{Src: "sb", Dst: "sa", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "sa", Dst: "sb", Event: Tau, Guard: "", Post: ""},
+			{Src: "sb", Dst: "sa", Event: Tau, Guard: "", Post: ""},
 		},
 	}
 
@@ -180,10 +180,10 @@ b1 --> b0 : tau
 @enduml
 `)
 	want := &Livelock{
-		Stem: []Edge{{Src: "s0", Dst: "a0", Event: "a", Guard: PredicateTrue, Post: PredicateTrue}},
+		Stem: []Edge{{Src: "s0", Dst: "a0", Event: "a", Guard: "", Post: ""}},
 		Cycle: []Edge{
-			{Src: "a0", Dst: "a1", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
-			{Src: "a1", Dst: "a0", Event: Tau, Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "a0", Dst: "a1", Event: Tau, Guard: "", Post: ""},
+			{Src: "a1", Dst: "a0", Event: Tau, Guard: "", Post: ""},
 		},
 	}
 

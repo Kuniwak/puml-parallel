@@ -157,7 +157,7 @@ s0 --> s2 : a
 state "S0" as s0
 state "S1" as s1
 [*] --> s0
-s0 --> s1 : a ; true ; p
+s0 --> s1 : a ; ; p
 @enduml
 `,
 			Want: &transtable.Table{
@@ -298,8 +298,8 @@ state "C" as C
 state "D" as D
 state "E" as E
 [*] --> A
-A --> B : tau ; true ; p
-A --> C : tau ; true ; q
+A --> B : tau ; ; p
+A --> C : tau ; ; q
 B --> D : tau
 C --> D : tau
 D --> E : a
@@ -356,7 +356,7 @@ state "B" as B
 state "C" as C
 [*] --> A
 A --> B : tau
-B --> C : a ; true ; y' = 0
+B --> C : a ; ; y' = 0
 C --> A : b
 @enduml
 `,
@@ -491,8 +491,8 @@ state "C" as C
 state "D" as D
 state "E" as E
 [*] --> A
-A --> B : tau ; p ; true
-A --> C : tau ; true ; p
+A --> B : tau ; p
+A --> C : tau ; ; p
 B --> D : tau
 C --> D : tau
 D --> E : a
@@ -580,7 +580,7 @@ state "C" as C
 state "D" as D
 [*] --> A
 A --> B : tau ; h ; p
-B --> C : tau ; true ; q
+B --> C : tau ; ; q
 C --> D : a
 @enduml
 `,
@@ -600,7 +600,7 @@ state "A" as A
 state "B" as B
 state "C" as C
 [*] --> A
-A --> B : tau ; true ; p
+A --> B : tau ; ; p
 B --> C : a ; g ; q
 @enduml
 `,
@@ -632,8 +632,8 @@ state "C" as C
 state "D" as D
 state "E" as E
 [*] --> A
-A --> B : tau ; true ; p
-A --> C : tau ; true ; q
+A --> B : tau ; ; p
+A --> C : tau ; ; q
 B --> D : tau
 C --> D : tau
 D --> E : a

@@ -12,7 +12,7 @@ const assumeSource = `@startuml
 state "s0" as s0
 s0: n
 [*] --> s0 : n' = 0
-s0 --> s0 : tau ; true ; n' = n + 1
+s0 --> s0 : tau ; ; n' = n + 1
 note as fair
   assume the run has finitely many tau steps
 end note

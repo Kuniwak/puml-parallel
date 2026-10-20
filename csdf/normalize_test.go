@@ -109,7 +109,7 @@ func TestNormalizeRejectsEndEdges(t *testing.T) {
 	d := MustParse(`@startuml
 state "SKIP" as s0
 [*] --> s0
-s0 --> [*] : true
+s0 --> [*]
 @enduml
 `)
 

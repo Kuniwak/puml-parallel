@@ -15,8 +15,8 @@ cycFixed : total ; 合計数量
 
 [*] --> cycIdle
 
-cycIdle --> cycCounting : BOOK?数量 ; true ; total は 数量
-cycCounting --> cycCounting : BOOK?数量 ; true ; total' = total + 数量
+cycIdle --> cycCounting : BOOK?数量 ; ; total は 数量
+cycCounting --> cycCounting : BOOK?数量 ; ; total' = total + 数量
 cycCounting --> cycFixed : tau
 cycFixed --> cycIdle : REPORT
 @enduml
