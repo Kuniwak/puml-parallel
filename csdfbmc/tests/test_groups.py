@@ -13,8 +13,8 @@ MANY = {
                "b": {"name": "stuck", "vars": [{"name": "n"}], "line": 3}},
     "start_edge": {"dst": "a", "post": "n ∈ {2, 4, 6}", "line": 4},
     "edges": [
-        {"src": "a", "dst": "a", "event": "dec", "guard": "n > 0", "post": "n' = n - 1", "line": 5},
-        {"src": "a", "dst": "b", "event": "halve", "guard": "n is even and n > 0", "post": "n' = n / 2", "line": 6},
+        {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "n' = n - 1", "line": 5},
+        {"src": "a", "dst": "b", "event": "halve", "channel": "halve", "fields": [], "guard": "n is even and n > 0", "post": "n' = n / 2", "line": 6},
     ],
     "end_edge": {"src": "a", "guard": "n = 0", "line": 7},
     "assumptions": [],

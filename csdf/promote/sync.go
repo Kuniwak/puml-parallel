@@ -145,7 +145,7 @@ func (e *expander) syncOrigin(plan syncPlan, blocks []Promote, parts []edgeParts
 }
 
 // constrain conjoins each constrain guard onto every generated edge that matches
-// the event in name and arity. A hand-written edge is left alone: it already
+// the event in channel and field directions. A hand-written edge is left alone: it already
 // says everything it was meant to.
 func (e *expander) constrain(edges []ExpandedEdge) {
 	for _, c := range e.global.Constrains {
@@ -155,12 +155,14 @@ func (e *expander) constrain(edges []ExpandedEdge) {
 			if edges[i].Origin == "" {
 				continue
 			}
-			name, args := splitEvent(edges[i].Edge.Event)
-			if name != c.Event || len(args) != len(c.Params) {
+			event := edges[i].Edge.Event
+			if !sameShape(event, c.Event) {
 				continue
 			}
 			matched++
-			taken = appendUnique(taken, args...)
+			for _, f := range event.Fields() {
+				taken = appendUnique(taken, f.Name)
+			}
 
 			for _, clause := range c.Guard.Clauses() {
 				edges[i].Guard = append(edges[i].Guard, ExpandedClause{Kind: ClauseConstrain, Text: string(clause), Formal: c.Formal, Line: c.Line})
@@ -168,14 +170,14 @@ func (e *expander) constrain(edges []ExpandedEdge) {
 			edges[i].Edge.Guard = conjoin(edges[i].Guard)
 		}
 		if matched == 0 {
-			e.errorf(c.Line, "no expanded edge is %q with %d argument%s", c.Event, len(c.Params), plural(len(c.Params)))
+			e.errorf(c.Line, "no expanded edge is on %s with fields of the directions %s", c.Event.Channel(), directions(c.Event))
 			continue
 		}
 		// The directive is one thing, so a name it gets wrong is said once,
 		// however many edges it matched.
-		for _, param := range c.Params {
-			if !slices.Contains(taken, param) {
-				e.warnf(c.Line, "%s has no argument named %q; the guard says nothing about it", c.Event, param)
+		for _, f := range c.Event.Fields() {
+			if !slices.Contains(taken, f.Name) {
+				e.warnf(c.Line, "%s has no field named %q; the guard says nothing about it", c.Event.Channel(), f.Name)
 			}
 		}
 	}
@@ -206,7 +208,7 @@ func (e *expander) blockOf(m csdf.Var, g csdf.StateID) (Promote, bool) {
 func edgesOn(local *csdf.Diagram, event string) []csdf.Edge {
 	var edges []csdf.Edge
 	for _, edge := range local.Edges {
-		if name, _ := splitEvent(edge.Event); name == event {
+		if edge.Event.Channel() == event {
 			edges = append(edges, edge)
 		}
 	}
@@ -215,9 +217,9 @@ func edgesOn(local *csdf.Diagram, event string) []csdf.Edge {
 
 // sameArguments reports whether every edge takes the same argument list.
 func sameArguments(edges []csdf.Edge) bool {
-	_, first := splitEvent(edges[0].Event)
+	first := edges[0].Event.Fields()
 	for _, edge := range edges[1:] {
-		if _, args := splitEvent(edge.Event); !slices.Equal(args, first) {
+		if !slices.Equal(edge.Event.Fields(), first) {
 			return false
 		}
 	}
@@ -254,4 +256,19 @@ func plural(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// sameShape reports whether two events are on one channel with fields of the
+// same directions, in order: what a constrain matches, whatever the names.
+func sameShape(a, b csdf.Event) bool {
+	return a.Channel() == b.Channel() && directions(a) == directions(b)
+}
+
+// directions writes the directions of an event's fields in order, as "??!".
+func directions(e csdf.Event) string {
+	var sb strings.Builder
+	for _, f := range e.Fields() {
+		sb.WriteString(string(f.Dir))
+	}
+	return sb.String()
 }

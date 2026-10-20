@@ -21,7 +21,7 @@ func TestAllEvents(t *testing.T) {
 
 func TestCommonEvents(t *testing.T) {
 	// Arrange
-	want := []string{"choose(product)", "drop(product)", "insert(coin)"}
+	want := []string{"choose?product", "drop?product", "insert?coin"}
 
 	// Act
 	got := CommonEvents(MustLoadDiagrams(

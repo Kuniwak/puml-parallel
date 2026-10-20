@@ -137,12 +137,12 @@ b --> b : x
 state "a" as a
 state "b" as b
 [*] --> a
-a --> b : insert(coin)
+a --> b : insert?coin
 @enduml
 `,
 			Trace: []csdf.Event{"insert"},
 			WantSteps: []tracechk.Step{
-				{Index: 0, Event: "insert", Paths: []tracechk.PrefixPath{{Dst: "a", Next: []csdf.Edge{{Src: "a", Dst: "b", Event: "insert(coin)", Guard: "true", Post: "true", Line: 5}}}}},
+				{Index: 0, Event: "insert", Paths: []tracechk.PrefixPath{{Dst: "a", Next: []csdf.Edge{{Src: "a", Dst: "b", Event: "insert?coin", Guard: "true", Post: "true", Line: 5}}}}},
 			},
 		},
 		"exact match rejects a prefix": {
@@ -151,7 +151,7 @@ a --> b : insert(coin)
 state "a" as a
 state "b" as b
 [*] --> a
-a --> b : insert(coin)
+a --> b : insert?coin
 @enduml
 `,
 			Trace: []csdf.Event{"insert"},
@@ -159,7 +159,7 @@ a --> b : insert(coin)
 				Index: 0, Event: "insert",
 				States:   []csdf.StateID{"a"},
 				Refusing: []csdf.StateID{"a"},
-				Enabled:  []csdf.Event{"insert(coin)"},
+				Enabled:  []csdf.Event{"insert?coin"},
 				Paths:    []tracechk.PrefixPath{{Dst: "a"}},
 			},
 		},

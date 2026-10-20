@@ -58,8 +58,9 @@ $ csdfrepl diagram.png
 
 `csdfparse` writes one JSON object followed by a newline. Its keys use
 `snake_case`, and optional end edges are represented by `null` when absent.
-State variables are objects with a `name` and an optional `type`. Events are
-free-form strings. `assumptions` lists the diagram's assume notes (see
+State variables are objects with a `name` and an optional `type`. An edge's `event` is
+written whole and also taken apart into its `channel` and `fields` (each a `dir`,
+`?` or `!`, and a `name`). `assumptions` lists the diagram's assume notes (see
 [SYNTAX.md](./docs/SYNTAX.md)); like `edges` it is a list, never `null`.
 
 ```console
@@ -309,7 +310,7 @@ may be `-` for standard input unless the diagram is.
 ```console
 $ csdftracechk examples/valid/vending_machine.puml trace.tsv
 $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trace2.tsv
-$ csdfparallel -sync 'insert(coin)' a.puml b.puml | csdftracechk - trace.tsv
+$ csdfparallel -sync 'insert?coin' a.puml b.puml | csdftracechk - trace.tsv
 $ (echo path; find traces -name '*.tsv') | csdftracechk -traces - examples/valid/vending_machine.puml
 ```
 
@@ -350,17 +351,17 @@ the ones going round it are not listed; a FAILS answer to the prompt therefore
 settles that the sequence is not a trace, while HOLDS settles it only for the
 listed paths. Divergence is not checked here; that is `csdflivelockfree`'s job.
 
-Events are free-form text and their notation is not fixed, so a trace event is
+A trace event is text, so it is
 looked up in the diagram by one of two simple rules chosen with `-match`:
 `exact` (the default) wants the identical text, and `prefix` accepts a trace
 event as every diagram event it is a prefix of, so a trace whose parameters were
-stripped (`insert`) matches the label `insert(coin)`. Anything richer, such as
+stripped (`insert`) matches the event `insert?coin`. Anything richer, such as
 stripping the parameters of some events but not others, is best done to the TSV
 beforehand:
 
 ```console
-$ qhs -t -H -T -O 'select case when event like "choose(%" then event
-    when instr(event, "(") > 0 then substr(event, 1, instr(event, "(") - 1)
+$ qhs -t -H -T -O 'select case when event like "choose?%" then event
+    when instr(event, "?") > 0 then substr(event, 1, instr(event, "?") - 1)
     else event end as event from trace.tsv' > stripped.tsv
 $ csdftracechk -match prefix examples/valid/vending_machine.puml stripped.tsv
 ```
@@ -388,7 +389,7 @@ For `vending_machine.puml` it writes this table (shown here as Markdown, with
 a line break for each line of a cell, and the parameters of two long event
 names cut to `…`):
 
-| state | name | insert(coin) | showAvailable(…) | showPurchasable(…) | choose(product) | drop(product) |
+| state | name | insert?coin | showAvailable?… | showPurchasable?… | choose?product | drop?product |
 |---|---|---|---|---|---|---|
 | vmIdle | vmIdle | ["coins' is {coin}, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | ["availableProducts' remains the same"(c, x, x')] → vmIdle | × | × | × |
 | vmCoinsInserted | vmCoinsInserted | × | × | ["availableProducts' and coins' remain the same"(c, x, x')] → vmWaitingChoosing | × | × |
@@ -400,7 +401,7 @@ reachable state has an end edge. States and events come in the order a
 breadth-first walk from the start state meets them, following edges in
 canonical order, so the rows read roughly in the order of the lifecycle and
 the same diagram always gives the same bytes. A column is an event as
-`docs/SYNTAX.md` defines one, its whole text, so `insert(coin)` and `insert(c)`
+`docs/SYNTAX.md` defines one, its whole text, so `insert?coin` and `insert?c`
 are two columns.
 
 A cell holds one outcome per line, `[C] → s` (the event may be accepted, and
@@ -427,7 +428,7 @@ an end edge has no event and reads the values only. The variables are
 
 The parameters are never parsed out of an event: a variable stands for them
 all, whatever they are, so no syntax of parameters is fixed. A line in the
-column of `insert(coin)` speaks of the `coin` offered, so a refusal is one of
+column of `insert?coin` speaks of the `coin` offered, so a refusal is one of
 that value, as a stable failure refuses events with their values.
 
 The reading is the stable-failures one that `csdftracechk` and
@@ -466,7 +467,7 @@ counting state both accepts and may refuse `BOOK`, and its `REPORT` is
 unconditional because the `tau` and the `REPORT` edge are both `true`
 throughout:
 
-| state | name | BOOK(数量) | REPORT |
+| state | name | BOOK?数量 | REPORT |
 |---|---|---|---|
 | cycIdle | 未開始 | ["total は 数量"(c, x, x')] → cycCounting | × |
 | cycCounting | 集計中 | ["total' = total + 数量"(c, x, x')] → cycCounting<br>× | → cycIdle |
@@ -485,7 +486,7 @@ and `x` exactly where the full one holds for some `x'`, and only no longer says
 what the values after are. For
 `vending_machine.puml` the cells above become
 
-| state | name | insert(coin) | showAvailable(…) | showPurchasable(…) | choose(product) | drop(product) |
+| state | name | insert?coin | showAvailable?… | showPurchasable?… | choose?product | drop?product |
 |---|---|---|---|---|---|---|
 | vmIdle | vmIdle | → vmCoinsInserted | → vmIdle | × | × | × |
 | vmCoinsInserted | vmCoinsInserted | × | × | → vmWaitingChoosing | × | × |
@@ -501,7 +502,7 @@ conditions apart, for instance to number them and move them into footnotes,
 without parsing a notation back:
 
 ```json
-{"columns": [{"kind": "event", "event": "choose(product)"}, {"kind": "termination"}],
+{"columns": [{"kind": "event", "event": "choose?product"}, {"kind": "termination"}],
  "rows": [{"state": "vmWaitingChoosing", "name": "vmWaitingChoosing", "cells": [
    [{"result": "goto", "state": "vmDropping",
      "condition": {"op": "atom", "name": "availableProducts contains product", "quoted": true, "args": ["c", "x"]}},
@@ -609,7 +610,7 @@ as undischarged. Everything named after a source location is side-qualified —
 `guard_S_L<line>`, `post_I_L<line>`, `init_S` — because line numbers collide between the
 two files.
 
-CSDF names are not prover identifiers — an event is free-form text, an id may be
+CSDF names are not prover identifiers — an event has `?` and `!` in it, an id may be
 hyphenated — so events, state ids and variable names are encoded into a
 letters-digits-underscore identifier; the theory opens with a table giving the originals
 of every name that had to be encoded.
@@ -795,7 +796,7 @@ the names it reads, and about a guard once per edge for every parameter
 valuation still enabled. A clause not formalised yet is written as the
 reserved clause `opaque` in any language; the checker takes it by `--opaque`
 without asking the glue, and `csdfpromote` does not warn that such a constrain
-names none of its arguments. `csdfbmc/protocol.py` states the protocol in full.
+names none of its fields. `csdfbmc/protocol.py` states the protocol in full.
 Anyone may add a language by writing a glue; `--evaluator CMD` starts it, and
 `--evaluator-module MODULE` loads a glue written in Python in-process, with
 no round trip. A round trip over a pipe costs about 12 µs for a Python glue

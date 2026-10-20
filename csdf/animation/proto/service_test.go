@@ -15,7 +15,7 @@ s0: count ; number
 state "Done" as s1
 s1: result ; string
 [*] --> s0 : count starts at zero
-s0 --> s1 : insert(coin) ; count >= 0 ; result is done
+s0 --> s1 : insert?coin ; count >= 0 ; result is done
 @enduml
 `
 
@@ -105,8 +105,8 @@ func TestHandleStatevarAdvancesToCommand(t *testing.T) {
 	if view.Mode != "command" || view.State == nil || view.State.ID != "s0" {
 		t.Errorf("statevar view = %+v, want command mode at s0", view)
 	}
-	if len(view.Transitions) != 1 || view.Transitions[0].Event != "insert(coin)" {
-		t.Errorf("statevar transitions = %+v, want one insert(coin)", view.Transitions)
+	if len(view.Transitions) != 1 || view.Transitions[0].Event != "insert?coin" {
+		t.Errorf("statevar transitions = %+v, want one insert?coin", view.Transitions)
 	}
 }
 
@@ -215,8 +215,8 @@ func TestHandleTraceAfterSelectStatevar(t *testing.T) {
 	if err := json.Unmarshal(resp.Data, &data); err != nil {
 		t.Fatalf("decoding trace: %v", err)
 	}
-	if len(data.Trace) != 1 || data.Trace[0] != "insert(coin)" {
-		t.Errorf("trace = %v, want [insert(coin)]", data.Trace)
+	if len(data.Trace) != 1 || data.Trace[0] != "insert?coin" {
+		t.Errorf("trace = %v, want [insert?coin]", data.Trace)
 	}
 }
 
@@ -323,7 +323,7 @@ func TestHandleUnknownCommand(t *testing.T) {
 
 func TestHandleReplayWalksAFreshSessionToTheFinding(t *testing.T) {
 	service, id := newSession(t)
-	replay := animation.Replay{Initial: []byte(`[0]`), Steps: []animation.ReplayStep{{Event: "insert(coin)", Src: "s0", Dst: "s1", Line: 7, Values: []byte(`["ok"]`)}}}
+	replay := animation.Replay{Initial: []byte(`[0]`), Steps: []animation.ReplayStep{{Event: "insert?coin", Src: "s0", Dst: "s1", Line: 7, Values: []byte(`["ok"]`)}}}
 	resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay})
 	if !resp.OK {
 		t.Fatalf("replay failed: %s", resp.Error)
@@ -333,7 +333,7 @@ func TestHandleReplayWalksAFreshSessionToTheFinding(t *testing.T) {
 		t.Errorf("replay view = %+v, want command mode at s1", view)
 	}
 	hist := service.Handle(Request{Command: CommandHistory, Session: id})
-	if !strings.Contains(hist.Output, "insert(coin)") {
+	if !strings.Contains(hist.Output, "insert?coin") {
 		t.Errorf("history after replay = %q, want the replayed event", hist.Output)
 	}
 }

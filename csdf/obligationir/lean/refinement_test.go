@@ -365,16 +365,16 @@ state "vm-idle" as vm-idle
 vm-idle: 1st
 vm-idle: end
 [*] --> vm-idle
-vm-idle --> vm-idle : choose(a product)
+vm-idle --> vm-idle : choose?a-product
 @enduml
 `
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
 	for _, want := range []string{
-		"| Ev_choose_u28ua_u20uproduct_u29u",
+		"| Ev_choose_u3fua_u2duproduct",
 		"| S_vm_u2duidle (v_1st : Val) (v_end : Val)",
 		"PN.S_vm_u2duidle v_1st v_end =>",
-		`--   choose_u28ua_u20uproduct_u29u = "choose(a product)"`,
+		`--   choose_u3fua_u2duproduct = "choose?a-product"`,
 		`--   vm_u2duidle = "vm-idle"`,
 	} {
 		if !strings.Contains(got, want) {

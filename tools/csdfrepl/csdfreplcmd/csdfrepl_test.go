@@ -237,7 +237,7 @@ s0: count ; number
 state "Done" as s1
 s1: result ; string
 [*] --> s0 : count starts at zero
-s0 --> s1 : insert(coin) ; count >= 0 ; result is done
+s0 --> s1 : insert?coin ; count >= 0 ; result is done
 @enduml
 `)
 	spy := cli.SpyProcInout()
@@ -254,8 +254,8 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 	for _, want := range []string{
 		"State: Initial",
 		"count' as number",
-		"[0] insert(coin) -> Done",
-		`"insert(coin)"`,
+		"[0] insert?coin -> Done",
+		`"insert?coin"`,
 		"State: Done",
 		`result = "ok"`,
 		"Deadlock: no outgoing transitions.",

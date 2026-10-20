@@ -29,7 +29,7 @@ var (
 	noteEndRe       = regexp.MustCompile(`^end\s+note$`)
 	promoteTitleRe  = regexp.MustCompile(`^(\S+)\s*:\s*(.+?)\s*(?:⇸|->>)\s*(\S+)$`)
 	syncBodyRe      = regexp.MustCompile(`^sync\s+([^(;:]+?)\s*:\s*(.+)$`)
-	constrainBodyRe = regexp.MustCompile(`^constrain\s+([^(;]+?)\s*\(([^()]*)\)\s*;\s*(.+)$`)
+	constrainBodyRe = regexp.MustCompile(`^constrain\s+([^;]+?)\s*;\s*(.+)$`)
 	mapRefRe        = regexp.MustCompile(`^([^\s()]+)\s*\(([^()]*)\)$`)
 )
 
@@ -365,13 +365,16 @@ func (s *scanner) readDirective(line string, anchor Anchor, at int) error {
 	case strings.HasPrefix(line, "constrain "):
 		m := constrainBodyRe.FindStringSubmatch(line)
 		if m == nil {
-			return fmt.Errorf("line %d: expected \"constrain <event>(<param>, ...) ; <guard>\", got %q", at, line)
+			return fmt.Errorf("line %d: expected \"constrain <event> ; <guard>\", got %q", at, line)
+		}
+		event, err := csdf.ParseEvent(m[1])
+		if err != nil {
+			return fmt.Errorf("line %d: %w", at, err)
 		}
 		s.constrains = append(s.constrains, Constrain{
 			Anchor: anchor,
-			Event:  m[1],
-			Params: splitTrimmed(m[2]),
-			Guard:  csdf.Predicate(strings.TrimSpace(m[3])),
+			Event:  event,
+			Guard:  csdf.Predicate(strings.TrimSpace(m[2])),
 			Line:   at,
 		})
 

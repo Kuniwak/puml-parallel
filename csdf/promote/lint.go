@@ -269,11 +269,11 @@ func (e *expander) warnAboutNotes() {
 		// An opaque clause says nothing about the instance by design; a guard
 		// made only of opaque clauses is not formalised yet, not wrong.
 		formal := c.Guard.FormalClauses()
-		named := slices.ContainsFunc(c.Params, func(p string) bool {
-			return slices.ContainsFunc(formal, func(clause csdf.Predicate) bool { return strings.Contains(string(clause), p) })
+		named := slices.ContainsFunc(c.Event.Fields(), func(f csdf.Field) bool {
+			return slices.ContainsFunc(formal, func(clause csdf.Predicate) bool { return strings.Contains(string(clause), f.Name) })
 		})
 		if len(formal) > 0 && !named {
-			e.warnf(c.Line, "the guard of this constrain names none of its arguments, so it says nothing about the instance")
+			e.warnf(c.Line, "the guard of this constrain names none of its fields, so it says nothing about the instance")
 		}
 	}
 }
@@ -322,7 +322,7 @@ func eventsOf(local *csdf.Diagram) []string {
 		if edge.Event == csdf.Tau {
 			continue
 		}
-		if name, _ := splitEvent(edge.Event); !slices.Contains(events, name) {
+		if name := edge.Event.Channel(); !slices.Contains(events, name) {
 			events = append(events, name)
 		}
 	}

@@ -3,6 +3,7 @@ package csdf
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -235,7 +236,7 @@ state "Done" as s1
 ' before start edge
 [*] /' before arrow '/ --> /' before destination '/ s0 /' before colon '/ : /' before post '/ initialize/' inside post '/now
 ' before regular edge
-s0 /' before arrow '/ --> /' before destination '/ s1 /' before colon '/ : /' before event '/ finish(/' before parameter '/result/' before comma '/, /' before parameter '/code/' before close '/) /' before guard '/ ; /' before guard text '/ ready/' inside guard '/&& done /' before post '/ ; /' before post text '/ complete/' inside post '/now
+s0 /' before arrow '/ --> /' before destination '/ s1 /' before colon '/ : /' before event '/ finish/' before field '/?result/' between fields '/?code /' before guard '/ ; /' before guard text '/ ready/' inside guard '/&& done /' before post '/ ; /' before post text '/ complete/' inside post '/now
 ' before end edge
 s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' before guard '/ "guard /' literal '/"
 ' comments are allowed after the end edge
@@ -274,8 +275,8 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 		t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
 	}
 	edge := diagram.Edges[0]
-	if edge.Event != "finish( result , code )" {
-		t.Errorf("Parse() event = %q, want %q", edge.Event, "finish( result , code )")
+	if edge.Event != "finish?result?code" {
+		t.Errorf("Parse() event = %q, want %q", edge.Event, "finish?result?code")
 	}
 	if edge.Guard != "ready && done" {
 		t.Errorf("Parse() guard = %q, want %q", edge.Guard, "ready && done")
@@ -327,32 +328,21 @@ b --> a : e1
 	// Teardown: no resources to release.
 }
 
-func TestParseFreeFormEvents(t *testing.T) {
+func TestParseEvents(t *testing.T) {
 	tests := []struct {
-		name      string
-		event     string
-		wantEvent Event
+		name        string
+		event       string
+		wantEvent   Event
+		wantChannel string
+		wantFields  []Field
 	}{
-		{
-			name:      "spaces symbols and unicode",
-			event:     "注文 accepted => v2",
-			wantEvent: "注文 accepted => v2",
-		},
-		{
-			name:      "unclosed parenthesis",
-			event:     "finish(result",
-			wantEvent: "finish(result",
-		},
-		{
-			name:      "trailing comma",
-			event:     "finish(result, )",
-			wantEvent: "finish(result, )",
-		},
-		{
-			name:      "block comment removed",
-			event:     "send/' implementation detail '/message",
-			wantEvent: "send message",
-		},
+		{name: "a channel alone", event: "reset", wantEvent: "reset", wantChannel: "reset"},
+		{name: "received and chosen fields", event: "c?x!y", wantEvent: "c?x!y", wantChannel: "c",
+			wantFields: []Field{{Dir: Received, Name: "x"}, {Dir: Chosen, Name: "y"}}},
+		{name: "unicode, digits and kebab case", event: "AUDIT-BEGIN?監査ID?2nd", wantEvent: "AUDIT-BEGIN?監査ID?2nd", wantChannel: "AUDIT-BEGIN",
+			wantFields: []Field{{Dir: Received, Name: "監査ID"}, {Dir: Received, Name: "2nd"}}},
+		{name: "block comments and spaces between tokens removed", event: "send /' implementation detail '/ ? m", wantEvent: "send?m", wantChannel: "send",
+			wantFields: []Field{{Dir: Received, Name: "m"}}},
 	}
 
 	for _, tt := range tests {
@@ -369,17 +359,32 @@ s0 --> s1 : ` + tt.event + ` ; ready ; done
 			if err != nil {
 				t.Fatalf("Parse() error = %v", err)
 			}
-			if len(diagram.Edges) != 1 {
-				t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+			e := diagram.Edges[0].Event
+			if e != tt.wantEvent {
+				t.Errorf("Parse() event = %q, want %q", e, tt.wantEvent)
 			}
-			if diagram.Edges[0].Event != tt.wantEvent {
-				t.Errorf("Parse() event = %q, want %q", diagram.Edges[0].Event, tt.wantEvent)
+			if e.Channel() != tt.wantChannel {
+				t.Errorf("Channel() = %q, want %q", e.Channel(), tt.wantChannel)
 			}
-			if diagram.Edges[0].Guard != "ready" {
-				t.Errorf("Parse() guard = %q, want ready", diagram.Edges[0].Guard)
+			if !slices.Equal(e.Fields(), tt.wantFields) {
+				t.Errorf("Fields() = %#v, want %#v", e.Fields(), tt.wantFields)
 			}
-			if diagram.Edges[0].Post != "done" {
-				t.Errorf("Parse() post = %q, want done", diagram.Edges[0].Post)
+		})
+	}
+}
+
+func TestParseRejectsEventsOutsideTheGrammar(t *testing.T) {
+	for _, event := range []string{"finish(result)", "注文 accepted", "c?", "c?x?", "?x", "c!!y", "c x", "a.b"} {
+		t.Run(event, func(t *testing.T) {
+			parser := NewParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : ` + event + `
+@enduml
+`)
+			if _, err := parser.Parse(); err == nil {
+				t.Fatalf("Parse() error = nil, want %q refused", event)
 			}
 		})
 	}

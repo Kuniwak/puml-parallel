@@ -52,9 +52,9 @@ state "稼働中" as running
 running: accounts ; 口座ID ⇸ Account
 [*] --> running : accounts は空
 ' promote: local/ACCOUNT.puml 〈開設済み〉 → 〈未開設〉
-running --> running : CLOSE(口座ID) ; 口座ID ∈ dom accounts ∧ accounts(口座ID) ∈ 〈開設済み〉 ; accounts' = {口座ID} ⩤ accounts
+running --> running : CLOSE?口座ID ; 口座ID ∈ dom accounts ∧ accounts(口座ID) ∈ 〈開設済み〉 ; accounts' = {口座ID} ⩤ accounts
 ' promote: local/ACCOUNT.puml 〈未開設〉 → 〈開設済み〉
-running --> running : OPEN(口座ID) ; 口座ID ∉ dom accounts ; accounts' = accounts ∪ {口座ID ↦ 〈開設済み〉}
+running --> running : OPEN?口座ID ; 口座ID ∉ dom accounts ; accounts' = accounts ∪ {口座ID ↦ 〈開設済み〉}
 @enduml
 `
 	if diff := cmp.Diff(want, got.String()); diff != "" {
@@ -96,9 +96,9 @@ state "稼働中" as 稼働中
 稼働中: 口座表 ; 口座ID ⇸ Account
 [*] --> 稼働中 : 口座表 は空
 ' promote: local/ACCOUNT.puml 〈開設済み〉 → 〈未開設〉
-稼働中 --> 稼働中 : CLOSE(口座ID) ; 口座ID ∈ dom 口座表 ∧ 口座表(口座ID) ∈ 〈開設済み〉 ; 口座表' = {口座ID} ⩤ 口座表
+稼働中 --> 稼働中 : CLOSE?口座ID ; 口座ID ∈ dom 口座表 ∧ 口座表(口座ID) ∈ 〈開設済み〉 ; 口座表' = {口座ID} ⩤ 口座表
 ' promote: local/ACCOUNT.puml 〈未開設〉 → 〈開設済み〉
-稼働中 --> 稼働中 : OPEN(口座ID) ; 口座ID ∉ dom 口座表 ; 口座表' = 口座表 ∪ {口座ID ↦ 〈開設済み〉}
+稼働中 --> 稼働中 : OPEN?口座ID ; 口座ID ∉ dom 口座表 ; 口座表' = 口座表 ∪ {口座ID ↦ 〈開設済み〉}
 @enduml
 `
 	if diff := cmp.Diff(want, got.String()); diff != "" {

@@ -18,7 +18,7 @@ accFrozen : reason ; 凍結理由
 [*] --> accNone
 
 accNone --> accOpen : OPEN ; true ; balance は 0
-accOpen --> accFrozen : FREEZE(理由) ; true ; reason は 理由
+accOpen --> accFrozen : FREEZE?理由 ; true ; reason は 理由
 accFrozen --> accOpen : UNFREEZE
 accOpen --> accNone : CLOSE ; balance が 0
 @enduml

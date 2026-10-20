@@ -13,7 +13,7 @@ func TestNewMainFuncOnlyCommon(t *testing.T) {
 	// Arrange
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
-	want := "choose(product)\ndrop(product)\ninsert(coin)\n"
+	want := "choose?product\ndrop?product\ninsert?coin\n"
 
 	// Act
 	exitStatus := cmdFunc([]string{

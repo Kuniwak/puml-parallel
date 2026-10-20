@@ -17,8 +17,8 @@ class CandidatesTest(unittest.TestCase):
 
     def test_candidates_of_an_edge_come_per_parameter_valuation(self):
         diagram = dict(COUNTER, edges=[
-            {"src": "a", "dst": "a", "event": "add(k)", "guard": "n + k ≤ 3", "post": "n' = n + k", "line": 6},
-            {"src": "a", "dst": "b", "event": "stop", "guard": "n = 0", "post": "true", "line": 7},
+            {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k ≤ 3", "post": "n' = n + k", "line": 6},
+            {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "true", "line": 7},
         ])
         from csdfbmc.twins import Twins
         twins = Twins(domains={"k": [1, 2]}, clauses={

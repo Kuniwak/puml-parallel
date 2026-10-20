@@ -13,7 +13,7 @@ audDone : target ; 対象の口座ID
 
 [*] --> audIdle
 
-audIdle --> audOpen : AUDIT-BEGIN(口座ID) ; true ; target は 口座ID
+audIdle --> audOpen : AUDIT-BEGIN?口座ID ; true ; target は 口座ID
 audOpen --> audDone : AUDIT-REPORT
 audDone --> audIdle : AUDIT-ARCHIVE
 @enduml

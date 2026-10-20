@@ -18,7 +18,7 @@ s0: count ; number
 state "Done" as s1
 s1: result ; string
 [*] --> s0 : count starts at zero
-s0 --> s1 : insert(coin) ; count >= 0 ; result is done
+s0 --> s1 : insert?coin ; count >= 0 ; result is done
 @enduml
 `
 

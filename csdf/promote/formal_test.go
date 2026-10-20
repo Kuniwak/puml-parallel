@@ -20,7 +20,7 @@ state "稼働中" as running {
 [*] --> running : accounts は空
 
 note as c1
-  constrain DEPOSIT(口座ID, 額) ; 額 は最小単位の倍数
+  constrain DEPOSIT?口座ID?額 ; 額 は最小単位の倍数
   formal: 額 % UNIT == 0
 end note
 @enduml
@@ -32,7 +32,7 @@ state "開設済み" as accOpen
 accOpen: 残高
 [*] --> accNone
 accNone --> accOpen : OPEN ; true ; 残高' = 0
-accOpen --> accOpen : DEPOSIT(額) ; 0 < 額 ; 残高' = 残高 + 額
+accOpen --> accOpen : DEPOSIT?額 ; 0 < 額 ; 残高' = 残高 + 額
 @enduml
 `
 
@@ -67,7 +67,7 @@ func TestConstrainCarriesItsFormalTwin(t *testing.T) {
 
 func TestParseGlobalRefusesAFormalLineThatBelongsToNothing(t *testing.T) {
 	cases := map[string]string{
-		"under a sync": strings.Replace(formalGlobal, "constrain DEPOSIT(口座ID, 額) ; 額 は最小単位の倍数", "sync DEPOSIT : accounts(口座ID), accounts(口座ID)", 1),
+		"under a sync": strings.Replace(formalGlobal, "constrain DEPOSIT?口座ID?額 ; 額 は最小単位の倍数", "sync DEPOSIT : accounts(口座ID), accounts(口座ID)", 1),
 		"twice":        strings.Replace(formalGlobal, "  formal: 額 % UNIT == 0\n", "  formal: 額 % UNIT == 0\n  formal: True\n", 1),
 		"empty":        strings.Replace(formalGlobal, "formal: 額 % UNIT == 0", "formal:", 1),
 	}

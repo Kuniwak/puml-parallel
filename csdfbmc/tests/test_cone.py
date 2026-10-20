@@ -24,9 +24,9 @@ AUDITED = {
     },
     "start_edge": {"dst": "a", "post": "[{'n': 2}] ∧ [{'log': 0}]", "line": 4},
     "edges": [
-        {"src": "a", "dst": "a", "event": "dec", "guard": "n > 0",
+        {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0",
          "post": "[{'n': n - 1}] ∧ [{'log': v} for v in (0, 1)]", "line": 5},
-        {"src": "a", "dst": "b", "event": "stop", "guard": "n == 0", "post": "true", "line": 6},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "true", "line": 6},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -54,10 +54,10 @@ UNREAD_FAMILY = {
     "diagram": {
         "states": {"r": {"name": "r", "vars": [{"name": "notes"}], "line": 1}},
         "start_edge": {"dst": "r", "post": "[{'notes': FrozenMap()}]", "line": 1},
-        "edges": [{"src": "r", "dst": "r", "event": "NOTE(i)", "guard": "g", "post": "p", "line": 2}],
+        "edges": [{"src": "r", "dst": "r", "event": "NOTE?i", "channel": "NOTE", "fields": [{"dir": "?", "name": "i"}], "guard": "g", "post": "p", "line": 2}],
         "end_edge": None, "assumptions": [],
     },
-    "edges": [{"edge": {"src": "r", "dst": "r", "event": "NOTE(i)", "guard": "g", "post": "p", "line": 2},
+    "edges": [{"edge": {"src": "r", "dst": "r", "event": "NOTE?i", "channel": "NOTE", "fields": [{"dir": "?", "name": "i"}], "guard": "g", "post": "p", "line": 2},
                "guard": [], "post": [{"kind": "create", "text": "notes' = …", "map": "notes", "id": "i", "state": "S"}]}],
     "promotes": [{"map": "notes", "id_param": "i", "path": "local/NOTE.puml", "in": "r"}],
     "locals": {"local/NOTE.puml": {"states": {"s": {"name": "S", "vars": [{"name": "n"}]}}}},
@@ -92,7 +92,7 @@ class ConeTest(unittest.TestCase):
             ("an audit log", AUDITED),
             ("a post that admits no successor at n = 1", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ [{'log': v} for v in range(n - 1)]")),
             ("a post that leaves the log without a value", edit(AUDITED, "dec", post="[{'n': n - 1}]")),
-            ("a tau cycle at the end", edit(AUDITED, "stop", event="tau", dst="a", guard="n == 0", post="[{'n': n}] ∧ [{'log': 1}]")),
+            ("a tau cycle at the end", edit(AUDITED, "stop", event="tau", channel="tau", fields=[], dst="a", guard="n == 0", post="[{'n': n}] ∧ [{'log': 1}]")),
             ("an expansion that frames a memo", memoed()),
             ("a family nothing reads, missing a local value", UNREAD_FAMILY),
         ]:

@@ -18,8 +18,8 @@ COUNTER = {
     },
     "start_edge": {"dst": "a", "post": "n = 2", "line": 5},
     "edges": [
-        {"src": "a", "dst": "a", "event": "dec", "guard": "n > 0", "post": "n' = n - 1", "line": 6},
-        {"src": "a", "dst": "b", "event": "stop", "guard": "n = 0", "post": "true", "line": 7},
+        {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "n' = n - 1", "line": 6},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "true", "line": 7},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -58,7 +58,7 @@ class ExplorerTest(unittest.TestCase):
 
     def test_finds_a_tau_cycle_among_the_reachable_states(self):
         diagram = dict(COUNTER, edges=COUNTER["edges"] + [
-            {"src": "a", "dst": "a", "event": "tau", "guard": "n = 0", "post": "n' = n", "line": 9},
+            {"src": "a", "dst": "a", "event": "tau", "channel": "tau", "fields": [], "guard": "n = 0", "post": "n' = n", "line": 9},
         ])
         twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n": lambda n: [{"n": n}]}))
         result = Explorer.of_twins(Diagram.from_json(diagram), twins).run()
@@ -66,7 +66,7 @@ class ExplorerTest(unittest.TestCase):
 
     def test_event_parameters_range_over_their_domain(self):
         diagram = dict(COUNTER, edges=[
-            {"src": "a", "dst": "a", "event": "add(k)", "guard": "n + k ≤ 3", "post": "n' = n + k", "line": 6},
+            {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k ≤ 3", "post": "n' = n + k", "line": 6},
         ])
         twins = Twins(
             domains={"k": [1, 2]},
@@ -107,7 +107,7 @@ class PostTwinTest(unittest.TestCase):
         return Diagram.from_json({
             "states": {"a": {"name": "a", "vars": [{"name": "x"}, {"name": "y"}], "line": 2}},
             "start_edge": {"dst": "a", "post": "init", "line": 3},
-            "edges": [{"src": "a", "dst": "a", "event": "step", "guard": "true", "post": post, "line": 4}],
+            "edges": [{"src": "a", "dst": "a", "event": "step", "channel": "step", "fields": [], "guard": "true", "post": post, "line": 4}],
             "end_edge": None, "assumptions": [],
         })
 
@@ -163,6 +163,15 @@ class PostTwinTest(unittest.TestCase):
         twins = Twins(domains={}, clauses={"init": lambda: [{"x": 0, "y": 0}], "bad": lambda x, y: x == y})
         with self.assertRaises(TypeError):
             Explorer.of_twins(self.diagram("bad"), twins).run()
+
+
+class EventFieldsTest(unittest.TestCase):
+    def test_an_edge_without_its_channel_and_fields_is_refused(self):
+        diagram = {"states": {"a": {"name": "a", "vars": []}}, "start_edge": {"dst": "a", "post": "true"},
+                   "edges": [{"src": "a", "dst": "a", "event": "c?x", "guard": "true", "post": "true"}],
+                   "end_edge": None, "assumptions": []}
+        with self.assertRaisesRegex(ValueError, "no channel and fields"):
+            Diagram.from_json(diagram)
 
 
 if __name__ == "__main__":

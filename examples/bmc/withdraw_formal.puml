@@ -10,7 +10,7 @@ sending : 数量
 
 [*] --> idle : [{'残高': INITIAL}]
 
-idle --> sending : 出庫(数量) ; 数量 <= LIMIT ∧ 残高 >= 数量 ; [{'残高': 残高}] ∧ [{'数量': 数量}]
+idle --> sending : 出庫?数量 ; 数量 <= LIMIT ∧ 残高 >= 数量 ; [{'残高': 残高}] ∧ [{'数量': 数量}]
 sending --> idle : 着金 ; 残高 - 数量 >= FEE ; [{'残高': 残高 - 数量 - FEE}]
-idle --> idle : 入金(額) ; 残高 + 額 <= CAP ; [{'残高': 残高 + 額}]
+idle --> idle : 入金?額 ; 残高 + 額 <= CAP ; [{'残高': 残高 + 額}]
 @enduml

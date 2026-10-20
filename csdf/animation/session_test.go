@@ -12,7 +12,7 @@ s0: count ; number
 state "Done" as s1
 s1: result ; string
 [*] --> s0 : count starts at zero
-s0 --> s1 : insert(coin) ; count >= 0 ; result is done
+s0 --> s1 : insert?coin ; count >= 0 ; result is done
 @enduml
 `
 
@@ -153,8 +153,8 @@ func TestSelectThenEnterValuesRecordsEventTrace(t *testing.T) {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	trace := session.Trace()
-	if len(trace) != 1 || trace[0] != "insert(coin)" {
-		t.Errorf("Trace() = %v, want [insert(coin)]", trace)
+	if len(trace) != 1 || trace[0] != "insert?coin" {
+		t.Errorf("Trace() = %v, want [insert?coin]", trace)
 	}
 }
 
@@ -264,7 +264,7 @@ func TestTransitionsListsOutgoingEdges(t *testing.T) {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	edges := session.Transitions()
-	if len(edges) != 1 || edges[0].Event != "insert(coin)" {
-		t.Errorf("Transitions() = %v, want one insert(coin) edge", edges)
+	if len(edges) != 1 || edges[0].Event != "insert?coin" {
+		t.Errorf("Transitions() = %v, want one insert?coin edge", edges)
 	}
 }

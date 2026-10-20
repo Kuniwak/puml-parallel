@@ -82,11 +82,11 @@ note as sync1
 end note
 
 note bottom of runningWhitelist
-  constrain EVT-HW-WHITELIST-VERIFY(売り約定ID, 送金先アドレス) ; whitelistEntries の 送金先アドレス が〈登録済み〉
+  constrain EVT-HW-WHITELIST-VERIFY?売り約定ID?送金先アドレス ; whitelistEntries の 送金先アドレス が〈登録済み〉
 end note
 
 note bottom of runningSession
-  constrain EVT-WL-CHECKER-APPROVE(エントリID, checker) ; sessions の checker が〈ログイン中〉で役割が checker
+  constrain EVT-WL-CHECKER-APPROVE?エントリID?checker ; sessions の checker が〈ログイン中〉で役割が checker
 end note
 @enduml
 ```
@@ -266,7 +266,7 @@ G --> G : e(p₁, p₂, args…) ; GUARD(x₁)[id:=p₁] ∧ GUARD(x₂)[id:=p�
 
 ### 4.5 `constrain`
 
-`constrain e(q₁,…,qₖ) ; c` があるとき、展開後のイベント名 `e` で引数数 `k` の全**生成**エッジ（インスタンス生成・削除・`sync` 済みを含む、すべての展開先状態）のガードに `∧ c` を連言する。手書きのエッジには触らない（すでに言うべきことを言っているため）。`c` は不透明で置換しない。`c` は展開後の引数名で書かれていることを期待し、`q₁…qₖ` のいずれも `c` に現れなければ warning。`q₁…qₖ` のどれかが一致したエッジの実引数にない場合も warning。
+`constrain e?q₁…?qₖ ; c` があるとき、展開後のチャネル `e` でフィールドの向きが同じ全**生成**エッジ（インスタンス生成・削除・`sync` 済みを含む、すべての展開先状態）のガードに `∧ c` を連言する。手書きのエッジには触らない（すでに言うべきことを言っているため）。`c` は不透明で置換しない。`c` は展開後の引数名で書かれていることを期待し、`q₁…qₖ` のいずれも `c` に現れなければ warning。`q₁…qₖ` のどれかが一致したエッジの実引数にない場合も warning。
 
 `constrain` は一致する生成エッジ**すべて**（全状態）に効く。note の接続先はどの家族についての条件かを読み手に示す絵であって、範囲を狭めない。
 

@@ -18,8 +18,8 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		Expected *Options
 	}
 
-	diagram := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert(coin) ; true ; coins' is {coin}\nb --> a : reset\n@enduml\n"
-	okTrace := tools.FileInput{Name: filepath.Join("testdata", "ok.tsv"), Bytes: []byte("event\ninsert(coin)\nreset\n")}
+	diagram := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert?coin ; true ; coins' is {coin}\nb --> a : reset\n@enduml\n"
+	okTrace := tools.FileInput{Name: filepath.Join("testdata", "ok.tsv"), Bytes: []byte("event\ninsert?coin\nreset\n")}
 	ngTrace := tools.FileInput{Name: filepath.Join("testdata", "ng.tsv"), Bytes: []byte("event\nreset\n")}
 
 	testCases := map[string]testCase{

@@ -67,7 +67,7 @@ event is looked up in the diagram is one of two simple rules chosen by -match:
 
   exact   the identical text (default)
   prefix  the trace event is a prefix of the diagram event, so a trace whose
-          parameters were stripped ("insert") matches the label "insert(coin)"
+          parameters were stripped ("insert") matches the label "insert?coin"
 
 Anything richer is best done to the trace beforehand, e.g. with sed or qhs. The
 diagram may be "-" for standard input; traces must be files. Too many traces
@@ -83,7 +83,7 @@ Options:
 Examples:
   $ csdftracechk examples/valid/vending_machine.puml trace.tsv
   $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trace2.tsv
-  $ csdfparallel -sync 'insert(coin)' a.puml b.puml | csdftracechk - trace.tsv
+  $ csdfparallel -sync 'insert?coin' a.puml b.puml | csdftracechk - trace.tsv
   $ (echo path; find traces -name '*.tsv') | csdftracechk -traces - examples/valid/vending_machine.puml
 `)
 		}

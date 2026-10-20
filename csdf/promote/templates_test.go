@@ -23,7 +23,7 @@ func TestExpandRendersTheClausesWithTheGivenTemplates(t *testing.T) {
 		t.Fatalf("promote.Expand() expansion = nil, diagnostics = %v", diags)
 	}
 
-	want := "running --> running : SETTLE(約定ID) ; 約定ID は buys にある ∧ buys の 約定ID は〈記帳済み〉 ; buys から 約定ID を除く ∧ cycles は変わらない"
+	want := "running --> running : SETTLE?約定ID ; 約定ID は buys にある ∧ buys の 約定ID は〈記帳済み〉 ; buys から 約定ID を除く ∧ cycles は変わらない"
 	if got := x.String(); !strings.Contains(got, want) {
 		t.Errorf("promote.Expand() missing line:\n%s\ngot:\n%s", want, got)
 	}

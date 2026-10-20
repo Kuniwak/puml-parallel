@@ -22,7 +22,9 @@ escape_dquote = "\" DQUOTE
 stateID = id
 var = id
 varType = *textElement
-event = 1*textElement
+event = channel *(inlineTrivia ("?" / "!") inlineTrivia field)
+channel = id
+field = id
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
@@ -57,7 +59,13 @@ lines, is discarded. Because the markers are themselves PlantUML line comments, 
 wrapped content (for example Graphviz directives such as `left to right direction`) is still
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
 Comment delimiters inside double-quoted strings are treated as ordinary text.
-An event must remain non-empty after comments and surrounding whitespace are removed.
+An event is a channel followed by its fields, in the CSP style: `c?x` receives `x`
+(the environment chooses its value) and `c!y` chooses `y` internally (the post gives
+it its value). `tau` is the internal event. An event names its fields and carries
+no value and no expression; anything about a value is said by the guard and the
+post, which read a field by its name. Whitespace and comments around `?` and `!`
+are removed, so `c ? x` is `c?x`. Composition and hiding go by the whole event
+text, and `csdfpromote` matches `sync` and `constrain` by the channel.
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
@@ -165,7 +173,7 @@ Semantics
 | `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
 | `varType`                                  | `string`           | Represents an optional state-variable type. Leading and trailing whitespace is removed.                                                                                   |
-| `event`                                    | `Event`            | Represents an event as a free-form string. Leading and trailing whitespace is removed. The entire string is used for synchronization. When it is exactly `tau`, it is an internal transition. |
+| `event`                                    | `Event`            | An event: a channel and its `?` (received) and `!` (chosen internally) fields, written without whitespace. `Event.Channel` and `Event.Fields` take it apart, and csdfparse writes them as `channel` and `fields` next to `event`. When it is exactly `tau`, it is an internal transition. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
 | `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |
@@ -213,7 +221,7 @@ noteLine        = *unicode_char_except_LF
 noteID          = id
 
 syncBody        = "sync" inlineSeparator eventName inlineTrivia ":" inlineTrivia mapRef *(inlineTrivia "," inlineTrivia mapRef)
-constrainBody   = "constrain" inlineSeparator eventName inlineTrivia "(" inlineTrivia param *(inlineTrivia "," inlineTrivia param) inlineTrivia ")" inlineTrivia ";" inlineTrivia guard
+constrainBody   = "constrain" inlineSeparator event inlineTrivia ";" inlineTrivia guard
 formalLine      = inlineTrivia "formal:" inlineTrivia expression
 expression      = 1*unicode_char_except_LF
 mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")"
@@ -222,7 +230,7 @@ preprocessorLine = "!" *unicode_char_except_LF LF
 path            = 1*(unicode_char_except_space) / DQUOTE 1*(unicode_char_except_dquote) DQUOTE
 typeName        = 1*(unicode_char_except_space)
 param           = 1*(unicode_char_except_comma_paren)
-eventName       = 1*(unicode_char_except_paren_semicolon_colon)
+eventName       = channel
 ```
 
 | Syntax Element     | Corresponding Type | Meaning                                                                                                                                                                                 |

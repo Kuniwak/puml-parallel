@@ -13,8 +13,8 @@ state "なし" as buyNone
 state "約定済み" as buyBooked
 state "記帳済み" as buyPosted
 [*] --> buyNone
-buyNone --> buyBooked : BUY(数量)
-buyBooked --> buyPosted : BOOK(数量)
+buyNone --> buyBooked : BUY?数量
+buyBooked --> buyPosted : BOOK?数量
 buyPosted --> buyNone : SETTLE
 @enduml
 `,
@@ -23,8 +23,8 @@ state "未開始" as cycIdle
 state "集計中" as cycCounting
 state "確定済み" as cycFixed
 [*] --> cycIdle
-cycIdle --> cycCounting : BOOK(数量)
-cycCounting --> cycCounting : BOOK(数量)
+cycIdle --> cycCounting : BOOK?数量
+cycCounting --> cycCounting : BOOK?数量
 cycCounting --> cycFixed : tau
 cycFixed --> cycIdle : REPORT
 @enduml
@@ -61,8 +61,8 @@ func TestExpandMergesTheSyncedEdges(t *testing.T) {
 	// BOOK has one edge on the buys side and two on the cycles side, so the
 	// product is two merged edges and neither side keeps a BOOK of its own.
 	want := []string{
-		"running --> running : BOOK(約定ID, 基準日, 数量) ; 約定ID ∈ dom buys ∧ buys(約定ID) ∈ 〈約定済み〉 ∧ 基準日 ∈ dom cycles ∧ cycles(基準日) ∈ 〈集計中〉 ; buys' = buys ⊕ {約定ID ↦ 〈記帳済み〉} ∧ cycles' = cycles ⊕ {基準日 ↦ 〈集計中〉}",
-		"running --> running : BOOK(約定ID, 基準日, 数量) ; 約定ID ∈ dom buys ∧ buys(約定ID) ∈ 〈約定済み〉 ∧ 基準日 ∉ dom cycles ; buys' = buys ⊕ {約定ID ↦ 〈記帳済み〉} ∧ cycles' = cycles ∪ {基準日 ↦ 〈集計中〉}",
+		"running --> running : BOOK?約定ID?基準日?数量 ; 約定ID ∈ dom buys ∧ buys(約定ID) ∈ 〈約定済み〉 ∧ 基準日 ∈ dom cycles ∧ cycles(基準日) ∈ 〈集計中〉 ; buys' = buys ⊕ {約定ID ↦ 〈記帳済み〉} ∧ cycles' = cycles ⊕ {基準日 ↦ 〈集計中〉}",
+		"running --> running : BOOK?約定ID?基準日?数量 ; 約定ID ∈ dom buys ∧ buys(約定ID) ∈ 〈約定済み〉 ∧ 基準日 ∉ dom cycles ; buys' = buys ⊕ {約定ID ↦ 〈記帳済み〉} ∧ cycles' = cycles ∪ {基準日 ↦ 〈集計中〉}",
 	}
 
 	got := x.String()
@@ -71,7 +71,7 @@ func TestExpandMergesTheSyncedEdges(t *testing.T) {
 			t.Errorf("promote.Expand() missing line:\n%s\ngot:\n%s", line, got)
 		}
 	}
-	if n := strings.Count(got, " : BOOK("); n != len(want) {
+	if n := strings.Count(got, " : BOOK?"); n != len(want) {
 		t.Errorf("promote.Expand() has %d BOOK edges, want %d:\n%s", n, len(want), got)
 	}
 }
@@ -90,11 +90,11 @@ func TestExpandPromotesTauWithoutAnInstanceID(t *testing.T) {
 
 func TestExpandConjoinsTheConstrainGuards(t *testing.T) {
 	source := strings.Replace(syncGlobal, "@enduml", `note bottom of runningBuys
-  constrain BUY(約定ID, 数量) ; 数量 は最小取引単位の倍数である
+  constrain BUY?約定ID?数量 ; 数量 は最小取引単位の倍数である
 end note
 
 note as cons2
-  constrain BOOK(約定ID, 基準日, 数量) ; 基準日 は 約定ID の約定日である
+  constrain BOOK?約定ID?基準日?数量 ; 基準日 は 約定ID の約定日である
 end note
 @enduml`, 1)
 
@@ -135,10 +135,10 @@ func TestExpandRefusesADirectiveThatCannotMeanAnything(t *testing.T) {
 		},
 		"a constrain that matches no edge": {
 			global: strings.Replace(syncGlobal, "@enduml", `note as c1
-  constrain BUY(約定ID) ; 数量 は最小取引単位の倍数である
+  constrain BUY?約定ID ; 数量 は最小取引単位の倍数である
 end note
 @enduml`, 1),
-			want: `error: line 20: no expanded edge is "BUY" with 1 argument`,
+			want: `error: line 20: no expanded edge is on BUY with fields of the directions ?`,
 		},
 	}
 

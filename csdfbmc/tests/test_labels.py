@@ -24,8 +24,8 @@ COUNTER = {
     },
     "start_edge": {"dst": "a", "post": "[{'n': 2}]", "line": 5},
     "edges": [
-        {"src": "a", "dst": "a", "event": "dec", "guard": "n > 0", "post": "[{'n': n - 1}]", "line": 6},
-        {"src": "a", "dst": "b", "event": "stop", "guard": "n == 0", "post": "true", "line": 7},
+        {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "[{'n': n - 1}]", "line": 6},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "true", "line": 7},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -77,7 +77,7 @@ class LabelsTest(unittest.TestCase):
 
     def test_a_guard_is_asked_once_per_state_for_every_parameter_value(self):
         diagram = Diagram.from_json(dict(COUNTER, edges=[
-            {"src": "a", "dst": "a", "event": "add(k)", "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
+            {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
         counting = Counting(python_glue())
         result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), meaning=glue(counting), cone=Cone.keep_all()).run()
         guards = [r for r in counting.requests if r["op"] == "guard"]
