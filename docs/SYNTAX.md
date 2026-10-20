@@ -80,6 +80,9 @@ it, so a tool that reads an expansion gets the clauses back by splitting on it
 (`Predicate.Clauses`). The connective is grammar, not wording, so a clause must not
 contain it; a natural-language "and" (`a、かつ b`, `a and b`) is part of its clause.
 A `guard` or `post` that is omitted, or is the literal `true`, has no clause.
+The clause `opaque` is reserved for a clause not formalised yet: it says
+nothing a tool can read, and a checker takes it by its own rule (`csdfbmc
+--opaque`), whatever language the other clauses are written in.
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 The following symbols are ABNF core rules:

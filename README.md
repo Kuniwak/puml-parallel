@@ -792,7 +792,10 @@ the clause's value under each of a batch of bindings. Values are tagged JSON
 (`{"tuple": …}`, `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has none of
 them. Clauses must be pure: the checker asks about a clause once per value of
 the names it reads, and about a guard once per edge for every parameter
-valuation still enabled. `csdfbmc/protocol.py` states the protocol in full.
+valuation still enabled. A clause not formalised yet is written as the
+reserved clause `opaque` in any language; the checker takes it by `--opaque`
+without asking the glue, and `csdfpromote` does not warn that such a constrain
+names none of its arguments. `csdfbmc/protocol.py` states the protocol in full.
 Anyone may add a language by writing a glue; `--evaluator CMD` starts it, and
 `--evaluator-module MODULE` loads a glue written in Python in-process, with
 no round trip. A round trip over a pipe costs about 12 µs for a Python glue
@@ -801,8 +804,9 @@ and 25 µs for a Ruby one.
 The reference glue, `csdfbmc.python_glue`, reads the pure subset of Python a
 twins module is checked against. A guard is an expression; a post is a list
 or set of dict displays whose keys are the variables, written as strings
-(`[{'残高': 残高 + 額}]`, `[{'y': v} for v in (y, y + 1)]`); `OPAQUE` marks a
-clause not yet formalised. Its arguments are modules whose public names every
+(`[{'残高': 残高 + 額}]`, `[{'y': v} for v in (y, y + 1)]`). It still takes
+`OPAQUE`, its own marker before `opaque` was reserved, which is deprecated and
+goes in the next major version. Its arguments are modules whose public names every
 clause may use. The twins module then holds `DOMAINS` and, when wanted,
 `GHOSTS` and `INVARIANTS`; `CLAUSES` and `--local` twins are refused, since
 they would not be used. `--symmetry` is refused too, since the checker cannot

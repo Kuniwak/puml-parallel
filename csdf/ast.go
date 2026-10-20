@@ -23,6 +23,9 @@ type Predicate string
 
 const (
 	PredicateTrue Predicate = "true"
+	// PredicateOpaque is the reserved clause of a clause not formalised yet:
+	// it says nothing a tool can read, and a checker takes it by its own rule.
+	PredicateOpaque Predicate = "opaque"
 )
 
 // IsTrue reports whether a predicate string is the omitted/default value,
@@ -30,6 +33,11 @@ const (
 // "True"/"False" written by an author are ordinary natural-language predicates.
 func IsTrue(s Predicate) bool {
 	return s == "" || s == PredicateTrue
+}
+
+// IsOpaque reports whether a clause is the reserved clause opaque.
+func IsOpaque(clause Predicate) bool {
+	return strings.TrimSpace(string(clause)) == string(PredicateOpaque)
 }
 
 // Tau is the internal (silent) event. An edge whose event is exactly "tau" is a

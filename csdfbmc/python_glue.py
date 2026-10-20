@@ -18,6 +18,9 @@ from csdfbmc.twins import check_pure
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"
+# The glue's own marker of a clause not formalised yet, from before the
+# grammar reserved opaque (which the checker takes without asking a glue).
+# Deprecated; it goes in the next major version.
 OPAQUE = "OPAQUE"
 
 

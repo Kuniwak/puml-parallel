@@ -132,3 +132,19 @@ func withLocal(locals map[string]string, path, source string) map[string]string 
 	}
 	return out
 }
+
+// A clause not formalised yet says nothing about the instance by design, so
+// a constrain whose guard is only opaque is not warned about.
+func TestExpandDoesNotWarnAboutAnOpaqueConstrain(t *testing.T) {
+	global := strings.Replace(syncGlobal, "@enduml", `note as c1
+  constrain BUY(約定ID, 数量) ; opaque
+end note
+@enduml`, 1)
+	x, diags := expand(t, global, syncLocals)
+	if x == nil {
+		t.Fatalf("promote.Expand() expansion = nil: %v", diags)
+	}
+	if got := countDiagnostic(diags, `warning: line 20: the guard of this constrain names none of its arguments, so it says nothing about the instance`); got != 0 {
+		t.Errorf("promote.Expand() warned about an opaque constrain: %v", diags)
+	}
+}

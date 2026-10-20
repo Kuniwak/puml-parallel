@@ -17,9 +17,16 @@ from csdfbmc.protocol import ClientLike
 from csdfbmc.reduce import formal_names, names_beyond
 from csdfbmc.twins import Twins, apply, check_pure
 
-# What a clause with no meaning to evaluate stands for: no twin, or a glue
-# that says the clause is not formalised yet.
+# What a clause with no meaning to evaluate stands for: no twin, a glue
+# that says the clause is not formalised yet, or the reserved clause opaque.
 OPAQUE = object()
+
+# The reserved clause of a clause not formalised yet (docs/SYNTAX.md).
+RESERVED_OPAQUE = "opaque"
+
+
+def is_reserved_opaque(clause: Clause) -> bool:
+    return clause.text.strip() == RESERVED_OPAQUE
 
 
 class Meaning(Protocol):
@@ -139,3 +146,31 @@ class GlueMeaning:
 
     def opaque_message(self, clause: Clause) -> str:
         return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or run with opaque='true'"
+
+
+class ReservedOpaque:
+    """inner, but the reserved clause opaque means nothing whatever inner
+    would say: it is not formalised, and nobody is asked about it."""
+
+    def __init__(self, inner: Meaning):
+        self.inner = inner
+        self.readable = inner.readable
+        self.by_prose = inner.by_prose
+
+    def names(self, clause: Clause, role: str) -> set[str] | None:
+        return None if is_reserved_opaque(clause) else self.inner.names(clause, role)
+
+    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
+        return None if is_reserved_opaque(clause) else self.inner.names_beyond(clause, own_id)
+
+    def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
+        if not is_reserved_opaque(clause):
+            self.inner.prefetch(clause, role, envs)
+
+    def evaluate(self, clause: Clause, role: str, env: dict):
+        return OPAQUE if is_reserved_opaque(clause) else self.inner.evaluate(clause, role, env)
+
+    def opaque_message(self, clause: Clause) -> str:
+        if is_reserved_opaque(clause):
+            return f"the clause {clause.text!r} is not formalised yet; formalise it, or run with opaque='true'"
+        return self.inner.opaque_message(clause)

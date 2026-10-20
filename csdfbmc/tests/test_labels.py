@@ -52,6 +52,12 @@ class LabelsTest(unittest.TestCase):
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
+    def test_the_reserved_clause_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
+        counting = Counting(python_glue())
+        result = Explorer(counter(dec={"guard": "opaque"}), NO_TWINS, meaning=glue(counting), opaque="true", max_states=10).run()
+        self.assertEqual(["opaque"], result.opaque_clauses)
+        self.assertNotIn("opaque", [r["clause"] for r in counting.requests])
+
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
             Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue())).run()

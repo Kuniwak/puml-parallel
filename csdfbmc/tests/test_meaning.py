@@ -1,7 +1,7 @@
 """What a clause reads, as the reductions of the walk take it."""
 import unittest
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, GlueMeaning, ReservedOpaque, TwinsMeaning
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
@@ -42,6 +42,22 @@ class GlueMeaningTest(unittest.TestCase):
     def test_prefetch_asks_about_every_env_in_one_request(self):
         self.meaning.prefetch(Clause("local", "n > 0"), "guard", [{"n": 1}, {"n": 2}])
         self.assertEqual([[{"n": 1}, {"n": 2}]], self.client.asked)
+
+
+class ReservedOpaqueTest(unittest.TestCase):
+    """The reserved clause opaque has no meaning to ask anyone about."""
+
+    def test_opaque_is_not_formalised_whatever_the_meaning(self):
+        client = Recording({}, lambda b: True)
+        for name, inner in [("twins", TwinsMeaning(EMPTY, Twins(domains={}, clauses={"opaque": lambda: True}))),
+                            ("glue", GlueMeaning(client))]:
+            meaning = ReservedOpaque(inner)
+            clause = Clause("constrain", "opaque")
+            with self.subTest(name):
+                self.assertIs(OPAQUE, meaning.evaluate(clause, "guard", {}))
+                self.assertIsNone(meaning.names(clause, "guard"))
+                self.assertIn("'opaque'", meaning.opaque_message(clause))
+        self.assertEqual([], client.asked)
 
 
 if __name__ == "__main__":

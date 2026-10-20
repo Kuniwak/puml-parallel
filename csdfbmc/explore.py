@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, Meaning, ReservedOpaque, TwinsMeaning
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.twins import Twins, apply
 from csdfbmc.values import FrozenMap, encode, freeze
@@ -200,7 +200,8 @@ class Explorer:
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         # meaning: what the hand-written and constrain clauses mean.
-        self.meaning = meaning
+        # The reserved clause opaque means nothing whatever the meaning says.
+        self.meaning = ReservedOpaque(meaning)
         if not self.meaning.by_prose and (twins.clauses or twins.locals):
             raise ValueError("the clauses are read through a glue, so the twins' CLAUSES and their locals would not be used; leave them out")
         self.por = PartialOrder(self) if por else None
