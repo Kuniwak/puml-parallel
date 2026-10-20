@@ -780,6 +780,44 @@ with `--avoid 確定 --within sending`); and four `INVARIANTS` over `GHOSTS` tha
 total the events, relating the balance to the amounts moved and the fees paid
 and refunded. The run reports a deadlock with its trace; the comments in
 `wallet_twins.py` say which twin to change to make every check pass.
+A clause may also be written in a formal language in the diagram itself, so
+that no twin is keyed by its prose. The checker knows no language by name: it
+reads every clause through a *glue*, a long-running program that speaks the
+evaluator protocol on its standard input and output, one JSON request and one
+JSON answer per line. A glue answers `hello` (its language and protocol
+version); `analyse`, the names a clause reads and, for a post, the variables
+it gives a value to, without evaluating it, or `{"opaque": true}` for a
+clause not yet formalised, which follows `--opaque`; and `guard` and `post`,
+the clause's value under each of a batch of bindings. Values are tagged JSON
+(`{"tuple": …}`, `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has none of
+them. Clauses must be pure: the checker asks about a clause once per value of
+the names it reads, and about a guard once per edge for every parameter
+valuation still enabled. `csdfbmc/protocol.py` states the protocol in full.
+Anyone may add a language by writing a glue; `--evaluator CMD` starts it, and
+`--evaluator-module MODULE` loads a glue written in Python in-process, with
+no round trip. A round trip over a pipe costs about 12 µs for a Python glue
+and 25 µs for a Ruby one.
+
+The reference glue, `csdfbmc.python_glue`, reads the pure subset of Python a
+twins module is checked against. A guard is an expression; a post is a list
+or set of dict displays whose keys are the variables, written as strings
+(`[{'残高': 残高 + 額}]`, `[{'y': v} for v in (y, y + 1)]`); `OPAQUE` marks a
+clause not yet formalised. Its arguments are modules whose public names every
+clause may use. The twins module then needs only `DOMAINS` and, when wanted,
+`GHOSTS`, `INVARIANTS`. `--symmetry` is refused, since the checker cannot read
+the clauses to check `SYMMETRIC`. `examples/bmc/withdraw_formal.puml` is the
+first example written this way; `csdfparse` reads it unchanged, since a label
+only has to keep `;` out of a guard, fit on one line and not contain ` ∧ `
+inside a clause:
+
+```console
+$ csdfparse examples/bmc/withdraw_formal.puml > withdraw_formal.json
+$ csdfbmc withdraw_formal.json examples/bmc/withdraw_formal_defs.py \
+    --evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"
+states: 22
+deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
+```
+
 An expansion of a promoted diagram (`csdfpromote -format json`) is walked the
 same way. A map variable then holds, per instance ID, a record of the local
 state's name (under `state`) and the local variables, so a twin reads
