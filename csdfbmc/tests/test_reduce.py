@@ -41,7 +41,7 @@ WITHOUT_CLOSE = {**EXPANSION,
 
 
 def walk(expansion=EXPANSION, **kw):
-    return Explorer(Diagram.from_json(expansion), twins(**{k: kw.pop(k) for k in ("invariants", "global_source") if k in kw}), **kw).run()
+    return Explorer.of_twins(Diagram.from_json(expansion), twins(**{k: kw.pop(k) for k in ("invariants", "global_source") if k in kw}), **kw).run()
 
 
 class PartialOrderTest(unittest.TestCase):
@@ -82,7 +82,7 @@ class SymmetryTest(unittest.TestCase):
             self.assertIn(s, full.parents)
             if reduced.parents[s] is not None:
                 prev, label, _ = reduced.parents[s]
-                self.assertIn(s, [t for _, l, t, _ in Explorer(Diagram.from_json(EXPANSION), twins()).successors(prev) if l == label])
+                self.assertIn(s, [t for _, l, t, _ in Explorer.of_twins(Diagram.from_json(EXPANSION), twins()).successors(prev) if l == label])
 
     def test_a_twin_that_compares_an_id_with_a_constant_is_refused(self):
         source = GLOBAL_SOURCE + 'CLAUSES["特別"] = lambda 口座ID: 口座ID == "a1"\n'
@@ -98,11 +98,11 @@ class SymmetryTest(unittest.TestCase):
         tw = twins()
         tw.domains = dict(tw.domains, 相手ID=["a1"])
         with self.assertRaisesRegex(ValueError, "相手ID"):
-            Explorer(Diagram.from_json(EXPANSION), tw, symmetry=True)
+            Explorer.of_twins(Diagram.from_json(EXPANSION), tw, symmetry=True)
 
     def test_symmetry_without_a_declaration_is_refused(self):
         with self.assertRaisesRegex(ValueError, "SYMMETRIC"):
-            Explorer(Diagram.from_json(EXPANSION), twins(symmetric=()), symmetry=True)
+            Explorer.of_twins(Diagram.from_json(EXPANSION), twins(symmetric=()), symmetry=True)
 
     def test_both_reductions_together_find_the_same_deadlocks(self):
         full, reduced = walk(WITHOUT_CLOSE), walk(WITHOUT_CLOSE, por=True, symmetry=True)

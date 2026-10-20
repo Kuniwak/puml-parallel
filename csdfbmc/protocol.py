@@ -37,7 +37,7 @@ import json
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Protocol
 
 from csdfbmc.values import FrozenMap
 
@@ -214,6 +214,17 @@ def module_handle(name: str, args: list[str]) -> Handle:
     return module.evaluator(args)
 
 
+class ClientLike(Protocol):
+    """What the checker needs of a glue: Client, and the decorators that
+    wrap one."""
+    language: str
+
+    def analyse(self, clause: str, role: str) -> "Analysis": ...
+    def guard(self, clause: str, bindings: list[dict]) -> list[bool]: ...
+    def post(self, clause: str, bindings: list[dict]) -> list[list[dict]]: ...
+    def close(self) -> None: ...
+
+
 @dataclass(frozen=True)
 class Analysis:
     """What a glue says about a clause without evaluating it."""
@@ -303,7 +314,7 @@ class Validating:
     """A Client whose post answers are checked against the clause's writes:
     every assignment must give a value to exactly them."""
 
-    def __init__(self, inner):
+    def __init__(self, inner: ClientLike):
         self.inner = inner
         self.language = inner.language
         self._analyses: dict[tuple[str, str], Analysis] = {}
@@ -335,7 +346,7 @@ class Memoising:
     reads, which a pure clause allows, and asks about the bindings of one
     batch it was not asked about yet in one request."""
 
-    def __init__(self, inner):
+    def __init__(self, inner: ClientLike):
         self.inner = inner
         self.language = inner.language
         self._analyses: dict[tuple[str, str], Analysis] = {}
@@ -368,3 +379,9 @@ class Memoising:
 
     def close(self) -> None:
         self.inner.close()
+
+
+def checked(client: ClientLike) -> ClientLike:
+    """client as the walk asks it: each answer checked, and each clause asked
+    once per value of the names it reads."""
+    return Memoising(Validating(client))

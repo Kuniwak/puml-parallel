@@ -13,7 +13,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
 from csdfbmc.meaning import GlueMeaning
-from csdfbmc.protocol import Client, start_module
+from csdfbmc.protocol import Client, checked, start_module
 from csdfbmc.twins import Twins
 
 COUNTER = {
@@ -37,8 +37,8 @@ def python_glue() -> Client:
     return start_module("csdfbmc.python_glue", [])
 
 
-def glue(client=None) -> GlueMeaning:
-    return GlueMeaning(client if client is not None else python_glue())
+def glue(client) -> GlueMeaning:
+    return GlueMeaning(checked(client))
 
 
 def counter(**edits) -> Diagram:
@@ -48,17 +48,17 @@ def counter(**edits) -> Diagram:
 
 class LabelsTest(unittest.TestCase):
     def test_the_clauses_are_evaluated_through_the_glue(self):
-        result = Explorer(counter(), NO_TWINS, meaning=glue()).run()
+        result = Explorer(counter(), NO_TWINS, meaning=glue(python_glue())).run()
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
-            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue()).run()
+            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue())).run()
         self.assertIn("OPAQUE", str(cm.exception))
 
     def test_an_opaque_clause_may_be_taken_as_true(self):
-        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue()), opaque="true", max_states=10).run()
         self.assertIn(("a", (-1,), ()), set(result.states))
         self.assertEqual(["OPAQUE"], result.opaque_clauses)
 
@@ -80,7 +80,7 @@ class LabelsTest(unittest.TestCase):
     def test_twins_keyed_by_prose_are_refused_with_a_glue(self):
         twins = Twins(domains={}, clauses={"n > 0": lambda n: n > 0})
         with self.assertRaises(ValueError) as cm:
-            Explorer(counter(), twins, meaning=glue())
+            Explorer(counter(), twins, meaning=glue(python_glue()))
         self.assertIn("CLAUSES", str(cm.exception))
 
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
@@ -113,26 +113,26 @@ def relabel(value):
 class FormalExpansionTest(unittest.TestCase):
     def setUp(self):
         from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        self.prose = Explorer(Diagram.from_json(EXPANSION), GLOBAL_TWINS).run()
+        self.prose = Explorer.of_twins(Diagram.from_json(EXPANSION), GLOBAL_TWINS).run()
         self.diagram = Diagram.from_json(relabel(EXPANSION))
         self.twins = Twins(domains=GLOBAL_TWINS.domains, clauses={})
 
     def test_a_formal_expansion_needs_no_twins_and_finds_the_same(self):
-        result = Explorer(self.diagram, self.twins, meaning=glue()).run()
+        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue())).run()
         self.assertEqual(set(self.prose.states), set(result.states))
         self.assertEqual(self.prose.deadlocks, result.deadlocks)
 
     def test_partial_order_reduction_reads_what_the_glue_says_a_clause_reads(self):
         from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        prose = Explorer(Diagram.from_json(EXPANSION), GLOBAL_TWINS, por=True).run()
-        result = Explorer(self.diagram, self.twins, meaning=glue(), por=True).run()
+        prose = Explorer.of_twins(Diagram.from_json(EXPANSION), GLOBAL_TWINS, por=True).run()
+        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), por=True).run()
         self.assertEqual(set(prose.states), set(result.states))
         self.assertEqual(prose.deadlocks, result.deadlocks)
 
     def test_symmetry_is_refused_since_the_checker_cannot_read_the_clauses(self):
         twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
         with self.assertRaises(ValueError) as cm:
-            Explorer(self.diagram, twins, meaning=glue(), symmetry=True)
+            Explorer(self.diagram, twins, meaning=glue(python_glue()), symmetry=True)
         self.assertIn("through a glue", str(cm.exception))
 
 

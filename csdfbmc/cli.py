@@ -9,7 +9,7 @@ from typing import Iterator
 
 from csdfbmc.meaning import GlueMeaning, TwinsMeaning
 from csdfbmc.model import Diagram
-from csdfbmc.protocol import EvaluatorError, start_command, start_module
+from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
 from csdfbmc.twins import PurityError, Twins, load_twins
 
 # What reading the inputs may raise; each command reports it and exits 2.
@@ -49,7 +49,7 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object]]:
     try:
         diagram = Diagram.load(a.diagram)
         twins = _load_twins(a)
-        yield diagram, twins, GlueMeaning(client) if client is not None else TwinsMeaning(diagram, twins)
+        yield diagram, twins, GlueMeaning(checked(client)) if client is not None else TwinsMeaning(diagram, twins)
     finally:
         if client is not None:
             client.close()

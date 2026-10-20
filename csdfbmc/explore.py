@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.meaning import OPAQUE, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.twins import Twins, apply
 from csdfbmc.values import FrozenMap, encode, freeze
@@ -163,8 +163,9 @@ class Explorer:
     within narrows those cycles to the control states named.
 
     meaning says what the hand-written and constrain clauses mean
-    (csdfbmc.meaning): the twins by default, or a glue of the evaluator
-    protocol (GlueMeaning), which reads every clause by its text. A clause
+    (csdfbmc.meaning): the twins (TwinsMeaning, which of_twins gives), or a
+    glue of the evaluator protocol (GlueMeaning), which reads every clause
+    by its text. A clause
     the meaning has nothing for follows the opaque rule. symmetry is refused
     when the meaning cannot be read to check SYMMETRIC.
 
@@ -174,9 +175,14 @@ class Explorer:
     the walk still meets.
     """
 
-    def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000,
+    @classmethod
+    def of_twins(cls, diagram: Diagram, twins: Twins, **options) -> "Explorer":
+        """An Explorer whose clauses mean what the twins say."""
+        return cls(diagram, twins, TwinsMeaning(diagram, twins), **options)
+
+    def __init__(self, diagram: Diagram, twins: Twins, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
-                 por: bool = False, symmetry: bool = False, meaning=None):
+                 por: bool = False, symmetry: bool = False):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
@@ -194,7 +200,7 @@ class Explorer:
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         # meaning: what the hand-written and constrain clauses mean.
-        self.meaning = meaning if meaning is not None else TwinsMeaning(diagram, twins)
+        self.meaning = meaning
         if not self.meaning.by_prose and (twins.clauses or twins.locals):
             raise ValueError("the clauses are read through a glue, so CLAUSES and --local twins would not be used; leave them out")
         self.por = PartialOrder(self) if por else None

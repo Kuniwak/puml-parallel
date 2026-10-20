@@ -9,10 +9,11 @@ protocol, by the clause's text.
 from __future__ import annotations
 
 import inspect
+from typing import Protocol
 
 from csdfbmc.formal import FORMAL_GLOBALS
 from csdfbmc.model import Clause, Diagram
-from csdfbmc.protocol import Memoising, Validating
+from csdfbmc.protocol import ClientLike
 from csdfbmc.reduce import formal_names, names_beyond
 from csdfbmc.twins import Twins, apply, check_pure
 
@@ -21,10 +22,22 @@ from csdfbmc.twins import Twins, apply, check_pure
 OPAQUE = object()
 
 
-class TwinsMeaning:
+class Meaning(Protocol):
+    """What the walk needs to know of the hand-written and constrain clauses."""
     # readable: the clauses can be read, as source, to check SYMMETRIC.
-    readable = True
+    readable: bool
     # by_prose: the twins' CLAUSES give the meaning.
+    by_prose: bool
+
+    def names(self, clause: Clause, role: str) -> set[str] | None: ...
+    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None: ...
+    def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None: ...
+    def evaluate(self, clause: Clause, role: str, env: dict): ...
+    def opaque_message(self, clause: Clause) -> str: ...
+
+
+class TwinsMeaning:
+    readable = True
     by_prose = True
 
     def __init__(self, diagram: Diagram, twins: Twins):
@@ -87,13 +100,13 @@ class TwinsMeaning:
 
 
 class GlueMeaning:
-    """The meaning a glue gives the clauses. client is a Client of the
-    protocol; it is asked through Memoising and Validating."""
+    """The meaning a glue gives the clauses, asked through client as given
+    (csdfbmc.protocol.checked is what the commands give)."""
     readable = False
     by_prose = False
 
-    def __init__(self, client):
-        self.client = Memoising(Validating(client))
+    def __init__(self, client: ClientLike):
+        self.client = client
 
     def _binding(self, clause: Clause, reads: tuple[str, ...], env: dict) -> dict:
         missing = [n for n in reads if n not in env]
