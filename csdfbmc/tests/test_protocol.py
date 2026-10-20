@@ -1,12 +1,14 @@
 """The evaluator protocol carries values in a tagged JSON encoding, since
 JSON has no tuples, sets or maps with keys other than strings."""
+import gc
 import io
 import json
 import os
 import sys
 import unittest
+import warnings
 
-from csdfbmc.protocol import NO_CLOSE, Analysis, Client, EvaluatorError, from_wire, serve, start_command, start_module, to_wire
+from csdfbmc.protocol import NO_CLOSE, Analysis, Client, EvaluatorError, Memoising, Validating, from_wire, serve, start_command, start_module, to_wire
 from csdfbmc.values import FrozenMap
 
 
@@ -80,6 +82,45 @@ class ClientTest(unittest.TestCase):
                 ask(client)
 
 
+class Recording:
+    """A client answering from tables, which records the bindings it is asked about."""
+    language = "fake"
+
+    def __init__(self, analyses: dict, answer):
+        self.analyses, self.answer, self.asked = analyses, answer, []
+
+    def analyse(self, clause, role):
+        return self.analyses[clause]
+
+    def guard(self, clause, bindings):
+        self.asked.append(bindings)
+        return [self.answer(b) for b in bindings]
+
+    post = guard
+
+    def close(self):
+        pass
+
+
+class DecoratorTest(unittest.TestCase):
+    def test_memoising_asks_once_per_value_of_what_a_clause_reads(self):
+        inner = Recording({"n > 0": Analysis(opaque=False, reads=("n",))}, lambda b: b["n"] > 0)
+        client = Memoising(inner)
+        self.assertEqual([True, False, True], client.guard("n > 0", [{"n": 1}, {"n": 0}, {"n": 1}]))
+        self.assertEqual([True], client.guard("n > 0", [{"n": 1}]))
+        self.assertEqual([[{"n": 1}, {"n": 0}]], inner.asked)
+
+    def test_validating_refuses_an_assignment_beside_the_writes(self):
+        for name, answer in [("a variable too many", [{"n": 1, "m": 0}]), ("a variable short", [{}])]:
+            client = Validating(Recording({"p": Analysis(opaque=False, writes=("n",))}, lambda b: answer))
+            with self.subTest(name), self.assertRaises(EvaluatorError):
+                client.post("p", [{}])
+
+    def test_validating_passes_an_assignment_to_exactly_the_writes(self):
+        client = Validating(Recording({"p": Analysis(opaque=False, writes=("n",))}, lambda b: [{"n": 1}]))
+        self.assertEqual([[{"n": 1}]], client.post("p", [{}]))
+
+
 class ServeTest(unittest.TestCase):
     """A glue's main loop answers every line, even one it cannot read."""
 
@@ -107,10 +148,10 @@ class TransportTest(unittest.TestCase):
     """The checker reaches a glue as a command speaking JSON lines, or as a
     Python module loaded in-process; both answer the same requests."""
 
-    def evaluators(self):
+    def setUp(self):
         command = start_command([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc.python_glue"], cwd=ROOT)
         self.addCleanup(command.close)
-        return {"command": command, "module": start_module("csdfbmc.python_glue", [])}
+        self.evaluators = {"command": command, "module": start_module("csdfbmc.python_glue", [])}
 
     def test_both_answer_alike(self):
         for ask, want in [
@@ -119,19 +160,17 @@ class TransportTest(unittest.TestCase):
             (lambda ev: ev.post("[{'m': m.set('k', (1, 2))}]", [{"m": FrozenMap()}]), [[{"m": FrozenMap({"k": (1, 2)})}]]),
             (lambda ev: ev.guard("len(s) == 2", [{"s": frozenset({1, 2})}]), [True]),
         ]:
-            for how, ev in self.evaluators().items():
+            for how, ev in self.evaluators.items():
                 with self.subTest(how=how, want=want):
                     self.assertEqual(want, ask(ev))
 
     def test_an_error_answer_is_raised_with_its_message(self):
-        for how, ev in self.evaluators().items():
+        for how, ev in self.evaluators.items():
             with self.subTest(how=how), self.assertRaises(EvaluatorError) as cm:
                 ev.guard("x >", [{}])
             self.assertIn("x >", str(cm.exception))
 
     def test_a_glue_that_stops_before_hello_leaves_no_pipe_open(self):
-        import gc
-        import warnings
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", ResourceWarning)
             with self.assertRaises(EvaluatorError):
