@@ -64,7 +64,7 @@ func (p *Parser) Parse() (*Diagram, error) {
 		if p.isAtEnd() || p.peekString("@enduml") {
 			break
 		}
-		if diagram.EndEdge != nil {
+		if diagram.EndEdge != nil && !p.peekString("note") {
 			return nil, fmt.Errorf("csdf.Parser.Parse: expected @enduml after end edge at line %d, col %d", p.line, p.col)
 		}
 

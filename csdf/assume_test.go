@@ -108,3 +108,15 @@ func TestComposeParallelConcatenatesTheAssumptions(t *testing.T) {
 		t.Error(diff)
 	}
 }
+
+// The grammar lets an assume note follow the end edge, which is the last
+// transition: an assumption is about the whole diagram, so it reads well last.
+func TestParseReadsAnAssumeNoteAfterTheEndEdge(t *testing.T) {
+	d := MustParse("@startuml\n[*] --> s0\ns0 --> [*]\nnote as fair\n  assume x\nend note\n@enduml\n")
+	if len(d.Assumptions) != 1 || d.Assumptions[0].ID != "fair" {
+		t.Errorf("Assumptions = %v, want the one note", d.Assumptions)
+	}
+	if _, err := Parse("@startuml\n[*] --> s0\ns0 --> [*]\ns0 --> s0 : a\n@enduml\n"); err == nil {
+		t.Error("Parse() accepted an edge after the end edge")
+	}
+}
