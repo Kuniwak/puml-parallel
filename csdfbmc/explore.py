@@ -5,25 +5,11 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
+from csdfbmc.formal import FORMAL_GLOBALS, RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.twins import Twins, apply, check_pure
 from csdfbmc.values import FrozenMap, encode, freeze
-
-# The key under which an instance's record holds its local state's name; the
-# local variables are the other keys.
-RECORD_STATE = "state"
-
-# What a formal expression may call besides the names of the step.
-FORMAL_GLOBALS = {
-    "__builtins__": {},
-    "len": len, "all": all, "any": any, "sum": sum, "min": min, "max": max, "abs": abs,
-    "sorted": sorted, "set": set, "frozenset": frozenset, "tuple": tuple, "range": range,
-    "FrozenMap": FrozenMap,
-    "at": lambda m, i, state: i in m and m[i][RECORD_STATE] == state,
-    "exists": lambda m, pred: any(pred(i, r) for i, r in m.items()),
-    "count": lambda m, pred: sum(1 for i, r in m.items() if pred(i, r)),
-}
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
