@@ -22,6 +22,7 @@ const (
 	CommandTrace         = "trace"
 	CommandHistory       = "history"
 	CommandJump          = "jump"
+	CommandReplay        = "replay"
 	CommandServerVersion = "server_version"
 )
 
@@ -33,6 +34,9 @@ type Request struct {
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
 	Index   *int   `json:"index,omitempty"`   // select (optional) / jump (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
+	// Replay walks a fresh session along a path csdfbmc recorded under a
+	// finding (replay).
+	Replay *animation.Replay `json:"replay,omitempty"`
 }
 
 // Response is the service's reply. Output is the human-readable rendering; Data

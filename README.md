@@ -744,8 +744,11 @@ the event, which is the livelock the `assume` note was about. A clause without a
 twin is refused; `--opaque true` takes it as satisfied instead, which
 over-approximates the behaviour (a deadlock it then reports may be spurious; a
 deadlock it misses cannot be hidden by it) and lists the clauses so taken.
-`--json` prints the same as JSON. The exit status is 1 when something was
-found, 2 when the inputs could not be read.
+`--json` prints the same as JSON, and under every finding a `replay`: the
+initial values and, per step, the edge taken (event, source, destination,
+line) and the values of the state it leads to, which `csdfrepl -replay` and
+`csdfreplcmd replay` walk so the finding can be looked at in the REPL. The exit
+status is 1 when something was found, 2 when the inputs could not be read.
 
 The walk also reports every (state, event) where the guard held but the post
 twins returned no successor ("post admits no successor"): a real post always
@@ -818,6 +821,22 @@ Commands use zero-based indexes:
 - `j INDEX` jumps to a history entry.
 - `?` or `help` displays command help.
 
+With `-replay`, the session first walks the path `csdfbmc --json` recorded
+under one of its findings and the prompt opens at the state the finding is at,
+with the path in the history; `-finding N` picks the finding, numbered from 0
+in the order the output lists them (deadlocks, tau cycles, broken invariants,
+avoiding cycles, empty posts, unconstrained posts). A step that cannot be
+taken, for instance because the diagram changed since the check, is an error.
+
+```console
+$ csdfbmc withdraw.json examples/bmc/withdraw_twins.py --json > findings.json
+$ csdfrepl -replay findings.json -finding 0 examples/bmc/withdraw.puml
+Replayed 1 step(s); the path is in the history.
+
+State: 送信中
+...
+```
+
 See [CSDFREPL.puml](docs/CSDFREPL.puml) for the behavioral specification.
 
 ## Headless exploration for agents
@@ -837,6 +856,7 @@ $ csdfreplcmd select 0                                   # choose a transition, 
 $ csdfreplcmd statevar -json '["done"]'
 $ csdfreplcmd trace
 $ csdfreplcmd jump 0                                     # branch from an earlier history entry
+$ csdfreplcmd replay -finding 0 findings.json            # walk a fresh session to a csdfbmc finding
 $ csdfreplcmd read -json                                 # structured output for parsing
 $ csdfreplcmd session list
 $ csdfreplcmd serverversion                              # the daemon's version

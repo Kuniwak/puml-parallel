@@ -13,6 +13,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -242,7 +243,7 @@ s0 --> s1 : insert(coin) ; count >= 0 ; result is done
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n"))
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON)
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, nil)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
@@ -276,7 +277,7 @@ s0: value
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n"))
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON)
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, nil)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
@@ -314,7 +315,7 @@ state "Initial" as s0
 		},
 	)
 
-	err := runWithSolver(path, spy.New(), nil, solver)
+	err := runWithSolver(path, spy.New(), nil, solver, nil)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v, want nil", err)
@@ -341,7 +342,7 @@ s0 --> s1 : go
 	spy.Stdin = cli.StubStdin(inputReader)
 	done := make(chan error, 1)
 	go func() {
-		done <- runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON)
+		done <- runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON, nil)
 	}()
 
 	writeAndWait(t, inputWriter, "[]\n", spy.Stdout, "command> ")
@@ -365,7 +366,7 @@ state "Initial" as s0
 	interrupts <- os.Interrupt
 	spy := cli.SpyProcInout()
 
-	err := runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON)
+	err := runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON, nil)
 
 	if err == nil {
 		t.Fatalf("runWithSolver() error = nil, want error")
@@ -386,7 +387,7 @@ s0: value
 	spy.Stdin = cli.StubStdin(strings.NewReader("[1]"))
 	stdout := &bytes.Buffer{}
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON)
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, nil)
 
 	if err != nil {
 		t.Fatalf("runWithSolver() error = %v, want nil", err)
@@ -490,7 +491,7 @@ func TestRunWithSolverRejectsBadFiles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			spy := cli.SpyProcInout()
-			err := runWithSolver(tt.file, spy.New(), nil, csdf.SolveJSON)
+			err := runWithSolver(tt.file, spy.New(), nil, csdf.SolveJSON, nil)
 			if err == nil {
 				t.Error("runWithSolver() error = nil, want error")
 			}
@@ -585,4 +586,38 @@ func waitFor(t *testing.T, stdout *cli.LockedBuffer, want string) {
 		time.Sleep(time.Millisecond)
 	}
 	t.Fatalf("stdout did not contain %q: %s", want, stdout.String())
+}
+
+func TestRunReplaysAFindingBeforeTheFirstPrompt(t *testing.T) {
+	path := writeDiagram(t, `@startuml
+state "counting" as a
+a: n
+state "stopped" as b
+[*] --> a : n = 2
+a --> a : dec ; n > 0 ; n' = n - 1
+a --> b : stop ; n = 0
+@enduml
+`)
+	replay := animation.Replay{Initial: []byte(`[2]`), Steps: []animation.ReplayStep{
+		{Event: "dec", Src: "a", Dst: "a", Line: 6, Values: []byte(`[1]`)},
+		{Event: "dec", Src: "a", Dst: "a", Line: 6, Values: []byte(`[0]`)},
+		{Event: "stop", Src: "a", Dst: "b", Line: 7, Values: []byte(`[]`)},
+	}}
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("t\nh\n"))
+
+	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, &replay)
+
+	if err != nil {
+		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{"Replayed 3 step(s)", "State: stopped", `"dec"`, `"stop"`, "History:"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout does not contain %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "state> ") && strings.Index(out, "state> ") < strings.Index(out, "State: stopped") {
+		t.Errorf("a value prompt came before the replayed state:\n%s", out)
+	}
 }

@@ -264,3 +264,32 @@ func TestHelpAndUnknownDispatch(t *testing.T) {
 		t.Errorf("help select exit = %d, want 0", code)
 	}
 }
+
+// (A short name: the temp socket path must stay under the Unix limit.)
+func TestReplay(t *testing.T) {
+	sock := startDaemon(t)
+	dir := t.TempDir()
+	diagram := filepath.Join(dir, "d.puml")
+	if err := os.WriteFile(diagram, []byte(twoStateDiagram), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	findings := filepath.Join(dir, "findings.json")
+	if err := os.WriteFile(findings, []byte(`{"deadlocks":[{"at":{"state":"s1","values":["ok"]},"trace":["insert(coin)"],
+	  "replay":{"initial":[0],"steps":[{"event":"insert(coin)","src":"s0","dst":"s1","line":7,"values":["ok"]}]}}],
+	  "tau_cycles":[],"violations":[],"avoiding_cycles":[],"empty_posts":[],"unconstrained":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := run(t, sock, "session", "new", diagram); code != 0 {
+		t.Fatalf("session new failed: %s", stderr)
+	}
+	code, stdout, stderr := run(t, sock, "replay", findings)
+	if code != 0 {
+		t.Fatalf("replay failed (%d): %s", code, stderr)
+	}
+	if !strings.Contains(stdout, "State: Done") {
+		t.Errorf("replay output = %q, want the state the finding is at", stdout)
+	}
+	if code, _, stderr := run(t, sock, "replay", "-finding", "3", findings); code == 0 || !strings.Contains(stderr, "no finding 3") {
+		t.Errorf("replay -finding 3: code %d, stderr %q; want a refusal", code, stderr)
+	}
+}

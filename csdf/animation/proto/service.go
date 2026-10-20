@@ -70,6 +70,8 @@ func (s *Service) Handle(req Request) Response {
 		return s.handleHistory(req)
 	case CommandJump:
 		return s.handleJump(req)
+	case CommandReplay:
+		return s.handleReplay(req)
 	case CommandServerVersion:
 		return s.handleServerVersion()
 	default:
@@ -198,6 +200,23 @@ func (s *Service) handleJump(req Request) Response {
 		return errorResponse("jump requires a history index")
 	}
 	if err := e.session.Jump(*req.Index); err != nil {
+		return s.errorFromErr(err)
+	}
+	return viewResponse(e)
+}
+
+// handleReplay walks a fresh session along the recorded path and shows where
+// it got to. A step that cannot be taken is an error, and the session is left
+// at the last state reached, so the user can look at it.
+func (s *Service) handleReplay(req Request) Response {
+	e, err := s.resolve(req.Session)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	if req.Replay == nil {
+		return errorResponse("replay requires a recorded path")
+	}
+	if err := e.session.Replay(*req.Replay); err != nil {
 		return s.errorFromErr(err)
 	}
 	return viewResponse(e)

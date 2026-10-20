@@ -81,6 +81,22 @@ def freeze(value):
     return value
 
 
+def encode(value):
+    """value as JSON would carry it: FrozenMaps as objects, tuples and
+    frozensets as arrays (a frozenset sorted when it can be)."""
+    if isinstance(value, Mapping):
+        return {str(k): encode(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [encode(v) for v in value]
+    if isinstance(value, (set, frozenset)):
+        items = [encode(v) for v in value]
+        try:
+            return sorted(items)
+        except TypeError:
+            return items
+    return value
+
+
 def record(**fields: Iterable) -> list[FrozenMap]:
     """Every record whose fields range over the given domains."""
     names = list(fields)
