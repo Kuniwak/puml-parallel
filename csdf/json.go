@@ -3,10 +3,12 @@ package csdf
 import "encoding/json"
 
 // ClauseJSON is one clause as JSON, as its language reads it: its text with
-// the escapes removed, or the tool word @opaque, which has no text.
+// the escapes removed, or the tool word @opaque, which has no text. Rename
+// maps a name the text reads to the name of the predicate it stands for.
 type ClauseJSON struct {
-	Text   string `json:"text,omitempty"`
-	Opaque bool   `json:"opaque,omitempty"`
+	Text   string            `json:"text,omitempty"`
+	Opaque bool              `json:"opaque,omitempty"`
+	Rename map[string]string `json:"rename,omitempty"`
 }
 
 // ClausesJSON takes a predicate apart into its clauses, so a reader in another
@@ -16,9 +18,17 @@ func (p Predicate) ClausesJSON() []ClauseJSON {
 	for _, c := range p.Clauses() {
 		if IsOpaque(c) {
 			out = append(out, ClauseJSON{Opaque: true})
-		} else {
-			out = append(out, ClauseJSON{Text: ClauseText(c)})
+			continue
 		}
+		renames, body, _ := SplitRenaming(c)
+		j := ClauseJSON{Text: ClauseText(body)}
+		for _, r := range renames {
+			if j.Rename == nil {
+				j.Rename = map[string]string{}
+			}
+			j.Rename[r.From] = r.To
+		}
+		out = append(out, j)
 	}
 	return out
 }
