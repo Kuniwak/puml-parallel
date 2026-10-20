@@ -456,12 +456,29 @@ class Explorer:
             self._tau_choices[key] = tuple(chosen)
         return self._tau_choices[key]
 
+    def _values(self, e: Edge, name: str) -> list:
+        """The values e's field name ranges over: its domain, and of those
+        only the ones every name renamed onto it can also take. A composition
+        renames a side's field onto the other's, and the two synchronise only
+        on a value both sides can take."""
+        values = self.twins.domain(name)
+        for c in e.guard + e.post:
+            for f, t in c.rename:
+                if t != name:
+                    continue
+                try:
+                    held = self.twins.domain(f)
+                except KeyError:
+                    continue  # a name with no domain of its own takes any value
+                values = [v for v in values if v in held]
+        return values
+
     def _enabled(self, state: State, e: Edge, names: tuple[str, ...]) -> list[dict]:
         """The parameter valuations of e whose guard holds at state. The
         guard is taken clause by clause over every valuation still enabled,
         so a clause read through a glue costs one request per edge."""
         alive = [(params, self._env(state, params))
-                 for params in (dict(zip(names, args)) for args in itertools.product(*(self.twins.domain(p) for p in names)))]
+                 for params in (dict(zip(names, args)) for args in itertools.product(*(self._values(e, p) for p in names)))]
         for c in e.guard:
             if c.kind in ("local", "constrain"):
                 self.meaning.prefetch(c, "guard", [self._instance_env(c, env) if c.map and c.kind == "local" else env for _, env in alive])

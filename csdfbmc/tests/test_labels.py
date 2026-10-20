@@ -2,6 +2,7 @@
 through a glue: the checker asks it what a clause reads and gives a value
 to, and what it evaluates to, and needs no twin keyed by prose."""
 import io
+from dataclasses import replace
 import json
 import os
 import shlex
@@ -13,7 +14,7 @@ from csdfbmc.tests import fixture
 
 from csdfbmc.cone import Cone
 from csdfbmc.explore import Explorer
-from csdfbmc.model import Diagram
+from csdfbmc.model import Clause, Diagram
 from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.protocol import Client, EvaluatorError, checked, start_module
 from csdfbmc.twins import Twins
@@ -260,6 +261,33 @@ class HiddenFieldTest(unittest.TestCase):
         # Execute, Assert
         with self.assertRaisesRegex(KeyError, "'x'"):
             explorer.run()
+
+
+
+# What composing put?x with put?y leaves: the right clause reads y for x.
+SYNCED = {
+    "states": {"a": {"name": "a", "vars": [{"name": "n"}], "line": 2}},
+    "start_edge": {"dst": "a", "post": "[{'n': 0}]", "line": 3},
+    "edges": [{"src": "a", "dst": "a", "event": "put?x", "guard": "", "post": "[{'n': x}]", "line": 4}],
+    "end_edge": None, "assumptions": [],
+}
+
+
+class SynchronisedDomainTest(unittest.TestCase):
+    """Two sides synchronise only on a value both can take: a field renamed
+    onto another ranges over the values both their domains hold."""
+
+    def test_a_field_ranges_over_the_domains_of_the_names_renamed_onto_it(self):
+        # Setup
+        d = fixture.diagram(SYNCED)
+        d.edges[0] = replace(d.edges[0], guard=(Clause("local", "y >= 0", rename=(("y", "x"),)),))
+        explorer = Explorer(d, Twins(domains={"x": [0, 1, 2], "y": [0, 1]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute
+        result = explorer.run()
+
+        # Assert
+        self.assertEqual({("a", (0,), ()), ("a", (1,), ())}, set(result.states))
 
 
 if __name__ == "__main__":
