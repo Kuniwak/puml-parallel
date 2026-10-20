@@ -36,7 +36,7 @@ func TestTheWithdrawExampleReportsADeadlock(t *testing.T) {
 	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
 		t.Fatalf("want exit status 1 (a deadlock found), got %v\n%s", err, out)
 	}
-	for _, want := range []string{"deadlock at sending [3, 3]", "出庫(数量=3)"} {
+	for _, want := range []string{"deadlock ×3 at sending after 出庫", "'出庫(数量=3)'"} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("want %q in the report, got:\n%s", want, out)
 		}
@@ -53,7 +53,7 @@ func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 		t.Fatalf("want exit status 1, got %v\n%.2000s", err, out)
 	}
 	text := string(out)
-	for _, want := range []string{"deadlock at sending", "'再送', '再送'"} {
+	for _, want := range []string{"deadlock ×", "at sending after 再送", "'再送', '再送'"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("want %q in the report, got:\n%.2000s", want, text)
 		}
