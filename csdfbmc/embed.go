@@ -14,7 +14,7 @@ import (
 // Sources is the Python package itself, embedded so that the csdfbmc binary
 // of a release carries the checker and needs nothing from a checkout.
 //
-//go:embed __init__.py __main__.py explore.py model.py twins.py values.py
+//go:embed __init__.py __main__.py explore.py model.py next.py twins.py values.py
 var Sources embed.FS
 
 // Materialize writes the Python package under root, in a directory named by
@@ -73,15 +73,27 @@ func Materialize(root string) (string, error) {
 	return dir, nil
 }
 
-// bootstrap puts the materialized directory on sys.path and runs the package
-// as "python -m csdfbmc" would. It is a -c program rather than PYTHONPATH
+// bootstrap puts the materialized directory on sys.path and runs a module of
+// the package as "python -m" would. It is a -c program rather than PYTHONPATH
 // because the interpreter runs with -E, which ignores PYTHON* variables so
 // that the user's environment cannot change what the checker imports.
-const bootstrap = `import sys, runpy; sys.path.insert(0, sys.argv.pop(1)); runpy.run_module("csdfbmc", run_name="__main__", alter_sys=True)`
+const bootstrap = `import sys, runpy; sys.path.insert(0, sys.argv.pop(1)); runpy.run_module(sys.argv.pop(1), run_name="__main__", alter_sys=True)`
 
-// PythonArgs returns the arguments that run the materialized package in dir
-// with args, to be passed to a python3 executable: no environment variables
-// (-E), no user site (-s), no bytecode written next to the sources (-B).
+// The modules the launcher runs: the checker, and what a REPL asks at a value
+// prompt.
+const (
+	ModuleCheck = "csdfbmc"
+	ModuleNext  = "csdfbmc.next"
+)
+
+// PythonArgs returns the arguments that run the checker in dir with args, to
+// be passed to a python3 executable: no environment variables (-E), no user
+// site (-s), no bytecode written next to the sources (-B).
 func PythonArgs(dir string, args ...string) []string {
-	return append([]string{"-E", "-s", "-B", "-c", bootstrap, dir}, args...)
+	return ModuleArgs(dir, ModuleCheck, args...)
+}
+
+// ModuleArgs is PythonArgs for the given module of the package.
+func ModuleArgs(dir, module string, args ...string) []string {
+	return append([]string{"-E", "-s", "-B", "-c", bootstrap, dir, module}, args...)
 }

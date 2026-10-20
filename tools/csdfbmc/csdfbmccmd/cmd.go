@@ -31,7 +31,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdfbmccmd.NewMainFunc: %w", err)
 		}
 
-		cmd := exec.Command(python, csdfbmc.PythonArgs(dir, opts.Args...)...)
+		module, args := csdfbmc.ModuleCheck, opts.Args
+		if len(args) > 0 && args[0] == "next" {
+			module, args = csdfbmc.ModuleNext, args[1:]
+		}
+		cmd := exec.Command(python, csdfbmc.ModuleArgs(dir, module, args...)...)
 		cmd.Stdin = inout.Stdin
 		cmd.Stdout = inout.Stdout
 		cmd.Stderr = inout.Stderr

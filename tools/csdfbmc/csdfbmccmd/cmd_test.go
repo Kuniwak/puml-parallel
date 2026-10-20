@@ -66,3 +66,15 @@ func TestAMissingInterpreterIsReported(t *testing.T) {
 		t.Errorf("status = %d, stderr %q; want 2 naming the interpreter", status, spy.Stderr.String())
 	}
 }
+
+func TestNextRunsTheValuePromptModule(t *testing.T) {
+	needPython(t)
+	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()},
+		"next", "../../../examples/bmc/withdraw.json", "../../../examples/bmc/withdraw_twins.py", "--initial")
+	if status != 0 {
+		t.Fatalf("status = %d, stderr %s", status, spy.Stderr.String())
+	}
+	if out := spy.Stdout.String(); !strings.Contains(out, `"candidates"`) || !strings.Contains(out, `"values": [3]`) {
+		t.Errorf("next --initial printed %q", out)
+	}
+}
