@@ -286,6 +286,38 @@ class Explorer:
             self._analyses[key] = self.evaluator.request({"op": "analyse", "clause": clause.text, "role": role})
         return self._analyses[key]
 
+    def _binding(self, clause: Clause, reads: list[str], env: dict) -> dict:
+        missing = [n for n in reads if n not in env]
+        if missing:
+            raise KeyError(f"the clause {clause.text!r} reads {missing}, which this step does not bind; it may read {sorted(env)}")
+        return {n: env[n] for n in reads}
+
+    def _prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
+        """Asks the glue, in one request, what clause evaluates to under
+        every env it was not asked about yet."""
+        analysis = self._analysis(clause, role)
+        if analysis.get("opaque"):
+            return
+        reads = analysis["reads"]
+        asked: dict[tuple, dict] = {}
+        for env in envs:
+            binding = self._binding(clause, reads, env)
+            key = (clause.text, role, tuple(binding[n] for n in reads))
+            if key not in self._answers:
+                asked.setdefault(key, binding)
+        if asked:
+            results = self.evaluator.request({"op": role, "clause": clause.text, "bindings": list(asked.values())})["results"]
+            for key, result in zip(asked, results):
+                self._answers[key] = self._checked(clause, role, analysis, result)
+
+    def _checked(self, clause: Clause, role: str, analysis: dict, result):
+        if role == "post":
+            writes = set(analysis["writes"])
+            for a in result:
+                if set(a) != writes:
+                    raise ValueError(f"the glue answered the post clause {clause.text!r} with {a!r}, which does not give a value to exactly {sorted(writes)}")
+        return result
+
     def _evaluate(self, clause: Clause, role: str, env: dict):
         """What the glue evaluates clause to under env, or _OPAQUE. A clause
         is pure, so it is asked once per value of the names it reads."""
@@ -293,19 +325,11 @@ class Explorer:
         if analysis.get("opaque"):
             return _OPAQUE
         reads = analysis["reads"]
-        missing = [n for n in reads if n not in env]
-        if missing:
-            raise KeyError(f"the clause {clause.text!r} reads {missing}, which this step does not bind; it may read {sorted(env)}")
-        binding = {n: env[n] for n in reads}
+        binding = self._binding(clause, reads, env)
         key = (clause.text, role, tuple(binding[n] for n in reads))
         if key not in self._answers:
             result = self.evaluator.request({"op": role, "clause": clause.text, "bindings": [binding]})["results"][0]
-            if role == "post":
-                writes = set(analysis["writes"])
-                for a in result:
-                    if set(a) != writes:
-                        raise ValueError(f"the glue answered the post clause {clause.text!r} with {a!r}, which does not give a value to exactly {sorted(writes)}")
-            self._answers[key] = result
+            self._answers[key] = self._checked(clause, role, analysis, result)
         return self._answers[key]
 
     def _value(self, clause: Clause, role: str, env: dict):
@@ -475,10 +499,7 @@ class Explorer:
         (unconstrained and empty posts) is kept."""
         names = e.params + e.implicit_ids()
         out = []
-        for args in itertools.product(*(self.twins.domain(p) for p in names)):
-            params = dict(zip(names, args))
-            if not self._holds(e.guard, self._env(state, params)):
-                continue
+        for params in self._enabled(state, e, names):
             label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
             ghosts = self._ghosts_after(state, e.name, params)
             vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
@@ -492,6 +513,18 @@ class Explorer:
                 continue
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
+
+    def _enabled(self, state: State, e: Edge, names: tuple[str, ...]) -> list[dict]:
+        """The parameter valuations of e whose guard holds at state. The
+        guard is taken clause by clause over every valuation still enabled,
+        so a clause read through a glue costs one request per edge."""
+        alive = [(params, self._env(state, params))
+                 for params in (dict(zip(names, args)) for args in itertools.product(*(self.twins.domain(p) for p in names)))]
+        for c in e.guard:
+            if self.evaluator is not None and c.kind in ("local", "constrain"):
+                self._prefetch(c, "guard", [self._instance_env(c, env) if c.map and c.kind == "local" else env for _, env in alive])
+            alive = [(params, env) for params, env in alive if self._guard_holds(c, env)]
+        return [params for params, _ in alive]
 
     def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
         """(event name, event as taken, next state, edge) for every enabled transition."""

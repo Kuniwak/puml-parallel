@@ -56,6 +56,15 @@ class LabelsTest(unittest.TestCase):
         guards = [r for r in counting.requests if r["op"] == "guard" and r["clause"] == "n > 0"]
         self.assertEqual(3, sum(len(r["bindings"]) for r in guards))
 
+    def test_a_guard_is_asked_once_per_state_for_every_parameter_value(self):
+        diagram = Diagram.from_json(dict(COUNTER, edges=[
+            {"src": "a", "dst": "a", "event": "add(k)", "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
+        counting = Counting(python_glue())
+        result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), evaluator=counting).run()
+        guards = [r for r in counting.requests if r["op"] == "guard"]
+        self.assertEqual(len(result.states), len(guards))
+        self.assertEqual([3, 3], [len(r["bindings"]) for r in guards[:2]])
+
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
         lying = Lying(python_glue())
         with self.assertRaises(ValueError) as cm:
