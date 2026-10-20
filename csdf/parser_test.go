@@ -749,7 +749,7 @@ s1 --> [*] : mail \@ host
 func TestParseRefusesAnUnknownToolWord(t *testing.T) {
 	for name, line := range map[string]string{
 		"in a guard":      "s0 --> s1 : go ; @opaq",
-		"in a post":       "s0 --> s1 : go ; true ; x @ y",
+		"in a post":       "s0 --> s1 : go ; ; x @ y",
 		"in a start post": "[*] --> s1 : @start",
 	} {
 		t.Run(name, func(t *testing.T) {

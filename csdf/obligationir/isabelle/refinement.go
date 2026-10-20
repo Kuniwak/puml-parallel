@@ -264,7 +264,7 @@ func WriteSideAliases(
 // source line, like any other edge's.
 func WriteEnd(w io.Writer, side obligationir.Side, end obligationir.IREnd, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
 	guard := m[end.Guard]
-	if err := WriteLineComment(w, NewConstWriter(string(guard.Text))); err != nil {
+	if err := WriteLineComment(w, NewConstWriter(guard.Comment())); err != nil {
 		return fmt.Errorf("isabelle.WriteEnd: comment: %w", err)
 	}
 	WriteNewLine(w, 1)

@@ -285,7 +285,7 @@ Isabelle — preceded by a `TODO(csdf)` marker and a comment carrying its origin
 natural-language text; every `tau` transition then gets `guard_L<line>` and `post_L<line>`
 aliases of those declarations, so a human or LLM can replace the declaration by the real
 predicate body and discharge the proof. An omitted guard or postcondition is the one
-exception: its text really is `true`, so it stays a definition. Both targets name predicates identically, so the two skeletons can be
+exception: it has no clause, so it is True and stays a definition. A guard written `true` is a clause like any other. Both targets name predicates identically, so the two skeletons can be
 read side by side. An assume note of the diagram (see [SYNTAX.md](./docs/SYNTAX.md)) —
 what it assumes of its runs as a whole, such as "a transaction whose fee keeps being
 raised is eventually confirmed", which no guard can state — is listed under `assumptions`
@@ -460,13 +460,13 @@ parenthesised; an implication binds loosest; and a quantifier reaches to the
 end of what it is in, so it is parenthesised exactly when something follows
 it.
 
-A `true` guard or postcondition is dropped from a conjunction, and so is a
+An omitted guard or postcondition is dropped from a conjunction, and so is a
 bound variable nothing reads any more; both are equivalences of first-order
-logic, since every set of values is inhabited. A `true` postcondition still
+logic, since every set of values is inhabited. An omitted postcondition still
 leaves the values after it free, which the variable says. With
 `examples/promote/local/CYCLE.puml`, where counting ends by a `tau`, the
 counting state both accepts and may refuse `BOOK`, and its `REPORT` is
-unconditional because the `tau` and the `REPORT` edge are both `true`
+unconditional because the `tau` and the `REPORT` edge are both omitted
 throughout:
 
 | state | name | BOOK?数量 | REPORT |

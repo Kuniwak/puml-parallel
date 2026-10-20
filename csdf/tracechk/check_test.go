@@ -54,7 +54,7 @@ A --> C : 1
 C --> D : 2
 @enduml
 `
-	a1b := csdf.Edge{Src: "A", Dst: "B", Event: "1", Guard: "true", Post: "true", Line: 7}
+	a1b := csdf.Edge{Src: "A", Dst: "B", Event: "1", Guard: "", Post: "", Line: 7}
 
 	tauThenX := `@startuml
 state "a" as a
@@ -66,7 +66,7 @@ b --> c : x
 @enduml
 `
 	abTau := csdf.Edge{Src: "a", Dst: "b", Event: "tau", Guard: "gt", Post: "pt", Line: 6}
-	bcX := csdf.Edge{Src: "b", Dst: "c", Event: "x", Guard: "true", Post: "true", Line: 7}
+	bcX := csdf.Edge{Src: "b", Dst: "c", Event: "x", Guard: "", Post: "", Line: 7}
 
 	testCases := map[string]testCase{
 		"a linear trace is accepted with one path per prefix": {
@@ -126,8 +126,8 @@ b --> b : x
 			Trace: []csdf.Event{"x"},
 			WantSteps: []tracechk.Step{
 				{Index: 0, Event: "x", Paths: []tracechk.PrefixPath{
-					{Dst: "a", Taus: []csdf.Edge{{Src: "a", Dst: "b", Event: "tau", Guard: "true", Post: "true", Line: 5}}, Next: []csdf.Edge{{Src: "a", Dst: "a", Event: "x", Guard: "true", Post: "true", Line: 7}}},
-					{Path: tracechk.Path{{Src: "a", Dst: "b", Event: "tau", Guard: "true", Post: "true", Line: 5}}, Dst: "b", Taus: []csdf.Edge{{Src: "b", Dst: "a", Event: "tau", Guard: "true", Post: "true", Line: 6}}, Next: []csdf.Edge{{Src: "b", Dst: "b", Event: "x", Guard: "true", Post: "true", Line: 8}}},
+					{Dst: "a", Taus: []csdf.Edge{{Src: "a", Dst: "b", Event: "tau", Guard: "", Post: "", Line: 5}}, Next: []csdf.Edge{{Src: "a", Dst: "a", Event: "x", Guard: "", Post: "", Line: 7}}},
+					{Path: tracechk.Path{{Src: "a", Dst: "b", Event: "tau", Guard: "", Post: "", Line: 5}}, Dst: "b", Taus: []csdf.Edge{{Src: "b", Dst: "a", Event: "tau", Guard: "", Post: "", Line: 6}}, Next: []csdf.Edge{{Src: "b", Dst: "b", Event: "x", Guard: "", Post: "", Line: 8}}},
 				}},
 			},
 		},
@@ -142,7 +142,7 @@ a --> b : insert?coin
 `,
 			Trace: []csdf.Event{"insert"},
 			WantSteps: []tracechk.Step{
-				{Index: 0, Event: "insert", Paths: []tracechk.PrefixPath{{Dst: "a", Next: []csdf.Edge{{Src: "a", Dst: "b", Event: "insert?coin", Guard: "true", Post: "true", Line: 5}}}}},
+				{Index: 0, Event: "insert", Paths: []tracechk.PrefixPath{{Dst: "a", Next: []csdf.Edge{{Src: "a", Dst: "b", Event: "insert?coin", Guard: "", Post: "", Line: 5}}}}},
 			},
 		},
 		"exact match rejects a prefix": {

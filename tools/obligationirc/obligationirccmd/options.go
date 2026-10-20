@@ -39,7 +39,7 @@ declaration named pred_<id> after its hash - "opaque" in Lean, "consts" in
 Isabelle - preceded by a TODO(csdf) marker and a comment carrying its original
 natural-language text; init and every transition then get
 guard_L<line>/post_L<line> aliases of those declarations. An omitted predicate is
-the exception: its text really is "true", so it stays a definition. The theorem states
+the exception: it has no clause, so it is True and stays a definition. The theorem states
 well-foundedness of the tau relation restricted to the states reachable from init
 via the step relation, so that valuations the diagram can never enter cannot
 falsify it. Replacing the declarations by real predicate bodies and discharging

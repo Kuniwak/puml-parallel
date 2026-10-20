@@ -50,12 +50,12 @@ func TestEdgeJSON(t *testing.T) {
 		want string
 	}{
 		"fields taken apart": {
-			edge: Edge{Src: "a", Dst: "b", Event: "c?x!y", Guard: "true", Post: "true", Line: 3},
-			want: `{"src":"a","dst":"b","event":"c?x!y","channel":"c","fields":[{"dir":"?","name":"x"},{"dir":"!","name":"y"}],"guard":"true","guard_clauses":[],"post":"true","post_clauses":[],"line":3}`,
+			edge: Edge{Src: "a", Dst: "b", Event: "c?x!y", Line: 3},
+			want: `{"src":"a","dst":"b","event":"c?x!y","channel":"c","fields":[{"dir":"?","name":"x"},{"dir":"!","name":"y"}],"guard":"","guard_clauses":[],"post":"","post_clauses":[],"line":3}`,
 		},
 		"no field is an empty list": {
-			edge: Edge{Src: "a", Dst: "b", Event: "tau", Guard: "true", Post: "true", Line: 3},
-			want: `{"src":"a","dst":"b","event":"tau","channel":"tau","fields":[],"guard":"true","guard_clauses":[],"post":"true","post_clauses":[],"line":3}`,
+			edge: Edge{Src: "a", Dst: "b", Event: "tau", Line: 3},
+			want: `{"src":"a","dst":"b","event":"tau","channel":"tau","fields":[],"guard":"","guard_clauses":[],"post":"","post_clauses":[],"line":3}`,
 		},
 		"clauses as their language reads them": {
 			edge: Edge{Src: "a", Dst: "b", Event: "go", Guard: `x \∧ y ∧ @opaque`, Post: "z", Line: 3},

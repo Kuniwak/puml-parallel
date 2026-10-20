@@ -27,7 +27,7 @@ AUDITED = {
     "edges": [
         {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0",
          "post": "[{'n': n - 1}] ∧ [{'log': v} for v in (0, 1)]", "line": 5},
-        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "true", "line": 6},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 6},
     ],
     "end_edge": None,
     "assumptions": [],

@@ -32,7 +32,7 @@ state "未開設" as accNone
 state "開設済み" as accOpen
 accOpen: 残高
 [*] --> accNone
-accNone --> accOpen : OPEN ; true ; 残高' = 0
+accNone --> accOpen : OPEN ; ; 残高' = 0
 accOpen --> accOpen : DEPOSIT?額 ; 0 < 額 ∧ 額 ≤ 上限 ; 残高' = 残高 + 額
 @enduml
 `,
@@ -96,7 +96,7 @@ state "稼働中" as running {
 state "停止中" as halted
 halted : accounts ; 口座ID ⇸ Account
 [*] --> running : accounts は空
-running --> halted : HALT ; true ; accounts' = accounts
+running --> halted : HALT ; ; accounts' = accounts
 @enduml
 `, map[string]string{
 		"local/ACCOUNT.puml": `@startuml ACCOUNT

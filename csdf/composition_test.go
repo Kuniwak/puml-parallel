@@ -134,7 +134,7 @@ func TestComposeParallelMatchesWholeEvent(t *testing.T) {
 		},
 		StartEdge: StartEdge{Dst: "l0"},
 		Edges: []Edge{
-			{Src: "l0", Dst: "l1", Event: "send(x)", Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "l0", Dst: "l1", Event: "send(x)", Guard: "", Post: ""},
 		},
 	}
 	right := &Diagram{
@@ -144,7 +144,7 @@ func TestComposeParallelMatchesWholeEvent(t *testing.T) {
 		},
 		StartEdge: StartEdge{Dst: "r0"},
 		Edges: []Edge{
-			{Src: "r0", Dst: "r1", Event: "send(y)", Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "r0", Dst: "r1", Event: "send(y)", Guard: "", Post: ""},
 		},
 	}
 

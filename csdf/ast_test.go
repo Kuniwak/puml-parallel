@@ -14,7 +14,7 @@ func TestDiagramStringOrdersStatesByLine(t *testing.T) {
 			"s0": {Name: "First", Line: 1},
 			"s1": {Name: "Second", Line: 2},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
+		StartEdge: StartEdge{Dst: "s0", Post: ""},
 	}
 	want := `@startuml
 state "First" as s0
@@ -54,8 +54,8 @@ func TestDiagramStringIncludesEndEdge(t *testing.T) {
 		States: map[StateID]State{
 			"s0": {Name: "SKIP"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
-		EndEdge:   &EndEdge{Src: "s0", Guard: PredicateTrue},
+		StartEdge: StartEdge{Dst: "s0", Post: ""},
+		EndEdge:   &EndEdge{Src: "s0", Guard: ""},
 	}
 	want := `@startuml
 state "SKIP" as s0
@@ -87,7 +87,7 @@ func TestDiagramStringIncludesStateVarTypes(t *testing.T) {
 				},
 			},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
+		StartEdge: StartEdge{Dst: "s0", Post: ""},
 	}
 	want := `@startuml
 state "Initial" as s0
@@ -113,9 +113,9 @@ func TestDiagramStringIncludesEventFields(t *testing.T) {
 		States: map[StateID]State{
 			"s0": {Name: "Initial"},
 		},
-		StartEdge: StartEdge{Dst: "s0", Post: PredicateTrue},
+		StartEdge: StartEdge{Dst: "s0", Post: ""},
 		Edges: []Edge{
-			{Src: "s0", Dst: "s0", Event: "finish?result?status", Guard: PredicateTrue, Post: PredicateTrue},
+			{Src: "s0", Dst: "s0", Event: "finish?result?status", Guard: "", Post: ""},
 		},
 	}
 	want := `@startuml
@@ -134,14 +134,14 @@ s0 --> s0 : finish?result?status
 
 func TestDiagramStringRoundTripsGuardsAndPosts(t *testing.T) {
 	// Setup: every combination of an omitted guard and an omitted post must
-	// survive a print/parse round trip. `; g` is a guard, `; true ; p` a post.
+	// survive a print/parse round trip. `; g` is a guard, `; ; p` a post.
 	source := `@startuml
 state "s0" as s0
 state "s1" as s1
 [*] --> s0
 s0 --> s1 : a
 s0 --> s1 : b ; g
-s0 --> s1 : c ; true ; p
+s0 --> s1 : c ; ; p
 s0 --> s1 : d ; g ; p
 @enduml
 `

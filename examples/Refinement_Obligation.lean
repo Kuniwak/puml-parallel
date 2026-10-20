@@ -40,31 +40,31 @@ inductive event where
 deriving Inhabited
 
 -- true
-def pred_1ygzo25 : Prop := True
+def pred_0 : Prop := True
 
 -- true
-def init_S : Prop := pred_1ygzo25
+def init_S : Prop := pred_0
 
 -- true
-def guard_S_L4 : Prop := pred_1ygzo25
+def guard_S_L4 : Prop := pred_0
 
 -- true
-def post_S_L4 : Prop := pred_1ygzo25
+def post_S_L4 : Prop := pred_0
 
 -- true
-def init_I : Prop := pred_1ygzo25
+def init_I : Prop := pred_0
 
 -- true
-def guard_I_L5 : Prop := pred_1ygzo25
+def guard_I_L5 : Prop := pred_0
 
 -- true
-def post_I_L5 : Prop := pred_1ygzo25
+def post_I_L5 : Prop := pred_0
 
 -- true
-def guard_I_L6 : Prop := pred_1ygzo25
+def guard_I_L6 : Prop := pred_0
 
 -- true
-def post_I_L6 : Prop := pred_1ygzo25
+def post_I_L6 : Prop := pred_0
 
 inductive PN where
   | S_s

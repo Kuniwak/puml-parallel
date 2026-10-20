@@ -73,8 +73,8 @@ pred_<id> after its hash - "opaque" in Lean, "consts" in Isabelle - carrying its
 original text and a TODO(csdf) marker as comments; treat an artifact that still
 carries a marker as undischarged. Nothing is ever defined as True on the
 diagram's behalf, because that is not a placeholder but a different diagram, in
-which every guard fires. An omitted predicate is the exception: its text really
-is "true", so it stays a definition. An assume note of either diagram (see
+which every guard fires. An omitted predicate is the exception: it has no clause,
+so it is True and stays a definition. An assume note of either diagram (see
 docs/SYNTAX.md) is listed under that side's "assumptions" in the IR, and for
 the provers becomes an uninterpreted proposition assume_<id>_S or assume_<id>_I
 under which the theorem is stated.

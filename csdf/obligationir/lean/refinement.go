@@ -279,7 +279,7 @@ func WriteSideAliases(
 // source line, like any other edge's.
 func WriteEnd(w io.Writer, side obligationir.Side, end obligationir.IREnd, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
 	guard := m[end.Guard]
-	WriteLineComment(w, string(guard.Text))
+	WriteLineComment(w, guard.Comment())
 	WriteNewLine(w, 1)
 	WritePredicateAlias(w, side.GuardName(end.Line), len(end.GuardArgs), end.Guard)
 }

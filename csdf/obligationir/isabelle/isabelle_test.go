@@ -191,28 +191,28 @@ datatype st = St_a
   | St_b
 
 (* true *)
-definition pred_1ygzo25 :: "bool"
-  where "pred_1ygzo25 \<equiv> True"
+definition pred_0 :: "bool"
+  where "pred_0 \<equiv> True"
 
 (* true *)
 definition init :: "bool"
-  where "init \<equiv> pred_1ygzo25"
+  where "init \<equiv> pred_0"
 
 (* true *)
 definition guard_L5 :: "bool"
-  where "guard_L5 \<equiv> pred_1ygzo25"
+  where "guard_L5 \<equiv> pred_0"
 
 (* true *)
 definition post_L5 :: "bool"
-  where "post_L5 \<equiv> pred_1ygzo25"
+  where "post_L5 \<equiv> pred_0"
 
 (* true *)
 definition guard_L6 :: "bool"
-  where "guard_L6 \<equiv> pred_1ygzo25"
+  where "guard_L6 \<equiv> pred_0"
 
 (* true *)
 definition post_L6 :: "bool"
-  where "post_L6 \<equiv> pred_1ygzo25"
+  where "post_L6 \<equiv> pred_0"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "step s s' \<equiv> (s = St_a \<and> s' = St_b \<and> guard_L5 \<and> post_L5)

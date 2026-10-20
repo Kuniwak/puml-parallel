@@ -15,7 +15,7 @@ LEDGER = {
     "states": {"a": {"name": "ledger", "vars": [{"name": "残高"}], "line": 2}},
     "start_edge": {"dst": "a", "post": "残高 = 0", "line": 3},
     "edges": [
-        {"src": "a", "dst": "a", "event": "入庫?額", "channel": "入庫", "fields": [{"dir": "?", "name": "額"}], "guard": "true", "post": "残高' = 残高 + 額 − 1", "line": 4},
+        {"src": "a", "dst": "a", "event": "入庫?額", "channel": "入庫", "fields": [{"dir": "?", "name": "額"}], "guard": "", "post": "残高' = 残高 + 額 − 1", "line": 4},
         {"src": "a", "dst": "a", "event": "出庫?額", "channel": "出庫", "fields": [{"dir": "?", "name": "額"}], "guard": "額 + 1 ≤ 残高", "post": "残高' = 残高 − 額 − 1", "line": 5},
     ],
     "end_edge": None,

@@ -17,11 +17,11 @@ LOCAL = {
         "accNone": {"name": "未開設", "vars": [], "line": 2},
         "accOpen": {"name": "開設済み", "vars": [{"name": "残高"}], "line": 3},
     },
-    "start_edge": {"dst": "accNone", "post": "true", "line": 5},
+    "start_edge": {"dst": "accNone", "post": "", "line": 5},
     "edges": [
-        {"src": "accNone", "dst": "accOpen", "event": "OPEN?額", "channel": "OPEN", "fields": [{"dir": "?", "name": "額"}], "guard": "true", "post": "残高' = 額", "line": 6},
+        {"src": "accNone", "dst": "accOpen", "event": "OPEN?額", "channel": "OPEN", "fields": [{"dir": "?", "name": "額"}], "guard": "", "post": "残高' = 額", "line": 6},
         {"src": "accOpen", "dst": "accOpen", "event": "DEPOSIT?額", "channel": "DEPOSIT", "fields": [{"dir": "?", "name": "額"}], "guard": "0 < 額", "post": "残高' = 残高 + 額", "line": 7},
-        {"src": "accOpen", "dst": "accNone", "event": "CLOSE", "channel": "CLOSE", "fields": [], "guard": "残高 = 0", "post": "true", "line": 8},
+        {"src": "accOpen", "dst": "accNone", "event": "CLOSE", "channel": "CLOSE", "fields": [], "guard": "残高 = 0", "post": "", "line": 8},
     ],
     "end_edge": None, "assumptions": [],
 }

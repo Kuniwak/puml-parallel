@@ -86,7 +86,8 @@ opaque text, written in whatever language its reader takes (natural language, or
 a formal language a `csdfbmc` glue reads): `csdfparallel` conjoins the
 predicates of two edges with it, and `csdfpromote` joins the clauses it
 generates and the clauses the author wrote with it (`Predicate.Clauses`). A
-`guard` or `post` that is omitted, or is the literal `true`, has no clause.
+`guard` or `post` that is omitted has no clause, and holds; `true` written by an
+author is an ordinary clause, read by whatever reads the others.
 
 The tools never write or rewrite the text of a clause, and reserve in it only
 what they must read:

@@ -25,7 +25,7 @@ state "B" as B
 state "C" as C
 state "D" as D
 [*] --> A : n' = 0
-A --> B : 1 ; n = 0 ; true
+A --> B : 1 ; n = 0
 A --> C : 1
 C --> D : 2
 @enduml
@@ -177,7 +177,7 @@ state "a" as a
 state "b" as b
 state "c" as c
 [*] --> a
-a --> b : x ; true ; p
+a --> b : x ; ; p
 a --> c : x ; g
 @enduml
 `)

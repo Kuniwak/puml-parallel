@@ -8,7 +8,7 @@ CONNECTIVE = " ∧ "
 
 
 def clauses(text):
-    if text is None or text.strip() in ("", "true"):
+    if text is None or text.strip() == "":
         return []
     return [{"opaque": True} if t.strip() == "@opaque" else {"text": t.strip()} for t in text.split(CONNECTIVE)]
 

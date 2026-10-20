@@ -26,7 +26,7 @@ COUNTER = {
     "start_edge": {"dst": "a", "post": "[{'n': 2}]", "line": 5},
     "edges": [
         {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "[{'n': n - 1}]", "line": 6},
-        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "true", "line": 7},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 7},
     ],
     "end_edge": None,
     "assumptions": [],

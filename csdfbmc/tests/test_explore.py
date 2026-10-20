@@ -20,7 +20,7 @@ COUNTER = {
     "start_edge": {"dst": "a", "post": "n = 2", "line": 5},
     "edges": [
         {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "n' = n - 1", "line": 6},
-        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "true", "line": 7},
+        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "", "line": 7},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -53,7 +53,7 @@ class ExplorerTest(unittest.TestCase):
         self.assertEqual(["dec", "dec", "stop"], result.trace_to(("b", (), ())))
 
     def test_an_end_edge_is_a_way_out(self):
-        diagram = dict(COUNTER, end_edge={"src": "b", "guard": "true", "line": 8})
+        diagram = dict(COUNTER, end_edge={"src": "b", "guard": "", "line": 8})
         result = Explorer.of_twins(fixture.diagram(diagram), COUNTER_TWINS).run()
         self.assertEqual([], result.deadlocks)
 
@@ -108,7 +108,7 @@ class PostTwinTest(unittest.TestCase):
         return fixture.diagram({
             "states": {"a": {"name": "a", "vars": [{"name": "x"}, {"name": "y"}], "line": 2}},
             "start_edge": {"dst": "a", "post": "init", "line": 3},
-            "edges": [{"src": "a", "dst": "a", "event": "step", "channel": "step", "fields": [], "guard": "true", "post": post, "line": 4}],
+            "edges": [{"src": "a", "dst": "a", "event": "step", "channel": "step", "fields": [], "guard": "", "post": post, "line": 4}],
             "end_edge": None, "assumptions": [],
         })
 
@@ -168,8 +168,8 @@ class PostTwinTest(unittest.TestCase):
 
 class EventFieldsTest(unittest.TestCase):
     def test_an_edge_without_its_channel_and_fields_is_refused(self):
-        diagram = {"states": {"a": {"name": "a", "vars": []}}, "start_edge": {"dst": "a", "post": "true"},
-                   "edges": [{"src": "a", "dst": "a", "event": "c?x", "guard": "true", "post": "true"}],
+        diagram = {"states": {"a": {"name": "a", "vars": []}}, "start_edge": {"dst": "a", "post": ""},
+                   "edges": [{"src": "a", "dst": "a", "event": "c?x", "guard": "", "post": ""}],
                    "end_edge": None, "assumptions": []}
         with self.assertRaisesRegex(ValueError, "no channel and fields"):
             Diagram.from_json(diagram)

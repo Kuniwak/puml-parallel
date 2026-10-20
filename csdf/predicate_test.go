@@ -13,7 +13,7 @@ func TestClausesSplitsAConjunctionOnTheCoreConnective(t *testing.T) {
 		want []Predicate
 	}{
 		{name: "the omitted predicate has no clause", p: "", want: nil},
-		{name: "true has no clause", p: PredicateTrue, want: nil},
+		{name: "true has no clause", p: "", want: nil},
 		{name: "a predicate without the connective is one clause", p: "x > 0", want: []Predicate{"x > 0"}},
 		{name: "the connective separates clauses", p: "x > 0 ∧ y = x' ∧ z", want: []Predicate{"x > 0", "y = x'", "z"}},
 		{name: "a natural-language and is part of the clause", p: "a、かつ b", want: []Predicate{"a、かつ b"}},
@@ -36,8 +36,8 @@ func TestClausesSplitsAConjunctionOnTheCoreConnective(t *testing.T) {
 }
 
 func TestConjoinClausesIsTheInverseOfClauses(t *testing.T) {
-	if got := ConjoinClauses(nil); got != PredicateTrue {
-		t.Errorf("ConjoinClauses(nil) = %q, want %q", got, PredicateTrue)
+	if got := ConjoinClauses(nil); got != "" {
+		t.Errorf("ConjoinClauses(nil) = %q, want %q", got, "")
 	}
 	if got := ConjoinClauses([]Predicate{"a", "b"}); got != "a ∧ b" {
 		t.Errorf("ConjoinClauses([a b]) = %q, want %q", got, "a ∧ b")
@@ -73,7 +73,7 @@ func TestFormalClausesLeaveOutTheOpaqueOnes(t *testing.T) {
 		{p: "@opaque", want: nil},
 		{p: "@opaque ∧ x > 0", want: []Predicate{"x > 0"}},
 		{p: "x > 0 ∧ y", want: []Predicate{"x > 0", "y"}},
-		{p: PredicateTrue, want: nil},
+		{p: "", want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.p), func(t *testing.T) {

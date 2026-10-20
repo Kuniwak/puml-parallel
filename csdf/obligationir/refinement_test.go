@@ -27,14 +27,14 @@ s1 --> s0 : b
 @enduml
 `)
 
-	truePred := IRPredicateID(4261170317)
+	truePred := IRPredicateID(0)
 	want := IRRefinement{
 		Mode: IRRefinementModeTrace,
 		// The union of both sides' visible events, sorted: refusal information
 		// only makes sense against one shared alphabet.
 		Alphabet: []csdf.Event{"a", "b"},
 		Predicates: map[IRPredicateID]IRPredicate{
-			truePred: {Args: []IRArg{}, Text: csdf.PredicateTrue},
+			truePred: {Args: []IRArg{}, Text: ""},
 		},
 		Constants: []IRConst{},
 		Spec: IRSide{

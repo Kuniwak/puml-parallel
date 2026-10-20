@@ -46,7 +46,7 @@ s1 --> [*] : complete
 
 func TestNewMainFuncReadsFileArgument(t *testing.T) {
 	// Arrange: `csdfparse <file>` must be equivalent to reading from stdin.
-	want := `{"states":{"s0":{"name":"SKIP","vars":[],"line":3}},"start_edge":{"dst":"s0","post":"true","post_clauses":[],"line":5},"edges":[],"end_edge":{"src":"s0","guard":"true","guard_clauses":[],"line":6},"assumptions":[]}` + "\n"
+	want := `{"states":{"s0":{"name":"SKIP","vars":[],"line":3}},"start_edge":{"dst":"s0","post":"","post_clauses":[],"line":5},"edges":[],"end_edge":{"src":"s0","guard":"","guard_clauses":[],"line":6},"assumptions":[]}` + "\n"
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 

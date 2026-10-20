@@ -31,7 +31,7 @@ func Conjunction(g1, g2 Predicate) Predicate {
 }
 
 // Clauses splits a predicate into the clauses it conjoins. The omitted
-// predicate, and the literal true, have no clause.
+// predicate has no clause.
 func (p Predicate) Clauses() []Predicate {
 	if IsTrue(p) {
 		return nil
@@ -140,10 +140,11 @@ func unescapedIndex(text string, b byte) int {
 	return -1
 }
 
-// ConjoinClauses is the inverse of Clauses: no clause is the literal true.
+// ConjoinClauses is the inverse of Clauses: no clause is the omitted
+// predicate.
 func ConjoinClauses(clauses []Predicate) Predicate {
 	if len(clauses) == 0 {
-		return PredicateTrue
+		return ""
 	}
 	parts := make([]string, len(clauses))
 	for i, c := range clauses {
@@ -152,15 +153,16 @@ func ConjoinClauses(clauses []Predicate) Predicate {
 	return Predicate(strings.Join(parts, ClauseConnective))
 }
 
-// disjoin combines predicates with a true-aware logical OR. "true" (or the empty
-// default) is absorbing: if any disjunct is true the result is "true". Otherwise
+// DisjunctionAll combines predicates with a logical OR in which the omitted
+// predicate, which holds, is absorbing: if any disjunct is omitted, so is the
+// result. Otherwise
 // the distinct disjuncts are sorted and joined with " | " for stable output.
 func DisjunctionAll(preds []Predicate) Predicate {
 	seen := make(map[Predicate]struct{}, len(preds))
 	disjuncts := make([]string, 0, len(preds))
 	for _, p := range preds {
 		if IsTrue(p) {
-			return PredicateTrue
+			return ""
 		}
 		if _, ok := seen[p]; ok {
 			continue
@@ -169,7 +171,7 @@ func DisjunctionAll(preds []Predicate) Predicate {
 		disjuncts = append(disjuncts, string(p))
 	}
 	if len(disjuncts) == 0 {
-		return PredicateTrue
+		return ""
 	}
 	sort.Strings(disjuncts)
 	return Predicate(strings.Join(disjuncts, " ∨ "))

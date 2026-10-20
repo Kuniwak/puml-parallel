@@ -285,7 +285,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
-	post := "true" // Default value when post is omitted
+	post := "" // An omitted post has no clause
 	if p.peek() == ':' {
 		p.advance() // consume ':'
 		if err := p.skipInlineTrivia(); err != nil {
@@ -351,8 +351,8 @@ func (p *Parser) parseEdge() (Edge, error) {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
-	guard := "true" // Default value when guard is omitted
-	post := "true"  // Default value when post is omitted
+	guard := "" // An omitted guard or post has no clause
+	post := ""
 
 	if p.peek() == ';' {
 		p.advance() // consume first ';'
