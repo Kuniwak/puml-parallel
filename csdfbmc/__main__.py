@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--json]
+"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--evaluator CMD | --evaluator-module MODULE] [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
 json prints it, and the twins of its clauses, walks the reachable states within
@@ -7,7 +7,9 @@ and, with --avoid, the cycles that never perform the event. Findings of one
 shape are reported once with their count and the shortest trace; --all lists
 every one, and --first stops the walk at the first deadlock, broken invariant
 or unconstrained post. For an expansion, --local names the twins of each
-family's local diagram by the path the expansion uses. --por and --symmetry
+family's local diagram by the path the expansion uses. --evaluator and
+--evaluator-module read every clause through a glue of the evaluator
+protocol, in place of twins (see csdfbmc.protocol). --por and --symmetry
 reduce the states walked without changing what is found. Exits 1 when it finds
 any, 2 on a usage or loading error.
 """
@@ -17,6 +19,7 @@ import sys
 
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
+from csdfbmc.protocol import EvaluatorError, from_options
 from csdfbmc.twins import load_twins, PurityError
 
 
@@ -63,6 +66,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output)")
     ap.add_argument("twins", help="the Python module holding DOMAINS and CLAUSES")
+    glue = ap.add_mutually_exclusive_group()
+    glue.add_argument("--evaluator", metavar="CMD", help="read every clause through the glue this command starts (the evaluator protocol)")
+    glue.add_argument("--evaluator-module", metavar="MODULE", help="read every clause through the glue this Python module and its arguments load in-process")
     ap.add_argument("--local", metavar="PATH=TWINS.py", action="append", default=[],
                     help="the twins of the local diagram at PATH, as the expansion names it (repeatable)")
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
@@ -76,7 +82,9 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
 
+    evaluator = None
     try:
+        evaluator = from_options(a.evaluator, a.evaluator_module)
         diagram = Diagram.load(a.diagram)
         twins = load_twins(a.twins)
         for spec in a.local:
@@ -85,10 +93,13 @@ def main(argv=None) -> int:
                 raise ValueError(f"--local expects PATH=TWINS.py, got {spec!r}")
             twins.locals[path] = load_twins(module)
         result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
-                          por=a.por, symmetry=a.symmetry).run()
-    except (OSError, ValueError, KeyError, PurityError) as e:
+                          por=a.por, symmetry=a.symmetry, evaluator=evaluator).run()
+    except (OSError, ValueError, KeyError, PurityError, EvaluatorError) as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
+    finally:
+        if evaluator is not None:
+            evaluator.close()
 
     if a.json:
         json.dump(result.to_json(), sys.stdout, ensure_ascii=False)

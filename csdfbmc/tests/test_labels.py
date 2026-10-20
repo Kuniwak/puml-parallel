@@ -1,7 +1,13 @@
 """A diagram whose clauses are written in a formal language is walked
 through a glue: the checker asks it what a clause reads and gives a value
 to, and what it evaluates to, and needs no twin keyed by prose."""
+import io
+import json
+import os
+import sys
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
@@ -135,6 +141,63 @@ class Lying(Counting):
         if request["op"] == "post" and request["clause"] == "[{'n': n - 1}]":
             return {"results": [[dict(a, m=0) for a in r] for r in answer["results"]]}
         return answer
+
+
+class LabelsCommandTest(unittest.TestCase):
+    """csdfbmc and csdfbmc next take the glue as a command or as a module."""
+
+    def files(self):
+        d = tempfile.mkdtemp()
+        diagram, twins = os.path.join(d, "d.json"), os.path.join(d, "t.py")
+        with open(diagram, "w", encoding="utf-8") as f:
+            json.dump(COUNTER, f)
+        with open(twins, "w", encoding="utf-8") as f:
+            f.write("DOMAINS = {}\nCLAUSES = {}\n")
+        return diagram, twins
+
+    def run_main(self, main, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(list(args))
+        return code, out.getvalue(), err.getvalue()
+
+    def test_the_checker_reads_the_clauses_through_either_form_of_the_glue(self):
+        from csdfbmc.__main__ import main
+        diagram, twins = self.files()
+        command = f"{sys.executable} -E -s -B -m csdfbmc.python_glue"
+        for flag, value in (("--evaluator", command), ("--evaluator-module", "csdfbmc.python_glue")):
+            with self.subTest(flag=flag):
+                cwd = os.getcwd()
+                os.chdir(ROOT)
+                try:
+                    code, out, err = self.run_main(main, diagram, twins, flag, value)
+                finally:
+                    os.chdir(cwd)
+                self.assertEqual(1, code, err)
+                self.assertIn("deadlock at b [] after ['dec', 'dec', 'stop']", out)
+
+    def test_next_reads_the_clauses_through_the_glue(self):
+        from csdfbmc.next import main
+        diagram, twins = self.files()
+        code, out, err = self.run_main(main, diagram, twins, "--evaluator-module", "csdfbmc.python_glue", "--initial")
+        self.assertEqual(0, code, err)
+        self.assertEqual({"candidates": [{"params": {}, "values": [2]}]}, json.loads(out))
+
+    def test_a_glue_that_cannot_start_is_a_loading_error(self):
+        from csdfbmc.__main__ import main
+        diagram, twins = self.files()
+        code, _, err = self.run_main(main, diagram, twins, "--evaluator-module", "no.such.glue")
+        self.assertEqual(2, code)
+        self.assertIn("no.such.glue", err)
+
+    def test_the_two_forms_of_the_glue_exclude_each_other(self):
+        from csdfbmc.__main__ import main
+        diagram, twins = self.files()
+        with self.assertRaises(SystemExit):
+            self.run_main(main, diagram, twins, "--evaluator", "x", "--evaluator-module", "y")
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 if __name__ == "__main__":

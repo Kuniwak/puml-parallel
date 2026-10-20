@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import shlex
 import subprocess
 from collections.abc import Mapping
 
@@ -221,3 +222,16 @@ def start(*, command: list[str] | None = None, module: list[str] | None = None, 
     if (command is None) == (module is None):
         raise ValueError("start a glue either as a command or as a module")
     return _Command(command, cwd) if command is not None else _Module(module)
+
+
+def from_options(command: str | None, module: str | None) -> Evaluator | None:
+    """The glue the options name: --evaluator's command line, or
+    --evaluator-module's module name and arguments, each split as a shell
+    would; None when neither is given."""
+    if command is not None and module is not None:
+        raise ValueError("give --evaluator or --evaluator-module, not both")
+    if command is not None:
+        return start(command=shlex.split(command))
+    if module is not None:
+        return start(module=shlex.split(module))
+    return None
