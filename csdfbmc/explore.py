@@ -309,7 +309,9 @@ class Explorer:
         moves: dict[str, Clause] = {}
         local_posts: dict[str, list[Clause]] = {}
         for c in clauses:
-            if c.kind == "frame":
+            if c.kind == "empty":
+                joined = self._join(joined, [{c.map: FrozenMap() if self.cone.keeps(c.map) else None}])
+            elif c.kind == "frame":
                 # A left-out variable has no value to carry across.
                 joined = self._join(joined, [{c.var: env[c.var] if self.cone.keeps(c.var) else None}])
             elif c.kind in ("update", "create", "delete"):

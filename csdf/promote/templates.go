@@ -32,6 +32,7 @@ const (
 	clauseCreate   = "create"
 	clauseDelete   = "delete"
 	clauseFrame    = "frame"
+	clauseEmpty    = "empty"
 )
 
 // connectiveTemplate is the name an older template file gave the connective,
@@ -49,6 +50,7 @@ const defaultTemplates = `
 {{define "create"}}{{.Map}}' = {{.Map}} ∪ { {{- .ID}} ↦ 〈{{.Dst}}〉}{{end}}
 {{define "delete"}}{{.Map}}' = { {{- .ID -}} } ⩤ {{.Map}}{{end}}
 {{define "frame"}}{{.Var}}' = {{.Var}}{{end}}
+{{define "empty"}}{{.Map}} = ∅{{end}}
 `
 
 // Templates is the wording of the generated clauses.
@@ -83,7 +85,7 @@ func LoadTemplates(path string) (*Templates, error) {
 
 	ts := &Templates{t: t}
 	probe := Clause{Map: "m", ID: "id", Src: "S", Dst: "T", Var: "v"}
-	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame} {
+	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame, clauseEmpty} {
 		if _, err := ts.render(name, probe); err != nil {
 			return nil, fmt.Errorf("promote.LoadTemplates: %q: %w", path, err)
 		}

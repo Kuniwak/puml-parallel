@@ -240,6 +240,7 @@ file:
 | `create`   | `Map`, `ID`, `Dst`  | `m' = m ∪ {id ↦ 〈T〉}`      |
 | `delete`   | `Map`, `ID`         | `m' = {id} ⩤ m`            |
 | `frame`    | `Var`               | `v' = v`                   |
+| `empty`    | `Map`               | `m = ∅`                    |
 
 A clause the file does not define keeps its default. Every clause is rendered
 once when the file is read, so a template that cannot render is refused rather
@@ -251,6 +252,20 @@ clauses joined by the connective ` ∧ ` (docs/SYNTAX.md), the generated ones
 first and then the author's, so that a tool reading the expansion gets the
 clauses back by splitting on it. A template file that defines `and`, the name
 an earlier version gave the connective, is refused.
+
+Every map starts empty, which the `<<promote>>` blocks already say, so the
+expansion says it on the start edge: after the author's clauses, one `empty`
+clause per map the start state holds, in the order the maps were promoted.
+The author need not write it. The clauses are carried in the expansion's
+structure alone (`Expansion.Start`, `start` in `-format json`, always a
+list), with kind `empty` for the generated ones and `local` for the
+author's; the start edge's text stays the author's, so a tool that reads the
+expansion as a plain diagram reads what it read before. A start-edge clause
+that restates the empty start, as older diagrams do, is kept and must agree.
+`-only` keeps the `empty` clauses of the kept maps alone, and keeps the
+author's start clauses as written, with a warning when the start state held
+a map it leaves out, as it does for a hand-written edge. A reader of an
+expansion written before `start` existed reads the start edge's text.
 
 The clauses are also kept apart in the expansion's own structure: every edge
 that `Expand` generates carries them one by one (`ExpandedEdge.Guard` and
