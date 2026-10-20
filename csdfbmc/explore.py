@@ -1,13 +1,14 @@
 """The walk over the product of control states and valuations."""
 from __future__ import annotations
 
+import inspect
 import itertools
 import sys
 from dataclasses import dataclass, field
 
 from csdfbmc.formal import FORMAL_GLOBALS, RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.reduce import PartialOrder, Symmetry
+from csdfbmc.reduce import PartialOrder, Symmetry, formal_names, names_beyond
 from csdfbmc.twins import Twins, apply, check_pure
 from csdfbmc.values import FrozenMap, encode, freeze
 
@@ -237,6 +238,23 @@ class Explorer:
             return eval(code, FORMAL_GLOBALS, env)
         run.formal = True
         return run
+
+    def clause_names(self, clause: Clause) -> set[str] | None:
+        """The names a hand-written or constrain clause reads: what its twin's
+        signature asks for, or the names of its formal expression. None for
+        an opaque clause."""
+        fn = self._twin(clause)
+        if fn is None:
+            return None
+        return formal_names(clause.formal) if getattr(fn, "formal", False) else set(inspect.signature(fn).parameters)
+
+    def clause_names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
+        """The names a clause reads but a map read only as m[own_id], when
+        that can be told (a formal expression); None otherwise."""
+        fn = self._twin(clause)
+        if fn is not None and getattr(fn, "formal", False):
+            return names_beyond(clause.formal, own_id)
+        return None
 
     def _call(self, clause: Clause, env: dict):
         fn = self._twin(clause)

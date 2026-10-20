@@ -54,11 +54,11 @@ def _signature(fn: Callable) -> set[str]:
     return set(inspect.signature(fn).parameters)
 
 
-def _formal_names(expr: str) -> set[str]:
+def formal_names(expr: str) -> set[str]:
     return {n.id for n in ast.walk(ast.parse(expr, mode="eval")) if isinstance(n, ast.Name)}
 
 
-def _names_beyond(expr: str, own_id: str | None) -> set[str]:
+def names_beyond(expr: str, own_id: str | None) -> set[str]:
     """The names expr reads, but a map read only as m[own_id]."""
     tree = ast.parse(expr, mode="eval")
     keyed = {id(n.value) for n in ast.walk(tree)
@@ -86,10 +86,9 @@ class PartialOrder:
             return {c.map}
         if c.kind in ("frame", "dropped"):
             return set()  # a frame copies a variable; it neither enables nor changes anything
-        fn = self.ex._twin(c)
-        if fn is None:
+        names = self.ex.clause_names(c)
+        if names is None:
             return {c.map} if c.map else set()
-        names = _formal_names(c.formal) if getattr(fn, "formal", False) else _signature(fn)
         if c.kind == "local" and c.map:
             # A local twin reads the instance's own variables, by their local names.
             return {c.map} | (names & set(self.ex.twins.ghosts))
@@ -112,9 +111,9 @@ class PartialOrder:
         for c in e.guard + e.post:
             if c.kind in _INSTANCE_KINDS or (c.kind == "local" and c.map):
                 continue
-            fn = self.ex._twin(c)
-            if fn is not None and getattr(fn, "formal", False):
-                reads |= _names_beyond(c.formal, own_id) & self.names
+            beyond = self.ex.clause_names_beyond(c, own_id)
+            if beyond is not None:
+                reads |= beyond & self.names
             else:
                 reads |= self._clause_reads(c)
         return reads
