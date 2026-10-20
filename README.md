@@ -676,10 +676,14 @@ argument, and stdin are all equivalent.
 
 ## Bounded model checking
 
-`csdfbmc` is a Python package (standard library only, Python 3.11 or later)
-that decides the properties the other tools can only state as obligations, by
-walking the reachable states of a diagram over *finite* domains. The Go tools
-own the structure: `csdfparse` prints the diagram as JSON, and
+`csdfbmc` decides the properties the other tools can only state as
+obligations, by walking the reachable states of a diagram over *finite*
+domains. The checker is a Python package (standard library only, Python 3.11
+or later); the `csdfbmc` binary of a release carries its sources and runs them
+with the `python3` on the PATH (or the one named by `-python` or
+`$CSDFBMC_PYTHON`), unpacking them once per version under `$CSDFBMC_CACHE` or
+the user cache directory, so nothing has to be checked out. The Go tools own
+the structure: `csdfparse` prints the diagram as JSON, and
 `csdfpromote -format json` prints an expansion with the clauses of every edge.
 The package owns the values: each clause's *formal twin*, a pure Python
 function keyed by the clause's prose, and the domains the state variables and
@@ -687,7 +691,7 @@ event parameters range over.
 
 ```console
 $ csdfparse examples/bmc/withdraw.puml > examples/bmc/withdraw.json
-$ python3 -m csdfbmc examples/bmc/withdraw.json examples/bmc/withdraw_twins.py
+$ csdfbmc examples/bmc/withdraw.json examples/bmc/withdraw_twins.py
 states: 22
 deadlock at sending [3, 3] after ['出庫(数量=3)']
 ...
@@ -748,9 +752,9 @@ with `--avoid 確定 --within sending`); and four `INVARIANTS` over `GHOSTS` tha
 total the events, relating the balance to the amounts moved and the fees paid
 and refunded. The run reports a deadlock with its trace; the comments in
 `wallet_twins.py` say which twin to change to make every check pass.
-The Python tests run with
-`python3 -m unittest discover -s csdfbmc/tests -t .`, and `go test ./...` runs
-them too when a `python3` is on the PATH.
+In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
+The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
+and `go test ./...` runs them too when a `python3` is on the PATH.
 
 ## Interactive exploration
 

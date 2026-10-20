@@ -271,6 +271,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
 
+  - id: csdfbmc
+    main: ./tools/csdfbmc/main.go
+    binary: csdfbmc
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/version.Version={{ .Version }}
+
 archives:
   - id: default
     format_overrides:
@@ -296,6 +311,7 @@ archives:
       - csdfreplcmd
       - obligationirc
       - csdfhelp
+      - csdfbmc
     files:
       - README.md
       - LICENSE*
