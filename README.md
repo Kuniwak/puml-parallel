@@ -697,17 +697,31 @@ deadlock at sending [3, 3] after ['出庫(数量=3)']
 ...
 ```
 
-A twins module defines two tables. `DOMAINS` maps a state variable or an event
-parameter to the finite set of its values. `CLAUSES` maps a clause, spelled
-exactly as in the diagram, to a function of the names it reads: the event's
-parameters, the state variables before the step, and the variables after it
-with a trailing underscore (`残高_` for `残高'`). A guard clause reads the first
-two kinds, a post clause all three; a twin is applied to the names its
-signature asks for. The module is restricted to a pure subset of Python — a
-clause is one expression; no assignment inside a function, no loop, no
-exception, no I/O, no randomness, no float — which `load_twins` checks with
-`ast` before importing it, so that evaluating a clause is deterministic and
-decided by enumeration.
+A twins module defines two tables. `DOMAINS` maps an event parameter to the
+finite set of its values. `CLAUSES` maps a clause, spelled exactly as in the
+diagram, to a function of the names it reads: the event's parameters, the
+state variables before the step, and the ghosts; a twin is applied to the
+names its signature asks for. A guard twin returns a truth value. A post twin
+returns the *successor values* of the variables it constrains, as a collection
+of mappings from variable names to values: one mapping for a deterministic
+clause (`lambda 残高, 額: [{"残高": 残高 + 額}]`), several built by a
+comprehension for a nondeterministic one. The successors of an edge are the
+natural join of what its post clauses return, so two clauses constraining one
+variable must agree, and a variable of the next state that no clause gives a
+value is reported as a finding — a missing post clause — rather than taken to
+be anything. The start edge's post is a post like any other, so no state
+variable needs a domain: the values come from the twins. Values must be
+hashable; a dict, list or set a twin returns is frozen (`csdfbmc.values.freeze`)
+into a `FrozenMap`, tuple or frozenset, and a record or a finite partial
+function is written as a `FrozenMap`. For a nondeterministic clause over such
+values, `csdfbmc.values.record(field=domain, …)` and
+`partial_map(keys, values, max_size)` enumerate the domain from the domains of
+the fields and a bound on the number of keys, so nobody lists it by hand. The
+module is restricted to a pure subset of Python — a clause is one expression;
+no assignment inside a function, no loop statement, no exception, no I/O, no
+randomness, no float; comprehensions are expressions and allowed — which
+`load_twins` checks with `ast` before importing it, so that evaluating a clause
+is deterministic.
 
 Two more tables are optional. `INVARIANTS` maps a name to a predicate over the
 state variables and ghosts it reads; it is checked at every reachable state
@@ -733,10 +747,12 @@ deadlock it misses cannot be hidden by it) and lists the clauses so taken.
 `--json` prints the same as JSON. The exit status is 1 when something was
 found, 2 when the inputs could not be read.
 
-The walk also reports, apart from the properties, every (state, event) where
-the guard held but no valuation in the domains satisfied the post, as
-"domain too small?": a real post always admits some values, so that is where
-the declared domains cut the behaviour off, not a finding about the diagram.
+The walk also reports every (state, event) where the guard held but the post
+twins returned no successor ("post admits no successor"): a real post always
+admits some values, so either a twin says less than its clause or the clause
+cannot be met from that state. A variable left without a value ("post leaves
+… without a value") counts as a finding for the exit status; an empty post
+does not, since the edge is simply disabled there.
 
 The first worked example, `examples/bmc/withdraw.puml`, is a two-state ledger:
 a transfer is accepted when its twin of `残高で払える` says so and completes when

@@ -24,12 +24,12 @@ LEDGER = {
 
 def ledger_twins(**extra):
     return Twins(
-        domains={"残高": range(0, 6), "額": [1, 2, 3]},
+        domains={"額": [1, 2, 3]},
         clauses={
-            "残高 = 0": lambda 残高: 残高 == 0,
-            "残高' = 残高 + 額 − 1": lambda 残高, 額, 残高_: 残高_ == 残高 + 額 - 1,
+            "残高 = 0": lambda: [{"残高": 0}],
+            "残高' = 残高 + 額 − 1": lambda 残高, 額: [{"残高": 残高 + 額 - 1}],
             "額 + 1 ≤ 残高": lambda 残高, 額: 額 + 1 <= 残高,
-            "残高' = 残高 − 額 − 1": lambda 残高, 額, 残高_: 残高_ == 残高 - 額 - 1,
+            "残高' = 残高 − 額 − 1": lambda 残高, 額: [{"残高": 残高 - 額 - 1}],
         },
         **extra,
     )
@@ -38,14 +38,14 @@ def ledger_twins(**extra):
 class InvariantTest(unittest.TestCase):
     def test_an_invariant_that_holds_reports_nothing(self):
         twins = ledger_twins(invariants={"残高は負にならない": lambda 残高: 残高 >= 0})
-        result = Explorer(Diagram.from_json(LEDGER), twins).run()
+        result = Explorer(Diagram.from_json(LEDGER), twins, max_states=200).run()
         self.assertEqual([], result.violations)
 
     def test_a_broken_invariant_names_the_state_and_the_trace(self):
         twins = ledger_twins(invariants={"残高は 4 未満": lambda 残高: 残高 < 4})
-        result = Explorer(Diagram.from_json(LEDGER), twins).run()
-        # 4 and 5 are both reachable; the first one met comes first.
-        self.assertEqual(2, len(result.violations))
+        result = Explorer(Diagram.from_json(LEDGER), twins, max_states=200).run()
+        # every balance from 4 up to the bound breaks it; the first one met comes first.
+        self.assertGreater(len(result.violations), 1)
         name, state = result.violations[0]
         self.assertEqual("残高は 4 未満", name)
         self.assertEqual(("a", (4,), ()), state)
@@ -81,7 +81,7 @@ class AvoidingCycleTest(unittest.TestCase):
         diagram = dict(COUNTER, edges=COUNTER["edges"] + [
             {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
         ])
-        twins = Twins(domains=COUNTER_TWINS.domains, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n, n_: n_ == n + 1}))
+        twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n: [{"n": n + 1}]}))
         result = Explorer(Diagram.from_json(diagram), twins, avoid="stop").run()
         self.assertEqual(1, len(result.avoiding_cycles))
         self.assertIn(("a", (0,), ()), result.avoiding_cycles[0])
@@ -99,16 +99,20 @@ class WithinTest(unittest.TestCase):
         diagram = dict(COUNTER, edges=COUNTER["edges"] + [
             {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
         ])
-        twins = Twins(domains=COUNTER_TWINS.domains, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n, n_: n_ == n + 1}))
+        twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n: [{"n": n + 1}]}))
         self.assertEqual(1, len(Explorer(Diagram.from_json(diagram), twins, avoid="stop", within=["a"]).run().avoiding_cycles))
         self.assertEqual([], Explorer(Diagram.from_json(diagram), twins, avoid="stop", within=["b"]).run().avoiding_cycles)
 
 
-class ClippedTest(unittest.TestCase):
-    def test_a_post_no_value_in_the_domain_satisfies_is_reported_as_clipped(self):
-        # 入庫 of 3 from 4 wants 残高 = 6, outside range(0, 6): the guard held,
-        # the post has no witness, so the walk says the domain may be too small.
-        twins = ledger_twins()
-        result = Explorer(Diagram.from_json(LEDGER), twins).run()
-        self.assertIn((("a", (4,), ()), "入庫(額=3)"), result.clipped)
-        self.assertNotIn((("a", (0,), ()), "入庫(額=3)"), result.clipped)
+class WithinTest(unittest.TestCase):
+    def test_within_restricts_the_avoiding_cycles_to_the_named_states(self):
+        # The counter at n = 0 can bump and dec forever without stopping; the
+        # same loop restricted to state b (which has no transitions) is empty.
+        diagram = dict(COUNTER, edges=COUNTER["edges"] + [
+            {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
+        ])
+        twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n: [{"n": n + 1}]}))
+        self.assertEqual(1, len(Explorer(Diagram.from_json(diagram), twins, avoid="stop", within=["a"]).run().avoiding_cycles))
+        self.assertEqual([], Explorer(Diagram.from_json(diagram), twins, avoid="stop", within=["b"]).run().avoiding_cycles)
+
+

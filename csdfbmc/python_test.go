@@ -58,7 +58,7 @@ func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 			t.Errorf("want %q in the report, got:\n%.2000s", want, text)
 		}
 	}
-	for _, unwanted := range []string{"invariant", "cycle", "domain too small"} {
+	for _, unwanted := range []string{"invariant", "cycle", "post leaves", "post admits"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("want no %q in the report, got:\n%.2000s", unwanted, text)
 		}

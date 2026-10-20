@@ -1,7 +1,8 @@
 """The formal twins of examples/bmc/wallet.puml.
 
 The fairness assumption of the diagram becomes the bound RESENDS on the resend
-count: a run cannot bump the fee forever. Every other value is finite too.
+count: a run cannot bump the fee forever. The deposits are bounded by the
+diagram's own 入庫回数, so every total stays finite without a domain for it.
 """
 LIMIT = 3          # 移転上限
 BASE_FEE = 1       # 出庫 fee before any bump
@@ -14,37 +15,33 @@ def fee(再送回数):
     return BASE_FEE + 再送回数
 
 DOMAINS = {
-    "残高": range(0, 9),
-    "未戻しfee": range(0, 9),
     "数量": range(1, 4),
-    "再送回数": range(0, RESENDS + 1),
-    "入庫回数": range(0, DEPOSITS + 1),
     "額": [1, 2],
 }
 
 CLAUSES = {
-    "残高 = 初期残高": lambda 残高: 残高 == INITIAL,
-    "未戻しfee = 0": lambda 未戻しfee: 未戻しfee == 0,
-    "入庫回数 = 0": lambda 入庫回数: 入庫回数 == 0,
+    "残高 = 初期残高": lambda: [{"残高": INITIAL}],
+    "未戻しfee = 0": lambda: [{"未戻しfee": 0}],
+    "入庫回数 = 0": lambda: [{"入庫回数": 0}],
     "入庫回数 < 入庫上限": lambda 入庫回数: 入庫回数 < DEPOSITS,
-    "入庫回数' = 入庫回数 + 1": lambda 入庫回数, 入庫回数_: 入庫回数_ == 入庫回数 + 1,
-    "入庫回数' = 入庫回数": lambda 入庫回数, 入庫回数_: 入庫回数_ == 入庫回数,
-    "残高' = 残高 + 額": lambda 残高, 額, 残高_: 残高_ == 残高 + 額,
-    "未戻しfee' = 未戻しfee": lambda 未戻しfee, 未戻しfee_: 未戻しfee_ == 未戻しfee,
+    "入庫回数' = 入庫回数 + 1": lambda 入庫回数: [{"入庫回数": 入庫回数 + 1}],
+    "入庫回数' = 入庫回数": lambda 入庫回数: [{"入庫回数": 入庫回数}],
+    "残高' = 残高 + 額": lambda 残高, 額: [{"残高": 残高 + 額}],
+    "未戻しfee' = 未戻しfee": lambda 未戻しfee: [{"未戻しfee": 未戻しfee}],
     "数量 ≤ 移転上限": lambda 数量: 数量 <= LIMIT,
     # The check at 出庫 time. Try fee(RESENDS) in place of BASE_FEE.
     "数量 + 出庫fee ≤ 残高": lambda 数量, 残高: 数量 + BASE_FEE <= 残高,
-    "残高' = 残高": lambda 残高, 残高_: 残高_ == 残高,
-    "数量' = 数量": lambda 数量, 数量_: 数量_ == 数量,
-    "再送回数' = 0": lambda 再送回数_: 再送回数_ == 0,
+    "残高' = 残高": lambda 残高: [{"残高": 残高}],
+    "数量' = 数量": lambda 数量: [{"数量": 数量}],
+    "再送回数' = 0": lambda: [{"再送回数": 0}],
     "再送回数 < 再送上限": lambda 再送回数: 再送回数 < RESENDS,
-    "再送回数' = 再送回数 + 1": lambda 再送回数, 再送回数_: 再送回数_ == 再送回数 + 1,
+    "再送回数' = 再送回数 + 1": lambda 再送回数: [{"再送回数": 再送回数 + 1}],
     "残高 − 数量 ≥ 今回の出庫fee": lambda 残高, 数量, 再送回数: 残高 - 数量 >= fee(再送回数),
-    "残高' = 残高 − 数量 − 今回の出庫fee": lambda 残高, 数量, 再送回数, 残高_: 残高_ == 残高 - 数量 - fee(再送回数),
-    "未戻しfee' = 未戻しfee + 今回の出庫fee": lambda 未戻しfee, 再送回数, 未戻しfee_: 未戻しfee_ == 未戻しfee + fee(再送回数),
+    "残高' = 残高 − 数量 − 今回の出庫fee": lambda 残高, 数量, 再送回数: [{"残高": 残高 - 数量 - fee(再送回数)}],
+    "未戻しfee' = 未戻しfee + 今回の出庫fee": lambda 未戻しfee, 再送回数: [{"未戻しfee": 未戻しfee + fee(再送回数)}],
     "未戻しfee > 0": lambda 未戻しfee: 未戻しfee > 0,
-    "残高' = 残高 + 未戻しfee": lambda 残高, 未戻しfee, 残高_: 残高_ == 残高 + 未戻しfee,
-    "未戻しfee' = 0": lambda 未戻しfee_: 未戻しfee_ == 0,
+    "残高' = 残高 + 未戻しfee": lambda 残高, 未戻しfee: [{"残高": 残高 + 未戻しfee}],
+    "未戻しfee' = 0": lambda: [{"未戻しfee": 0}],
 }
 
 # Running totals the diagram does not keep.

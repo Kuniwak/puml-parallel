@@ -1,12 +1,20 @@
-"""The formal twins of the clauses, and the finite domains the values live in.
+"""The formal twins of the clauses, and the finite domains of the parameters.
 
-A twins module is ordinary Python restricted to a pure subset: it defines
-DOMAINS (name -> iterable of values, for state variables and event parameters)
-and CLAUSES (the clause's prose -> a function of the names the clause reads:
-event parameters, the variables before the step, and the variables after it
-spelled with a trailing underscore). Nothing in it may assign inside a
-function, loop, raise, read or write the outside world, or use floats, so that
-evaluating a clause is deterministic and decidable by enumeration.
+A twins module is ordinary Python restricted to a pure subset. It defines
+DOMAINS (event parameter -> iterable of values) and CLAUSES (the clause's
+prose -> a function of the names the clause reads: the event's parameters,
+the state variables before the step and the ghosts). A guard twin returns a
+truth value. A post twin returns the successor values of the variables it
+constrains, as a collection of mappings from variable names to values - one
+mapping for a deterministic clause ([{"stock": stock - qty}]), several built
+by a comprehension for a nondeterministic one - and the successors of an edge
+are the natural join of what its clauses return, so two clauses constraining
+the same variable must agree, and a variable no clause constrains is a
+finding. Values must be hashable (tuples, frozenset, FrozenMap); dicts, lists
+and sets a twin returns are frozen into those. Nothing in the module may
+assign inside a function, loop with a statement, raise, read or write the
+outside world, or use floats, so that evaluating a clause is deterministic;
+comprehensions are expressions and are allowed.
 """
 from __future__ import annotations
 
