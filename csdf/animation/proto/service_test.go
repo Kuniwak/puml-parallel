@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 )
 
 const twoStateDiagram = `@startuml
@@ -315,5 +317,35 @@ func TestHandleUnknownCommand(t *testing.T) {
 	resp := service.Handle(Request{Command: "bogus"})
 	if resp.OK || !strings.Contains(resp.Error, "unknown command") {
 		t.Errorf("unknown command = (ok %v, error %q), want failure", resp.OK, resp.Error)
+	}
+}
+
+func TestHandleReplayWalksAFreshSessionToTheFinding(t *testing.T) {
+	service, id := newSession(t)
+	replay := animation.Replay{Initial: []byte(`[0]`), Steps: []animation.ReplayStep{{Event: "insert(coin)", Src: "s0", Dst: "s1", Line: 7, Values: []byte(`["ok"]`)}}}
+	resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay})
+	if !resp.OK {
+		t.Fatalf("replay failed: %s", resp.Error)
+	}
+	view := decodeView(t, resp)
+	if view.Mode != "command" || view.State == nil || view.State.ID != "s1" {
+		t.Errorf("replay view = %+v, want command mode at s1", view)
+	}
+	hist := service.Handle(Request{Command: CommandHistory, Session: id})
+	if !strings.Contains(hist.Output, "insert(coin)") {
+		t.Errorf("history after replay = %q, want the replayed event", hist.Output)
+	}
+}
+
+func TestHandleReplayReportsAStepThatCannotBeTaken(t *testing.T) {
+	service, id := newSession(t)
+	replay := animation.Replay{Initial: []byte(`[0]`), Steps: []animation.ReplayStep{{Event: "eject", Src: "s0", Dst: "s1", Values: []byte(`[]`)}}}
+	resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay})
+	if resp.OK || !strings.Contains(resp.Error, "eject") {
+		t.Errorf("replay = %+v, want an error naming the step", resp)
+	}
+	read := service.Handle(Request{Command: CommandRead, Session: id})
+	if view := decodeView(t, read); view.Mode != "command" || view.State == nil || view.State.ID != "s0" {
+		t.Errorf("after a failed replay the session is %+v, want command mode at s0", view)
 	}
 }
