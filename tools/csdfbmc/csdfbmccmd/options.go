@@ -22,8 +22,9 @@ func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
 
 const usage = `Usage: csdfbmc [launcher options] <diagram.json> <twins.py> [checker options]
 
-Runs csdfbmc, the bounded model checker, on a diagram as csdfparse prints it
-and the Python module holding the formal twins of its clauses. The checker is
+Runs csdfbmc, the bounded model checker, on a diagram as csdfparse prints it,
+or an expansion as csdfpromote -format json prints it, and the Python module
+holding the formal twins of its clauses. The checker is
 Python (standard library only, 3.11 or later); this binary carries its sources
 and runs them with the python3 on the PATH, so a release needs no checkout.
 The launcher reads its own options first and hands every argument after them
@@ -37,6 +38,8 @@ Launcher options:
   -silent       silent mode
 
 Checker options (the checker's --help lists them in full):
+  --local PATH=TWINS   the twins of the local diagram at PATH, for an expansion
+                       of a promoted diagram (repeatable)
   --max-states N       stop after this many states (default 100000)
   --opaque error|true  what a clause without a twin means (default: refuse)
   --avoid EVENT        also report the cycles that never perform EVENT
@@ -52,6 +55,8 @@ Examples:
   $ csdfparse examples/bmc/withdraw.puml > withdraw.json
   $ csdfbmc withdraw.json examples/bmc/withdraw_twins.py
   $ csdfbmc wallet.json wallet_twins.py --avoid 確定 --within sending --json
+  $ csdfpromote -format json GLOBAL.puml > global.json
+  $ csdfbmc global.json global_twins.py --local states/LOCAL.puml=local_twins.py
 `
 
 // NewParseOptionsFunc reads the launcher's options by hand rather than with

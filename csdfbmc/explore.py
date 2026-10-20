@@ -5,9 +5,24 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
-from csdfbmc.model import Diagram
-from csdfbmc.twins import Twins, apply
-from csdfbmc.values import freeze
+from csdfbmc.model import Clause, Diagram
+from csdfbmc.twins import Twins, apply, check_pure
+from csdfbmc.values import FrozenMap, freeze
+
+# The key under which an instance's record holds its local state's name; the
+# local variables are the other keys.
+RECORD_STATE = "state"
+
+# What a formal expression may call besides the names of the step.
+FORMAL_GLOBALS = {
+    "__builtins__": {},
+    "len": len, "all": all, "any": any, "sum": sum, "min": min, "max": max, "abs": abs,
+    "sorted": sorted, "set": set, "frozenset": frozenset, "tuple": tuple, "range": range,
+    "FrozenMap": FrozenMap,
+    "at": lambda m, i, state: i in m and m[i][RECORD_STATE] == state,
+    "exists": lambda m, pred: any(pred(i, r) for i, r in m.items()),
+    "count": lambda m, pred: sum(1 for i, r in m.items() if pred(i, r)),
+}
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -78,6 +93,14 @@ class Explorer:
     assignments, and the successors of an edge are the natural join of what
     its clauses return. Event parameters range over the declared domains.
 
+    In an expansion of a promoted diagram, a map variable holds, per instance
+    ID, a record of the local state's name (under "state") and the local
+    variables. The generated clauses (in_dom, at_state, update, create, delete,
+    frame) have their meaning built in; a local clause is evaluated with the
+    family's twins over the instance's variables and the event's parameters;
+    a constrain clause with the global twins, or with the formal expression
+    written next to it.
+
     opaque says what a clause without a twin means: "error" refuses it, "true"
     takes it as satisfied (an over-approximation, so a deadlock it reports may
     be spurious while a deadlock it misses cannot be hidden by it).
@@ -98,27 +121,14 @@ class Explorer:
         self.opaque = opaque
         self.max_states = max_states
         self.avoid = avoid
-        # within narrows the avoiding cycles to the control states named: a
-        # cycle that matters is one a run can stay in while something is in
-        # flight, not the idle loop of the whole system.
         self.within = set(within) if within else None
         self.opaque_seen: dict[str, None] = {}
         self.ghost_names = tuple(twins.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
+        self._formals: dict[str, object] = {}
 
-    # -- clauses --------------------------------------------------------------
-
-    def _holds(self, clauses: tuple[str, ...], env: dict) -> bool:
-        for c in clauses:
-            if c not in self.twins.clauses:
-                if self.opaque == "error":
-                    raise KeyError(f"no twin for the clause {c!r}; add it to CLAUSES or run with opaque='true'")
-                self.opaque_seen.setdefault(c)
-                continue
-            if not self.twins.evaluate(c, env):
-                return False
-        return True
+    # -- environments -----------------------------------------------------------
 
     def _env(self, state: State, params: dict | None = None) -> dict:
         sid, values, ghosts = state
@@ -128,35 +138,161 @@ class Explorer:
             env.update(params)
         return env
 
-    def _successor_values(self, clauses: tuple[str, ...], env: dict, dst: str) -> tuple[list[tuple], tuple[str, ...]]:
-        """The valuations of dst the post clauses admit, as the natural join of
-        the assignments each clause returns, and the variables of dst that no
+    def _id_of(self, clause: Clause, env: dict):
+        param = clause.id or self.d.promotes[clause.map].id_param
+        if param not in env:
+            raise KeyError(f"the clause {clause.text!r} needs the instance ID {param!r}, which the event does not carry")
+        return env[param]
+
+    def _instance_env(self, clause: Clause, env: dict) -> dict:
+        """The names a local clause of a family may read: the event's
+        parameters and ghosts, and the instance's variables when it exists."""
+        local_env = dict(env)
+        record = env[clause.map].get(self._id_of(clause, env)) if clause.map in env else None
+        if record is not None:
+            local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
+        return local_env
+
+    # -- twins ------------------------------------------------------------------
+
+    def _twin(self, clause: Clause):
+        """The callable standing for a clause, or None when there is none."""
+        if clause.kind == "local" and clause.map:
+            return self.twins.local(self.d.local_of(clause).path).clauses.get(clause.text)
+        fn = self.twins.clauses.get(clause.text)
+        if fn is None and clause.kind == "constrain" and clause.formal:
+            fn = self._formal(clause)
+        return fn
+
+    def _formal(self, clause: Clause):
+        code = self._formals.get(clause.text)
+        if code is None:
+            check_pure(clause.formal, f"<formal line {clause.line}>")
+            code = compile(clause.formal, f"<formal line {clause.line}>", "eval")
+            self._formals[clause.text] = code
+
+        def run(**env):
+            return eval(code, FORMAL_GLOBALS, env)
+        run.formal = True
+        return run
+
+    def _call(self, clause: Clause, env: dict):
+        fn = self._twin(clause)
+        if fn is None:
+            return None
+        if getattr(fn, "formal", False):
+            return fn(**env)
+        return apply(fn, env, what=f"the twin of {clause.text!r}")
+
+    def _missing_twin(self, clause: Clause) -> bool:
+        """Records an opaque clause, or refuses it; True when it is to be taken as true."""
+        if self.opaque == "error":
+            where = f"in the twins of {self.d.local_of(clause).path}" if clause.kind == "local" and clause.map else "in CLAUSES"
+            raise KeyError(f"no twin for the clause {clause.text!r} {where}; add it, or run with opaque='true'")
+        self.opaque_seen.setdefault(clause.text)
+        return True
+
+    # -- guards -----------------------------------------------------------------
+
+    def _holds(self, clauses: tuple[Clause, ...], env: dict) -> bool:
+        return all(self._guard_holds(c, env) for c in clauses)
+
+    def _guard_holds(self, c: Clause, env: dict) -> bool:
+        if c.kind == "in_dom":
+            return self._id_of(c, env) in env[c.map]
+        if c.kind == "not_in_dom":
+            return self._id_of(c, env) not in env[c.map]
+        if c.kind == "at_state":
+            record = env[c.map].get(self._id_of(c, env))
+            return record is not None and record[RECORD_STATE] == c.state
+        if c.kind == "frame":
+            return True
+        if c.kind not in ("local", "constrain"):
+            raise ValueError(f"unknown clause kind {c.kind!r} in a guard")
+        if self._twin(c) is None:
+            return self._missing_twin(c)
+        scope = self._instance_env(c, env) if c.map and c.kind == "local" else env
+        return bool(self._call(c, scope))
+
+    # -- posts ------------------------------------------------------------------
+
+    def _assignments(self, c: Clause, env: dict) -> list[dict] | None:
+        """What a post twin returns, as frozen assignments; None when opaque."""
+        if self._twin(c) is None:
+            self._missing_twin(c)
+            return None
+        returned = self._call(c, env)
+        if isinstance(returned, (bool, int, str)) or returned is None:
+            raise TypeError(f"the twin of the post clause {c.text!r} returned {returned!r}; a post twin returns a collection of assignments such as [{{'x': x + 1}}]")
+        out = []
+        for a in returned:
+            if not hasattr(a, "items"):
+                raise TypeError(f"the twin of the post clause {c.text!r} returned {a!r}; each successor is a mapping from variable names to values")
+            out.append({k: freeze(v) for k, v in a.items()})
+        return out
+
+    @staticmethod
+    def _join(joined: list[dict], assignments: list[dict]) -> list[dict]:
+        return [dict(j, **a) for j in joined for a in assignments
+                if all(j[k] == v for k, v in a.items() if k in j)]
+
+    def _successor_values(self, clauses: tuple[Clause, ...], env: dict, dst: str) -> tuple[list[tuple], tuple[str, ...]]:
+        """The valuations of dst the post clauses admit, and the variables no
         clause gave a value (then the valuations are empty)."""
         joined: list[dict] = [{}]
+        moves: dict[str, Clause] = {}
+        local_posts: dict[str, list[Clause]] = {}
         for c in clauses:
-            if c not in self.twins.clauses:
-                if self.opaque == "error":
-                    raise KeyError(f"no twin for the clause {c!r}; add it to CLAUSES or run with opaque='true'")
-                self.opaque_seen.setdefault(c)
-                continue
-            returned = apply(self.twins.clauses[c], env, what=f"the twin of {c!r}")
-            if isinstance(returned, (bool, int, str)) or returned is None:
-                raise TypeError(f"the twin of the post clause {c!r} returned {returned!r}; a post twin returns a collection of assignments such as [{{'x': x + 1}}]")
-            assignments = []
-            for a in returned:
-                if not hasattr(a, "items"):
-                    raise TypeError(f"the twin of the post clause {c!r} returned {a!r}; each successor is a mapping from variable names to values")
-                assignments.append({k: freeze(v) for k, v in a.items()})
-            joined = [dict(j, **a) for j in joined for a in assignments
-                      if all(j[k] == v for k, v in a.items() if k in j)]
+            if c.kind == "frame":
+                joined = self._join(joined, [{c.var: env[c.var]}])
+            elif c.kind in ("update", "create", "delete"):
+                moves[c.map] = c
+            elif c.kind == "local" and c.map:
+                local_posts.setdefault(c.map, []).append(c)
+            elif c.kind in ("local", "constrain"):
+                a = self._assignments(c, env)
+                if a is not None:
+                    joined = self._join(joined, a)
+            else:
+                raise ValueError(f"unknown clause kind {c.kind!r} in a post")
             if not joined:
-                break
+                return [], ()
+
+        for m, move in moves.items():
+            idv = self._id_of(move, env)
+            current = env[m]
+            if move.kind == "delete":
+                joined = self._join(joined, [{m: current.without(idv)}])
+                continue
+            local = self.d.local_of(move)
+            names = local.vars_of(move.state)
+            scope = self._instance_env(move, env)
+            records: list[dict] = [{}]
+            for c in local_posts.get(m, []):
+                a = self._assignments(c, scope)
+                if a is not None:
+                    records = self._join(records, a)
+                if not records:
+                    return [], ()
+            missing = tuple(f"{m}[{idv}].{n}" for n in names if n not in records[0])
+            if missing:
+                return [], missing
+            joined = self._join(joined, [
+                {m: current.set(idv, FrozenMap({RECORD_STATE: move.state, **{n: r[n] for n in names}}))} for r in records])
+            if not joined:
+                return [], ()
+        for m in local_posts:
+            if m not in moves:
+                raise ValueError(f"the post has local clauses for map {m!r} but no update, create or delete of it")
+
         names = self.d.vars[dst]
         if joined:
             missing = tuple(n for n in names if n not in joined[0])
             if missing:
                 return [], missing
         return [tuple(j[n] for n in names) for j in joined], ()
+
+    # -- ghosts and invariants --------------------------------------------------
 
     def _ghosts_after(self, state: State, name: str, params: dict) -> tuple:
         env = self._env(state, params)
@@ -176,7 +312,7 @@ class Explorer:
                 broken.append(name)
         return broken
 
-    # -- transitions ----------------------------------------------------------
+    # -- transitions ------------------------------------------------------------
 
     def initial(self) -> list[State]:
         ghosts = tuple(init for init, _ in self.twins.ghosts.values())
@@ -191,11 +327,12 @@ class Explorer:
         sid, values, _ = state
         out: list[tuple[str, str, State]] = []
         for e in self.d.out_edges(sid):
-            for args in itertools.product(*(self.twins.domain(p) for p in e.params)):
-                params = dict(zip(e.params, args))
+            names = e.params + e.implicit_ids()
+            for args in itertools.product(*(self.twins.domain(p) for p in names)):
+                params = dict(zip(names, args))
                 if not self._holds(e.guard, self._env(state, params)):
                     continue
-                label = e.name if not e.params else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
+                label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
                 ghosts = self._ghosts_after(state, e.name, params)
                 vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
                 if missing:
@@ -212,7 +349,7 @@ class Explorer:
         end = self.d.end
         return end is not None and end.src == state[0] and self._holds(end.guard, self._env(state))
 
-    # -- the walk --------------------------------------------------------------
+    # -- the walk ----------------------------------------------------------------
 
     def run(self) -> Result:
         parents: dict[State, tuple[State, str] | None] = {}

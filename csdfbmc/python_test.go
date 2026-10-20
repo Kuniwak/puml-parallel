@@ -64,3 +64,18 @@ func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 		}
 	}
 }
+
+// The expansion of a promoted diagram is walked with the global twins and the
+// twins of each family; the fee-bumping example comes out clean.
+func TestThePromotedExampleWalksClean(t *testing.T) {
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts.json", "examples/bmc/attempts_twins.py",
+		"--local", "local/ATTEMPT.puml=examples/bmc/attempt_local_twins.py", "--avoid", "CONFIRMED")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("want exit status 0 (nothing found), got %v\n%s", err, out)
+	}
+	if !strings.HasPrefix(string(out), "states: ") || strings.Count(string(out), "\n") != 1 {
+		t.Errorf("want only the state count, got:\n%s", out)
+	}
+}

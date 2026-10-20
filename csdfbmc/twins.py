@@ -15,6 +15,13 @@ and sets a twin returns are frozen into those. Nothing in the module may
 assign inside a function, loop with a statement, raise, read or write the
 outside world, or use floats, so that evaluating a clause is deterministic;
 comprehensions are expressions and are allowed.
+
+For an expansion of a promoted diagram, each family's local clauses have
+their own twins module, passed by the path the expansion names the local
+diagram with; a local twin reads the event's parameters and the instance's
+own variables. The global module holds the twins of the hand-written and
+constrain clauses, the domains of the instance IDs, and the ghosts and
+invariants, which may read the maps.
 """
 from __future__ import annotations
 
@@ -75,11 +82,22 @@ class Twins:
     # variables before the step, and returns the new value. A ghost with no
     # update for an event keeps its value.
     ghosts: dict[str, tuple[object, dict[str, Callable[..., object]]]] = field(default_factory=dict)
+    # locals: the twins of each family's local diagram, by the path the
+    # expansion names it with. A local clause of a family is looked up there.
+    locals: dict[str, "Twins"] = field(default_factory=dict)
 
     def domain(self, name: str) -> list:
-        if name not in self.domains:
-            raise KeyError(f"no domain declared for {name!r}; add it to DOMAINS")
-        return list(self.domains[name])
+        if name in self.domains:
+            return list(self.domains[name])
+        for local in self.locals.values():
+            if name in local.domains:
+                return list(local.domains[name])
+        raise KeyError(f"no domain declared for {name!r}; add it to DOMAINS")
+
+    def local(self, path: str) -> "Twins":
+        if path not in self.locals:
+            raise KeyError(f"no twins for the local diagram {path!r}; pass them with --local {path}=<twins.py>")
+        return self.locals[path]
 
     def evaluate(self, clause: str, env: dict) -> bool:
         """Applies the clause's twin to the names it reads, taken from env."""
