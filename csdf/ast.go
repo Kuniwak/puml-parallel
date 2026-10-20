@@ -23,9 +23,9 @@ type Predicate string
 
 const (
 	PredicateTrue Predicate = "true"
-	// PredicateOpaque is the reserved clause of a clause not formalised yet:
-	// it says nothing a tool can read, and a checker takes it by its own rule.
-	PredicateOpaque Predicate = "opaque"
+	// PredicateOpaque is the tool word of a clause not formalised yet: it
+	// says nothing a tool can read, and a checker takes it by its own rule.
+	PredicateOpaque Predicate = "@opaque"
 )
 
 // IsTrue reports whether a predicate string is the omitted/default value,
@@ -35,7 +35,7 @@ func IsTrue(s Predicate) bool {
 	return s == "" || s == PredicateTrue
 }
 
-// IsOpaque reports whether a clause is the reserved clause opaque.
+// IsOpaque reports whether a clause is the tool word @opaque.
 func IsOpaque(clause Predicate) bool {
 	return strings.TrimSpace(string(clause)) == string(PredicateOpaque)
 }

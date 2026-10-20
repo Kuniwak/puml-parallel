@@ -2,6 +2,7 @@
 per step, the edge taken and the values entered."""
 import json
 import unittest
+from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
 from csdfbmc.explore import Explorer
@@ -11,7 +12,7 @@ from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
 
 class ReplayTest(unittest.TestCase):
     def test_a_deadlock_carries_its_replay(self):
-        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
+        result = Explorer.of_twins(fixture.diagram(COUNTER), COUNTER_TWINS).run()
         out = result.to_json()
         replay = out["deadlocks"][0]["replay"]
         self.assertEqual([2], replay["initial"])
@@ -23,7 +24,7 @@ class ReplayTest(unittest.TestCase):
         json.dumps(out)  # every value is JSON
 
     def test_map_values_are_encoded_as_objects(self):
-        result = Explorer.of_twins(Diagram.from_json(EXPANSION), GLOBAL_TWINS).run()
+        result = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run()
         out = result.to_json()
         replay = out["deadlocks"][0]["replay"]
         self.assertEqual([{}], replay["initial"])

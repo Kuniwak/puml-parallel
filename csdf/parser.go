@@ -300,6 +300,9 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 	if !p.expectNewlines() {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected newline after start edge declaration at line %d, col %d", p.line, p.col)
 	}
+	if err := checkClauses(line, Predicate(post)); err != nil {
+		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
+	}
 
 	return StartEdge{
 		Dst:  StateID(dst),
@@ -378,6 +381,9 @@ func (p *Parser) parseEdge() (Edge, error) {
 
 	if !p.expectNewlines() {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected newline after edge declaration at line %d, col %d", p.line, p.col)
+	}
+	if err := checkClauses(line, Predicate(guard), Predicate(post)); err != nil {
+		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
 	return Edge{
@@ -458,6 +464,15 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 		result.WriteByte(p.peek())
 		p.advance()
 		lastWritten = c
+
+		// Outside a string a backslash escapes the next character, so \; is
+		// part of the clause rather than the end of it.
+		if !inString && c == '\\' && !p.isAtEnd() && p.peek() != '\n' {
+			result.WriteByte(p.peek())
+			lastWritten = p.peek()
+			p.advance()
+			continue
+		}
 
 		if escaped {
 			escaped = false
@@ -801,12 +816,26 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	if !p.expectNewlines() {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
+	if err := checkClauses(line, Predicate(guard)); err != nil {
+		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
+	}
 
 	return EndEdge{
 		Src:   StateID(src),
 		Guard: Predicate(guard),
 		Line:  line,
 	}, nil
+}
+
+// checkClauses refuses predicates whose clauses use a tool word the tools do
+// not know, saying the line they were written on.
+func checkClauses(line int, predicates ...Predicate) error {
+	for _, p := range predicates {
+		if err := CheckClauses(p); err != nil {
+			return fmt.Errorf("line %d: %w", line, err)
+		}
+	}
+	return nil
 }
 
 func containsByte(values []byte, target byte) bool {

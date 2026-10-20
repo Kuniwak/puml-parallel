@@ -82,15 +82,27 @@ and an anchored note (`note left of s`), still go in a `CSDF-IGNORE` region.
 
 A `guard` or a `post` is a conjunction of *clauses* joined by the connective ` ∧ `
 (U+2227 with one space on each side). The clause is the unit the tools treat as
-opaque text: `csdfparallel` conjoins the predicates of two edges with it, and
-`csdfpromote` joins the clauses it generates and the clauses the author wrote with
-it, so a tool that reads an expansion gets the clauses back by splitting on it
-(`Predicate.Clauses`). The connective is grammar, not wording, so a clause must not
-contain it; a natural-language "and" (`a、かつ b`, `a and b`) is part of its clause.
-A `guard` or `post` that is omitted, or is the literal `true`, has no clause.
-The clause `opaque` is reserved for a clause not formalised yet: it says
-nothing a tool can read, and a checker takes it by its own rule (`csdfbmc
---opaque`), whatever language the other clauses are written in.
+opaque text, written in whatever language its reader takes (natural language, or
+a formal language a `csdfbmc` glue reads): `csdfparallel` conjoins the
+predicates of two edges with it, and `csdfpromote` joins the clauses it
+generates and the clauses the author wrote with it (`Predicate.Clauses`). A
+`guard` or `post` that is omitted, or is the literal `true`, has no clause.
+
+The tools never write or rewrite the text of a clause, and reserve in it only
+what they must read:
+
+- **Separators**: `;` ends the guard, and ` ∧ ` separates clauses. ` ∧ ` is not an
+  operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
+  `a and b`). `∨` and every other symbol belong to the clause.
+- **Tool words** start with `@`. `@opaque` is the one there is: a clause not
+  formalised yet, which says nothing a tool can read, and which a checker takes by
+  its own rule (`csdfbmc --opaque`). Any other word starting with an unescaped `@`
+  is refused.
+- **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
+  A backslash before any other character is part of the clause. A reader of the
+  clause gets it with the escapes removed: csdfparse writes each predicate's
+  clauses so, as `guard_clauses` and `post_clauses` (`{"text": …}`, or
+  `{"opaque": true}`).
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 The following symbols are ABNF core rules:

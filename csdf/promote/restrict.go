@@ -174,6 +174,8 @@ func (r *restriction) edge(e ExpandedEdge, dropped map[csdf.Var]bool) ExpandedEd
 func (r *restriction) guardClause(c ExpandedClause, dropped map[csdf.Var]bool) ExpandedClause {
 	var reads []string
 	switch {
+	case c.Opaque:
+		return c // It says nothing a tool can read, so there is nothing to drop.
 	case c.Kind == ClauseConstrain && c.Formal == "":
 		r.once(fmt.Sprintf("unknown\x00%d\x00%s", c.Line, c.Text), Diagnostic{
 			Severity: SeverityWarning, Line: c.Line,

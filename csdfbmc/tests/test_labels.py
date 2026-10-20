@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from csdfbmc.tests import fixture
 
 from csdfbmc.cone import Cone
 from csdfbmc.explore import Explorer
@@ -44,7 +45,7 @@ def glue(client):
 
 def counter(**edits) -> Diagram:
     edges = [dict(e, **edits.get(e["event"], {})) for e in COUNTER["edges"]]
-    return Diagram.from_json(dict(COUNTER, edges=edges))
+    return fixture.diagram(dict(COUNTER, edges=edges))
 
 
 class LabelsTest(unittest.TestCase):
@@ -53,21 +54,20 @@ class LabelsTest(unittest.TestCase):
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
-    def test_the_reserved_clause_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
+    def test_the_tool_word_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
         counting = Counting(python_glue())
-        result = Explorer(counter(dec={"guard": "opaque"}), NO_TWINS, meaning=glue(counting), cone=Cone.keep_all(), opaque="true", max_states=10).run()
-        self.assertEqual(["opaque"], result.opaque_clauses)
-        self.assertNotIn("opaque", [r["clause"] for r in counting.requests])
+        result = Explorer(counter(dec={"guard": "@opaque"}), NO_TWINS, meaning=glue(counting), cone=Cone.keep_all(), opaque="true", max_states=10).run()
+        self.assertEqual(["@opaque"], result.opaque_clauses)
+        self.assertNotIn("@opaque", [r["clause"] for r in counting.requests])
 
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
-            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
-        self.assertIn("OPAQUE", str(cm.exception))
+            Explorer(counter(dec={"guard": "@opaque"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
+        self.assertIn("@opaque", str(cm.exception))
 
     def test_an_opaque_clause_may_be_taken_as_true(self):
-        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all(), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "@opaque"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all(), opaque="true", max_states=10).run()
         self.assertIn(("a", (-1,), ()), set(result.states))
-        self.assertEqual(["OPAQUE"], result.opaque_clauses)
 
     def test_a_clause_is_evaluated_once_per_value_of_what_it_reads(self):
         counting = Counting(python_glue())
@@ -76,7 +76,7 @@ class LabelsTest(unittest.TestCase):
         self.assertEqual(3, sum(len(r["bindings"]) for r in guards))
 
     def test_a_guard_is_asked_once_per_state_for_every_parameter_value(self):
-        diagram = Diagram.from_json(dict(COUNTER, edges=[
+        diagram = fixture.diagram(dict(COUNTER, edges=[
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
         counting = Counting(python_glue())
         result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), meaning=glue(counting), cone=Cone.keep_all()).run()
@@ -120,8 +120,8 @@ def relabel(value):
 class FormalExpansionTest(unittest.TestCase):
     def setUp(self):
         from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        self.prose = Explorer.of_twins(Diagram.from_json(EXPANSION), GLOBAL_TWINS).run()
-        self.diagram = Diagram.from_json(relabel(EXPANSION))
+        self.prose = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run()
+        self.diagram = fixture.diagram(relabel(EXPANSION))
         self.twins = Twins(domains=GLOBAL_TWINS.domains, clauses={})
 
     def test_a_formal_expansion_needs_no_twins_and_finds_the_same(self):
@@ -131,7 +131,7 @@ class FormalExpansionTest(unittest.TestCase):
 
     def test_partial_order_reduction_reads_what_the_glue_says_a_clause_reads(self):
         from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        prose = Explorer.of_twins(Diagram.from_json(EXPANSION), GLOBAL_TWINS, por=True).run()
+        prose = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS, por=True).run()
         result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all(), por=True).run()
         self.assertEqual(set(prose.states), set(result.states))
         self.assertEqual(prose.deadlocks, result.deadlocks)
@@ -182,7 +182,7 @@ class LabelsCommandTest(unittest.TestCase):
         self.addCleanup(d.cleanup)
         self.diagram, self.twins = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
         with open(self.diagram, "w", encoding="utf-8") as f:
-            json.dump(COUNTER, f)
+            json.dump(fixture.parsed(COUNTER), f)
         with open(self.twins, "w", encoding="utf-8") as f:
             f.write("DOMAINS = {}\n")
 

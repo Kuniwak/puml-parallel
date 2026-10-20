@@ -149,8 +149,8 @@ func TestExpandWarnsAboutAConstrainThatNamesNoArgumentLeavingOutOpaqueClauses(t 
 		guard string
 		warn  bool
 	}{
-		"only opaque":                        {guard: "opaque", warn: false},
-		"opaque beside a clause naming none": {guard: "opaque ∧ 相場は開いている", warn: true},
+		"only opaque":                        {guard: "@opaque", warn: false},
+		"opaque beside a clause naming none": {guard: "@opaque ∧ 相場は開いている", warn: true},
 		"a clause naming an argument":        {guard: "数量 は正", warn: false},
 		"a clause naming none":               {guard: "相場は開いている", warn: true},
 	}

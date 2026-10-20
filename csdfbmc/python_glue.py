@@ -18,10 +18,9 @@ from csdfbmc.twins import check_pure
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"
-# The glue's own marker of a clause not formalised yet, from before the
-# grammar reserved opaque (which the checker takes without asking a glue).
-# Deprecated; it goes in the next major version.
-OPAQUE = "OPAQUE"
+# What a clause not formalised yet was written as before the tool word
+# @opaque, which the checker takes without asking a glue.
+_FORMER_OPAQUE = ("OPAQUE", "opaque")
 
 
 def _post_writes(tree: ast.Expression) -> list[str]:
@@ -59,6 +58,8 @@ class Glue:
     def _compile(self, clause: str, role: str):
         key = (clause, role)
         if key not in self._compiled:
+            if clause.strip() in _FORMER_OPAQUE:
+                raise ValueError(f"{clause.strip()!r} is not a clause of this glue; for a clause not formalised yet, write the tool word @opaque")
             check_pure(clause, f"<clause {clause!r}>")
             tree = ast.parse(clause, mode="eval")
             writes = _post_writes(tree) if role == "post" else []
@@ -71,8 +72,6 @@ class Glue:
         return eval(code, self.globals, dict(binding))
 
     def analyse(self, clause: str, role: str) -> Analysis:
-        if clause.strip() == OPAQUE:
-            return Analysis(opaque=True)
         _, reads, writes = self._compile(clause, role)
         return Analysis(opaque=False, reads=tuple(reads), writes=tuple(writes))
 

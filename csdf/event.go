@@ -100,14 +100,16 @@ func isID(s string) bool {
 // edgeJSON is an edge as JSON: the event is written whole and also taken
 // apart, so a reader in another language need not parse it again.
 type edgeJSON struct {
-	Src     StateID   `json:"src"`
-	Dst     StateID   `json:"dst"`
-	Event   Event     `json:"event"`
-	Channel string    `json:"channel"`
-	Fields  []Field   `json:"fields"`
-	Guard   Predicate `json:"guard"`
-	Post    Predicate `json:"post"`
-	Line    int       `json:"line"`
+	Src          StateID      `json:"src"`
+	Dst          StateID      `json:"dst"`
+	Event        Event        `json:"event"`
+	Channel      string       `json:"channel"`
+	Fields       []Field      `json:"fields"`
+	Guard        Predicate    `json:"guard"`
+	GuardClauses []ClauseJSON `json:"guard_clauses"`
+	Post         Predicate    `json:"post"`
+	PostClauses  []ClauseJSON `json:"post_clauses"`
+	Line         int          `json:"line"`
 }
 
 func (e Edge) MarshalJSON() ([]byte, error) {
@@ -115,7 +117,7 @@ func (e Edge) MarshalJSON() ([]byte, error) {
 	if fields == nil {
 		fields = []Field{}
 	}
-	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, Post: e.Post, Line: e.Line})
+	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: e.Guard.ClausesJSON(), Post: e.Post, PostClauses: e.Post.ClausesJSON(), Line: e.Line})
 }
 
 // UnmarshalJSON reads the event whole, by the grammar; the channel and fields

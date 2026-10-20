@@ -23,8 +23,6 @@ class PythonGlueTest(unittest.TestCase):
             (analyse("n + k <= 3 and all(v > 0 for v in xs)", "guard"), {"reads": ["k", "n", "xs"], "writes": []}),
             (analyse("[{'x': x + 1, 'y': y}]", "post"), {"reads": ["x", "y"], "writes": ["x", "y"]}),
             (analyse("[{'y': v} for v in (y, y + 1)]", "post"), {"reads": ["y"], "writes": ["y"]}),
-            (analyse("OPAQUE", "guard"), {"opaque": True}),
-            (analyse("OPAQUE", "post"), {"opaque": True}),
         ]:
             with self.subTest(request=request):
                 self.assertEqual(want, self.handle(request))
@@ -46,6 +44,8 @@ class PythonGlueTest(unittest.TestCase):
             (analyse("open('f') and 1.5", "guard"), "not allowed"),
             ({"op": "guard", "clause": "m['k'] > 0", "bindings": [{"m": {}}]}, "'k'"),
             ({"op": "frobnicate"}, "unknown request"),
+            (analyse("OPAQUE", "guard"), "write the tool word @opaque"),
+            (analyse("opaque", "post"), "write the tool word @opaque"),
         ]:
             with self.subTest(request=request):
                 self.assertIn(said, self.handle(request)["error"])

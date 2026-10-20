@@ -153,3 +153,42 @@ accOpen --> accOpen : DEPOSIT?額
 		})
 	}
 }
+
+// A clause the author wrote reaches the expansion as its language reads it,
+// and the expanded diagram writes it back as it was written.
+func TestExpandRecordsAuthoredClausesWithoutTheirEscapes(t *testing.T) {
+	got, diags := expand(t, `@startuml ACCOUNTS
+state "稼働中" as running {
+  running : accounts ; 口座ID ⇸ Account
+  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+    !include local/ACCOUNT.puml
+  }
+}
+
+[*] --> running : accounts は空
+@enduml
+`, map[string]string{
+		"local/ACCOUNT.puml": `@startuml ACCOUNT
+state "未開設" as accNone
+state "開設済み" as accOpen
+[*] --> accNone
+accNone --> accOpen : OPEN ; a \∧ b ∧ @opaque
+@enduml
+`,
+	})
+	if len(diags) != 0 {
+		t.Fatalf("promote.Expand() diagnostics = %v, want none", diags)
+	}
+	open := got.Edges[0]
+	want := []promote.ExpandedClause{
+		{Kind: promote.ClauseNotInDom, Text: "口座ID ∉ dom accounts", Map: "accounts", ID: "口座ID"},
+		{Kind: promote.ClauseLocal, Text: "a ∧ b", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 5},
+		{Kind: promote.ClauseLocal, Opaque: true, Map: "accounts", Path: "local/ACCOUNT.puml", Line: 5},
+	}
+	if diff := cmp.Diff(want, open.Guard); diff != "" {
+		t.Errorf("guard clauses mismatch (-want +got):\n%s", diff)
+	}
+	if want := `口座ID ∉ dom accounts ∧ a \∧ b ∧ @opaque`; string(open.Edge.Guard) != want {
+		t.Errorf("guard = %q, want %q", open.Edge.Guard, want)
+	}
+}

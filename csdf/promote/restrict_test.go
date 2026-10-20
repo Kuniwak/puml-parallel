@@ -107,15 +107,18 @@ end note
 @enduml`, 1)
 	x, diags := restrict(t, global, syncLocals, "buys")
 
+	seen := 0
 	for _, e := range x.Edges {
-		name := strings.SplitN(string(e.Edge.Event), "(", 2)[0]
+		name := e.Edge.Event.Channel()
 		for _, c := range e.Guard {
 			switch {
 			case name == "BUY" && c.Text == "基準日の集計が開いている":
+				seen++
 				if c.Kind != promote.ClauseDropped || len(c.Maps) != 1 || c.Maps[0] != "cycles" {
 					t.Errorf("BUY's constrain = %+v, want dropped reading [cycles]", c)
 				}
 			case name == "SETTLE" && c.Text == "決済できる":
+				seen++
 				if c.Kind != promote.ClauseConstrain {
 					t.Errorf("SETTLE's constrain = %+v, want it kept", c)
 				}
@@ -124,6 +127,9 @@ end note
 		if name == "BUY" && strings.Contains(string(e.Edge.Guard), "基準日の集計が開いている") {
 			t.Errorf("BUY's guard still holds the dropped clause: %s", e.Edge.Guard)
 		}
+	}
+	if seen == 0 {
+		t.Errorf("no BUY or SETTLE edge carries its constrain:\n%s", x)
 	}
 	found := false
 	for _, d := range diags {
@@ -144,7 +150,7 @@ end note
 	x, diags := restrict(t, global, syncLocals, "buys")
 
 	for _, e := range x.Edges {
-		if strings.HasPrefix(string(e.Edge.Event), "BUY(") && !strings.Contains(string(e.Edge.Guard), "基準日の集計が開いている") {
+		if e.Edge.Event.Channel() == "BUY" && !strings.Contains(string(e.Edge.Guard), "基準日の集計が開いている") {
 			t.Errorf("BUY lost its constrain: %v", e.Edge)
 		}
 	}
@@ -156,6 +162,29 @@ end note
 	}
 	if n != 1 {
 		t.Errorf("want the constrain named once, got %d in %v", n, diags)
+	}
+}
+
+// An opaque constrain says nothing a tool can read, so it stays and is not
+// reported as one whose reads are unknown.
+func TestRestrictKeepsAnOpaqueConstrainQuietly(t *testing.T) {
+	global := strings.Replace(syncGlobal, "@enduml", `note bottom of runningBuys
+  constrain BUY?約定ID?数量 ; @opaque
+end note
+@enduml`, 1)
+	x, diags := restrict(t, global, syncLocals, "buys")
+
+	kept := false
+	for _, e := range x.Edges {
+		kept = kept || e.Edge.Event.Channel() == "BUY" && strings.Contains(string(e.Edge.Guard), "@opaque")
+	}
+	if !kept {
+		t.Errorf("BUY lost its opaque constrain:\n%s", x)
+	}
+	for _, d := range diags {
+		if strings.Contains(d.Message, "no formal twin") {
+			t.Errorf("want no warning about the opaque constrain, got %v", d)
+		}
 	}
 }
 
