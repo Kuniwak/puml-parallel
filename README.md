@@ -693,8 +693,7 @@ event parameters range over.
 $ csdfparse examples/bmc/withdraw.puml > examples/bmc/withdraw.json
 $ csdfbmc examples/bmc/withdraw.json examples/bmc/withdraw_twins.py
 states: 22
-deadlock at sending [3, 3] after ['出庫(数量=3)']
-...
+deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
 ```
 
 A twins module defines two tables. `DOMAINS` maps an event parameter to the
@@ -744,6 +743,13 @@ the event, which is the livelock the `assume` note was about. A clause without a
 twin is refused; `--opaque true` takes it as satisfied instead, which
 over-approximates the behaviour (a deadlock it then reports may be spurious; a
 deadlock it misses cannot be hidden by it) and lists the clauses so taken.
+Findings of one shape are reported once, with their count and the shortest
+trace: deadlocks by control state and the event that led there, broken
+invariants by invariant and control state, cycles by the control states they
+run through, empty and unconstrained posts by event. `--all` lists every
+finding; `--first` stops the walk at the first deadlock, broken invariant or
+unconstrained post (cycles need the whole space and are then not looked for).
+
 `csdfbmc next <diagram.json> <twins.py> (--initial | --state JSON --edge N)`
 answers what a REPL asks at a value prompt — the values the twins admit for the
 start state, or after the N-th outgoing edge of a runtime state — which

@@ -52,6 +52,8 @@ class Result:
     # left variables of the next state without a value: a post clause is
     # missing, or its twin constrains fewer variables than it should.
     unconstrained: list[tuple[State, str, tuple[str, ...]]] = field(default_factory=list)
+    # stopped_early: the walk stopped at the first finding (first=True).
+    stopped_early: bool = False
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -94,7 +96,47 @@ class Result:
             "empty_posts": [{"event": label, **at(s)} for s, label in self.empty_posts],
             "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
             "opaque_clauses": self.opaque_clauses,
+            "groups": self.groups(),
+            "stopped_early": self.stopped_early,
         }
+
+    def groups(self) -> list[dict]:
+        """The findings folded by shape, each with its count and the first
+        (shortest) representative: deadlocks by (control state, the event
+        that led there), broken invariants by (invariant, control state),
+        empty and unconstrained posts by event, cycles by the set of control
+        states they run through. In the order the first of each was met."""
+        groups: dict[tuple, dict] = {}
+
+        def add(key: tuple, make):
+            g = groups.get(key)
+            if g is None:
+                g = make()
+                g["count"] = 0
+                groups[key] = g
+            g["count"] += 1
+
+        def last_event(s: State) -> str:
+            p = self.parents[s]
+            return p[2].name if p is not None else ""
+
+        for s in self.deadlocks:
+            add(("deadlock", s[0], last_event(s)), lambda s=s: {"kind": "deadlock", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s)})
+        for name, s in self.violations:
+            add(("violation", name, s[0]), lambda name=name, s=s: {"kind": "violation", "invariant": name, "at": s[0], "trace": self.trace_to(s), "example": self.describe(s)})
+        for cycle in self.tau_cycles:
+            states = tuple(sorted({c[0] for c in cycle}))
+            add(("tau_cycle", states), lambda cycle=cycle, states=states: {"kind": "tau_cycle", "through": list(states), "trace": self.trace_to(cycle[0])})
+        for cycle in self.avoiding_cycles:
+            states = tuple(sorted({c[0] for c in cycle}))
+            add(("avoiding_cycle", states), lambda cycle=cycle, states=states: {"kind": "avoiding_cycle", "avoid": self.avoid, "through": list(states), "trace": self.trace_to(cycle[0])})
+        for s, label, names in self.unconstrained:
+            event = label.split("(")[0]
+            add(("unconstrained", event, names), lambda s=s, event=event, names=names: {"kind": "unconstrained", "event": event, "variables": list(names), "at": s[0], "trace": self.trace_to(s)})
+        for s, label in self.empty_posts:
+            event = label.split("(")[0]
+            add(("empty_post", event, s[0]), lambda s=s, event=event: {"kind": "empty_post", "event": event, "at": s[0], "trace": self.trace_to(s)})
+        return list(groups.values())
 
     def describe(self, s: State) -> str:
         text = f"{s[0]} {list(s[1])}"
@@ -130,7 +172,7 @@ class Explorer:
     """
 
     def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000,
-                 avoid: str | None = None, within: list[str] | None = None):
+                 avoid: str | None = None, within: list[str] | None = None, first: bool = False):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
@@ -139,6 +181,9 @@ class Explorer:
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
+        # first stops the walk at the first deadlock, broken invariant or
+        # unconstrained post; cycles need the whole space and are not checked then.
+        self.first = first
         self.opaque_seen: dict[str, None] = {}
         self.ghost_names = tuple(twins.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
@@ -423,16 +468,23 @@ class Explorer:
             if s not in parents:
                 visit(s)
 
+        stopped = False
         i = 0
-        while i < len(queue):
+        while i < len(queue) and not stopped:
             s = queue[i]
             i += 1
+            if self.first and (violations or self.unconstrained):
+                stopped = True
+                break
             succ = self.successors(s)
             tau_next[s] = [t for name, _, t, _ in succ if name == "tau"]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
                 avoid_next[s] = [t for name, _, t, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
             if not succ and not self.can_end(s):
                 deadlocks.append(s)
+                if self.first:
+                    stopped = True
+                    break
             for _, label, t, edge in succ:
                 if t in parents:
                     continue
@@ -444,12 +496,13 @@ class Explorer:
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,
-            tau_cycles=_cycles(order, tau_next),
+            tau_cycles=_cycles(order, tau_next) if not stopped else [],
             opaque_clauses=list(self.opaque_seen), truncated=truncated, bound=self.max_states,
             violations=violations,
-            avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None else [],
+            avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
             empty_posts=self.empty_posts, unconstrained=self.unconstrained,
+            stopped_early=stopped,
         )
 
 

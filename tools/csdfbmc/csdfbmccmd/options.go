@@ -44,6 +44,8 @@ Checker options (the checker's --help lists them in full):
   --opaque error|true  what a clause without a twin means (default: refuse)
   --avoid EVENT        also report the cycles that never perform EVENT
   --within STATE       with --avoid, look among these control states only
+  --first              stop at the first deadlock, broken invariant or unconstrained post
+  --all                list every finding instead of one per shape with a count
   --json               print the result as JSON
 
 "csdfbmc next <diagram.json> <twins.py> (--initial | --state JSON --edge N)"
