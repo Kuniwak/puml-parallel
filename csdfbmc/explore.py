@@ -54,6 +54,9 @@ class Result:
     unconstrained: list[tuple[State, str, tuple[str, ...]]] = field(default_factory=list)
     # stopped_early: the walk stopped at the first finding (first=True).
     stopped_early: bool = False
+    # dropped_clauses: the guard clauses csdfpromote -only listed as reading a
+    # left-out map, which the walk took as true, as (text, maps).
+    dropped_clauses: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -96,6 +99,7 @@ class Result:
             "empty_posts": [{"event": label, **at(s)} for s, label in self.empty_posts],
             "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
             "opaque_clauses": self.opaque_clauses,
+            "dropped_clauses": [{"text": text, "maps": list(maps)} for text, maps in self.dropped_clauses],
             "groups": self.groups(),
             "stopped_early": self.stopped_early,
         }
@@ -185,6 +189,7 @@ class Explorer:
         # unconstrained post; cycles need the whole space and are not checked then.
         self.first = first
         self.opaque_seen: dict[str, None] = {}
+        self.dropped_seen: dict[tuple[str, tuple[str, ...]], None] = {}
         self.ghost_names = tuple(twins.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
@@ -268,6 +273,9 @@ class Explorer:
             record = env[c.map].get(self._id_of(c, env))
             return record is not None and record[RECORD_STATE] == c.state
         if c.kind == "frame":
+            return True
+        if c.kind == "dropped":
+            self.dropped_seen.setdefault((c.text, c.maps))
             return True
         if c.kind not in ("local", "constrain"):
             raise ValueError(f"unknown clause kind {c.kind!r} in a guard")
@@ -502,7 +510,7 @@ class Explorer:
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
             empty_posts=self.empty_posts, unconstrained=self.unconstrained,
-            stopped_early=stopped,
+            stopped_early=stopped, dropped_clauses=list(self.dropped_seen),
         )
 
 

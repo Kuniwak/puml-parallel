@@ -102,6 +102,8 @@ def main(argv=None) -> int:
             print_groups(result)
         for c in result.opaque_clauses:
             print(f"taken as true (no twin): {c}")
+        for text, maps in result.dropped_clauses:
+            print(f"taken as true (reads {', '.join(maps)}, left out by csdfpromote -only): {text}")
     found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles or result.unconstrained
     return 1 if found else 0
 

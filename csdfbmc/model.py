@@ -46,11 +46,13 @@ class Clause:
     path: str | None = None    # the local diagram, for a local clause of a family
     line: int = 0
     formal: str | None = None  # a constrain's formal twin, written next to it
+    maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
 
     @classmethod
     def from_json(cls, c: dict) -> "Clause":
         return cls(kind=c["kind"], text=c["text"], map=c.get("map"), id=c.get("id"), state=c.get("state"),
-                   var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"))
+                   var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
+                   maps=tuple(c.get("maps", ())))
 
 
 def local_clauses(text: str | None) -> tuple[Clause, ...]:

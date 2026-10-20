@@ -139,6 +139,16 @@ class PromotedExplorerTest(unittest.TestCase):
         result = Explorer(Diagram.from_json(exp), twins).run()
         self.assertTrue(result.tau_cycles)
 
+    def test_a_dropped_clause_is_taken_as_true_and_reported(self):
+        # csdfpromote -only lists a guard clause that read a left-out map as
+        # dropped: the walk takes it as true and says that it did.
+        exp = {**EXPANSION, "edges": [dict(e) for e in EXPANSION["edges"]]}
+        dep = exp["edges"][1]
+        dep["guard"] = dep["guard"] + [{"kind": "dropped", "text": "取引所が開いている", "maps": ["markets"], "line": 21}]
+        result = Explorer(Diagram.from_json(exp), GLOBAL_TWINS).run()
+        self.assertEqual(Explorer(Diagram.from_json(EXPANSION), GLOBAL_TWINS).run().states, result.states)
+        self.assertEqual([{"text": "取引所が開いている", "maps": ["markets"]}], result.to_json()["dropped_clauses"])
+
 
 if __name__ == "__main__":
     unittest.main()
