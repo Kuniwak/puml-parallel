@@ -38,9 +38,14 @@ class LoadTwinsTest(unittest.TestCase):
                 with self.assertRaises(PurityError):
                     load_twins(self.write("DOMAINS = {}\nCLAUSES = {}\n" + body))
 
-    def test_refuses_a_module_without_the_two_tables(self):
+    def test_refuses_a_module_without_domains(self):
         with self.assertRaises(PurityError):
             load_twins(self.write("CLAUSES = {}\n"))
+
+    def test_clauses_are_optional_for_a_diagram_read_through_a_glue(self):
+        self.assertEqual({}, load_twins(self.write("DOMAINS = {}\n")).clauses)
+        with self.assertRaises(PurityError):
+            load_twins(self.write("DOMAINS = {}\nCLAUSES = []\n"))
 
 
 if __name__ == "__main__":
