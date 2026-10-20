@@ -58,6 +58,15 @@ An event must remain non-empty after comments and surrounding whitespace are rem
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
+
+A `guard` or a `post` is a conjunction of *clauses* joined by the connective ` ∧ `
+(U+2227 with one space on each side). The clause is the unit the tools treat as
+opaque text: `csdfparallel` conjoins the predicates of two edges with it, and
+`csdfpromote` joins the clauses it generates and the clauses the author wrote with
+it, so a tool that reads an expansion gets the clauses back by splitting on it
+(`Predicate.Clauses`). The connective is grammar, not wording, so a clause must not
+contain it; a natural-language "and" (`a、かつ b`, `a and b`) is part of its clause.
+A `guard` or `post` that is omitted, or is the literal `true`, has no clause.
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 The following symbols are ABNF core rules:
