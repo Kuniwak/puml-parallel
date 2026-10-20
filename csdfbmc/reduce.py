@@ -42,6 +42,7 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable
 
+from csdfbmc.formal import free_names
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins
 from csdfbmc.values import FrozenMap
@@ -55,7 +56,7 @@ def _signature(fn: Callable) -> set[str]:
 
 
 def formal_names(expr: str) -> set[str]:
-    return {n.id for n in ast.walk(ast.parse(expr, mode="eval")) if isinstance(n, ast.Name)}
+    return free_names(ast.parse(expr, mode="eval"))
 
 
 def names_beyond(expr: str, own_id: str | None) -> set[str]:
