@@ -36,3 +36,42 @@ func TestConjoinClausesIsTheInverseOfClauses(t *testing.T) {
 		t.Errorf("ConjoinClauses([a b]) = %q, want %q", got, "a ∧ b")
 	}
 }
+
+func TestIsOpaqueTellsTheReservedClauseOfAClauseNotFormalisedYet(t *testing.T) {
+	tests := []struct {
+		clause Predicate
+		want   bool
+	}{
+		{clause: PredicateOpaque, want: true},
+		{clause: " opaque ", want: true},
+		{clause: "OPAQUE", want: false},
+		{clause: "opaque ∧ x > 0", want: false},
+		{clause: "x is opaque", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.clause), func(t *testing.T) {
+			if got := IsOpaque(tt.clause); got != tt.want {
+				t.Errorf("IsOpaque(%q) = %v, want %v", tt.clause, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormalClausesLeaveOutTheOpaqueOnes(t *testing.T) {
+	tests := []struct {
+		p    Predicate
+		want []Predicate
+	}{
+		{p: "opaque", want: nil},
+		{p: "opaque ∧ x > 0", want: []Predicate{"x > 0"}},
+		{p: "x > 0 ∧ y", want: []Predicate{"x > 0", "y"}},
+		{p: PredicateTrue, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.p), func(t *testing.T) {
+			if got := tt.p.FormalClauses(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("FormalClauses() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

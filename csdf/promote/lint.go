@@ -266,10 +266,13 @@ func (e *expander) warnAboutNotes() {
 	for _, c := range e.global.Constrains {
 		e.warnAboutAnchor(c.Anchor, c.Line, nil)
 
+		// An opaque clause says nothing about the instance by design; a guard
+		// made only of opaque clauses is not formalised yet, not wrong.
+		formal := c.Guard.FormalClauses()
 		named := slices.ContainsFunc(c.Params, func(p string) bool {
-			return strings.Contains(string(c.Guard), p)
+			return slices.ContainsFunc(formal, func(clause csdf.Predicate) bool { return strings.Contains(string(clause), p) })
 		})
-		if !named {
+		if len(formal) > 0 && !named {
 			e.warnf(c.Line, "the guard of this constrain names none of its arguments, so it says nothing about the instance")
 		}
 	}

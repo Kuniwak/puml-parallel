@@ -12,7 +12,7 @@ from contextlib import redirect_stderr, redirect_stdout
 
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
-from csdfbmc.meaning import GlueMeaning
+from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.protocol import Client, EvaluatorError, checked, start_module
 from csdfbmc.twins import Twins
 
@@ -37,8 +37,8 @@ def python_glue() -> Client:
     return start_module("csdfbmc.python_glue", [])
 
 
-def glue(client) -> GlueMeaning:
-    return GlueMeaning(checked(client))
+def glue(client):
+    return standard(GlueMeaning(checked(client)))
 
 
 def counter(**edits) -> Diagram:
@@ -51,6 +51,12 @@ class LabelsTest(unittest.TestCase):
         result = Explorer(counter(), NO_TWINS, meaning=glue(python_glue())).run()
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
+
+    def test_the_reserved_clause_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
+        counting = Counting(python_glue())
+        result = Explorer(counter(dec={"guard": "opaque"}), NO_TWINS, meaning=glue(counting), opaque="true", max_states=10).run()
+        self.assertEqual(["opaque"], result.opaque_clauses)
+        self.assertNotIn("opaque", [r["clause"] for r in counting.requests])
 
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:

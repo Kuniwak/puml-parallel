@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning, standard
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.twins import Twins, apply
 from csdfbmc.values import FrozenMap, encode, freeze
@@ -165,7 +165,8 @@ class Explorer:
     meaning says what the hand-written and constrain clauses mean
     (csdfbmc.meaning): the twins (TwinsMeaning, which of_twins gives), or a
     glue of the evaluator protocol (GlueMeaning), which reads every clause
-    by its text. A clause
+    by its text, each as meaning.standard makes it, with the reserved clause
+    opaque. A clause
     the meaning has nothing for follows the opaque rule. symmetry is refused
     when the meaning cannot be read to check SYMMETRIC.
 
@@ -178,7 +179,7 @@ class Explorer:
     @classmethod
     def of_twins(cls, diagram: Diagram, twins: Twins, **options) -> "Explorer":
         """An Explorer whose clauses mean what the twins say."""
-        return cls(diagram, twins, TwinsMeaning(diagram, twins), **options)
+        return cls(diagram, twins, standard(TwinsMeaning(diagram, twins)), **options)
 
     def __init__(self, diagram: Diagram, twins: Twins, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,

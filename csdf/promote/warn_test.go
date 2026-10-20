@@ -1,6 +1,7 @@
 package promote_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -131,4 +132,39 @@ func withLocal(locals map[string]string, path, source string) map[string]string 
 		}
 	}
 	return out
+}
+
+// withConstrain adds a constrain on BUY with the given guard to the global
+// diagram, and says the line its directive is on.
+func withConstrain(global, guard string) (string, int) {
+	src := strings.Replace(global, "@enduml", "note as c1\n  constrain BUY(約定ID, 数量) ; "+guard+"\nend note\n@enduml", 1)
+	before, _, _ := strings.Cut(src, "  constrain BUY")
+	return src, strings.Count(before, "\n") + 1
+}
+
+// A clause not formalised yet says nothing about the instance by design, so
+// it neither names an argument nor counts as failing to.
+func TestExpandWarnsAboutAConstrainThatNamesNoArgumentLeavingOutOpaqueClauses(t *testing.T) {
+	cases := map[string]struct {
+		guard string
+		warn  bool
+	}{
+		"only opaque":                        {guard: "opaque", warn: false},
+		"opaque beside a clause naming none": {guard: "opaque ∧ 相場は開いている", warn: true},
+		"a clause naming an argument":        {guard: "数量 は正", warn: false},
+		"a clause naming none":               {guard: "相場は開いている", warn: true},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			global, line := withConstrain(syncGlobal, c.guard)
+			x, diags := expand(t, global, syncLocals)
+			if x == nil {
+				t.Fatalf("promote.Expand() expansion = nil: %v", diags)
+			}
+			want := fmt.Sprintf("warning: line %d: the guard of this constrain names none of its arguments, so it says nothing about the instance", line)
+			if got := countDiagnostic(diags, want) > 0; got != c.warn {
+				t.Errorf("promote.Expand() warns %v, want %v (%q); got %v", got, c.warn, want, diags)
+			}
+		})
+	}
 }
