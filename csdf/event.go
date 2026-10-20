@@ -40,6 +40,9 @@ func ParseChannel(text string) (string, error) {
 	if !isID(channel) {
 		return "", fmt.Errorf("csdf.ParseChannel: %q is not a channel, which is an identifier with no ?field or !field", text)
 	}
+	if Event(channel) == Tau {
+		return "", fmt.Errorf("csdf.ParseChannel: tau is the internal event, which is neither synchronised nor hidden")
+	}
 	return channel, nil
 }
 

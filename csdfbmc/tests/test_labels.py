@@ -229,10 +229,6 @@ class LabelsCommandTest(unittest.TestCase):
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 # What hiding put?x leaves: a tau whose clauses still read x.
 HIDDEN = {
     "states": {"a": {"name": "a", "vars": [{"name": "n"}], "line": 2}},
@@ -247,10 +243,24 @@ class HiddenFieldTest(unittest.TestCase):
     value the tau chooses: hiding c?x leaves ⊓ x. τ, over the domain of x."""
 
     def test_a_tau_chooses_a_value_it_reads_from_its_domain(self):
-        twins = Twins(domains={"x": [0, 1, 2]}, clauses={})
-        result = Explorer(fixture.diagram(HIDDEN), twins, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
+        # Setup
+        explorer = Explorer(fixture.diagram(HIDDEN), Twins(domains={"x": [0, 1, 2]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute
+        result = explorer.run()
+
+        # Assert
         self.assertEqual({("a", (n,), ()) for n in range(4)}, set(result.states))
+        self.assertIn("tau(x=1)", [label for _, label, _, _ in explorer.successors(("a", (0,), ()))])
 
     def test_a_name_with_no_domain_is_not_chosen_but_refused(self):
+        # Setup
+        explorer = Explorer(fixture.diagram(HIDDEN), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute, Assert
         with self.assertRaisesRegex(KeyError, "'x'"):
-            Explorer(fixture.diagram(HIDDEN), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
+            explorer.run()
+
+
+if __name__ == "__main__":
+    unittest.main()

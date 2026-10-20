@@ -710,7 +710,8 @@ A twins module defines two tables. `DOMAINS` maps an event parameter to the
 finite set of its values. A `tau` chooses from it too: a name a `tau`'s clauses
 read that is neither a state variable nor a field, as hiding `c?x` leaves `x`,
 is chosen nondeterministically from its domain, and a name with no domain is an
-error. `CLAUSES` maps a clause, spelled exactly as in the
+error. A `tau` the author wrote is read by the same rule, and names what it
+chose in its label (`tau(x=1)`), as a promoted `tau` names its instance. `CLAUSES` maps a clause, spelled exactly as in the
 diagram, to a function of the names it reads: the event's parameters, the
 state variables before the step, and the ghosts; a twin is applied to the
 names its signature asks for. A guard twin returns a truth value. A post twin

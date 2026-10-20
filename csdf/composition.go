@@ -65,6 +65,17 @@ func ComposeParallel2(dL, dR *Diagram, syncChannels []string) (*Diagram, error) 
 	if err := checkFieldCounts(ss, dL, dR); err != nil {
 		return nil, fmt.Errorf("csdf.ComposeParallel2: %w", err)
 	}
+	// Every pair of edges a synchronised channel could pair is checked for a
+	// capture, whether or not a walk reaches it, as the field counts are.
+	for _, eL := range dL.Edges {
+		for _, eR := range dR.Edges {
+			if _, ok := ss[eL.Event.Channel()]; ok && eL.Event.Channel() == eR.Event.Channel() {
+				if _, err := synchronise(eL, eR, rightVars(dR, eR)); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
 
 	initStatePair := StatePair{
 		Left: StateWithID{
@@ -165,7 +176,9 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 //
 // A renaming must not capture a name: a left field name that a right clause
 // reads as a state variable of its own is refused, since the renamed clause
-// would read the field instead. Renamings are simultaneous, so two fields
+// would read the field instead. The tools do not read clauses, so a name a
+// right clause reads otherwise (a ghost of a checker, or a value a tau
+// chooses) cannot be told, and naming those apart is the author's. Renamings are simultaneous, so two fields
 // swapped (ch?a?b with ch?b?a) are two renamings, not a capture.
 func synchronise(eL, eR Edge, rightVars map[Var]struct{}) (Edge, error) {
 	fL, fR := eL.Event.Fields(), eR.Event.Fields()

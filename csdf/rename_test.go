@@ -86,3 +86,13 @@ func TestARenamedClauseIsCheckedAndReadByItsBody(t *testing.T) {
 		t.Errorf("ClausesJSON() mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestAnEscapedClauseHoldsNoRenaming(t *testing.T) {
+	// Execute
+	renames, body, err := SplitRenaming(EscapeClause("@[y := x] y"))
+
+	// Assert
+	if err != nil || renames != nil || body != `\@[y := x] y` {
+		t.Errorf("SplitRenaming(EscapeClause(...)) = %v, %q, %v, want no renaming", renames, body, err)
+	}
+}

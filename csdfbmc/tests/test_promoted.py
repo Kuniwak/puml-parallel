@@ -140,6 +140,22 @@ class PromotedExplorerTest(unittest.TestCase):
         result = Explorer.of_twins(fixture.diagram(exp), twins).run()
         self.assertTrue(result.tau_cycles)
 
+    def test_a_tau_does_not_choose_an_instance_s_own_variable(self):
+        # Setup: 残高 has a domain, but the family's clause reads the
+        # instance's own 残高, which the tau must not choose.
+        tau = {"src": "running", "dst": "running", "event": "tau", "channel": "tau", "fields": [], "guard": "g", "post": "p", "line": 0}
+        exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
+            {"edge": tau, "origin": "promote: local/ACCOUNT.puml",
+             "guard": [{"kind": "local", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
+        twins = Twins(domains=dict(GLOBAL_TWINS.domains, 残高=[0, 1]), clauses=GLOBAL_TWINS.clauses, locals=GLOBAL_TWINS.locals)
+        explorer = Explorer.of_twins(fixture.diagram(exp), twins)
+
+        # Execute
+        chosen = explorer._chosen_by_tau(explorer.d.edges[-1])
+
+        # Assert
+        self.assertNotIn("残高", chosen)
+
     def test_a_dropped_clause_is_taken_as_true_and_reported(self):
         # csdfpromote -only lists a guard clause that read a left-out map as
         # dropped: the walk takes it as true and says that it did.

@@ -131,17 +131,17 @@ type ExpandedClause struct {
 
 // authored is a clause the author wrote, of the given kind, with what says
 // where it came from: its text as its language reads it, or opaque.
-func authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) ExpandedClause {
+// A renaming that does not parse is an error of the expansion, at the line the
+// clause was written on: a diagram built in code need not have been checked.
+func (e *expander) authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) ExpandedClause {
 	from.Kind = kind
 	if csdf.IsOpaque(clause) {
 		from.Opaque = true
 		return from
 	}
-	// A parsed diagram's clauses passed csdf.CheckClauses, so the renaming
-	// parses.
 	renames, body, err := csdf.SplitRenaming(clause)
 	if err != nil {
-		panic(fmt.Sprintf("promote.authored: %v", err))
+		e.errorf(from.Line, "%v", err)
 	}
 	from.Text = csdf.ClauseText(body)
 	from.Rename = csdf.RenamesMap(renames)
@@ -249,7 +249,7 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 func (e *expander) start(d *csdf.Diagram) []ExpandedClause {
 	out := []ExpandedClause{}
 	for _, c := range d.StartEdge.Post.Clauses() {
-		out = append(out, authored(ClauseLocal, c, ExpandedClause{Line: d.StartEdge.Line}))
+		out = append(out, e.authored(ClauseLocal, c, ExpandedClause{Line: d.StartEdge.Line}))
 	}
 	held := map[csdf.Var]bool{}
 	for _, v := range d.States[d.StartEdge.Dst].Vars {
@@ -319,7 +319,7 @@ func (e *expander) parts(p Promote, edge csdf.Edge, id string) edgeParts {
 func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) []ExpandedClause {
 	var clauses []ExpandedClause
 	for _, c := range pred.Clauses() {
-		clauses = append(clauses, authored(ClauseLocal, c, ExpandedClause{Map: string(p.Map), Path: e.paths[p.Map], Line: edge.Line}))
+		clauses = append(clauses, e.authored(ClauseLocal, c, ExpandedClause{Map: string(p.Map), Path: e.paths[p.Map], Line: edge.Line}))
 	}
 	return clauses
 }

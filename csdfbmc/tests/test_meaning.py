@@ -79,10 +79,6 @@ class ReservedOpaqueTest(unittest.TestCase):
         self.assertIn("'@opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 RENAMED = Clause("local", "y > 0", rename=(("y", "x"),))
 
 
@@ -120,3 +116,7 @@ class RenamedOntoNothingTest(unittest.TestCase):
         meaning = standard(GlueMeaning(Recording({"y > 0": Analysis(opaque=False, reads=("y",))}, lambda b: True)))
         with self.assertRaisesRegex(KeyError, "renamed onto"):
             meaning.evaluate(RENAMED, "guard", {"y": 1})
+
+
+if __name__ == "__main__":
+    unittest.main()
