@@ -34,6 +34,12 @@ type Request struct {
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
 	Index   *int   `json:"index,omitempty"`   // select (optional) / jump (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
+	// Pick enters the N-th suggestion of the pending prompt instead of Values
+	// (statevar), when the daemon has twins to suggest from.
+	Pick *int `json:"pick,omitempty"`
+	// DiagramJSON (session_new) is the JSON the checker reads for this session
+	// when the file is an expansion; empty means the file's own parse.
+	DiagramJSON string `json:"diagram_json,omitempty"`
 	// Replay walks a fresh session along a path csdfbmc recorded under a
 	// finding (replay).
 	Replay *animation.Replay `json:"replay,omitempty"`
@@ -74,6 +80,9 @@ type Pending struct {
 	Group    csdf.StateWithID   `json:"group"`
 	Guard    csdf.Predicate     `json:"guard"`
 	Post     csdf.Predicate     `json:"post"`
+	// Suggestions are the values the checker admits for this prompt, when
+	// the daemon has twins; nil otherwise.
+	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).

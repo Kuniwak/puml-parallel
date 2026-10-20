@@ -744,7 +744,10 @@ the event, which is the livelock the `assume` note was about. A clause without a
 twin is refused; `--opaque true` takes it as satisfied instead, which
 over-approximates the behaviour (a deadlock it then reports may be spurious; a
 deadlock it misses cannot be hidden by it) and lists the clauses so taken.
-`--json` prints the same as JSON, and under every finding a `replay`: the
+`csdfbmc next <diagram.json> <twins.py> (--initial | --state JSON --edge N)`
+answers what a REPL asks at a value prompt — the values the twins admit for the
+start state, or after the N-th outgoing edge of a runtime state — which
+`csdfrepl -twins` and `csdfrepld -twins` use. `--json` prints the same as JSON, and under every finding a `replay`: the
 initial values and, per step, the edge taken (event, source, destination,
 line) and the values of the state it leads to, which `csdfrepl -replay` and
 `csdfreplcmd replay` walk so the finding can be looked at in the REPL. The exit
@@ -837,6 +840,22 @@ State: 送信中
 ...
 ```
 
+With `-twins TWINS.py`, every value prompt also asks `csdfbmc` (on the PATH
+or beside the binary) what values the twins admit for the pending transition,
+shows them numbered, and takes `#N` in place of the values. `-local
+PATH=TWINS.py` gives the twins of each family of an expansion, and
+`-diagram-json FILE` the expansion JSON the checker reads instead of the
+file's own parse.
+
+```console
+$ csdfrepl -twins examples/bmc/withdraw_twins.py examples/bmc/withdraw.puml
+...
+Suggested by csdfbmc (enter #N to take one):
+  [#0] [3]
+
+state> #0
+```
+
 See [CSDFREPL.puml](docs/CSDFREPL.puml) for the behavioral specification.
 
 ## Headless exploration for agents
@@ -857,6 +876,7 @@ $ csdfreplcmd statevar -json '["done"]'
 $ csdfreplcmd trace
 $ csdfreplcmd jump 0                                     # branch from an earlier history entry
 $ csdfreplcmd replay -finding 0 findings.json            # walk a fresh session to a csdfbmc finding
+$ csdfreplcmd statevar -pick 0                           # enter the first suggestion (daemon started with -twins)
 $ csdfreplcmd read -json                                 # structured output for parsing
 $ csdfreplcmd session list
 $ csdfreplcmd serverversion                              # the daemon's version
@@ -866,8 +886,12 @@ $ csdfreplcmd session rm -s "$SID"
 The socket path is shared by both binaries via `-sock`, then `$CSDFREPLD_SOCK`,
 then `$XDG_RUNTIME_DIR/csdfrepld.sock`, then a temporary directory. Every command
 prints human-readable text by default and structured JSON with `-json`; `statevar`
-instead takes its values via `-json <json-array>` or `-json-file <file>`. Run
-`csdfreplcmd help` for the full command list.
+instead takes its values via `-json <json-array>` or `-json-file <file>`. A daemon
+started with `-twins TWINS.py` (and `-local PATH=TWINS.py` for the families of an
+expansion) asks `csdfbmc` at every value prompt what values the twins admit:
+`read` lists them under `suggestions`, `statevar -pick N` enters the N-th, and
+`session new -diagram-json FILE` names the expansion JSON the checker reads for
+that session. Run `csdfreplcmd help` for the full command list.
 
 ## Documentation
 

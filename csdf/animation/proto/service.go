@@ -15,9 +15,11 @@ import (
 
 // entry is one live session with its origin label.
 type entry struct {
-	id      string
-	path    string
-	session *animation.Session
+	id        string
+	path      string
+	session   *animation.Session
+	suggester animation.Suggester
+	cleanup   func()
 }
 
 // Service holds the in-memory animation sessions and maps protocol requests to
@@ -31,7 +33,19 @@ type Service struct {
 	version  string
 	solver   csdf.PostSolver
 	debug    bool
+	// suggesters builds, per new session, what its value prompts ask; nil
+	// when the daemon has no twins.
+	suggesters SuggesterFactory
 }
+
+// SuggesterFactory builds a session's suggester from its diagram and, for an
+// expansion, the JSON the checker reads; the cleanup, if any, runs when the
+// session is removed.
+type SuggesterFactory func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error)
+
+// SetSuggesters gives the daemon twins: every session created afterwards
+// suggests values at its prompts and accepts statevar picks.
+func (s *Service) SetSuggesters(f SuggesterFactory) { s.suggesters = f }
 
 // NewService returns a Service that reports the given version and resolves
 // state-variable values with csdf.SolveJSON. When debug is false, errors are
@@ -88,11 +102,19 @@ func (s *Service) handleSessionNew(req Request) Response {
 	if err != nil {
 		return s.errorFromErr(err)
 	}
+	e := &entry{path: req.Path, session: session}
+	if s.suggesters != nil {
+		sg, cleanup, err := s.suggesters(diagram, req.DiagramJSON)
+		if err != nil {
+			return s.errorFromErr(err)
+		}
+		e.suggester, e.cleanup = sg, cleanup
+	}
 	s.nextID++
-	id := strconv.Itoa(s.nextID)
-	s.sessions[id] = &entry{id: id, path: req.Path, session: session}
-	s.order = append(s.order, id)
-	return Response{OK: true, Session: id, Output: id + "\n", Data: mustData(SessionRef{Session: id})}
+	e.id = strconv.Itoa(s.nextID)
+	s.sessions[e.id] = e
+	s.order = append(s.order, e.id)
+	return Response{OK: true, Session: e.id, Output: e.id + "\n", Data: mustData(SessionRef{Session: e.id})}
 }
 
 func (s *Service) handleSessionList() Response {
@@ -119,6 +141,9 @@ func (s *Service) handleSessionRm(req Request) Response {
 	}
 	delete(s.sessions, e.id)
 	s.order = removeString(s.order, e.id)
+	if e.cleanup != nil {
+		e.cleanup()
+	}
 	return Response{OK: true, Session: e.id, Output: "removed " + e.id + "\n", Data: mustData(SessionRef{Session: e.id})}
 }
 
@@ -145,7 +170,22 @@ func (s *Service) handleStatevar(req Request) Response {
 	if e.session.Mode() != animation.ModeValues {
 		return errorResponse("not awaiting values; select a transition first")
 	}
-	result, err := e.session.EnterValues(req.Values)
+	values := req.Values
+	if req.Pick != nil {
+		if e.suggester == nil {
+			return errorResponse("the daemon has no twins to pick a suggestion from; start csdfrepld with -twins")
+		}
+		suggestions, err := e.session.Suggest(e.suggester)
+		if err != nil {
+			return s.errorFromErr(err)
+		}
+		picked, _, err := animation.PickSuggestion("#"+strconv.Itoa(*req.Pick), suggestions)
+		if err != nil {
+			return s.errorFromErr(err)
+		}
+		values = picked
+	}
+	result, err := e.session.EnterValues(values)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
@@ -263,6 +303,15 @@ func viewResponse(e *entry) Response {
 		animation.RenderStateValuePrompt(&buf, prev, group, guard, post)
 		view.Mode = "values"
 		view.Pending = &Pending{Previous: prev, Group: group, Guard: guard, Post: post}
+		if e.suggester != nil {
+			suggestions, err := sess.Suggest(e.suggester)
+			if err != nil {
+				animation.RenderError(&buf, err.Error())
+			} else {
+				animation.RenderSuggestions(&buf, suggestions)
+				view.Pending.Suggestions = suggestions
+			}
+		}
 	} else {
 		current, _ := sess.Current()
 		animation.RenderState(&buf, sess.Diagram(), current)

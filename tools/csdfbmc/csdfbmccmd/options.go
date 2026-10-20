@@ -46,6 +46,12 @@ Checker options (the checker's --help lists them in full):
   --within STATE       with --avoid, look among these control states only
   --json               print the result as JSON
 
+"csdfbmc next <diagram.json> <twins.py> (--initial | --state JSON --edge N)"
+answers what a REPL asks at a value prompt: the values the twins admit for
+the start state, or after the N-th outgoing edge of the given runtime state,
+as {"candidates": [{"params": {...}, "values": [...]}, ...]}. csdfrepl and
+csdfrepld call it when given -twins.
+
 The exit status is the checker's: 0 when nothing was found, 1 when a
 deadlock, tau cycle, broken invariant or avoiding cycle was, 2 when the
 inputs could not be read. The sources are unpacked once per version under

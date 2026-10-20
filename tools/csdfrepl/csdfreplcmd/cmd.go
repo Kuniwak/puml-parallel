@@ -8,6 +8,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -43,6 +44,16 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			}
 			replay = &findings[opts.Finding].Replay
 		}
-		return runWithSolver(opts.File, inout, interrupts, csdf.SolveJSON, replay)
+		run := runOptions{Replay: replay}
+		if opts.Twins != "" {
+			if opts.DiagramJSON != "" {
+				run.Suggester = &bmc.Suggester{Diagram: opts.DiagramJSON, Twins: opts.Twins, Locals: opts.Locals}
+			} else {
+				run.SuggesterForDiagram = func(d *csdf.Diagram) (animation.Suggester, func(), error) {
+					return bmc.ForDiagram(d, opts.Twins, opts.Locals)
+				}
+			}
+		}
+		return runWithSolver(opts.File, inout, interrupts, csdf.SolveJSON, run)
 	}
 }

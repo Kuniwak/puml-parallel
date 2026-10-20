@@ -339,27 +339,61 @@ class Explorer:
             raise KeyError(f"the start edge leaves {list(missing)} of state {self.d.start!r} without a value; its post twins must assign every variable")
         return [(self.d.start, v, ghosts) for v in vals]
 
+    def _edge_successors(self, state: State, e: Edge, record: bool = True):
+        """(params, event as taken, next states) for every parameter valuation
+        of e that is enabled from state. With record, what the walk reports
+        (unconstrained and empty posts) is kept."""
+        names = e.params + e.implicit_ids()
+        out = []
+        for args in itertools.product(*(self.twins.domain(p) for p in names)):
+            params = dict(zip(names, args))
+            if not self._holds(e.guard, self._env(state, params)):
+                continue
+            label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
+            ghosts = self._ghosts_after(state, e.name, params)
+            vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
+            if missing:
+                if record:
+                    self.unconstrained.append((state, label, missing))
+                continue
+            if not vals:
+                if record:
+                    self.empty_posts.append((state, label))
+                continue
+            out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
+        return out
+
     def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
         """(event name, event as taken, next state, edge) for every enabled transition."""
-        sid, values, _ = state
         out: list[tuple[str, str, State, Edge]] = []
-        for e in self.d.out_edges(sid):
-            names = e.params + e.implicit_ids()
-            for args in itertools.product(*(self.twins.domain(p) for p in names)):
-                params = dict(zip(names, args))
-                if not self._holds(e.guard, self._env(state, params)):
-                    continue
-                label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
-                ghosts = self._ghosts_after(state, e.name, params)
-                vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
-                if missing:
-                    self.unconstrained.append((state, label, missing))
-                    continue
-                if not vals:
-                    self.empty_posts.append((state, label))
-                    continue
-                for dst_vals in vals:
-                    out.append((e.name, label, (e.dst, dst_vals, ghosts), e))
+        for e in self.d.out_edges(state[0]):
+            for _, label, nexts in self._edge_successors(state, e):
+                for t in nexts:
+                    out.append((e.name, label, t, e))
+        return out
+
+    # -- what a REPL asks at a value prompt ------------------------------------
+
+    def initial_candidates(self) -> list[list]:
+        """The values of the start state the start post admits, as JSON."""
+        return [[encode(v) for v in s[1]] for s in self.initial()]
+
+    def candidates(self, state_id: str, values: list, edge_index: int) -> list[dict]:
+        """The values the twins admit after the edge_index-th outgoing edge of
+        state_id (in the diagram's order) from the given values, per parameter
+        valuation: [{"params": {...}, "values": [...]}, ...]. The ghosts are
+        taken at their initial values, since a REPL does not keep them."""
+        edges = self.d.out_edges(state_id)
+        if edge_index < 0 or edge_index >= len(edges):
+            raise IndexError(f"state {state_id!r} has {len(edges)} outgoing edge(s); no edge {edge_index}")
+        if len(values) != len(self.d.vars[state_id]):
+            raise ValueError(f"state {state_id!r} has {len(self.d.vars[state_id])} variable(s), got {len(values)} value(s)")
+        ghosts = tuple(init for init, _ in self.twins.ghosts.values())
+        state: State = (state_id, tuple(freeze(v) for v in values), ghosts)
+        out = []
+        for params, _, nexts in self._edge_successors(state, edges[edge_index], record=False):
+            for t in nexts:
+                out.append({"params": {k: encode(v) for k, v in params.items()}, "values": [encode(v) for v in t[1]]})
         return out
 
     def can_end(self, state: State) -> bool:
