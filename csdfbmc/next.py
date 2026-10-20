@@ -13,20 +13,13 @@ import argparse
 import json
 import sys
 
+from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
 from csdfbmc.explore import Explorer
-from csdfbmc.model import Diagram
-from csdfbmc.protocol import EvaluatorError, from_options
-from csdfbmc.twins import load_twins, PurityError
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc next", description=__doc__.split("\n\n")[1])
-    ap.add_argument("diagram")
-    ap.add_argument("twins")
-    glue = ap.add_mutually_exclusive_group()
-    glue.add_argument("--evaluator", metavar="CMD", help="read every clause through the glue this command starts (the evaluator protocol)")
-    glue.add_argument("--evaluator-module", metavar="MODULE", help="read every clause through the glue this Python module and its arguments load in-process")
-    ap.add_argument("--local", metavar="PATH=TWINS.py", action="append", default=[])
+    add_inputs(ap)
     ap.add_argument("--initial", action="store_true", help="the values of the start state")
     ap.add_argument("--state", metavar="JSON", help="the current state, as a runtime state or an array of values")
     ap.add_argument("--edge", metavar="N", type=int, help="the outgoing edge taken, numbered from 0 in the diagram's order")
@@ -34,36 +27,24 @@ def main(argv=None) -> int:
     if a.initial == (a.state is not None or a.edge is not None) or (a.state is None) != (a.edge is None):
         ap.error("give --initial, or both --state and --edge")
 
-    evaluator = None
     try:
-        evaluator = from_options(a.evaluator, a.evaluator_module)
-        diagram = Diagram.load(a.diagram)
-        twins = load_twins(a.twins)
-        for spec in a.local:
-            path, sep, module = spec.partition("=")
-            if not sep or not path or not module:
-                raise ValueError(f"--local expects PATH=TWINS.py, got {spec!r}")
-            twins.locals[path] = load_twins(module)
-        explorer = Explorer(diagram, twins, evaluator=evaluator)
-        if a.initial:
-            candidates = [{"params": {}, "values": v} for v in explorer.initial_candidates()]
-        else:
-            state = json.loads(a.state)
-            if isinstance(state, dict):
-                state_id = state["state_id"]
-                values = [v["value"] for v in state.get("values", [])]
-            else:
-                raise ValueError("--state must be a runtime state object with state_id and values")
-            candidates = explorer.candidates(state_id, values, a.edge)
-    except (OSError, ValueError, KeyError, IndexError, TypeError, PurityError, EvaluatorError) as e:
+        with opened(a) as (diagram, twins, meaning):
+            candidates = _candidates(Explorer(diagram, twins, meaning=meaning), a)
+    except (*LOADING_ERRORS, IndexError, TypeError) as e:
         print(f"csdfbmc next: {e}", file=sys.stderr)
         return 2
-    finally:
-        if evaluator is not None:
-            evaluator.close()
     json.dump({"candidates": candidates}, sys.stdout, ensure_ascii=False)
     print()
     return 0
+
+
+def _candidates(explorer: Explorer, a) -> list:
+    if a.initial:
+        return [{"params": {}, "values": v} for v in explorer.initial_candidates()]
+    state = json.loads(a.state)
+    if not isinstance(state, dict):
+        raise ValueError("--state must be a runtime state object with state_id and values")
+    return explorer.candidates(state["state_id"], [v["value"] for v in state.get("values", [])], a.edge)
 
 
 if __name__ == "__main__":

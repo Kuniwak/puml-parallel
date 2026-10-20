@@ -5,7 +5,7 @@ import os
 import sys
 import unittest
 
-from csdfbmc.protocol import EvaluatorError, from_wire, start, to_wire
+from csdfbmc.protocol import Analysis, EvaluatorError, from_wire, start_command, start_module, to_wire
 from csdfbmc.values import FrozenMap
 
 
@@ -47,31 +47,27 @@ class TransportTest(unittest.TestCase):
     Python module loaded in-process; both answer the same requests."""
 
     def evaluators(self):
-        command = start(command=[sys.executable, "-E", "-s", "-B", "-m", "csdfbmc.python_glue"], cwd=ROOT)
+        command = start_command([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc.python_glue"], cwd=ROOT)
         self.addCleanup(command.close)
-        return {"command": command, "module": start(module=["csdfbmc.python_glue"])}
+        return {"command": command, "module": start_module("csdfbmc.python_glue", [])}
 
     def test_both_answer_hello_and_the_value_requests_alike(self):
         for how, ev in self.evaluators().items():
             with self.subTest(how=how):
                 self.assertEqual("python", ev.language)
-                self.assertEqual({"reads": ["m"], "writes": ["m"]},
-                                 ev.request({"op": "analyse", "clause": "[{'m': m.set('k', (1, 2))}]", "role": "post"}))
-                answer = ev.request({"op": "post", "clause": "[{'m': m.set('k', (1, 2))}]",
-                                     "bindings": [{"m": FrozenMap()}]})
-                self.assertEqual({"results": [[{"m": FrozenMap({"k": (1, 2)})}]]}, answer)
-                self.assertEqual({"results": [True]}, ev.request({"op": "guard", "clause": "len(s) == 2",
-                                                                  "bindings": [{"s": frozenset({1, 2})}]}))
+                self.assertEqual(Analysis(opaque=False, reads=("m",), writes=("m",)), ev.analyse("[{'m': m.set('k', (1, 2))}]", "post"))
+                self.assertEqual([[{"m": FrozenMap({"k": (1, 2)})}]], ev.post("[{'m': m.set('k', (1, 2))}]", [{"m": FrozenMap()}]))
+                self.assertEqual([True], ev.guard("len(s) == 2", [{"s": frozenset({1, 2})}]))
 
     def test_an_error_answer_is_raised_with_its_message(self):
         for how, ev in self.evaluators().items():
             with self.subTest(how=how), self.assertRaises(EvaluatorError) as cm:
-                ev.request({"op": "guard", "clause": "x >", "bindings": [{}]})
+                ev.guard("x >", [{}])
             self.assertIn("x >", str(cm.exception))
 
     def test_a_glue_speaking_another_protocol_version_is_refused(self):
         with self.assertRaises(EvaluatorError) as cm:
-            start(command=[sys.executable, "-c", "import sys; sys.stdin.readline(); print('{\"language\": \"x\", \"protocol\": 99}')"])
+            start_command([sys.executable, "-c", "import sys; sys.stdin.readline(); print('{\"language\": \"x\", \"protocol\": 99}')"])
         self.assertIn("99", str(cm.exception))
 
 

@@ -11,7 +11,8 @@ from contextlib import redirect_stderr, redirect_stdout
 
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
-from csdfbmc.protocol import Evaluator, start
+from csdfbmc.meaning import GlueMeaning
+from csdfbmc.protocol import Client, start_module
 from csdfbmc.twins import Twins
 
 COUNTER = {
@@ -31,8 +32,12 @@ COUNTER = {
 NO_TWINS = Twins(domains={}, clauses={})
 
 
-def python_glue() -> Evaluator:
-    return start(module=["csdfbmc.python_glue"])
+def python_glue() -> Client:
+    return start_module("csdfbmc.python_glue", [])
+
+
+def glue(client=None) -> GlueMeaning:
+    return GlueMeaning(client if client is not None else python_glue())
 
 
 def counter(**edits) -> Diagram:
@@ -42,23 +47,23 @@ def counter(**edits) -> Diagram:
 
 class LabelsTest(unittest.TestCase):
     def test_the_clauses_are_evaluated_through_the_glue(self):
-        result = Explorer(counter(), NO_TWINS, evaluator=python_glue()).run()
+        result = Explorer(counter(), NO_TWINS, meaning=glue()).run()
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
-            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, evaluator=python_glue()).run()
+            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue()).run()
         self.assertIn("OPAQUE", str(cm.exception))
 
     def test_an_opaque_clause_may_be_taken_as_true(self):
-        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, evaluator=python_glue(), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(), opaque="true", max_states=10).run()
         self.assertIn(("a", (-1,), ()), set(result.states))
         self.assertEqual(["OPAQUE"], result.opaque_clauses)
 
     def test_a_clause_is_evaluated_once_per_value_of_what_it_reads(self):
         counting = Counting(python_glue())
-        Explorer(counter(), NO_TWINS, evaluator=counting).run()
+        Explorer(counter(), NO_TWINS, meaning=glue(counting)).run()
         guards = [r for r in counting.requests if r["op"] == "guard" and r["clause"] == "n > 0"]
         self.assertEqual(3, sum(len(r["bindings"]) for r in guards))
 
@@ -66,7 +71,7 @@ class LabelsTest(unittest.TestCase):
         diagram = Diagram.from_json(dict(COUNTER, edges=[
             {"src": "a", "dst": "a", "event": "add(k)", "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
         counting = Counting(python_glue())
-        result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), evaluator=counting).run()
+        result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), meaning=glue(counting)).run()
         guards = [r for r in counting.requests if r["op"] == "guard"]
         self.assertEqual(len(result.states), len(guards))
         self.assertEqual([3, 3], [len(r["bindings"]) for r in guards[:2]])
@@ -74,7 +79,7 @@ class LabelsTest(unittest.TestCase):
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
         lying = Lying(python_glue())
         with self.assertRaises(ValueError) as cm:
-            Explorer(counter(), NO_TWINS, evaluator=lying).run()
+            Explorer(counter(), NO_TWINS, meaning=glue(lying)).run()
         self.assertIn("[{'n': n - 1}]", str(cm.exception))
 
 
@@ -106,41 +111,53 @@ class FormalExpansionTest(unittest.TestCase):
         self.twins = Twins(domains=GLOBAL_TWINS.domains, clauses={})
 
     def test_a_formal_expansion_needs_no_twins_and_finds_the_same(self):
-        result = Explorer(self.diagram, self.twins, evaluator=python_glue()).run()
+        result = Explorer(self.diagram, self.twins, meaning=glue()).run()
         self.assertEqual(set(self.prose.states), set(result.states))
         self.assertEqual(self.prose.deadlocks, result.deadlocks)
 
     def test_partial_order_reduction_reads_what_the_glue_says_a_clause_reads(self):
         from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
         prose = Explorer(Diagram.from_json(EXPANSION), GLOBAL_TWINS, por=True).run()
-        result = Explorer(self.diagram, self.twins, evaluator=python_glue(), por=True).run()
+        result = Explorer(self.diagram, self.twins, meaning=glue(), por=True).run()
         self.assertEqual(set(prose.states), set(result.states))
         self.assertEqual(prose.deadlocks, result.deadlocks)
 
     def test_symmetry_is_refused_since_the_checker_cannot_read_the_clauses(self):
         twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
         with self.assertRaises(ValueError) as cm:
-            Explorer(self.diagram, twins, evaluator=python_glue(), symmetry=True)
+            Explorer(self.diagram, twins, meaning=glue(), symmetry=True)
         self.assertIn("through a glue", str(cm.exception))
 
 
-class Counting(Evaluator):
-    def __init__(self, inner: Evaluator):
+class Counting:
+    """A Client that records what it is asked."""
+
+    def __init__(self, inner: Client):
         self.inner, self.language, self.requests = inner, inner.language, []
 
-    def _send(self, request: dict) -> dict:
-        self.requests.append(request)
-        return self.inner._send(request)
+    def analyse(self, clause, role):
+        return self.inner.analyse(clause, role)
+
+    def guard(self, clause, bindings):
+        self.requests.append({"op": "guard", "clause": clause, "bindings": bindings})
+        return self.inner.guard(clause, bindings)
+
+    def post(self, clause, bindings):
+        self.requests.append({"op": "post", "clause": clause, "bindings": bindings})
+        return self.inner.post(clause, bindings)
+
+    def close(self):
+        self.inner.close()
 
 
 class Lying(Counting):
     """Says a post writes n but answers an assignment to m as well."""
 
-    def _send(self, request: dict) -> dict:
-        answer = super()._send(request)
-        if request["op"] == "post" and request["clause"] == "[{'n': n - 1}]":
-            return {"results": [[dict(a, m=0) for a in r] for r in answer["results"]]}
-        return answer
+    def post(self, clause, bindings):
+        results = super().post(clause, bindings)
+        if clause == "[{'n': n - 1}]":
+            return [[dict(a, m=0) for a in r] for r in results]
+        return results
 
 
 class LabelsCommandTest(unittest.TestCase):

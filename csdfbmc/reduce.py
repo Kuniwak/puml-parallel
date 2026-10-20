@@ -90,7 +90,7 @@ class PartialOrder:
             return {c.map}
         if c.kind in ("frame", "dropped"):
             return set()  # a frame copies a variable; it neither enables nor changes anything
-        names = self.ex.clause_names(c, role)
+        names = self.ex.meaning.names(c, role)
         if names is None:
             return {c.map} if c.map else set()
         if c.kind == "local" and c.map:
@@ -115,7 +115,7 @@ class PartialOrder:
         for c, role in _with_roles(e):
             if c.kind in _INSTANCE_KINDS or (c.kind == "local" and c.map):
                 continue
-            beyond = self.ex.clause_names_beyond(c, own_id)
+            beyond = self.ex.meaning.names_beyond(c, own_id)
             if beyond is not None:
                 reads |= beyond & self.names
             else:

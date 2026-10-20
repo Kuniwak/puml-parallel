@@ -2,6 +2,8 @@
 helpers over the maps of an expansion and a few pure builtins."""
 from __future__ import annotations
 
+import ast
+
 from csdfbmc.values import FrozenMap
 
 # The key under which an instance's record holds its local state's name; the
@@ -18,3 +20,15 @@ FORMAL_GLOBALS = {
     "exists": lambda m, pred: any(pred(i, r) for i, r in m.items()),
     "count": lambda m, pred: sum(1 for i, r in m.items() if pred(i, r)),
 }
+
+
+def free_names(tree: ast.AST) -> set[str]:
+    """The names tree reads that it does not bind itself, in a comprehension
+    or a lambda."""
+    loaded, bound = set(), set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            (loaded if isinstance(node.ctx, ast.Load) else bound).add(node.id)
+        elif isinstance(node, ast.arg):
+            bound.add(node.arg)
+    return loaded - bound

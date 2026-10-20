@@ -17,10 +17,8 @@ import argparse
 import json
 import sys
 
+from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
 from csdfbmc.explore import Explorer
-from csdfbmc.model import Diagram
-from csdfbmc.protocol import EvaluatorError, from_options
-from csdfbmc.twins import load_twins, PurityError
 
 
 def print_groups(result) -> None:
@@ -64,13 +62,7 @@ def print_every(result) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
-    ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output)")
-    ap.add_argument("twins", help="the Python module holding DOMAINS and CLAUSES")
-    glue = ap.add_mutually_exclusive_group()
-    glue.add_argument("--evaluator", metavar="CMD", help="read every clause through the glue this command starts (the evaluator protocol)")
-    glue.add_argument("--evaluator-module", metavar="MODULE", help="read every clause through the glue this Python module and its arguments load in-process")
-    ap.add_argument("--local", metavar="PATH=TWINS.py", action="append", default=[],
-                    help="the twins of the local diagram at PATH, as the expansion names it (repeatable)")
+    add_inputs(ap)
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
     ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause without a twin means (default: refuse)")
     ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
@@ -82,24 +74,13 @@ def main(argv=None) -> int:
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
 
-    evaluator = None
     try:
-        evaluator = from_options(a.evaluator, a.evaluator_module)
-        diagram = Diagram.load(a.diagram)
-        twins = load_twins(a.twins)
-        for spec in a.local:
-            path, sep, module = spec.partition("=")
-            if not sep or not path or not module:
-                raise ValueError(f"--local expects PATH=TWINS.py, got {spec!r}")
-            twins.locals[path] = load_twins(module)
-        result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
-                          por=a.por, symmetry=a.symmetry, evaluator=evaluator).run()
-    except (OSError, ValueError, KeyError, PurityError, EvaluatorError) as e:
+        with opened(a) as (diagram, twins, meaning):
+            result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
+                              por=a.por, symmetry=a.symmetry, meaning=meaning).run()
+    except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
-    finally:
-        if evaluator is not None:
-            evaluator.close()
 
     if a.json:
         json.dump(result.to_json(), sys.stdout, ensure_ascii=False)

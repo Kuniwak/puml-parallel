@@ -12,25 +12,13 @@ import ast
 import importlib.util
 from typing import Callable
 
-from csdfbmc.formal import FORMAL_GLOBALS
+from csdfbmc.formal import FORMAL_GLOBALS, free_names
+from csdfbmc.protocol import handler
 from csdfbmc.twins import check_pure
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"
-PROTOCOL = 1
 OPAQUE = "OPAQUE"
-
-
-def _free_names(tree: ast.AST) -> set[str]:
-    """The names tree reads that it does not bind itself, in a comprehension
-    or a lambda."""
-    loaded, bound = set(), set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            (loaded if isinstance(node.ctx, ast.Load) else bound).add(node.id)
-        elif isinstance(node, ast.arg):
-            bound.add(node.arg)
-    return loaded - bound
 
 
 def _post_writes(tree: ast.Expression) -> list[str]:
@@ -55,7 +43,7 @@ def _post_writes(tree: ast.Expression) -> list[str]:
 
 
 class Glue:
-    """Answers the requests of the protocol. defs are the paths of modules
+    """Clauses in the pure subset of Python. defs are the paths of modules
     whose public names every clause may use: constants and helpers shared by
     the clauses, checked against the pure subset like a twins module."""
 
@@ -63,7 +51,7 @@ class Glue:
         self.globals = dict(FORMAL_GLOBALS)
         for path in defs:
             self.globals.update(_load_defs(path))
-        self._compiled: dict[str, tuple] = {}
+        self._compiled: dict[tuple[str, str], tuple] = {}
 
     def _compile(self, clause: str, role: str):
         key = (clause, role)
@@ -71,7 +59,7 @@ class Glue:
             check_pure(clause, f"<clause {clause!r}>")
             tree = ast.parse(clause, mode="eval")
             writes = _post_writes(tree) if role == "post" else []
-            reads = sorted(_free_names(tree) - set(self.globals))
+            reads = sorted(free_names(tree) - set(self.globals))
             self._compiled[key] = (compile(tree, f"<clause {clause!r}>", "eval"), reads, writes)
         return self._compiled[key]
 
@@ -79,24 +67,17 @@ class Glue:
         code, _, _ = self._compile(clause, role)
         return eval(code, self.globals, dict(binding))
 
-    def handle(self, request: dict) -> dict:
-        op = request.get("op")
-        if op == "hello":
-            return {"language": LANGUAGE, "protocol": PROTOCOL}
-        try:
-            if op == "analyse":
-                if request["clause"].strip() == OPAQUE:
-                    return {"opaque": True}
-                _, reads, writes = self._compile(request["clause"], request["role"])
-                return {"reads": reads, "writes": writes}
-            if op == "guard":
-                return {"results": [bool(self._eval(request["clause"], "guard", b)) for b in request["bindings"]]}
-            if op == "post":
-                return {"results": [[{k: freeze(v) for k, v in a.items()} for a in self._eval(request["clause"], "post", b)]
-                                    for b in request["bindings"]]}
-        except Exception as e:  # what the clause raised is the answer, reported with it
-            return {"error": f"{type(e).__name__}: {e}"}
-        return {"error": f"unknown request {op!r}"}
+    def analyse(self, clause: str, role: str) -> dict:
+        if clause.strip() == OPAQUE:
+            return {"opaque": True}
+        _, reads, writes = self._compile(clause, role)
+        return {"reads": reads, "writes": writes}
+
+    def guard(self, clause: str, binding: dict) -> bool:
+        return bool(self._eval(clause, "guard", binding))
+
+    def post(self, clause: str, binding: dict) -> list[dict]:
+        return [{k: freeze(v) for k, v in a.items()} for a in self._eval(clause, "post", binding)]
 
 
 def _load_defs(path: str) -> dict:
@@ -111,7 +92,8 @@ def _load_defs(path: str) -> dict:
 def evaluator(args: list[str]) -> Callable[[dict], dict]:
     """The handler of the protocol's requests; args are the paths of the
     modules of shared definitions."""
-    return Glue(args).handle
+    glue = Glue(args)
+    return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post)
 
 
 if __name__ == "__main__":
