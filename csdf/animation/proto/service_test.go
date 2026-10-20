@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 )
 
@@ -347,5 +348,58 @@ func TestHandleReplayReportsAStepThatCannotBeTaken(t *testing.T) {
 	read := service.Handle(Request{Command: CommandRead, Session: id})
 	if view := decodeView(t, read); view.Mode != "command" || view.State == nil || view.State.ID != "s0" {
 		t.Errorf("after a failed replay the session is %+v, want command mode at s0", view)
+	}
+}
+
+type fakeSuggester struct{ values string }
+
+func (f fakeSuggester) Initial() ([]animation.Suggestion, error) {
+	return []animation.Suggestion{{Values: []byte(f.values)}}, nil
+}
+func (f fakeSuggester) Next(csdf.RuntimeState, int) ([]animation.Suggestion, error) {
+	return []animation.Suggestion{{Values: []byte(`["picked"]`)}}, nil
+}
+
+func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
+	service := NewService("test-version", false)
+	cleaned := false
+	service.SetSuggesters(func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error) {
+		return fakeSuggester{values: `[0]`}, func() { cleaned = true }, nil
+	})
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
+	}
+	id := resp.Session
+
+	read := service.Handle(Request{Command: CommandRead, Session: id})
+	if !strings.Contains(read.Output, "[#0] [0]") {
+		t.Errorf("read output = %q, want the suggestion", read.Output)
+	}
+	if view := decodeView(t, read); view.Pending == nil || len(view.Pending.Suggestions) != 1 {
+		t.Errorf("read view = %+v, want one suggestion", view)
+	}
+	if resp := service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(0)}); !resp.OK {
+		t.Fatalf("statevar -pick 0 failed: %s", resp.Error)
+	}
+	service.Handle(Request{Command: CommandSelect, Session: id, Index: intPtr(0)})
+	resp = service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(0)})
+	if !resp.OK || !strings.Contains(resp.Output, `result = "picked"`) {
+		t.Errorf("statevar -pick after select = %+v, want the picked value entered", resp)
+	}
+	if resp := service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(4)}); resp.OK {
+		t.Error("picking a suggestion that does not exist succeeded")
+	}
+	service.Handle(Request{Command: CommandSessionRm, Session: id})
+	if !cleaned {
+		t.Error("removing the session did not run the suggester's cleanup")
+	}
+}
+
+func TestPickWithoutTwinsIsRefused(t *testing.T) {
+	service, id := newSession(t)
+	resp := service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(0)})
+	if resp.OK || !strings.Contains(resp.Error, "-twins") {
+		t.Errorf("statevar -pick without twins = %+v, want a refusal naming -twins", resp)
 	}
 }

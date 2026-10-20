@@ -219,19 +219,28 @@ func pickFinding(bs []byte, n int) (*animation.Replay, error) {
 func parseStatevar() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd statevar", inout)
-		setLeafUsage(flags, "csdfreplcmd statevar -json <json-array> | -json-file <file> [-s <id>]",
-			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'")
+		setLeafUsage(flags, "csdfreplcmd statevar -json <json-array> | -json-file <file> | -pick <n> [-s <id>]",
+			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -twins.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		var jsonText, jsonFile string
 		flags.StringVar(&jsonText, "json", "", "state variable values as a JSON array")
 		flags.StringVar(&jsonFile, "json-file", "", "file containing the JSON array of state variable values")
+		pick := flags.Int("pick", -1, "enter the n-th suggestion instead (needs a daemon started with -twins)")
 		opts, err := parseLeaf(flags, args, cf)
 		if err != nil || opts.help {
 			return opts, err
 		}
 		if flags.NArg() != 0 {
-			return nil, errors.New("statevar takes no positional arguments; use -json or -json-file")
+			return nil, errors.New("statevar takes no positional arguments; use -json, -json-file or -pick")
+		}
+		if *pick >= 0 {
+			if jsonText != "" || jsonFile != "" {
+				return nil, errors.New("statevar: -pick excludes -json and -json-file")
+			}
+			n := *pick
+			opts.req = proto.Request{Command: proto.CommandStatevar, Session: cf.session, Pick: &n}
+			return opts, nil
 		}
 		values, err := statevarValues(jsonText, jsonFile)
 		if err != nil {
@@ -281,10 +290,11 @@ func parseServerVersion() cli.ParseOptionsFunc[*clientOptions] {
 func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
-		setLeafUsage(flags, "csdfreplcmd session new <file.puml|file.png> [-json]",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+		setLeafUsage(flags, "csdfreplcmd session new [-diagram-json <file>] [-json] <file.puml|file.png>",
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. With a daemon started with -twins,\n-diagram-json names the JSON the checker reads for this session (an\nexpansion from csdfpromote -format json); default: the file's own parse.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
+		diagramJSON := flags.String("diagram-json", "", "the JSON csdfbmc reads for this session (an expansion)")
 		opts, err := parseLeaf(flags, args, cf)
 		if err != nil || opts.help {
 			return opts, err
@@ -297,7 +307,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		if err != nil {
 			return nil, fmt.Errorf("session new: cannot read file: %v", err)
 		}
-		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content}
+		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content, DiagramJSON: *diagramJSON}
 		return opts, nil
 	}
 }
