@@ -15,7 +15,7 @@ from csdfbmc.formal import FORMAL_GLOBALS
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import ClientLike
 from csdfbmc.reduce import formal_names, names_beyond
-from csdfbmc.twins import Twins, apply, check_pure
+from csdfbmc.twins import Twins, apply, check_pure, reads
 
 # What a clause with no meaning to evaluate stands for: no twin, a glue
 # that says the clause is not formalised yet, or the reserved clause opaque.
@@ -79,7 +79,7 @@ class TwinsMeaning:
         fn = self._twin(clause)
         if fn is None:
             return None
-        return formal_names(clause.formal) if getattr(fn, "formal", False) else set(inspect.signature(fn).parameters)
+        return formal_names(clause.formal) if getattr(fn, "formal", False) else reads(fn)
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
         """The names a clause reads but a map read only as m[own_id], when
@@ -127,6 +127,11 @@ class GlueMeaning:
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
         return None
+
+    def writes(self, clause: Clause) -> set[str] | None:
+        """The variables a post clause gives a value to, as the glue says."""
+        analysis = self.client.analyse(clause.text, "post")
+        return None if analysis.opaque else set(analysis.writes)
 
     def _ask(self, clause: Clause, role: str, envs: list[dict]) -> list | None:
         analysis = self.client.analyse(clause.text, role)

@@ -56,6 +56,8 @@ Checker options (the checker's --help lists them in full):
                        (partial-order reduction)
   --symmetry           store one state per renaming of the instance IDs the
                        twins module declares SYMMETRIC
+  --cone               leave out the variables that nothing deciding a step or
+                       a property reads (cone of influence); same findings
   --json               print the result as JSON
 
 "csdfbmc next <diagram.json> <twins.py> (--initial | --state JSON --edge N)"

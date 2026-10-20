@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
+from csdfbmc.cone import Cone
 from csdfbmc.explore import Explorer
 from csdfbmc.model import Diagram
 from csdfbmc.meaning import GlueMeaning, standard
@@ -48,29 +49,29 @@ def counter(**edits) -> Diagram:
 
 class LabelsTest(unittest.TestCase):
     def test_the_clauses_are_evaluated_through_the_glue(self):
-        result = Explorer(counter(), NO_TWINS, meaning=glue(python_glue())).run()
+        result = Explorer(counter(), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
     def test_the_reserved_clause_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
         counting = Counting(python_glue())
-        result = Explorer(counter(dec={"guard": "opaque"}), NO_TWINS, meaning=glue(counting), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "opaque"}), NO_TWINS, meaning=glue(counting), cone=Cone.keep_all(), opaque="true", max_states=10).run()
         self.assertEqual(["opaque"], result.opaque_clauses)
         self.assertNotIn("opaque", [r["clause"] for r in counting.requests])
 
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
-            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue())).run()
+            Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
         self.assertIn("OPAQUE", str(cm.exception))
 
     def test_an_opaque_clause_may_be_taken_as_true(self):
-        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue()), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "OPAQUE"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all(), opaque="true", max_states=10).run()
         self.assertIn(("a", (-1,), ()), set(result.states))
         self.assertEqual(["OPAQUE"], result.opaque_clauses)
 
     def test_a_clause_is_evaluated_once_per_value_of_what_it_reads(self):
         counting = Counting(python_glue())
-        Explorer(counter(), NO_TWINS, meaning=glue(counting)).run()
+        Explorer(counter(), NO_TWINS, meaning=glue(counting), cone=Cone.keep_all()).run()
         guards = [r for r in counting.requests if r["op"] == "guard" and r["clause"] == "n > 0"]
         self.assertEqual(3, sum(len(r["bindings"]) for r in guards))
 
@@ -78,7 +79,7 @@ class LabelsTest(unittest.TestCase):
         diagram = Diagram.from_json(dict(COUNTER, edges=[
             {"src": "a", "dst": "a", "event": "add(k)", "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
         counting = Counting(python_glue())
-        result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), meaning=glue(counting)).run()
+        result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), meaning=glue(counting), cone=Cone.keep_all()).run()
         guards = [r for r in counting.requests if r["op"] == "guard"]
         self.assertEqual(len(result.states), len(guards))
         self.assertEqual([3, 3], [len(r["bindings"]) for r in guards[:2]])
@@ -86,13 +87,13 @@ class LabelsTest(unittest.TestCase):
     def test_twins_keyed_by_prose_are_refused_with_a_glue(self):
         twins = Twins(domains={}, clauses={"n > 0": lambda n: n > 0})
         with self.assertRaises(ValueError) as cm:
-            Explorer(counter(), twins, meaning=glue(python_glue()))
+            Explorer(counter(), twins, meaning=glue(python_glue()), cone=Cone.keep_all())
         self.assertIn("CLAUSES", str(cm.exception))
 
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
         lying = Lying(python_glue())
         with self.assertRaises(EvaluatorError) as cm:
-            Explorer(counter(), NO_TWINS, meaning=glue(lying)).run()
+            Explorer(counter(), NO_TWINS, meaning=glue(lying), cone=Cone.keep_all()).run()
         self.assertIn("[{'n': n - 1}]", str(cm.exception))
 
 
@@ -124,21 +125,21 @@ class FormalExpansionTest(unittest.TestCase):
         self.twins = Twins(domains=GLOBAL_TWINS.domains, clauses={})
 
     def test_a_formal_expansion_needs_no_twins_and_finds_the_same(self):
-        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue())).run()
+        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
         self.assertEqual(set(self.prose.states), set(result.states))
         self.assertEqual(self.prose.deadlocks, result.deadlocks)
 
     def test_partial_order_reduction_reads_what_the_glue_says_a_clause_reads(self):
         from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
         prose = Explorer.of_twins(Diagram.from_json(EXPANSION), GLOBAL_TWINS, por=True).run()
-        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), por=True).run()
+        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all(), por=True).run()
         self.assertEqual(set(prose.states), set(result.states))
         self.assertEqual(prose.deadlocks, result.deadlocks)
 
     def test_symmetry_is_refused_since_the_checker_cannot_read_the_clauses(self):
         twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
         with self.assertRaises(ValueError) as cm:
-            Explorer(self.diagram, twins, meaning=glue(python_glue()), symmetry=True)
+            Explorer(self.diagram, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
         self.assertIn("through a glue", str(cm.exception))
 
 

@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--evaluator CMD | --evaluator-module MODULE] [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--json]
+"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--evaluator CMD | --evaluator-module MODULE] [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
 json prints it, and the twins of its clauses, walks the reachable states within
@@ -10,7 +10,9 @@ or unconstrained post. For an expansion, --local names the twins of each
 family's local diagram by the path the expansion uses. --evaluator and
 --evaluator-module read every clause through a glue of the evaluator
 protocol, in place of twins (see csdfbmc.protocol). --por and --symmetry
-reduce the states walked without changing what is found. Exits 1 when it finds
+reduce the states walked without changing what is found, and so does
+--cone, which leaves out the variables outside the cone of influence of the
+guards, invariants and ghosts. Exits 1 when it finds
 any, 2 on a usage or loading error.
 """
 import argparse
@@ -18,6 +20,7 @@ import json
 import sys
 
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
+from csdfbmc.cone import Cone, compute as compute_cone
 from csdfbmc.explore import Explorer
 
 
@@ -60,6 +63,18 @@ def print_every(result) -> None:
         print(f"post admits no successor: {label} at {result.describe(s)}, after {result.trace_to(s)}")
 
 
+def print_cone(result) -> None:
+    if result.relevant is None:
+        print(f"cone of influence not computed: what {result.cone_blocked_by[0]} reads is unknown"
+              + (f" (and {len(result.cone_blocked_by) - 1} more)" if len(result.cone_blocked_by) > 1 else ""))
+        return
+    if not result.dropped:
+        return
+    print(f"relevant: {', '.join(result.relevant)}")
+    for var, edges in result.dropped.items():
+        print(f"left out (nothing that decides a step or a property reads it): {var}, set by {'; '.join(edges) or 'no post the meaning can tell'}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
@@ -71,13 +86,15 @@ def main(argv=None) -> int:
     ap.add_argument("--all", action="store_true", help="list every finding instead of one per shape with a count")
     ap.add_argument("--por", action="store_true", help="take the moves of one independent instance at a time (partial-order reduction)")
     ap.add_argument("--symmetry", action="store_true", help="store one state per renaming of the IDs the twins declare SYMMETRIC")
+    ap.add_argument("--cone", action="store_true", help="leave out the variables nothing that decides a step or a property reads (cone of influence)")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
 
     try:
-        with opened(a) as (diagram, twins, meaning):
+        with opened(a) as (diagram, twins, meaning, writes):
             result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
-                              por=a.por, symmetry=a.symmetry, meaning=meaning).run()
+                              por=a.por, symmetry=a.symmetry, meaning=meaning,
+                              cone=compute_cone(diagram, twins, meaning, writes=writes) if a.cone else Cone.keep_all()).run()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
@@ -98,6 +115,8 @@ def main(argv=None) -> int:
             print_groups(result)
         for c in result.opaque_clauses:
             print(f"taken as true (no twin): {c}")
+        if a.cone:
+            print_cone(result)
         for text, maps in result.dropped_clauses:
             print(f"taken as true (reads {', '.join(maps)}, left out by csdfpromote -only): {text}")
     found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles or result.unconstrained

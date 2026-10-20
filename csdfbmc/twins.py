@@ -114,6 +114,16 @@ class Twins:
         return all(p in env for p in inspect.signature(fn).parameters)
 
 
+def reads(fn: Callable) -> set[str] | None:
+    """The names a twin, an invariant or a ghost update reads: what its
+    signature asks for; None when it takes any keyword, and so may read
+    anything."""
+    params = inspect.signature(fn).parameters.values()
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+        return None
+    return {p.name for p in params}
+
+
 def apply(fn: Callable, env: dict, *, what: str):
     """Calls fn with the names its signature asks for, taken from env."""
     params = inspect.signature(fn).parameters
