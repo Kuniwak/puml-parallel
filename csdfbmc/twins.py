@@ -1,7 +1,8 @@
 """The formal twins of the clauses, and the finite domains of the parameters.
 
 A twins module is ordinary Python restricted to a pure subset. It defines
-DOMAINS (event parameter -> iterable of values) and CLAUSES (the clause's
+DOMAINS (event parameter -> iterable of values) and, unless the clauses are
+read through a glue (csdfbmc.protocol), CLAUSES (the clause's
 prose -> a function of the names the clause reads: the event's parameters,
 the state variables before the step and the ghosts). A guard twin returns a
 truth value. A post twin returns the successor values of the variables it
@@ -129,16 +130,15 @@ def load_twins(path: str) -> Twins:
     spec = importlib.util.spec_from_file_location("csdf_twins", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    for table in ("DOMAINS", "CLAUSES"):
-        if not isinstance(getattr(module, table, None), dict):
-            raise PurityError(f"{path}: the module must define {table} as a dict")
+    if not isinstance(getattr(module, "DOMAINS", None), dict):
+        raise PurityError(f"{path}: the module must define DOMAINS as a dict")
     if not isinstance(getattr(module, "SYMMETRIC", ()), (list, tuple, set, frozenset)):
         raise PurityError(f"{path}: SYMMETRIC must be a list of instance-ID parameters when defined")
-    for table in ("INVARIANTS", "GHOSTS"):
+    for table in ("CLAUSES", "INVARIANTS", "GHOSTS"):
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
     return Twins(
-        domains=dict(module.DOMAINS), clauses=dict(module.CLAUSES),
+        domains=dict(module.DOMAINS), clauses=dict(getattr(module, "CLAUSES", {})),
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
     )

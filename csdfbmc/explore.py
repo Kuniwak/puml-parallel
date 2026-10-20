@@ -5,25 +5,12 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
+from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
+from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning
 from csdfbmc.reduce import PartialOrder, Symmetry
-from csdfbmc.twins import Twins, apply, check_pure
+from csdfbmc.twins import Twins, apply
 from csdfbmc.values import FrozenMap, encode, freeze
-
-# The key under which an instance's record holds its local state's name; the
-# local variables are the other keys.
-RECORD_STATE = "state"
-
-# What a formal expression may call besides the names of the step.
-FORMAL_GLOBALS = {
-    "__builtins__": {},
-    "len": len, "all": all, "any": any, "sum": sum, "min": min, "max": max, "abs": abs,
-    "sorted": sorted, "set": set, "frozenset": frozenset, "tuple": tuple, "range": range,
-    "FrozenMap": FrozenMap,
-    "at": lambda m, i, state: i in m and m[i][RECORD_STATE] == state,
-    "exists": lambda m, pred: any(pred(i, r) for i, r in m.items()),
-    "count": lambda m, pred: sum(1 for i, r in m.items() if pred(i, r)),
-}
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -175,13 +162,25 @@ class Explorer:
     domains), such a cycle is a livelock: a run that never gets to the event.
     within narrows those cycles to the control states named.
 
+    meaning says what the hand-written and constrain clauses mean
+    (csdfbmc.meaning): the twins (TwinsMeaning, which of_twins gives), or a
+    glue of the evaluator protocol (GlueMeaning), which reads every clause
+    by its text. A clause
+    the meaning has nothing for follows the opaque rule. symmetry is refused
+    when the meaning cannot be read to check SYMMETRIC.
+
     por and symmetry turn on the reductions of csdfbmc.reduce: the walk then
     meets fewer states and reports the same deadlocks, broken invariants and
     cycles. An empty or unconstrained post is reported only at the states
     the walk still meets.
     """
 
-    def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000,
+    @classmethod
+    def of_twins(cls, diagram: Diagram, twins: Twins, **options) -> "Explorer":
+        """An Explorer whose clauses mean what the twins say."""
+        return cls(diagram, twins, TwinsMeaning(diagram, twins), **options)
+
+    def __init__(self, diagram: Diagram, twins: Twins, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
                  por: bool = False, symmetry: bool = False):
         if opaque not in ("error", "true"):
@@ -200,8 +199,13 @@ class Explorer:
         self.ghost_names = tuple(twins.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
-        self._formals: dict[str, object] = {}
+        # meaning: what the hand-written and constrain clauses mean.
+        self.meaning = meaning
+        if not self.meaning.by_prose and (twins.clauses or twins.locals):
+            raise ValueError("the clauses are read through a glue, so the twins' CLAUSES and their locals would not be used; leave them out")
         self.por = PartialOrder(self) if por else None
+        if symmetry and not self.meaning.readable:
+            raise ValueError("symmetry is checked by reading the clauses for SYMMETRIC, which cannot be done for clauses read through a glue")
         self.symmetry = Symmetry(diagram, twins) if symmetry else None
 
     # -- environments -----------------------------------------------------------
@@ -229,42 +233,10 @@ class Explorer:
             local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
         return local_env
 
-    # -- twins ------------------------------------------------------------------
-
-    def _twin(self, clause: Clause):
-        """The callable standing for a clause, or None when there is none."""
-        if clause.kind == "local" and clause.map:
-            return self.twins.local(self.d.local_of(clause).path).clauses.get(clause.text)
-        fn = self.twins.clauses.get(clause.text)
-        if fn is None and clause.kind == "constrain" and clause.formal:
-            fn = self._formal(clause)
-        return fn
-
-    def _formal(self, clause: Clause):
-        code = self._formals.get(clause.text)
-        if code is None:
-            check_pure(clause.formal, f"<formal line {clause.line}>")
-            code = compile(clause.formal, f"<formal line {clause.line}>", "eval")
-            self._formals[clause.text] = code
-
-        def run(**env):
-            return eval(code, FORMAL_GLOBALS, env)
-        run.formal = True
-        return run
-
-    def _call(self, clause: Clause, env: dict):
-        fn = self._twin(clause)
-        if fn is None:
-            return None
-        if getattr(fn, "formal", False):
-            return fn(**env)
-        return apply(fn, env, what=f"the twin of {clause.text!r}")
-
     def _missing_twin(self, clause: Clause) -> bool:
         """Records an opaque clause, or refuses it; True when it is to be taken as true."""
         if self.opaque == "error":
-            where = f"in the twins of {self.d.local_of(clause).path}" if clause.kind == "local" and clause.map else "in CLAUSES"
-            raise KeyError(f"no twin for the clause {clause.text!r} {where}; add it, or run with opaque='true'")
+            raise KeyError(self.meaning.opaque_message(clause))
         self.opaque_seen.setdefault(clause.text)
         return True
 
@@ -288,19 +260,20 @@ class Explorer:
             return True
         if c.kind not in ("local", "constrain"):
             raise ValueError(f"unknown clause kind {c.kind!r} in a guard")
-        if self._twin(c) is None:
-            return self._missing_twin(c)
         scope = self._instance_env(c, env) if c.map and c.kind == "local" else env
-        return bool(self._call(c, scope))
+        value = self.meaning.evaluate(c, "guard", scope)
+        if value is OPAQUE:
+            return self._missing_twin(c)
+        return bool(value)
 
     # -- posts ------------------------------------------------------------------
 
     def _assignments(self, c: Clause, env: dict) -> list[dict] | None:
         """What a post twin returns, as frozen assignments; None when opaque."""
-        if self._twin(c) is None:
+        returned = self.meaning.evaluate(c, "post", env)
+        if returned is OPAQUE:
             self._missing_twin(c)
             return None
-        returned = self._call(c, env)
         if isinstance(returned, (bool, int, str)) or returned is None:
             raise TypeError(f"the twin of the post clause {c.text!r} returned {returned!r}; a post twin returns a collection of assignments such as [{{'x': x + 1}}]")
         out = []
@@ -407,10 +380,7 @@ class Explorer:
         (unconstrained and empty posts) is kept."""
         names = e.params + e.implicit_ids()
         out = []
-        for args in itertools.product(*(self.twins.domain(p) for p in names)):
-            params = dict(zip(names, args))
-            if not self._holds(e.guard, self._env(state, params)):
-                continue
+        for params in self._enabled(state, e, names):
             label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
             ghosts = self._ghosts_after(state, e.name, params)
             vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
@@ -424,6 +394,18 @@ class Explorer:
                 continue
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
+
+    def _enabled(self, state: State, e: Edge, names: tuple[str, ...]) -> list[dict]:
+        """The parameter valuations of e whose guard holds at state. The
+        guard is taken clause by clause over every valuation still enabled,
+        so a clause read through a glue costs one request per edge."""
+        alive = [(params, self._env(state, params))
+                 for params in (dict(zip(names, args)) for args in itertools.product(*(self.twins.domain(p) for p in names)))]
+        for c in e.guard:
+            if c.kind in ("local", "constrain"):
+                self.meaning.prefetch(c, "guard", [self._instance_env(c, env) if c.map and c.kind == "local" else env for _, env in alive])
+            alive = [(params, env) for params, env in alive if self._guard_holds(c, env)]
+        return [params for params, _ in alive]
 
     def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
         """(event name, event as taken, next state, edge) for every enabled transition."""

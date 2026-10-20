@@ -40,20 +40,20 @@ COUNTER_TWINS = Twins(
 
 class ExplorerTest(unittest.TestCase):
     def test_reaches_every_valuation_the_clauses_admit(self):
-        result = Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
+        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
         self.assertEqual(
             {("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())},
             set(result.states),
         )
 
     def test_reports_a_state_with_no_way_out_as_a_deadlock(self):
-        result = Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
+        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
         self.assertEqual([("b", (), ())], result.deadlocks)
         self.assertEqual(["dec", "dec", "stop"], result.trace_to(("b", (), ())))
 
     def test_an_end_edge_is_a_way_out(self):
         diagram = dict(COUNTER, end_edge={"src": "b", "guard": "true", "line": 8})
-        result = Explorer(Diagram.from_json(diagram), COUNTER_TWINS).run()
+        result = Explorer.of_twins(Diagram.from_json(diagram), COUNTER_TWINS).run()
         self.assertEqual([], result.deadlocks)
 
     def test_finds_a_tau_cycle_among_the_reachable_states(self):
@@ -61,7 +61,7 @@ class ExplorerTest(unittest.TestCase):
             {"src": "a", "dst": "a", "event": "tau", "guard": "n = 0", "post": "n' = n", "line": 9},
         ])
         twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n": lambda n: [{"n": n}]}))
-        result = Explorer(Diagram.from_json(diagram), twins).run()
+        result = Explorer.of_twins(Diagram.from_json(diagram), twins).run()
         self.assertEqual([[("a", (0,), ())]], result.tau_cycles)
 
     def test_event_parameters_range_over_their_domain(self):
@@ -76,25 +76,25 @@ class ExplorerTest(unittest.TestCase):
                 "n' = n + k": lambda n, k: [{"n": n + k}],
             },
         )
-        result = Explorer(Diagram.from_json(diagram), twins).run()
+        result = Explorer.of_twins(Diagram.from_json(diagram), twins).run()
         self.assertEqual({("a", (2,), ()), ("a", (3,), ())}, set(result.states))
         self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,), ())))
 
     def test_a_clause_without_a_twin_is_refused_by_default(self):
         twins = Twins(domains={}, clauses={k: v for k, v in COUNTER_TWINS.clauses.items() if k != "n > 0"})
         with self.assertRaises(KeyError) as cm:
-            Explorer(Diagram.from_json(COUNTER), twins).run()
+            Explorer.of_twins(Diagram.from_json(COUNTER), twins).run()
         self.assertIn("n > 0", str(cm.exception))
 
     def test_a_clause_without_a_twin_may_be_taken_as_true(self):
         twins = Twins(domains={}, clauses={k: v for k, v in COUNTER_TWINS.clauses.items() if k != "n > 0"})
-        result = Explorer(Diagram.from_json(COUNTER), twins, opaque="true", max_states=10).run()
+        result = Explorer.of_twins(Diagram.from_json(COUNTER), twins, opaque="true", max_states=10).run()
         # dec fires at n = 0 too and counts down past zero, until the bound.
         self.assertIn(("a", (-1,), ()), set(result.states))
         self.assertEqual(["n > 0"], result.opaque_clauses)
 
     def test_the_bound_on_states_stops_the_walk(self):
-        result = Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS, max_states=2).run()
+        result = Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS, max_states=2).run()
         self.assertEqual(2, len(result.states))
         self.assertTrue(result.truncated)
 
@@ -117,7 +117,7 @@ class PostTwinTest(unittest.TestCase):
             "x' = x + 1": lambda x: [{"x": x + 1}],
             "y' ∈ {y, y + 1}": lambda y: [{"y": y}, {"y": y + 1}],
         })
-        result = Explorer(self.diagram("x' = x + 1 ∧ y' ∈ {y, y + 1}"), twins, max_states=6).run()
+        result = Explorer.of_twins(self.diagram("x' = x + 1 ∧ y' ∈ {y, y + 1}"), twins, max_states=6).run()
         self.assertIn(("a", (1, 0), ()), result.states)
         self.assertIn(("a", (1, 1), ()), result.states)
 
@@ -128,7 +128,7 @@ class PostTwinTest(unittest.TestCase):
             "x' ∈ {2, 3}": lambda: [{"x": 2}, {"x": 3}],
             "y' = y": lambda y: [{"y": y}],
         })
-        result = Explorer(self.diagram("x' ∈ {1, 2} ∧ x' ∈ {2, 3} ∧ y' = y"), twins, max_states=6).run()
+        result = Explorer.of_twins(self.diagram("x' ∈ {1, 2} ∧ x' ∈ {2, 3} ∧ y' = y"), twins, max_states=6).run()
         self.assertEqual({("a", (0, 0), ()), ("a", (2, 0), ())}, set(result.states))
 
     def test_a_variable_no_clause_constrains_is_a_finding(self):
@@ -136,7 +136,7 @@ class PostTwinTest(unittest.TestCase):
             "init": lambda: [{"x": 0, "y": 0}],
             "x' = x + 1": lambda x: [{"x": x + 1}],
         })
-        result = Explorer(self.diagram("x' = x + 1"), twins, max_states=6).run()
+        result = Explorer.of_twins(self.diagram("x' = x + 1"), twins, max_states=6).run()
         self.assertEqual([(("a", (0, 0), ()), "step", ("y",))], result.unconstrained)
         self.assertEqual([("a", (0, 0), ())], result.states)
 
@@ -145,7 +145,7 @@ class PostTwinTest(unittest.TestCase):
             "init": lambda: [{"x": 0, "y": 0}],
             "never": lambda: [],
         })
-        result = Explorer(self.diagram("never"), twins).run()
+        result = Explorer.of_twins(self.diagram("never"), twins).run()
         self.assertEqual([(("a", (0, 0), ()), "step")], result.empty_posts)
         self.assertEqual([("a", (0, 0), ())], result.deadlocks)
 
@@ -154,7 +154,7 @@ class PostTwinTest(unittest.TestCase):
             "init": lambda: [{"x": {"k": [1]}, "y": 0}],
             "same": lambda x, y: [{"x": x, "y": y}],
         })
-        result = Explorer(self.diagram("same"), twins).run()
+        result = Explorer.of_twins(self.diagram("same"), twins).run()
         x = result.states[0][1][0]
         self.assertEqual({"k": (1,)}, dict(x))
         hash(x)
@@ -162,7 +162,7 @@ class PostTwinTest(unittest.TestCase):
     def test_a_post_twin_must_return_mappings(self):
         twins = Twins(domains={}, clauses={"init": lambda: [{"x": 0, "y": 0}], "bad": lambda x, y: x == y})
         with self.assertRaises(TypeError):
-            Explorer(self.diagram("bad"), twins).run()
+            Explorer.of_twins(self.diagram("bad"), twins).run()
 
 
 if __name__ == "__main__":

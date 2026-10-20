@@ -19,8 +19,8 @@ and none can enable or disable it. The transitions of one instance are taken
 alone when none of them is the --avoid event and none leads to a state
 already met; otherwise the state is expanded in full (the cycle proviso,
 which in a breadth-first walk puts a fully expanded state on every cycle).
-What a clause reads is what its twin's signature asks for, or the names of
-its formal expression; an opaque clause, taken as true, reads nothing. A twin
+What a clause reads is what its twin's signature asks for, the names of its
+formal expression, or what the glue says it reads; an opaque clause, taken as true, reads nothing. A twin
 is taken to read only what it names: one that reaches a map through a helper
 defeats the analysis.
 
@@ -42,6 +42,7 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable
 
+from csdfbmc.formal import free_names
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins
 from csdfbmc.values import FrozenMap
@@ -54,17 +55,21 @@ def _signature(fn: Callable) -> set[str]:
     return set(inspect.signature(fn).parameters)
 
 
-def _formal_names(expr: str) -> set[str]:
-    return {n.id for n in ast.walk(ast.parse(expr, mode="eval")) if isinstance(n, ast.Name)}
+def formal_names(expr: str) -> set[str]:
+    return free_names(ast.parse(expr, mode="eval"))
 
 
-def _names_beyond(expr: str, own_id: str | None) -> set[str]:
+def names_beyond(expr: str, own_id: str | None) -> set[str]:
     """The names expr reads, but a map read only as m[own_id]."""
     tree = ast.parse(expr, mode="eval")
     keyed = {id(n.value) for n in ast.walk(tree)
              if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name)
              and isinstance(n.slice, ast.Name) and n.slice.id == own_id}
     return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in keyed}
+
+
+def _with_roles(e: Edge) -> list[tuple[Clause, str]]:
+    return [(c, "guard") for c in e.guard] + [(c, "post") for c in e.post]
 
 
 def moved_maps(e: Edge) -> set[str]:
@@ -81,22 +86,21 @@ class PartialOrder:
         self.ghost_events = {event for _, updates in twins.ghosts.values() for event in updates}
         self._independent: dict[str, set[str]] = {}
 
-    def _clause_reads(self, c: Clause) -> set[str]:
+    def _clause_reads(self, c: Clause, role: str) -> set[str]:
         if c.kind in _INSTANCE_KINDS:
             return {c.map}
         if c.kind in ("frame", "dropped"):
             return set()  # a frame copies a variable; it neither enables nor changes anything
-        fn = self.ex._twin(c)
-        if fn is None:
+        names = self.ex.meaning.names(c, role)
+        if names is None:
             return {c.map} if c.map else set()
-        names = _formal_names(c.formal) if getattr(fn, "formal", False) else _signature(fn)
         if c.kind == "local" and c.map:
             # A local twin reads the instance's own variables, by their local names.
             return {c.map} | (names & set(self.ex.twins.ghosts))
         return names & self.names
 
     def _edge_reads(self, e: Edge) -> set[str]:
-        reads = set().union(*(self._clause_reads(c) for c in e.guard + e.post))
+        reads = set().union(*(self._clause_reads(c, role) for c, role in _with_roles(e)))
         for _, updates in self.ex.twins.ghosts.values():
             if e.name in updates:
                 reads |= _signature(updates[e.name]) & self.names
@@ -109,14 +113,14 @@ class PartialOrder:
         expression that reads the map only as m[id], at the edge's own ID."""
         own_id = next((c.id or self.ex.d.promotes[c.map].id_param for c in e.post if c.kind in _MOVES), None)
         reads: set[str] = set()
-        for c in e.guard + e.post:
+        for c, role in _with_roles(e):
             if c.kind in _INSTANCE_KINDS or (c.kind == "local" and c.map):
                 continue
-            fn = self.ex._twin(c)
-            if fn is not None and getattr(fn, "formal", False):
-                reads |= _names_beyond(c.formal, own_id) & self.names
+            beyond = self.ex.meaning.names_beyond(c, own_id)
+            if beyond is not None:
+                reads |= beyond & self.names
             else:
-                reads |= self._clause_reads(c)
+                reads |= self._clause_reads(c, role)
         return reads
 
     def independent(self, g: str) -> set[str]:

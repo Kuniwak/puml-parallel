@@ -1,0 +1,16 @@
+@startuml WITHDRAW
+' withdraw.puml with every clause written in Python, as a front end renders
+' the formal labels in place of the prose. No twin is keyed by prose: the
+' glue reads the labels, and withdraw_formal_defs.py names the constants.
+state "待機中" as idle
+idle : 残高
+state "送信中" as sending
+sending : 残高
+sending : 数量
+
+[*] --> idle : [{'残高': INITIAL}]
+
+idle --> sending : 出庫(数量) ; 数量 <= LIMIT ∧ 残高 >= 数量 ; [{'残高': 残高}] ∧ [{'数量': 数量}]
+sending --> idle : 着金 ; 残高 - 数量 >= FEE ; [{'残高': 残高 - 数量 - FEE}]
+idle --> idle : 入金(額) ; 残高 + 額 <= CAP ; [{'残高': 残高 + 額}]
+@enduml

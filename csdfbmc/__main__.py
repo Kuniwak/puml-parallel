@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--json]
+"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--evaluator CMD | --evaluator-module MODULE] [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
 json prints it, and the twins of its clauses, walks the reachable states within
@@ -7,7 +7,9 @@ and, with --avoid, the cycles that never perform the event. Findings of one
 shape are reported once with their count and the shortest trace; --all lists
 every one, and --first stops the walk at the first deadlock, broken invariant
 or unconstrained post. For an expansion, --local names the twins of each
-family's local diagram by the path the expansion uses. --por and --symmetry
+family's local diagram by the path the expansion uses. --evaluator and
+--evaluator-module read every clause through a glue of the evaluator
+protocol, in place of twins (see csdfbmc.protocol). --por and --symmetry
 reduce the states walked without changing what is found. Exits 1 when it finds
 any, 2 on a usage or loading error.
 """
@@ -15,9 +17,8 @@ import argparse
 import json
 import sys
 
+from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
 from csdfbmc.explore import Explorer
-from csdfbmc.model import Diagram
-from csdfbmc.twins import load_twins, PurityError
 
 
 def print_groups(result) -> None:
@@ -61,10 +62,7 @@ def print_every(result) -> None:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
-    ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output)")
-    ap.add_argument("twins", help="the Python module holding DOMAINS and CLAUSES")
-    ap.add_argument("--local", metavar="PATH=TWINS.py", action="append", default=[],
-                    help="the twins of the local diagram at PATH, as the expansion names it (repeatable)")
+    add_inputs(ap)
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
     ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause without a twin means (default: refuse)")
     ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
@@ -77,16 +75,10 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     try:
-        diagram = Diagram.load(a.diagram)
-        twins = load_twins(a.twins)
-        for spec in a.local:
-            path, sep, module = spec.partition("=")
-            if not sep or not path or not module:
-                raise ValueError(f"--local expects PATH=TWINS.py, got {spec!r}")
-            twins.locals[path] = load_twins(module)
-        result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
-                          por=a.por, symmetry=a.symmetry).run()
-    except (OSError, ValueError, KeyError, PurityError) as e:
+        with opened(a) as (diagram, twins, meaning):
+            result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
+                              por=a.por, symmetry=a.symmetry, meaning=meaning).run()
+    except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
 

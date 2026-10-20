@@ -40,6 +40,12 @@ Launcher options:
 Checker options (the checker's --help lists them in full):
   --local PATH=TWINS   the twins of the local diagram at PATH, for an expansion
                        of a promoted diagram (repeatable)
+  --evaluator CMD      read every clause through the glue CMD starts, which
+                       speaks the evaluator protocol (no twins keyed by prose)
+  --evaluator-module MODULE
+                       the same, with a glue written in Python loaded
+                       in-process; "csdfbmc.python_glue DEFS.py..." reads
+                       clauses written in Python
   --max-states N       stop after this many states (default 100000)
   --opaque error|true  what a clause without a twin means (default: refuse)
   --avoid EVENT        also report the cycles that never perform EVENT
@@ -67,6 +73,7 @@ Examples:
   $ csdfparse examples/bmc/withdraw.puml > withdraw.json
   $ csdfbmc withdraw.json examples/bmc/withdraw_twins.py
   $ csdfbmc wallet.json wallet_twins.py --avoid 確定 --within sending --json
+  $ csdfbmc withdraw_formal.json defs.py --evaluator-module "csdfbmc.python_glue defs.py"
   $ csdfpromote -format json GLOBAL.puml > global.json
   $ csdfbmc global.json global_twins.py --local states/LOCAL.puml=local_twins.py
 `

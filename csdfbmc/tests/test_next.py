@@ -13,7 +13,7 @@ from csdfbmc.tests.test_explore import COUNTER, COUNTER_TWINS
 
 class CandidatesTest(unittest.TestCase):
     def test_initial_candidates_are_the_start_posts_successors(self):
-        self.assertEqual([[2]], Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS).initial_candidates())
+        self.assertEqual([[2]], Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).initial_candidates())
 
     def test_candidates_of_an_edge_come_per_parameter_valuation(self):
         diagram = dict(COUNTER, edges=[
@@ -24,13 +24,13 @@ class CandidatesTest(unittest.TestCase):
         twins = Twins(domains={"k": [1, 2]}, clauses={
             "n = 2": lambda: [{"n": 2}], "n + k ≤ 3": lambda n, k: n + k <= 3,
             "n' = n + k": lambda n, k: [{"n": n + k}], "n = 0": lambda n: n == 0})
-        ex = Explorer(Diagram.from_json(diagram), twins)
+        ex = Explorer.of_twins(Diagram.from_json(diagram), twins)
         self.assertEqual([{"params": {"k": 1}, "values": [3]}], ex.candidates("a", [2], 0))
         self.assertEqual([], ex.candidates("a", [2], 1))  # stop needs n = 0
 
     def test_a_bad_edge_index_is_refused(self):
         with self.assertRaises(IndexError):
-            Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS).candidates("a", [2], 5)
+            Explorer.of_twins(Diagram.from_json(COUNTER), COUNTER_TWINS).candidates("a", [2], 5)
 
 
 class NextCommandTest(unittest.TestCase):

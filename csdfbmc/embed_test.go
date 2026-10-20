@@ -20,7 +20,7 @@ func TestMaterializeWritesThePackageOnceUnderAContentHash(t *testing.T) {
 	if !strings.HasPrefix(first, root) {
 		t.Errorf("Materialize() = %q, want a directory under %q", first, root)
 	}
-	for _, name := range []string{"__init__.py", "__main__.py", "explore.py", "model.py", "next.py", "twins.py", "values.py"} {
+	for _, name := range []string{"__init__.py", "__main__.py", "cli.py", "explore.py", "formal.py", "meaning.py", "model.py", "next.py", "protocol.py", "python_glue.py", "twins.py", "values.py"} {
 		if _, err := os.Stat(filepath.Join(first, "csdfbmc", name)); err != nil {
 			t.Errorf("missing %s: %v", name, err)
 		}
