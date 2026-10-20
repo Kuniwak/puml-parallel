@@ -729,12 +729,25 @@ deadlock it misses cannot be hidden by it) and lists the clauses so taken.
 `--json` prints the same as JSON. The exit status is 1 when something was
 found, 2 when the inputs could not be read.
 
+The walk also reports, apart from the properties, every (state, event) where
+the guard held but no valuation in the domains satisfied the post, as
+"domain too small?": a real post always admits some values, so that is where
+the declared domains cut the behaviour off, not a finding about the diagram.
+
 The first worked example, `examples/bmc/withdraw.puml`, is a two-state ledger:
 a transfer is accepted when its twin of `残高で払える` says so and completes when
 the balance also covers the fee. The explorer reports the states with no way
 out and the trace to each; change the twin and the report changes with it,
 which is the point: writing the twin is where the question gets asked.
 
+The second, `examples/bmc/wallet.puml`, is a toy ledger with deposits, one
+transfer at a time with a retry, and a fee refund from outside the balance. It
+checks six properties at once: no deadlock; no livelock under the fairness
+assumption (the `assume` note, which the twins turn into the bound `RESENDS`,
+with `--avoid 確定 --within sending`); and four `INVARIANTS` over `GHOSTS` that
+total the events, relating the balance to the amounts moved and the fees paid
+and refunded. The run reports a deadlock with its trace; the comments in
+`wallet_twins.py` say which twin to change to make every check pass.
 The Python tests run with
 `python3 -m unittest discover -s csdfbmc/tests -t .`, and `go test ./...` runs
 them too when a `python3` is on the PATH.

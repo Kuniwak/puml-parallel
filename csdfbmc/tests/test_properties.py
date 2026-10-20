@@ -90,3 +90,25 @@ class AvoidingCycleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WithinTest(unittest.TestCase):
+    def test_within_restricts_the_avoiding_cycles_to_the_named_states(self):
+        # The counter at n = 0 can bump and dec forever without stopping; the
+        # same loop restricted to state b (which has no transitions) is empty.
+        diagram = dict(COUNTER, edges=COUNTER["edges"] + [
+            {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
+        ])
+        twins = Twins(domains=COUNTER_TWINS.domains, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n, n_: n_ == n + 1}))
+        self.assertEqual(1, len(Explorer(Diagram.from_json(diagram), twins, avoid="stop", within=["a"]).run().avoiding_cycles))
+        self.assertEqual([], Explorer(Diagram.from_json(diagram), twins, avoid="stop", within=["b"]).run().avoiding_cycles)
+
+
+class ClippedTest(unittest.TestCase):
+    def test_a_post_no_value_in_the_domain_satisfies_is_reported_as_clipped(self):
+        # 入庫 of 3 from 4 wants 残高 = 6, outside range(0, 6): the guard held,
+        # the post has no witness, so the walk says the domain may be too small.
+        twins = ledger_twins()
+        result = Explorer(Diagram.from_json(LEDGER), twins).run()
+        self.assertIn((("a", (4,), ()), "入庫(額=3)"), result.clipped)
+        self.assertNotIn((("a", (0,), ()), "入庫(額=3)"), result.clipped)

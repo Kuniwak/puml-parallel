@@ -41,3 +41,25 @@ func TestTheWithdrawExampleReportsADeadlock(t *testing.T) {
 		}
 	}
 }
+
+// The toy ledger checks six properties at once; as written it reports a
+// deadlock after the retries and nothing else.
+func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
+	cmd := exec.Command(python(t), "-E", "-s", "-m", "csdfbmc", "examples/bmc/wallet.json", "examples/bmc/wallet_twins.py", "--avoid", "確定", "--within", "sending")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+		t.Fatalf("want exit status 1, got %v\n%.2000s", err, out)
+	}
+	text := string(out)
+	for _, want := range []string{"deadlock at sending", "'再送', '再送'"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("want %q in the report, got:\n%.2000s", want, text)
+		}
+	}
+	for _, unwanted := range []string{"invariant", "cycle", "domain too small"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("want no %q in the report, got:\n%.2000s", unwanted, text)
+		}
+	}
+}

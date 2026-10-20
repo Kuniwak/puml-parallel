@@ -25,6 +25,10 @@ class Result:
     avoiding_cycles: list[list[State]] = field(default_factory=list)
     avoid: str | None = None
     ghost_names: tuple[str, ...] = ()
+    # clipped: (state, event as taken) where the guard held but no valuation in
+    # the domains satisfied the post. A real post always admits some values,
+    # so this is where the declared domains cut the behaviour off.
+    clipped: list[tuple[State, str]] = field(default_factory=list)
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -49,6 +53,7 @@ class Result:
             "violations": [{"invariant": name, "at": st(s), "trace": self.trace_to(s)} for name, s in self.violations],
             "avoid": self.avoid,
             "avoiding_cycles": [{"cycle": [st(s) for s in cycle], "trace": self.trace_to(cycle[0])} for cycle in self.avoiding_cycles],
+            "clipped": [{"at": st(s), "event": label, "trace": self.trace_to(s)} for s, label in self.clipped],
             "opaque_clauses": self.opaque_clauses,
         }
 
@@ -71,9 +76,11 @@ class Explorer:
     reachable states that performs no transition of that event. Under a
     fairness assumption written as a finite bound (a resend count in the
     domains), such a cycle is a livelock: a run that never gets to the event.
+    within narrows those cycles to the control states named.
     """
 
-    def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000, avoid: str | None = None):
+    def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000,
+                 avoid: str | None = None, within: list[str] | None = None):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
@@ -81,8 +88,13 @@ class Explorer:
         self.opaque = opaque
         self.max_states = max_states
         self.avoid = avoid
+        # within narrows the avoiding cycles to the control states named: a
+        # cycle that matters is one a run can stay in while something is in
+        # flight, not the idle loop of the whole system.
+        self.within = set(within) if within else None
         self.opaque_seen: dict[str, None] = {}
         self.ghost_names = tuple(twins.ghosts)
+        self.clipped: list[tuple[State, str]] = []
 
     # -- clauses --------------------------------------------------------------
 
@@ -149,9 +161,13 @@ class Explorer:
                     continue
                 label = e.name if not e.params else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
                 ghosts = self._ghosts_after(state, e.name, params)
+                found = False
                 for dst_vals in self._valuations(e.dst):
                     if self._holds(e.post, self._env(state, params, (e.dst, dst_vals))):
                         out.append((e.name, label, (e.dst, dst_vals, ghosts)))
+                        found = True
+                if not found:
+                    self.clipped.append((state, label))
         return out
 
     def can_end(self, state: State) -> bool:
@@ -187,8 +203,8 @@ class Explorer:
             i += 1
             succ = self.successors(s)
             tau_next[s] = [t for name, _, t in succ if name == "tau"]
-            if self.avoid is not None:
-                avoid_next[s] = [t for name, _, t in succ if name != self.avoid]
+            if self.avoid is not None and (self.within is None or s[0] in self.within):
+                avoid_next[s] = [t for name, _, t in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
             if not succ and not self.can_end(s):
                 deadlocks.append(s)
             for _, label, t in succ:
@@ -206,7 +222,7 @@ class Explorer:
             opaque_clauses=list(self.opaque_seen), truncated=truncated, bound=self.max_states,
             violations=violations,
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None else [],
-            avoid=self.avoid, ghost_names=self.ghost_names,
+            avoid=self.avoid, ghost_names=self.ghost_names, clipped=self.clipped,
         )
 
 
