@@ -14,8 +14,8 @@ LEDGER = {
     "states": {"a": {"name": "ledger", "vars": [{"name": "残高"}], "line": 2}},
     "start_edge": {"dst": "a", "post": "残高 = 0", "line": 3},
     "edges": [
-        {"src": "a", "dst": "a", "event": "入庫(額)", "guard": "true", "post": "残高' = 残高 + 額 − 1", "line": 4},
-        {"src": "a", "dst": "a", "event": "出庫(額)", "guard": "額 + 1 ≤ 残高", "post": "残高' = 残高 − 額 − 1", "line": 5},
+        {"src": "a", "dst": "a", "event": "入庫?額", "channel": "入庫", "fields": [{"dir": "?", "name": "額"}], "guard": "true", "post": "残高' = 残高 + 額 − 1", "line": 4},
+        {"src": "a", "dst": "a", "event": "出庫?額", "channel": "出庫", "fields": [{"dir": "?", "name": "額"}], "guard": "額 + 1 ≤ 残高", "post": "残高' = 残高 − 額 − 1", "line": 5},
     ],
     "end_edge": None,
     "assumptions": [],
@@ -79,7 +79,7 @@ class AvoidingCycleTest(unittest.TestCase):
         # dec loops at n > 0 only downwards, so no cycle avoids stop; add a
         # bump that goes back up and the walk can avoid stop forever.
         diagram = dict(COUNTER, edges=COUNTER["edges"] + [
-            {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
+            {"src": "a", "dst": "a", "event": "bump", "channel": "bump", "fields": [], "guard": "n = 0", "post": "n' = n + 1", "line": 9},
         ])
         twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n: [{"n": n + 1}]}))
         result = Explorer.of_twins(Diagram.from_json(diagram), twins, avoid="stop").run()
@@ -97,7 +97,7 @@ class WithinTest(unittest.TestCase):
         # The counter at n = 0 can bump and dec forever without stopping; the
         # same loop restricted to state b (which has no transitions) is empty.
         diagram = dict(COUNTER, edges=COUNTER["edges"] + [
-            {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
+            {"src": "a", "dst": "a", "event": "bump", "channel": "bump", "fields": [], "guard": "n = 0", "post": "n' = n + 1", "line": 9},
         ])
         twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n: [{"n": n + 1}]}))
         self.assertEqual(1, len(Explorer.of_twins(Diagram.from_json(diagram), twins, avoid="stop", within=["a"]).run().avoiding_cycles))
@@ -109,7 +109,7 @@ class WithinTest(unittest.TestCase):
         # The counter at n = 0 can bump and dec forever without stopping; the
         # same loop restricted to state b (which has no transitions) is empty.
         diagram = dict(COUNTER, edges=COUNTER["edges"] + [
-            {"src": "a", "dst": "a", "event": "bump", "guard": "n = 0", "post": "n' = n + 1", "line": 9},
+            {"src": "a", "dst": "a", "event": "bump", "channel": "bump", "fields": [], "guard": "n = 0", "post": "n' = n + 1", "line": 9},
         ])
         twins = Twins(domains={}, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n + 1": lambda n: [{"n": n + 1}]}))
         self.assertEqual(1, len(Explorer.of_twins(Diagram.from_json(diagram), twins, avoid="stop", within=["a"]).run().avoiding_cycles))

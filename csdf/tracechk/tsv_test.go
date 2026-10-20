@@ -19,8 +19,8 @@ func TestReadTSV(t *testing.T) {
 
 	testCases := map[string]testCase{
 		"one event per row under an event header": {
-			Input: "event\ninsert(coin)\nshowPurchasable(purchasableProducts)\n",
-			Want:  []csdf.Event{"insert(coin)", "showPurchasable(purchasableProducts)"},
+			Input: "event\ninsert?coin\nshowPurchasable?purchasableProducts\n",
+			Want:  []csdf.Event{"insert?coin", "showPurchasable?purchasableProducts"},
 		},
 		"quoted fields follow CSV with a tab delimiter, CRLF and a missing last newline are accepted, blank lines are skipped": {
 			Input: "event\r\n\"a\tb\"\r\n\n\"say \"\"hi\"\"\"\nplain (x)",
@@ -30,11 +30,11 @@ func TestReadTSV(t *testing.T) {
 			Input: "event\n",
 			Want:  []csdf.Event{},
 		},
-		"missing header":           {Input: "insert(coin)\n"},
+		"missing header":           {Input: "insert?coin\n"},
 		"empty input":              {Input: ""},
-		"header in the wrong case": {Input: "Event\ninsert(coin)\n"},
+		"header in the wrong case": {Input: "Event\ninsert?coin\n"},
 		"tau is not visible":       {Input: "event\ntau\n"},
-		"two columns":              {Input: "event\ninsert(coin)\tfoo\n"},
+		"two columns":              {Input: "event\ninsert?coin\tfoo\n"},
 	}
 
 	for name, testCase := range testCases {
@@ -99,7 +99,7 @@ func TestReadTraceListTSV(t *testing.T) {
 			Input: "path\n",
 			Want:  []string{},
 		},
-		"trace header instead": {Input: "event\ninsert(coin)\n"},
+		"trace header instead": {Input: "event\ninsert?coin\n"},
 		"empty input":          {Input: ""},
 		"two columns":          {Input: "path\na.tsv\tb.tsv\n"},
 	}

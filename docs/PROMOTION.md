@@ -67,7 +67,7 @@ note as sync1
 end note
 
 note bottom of runningBuys
-  constrain BUY(約定ID, 数量) ; 数量 は最小取引単位の倍数である
+  constrain BUY?約定ID?数量 ; 数量 は最小取引単位の倍数である
 end note
 @enduml
 ```
@@ -170,10 +170,10 @@ Expansion
 ---------
 
 For a global state `G`, a map `m`, an instance ID written `id`, and a local edge
-`S --> T : e(a…) ; g ; p`:
+`S --> T : e a… ; g ; p`, where `a…` are the event's fields:
 
 ```
-G --> G : e(id, a…) ; id ∈ dom m ∧ m(id) ∈ 〈S〉 ∧ g ; m' = m ⊕ {id ↦ 〈T〉} ∧ p ∧ FRAME
+G --> G : e?id a… ; id ∈ dom m ∧ m(id) ∈ 〈S〉 ∧ g ; m' = m ⊕ {id ↦ 〈T〉} ∧ p ∧ FRAME
 ```
 
 with `id ∉ dom m` and `∪` for a creation, and `⩤` for a deletion. `FRAME` says
@@ -183,14 +183,14 @@ framed: `⊕`, `∪` and `⩤` already say what happens to every key but `id`.
 `sync e : m₁(p₁), m₂(p₂)` merges the edges each map contributes to `e` — the
 cartesian product, since a guard on one side can pick out any state on the other
 — into one edge per combination, over the states where all of them move. The
-merged event's arguments are the instance IDs in the order the directive names
-them, then each side's own arguments with duplicate names merged into one. Two
+merged event's fields are the instance IDs, received, in the order the directive names
+them, then each side's own fields with duplicate names merged into one. Two
 arguments that happen to share a name and mean different things would be merged
 wrongly, so name them apart. In the states where the sync applies, the maps do
 not expand the event on their own.
 
-`constrain e(q…) ; c` conjoins `c` onto the guard of every generated edge that
-matches `e` in name and arity, creations and merged edges included. This is
+`constrain e?q… ; c` conjoins `c` onto the guard of every generated edge that
+matches `e` in channel and the directions of its fields, creations and merged edges included. This is
 where a condition on another map goes; the local diagram cannot see one.
 Hand-written edges are left alone: they already say everything they were meant
 to.
@@ -362,7 +362,7 @@ Errors:
 | A `sync` naming one map twice                                            | One edge moves one key of one map.                                              |
 | A `sync` of a map that is not promoted, or of an event a side lacks      | There is nothing to merge.                                                      |
 | A `sync` whose maps never move in the same state                         | The event they take together can never happen.                                  |
-| A `constrain` no generated edge matches in name and arity                | It constrains nothing.                                                          |
+| A `constrain` no generated edge matches in channel and field directions | It constrains nothing.                                                          |
 | A note holding a second directive                                        | One note, one directive.                                                        |
 | A directive body that does not parse                                     | —                                                                               |
 

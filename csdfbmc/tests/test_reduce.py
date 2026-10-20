@@ -36,8 +36,8 @@ def twins(*, invariants=None, global_source=GLOBAL_SOURCE, symmetric=("口座ID"
 # Without CLOSE an instance never returns to where it was, so the cycle
 # proviso does not force every state to be expanded in full.
 WITHOUT_CLOSE = {**EXPANSION,
-                 "diagram": {**EXPANSION["diagram"], "edges": [e for e in EXPANSION["diagram"]["edges"] if e["event"] != "CLOSE(口座ID)"]},
-                 "edges": [e for e in EXPANSION["edges"] if e["edge"]["event"] != "CLOSE(口座ID)"]}
+                 "diagram": {**EXPANSION["diagram"], "edges": [e for e in EXPANSION["diagram"]["edges"] if e["event"] != "CLOSE?口座ID"]},
+                 "edges": [e for e in EXPANSION["edges"] if e["edge"]["event"] != "CLOSE?口座ID"]}
 
 
 def walk(expansion=EXPANSION, **kw):

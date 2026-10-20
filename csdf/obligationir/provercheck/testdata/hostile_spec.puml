@@ -14,7 +14,7 @@ state "s_" as s_
 s_: n_
 [*] --> init : both are set initially
 init --> vm-idle : tau ; step is positive ; and' is step
-vm-idle --> init : choose(a product) ; true ; step' is and
+vm-idle --> init : choose?a-product ; true ; step' is and
 vm-idle --> vm-idle : tau ; 商品 が残っている ; def' is def
 vm-idle --> s_ : pay_ ; true ; n_' is zero
 s_ --> init : reset ; true ; step' is n_

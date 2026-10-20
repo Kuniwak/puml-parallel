@@ -3,9 +3,7 @@ package promote
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 )
@@ -138,11 +136,6 @@ func conjoin(clauses []ExpandedClause) csdf.Predicate {
 	return csdf.ConjoinClauses(texts)
 }
 
-// eventRe splits a local event into its name and its argument list. An event is
-// a free string, so this is a convention rather than grammar: what is not of
-// this shape is promoted by appending the instance ID as the only argument.
-var eventRe = regexp.MustCompile(`^([^()]+?)\s*\(\s*(.*?)\s*\)$`)
-
 // Expand turns every promotion into edges on the state its block was written in.
 //
 // The wording of the generated clauses is templates; pass DefaultTemplates for
@@ -194,7 +187,7 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 
 	for _, p := range e.global.Promotes {
 		for _, edge := range e.locals[p.Map].Edges {
-			if name, _ := splitEvent(edge.Event); e.owned[ownership{p.In, p.Map, name}] {
+			if name := edge.Event.Channel(); e.owned[ownership{p.In, p.Map, name}] {
 				continue
 			}
 			edges = append(edges, e.promoteEdge(p, edge))
@@ -240,9 +233,9 @@ func (e *expander) start(d *csdf.Diagram) []ExpandedClause {
 type edgeParts struct {
 	guard []ExpandedClause
 	post  []ExpandedClause
-	name  string   // The event name, without its arguments.
-	args  []string // The event's own arguments, after the instance ID.
-	id    string   // The parameter the instance ID is written as.
+	name  string       // The event's channel.
+	args  []csdf.Field // The event's own fields, after the instance ID.
+	id    string       // The parameter the instance ID is written as.
 	tau   bool
 	src   string // The local source state's name, for the origin comment.
 	dst   string // The local destination state's name.
@@ -257,7 +250,7 @@ func (e *expander) parts(p Promote, edge csdf.Edge, id string) edgeParts {
 	src, dst := local.States[edge.Src], local.States[edge.Dst]
 
 	parts := edgeParts{src: src.Name, dst: dst.Name, id: id, tau: edge.Event == csdf.Tau}
-	parts.name, parts.args = splitEvent(edge.Event)
+	parts.name, parts.args = edge.Event.Channel(), edge.Event.Fields()
 
 	c := Clause{Map: string(p.Map), ID: id, Src: src.Name, Dst: dst.Name}
 	about := func(kind ClauseKind, name string, state string) ExpandedClause {
@@ -308,7 +301,8 @@ func (e *expander) promoteEdge(p Promote, edge csdf.Edge) ExpandedEdge {
 // on state g, framing every state variable of g but the maps the parts moved.
 func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var) ExpandedEdge {
 	var guard, post []ExpandedClause
-	var ids, args []string
+	var ids []string
+	var args []csdf.Field
 	tau := false
 
 	for _, part := range parts {
@@ -324,7 +318,11 @@ func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var)
 
 	event := csdf.Tau
 	if !tau {
-		event = csdf.Event(fmt.Sprintf("%s(%s)", parts[0].name, strings.Join(append(ids, args...), ", ")))
+		fields := make([]csdf.Field, 0, len(ids)+len(args))
+		for _, id := range ids {
+			fields = append(fields, csdf.Field{Dir: csdf.Received, Name: id})
+		}
+		event = csdf.NewEvent(parts[0].name, append(fields, args...)...)
 	}
 
 	return ExpandedEdge{
@@ -340,23 +338,9 @@ func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var)
 	}
 }
 
-// splitEvent takes a local event apart into its name and its arguments. An event
-// is a free string, so this is a convention rather than grammar: what is not of
-// this shape is a name with no arguments.
-func splitEvent(event csdf.Event) (string, []string) {
-	m := eventRe.FindStringSubmatch(string(event))
-	if m == nil {
-		return strings.TrimSpace(string(event)), nil
-	}
-	if m[2] == "" {
-		return m[1], nil
-	}
-	return m[1], splitTrimmed(m[2])
-}
-
 // appendUnique appends the values that are not in dst yet. Arguments of one name
 // mean one thing, which is how a synced event ends up with one of each.
-func appendUnique(dst []string, values ...string) []string {
+func appendUnique[T comparable](dst []T, values ...T) []T {
 	for _, v := range values {
 		if !slices.Contains(dst, v) {
 			dst = append(dst, v)

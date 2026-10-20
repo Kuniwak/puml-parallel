@@ -56,12 +56,13 @@ type MapRef struct {
 }
 
 // Constrain is one constrain directive: a guard conjoined onto every expanded
-// edge that matches the event in name and arity.
+// edge that matches the event in channel and field directions.
 type Constrain struct {
-	Anchor Anchor         `json:"anchor"`
-	Event  string         `json:"event"`
-	Params []string       `json:"params"`
-	Guard  csdf.Predicate `json:"guard"`
+	Anchor Anchor `json:"anchor"`
+	// Event is the event the guard is about. Its channel and the directions
+	// of its fields pick the edges; its field names are what the guard reads.
+	Event csdf.Event     `json:"event"`
+	Guard csdf.Predicate `json:"guard"`
 	// Formal is the guard's formal twin, written on the note's next line as
 	// "formal: <expression>": the same condition in a language a program can
 	// evaluate, which the expansion hands on with the clause. Empty when the

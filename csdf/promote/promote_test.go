@@ -74,7 +74,7 @@ note as sync1
 end note
 
 note bottom of runningBuys
-  constrain BUY(約定ID, 数量) ; 数量 は最小取引単位の倍数である
+  constrain BUY?約定ID?数量 ; 数量 は最小取引単位の倍数である
 end note
 
 note as drawing
@@ -103,8 +103,7 @@ end note
 			}},
 			wantConstrains: []promote.Constrain{{
 				Anchor: promote.Anchor{State: "runningBuys"},
-				Event:  "BUY",
-				Params: []string{"約定ID", "数量"},
+				Event:  "BUY?約定ID?数量",
 				Guard:  "数量 は最小取引単位の倍数である",
 				Line:   21,
 			}},
@@ -124,7 +123,7 @@ state "稼働中" as running {
 [*] --> running
 
 note as n1
-  constrain CLOSE(口座ID) ; 口座ID に未決済がない
+  constrain CLOSE?口座ID ; 口座ID に未決済がない
 end note
 
 note as n2
@@ -139,8 +138,7 @@ end note
 			}},
 			wantConstrains: []promote.Constrain{{
 				Anchor: promote.Anchor{NoteID: "n1"},
-				Event:  "CLOSE",
-				Params: []string{"口座ID"},
+				Event:  "CLOSE?口座ID",
 				Guard:  "口座ID に未決済がない",
 				Line:   12,
 			}},
@@ -158,7 +156,7 @@ state "稼働中" as running {
   }
 
   note bottom of runningAccounts
-    constrain CLOSE(口座ID) ; 口座ID に未決済がない
+    constrain CLOSE?口座ID ; 口座ID に未決済がない
   end note
 }
 [*] --> running
@@ -170,8 +168,7 @@ state "稼働中" as running {
 			}},
 			wantConstrains: []promote.Constrain{{
 				Anchor: promote.Anchor{State: "runningAccounts"},
-				Event:  "CLOSE",
-				Params: []string{"口座ID"},
+				Event:  "CLOSE?口座ID",
 				Guard:  "口座ID に未決済がない",
 				Line:   10,
 			}},
@@ -280,11 +277,11 @@ state "稼働中" as running {
 }
 [*] --> running
 note as n1
-  constrain BUY(約定ID)
+  constrain BUY?約定ID
 end note
 @enduml
 `,
-			want: `line 7: expected "constrain <event>(<param>, ...) ; <guard>", got "constrain BUY(約定ID)"`,
+			want: `line 7: expected "constrain <event> ; <guard>", got "constrain BUY?約定ID"`,
 		},
 		"two directives in one note": {
 			source: `@startuml A
@@ -294,7 +291,7 @@ state "稼働中" as running {
 [*] --> running
 note as n1
   sync BOOK : accounts(口座ID)
-  constrain BUY(口座ID) ; true
+  constrain BUY?口座ID ; true
 end note
 @enduml
 `,
@@ -392,7 +389,7 @@ state "稼働中" as running {
   }
 
   note bottom of runningAccounts
-    constrain CLOSE(口座ID) ; 口座ID に未決済がない
+    constrain CLOSE?口座ID ; 口座ID に未決済がない
   end note
 }
 [*] --> running
@@ -404,8 +401,7 @@ state "稼働中" as running {
 
 	want := []promote.Constrain{{
 		Anchor: promote.Anchor{State: "runningAccounts"},
-		Event:  "CLOSE",
-		Params: []string{"口座ID"},
+		Event:  "CLOSE?口座ID",
 		Guard:  "口座ID に未決済がない",
 		Line:   10,
 	}}

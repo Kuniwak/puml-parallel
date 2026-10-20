@@ -718,7 +718,7 @@ func WriteNewLine(w io.Writer, n int) {
 
 // WriteNameTable writes the correspondence between the identifiers of the
 // generated theory and the CSDF names they encode. CSDF names are not
-// identifiers, so an event like "choose(product)" has to be encoded; without the
+// identifiers, so an event like "choose?product" has to be encoded; without the
 // table the reader cannot tell which diagram element a declaration came from.
 // Nothing is written when every name was already an identifier.
 func WriteNameTable(w io.Writer, names []obligationir.MangledName) error {

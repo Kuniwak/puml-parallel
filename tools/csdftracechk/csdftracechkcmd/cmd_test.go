@@ -42,7 +42,7 @@ func TestNewMainFunc(t *testing.T) {
 				": REJECTED",
 				"After the empty prefix (0 of 1 events) the diagram may be in a.",
 				"a is stable and has no edge for `reset`",
-				"visible events enabled at the refusing states: `insert(coin)`",
+				"visible events enabled at the refusing states: `insert?coin`",
 			},
 		},
 		"every trace is reported and any rejection fails the run": {

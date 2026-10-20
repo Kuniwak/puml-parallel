@@ -23,7 +23,7 @@ state "稼働中" as running {
 [*] --> running : accounts は空
 
 note as c1
-  constrain DEPOSIT(口座ID, 額) ; 額 は最小単位の倍数
+  constrain DEPOSIT?口座ID?額 ; 額 は最小単位の倍数
 end note
 @enduml
 `, map[string]string{
@@ -33,7 +33,7 @@ state "開設済み" as accOpen
 accOpen: 残高
 [*] --> accNone
 accNone --> accOpen : OPEN ; true ; 残高' = 0
-accOpen --> accOpen : DEPOSIT(額) ; 0 < 額 ∧ 額 ≤ 上限 ; 残高' = 残高 + 額
+accOpen --> accOpen : DEPOSIT?額 ; 0 < 額 ∧ 額 ≤ 上限 ; 残高' = 残高 + 額
 @enduml
 `,
 	})
@@ -44,9 +44,9 @@ accOpen --> accOpen : DEPOSIT(額) ; 0 < 額 ∧ 額 ≤ 上限 ; 残高' = 残�
 	var deposit, open promote.ExpandedEdge
 	for _, e := range got.Edges {
 		switch e.Edge.Event {
-		case "DEPOSIT(口座ID, 額)":
+		case "DEPOSIT?口座ID?額":
 			deposit = e
-		case "OPEN(口座ID)":
+		case "OPEN?口座ID":
 			open = e
 		}
 	}
@@ -111,5 +111,45 @@ accNone --> accOpen : OPEN
 		if e.Edge.Event == "HALT" && (len(e.Guard) != 0 || len(e.Post) != 0) {
 			t.Errorf("HALT clauses = %v / %v, want none", e.Guard, e.Post)
 		}
+	}
+}
+
+// A constrain names its event's fields with their directions, so a field
+// received on the edge is not the one a constrain says is chosen.
+func TestConstrainMatchesTheDirectionsOfTheFields(t *testing.T) {
+	global := func(event string) string {
+		return `@startuml ACCOUNTS
+state "稼働中" as running {
+  running : accounts ; 口座ID ⇸ Account
+  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+    !include local/ACCOUNT.puml
+  }
+}
+
+[*] --> running : accounts は空
+
+note as c1
+  constrain ` + event + ` ; 額 は最小単位の倍数
+end note
+@enduml
+`
+	}
+	locals := map[string]string{
+		"local/ACCOUNT.puml": `@startuml ACCOUNT
+state "未開設" as accNone
+state "開設済み" as accOpen
+[*] --> accNone
+accNone --> accOpen : OPEN
+accOpen --> accOpen : DEPOSIT?額
+@enduml
+`,
+	}
+	for event, wantError := range map[string]bool{"DEPOSIT?口座ID?額": false, "DEPOSIT?口座ID!額": true} {
+		t.Run(event, func(t *testing.T) {
+			_, diags := expand(t, global(event), locals)
+			if got := promote.HasError(diags); got != wantError {
+				t.Errorf("promote.HasError(%v) = %v, want %v", diags, got, wantError)
+			}
+		})
 	}
 }

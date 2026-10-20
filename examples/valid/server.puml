@@ -25,12 +25,12 @@ s5 : tools
 s5 : state
 
 [*] --> s0 : server' is the name of this MCP server, tools is the set of tools provided by this MCP server
-s0 --> s1 : start(s) ; s and server match ; server' and tools' remain the same, state' is initial state
-s1 --> s2 : initializeReq(s) ; s and server match ; server', tools', and state' all remain the same
-s2 --> s3 : initializeRes(s) ; s and server match ; server', tools', and state' all remain the same
-s3 --> s4 : toolsListReq(s) ; s and server match ; server', tools', and state' all remain the same
-s4 --> s3 : toolsListRes(s, ts) ; s and server match, and ts and tools match ; server', tools', and state' all remain the same
-s3 --> s5 : toolsCallReq(s) ; s and server match ; server' and tools' both remain the same, state' is somehow updated (may not be updated)
-s5 --> s3 : toolsCallRes(s) ; s and server match ; server' and tools' both remain the same, state' is somehow updated (may not be updated)
+s0 --> s1 : start?s ; s and server match ; server' and tools' remain the same, state' is initial state
+s1 --> s2 : initializeReq?s ; s and server match ; server', tools', and state' all remain the same
+s2 --> s3 : initializeRes?s ; s and server match ; server', tools', and state' all remain the same
+s3 --> s4 : toolsListReq?s ; s and server match ; server', tools', and state' all remain the same
+s4 --> s3 : toolsListRes?s?ts ; s and server match, and ts and tools match ; server', tools', and state' all remain the same
+s3 --> s5 : toolsCallReq?s ; s and server match ; server' and tools' both remain the same, state' is somehow updated (may not be updated)
+s5 --> s3 : toolsCallRes?s ; s and server match ; server' and tools' both remain the same, state' is somehow updated (may not be updated)
 
 @enduml

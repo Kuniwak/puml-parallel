@@ -21,8 +21,8 @@ func TestExpandWarnsAboutWhatIsProbablyNotMeant(t *testing.T) {
 state "なし" as buyNone
 state "約定済み" as buyBooked
 [*] --> buyNone : 数量は 0
-buyNone --> buyBooked : BUY(数量)
-buyBooked --> buyNone : BOOK(数量)
+buyNone --> buyBooked : BUY?数量
+buyBooked --> buyNone : BOOK?数量
 @enduml
 `),
 			want: `warning: line 6: the start edge of local/BUY.puml has a post, which says nothing: its state means that the instance does not exist. Leave it out`,
@@ -33,11 +33,11 @@ buyBooked --> buyNone : BOOK(数量)
 state "なし" as buyNone
 state "約定済み" as buyBooked
 [*] --> buyNone
-buyNone --> buyBooked : BUY(数量)
-buyBooked --> buyNone : BOOK(数量) ; true ; 数量は 0
+buyNone --> buyBooked : BUY?数量
+buyBooked --> buyNone : BOOK?数量 ; true ; 数量は 0
 @enduml
 `),
-			want: `warning: line 6: the post of BOOK(数量) in local/BUY.puml is dropped: the edge deletes the instance it would be about. Write an effect on another map as a sync or a hand-written edge`,
+			want: `warning: line 6: the post of BOOK?数量 in local/BUY.puml is dropped: the edge deletes the instance it would be about. Write an effect on another map as a sync or a hand-written edge`,
 		},
 		"an event two families have without a sync": {
 			global: strings.Replace(syncGlobal, `note as sync1
@@ -56,11 +56,11 @@ end note
 		},
 		"a constrain guard that names no argument": {
 			global: strings.Replace(syncGlobal, "@enduml", `note as c1
-  constrain BUY(約定ID, 数量) ; 相場は開いている
+  constrain BUY?約定ID?数量 ; 相場は開いている
 end note
 @enduml`, 1),
 			locals: syncLocals,
-			want:   `warning: line 20: the guard of this constrain names none of its arguments, so it says nothing about the instance`,
+			want:   `warning: line 20: the guard of this constrain names none of its fields, so it says nothing about the instance`,
 		},
 		"a type the state variable does not mention": {
 			global: strings.Replace(syncGlobal, `running : buys ; 約定ID ⇸ Buy`, `running : buys ; 約定ID ⇸ Sell`, 1),
@@ -71,11 +71,11 @@ end note
 		// edges. The mistyped argument is one mistake and is said once.
 		"a constrain argument no matching edge has": {
 			global: strings.Replace(syncGlobal, "@enduml", `note as c1
-  constrain BOOK(約定ID, 基準日, zzz) ; zzz は最小取引単位の倍数である
+  constrain BOOK?約定ID?基準日?zzz ; zzz は最小取引単位の倍数である
 end note
 @enduml`, 1),
 			locals:    syncLocals,
-			want:      `warning: line 20: BOOK has no argument named "zzz"; the guard says nothing about it`,
+			want:      `warning: line 20: BOOK has no field named "zzz"; the guard says nothing about it`,
 			wantCount: 1,
 		},
 		"a sync whose sides carry different arities": {
@@ -85,7 +85,7 @@ state "未開始" as cycIdle
 state "集計中" as cycCounting
 [*] --> cycIdle
 cycIdle --> cycCounting : BOOK
-cycCounting --> cycCounting : BOOK(数量)
+cycCounting --> cycCounting : BOOK?数量
 @enduml
 `),
 			want: `warning: line 17: the edges of "cycles" on "BOOK" do not all take the same arguments, so the merged event does not either`,
@@ -137,7 +137,7 @@ func withLocal(locals map[string]string, path, source string) map[string]string 
 // withConstrain adds a constrain on BUY with the given guard to the global
 // diagram, and says the line its directive is on.
 func withConstrain(global, guard string) (string, int) {
-	src := strings.Replace(global, "@enduml", "note as c1\n  constrain BUY(約定ID, 数量) ; "+guard+"\nend note\n@enduml", 1)
+	src := strings.Replace(global, "@enduml", "note as c1\n  constrain BUY?約定ID?数量 ; "+guard+"\nend note\n@enduml", 1)
 	before, _, _ := strings.Cut(src, "  constrain BUY")
 	return src, strings.Count(before, "\n") + 1
 }
@@ -161,7 +161,7 @@ func TestExpandWarnsAboutAConstrainThatNamesNoArgumentLeavingOutOpaqueClauses(t 
 			if x == nil {
 				t.Fatalf("promote.Expand() expansion = nil: %v", diags)
 			}
-			want := fmt.Sprintf("warning: line %d: the guard of this constrain names none of its arguments, so it says nothing about the instance", line)
+			want := fmt.Sprintf("warning: line %d: the guard of this constrain names none of its fields, so it says nothing about the instance", line)
 			if got := countDiagnostic(diags, want) > 0; got != c.warn {
 				t.Errorf("promote.Expand() warns %v, want %v (%q); got %v", got, c.warn, want, diags)
 			}

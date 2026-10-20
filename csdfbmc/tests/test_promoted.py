@@ -9,8 +9,8 @@ from csdfbmc.explore import Explorer
 from csdfbmc.values import FrozenMap, record
 
 # What `csdfpromote -format json` prints for a one-family global diagram whose
-# local diagram is: none --OPEN(額)--> open(残高) --CLOSE--> none, with a
-# self-loop DEPOSIT(額) on open, and a constrain on DEPOSIT.
+# local diagram is: none --OPEN?額--> open(残高) --CLOSE--> none, with a
+# self-loop DEPOSIT?額 on open, and a constrain on DEPOSIT.
 LOCAL = {
     "states": {
         "accNone": {"name": "未開設", "vars": [], "line": 2},
@@ -18,9 +18,9 @@ LOCAL = {
     },
     "start_edge": {"dst": "accNone", "post": "true", "line": 5},
     "edges": [
-        {"src": "accNone", "dst": "accOpen", "event": "OPEN(額)", "guard": "true", "post": "残高' = 額", "line": 6},
-        {"src": "accOpen", "dst": "accOpen", "event": "DEPOSIT(額)", "guard": "0 < 額", "post": "残高' = 残高 + 額", "line": 7},
-        {"src": "accOpen", "dst": "accNone", "event": "CLOSE", "guard": "残高 = 0", "post": "true", "line": 8},
+        {"src": "accNone", "dst": "accOpen", "event": "OPEN?額", "channel": "OPEN", "fields": [{"dir": "?", "name": "額"}], "guard": "true", "post": "残高' = 額", "line": 6},
+        {"src": "accOpen", "dst": "accOpen", "event": "DEPOSIT?額", "channel": "DEPOSIT", "fields": [{"dir": "?", "name": "額"}], "guard": "0 < 額", "post": "残高' = 残高 + 額", "line": 7},
+        {"src": "accOpen", "dst": "accNone", "event": "CLOSE", "channel": "CLOSE", "fields": [], "guard": "残高 = 0", "post": "true", "line": 8},
     ],
     "end_edge": None, "assumptions": [],
 }
@@ -35,26 +35,26 @@ EXPANSION = {
         "states": {"running": {"name": "稼働中", "vars": [{"name": "accounts", "type": "口座ID ⇸ Account"}], "line": 2}},
         "start_edge": {"dst": "running", "post": "accounts は空", "line": 5},
         "edges": [
-            {"src": "running", "dst": "running", "event": "OPEN(口座ID, 額)", "guard": "g", "post": "p", "line": 0},
-            {"src": "running", "dst": "running", "event": "DEPOSIT(口座ID, 額)", "guard": "g", "post": "p", "line": 0},
-            {"src": "running", "dst": "running", "event": "CLOSE(口座ID)", "guard": "g", "post": "p", "line": 0},
+            {"src": "running", "dst": "running", "event": "OPEN?口座ID?額", "channel": "OPEN", "fields": [{"dir": "?", "name": "口座ID"}, {"dir": "?", "name": "額"}], "guard": "g", "post": "p", "line": 0},
+            {"src": "running", "dst": "running", "event": "DEPOSIT?口座ID?額", "channel": "DEPOSIT", "fields": [{"dir": "?", "name": "口座ID"}, {"dir": "?", "name": "額"}], "guard": "g", "post": "p", "line": 0},
+            {"src": "running", "dst": "running", "event": "CLOSE?口座ID", "channel": "CLOSE", "fields": [{"dir": "?", "name": "口座ID"}], "guard": "g", "post": "p", "line": 0},
         ],
         "end_edge": None, "assumptions": [],
     },
     "edges": [
-        {"edge": {"src": "running", "dst": "running", "event": "OPEN(口座ID, 額)", "guard": "g", "post": "p", "line": 0},
+        {"edge": {"src": "running", "dst": "running", "event": "OPEN?口座ID?額", "channel": "OPEN", "fields": [{"dir": "?", "name": "口座ID"}, {"dir": "?", "name": "額"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("not_in_dom", "口座ID ∉ dom accounts")],
          "post": [gen("create", "accounts' = accounts ∪ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
                   {"kind": "local", "text": "残高' = 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 6}]},
-        {"edge": {"src": "running", "dst": "running", "event": "DEPOSIT(口座ID, 額)", "guard": "g", "post": "p", "line": 0},
+        {"edge": {"src": "running", "dst": "running", "event": "DEPOSIT?口座ID?額", "channel": "DEPOSIT", "fields": [{"dir": "?", "name": "口座ID"}, {"dir": "?", "name": "額"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み"),
                    {"kind": "local", "text": "0 < 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7},
                    {"kind": "constrain", "text": "残高 + 額 ≤ 上限", "formal": "accounts[口座ID].残高 + 額 <= 3", "line": 20}],
          "post": [gen("update", "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
                   {"kind": "local", "text": "残高' = 残高 + 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7}]},
-        {"edge": {"src": "running", "dst": "running", "event": "CLOSE(口座ID)", "guard": "g", "post": "p", "line": 0},
+        {"edge": {"src": "running", "dst": "running", "event": "CLOSE?口座ID", "channel": "CLOSE", "fields": [{"dir": "?", "name": "口座ID"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み"),
                    {"kind": "local", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}],
@@ -127,7 +127,7 @@ class PromotedExplorerTest(unittest.TestCase):
             Explorer.of_twins(Diagram.from_json(exp), GLOBAL_TWINS).run()
 
     def test_a_tau_edge_ranges_over_the_instances(self):
-        tau = {"src": "running", "dst": "running", "event": "tau", "guard": "g", "post": "p", "line": 0}
+        tau = {"src": "running", "dst": "running", "event": "tau", "channel": "tau", "fields": [], "guard": "g", "post": "p", "line": 0}
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
             {"edge": tau,
              "origin": "promote: local/ACCOUNT.puml",

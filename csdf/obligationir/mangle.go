@@ -12,7 +12,7 @@ import (
 
 // Mangle encodes an arbitrary CSDF name as a run of ASCII letters, digits and
 // underscores. CSDF names are not identifiers: an event is any run of
-// non-semicolon Unicode characters ("choose(product)"), and even an id may carry
+// non-semicolon Unicode characters ("choose?product"), and even an id may carry
 // a hyphen or start with a digit. Emitting them verbatim produced theories that
 // do not parse, which fails completeness outright - a diagram that refines itself
 // must at least yield a checkable obligation.

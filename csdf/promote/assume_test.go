@@ -83,7 +83,7 @@ state "稼働中" as running {
 [*] --> running : attempts は空
 note as fair
   assume 再送を続ければいつかどれかの試行が確定する
-  constrain RESEND(試行ID) ; 真
+  constrain RESEND?試行ID ; 真
 end note
 @enduml
 `)

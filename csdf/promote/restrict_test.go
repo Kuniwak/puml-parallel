@@ -53,7 +53,7 @@ func TestRestrictKeepsTheKeptSideOfASyncAndListsTheDroppedGuard(t *testing.T) {
 
 	var books []promote.ExpandedEdge
 	for _, e := range x.Edges {
-		if strings.HasPrefix(string(e.Edge.Event), "BOOK(") {
+		if strings.HasPrefix(string(e.Edge.Event), "BOOK?") {
 			books = append(books, e)
 		}
 	}
@@ -61,7 +61,7 @@ func TestRestrictKeepsTheKeptSideOfASyncAndListsTheDroppedGuard(t *testing.T) {
 		t.Fatalf("want the 2 BOOK edges, got %d:\n%s", len(books), x.String())
 	}
 	for _, e := range books {
-		if e.Edge.Event != "BOOK(約定ID, 基準日, 数量)" {
+		if e.Edge.Event != "BOOK?約定ID?基準日?数量" {
 			t.Errorf("event = %q, want every argument kept", e.Edge.Event)
 		}
 		if strings.Contains(string(e.Edge.Guard), "cycles") || strings.Contains(string(e.Edge.Post), "cycles") {
@@ -96,12 +96,12 @@ func TestRestrictKeepsTheKeptSideOfASyncAndListsTheDroppedGuard(t *testing.T) {
 // whose twin reads only what is kept stays.
 func TestRestrictDropsAConstrainWhoseFormalReadsADroppedMap(t *testing.T) {
 	global := strings.Replace(syncGlobal, "@enduml", `note bottom of runningBuys
-  constrain BUY(約定ID, 数量) ; 基準日の集計が開いている
+  constrain BUY?約定ID?数量 ; 基準日の集計が開いている
   formal: exists(cycles, lambda i, r: r["state"] == "集計中")
 end note
 
 note bottom of runningBuys
-  constrain SETTLE(約定ID) ; 決済できる
+  constrain SETTLE?約定ID ; 決済できる
   formal: 約定ID in buys
 end note
 @enduml`, 1)
@@ -138,7 +138,7 @@ end note
 // not, so it stays, and the author is told so once.
 func TestRestrictSaysWhenItCannotTellWhatAConstrainReads(t *testing.T) {
 	global := strings.Replace(syncGlobal, "@enduml", `note bottom of runningBuys
-  constrain BUY(約定ID, 数量) ; 基準日の集計が開いている
+  constrain BUY?約定ID?数量 ; 基準日の集計が開いている
 end note
 @enduml`, 1)
 	x, diags := restrict(t, global, syncLocals, "buys")

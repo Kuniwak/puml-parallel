@@ -22,7 +22,7 @@ func TestNewMainFuncOK(t *testing.T) {
 	testCases := map[string]testCase{
 		"a file argument, with the defaults": {
 			Args: []string{filepath.Join("testdata", "a.puml")},
-			WantStdout: "state\tname\tinsert(coin)\treset\n" +
+			WantStdout: "state\tname\tinsert?coin\treset\n" +
 				"a\ta\t\"[\"\"coins' is {coin}\"\"(c, x, x')] → b\"\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
@@ -31,23 +31,23 @@ func TestNewMainFuncOK(t *testing.T) {
 state "a" as a
 state "b" as b
 [*] --> a
-a --> b : insert(coin) ; g
+a --> b : insert?coin ; g
 @enduml
 `,
 			Args: []string{"-expr-mode", "logical"},
-			WantStdout: "state\tname\tinsert(coin)\n" +
+			WantStdout: "state\tname\tinsert?coin\n" +
 				"a\ta\t\"[\"\"g\"\"(c, x)] → b\n[¬\"\"g\"\"(c, x)] ×\"\n" +
 				"b\tb\t×\n",
 		},
 		"-conditions enabling leaves out the postconditions nothing reads": {
 			Args: []string{"-conditions", "enabling", filepath.Join("testdata", "a.puml")},
-			WantStdout: "state\tname\tinsert(coin)\treset\n" +
+			WantStdout: "state\tname\tinsert?coin\treset\n" +
 				"a\ta\t→ b\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
 		"-format json keeps every postcondition by default": {
 			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
-			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
+			WantStdout: `{"columns":[{"kind":"event","event":"insert?coin"},{"kind":"event","event":"reset"}],` +
 				`"rows":[` +
 				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"coins' is {coin}","quoted":true,"args":["c","x","x'"]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
 				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
@@ -55,7 +55,7 @@ a --> b : insert(coin) ; g
 		},
 		"-format json -conditions enabling": {
 			Args: []string{"-format", "json", "-conditions", "enabling", filepath.Join("testdata", "a.puml")},
-			WantStdout: `{"columns":[{"kind":"event","event":"insert(coin)"},{"kind":"event","event":"reset"}],` +
+			WantStdout: `{"columns":[{"kind":"event","event":"insert?coin"},{"kind":"event","event":"reset"}],` +
 				`"rows":[` +
 				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"true"}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
 				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +

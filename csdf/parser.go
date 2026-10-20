@@ -398,7 +398,11 @@ func (p *Parser) parseEvent() (Event, error) {
 	if event == "" {
 		return "", fmt.Errorf("csdf.Parser.parseEvent: expected event after ':' in edge at line %d, col %d", p.line, p.col)
 	}
-	return Event(event), nil
+	e, err := ParseEvent(event)
+	if err != nil {
+		return "", fmt.Errorf("csdf.Parser.parseEvent: line %d: %w", p.line, err)
+	}
+	return e, nil
 }
 
 func (p *Parser) parseID() (string, error) {

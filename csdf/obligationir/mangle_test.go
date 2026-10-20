@@ -12,7 +12,7 @@ func TestMangle(t *testing.T) {
 		want string
 	}{
 		{name: "an identifier is left alone", in: "availableProducts", want: "availableProducts"},
-		{name: "an event with parentheses", in: "choose(product)", want: "choose_u28uproduct_u29u"},
+		{name: "an event with a field", in: "choose?product", want: "choose_u3fuproduct"},
 		{name: "a space", in: "pay now", want: "pay_u20unow"},
 		{name: "a hyphen in an id", in: "vm-idle", want: "vm_u2duidle"},
 		{name: "an underscore doubles", in: "a_b", want: "a__b"},
@@ -39,7 +39,7 @@ func TestMangle(t *testing.T) {
 func TestMangleIsInjective(t *testing.T) {
 	names := []string{
 		"", "_", "__", "u_", "u", "a", "a_", "_a", "1st", "end", "end_",
-		"a b", "a_b", "a__b", "a-b", "choose(product)", "choose_u28uproduct_u29u",
+		"a b", "a_b", "a__b", "a-b", "choose?product", "choose_u3fuproduct",
 		"商品", "a_u5fu", "s0_s1", "s0__s1",
 	}
 	seen := make(map[string]string, len(names))
@@ -56,7 +56,7 @@ func TestMangleIsInjective(t *testing.T) {
 // accept. Mangle alone may still start with a digit, which is why every emitted
 // identifier carries a category prefix; TestVarName covers one such prefix.
 func TestMangleProducesIdentifierCharacters(t *testing.T) {
-	for _, in := range []string{"", "1st", "choose(product)", "vm-idle", "商品", "end", "\n", "a_", "a__", "_"} {
+	for _, in := range []string{"", "1st", "choose?product", "vm-idle", "商品", "end", "\n", "a_", "a__", "_"} {
 		got := Mangle(in)
 		for _, r := range got {
 			isLetter := ('a' <= r && r <= 'z') || ('A' <= r && r <= 'Z')
@@ -104,7 +104,7 @@ func TestIsMangled(t *testing.T) {
 		want bool
 	}{
 		{name: "a name that survives verbatim", in: "availableProducts", want: false},
-		{name: "a name that has to be encoded", in: "choose(product)", want: true},
+		{name: "a name that has to be encoded", in: "choose?product", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

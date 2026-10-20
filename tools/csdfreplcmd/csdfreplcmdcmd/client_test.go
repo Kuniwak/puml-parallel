@@ -18,7 +18,7 @@ s0: count ; number
 state "Done" as s1
 s1: result ; string
 [*] --> s0 : count starts at zero
-s0 --> s1 : insert(coin) ; count >= 0 ; result is done
+s0 --> s1 : insert?coin ; count >= 0 ; result is done
 @enduml
 `
 
@@ -143,8 +143,8 @@ func TestSelectStatevarTraceJumpFlow(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("trace exit = %d, stderr = %q", code, stderr)
 	}
-	if !strings.Contains(stdout, "insert(coin)") {
-		t.Errorf("trace stdout = %q, want insert(coin)", stdout)
+	if !strings.Contains(stdout, "insert?coin") {
+		t.Errorf("trace stdout = %q, want insert?coin", stdout)
 	}
 
 	if code, _, stderr := run(t, sock, "jump", "0"); code != 0 {
@@ -274,8 +274,8 @@ func TestReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	findings := filepath.Join(dir, "findings.json")
-	if err := os.WriteFile(findings, []byte(`{"deadlocks":[{"at":{"state":"s1","values":["ok"]},"trace":["insert(coin)"],
-	  "replay":{"initial":[0],"steps":[{"event":"insert(coin)","src":"s0","dst":"s1","line":7,"values":["ok"]}]}}],
+	if err := os.WriteFile(findings, []byte(`{"deadlocks":[{"at":{"state":"s1","values":["ok"]},"trace":["insert?coin"],
+	  "replay":{"initial":[0],"steps":[{"event":"insert?coin","src":"s0","dst":"s1","line":7,"values":["ok"]}]}}],
 	  "tau_cycles":[],"violations":[],"avoiding_cycles":[],"empty_posts":[],"unconstrained":[]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}

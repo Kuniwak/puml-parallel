@@ -28,7 +28,7 @@ class ReplayTest(unittest.TestCase):
         replay = out["deadlocks"][0]["replay"]
         self.assertEqual([{}], replay["initial"])
         first = replay["steps"][0]
-        self.assertEqual("OPEN(口座ID, 額)", first["event"])
+        self.assertEqual("OPEN?口座ID?額", first["event"])
         (record,) = first["values"][0].values()
         self.assertEqual("開設済み", record["state"])
         self.assertIn("残高", record)

@@ -16,7 +16,7 @@ state "稼働中" as running {
 running --> [*] : attempts のすべてが〈確定〉
 
 note bottom of runningAttempts
-  constrain RESEND(試行ID, 置換Tx) ; 置換Tx の置換元 は〈滞留〉にあり、置換Tx の手数料 > 置換元 の手数料
+  constrain RESEND?試行ID?置換Tx ; 置換Tx の置換元 は〈滞留〉にあり、置換Tx の手数料 > 置換元 の手数料
 end note
 
 note as fair

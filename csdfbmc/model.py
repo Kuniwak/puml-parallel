@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import json
-import re
 from dataclasses import dataclass, field
 
 # The clause connective is grammar (docs/SYNTAX.md): a predicate is its clauses
 # joined by " ∧ ", and the omitted predicate or the literal true has no clause.
 CONNECTIVE = " ∧ "
 
-_EVENT_RE = re.compile(r"^([^()]+?)\s*\(\s*(.*?)\s*\)$")
 
 
 def clause_texts(text: str | None) -> tuple[str, ...]:
@@ -19,15 +17,12 @@ def clause_texts(text: str | None) -> tuple[str, ...]:
     return tuple(part.strip() for part in text.split(CONNECTIVE))
 
 
-def split_event(event: str) -> tuple[str, tuple[str, ...]]:
-    """An event is free text; by the convention csdfpromote also follows,
-    "name(a, b)" is a name with parameters and anything else a bare name."""
-    m = _EVENT_RE.match(event)
-    if m is None:
-        return event.strip(), ()
-    if m.group(2) == "":
-        return m.group(1), ()
-    return m.group(1), tuple(p.strip() for p in m.group(2).split(",") if p.strip())
+def split_event(e: dict) -> tuple[str, tuple[str, ...]]:
+    """The channel and field names of an edge's event, as csdfparse writes
+    them out: the grammar of an event is read by csdfparse alone."""
+    if "channel" not in e or "fields" not in e:
+        raise ValueError(f"the edge on {e.get('event')!r} has no channel and fields; write the diagram with csdfparse 3 or later")
+    return e["channel"], tuple(f["name"] for f in e["fields"])
 
 
 @dataclass(frozen=True)
@@ -172,7 +167,7 @@ class Diagram:
         vars_ = {sid: tuple(v["name"] for v in st.get("vars", [])) for sid, st in d["states"].items()}
         edges = []
         for e in raw_edges:
-            name, params = split_event(e["event"])
+            name, params = split_event(e)
             key = (e["src"], e["dst"], e["event"], e.get("guard"), e.get("post"))
             if by_text is not None and key in by_text:
                 guard, post = by_text[key]

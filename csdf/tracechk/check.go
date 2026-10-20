@@ -20,7 +20,7 @@ func MatchExact(diagramEvent, traceEvent csdf.Event) bool {
 
 // MatchPrefix accepts an event of the trace as every diagram event it is a
 // prefix of, so a trace stripped of its parameters ("insert") matches the
-// parameterised label ("insert(coin)"). It includes the identical text.
+// parameterised label ("insert?coin"). It includes the identical text.
 func MatchPrefix(diagramEvent, traceEvent csdf.Event) bool {
 	return strings.HasPrefix(string(diagramEvent), string(traceEvent))
 }
