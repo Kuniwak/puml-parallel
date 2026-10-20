@@ -294,3 +294,83 @@ l0_r0 --> l1_r0 : x ; g2 ; p1
 		})
 	}
 }
+
+func TestComposeParallelRefusesARenamingThatWouldCaptureAName(t *testing.T) {
+	tests := map[string]struct {
+		left, right Edge
+		rightVars   []StateVar
+	}{
+		"the left field is a right state variable": {
+			left: Edge{Event: "send?x"}, right: Edge{Event: "send?y", Guard: "x > y"}, rightVars: []StateVar{{Name: "x"}},
+		},
+		"the left field is a right state variable of the destination": {
+			left: Edge{Event: "send?x"}, right: Edge{Event: "send?y", Post: "x' = y"}, rightVars: []StateVar{{Name: "x"}},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			tt.left.Src, tt.left.Dst, tt.right.Src, tt.right.Dst = "l0", "l0", "r0", "r0"
+			left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{tt.left}}
+			right := &Diagram{States: map[StateID]State{"r0": {Vars: tt.rightVars}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{tt.right}}
+
+			// Execute
+			_, err := ComposeParallel2(left, right, []string{"send"})
+
+			// Assert
+			if err == nil {
+				t.Error("ComposeParallel2() error = nil, want the capture refused")
+			}
+		})
+	}
+}
+
+func TestComposeParallelSwapsFieldsSimultaneously(t *testing.T) {
+	// Setup
+	left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "ch?a?b"}}}
+	right := &Diagram{States: map[StateID]State{"r0": {}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "ch?b?a", Guard: "b < a"}}}
+
+	// Execute
+	composite, err := ComposeParallel2(left, right, []string{"ch"})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("ComposeParallel2() error = %v", err)
+	}
+	if want := Predicate("@[a := b, b := a] b < a"); composite.Edges[0].Guard != want {
+		t.Errorf("guard = %q, want %q", composite.Edges[0].Guard, want)
+	}
+}
+
+func TestComposeParallelChecksTheFieldsOfAChannelEvenWhereNoStateReachesThem(t *testing.T) {
+	// Setup: the mismatching right edge is never taken.
+	left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send?x"}}}
+	right := &Diagram{States: map[StateID]State{"r0": {}, "r9": {}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r9", Dst: "r9", Event: "send?x?y"}}}
+
+	// Execute
+	_, err := ComposeParallel2(left, right, []string{"send"})
+
+	// Assert
+	if err == nil {
+		t.Error("ComposeParallel2() error = nil, want send?x and send?x?y refused")
+	}
+}
+
+func TestComposeParallelComposesThreeDiagramsFromTheLeft(t *testing.T) {
+	// Setup
+	side := func(id StateID, event Event, guard Predicate) *Diagram {
+		return &Diagram{States: map[StateID]State{id: {}}, StartEdge: StartEdge{Dst: id}, Edges: []Edge{{Src: id, Dst: id, Event: event, Guard: guard}}}
+	}
+
+	// Execute
+	composite, err := ComposeParallel([]*Diagram{side("a", "send?x", "x > 0"), side("b", "send?y", "y < 5"), side("c", "send?z", "z ≠ 2")}, []string{"send"})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("ComposeParallel() error = %v", err)
+	}
+	want := []Edge{{Src: "a_b_c", Dst: "a_b_c", Event: "send?x", Guard: "x > 0 ∧ @[y := x] y < 5 ∧ @[z := x] z ≠ 2"}}
+	if diff := cmp.Diff(want, composite.Edges); diff != "" {
+		t.Errorf("ComposeParallel() edges mismatch (-want +got):\n%s", diff)
+	}
+}

@@ -3,6 +3,8 @@ package csdf
 import (
 	"slices"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestSplitRenaming(t *testing.T) {
@@ -50,21 +52,37 @@ func TestRenameClause(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := RenameClause(tt.clause, tt.renames); got != tt.want {
-				t.Errorf("RenameClause(%q, %v) = %q, want %q", tt.clause, tt.renames, got, tt.want)
+			if got, err := RenameClause(tt.clause, tt.renames); err != nil || got != tt.want {
+				t.Errorf("RenameClause(%q, %v) = %q, %v, want %q", tt.clause, tt.renames, got, err, tt.want)
 			}
 		})
 	}
 }
 
+func TestRenameClauseRefusesAMalformedRenaming(t *testing.T) {
+	// Execute
+	_, err := RenameClause("@[y = x] y", []Rename{{"y", "x"}})
+
+	// Assert
+	if err == nil {
+		t.Error("RenameClause() error = nil, want the malformed renaming refused")
+	}
+}
+
 func TestARenamedClauseIsCheckedAndReadByItsBody(t *testing.T) {
+	// Setup
 	p := Predicate(`x > 0 ∧ @[y := x] y \∧ z`)
-	if err := CheckClauses(p); err != nil {
-		t.Fatalf("CheckClauses(%q) = %v", p, err)
+
+	// Execute
+	err := CheckClauses(p)
+	got, jsonErr := p.ClausesJSON()
+
+	// Assert
+	if err != nil || jsonErr != nil {
+		t.Fatalf("CheckClauses(%q) = %v, ClausesJSON() error = %v", p, err, jsonErr)
 	}
 	want := []ClauseJSON{{Text: "x > 0"}, {Text: "y ∧ z", Rename: map[string]string{"y": "x"}}}
-	got := p.ClausesJSON()
-	if len(got) != 2 || got[0].Text != want[0].Text || got[1].Text != want[1].Text || got[1].Rename["y"] != "x" {
-		t.Errorf("ClausesJSON() = %#v, want %#v", got, want)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ClausesJSON() mismatch (-want +got):\n%s", diff)
 	}
 }

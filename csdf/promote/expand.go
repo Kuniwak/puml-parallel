@@ -137,14 +137,14 @@ func authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) Expan
 		from.Opaque = true
 		return from
 	}
-	renames, body, _ := csdf.SplitRenaming(clause)
-	from.Text = csdf.ClauseText(body)
-	for _, r := range renames {
-		if from.Rename == nil {
-			from.Rename = map[string]string{}
-		}
-		from.Rename[r.From] = r.To
+	// A parsed diagram's clauses passed csdf.CheckClauses, so the renaming
+	// parses.
+	renames, body, err := csdf.SplitRenaming(clause)
+	if err != nil {
+		panic(fmt.Sprintf("promote.authored: %v", err))
 	}
+	from.Text = csdf.ClauseText(body)
+	from.Rename = csdf.RenamesMap(renames)
 	return from
 }
 
@@ -160,11 +160,12 @@ func conjoin(clauses []ExpandedClause) csdf.Predicate {
 		case c.Opaque:
 			texts = append(texts, csdf.PredicateOpaque)
 		default:
-			var renames []csdf.Rename
-			for from, to := range c.Rename {
-				renames = append(renames, csdf.Rename{From: from, To: to})
+			// An escaped text holds no renaming of its own, so this cannot fail.
+			clause, err := csdf.RenameClause(csdf.EscapeClause(c.Text), csdf.RenamesFromMap(c.Rename))
+			if err != nil {
+				panic(fmt.Sprintf("promote.conjoin: %v", err))
 			}
-			texts = append(texts, csdf.RenameClause(csdf.EscapeClause(c.Text), renames))
+			texts = append(texts, clause)
 		}
 	}
 	return csdf.ConjoinClauses(texts)

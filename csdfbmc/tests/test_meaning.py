@@ -113,3 +113,10 @@ class RenamedWritesTest(unittest.TestCase):
         client = Recording({"[{'y': 1}]": Analysis(opaque=False, reads=(), writes=("y",))}, lambda b: [{"y": 1}])
         clause = Clause("local", "[{'y': 1}]", rename=(("y", "x"),))
         self.assertEqual({"x"}, standard(GlueMeaning(client)).writes(clause))
+
+
+class RenamedOntoNothingTest(unittest.TestCase):
+    def test_a_renaming_onto_a_name_the_step_does_not_bind_is_refused(self):
+        meaning = standard(GlueMeaning(Recording({"y > 0": Analysis(opaque=False, reads=("y",))}, lambda b: True)))
+        with self.assertRaisesRegex(KeyError, "renamed onto"):
+            meaning.evaluate(RENAMED, "guard", {"y": 1})

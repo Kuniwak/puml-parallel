@@ -56,13 +56,13 @@ func SplitRenaming(clause Predicate) ([]Rename, Predicate, error) {
 // that already has a renaming gets the two composed into one; a name that
 // comes to stand for itself is left out. @opaque reads nothing, so it is not
 // renamed.
-func RenameClause(clause Predicate, renames []Rename) Predicate {
+func RenameClause(clause Predicate, renames []Rename) (Predicate, error) {
 	if len(renames) == 0 || IsOpaque(clause) {
-		return clause
+		return clause, nil
 	}
 	inner, body, err := SplitRenaming(clause)
 	if err != nil {
-		inner, body = nil, clause
+		return "", fmt.Errorf("csdf.RenameClause: %w", err)
 	}
 	outer := func(name string) string {
 		for _, r := range renames {
@@ -83,14 +83,36 @@ func RenameClause(clause Predicate, renames []Rename) Predicate {
 	}
 	composed = slices.DeleteFunc(composed, func(r Rename) bool { return r.From == r.To })
 	if len(composed) == 0 {
-		return body
+		return body, nil
 	}
 	sortRenames(composed)
 	parts := make([]string, len(composed))
 	for i, r := range composed {
 		parts[i] = r.From + renamingBind + r.To
 	}
-	return Predicate(renamingOpen + strings.Join(parts, ", ") + renamingClose + string(body))
+	return Predicate(renamingOpen + strings.Join(parts, ", ") + renamingClose + string(body)), nil
+}
+
+// RenamesMap is renames as a map from each From to its To.
+func RenamesMap(renames []Rename) map[string]string {
+	if len(renames) == 0 {
+		return nil
+	}
+	m := make(map[string]string, len(renames))
+	for _, r := range renames {
+		m[r.From] = r.To
+	}
+	return m
+}
+
+// RenamesFromMap is the renames a map from each From to its To says, sorted.
+func RenamesFromMap(m map[string]string) []Rename {
+	var renames []Rename
+	for from, to := range m {
+		renames = append(renames, Rename{From: from, To: to})
+	}
+	sortRenames(renames)
+	return renames
 }
 
 func sortRenames(renames []Rename) {

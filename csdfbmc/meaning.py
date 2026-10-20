@@ -197,7 +197,10 @@ class Renaming:
     def _env(clause: Clause, env: dict) -> dict:
         if not clause.rename:
             return env
-        return {**env, **{f: env[t] for f, t in clause.rename if t in env}}
+        missing = [t for _, t in clause.rename if t not in env]
+        if missing:
+            raise KeyError(f"the clause {clause.text!r} is renamed onto {missing}, which this step does not bind; it may read {sorted(env)}")
+        return {**env, **{f: env[t] for f, t in clause.rename}}
 
     def names(self, clause: Clause, role: str) -> set[str] | None:
         return self._outer(clause, self.inner.names(clause, role))

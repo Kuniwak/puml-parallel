@@ -127,7 +127,15 @@ func (e Edge) MarshalJSON() ([]byte, error) {
 	if fields == nil {
 		fields = []Field{}
 	}
-	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: e.Guard.ClausesJSON(), Post: e.Post, PostClauses: e.Post.ClausesJSON(), Line: e.Line})
+	guard, err := e.Guard.ClausesJSON()
+	if err != nil {
+		return nil, err
+	}
+	post, err := e.Post.ClausesJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: guard, Post: e.Post, PostClauses: post, Line: e.Line})
 }
 
 // UnmarshalJSON reads the event, guard and post whole, the event by the

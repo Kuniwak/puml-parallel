@@ -104,7 +104,9 @@ what they must read:
   - A renaming `@[y := x, …] clause` before a clause says that the name `y` the
     clause reads stands for the value the predicate names `x`. Composition writes it
     when two synchronised events name a field differently, so that no clause is
-    rewritten; csdfparse writes it as the clause's `rename` (`{"y": "x"}`).
+    rewritten; csdfparse writes it as the clause's `rename` (`{"y": "x"}`). It is
+    written exactly `@[from := to, …] ` (one space after `]`), its names sorted, and
+    the renamings in it are simultaneous: `@[a := b, b := a]` swaps two names.
 
   Any other word starting with an unescaped `@` is refused.
 - **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
