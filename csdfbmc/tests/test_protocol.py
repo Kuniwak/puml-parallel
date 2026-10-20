@@ -1,9 +1,11 @@
 """The evaluator protocol carries values in a tagged JSON encoding, since
 JSON has no tuples, sets or maps with keys other than strings."""
 import json
+import os
+import sys
 import unittest
 
-from csdfbmc.protocol import from_wire, to_wire
+from csdfbmc.protocol import EvaluatorError, from_wire, start, to_wire
 from csdfbmc.values import FrozenMap
 
 
@@ -34,6 +36,43 @@ class WireEncodingTest(unittest.TestCase):
     def test_a_value_outside_the_model_is_refused(self):
         with self.assertRaises(TypeError):
             to_wire(1.5)
+
+
+# The repository root, from which "python -m csdfbmc.python_glue" finds the package.
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class TransportTest(unittest.TestCase):
+    """The checker reaches a glue as a command speaking JSON lines, or as a
+    Python module loaded in-process; both answer the same requests."""
+
+    def evaluators(self):
+        command = start(command=[sys.executable, "-E", "-s", "-B", "-m", "csdfbmc.python_glue"], cwd=ROOT)
+        self.addCleanup(command.close)
+        return {"command": command, "module": start(module=["csdfbmc.python_glue"])}
+
+    def test_both_answer_hello_and_the_value_requests_alike(self):
+        for how, ev in self.evaluators().items():
+            with self.subTest(how=how):
+                self.assertEqual("python", ev.language)
+                self.assertEqual({"reads": ["m"], "writes": ["m"]},
+                                 ev.request({"op": "analyse", "clause": "[{'m': m.set('k', (1, 2))}]", "role": "post"}))
+                answer = ev.request({"op": "post", "clause": "[{'m': m.set('k', (1, 2))}]",
+                                     "bindings": [{"m": FrozenMap()}]})
+                self.assertEqual({"results": [[{"m": FrozenMap({"k": (1, 2)})}]]}, answer)
+                self.assertEqual({"results": [True]}, ev.request({"op": "guard", "clause": "len(s) == 2",
+                                                                  "bindings": [{"s": frozenset({1, 2})}]}))
+
+    def test_an_error_answer_is_raised_with_its_message(self):
+        for how, ev in self.evaluators().items():
+            with self.subTest(how=how), self.assertRaises(EvaluatorError) as cm:
+                ev.request({"op": "guard", "clause": "x >", "bindings": [{}]})
+            self.assertIn("x >", str(cm.exception))
+
+    def test_a_glue_speaking_another_protocol_version_is_refused(self):
+        with self.assertRaises(EvaluatorError) as cm:
+            start(command=[sys.executable, "-c", "import sys; sys.stdin.readline(); print('{\"language\": \"x\", \"protocol\": 99}')"])
+        self.assertIn("99", str(cm.exception))
 
 
 if __name__ == "__main__":

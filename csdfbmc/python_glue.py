@@ -112,3 +112,10 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     """The handler of the protocol's requests; args are the paths of the
     modules of shared definitions."""
     return Glue(args).handle
+
+
+if __name__ == "__main__":
+    import sys
+
+    from csdfbmc.protocol import serve
+    serve(evaluator(sys.argv[1:]), sys.stdin, sys.stdout)
