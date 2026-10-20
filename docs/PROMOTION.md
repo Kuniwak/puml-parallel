@@ -97,6 +97,11 @@ confirmed". It is not a directive — it narrows no edge, because no guard can
 say it — so `csdfpromote` leaves it in place and the expansion carries it, where
 `csdflivelockfree` and `csdfrefinement` take it as a hypothesis. It cannot be
 anchored to a block: an assumption is about the whole system.
+`examples/promote/ATTEMPTS.puml` is the worked example: a stuck transaction
+attempt is replaced by one paying a higher fee, the `constrain` says what a
+replacement is, and the `assume` note says that the replacements stop, which
+is the hypothesis `csdflivelockfree` states its theorem under once the
+attempts are hidden.
 
 Everything else in the file is ordinary Composable State Diagram syntax:
 hand-written states, the start edge, and hand-written edges such as the ones
