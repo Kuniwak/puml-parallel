@@ -5,8 +5,9 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
-from csdfbmc.model import Diagram, Edge
+from csdfbmc.model import Diagram
 from csdfbmc.twins import Twins, apply
+from csdfbmc.values import freeze
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -25,10 +26,15 @@ class Result:
     avoiding_cycles: list[list[State]] = field(default_factory=list)
     avoid: str | None = None
     ghost_names: tuple[str, ...] = ()
-    # clipped: (state, event as taken) where the guard held but no valuation in
-    # the domains satisfied the post. A real post always admits some values,
-    # so this is where the declared domains cut the behaviour off.
-    clipped: list[tuple[State, str]] = field(default_factory=list)
+    # empty_posts: (state, event as taken) where the guard held but the post
+    # twins returned no successor. A real post always admits some values, so
+    # this is a twin that says less than the clause, or a clause that cannot
+    # be satisfied from this state.
+    empty_posts: list[tuple[State, str]] = field(default_factory=list)
+    # unconstrained: (state, event as taken, variables) where the post twins
+    # left variables of the next state without a value: a post clause is
+    # missing, or its twin constrains fewer variables than it should.
+    unconstrained: list[tuple[State, str, tuple[str, ...]]] = field(default_factory=list)
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -53,7 +59,8 @@ class Result:
             "violations": [{"invariant": name, "at": st(s), "trace": self.trace_to(s)} for name, s in self.violations],
             "avoid": self.avoid,
             "avoiding_cycles": [{"cycle": [st(s) for s in cycle], "trace": self.trace_to(cycle[0])} for cycle in self.avoiding_cycles],
-            "clipped": [{"at": st(s), "event": label, "trace": self.trace_to(s)} for s, label in self.clipped],
+            "empty_posts": [{"at": st(s), "event": label, "trace": self.trace_to(s)} for s, label in self.empty_posts],
+            "unconstrained": [{"at": st(s), "event": label, "variables": list(names), "trace": self.trace_to(s)} for s, label, names in self.unconstrained],
             "opaque_clauses": self.opaque_clauses,
         }
 
@@ -66,7 +73,10 @@ class Result:
 
 class Explorer:
     """Enumerates the states a diagram can reach when its clauses mean what
-    their twins say and its values stay inside the declared domains.
+    their twins say. A guard twin decides; a post twin returns the successor
+    values of the variables it constrains, as a collection of partial
+    assignments, and the successors of an edge are the natural join of what
+    its clauses return. Event parameters range over the declared domains.
 
     opaque says what a clause without a twin means: "error" refuses it, "true"
     takes it as satisfied (an over-approximation, so a deadlock it reports may
@@ -94,7 +104,8 @@ class Explorer:
         self.within = set(within) if within else None
         self.opaque_seen: dict[str, None] = {}
         self.ghost_names = tuple(twins.ghosts)
-        self.clipped: list[tuple[State, str]] = []
+        self.empty_posts: list[tuple[State, str]] = []
+        self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
 
     # -- clauses --------------------------------------------------------------
 
@@ -109,20 +120,43 @@ class Explorer:
                 return False
         return True
 
-    def _valuations(self, sid: str):
-        names = self.d.vars[sid]
-        return itertools.product(*(self.twins.domain(n) for n in names))
-
-    def _env(self, state: State, params: dict | None = None, after: tuple[str, tuple] | None = None) -> dict:
+    def _env(self, state: State, params: dict | None = None) -> dict:
         sid, values, ghosts = state
         env = dict(zip(self.ghost_names, ghosts))
         env.update(zip(self.d.vars[sid], values))
         if params:
             env.update(params)
-        if after is not None:
-            dst, dst_values = after
-            env.update({n + "_": v for n, v in zip(self.d.vars[dst], dst_values)})
         return env
+
+    def _successor_values(self, clauses: tuple[str, ...], env: dict, dst: str) -> tuple[list[tuple], tuple[str, ...]]:
+        """The valuations of dst the post clauses admit, as the natural join of
+        the assignments each clause returns, and the variables of dst that no
+        clause gave a value (then the valuations are empty)."""
+        joined: list[dict] = [{}]
+        for c in clauses:
+            if c not in self.twins.clauses:
+                if self.opaque == "error":
+                    raise KeyError(f"no twin for the clause {c!r}; add it to CLAUSES or run with opaque='true'")
+                self.opaque_seen.setdefault(c)
+                continue
+            returned = apply(self.twins.clauses[c], env, what=f"the twin of {c!r}")
+            if isinstance(returned, (bool, int, str)) or returned is None:
+                raise TypeError(f"the twin of the post clause {c!r} returned {returned!r}; a post twin returns a collection of assignments such as [{{'x': x + 1}}]")
+            assignments = []
+            for a in returned:
+                if not hasattr(a, "items"):
+                    raise TypeError(f"the twin of the post clause {c!r} returned {a!r}; each successor is a mapping from variable names to values")
+                assignments.append({k: freeze(v) for k, v in a.items()})
+            joined = [dict(j, **a) for j in joined for a in assignments
+                      if all(j[k] == v for k, v in a.items() if k in j)]
+            if not joined:
+                break
+        names = self.d.vars[dst]
+        if joined:
+            missing = tuple(n for n in names if n not in joined[0])
+            if missing:
+                return [], missing
+        return [tuple(j[n] for n in names) for j in joined], ()
 
     def _ghosts_after(self, state: State, name: str, params: dict) -> tuple:
         env = self._env(state, params)
@@ -146,9 +180,11 @@ class Explorer:
 
     def initial(self) -> list[State]:
         ghosts = tuple(init for init, _ in self.twins.ghosts.values())
-        return [s for vals in self._valuations(self.d.start)
-                for s in [(self.d.start, vals, ghosts)]
-                if self._holds(self.d.start_post, self._env(s))]
+        env = dict(zip(self.ghost_names, ghosts))
+        vals, missing = self._successor_values(self.d.start_post, env, self.d.start)
+        if missing:
+            raise KeyError(f"the start edge leaves {list(missing)} of state {self.d.start!r} without a value; its post twins must assign every variable")
+        return [(self.d.start, v, ghosts) for v in vals]
 
     def successors(self, state: State) -> list[tuple[str, str, State]]:
         """(event name, event as taken, next state) for every enabled transition."""
@@ -161,13 +197,15 @@ class Explorer:
                     continue
                 label = e.name if not e.params else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
                 ghosts = self._ghosts_after(state, e.name, params)
-                found = False
-                for dst_vals in self._valuations(e.dst):
-                    if self._holds(e.post, self._env(state, params, (e.dst, dst_vals))):
-                        out.append((e.name, label, (e.dst, dst_vals, ghosts)))
-                        found = True
-                if not found:
-                    self.clipped.append((state, label))
+                vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
+                if missing:
+                    self.unconstrained.append((state, label, missing))
+                    continue
+                if not vals:
+                    self.empty_posts.append((state, label))
+                    continue
+                for dst_vals in vals:
+                    out.append((e.name, label, (e.dst, dst_vals, ghosts)))
         return out
 
     def can_end(self, state: State) -> bool:
@@ -222,7 +260,8 @@ class Explorer:
             opaque_clauses=list(self.opaque_seen), truncated=truncated, bound=self.max_states,
             violations=violations,
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None else [],
-            avoid=self.avoid, ghost_names=self.ghost_names, clipped=self.clipped,
+            avoid=self.avoid, ghost_names=self.ghost_names,
+            empty_posts=self.empty_posts, unconstrained=self.unconstrained,
         )
 
 

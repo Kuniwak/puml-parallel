@@ -46,11 +46,13 @@ def main(argv=None) -> int:
             print(f"invariant {name!r} broken at {result.describe(s)} after {result.trace_to(s)}")
         for cycle in result.avoiding_cycles:
             print(f"cycle without {result.avoid} through {[c[0] for c in cycle]} reached after {result.trace_to(cycle[0])}")
-        for s, label in result.clipped:
-            print(f"domain too small? {label} at {result.describe(s)} has no next state in the domains, after {result.trace_to(s)}")
+        for s, label, names in result.unconstrained:
+            print(f"post leaves {list(names)} without a value: {label} at {result.describe(s)}, after {result.trace_to(s)}")
+        for s, label in result.empty_posts:
+            print(f"post admits no successor: {label} at {result.describe(s)}, after {result.trace_to(s)}")
         for c in result.opaque_clauses:
             print(f"taken as true (no twin): {c}")
-    found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles
+    found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles or result.unconstrained
     return 1 if found else 0
 
 
