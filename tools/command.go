@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -18,7 +19,8 @@ type CommonOptionsCarrier interface {
 // main function returns an error. The message is the deepest wrapped error by
 // default and the full chain under -debug, so internal package-qualified
 // context stays out of normal output. Parse-time errors (before options are
-// available) are always shown unwrapped.
+// available) are always shown unwrapped. An error carrying an ExitStatusError
+// exits with that status instead, and prints only the message it carries.
 func NewCommandFunc[T CommonOptionsCarrier](parseOpts cli.ParseOptionsFunc[T], mainFunc cli.MainFunc[T]) cli.CommandFunc {
 	return func(args []string, inout *cli.ProcInout) int {
 		opts, err := parseOpts(args, inout)
@@ -28,6 +30,13 @@ func NewCommandFunc[T CommonOptionsCarrier](parseOpts cli.ParseOptionsFunc[T], m
 		}
 
 		if err := mainFunc(opts, inout); err != nil {
+			var exit *ExitStatusError
+			if errors.As(err, &exit) {
+				if exit.Message != "" {
+					fmt.Fprintf(inout.Stderr, "Error: %s\n", exit.Message)
+				}
+				return exit.Status
+			}
 			fmt.Fprintf(inout.Stderr, "Error: %s\n", UserFacingError(err, debugEnabled(opts)))
 			return 1
 		}
