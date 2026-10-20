@@ -829,7 +829,8 @@ state's name (under `state`) and the local variables, so a twin reads
 `attempts[試行ID].手数料` and a formal expression may use `at(m, id, state)`,
 `exists(m, pred)` and `count(m, pred)`. The generated clauses — the instance
 exists, is in a local state, moves, is created or removed, a variable is
-unchanged — have their meaning built in and need no twin. A local clause is
+unchanged, a map starts empty — have their meaning built in and need no
+twin. A local clause is
 evaluated with the twins of its family, passed as `--local PATH=TWINS.py` by
 the path the expansion names the local diagram with, over the event's
 parameters and the instance's own variables; a local post twin returns the

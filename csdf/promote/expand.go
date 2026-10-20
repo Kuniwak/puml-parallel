@@ -63,6 +63,11 @@ type Expansion struct {
 	// that the expansion's text never spells out.
 	Promotes []Promote                `json:"promotes"`
 	Locals   map[string]*csdf.Diagram `json:"locals"`
+	// Start is the start edge's post, clause by clause: what the author wrote,
+	// then that every map the start state holds is empty, which the
+	// <<promote>> blocks say. Diagram.StartEdge.Post spells the author's
+	// clauses alone (see conjoin).
+	Start []ExpandedClause `json:"start"`
 }
 
 // ExpandedEdge is one edge of the expansion and the local edge it came from.
@@ -89,6 +94,7 @@ const (
 	ClauseCreate    ClauseKind = "create"     // the instance is created in local state State
 	ClauseDelete    ClauseKind = "delete"     // the instance is removed from Map
 	ClauseFrame     ClauseKind = "frame"      // state variable Var is unchanged
+	ClauseEmpty     ClauseKind = "empty"      // map Map starts empty, on the start edge
 	ClauseLocal     ClauseKind = "local"      // a clause of the local edge, verbatim
 	ClauseConstrain ClauseKind = "constrain"  // a clause of a constrain directive, verbatim
 	// ClauseDropped is a guard clause that read a map Restrict left out. It is
@@ -119,11 +125,13 @@ type ExpandedClause struct {
 }
 
 // conjoin is the predicate the clauses spell, joined by the connective. A
-// dropped clause is listed beside the predicate, not in it.
+// dropped clause is listed beside the predicate, not in it, and so is an
+// empty one: the start edge's text stays the author's, so a tool reading the
+// expansion as a plain diagram reads what it did before maps started empty.
 func conjoin(clauses []ExpandedClause) csdf.Predicate {
 	texts := make([]csdf.Predicate, 0, len(clauses))
 	for _, c := range clauses {
-		if c.Kind != ClauseDropped {
+		if c.Kind != ClauseDropped && c.Kind != ClauseEmpty {
 			texts = append(texts, csdf.Predicate(c.Text))
 		}
 	}
@@ -203,9 +211,28 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 	for m, d := range e.locals {
 		locals[e.paths[m]] = d
 	}
-	x := &Expansion{Diagram: out, Edges: edges, Promotes: append([]Promote{}, e.global.Promotes...), Locals: locals}
+	x := &Expansion{Diagram: out, Edges: edges, Promotes: append([]Promote{}, e.global.Promotes...), Locals: locals, Start: e.start(out)}
 	x.sortEdges()
 	return x, e.sorted()
+}
+
+// start is the start edge's post: the author's clauses, then one empty clause
+// per map the start state holds, in the order the maps were promoted.
+func (e *expander) start(d *csdf.Diagram) []ExpandedClause {
+	out := []ExpandedClause{}
+	for _, c := range d.StartEdge.Post.Clauses() {
+		out = append(out, ExpandedClause{Kind: ClauseLocal, Text: string(c), Line: d.StartEdge.Line})
+	}
+	held := map[csdf.Var]bool{}
+	for _, v := range d.States[d.StartEdge.Dst].Vars {
+		held[v.Name] = true
+	}
+	for _, p := range e.order {
+		if held[p.Map] {
+			out = append(out, ExpandedClause{Kind: ClauseEmpty, Text: e.templates.clause(clauseEmpty, Clause{Map: string(p.Map)}), Map: string(p.Map)})
+		}
+	}
+	return out
 }
 
 // edgeParts is one local edge promoted through one map: the clauses it

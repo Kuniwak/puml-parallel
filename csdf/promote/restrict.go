@@ -59,6 +59,7 @@ func Restrict(x *Expansion, keep []string) (*Expansion, []Diagnostic) {
 		}
 		out.Edges = append(out.Edges, r.edge(e, dropped))
 	}
+	out.Start = r.start(x, dropped)
 	out.sortEdges()
 	return out, r.diags
 }
@@ -81,6 +82,34 @@ func (r *restriction) handWritten(e ExpandedEdge, d *csdf.Diagram, dropped map[c
 		Severity: SeverityWarning, Line: e.Edge.Line,
 		Message: fmt.Sprintf("the hand-written edge %s --> %s : %s is kept as written, and may still read %s, which -only leaves out", e.Edge.Src, e.Edge.Dst, e.Edge.Event, strings.Join(held, ", ")),
 	})
+}
+
+// start keeps the empty clauses of the kept maps and the author's clauses as
+// written; like a hand-written edge, those may still read a left-out map the
+// start state held, which is said.
+func (r *restriction) start(x *Expansion, dropped map[csdf.Var]bool) []ExpandedClause {
+	out := []ExpandedClause{}
+	authored := false
+	for _, c := range x.Start {
+		if c.Kind == ClauseEmpty && dropped[csdf.Var(c.Map)] {
+			continue
+		}
+		authored = authored || c.Kind == ClauseLocal
+		out = append(out, c)
+	}
+	var held []string
+	for _, v := range x.Diagram.States[x.Diagram.StartEdge.Dst].Vars {
+		if dropped[v.Name] {
+			held = append(held, string(v.Name))
+		}
+	}
+	if authored && len(held) > 0 {
+		r.diags = append(r.diags, Diagnostic{
+			Severity: SeverityWarning, Line: x.Diagram.StartEdge.Line,
+			Message: fmt.Sprintf("the start edge's clauses are kept as written, and may still read %s, which -only leaves out", strings.Join(held, ", ")),
+		})
+	}
+	return out
 }
 
 type restriction struct {

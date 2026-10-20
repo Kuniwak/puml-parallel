@@ -35,8 +35,8 @@ class Clause:
     """One clause of a predicate. kind is "local" for a clause the author
     wrote (map None in a flat diagram, the family's map in an expansion),
     "constrain" for a constrain directive's, and one of the generated kinds of
-    csdfpromote - in_dom, not_in_dom, at_state, update, create, delete, frame -
-    whose meaning is built in."""
+    csdfpromote - in_dom, not_in_dom, at_state, update, create, delete, frame,
+    and empty on the start edge - whose meaning is built in."""
     kind: str
     text: str
     map: str | None = None
@@ -150,6 +150,12 @@ class Diagram:
                 by_text[key] = (tuple(Clause.from_json(c) for c in e.get("guard", [])),
                                 tuple(Clause.from_json(c) for c in e.get("post", [])))
         out = cls._from_flat(d, d.get("edges", []), by_text)
+        # The start edge's clauses one by one, the maps' empty start among
+        # them; an expansion from before it carried them has only the text.
+        if "start" in x:
+            if not isinstance(x["start"], list):
+                raise ValueError(f"the expansion's start is {x['start']!r}, not a list of clauses; run csdfpromote again")
+            out.start_post = tuple(Clause.from_json(c) for c in x["start"])
         out.promotes = {p["map"]: Promote(map=p["map"], id_param=p["id_param"], path=p.get("path", ""), in_state=p["in"])
                         for p in x.get("promotes", [])}
         out.locals = {path: Local.from_json(path, local) for path, local in x.get("locals", {}).items()}

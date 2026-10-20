@@ -150,5 +150,34 @@ class PromotedExplorerTest(unittest.TestCase):
         self.assertEqual([{"text": "取引所が開いている", "maps": ["markets"]}], result.to_json()["dropped_clauses"])
 
 
+class EmptyStartTest(unittest.TestCase):
+    """csdfpromote carries on the start edge that every map starts empty, as
+    a clause whose meaning is built in."""
+
+    def expansion(self, start) -> dict:
+        x = {**EXPANSION, "start": start}
+        x["diagram"] = {**EXPANSION["diagram"], "start_edge": {"dst": "running", "post": "accounts は空", "line": 5}}
+        return x
+
+    def test_the_maps_start_empty(self):
+        no_clauses = Twins(domains=GLOBAL_TWINS.domains, clauses={}, locals=GLOBAL_TWINS.locals)
+        for name, start, twins in [
+            ("with no twin", [{"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], no_clauses),
+            ("beside an author clause that agrees",
+             [{"kind": "local", "text": "accounts は空", "line": 5}, {"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], GLOBAL_TWINS),
+        ]:
+            with self.subTest(name):
+                explorer = Explorer.of_twins(Diagram.from_json(self.expansion(start)), twins)
+                self.assertEqual([("running", (FrozenMap(),), ())], explorer.initial())
+
+    def test_an_expansion_from_before_start_is_read_from_the_start_edge_text(self):
+        x = {k: v for k, v in self.expansion([]).items() if k != "start"}
+        self.assertEqual(("accounts は空",), tuple(c.text for c in Diagram.from_json(x).start_post))
+
+    def test_a_start_that_is_not_a_list_is_refused(self):
+        with self.assertRaises(ValueError):
+            Diagram.from_json(self.expansion(None))
+
+
 if __name__ == "__main__":
     unittest.main()

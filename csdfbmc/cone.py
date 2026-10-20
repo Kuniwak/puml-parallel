@@ -31,7 +31,7 @@ from csdfbmc.meaning import Meaning, is_reserved_opaque
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins, reads
 
-_BUILT_IN_POSTS = ("frame", "update", "create", "delete")
+_BUILT_IN_POSTS = ("frame", "update", "create", "delete", "empty")
 _INSTANCE_GUARDS = ("in_dom", "not_in_dom", "at_state")
 
 
@@ -86,7 +86,7 @@ def NO_WRITES(clause: Clause) -> None:
 def _sets(writes: Writes, c: Clause) -> set[str]:
     if c.kind == "frame":
         return {c.var}
-    if c.kind in ("update", "create", "delete") or (c.kind == "local" and c.map):
+    if c.kind in ("update", "create", "delete", "empty") or (c.kind == "local" and c.map):
         return {c.map}
     if c.kind == "dropped" or is_reserved_opaque(c):
         return set()

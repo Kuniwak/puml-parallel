@@ -66,7 +66,14 @@ func writeJSON(w io.Writer, x *Expansion, comments bool) error {
 			e.Origin = ""
 			edges[i] = e
 		}
-		out = &Expansion{Diagram: x.Diagram, Edges: edges, Promotes: x.Promotes, Locals: x.Locals}
+		out = &Expansion{Diagram: x.Diagram, Edges: edges, Promotes: x.Promotes, Locals: x.Locals, Start: x.Start}
+	}
+	if out.Start == nil {
+		// The start edge's clauses are always a list, so that a reader tells
+		// an expansion with none from one written before it carried them.
+		copied := *out
+		copied.Start = []ExpandedClause{}
+		out = &copied
 	}
 	if err := json.NewEncoder(w).Encode(out); err != nil {
 		return fmt.Errorf("promote.Write: writing JSON: %w", err)
