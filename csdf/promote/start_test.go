@@ -13,21 +13,30 @@ import (
 
 // Every map starts empty, which the <<promote>> blocks already say: the
 // expansion carries it on the start edge, after what the author wrote there,
-// as clauses whose meaning is built in. The text of the start edge is the
-// author's alone, so a tool reading the expansion as a plain diagram sees
-// what it saw before.
+// as clauses whose meaning is built in, for the maps the start state holds.
+// The text of the start edge is the author's alone, so a tool reading the
+// expansion as a plain diagram sees what it saw before.
 func TestTheStartEdgeStartsEveryKeptMapEmpty(t *testing.T) {
+	author := promote.ExpandedClause{Kind: promote.ClauseLocal, Text: "buys と cycles は空", Line: 14}
+	empty := func(m string) promote.ExpandedClause {
+		return promote.ExpandedClause{Kind: promote.ClauseEmpty, Text: m + " = ∅", Map: m}
+	}
+	notHeld := strings.Replace(syncGlobal, "[*] --> running : buys と cycles は空",
+		"state \"待機中\" as idle\n[*] --> idle\nidle --> running : OPEN ; true ; buys と cycles は空", 1)
 	cases := map[string]struct {
-		keep []string // nil: no -only
-		want []string // the maps that start empty
+		global   string
+		keep     []string // nil: no -only
+		want     []promote.ExpandedClause
+		wantPost csdf.Predicate
 	}{
-		"every map":         {keep: nil, want: []string{"buys", "cycles"}},
-		"with -only buys":   {keep: []string{"buys"}, want: []string{"buys"}},
-		"with -only cycles": {keep: []string{"cycles"}, want: []string{"cycles"}},
+		"every map":                    {global: syncGlobal, want: []promote.ExpandedClause{author, empty("buys"), empty("cycles")}, wantPost: "buys と cycles は空"},
+		"with -only buys":              {global: syncGlobal, keep: []string{"buys"}, want: []promote.ExpandedClause{author, empty("buys")}, wantPost: "buys と cycles は空"},
+		"with -only cycles":            {global: syncGlobal, keep: []string{"cycles"}, want: []promote.ExpandedClause{author, empty("cycles")}, wantPost: "buys と cycles は空"},
+		"a start state holding no map": {global: notHeld, want: []promote.ExpandedClause{}, wantPost: csdf.PredicateTrue},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
-			x, diags := expand(t, syncGlobal, syncLocals)
+			x, diags := expand(t, c.global, syncLocals)
 			if x == nil {
 				t.Fatalf("promote.Expand() expansion = nil, diagnostics = %v", diags)
 			}
@@ -36,57 +45,51 @@ func TestTheStartEdgeStartsEveryKeptMapEmpty(t *testing.T) {
 					t.Fatalf("promote.Restrict() expansion = nil, diagnostics = %v", diags)
 				}
 			}
-			want := []promote.ExpandedClause{{Kind: promote.ClauseLocal, Text: "buys と cycles は空", Line: 14}}
-			for _, m := range c.want {
-				want = append(want, promote.ExpandedClause{Kind: promote.ClauseEmpty, Text: m + " = ∅", Map: m})
+			if !reflect.DeepEqual(x.Start, c.want) {
+				t.Errorf("Start = %+v, want %+v", x.Start, c.want)
 			}
-			if !reflect.DeepEqual(x.Start, want) {
-				t.Errorf("Start = %+v, want %+v", x.Start, want)
-			}
-			if got, want := x.Diagram.StartEdge.Post, csdf.Predicate("buys と cycles は空"); got != want {
-				t.Errorf("StartEdge.Post = %q, want the author's text %q", got, want)
+			if got := x.Diagram.StartEdge.Post; got != c.wantPost {
+				t.Errorf("StartEdge.Post = %q, want the author's text %q", got, c.wantPost)
 			}
 		})
 	}
 }
 
-// A map held by a state the start edge does not lead to is not said to start
-// empty there: the start state has no such variable.
-func TestAMapTheStartStateDoesNotHoldIsNotStartedEmpty(t *testing.T) {
-	global := strings.Replace(syncGlobal, "[*] --> running : buys と cycles は空", "state \"待機中\" as idle\n[*] --> idle\nidle --> running : OPEN ; true ; buys と cycles は空", 1)
-	x, diags := expand(t, global, syncLocals)
-	if x == nil {
-		t.Fatalf("promote.Expand() expansion = nil, diagnostics = %v", diags)
-	}
-	if len(x.Start) != 0 {
-		t.Errorf("Start = %+v, want none", x.Start)
-	}
-}
-
 // The start edge's clauses go into the JSON whether or not the origins do,
-// and as an array even when there are none.
+// and as a list even when there are none.
 func TestTheJSONCarriesTheStartEdgeClauses(t *testing.T) {
-	x, _ := expand(t, syncGlobal, syncLocals)
-	for _, comments := range []bool{true, false} {
-		var buf bytes.Buffer
-		if err := promote.Write(&buf, x, promote.OutputJSON, comments); err != nil {
-			t.Fatalf("promote.Write() error = %v", err)
-		}
-		var got struct {
-			Start []promote.ExpandedClause `json:"start"`
-		}
-		if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
-			t.Fatalf("json.Unmarshal() error = %v", err)
-		}
-		if len(got.Start) != 3 {
-			t.Errorf("comments=%v: start = %+v, want the author's clause and two empty ones", comments, got.Start)
-		}
+	cases := map[string]struct {
+		comments bool
+		noStart  bool
+		want     int
+	}{
+		"with origins":         {comments: true, want: 3},
+		"without origins":      {comments: false, want: 3},
+		"with no start clause": {comments: true, noStart: true, want: 0},
 	}
-	x.Start = nil
-	var buf bytes.Buffer
-	_ = promote.Write(&buf, x, promote.OutputJSON, true)
-	if !strings.Contains(buf.String(), `"start":[]`) {
-		t.Errorf("want start written as an empty array, got %s", buf.String())
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			x, diags := expand(t, syncGlobal, syncLocals)
+			if x == nil {
+				t.Fatalf("promote.Expand() expansion = nil, diagnostics = %v", diags)
+			}
+			if c.noStart {
+				x.Start = nil
+			}
+			var buf bytes.Buffer
+			if err := promote.Write(&buf, x, promote.OutputJSON, c.comments); err != nil {
+				t.Fatalf("promote.Write() error = %v", err)
+			}
+			var got struct {
+				Start *[]promote.ExpandedClause `json:"start"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			if got.Start == nil || len(*got.Start) != c.want {
+				t.Errorf("start = %v, want a list of %d clauses", got.Start, c.want)
+			}
+		})
 	}
 }
 
