@@ -59,10 +59,56 @@ type Expansion struct {
 }
 
 // ExpandedEdge is one edge of the expansion and the local edge it came from.
-// Origin is empty for an edge the author wrote by hand.
+// Origin is empty for an edge the author wrote by hand, and so are the clause
+// lists: Guard and Post are the clauses of a generated edge one by one, in the
+// order the predicate joins them, each saying what it is.
 type ExpandedEdge struct {
-	Edge   csdf.Edge `json:"edge"`
-	Origin string    `json:"origin,omitempty"`
+	Edge   csdf.Edge        `json:"edge"`
+	Origin string           `json:"origin,omitempty"`
+	Guard  []ExpandedClause `json:"guard,omitempty"`
+	Post   []ExpandedClause `json:"post,omitempty"`
+}
+
+// ClauseKind says what a clause of a generated edge is. The generated kinds
+// have a meaning a tool can act on without reading the wording; a local clause
+// and a constrain clause are the author's opaque text.
+type ClauseKind string
+
+const (
+	ClauseInDom     ClauseKind = "in_dom"     // the instance exists: ID ∈ dom Map
+	ClauseNotInDom  ClauseKind = "not_in_dom" // the instance does not exist yet
+	ClauseAtState   ClauseKind = "at_state"   // the instance is in local state State
+	ClauseUpdate    ClauseKind = "update"     // the instance moves to local state State
+	ClauseCreate    ClauseKind = "create"     // the instance is created in local state State
+	ClauseDelete    ClauseKind = "delete"     // the instance is removed from Map
+	ClauseFrame     ClauseKind = "frame"      // state variable Var is unchanged
+	ClauseLocal     ClauseKind = "local"      // a clause of the local edge, verbatim
+	ClauseConstrain ClauseKind = "constrain"  // a clause of a constrain directive, verbatim
+)
+
+// ExpandedClause is one clause of a generated edge. Text is the clause as it
+// stands in the predicate; the other fields are what the kind needs: Map and ID
+// for the clauses about an instance, State for the local state they name, Var
+// for a frame, and Path and Line for where a local or constrain clause was
+// written (a constrain has no Path: it is in the global diagram).
+type ExpandedClause struct {
+	Kind  ClauseKind `json:"kind"`
+	Text  string     `json:"text"`
+	Map   string     `json:"map,omitempty"`
+	ID    string     `json:"id,omitempty"`
+	State string     `json:"state,omitempty"`
+	Var   string     `json:"var,omitempty"`
+	Path  string     `json:"path,omitempty"`
+	Line  int        `json:"line,omitempty"`
+}
+
+// conjoin is the predicate the clauses spell, joined by the connective.
+func conjoin(clauses []ExpandedClause) csdf.Predicate {
+	texts := make([]csdf.Predicate, len(clauses))
+	for i, c := range clauses {
+		texts[i] = csdf.Predicate(c.Text)
+	}
+	return csdf.ConjoinClauses(texts)
 }
 
 // eventRe splits a local event into its name and its argument list. An event is
@@ -124,8 +170,7 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 			if name, _ := splitEvent(edge.Event); e.owned[ownership{p.In, p.Map, name}] {
 				continue
 			}
-			expanded, origin := e.promoteEdge(p, edge)
-			edges = append(edges, ExpandedEdge{Edge: expanded, Origin: origin})
+			edges = append(edges, e.promoteEdge(p, edge))
 		}
 	}
 
@@ -143,8 +188,8 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 // edgeParts is one local edge promoted through one map: the clauses it
 // contributes to a global edge, and what it needs to name itself.
 type edgeParts struct {
-	guard []string
-	post  []string
+	guard []ExpandedClause
+	post  []ExpandedClause
 	name  string   // The event name, without its arguments.
 	args  []string // The event's own arguments, after the instance ID.
 	id    string   // The parameter the instance ID is written as.
@@ -165,42 +210,55 @@ func (e *expander) parts(p Promote, edge csdf.Edge, id string) edgeParts {
 	parts.name, parts.args = splitEvent(edge.Event)
 
 	c := Clause{Map: string(p.Map), ID: id, Src: src.Name, Dst: dst.Name}
+	about := func(kind ClauseKind, name string, state string) ExpandedClause {
+		return ExpandedClause{Kind: kind, Text: e.templates.clause(name, c), Map: string(p.Map), ID: id, State: state}
+	}
 	switch {
 	case edge.Src == absent: // Creation: the instance starts to exist.
-		parts.guard = append(parts.guard, e.templates.clause(clauseNotInDom, c))
-		parts.post = append(parts.post, e.templates.clause(clauseCreate, c))
+		parts.guard = append(parts.guard, about(ClauseNotInDom, clauseNotInDom, ""))
+		parts.post = append(parts.post, about(ClauseCreate, clauseCreate, dst.Name))
 
 	case edge.Dst == absent: // Deletion: the instance stops existing.
-		parts.guard = append(parts.guard, e.templates.clause(clauseInDom, c), e.templates.clause(clauseAtState, c))
-		parts.post = append(parts.post, e.templates.clause(clauseDelete, c))
+		parts.guard = append(parts.guard, about(ClauseInDom, clauseInDom, ""), about(ClauseAtState, clauseAtState, src.Name))
+		parts.post = append(parts.post, about(ClauseDelete, clauseDelete, ""))
 
 	default:
-		parts.guard = append(parts.guard, e.templates.clause(clauseInDom, c), e.templates.clause(clauseAtState, c))
-		parts.post = append(parts.post, e.templates.clause(clauseUpdate, c))
+		parts.guard = append(parts.guard, about(ClauseInDom, clauseInDom, ""), about(ClauseAtState, clauseAtState, src.Name))
+		parts.post = append(parts.post, about(ClauseUpdate, clauseUpdate, dst.Name))
 	}
 
-	if !csdf.IsTrue(edge.Guard) {
-		parts.guard = append(parts.guard, string(edge.Guard))
-	}
+	parts.guard = append(parts.guard, e.localClauses(p, edge, edge.Guard)...)
 	// The post of a deletion says something about an instance that is gone, so
 	// it is dropped rather than carried into the expansion.
-	if !csdf.IsTrue(edge.Post) && edge.Dst != absent {
-		parts.post = append(parts.post, string(edge.Post))
+	if edge.Dst != absent {
+		parts.post = append(parts.post, e.localClauses(p, edge, edge.Post)...)
 	}
 	return parts
 }
 
+// localClauses copies the clauses of a local predicate verbatim, each saying
+// which local edge it came from.
+func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) []ExpandedClause {
+	var clauses []ExpandedClause
+	for _, c := range pred.Clauses() {
+		clauses = append(clauses, ExpandedClause{Kind: ClauseLocal, Text: string(c), Map: string(p.Map), Path: e.paths[p.Map], Line: edge.Line})
+	}
+	return clauses
+}
+
 // promoteEdge lifts one local edge onto the state its block was written in.
-func (e *expander) promoteEdge(p Promote, edge csdf.Edge) (csdf.Edge, string) {
+func (e *expander) promoteEdge(p Promote, edge csdf.Edge) ExpandedEdge {
 	parts := e.parts(p, edge, p.IDParam)
 	out := e.compose(p.In, []edgeParts{parts}, p.Map)
-	return out, fmt.Sprintf("promote: %s 〈%s〉 → 〈%s〉", e.paths[p.Map], parts.src, parts.dst)
+	out.Origin = fmt.Sprintf("promote: %s 〈%s〉 → 〈%s〉", e.paths[p.Map], parts.src, parts.dst)
+	return out
 }
 
 // compose joins the parts of one or more local edges into one global self-loop
 // on state g, framing every state variable of g but the maps the parts moved.
-func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var) csdf.Edge {
-	var guard, post, ids, args []string
+func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var) ExpandedEdge {
+	var guard, post []ExpandedClause
+	var ids, args []string
 	tau := false
 
 	for _, part := range parts {
@@ -219,12 +277,16 @@ func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var)
 		event = csdf.Event(fmt.Sprintf("%s(%s)", parts[0].name, strings.Join(append(ids, args...), ", ")))
 	}
 
-	return csdf.Edge{
-		Src:   g,
-		Dst:   g,
-		Event: event,
-		Guard: csdf.Predicate(e.templates.join(guard)),
-		Post:  csdf.Predicate(e.templates.join(post)),
+	return ExpandedEdge{
+		Edge: csdf.Edge{
+			Src:   g,
+			Dst:   g,
+			Event: event,
+			Guard: conjoin(guard),
+			Post:  conjoin(post),
+		},
+		Guard: guard,
+		Post:  post,
 	}
 }
 
@@ -256,13 +318,13 @@ func appendUnique(dst []string, values ...string) []string {
 // frame says that the state variables this edge does not touch are unchanged.
 // The maps it moved are not framed: ⊕, ∪ and ⩤ already say what happens to every
 // key but the one the edge is about.
-func (e *expander) frame(g csdf.StateID, moved []csdf.Var) []string {
-	var clauses []string
+func (e *expander) frame(g csdf.StateID, moved []csdf.Var) []ExpandedClause {
+	var clauses []ExpandedClause
 	for _, v := range e.global.Core.States[g].Vars {
 		if slices.Contains(moved, v.Name) {
 			continue
 		}
-		clauses = append(clauses, e.templates.clause(clauseFrame, Clause{Var: string(v.Name)}))
+		clauses = append(clauses, ExpandedClause{Kind: ClauseFrame, Text: e.templates.clause(clauseFrame, Clause{Var: string(v.Name)}), Var: string(v.Name)})
 	}
 	return clauses
 }

@@ -218,12 +218,26 @@ file:
 | `create`   | `Map`, `ID`, `Dst`  | `m' = m ∪ {id ↦ 〈T〉}`      |
 | `delete`   | `Map`, `ID`         | `m' = {id} ⩤ m`            |
 | `frame`    | `Var`               | `v' = v`                   |
-| `and`      | —                   | ` ∧ `                      |
 
 A clause the file does not define keeps its default. Every clause is rendered
 once when the file is read, so a template that cannot render is refused rather
 than turning into an opaque predicate. A Japanese set ships as
 `examples/promote/templates/ja.tmpl`.
+
+What joins the clauses is not wording: a predicate of the expansion is its
+clauses joined by the connective ` ∧ ` (docs/SYNTAX.md), the generated ones
+first and then the author's, so that a tool reading the expansion gets the
+clauses back by splitting on it. A template file that defines `and`, the name
+an earlier version gave the connective, is refused.
+
+The clauses are also kept apart in the expansion's own structure: every edge
+that `Expand` generates carries them one by one (`ExpandedEdge.Guard` and
+`.Post`), each with its kind — `in_dom`, `not_in_dom`, `at_state`, `update`,
+`create`, `delete`, `frame` for the generated clauses, whose meaning a tool
+can act on without reading the wording, and `local` or `constrain` for the
+author's clauses, which stay opaque text — together with the map, instance ID
+and local state the generated clause is about, or the file and line the
+author's clause was written on. `csdfpromote -format json` prints them.
 
 
 Output
