@@ -267,12 +267,23 @@ func (s *scanner) readNote(i int) (int, error) {
 	}
 
 	read := false
+	assume := false
 	for body := i + 1; body < end; body++ {
 		line := strings.TrimSpace(s.lines[body])
 		if line == "" {
 			continue
 		}
 		if !read {
+			if isAssume(line) {
+				// An assume note is the core's own syntax, so it is left in
+				// place for csdf.Parse to read, as long as it is floating:
+				// an assumption is about the whole diagram, not a block.
+				if anchor.State != "" {
+					return 0, fmt.Errorf("line %d: an assume note is floating (\"note as <id>\"), not anchored to a block: it is about the whole diagram", open)
+				}
+				read, assume = true, true
+				continue
+			}
 			before := len(s.syncs) + len(s.constrains)
 			if err := s.readDirective(line, anchor, body+1); err != nil {
 				return 0, err
@@ -290,8 +301,18 @@ func (s *scanner) readNote(i int) (int, error) {
 		}
 	}
 
+	if assume {
+		s.out = append(s.out, s.lines[i:end+1]...)
+		return end + 1, nil
+	}
 	s.blank(end - i + 1)
 	return end + 1, nil
+}
+
+// isAssume reports whether a note line opens an assume directive, which the
+// core grammar reads itself (docs/SYNTAX.md).
+func isAssume(line string) bool {
+	return strings.HasPrefix(line, "assume ")
 }
 
 // readDirective interprets the first line of a note. Anything that is not a
@@ -337,9 +358,10 @@ func (s *scanner) readDirective(line string, anchor Anchor, at int) error {
 	return nil
 }
 
-// isDirective reports whether a note line opens a directive.
+// isDirective reports whether a note line opens a directive, the core's assume
+// included.
 func isDirective(line string) bool {
-	return strings.HasPrefix(line, "sync ") || strings.HasPrefix(line, "constrain ")
+	return strings.HasPrefix(line, "sync ") || strings.HasPrefix(line, "constrain ") || isAssume(line)
 }
 
 func firstWord(line string) string {

@@ -90,6 +90,14 @@ several maps is written as a floating `note as <id>`. PlantUML's state diagrams
 have no `<id> .. <state>` link, so there is no way to draw a line from a
 floating note.
 
+**`assume`** is the core grammar's own note (docs/SYNTAX.md): a floating note
+holding one `assume <text>` line states what the diagram assumes of its runs
+as a whole, such as "a transaction whose fee keeps being raised is eventually
+confirmed". It is not a directive — it narrows no edge, because no guard can
+say it — so `csdfpromote` leaves it in place and the expansion carries it, where
+`csdflivelockfree` and `csdfrefinement` take it as a hypothesis. It cannot be
+anchored to a block: an assumption is about the whole system.
+
 Everything else in the file is ordinary Composable State Diagram syntax:
 hand-written states, the start edge, and hand-written edges such as the ones
 that switch operating modes.
@@ -244,8 +252,8 @@ Output
 ------
 
 Plain Composable State Diagram syntax: the directives, the `!include`s, the
-notes and the preprocessor lines are gone, and the composite states are
-flattened into ordinary ones. Hand-written states and edges are kept as they
+notes but the `assume` ones, and the preprocessor lines are gone, and the
+composite states are flattened into ordinary ones. Hand-written states and edges are kept as they
 were, and every edge is printed in the canonical order. A line comment above
 each generated edge names the local edge it came from; `-no-comments` leaves
 them out.
