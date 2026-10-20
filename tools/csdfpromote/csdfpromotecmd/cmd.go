@@ -55,11 +55,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		expansion.Diagram.Name = tools.GeneratedBy("csdfpromote", opts.Args)
-		if opts.NoComments {
-			fmt.Fprint(inout.Stdout, expansion.StringWithoutComments())
-			return nil
+		if err := promote.Write(inout.Stdout, expansion, opts.Output, !opts.NoComments); err != nil {
+			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 		}
-		fmt.Fprint(inout.Stdout, expansion.String())
 		return nil
 	}
 }

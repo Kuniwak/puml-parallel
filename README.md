@@ -98,6 +98,16 @@ $ csdfpromote -lint-only -Werror examples/promote/TRADES.puml
 $ csdfpromote examples/promote/TRADES.puml | csdflivelockfree -
 ```
 
+Every predicate of the expansion is its clauses joined by the connective ` ∧ `
+(see [SYNTAX.md](./docs/SYNTAX.md)): the generated ones first, then the
+author's, copied verbatim. `-format json` writes the expansion as JSON instead,
+with every generated edge's clauses one by one and each clause's kind, so a
+program reading it never has to parse the wording back.
+
+```console
+$ csdfpromote -format json examples/promote/TRADES.puml
+```
+
 Every other tool refuses a diagram that still holds directives, and says to run
 `csdfpromote` first. See [Promotion](docs/PROMOTION.md) for the semantics, the
 local-diagram contract, and the diagnostics.
