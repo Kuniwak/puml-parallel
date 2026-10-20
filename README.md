@@ -768,6 +768,31 @@ with `--avoid 確定 --within sending`); and four `INVARIANTS` over `GHOSTS` tha
 total the events, relating the balance to the amounts moved and the fees paid
 and refunded. The run reports a deadlock with its trace; the comments in
 `wallet_twins.py` say which twin to change to make every check pass.
+An expansion of a promoted diagram (`csdfpromote -format json`) is walked the
+same way. A map variable then holds, per instance ID, a record of the local
+state's name (under `state`) and the local variables, so a twin reads
+`attempts[試行ID].手数料` and a formal expression may use `at(m, id, state)`,
+`exists(m, pred)` and `count(m, pred)`. The generated clauses — the instance
+exists, is in a local state, moves, is created or removed, a variable is
+unchanged — have their meaning built in and need no twin. A local clause is
+evaluated with the twins of its family, passed as `--local PATH=TWINS.py` by
+the path the expansion names the local diagram with, over the event's
+parameters and the instance's own variables; a local post twin returns the
+instance's variables after the step, and one it leaves without a value is a
+finding, as a missing post clause in the local diagram. A constrain clause is
+evaluated with the global twins by its text, or with the `formal:` expression
+written next to it. Instance IDs range over the domain of the ID parameter,
+which is the bound of the scenario; a promoted `tau` ranges over them too. The
+third example runs the fee-bumping diagram of `examples/promote/ATTEMPTS.puml`
+this way:
+
+```console
+$ csdfpromote -format json examples/promote/ATTEMPTS.puml > attempts.json
+$ csdfbmc attempts.json examples/bmc/attempts_twins.py \
+    --local local/ATTEMPT.puml=examples/bmc/attempt_local_twins.py --avoid CONFIRMED
+states: 496
+```
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.

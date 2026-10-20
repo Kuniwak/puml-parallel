@@ -14,7 +14,7 @@ attConfirmed : 手数料
 [*] --> attNone
 attNone --> attSent : SEND(未署名Tx) ; true ; 手数料' = 未署名Tx の手数料
 attNone --> attSent : RESEND(置換Tx) ; true ; 手数料' = 置換Tx の手数料
-attSent --> attStuck : PENDING
-attSent --> attConfirmed : CONFIRMED
-attStuck --> attConfirmed : CONFIRMED
+attSent --> attStuck : PENDING ; true ; 手数料' = 手数料
+attSent --> attConfirmed : CONFIRMED ; true ; 手数料' = 手数料
+attStuck --> attConfirmed : CONFIRMED ; true ; 手数料' = 手数料
 @enduml
