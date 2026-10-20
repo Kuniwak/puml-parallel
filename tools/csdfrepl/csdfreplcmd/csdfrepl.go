@@ -18,7 +18,9 @@ import (
 // HistoryEntry is the explored-state record; the engine owns the type.
 type HistoryEntry = animation.HistoryEntry
 
-func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver) error {
+// runWithSolver runs the REPL on file. With a replay, the session first walks
+// the recorded path and the prompt opens at the state it reaches.
+func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver, replay *animation.Replay) error {
 	bs, err := os.ReadFile(file)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot read the file: %w: %q", err, file)
@@ -48,6 +50,13 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		interrupts: interrupts,
 		lines:      lines,
 		terminal:   terminal,
+	}
+	if replay != nil {
+		if err := session.Replay(*replay); err != nil {
+			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+		}
+		_, _ = fmt.Fprintf(inout.Stdout, "Replayed %d step(s); the path is in the history.\n\n", len(replay.Steps))
+		repl.replayed = true
 	}
 	return repl.run()
 }
@@ -149,17 +158,24 @@ type repl struct {
 	interrupts <-chan os.Signal
 	lines      <-chan lineResult
 	terminal   *terminalLineReader
+	// replayed says the session already stands at a state when the loop
+	// starts, so the first prompt is a command prompt, not a value prompt.
+	replayed bool
 }
 
 func (r *repl) run() error {
+	first := true
 	for {
-		outcome, err := r.askStateValues()
-		if err != nil {
-			return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
+		if !(first && r.replayed) {
+			outcome, err := r.askStateValues()
+			if err != nil {
+				return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
+			}
+			if outcome == inputExit {
+				return nil
+			}
 		}
-		if outcome == inputExit {
-			return nil
-		}
+		first = false
 		// On inputLine the session advanced to command mode; on inputBack the
 		// session was returned to command mode at the last explored state.
 

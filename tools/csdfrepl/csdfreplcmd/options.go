@@ -12,6 +12,10 @@ import (
 type Options struct {
 	Common *tools.CommonOptions
 	File   string
+	// Replay is the path of csdfbmc's JSON output to walk before the first
+	// prompt, and Finding which of its findings; empty when none.
+	Replay  string
+	Finding int
 }
 
 // CommonOptions returns the parsed common options.
@@ -27,13 +31,27 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 
 Interactively explores a Composable State Diagram.
 
+With -replay, the session first walks the path csdfbmc --json recorded under
+one of its findings (-finding picks which, numbered from 0 in the order the
+output lists them: deadlocks, tau cycles, broken invariants, avoiding cycles,
+empty posts, unconstrained posts), and the prompt opens at the state the
+finding is at, with the path in the history.
+
 Options:
 `)
 			flags.PrintDefaults()
+			fmt.Fprintf(w, `
+Examples:
+  $ csdfrepl examples/valid/vending_machine.puml
+  $ csdfbmc diagram.json twins.py --json > findings.json
+  $ csdfrepl -replay findings.json -finding 0 diagram.puml
+`)
 		}
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
+		replay := flags.String("replay", "", "csdfbmc --json output whose finding to walk before the first prompt")
+		finding := flags.Int("finding", 0, "with -replay, which finding to walk, numbered from 0")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -54,6 +72,6 @@ Options:
 			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
-		return &Options{Common: commonOpts, File: flags.Arg(0)}, nil
+		return &Options{Common: commonOpts, File: flags.Arg(0), Replay: *replay, Finding: *finding}, nil
 	}
 }
