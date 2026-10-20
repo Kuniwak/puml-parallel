@@ -803,9 +803,10 @@ twins module is checked against. A guard is an expression; a post is a list
 or set of dict displays whose keys are the variables, written as strings
 (`[{'残高': 残高 + 額}]`, `[{'y': v} for v in (y, y + 1)]`); `OPAQUE` marks a
 clause not yet formalised. Its arguments are modules whose public names every
-clause may use. The twins module then needs only `DOMAINS` and, when wanted,
-`GHOSTS`, `INVARIANTS`. `--symmetry` is refused, since the checker cannot read
-the clauses to check `SYMMETRIC`. `examples/bmc/withdraw_formal.puml` is the
+clause may use. The twins module then holds `DOMAINS` and, when wanted,
+`GHOSTS` and `INVARIANTS`; `CLAUSES` and `--local` twins are refused, since
+they would not be used. `--symmetry` is refused too, since the checker cannot
+read the clauses to check `SYMMETRIC`. `examples/bmc/withdraw_formal.puml` is the
 first example written this way; `csdfparse` reads it unchanged, since a label
 only has to keep `;` out of a guard, fit on one line and not contain ` ∧ `
 inside a clause:
