@@ -259,7 +259,10 @@ that `Expand` generates carries them one by one (`ExpandedEdge.Guard` and
 can act on without reading the wording, and `local` or `constrain` for the
 author's clauses, which stay opaque text — together with the map, instance ID
 and local state the generated clause is about, or the file and line the
-author's clause was written on. `csdfpromote -format json` prints them.
+author's clause was written on. `csdfpromote -format json` prints them, with
+the `<<promote>>` blocks (`promotes`) and the local diagrams they include
+(`locals`, by path), since a generated clause names a local state and a local
+clause reads local variables that the expansion's text never spells out.
 
 
 Output

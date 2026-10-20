@@ -85,3 +85,46 @@ func TestWritePUMLPrintsTheDiagram(t *testing.T) {
 		t.Error("promote.Write(OutputPUML) differs from String / StringWithoutComments")
 	}
 }
+
+// A program reading the expansion needs more than the edges: which maps hold
+// which families (the id parameter, the local diagram) and the local diagrams
+// themselves, since a generated clause names a local state and a local clause
+// reads local variables the expansion never spells out.
+func TestWriteJSONCarriesThePromotesAndTheLocalDiagrams(t *testing.T) {
+	x, diags := expand(t, syncGlobal, syncLocals)
+	if x == nil {
+		t.Fatalf("promote.Expand() expansion = nil, diagnostics = %v", diags)
+	}
+	var buf bytes.Buffer
+	if err := promote.Write(&buf, x, promote.OutputJSON, true); err != nil {
+		t.Fatalf("promote.Write() error = %v", err)
+	}
+	var got struct {
+		Promotes []struct {
+			Map     string `json:"map"`
+			IDParam string `json:"id_param"`
+			Path    string `json:"path"`
+			In      string `json:"in"`
+		} `json:"promotes"`
+		Locals map[string]struct {
+			States map[string]struct {
+				Name string `json:"name"`
+			} `json:"states"`
+		} `json:"locals"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if len(got.Promotes) != len(x.Promotes) || len(got.Promotes) == 0 {
+		t.Fatalf("promotes = %v, want the %d blocks of the global diagram", got.Promotes, len(x.Promotes))
+	}
+	for _, p := range got.Promotes {
+		if p.Path == "" {
+			continue // a bodyless block shares its map's file
+		}
+		local, ok := got.Locals[p.Path]
+		if !ok || len(local.States) == 0 {
+			t.Errorf("locals[%q] missing or empty; the local diagram must travel with the expansion", p.Path)
+		}
+	}
+}

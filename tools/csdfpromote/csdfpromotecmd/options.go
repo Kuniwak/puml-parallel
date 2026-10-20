@@ -51,7 +51,9 @@ program that must not parse the wording back:
 
   {"diagram": <the diagram as csdfparse prints it>,
    "edges": [{"edge": <the edge>, "origin": "promote: ...",
-              "guard": [CLAUSE, ...], "post": [CLAUSE, ...]}, ...]}
+              "guard": [CLAUSE, ...], "post": [CLAUSE, ...]}, ...],
+   "promotes": [{"map": M, "id_param": P, "type": T, "path": F, "in": S}, ...],
+   "locals": {F: <the local diagram as csdfparse prints it>, ...}}
 
 where a CLAUSE is {"kind": K, "text": T, ...} with K one of in_dom, not_in_dom,
 at_state, update, create, delete, frame (the generated clauses, with "map",

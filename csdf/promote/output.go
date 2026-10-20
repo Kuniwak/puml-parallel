@@ -66,7 +66,7 @@ func writeJSON(w io.Writer, x *Expansion, comments bool) error {
 			e.Origin = ""
 			edges[i] = e
 		}
-		out = &Expansion{Diagram: x.Diagram, Edges: edges}
+		out = &Expansion{Diagram: x.Diagram, Edges: edges, Promotes: x.Promotes, Locals: x.Locals}
 	}
 	if err := json.NewEncoder(w).Encode(out); err != nil {
 		return fmt.Errorf("promote.Write: writing JSON: %w", err)

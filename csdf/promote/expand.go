@@ -56,6 +56,13 @@ type Expansion struct {
 	// Edges is Diagram.Edges again, each with where it came from. The two are
 	// kept in step by sortEdges, which is the only thing that reorders them.
 	Edges []ExpandedEdge `json:"edges"`
+	// Promotes are the <<promote>> blocks the expansion came from, in source
+	// order, and Locals the local diagrams they include, by the path the
+	// block wrote. A program reading the expansion needs them: a generated
+	// clause names a local state and a local clause reads local variables
+	// that the expansion's text never spells out.
+	Promotes []Promote                `json:"promotes"`
+	Locals   map[string]*csdf.Diagram `json:"locals"`
 }
 
 // ExpandedEdge is one edge of the expansion and the local edge it came from.
@@ -184,7 +191,11 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 		return nil, e.sorted()
 	}
 
-	x := &Expansion{Diagram: out, Edges: edges}
+	locals := make(map[string]*csdf.Diagram, len(e.locals))
+	for m, d := range e.locals {
+		locals[e.paths[m]] = d
+	}
+	x := &Expansion{Diagram: out, Edges: edges, Promotes: append([]Promote{}, e.global.Promotes...), Locals: locals}
 	x.sortEdges()
 	return x, e.sorted()
 }
