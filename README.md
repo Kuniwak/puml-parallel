@@ -705,10 +705,24 @@ exception, no I/O, no randomness, no float — which `load_twins` checks with
 `ast` before importing it, so that evaluating a clause is deterministic and
 decided by enumeration.
 
-The walk is breadth-first over (control state, valuation) pairs, up to
+Two more tables are optional. `INVARIANTS` maps a name to a predicate over the
+state variables and ghosts it reads; it is checked at every reachable state
+that binds all of them, and a state that breaks it is reported with its trace.
+`GHOSTS` maps a name to `(initial value, {event name: update})`: a value the
+diagram does not keep — a running total, a count — that follows the events. An
+update reads the ghosts, the event's parameters and the state variables before
+the step and returns the new value; a ghost with no update for an event keeps
+its value. Ghosts are part of the state the walk tells states apart by, so a
+total that grows without bound is cut by `--max-states`.
+
+The walk is breadth-first over (control state, valuation, ghosts) triples, up to
 `--max-states`. It reports every reachable state with no enabled transition and
 no end edge as a deadlock, with the trace that reached it, and every cycle of
-`tau` transitions among the reachable states as a tau cycle. A clause without a
+`tau` transitions among the reachable states as a tau cycle. With
+`--avoid EVENT` it also reports every cycle among the reachable states that
+never performs that event: under a fairness assumption written as a finite
+bound (a resend count in the domains), such a cycle is a run that never gets to
+the event, which is the livelock the `assume` note was about. A clause without a
 twin is refused; `--opaque true` takes it as satisfied instead, which
 over-approximates the behaviour (a deadlock it then reports may be spurious; a
 deadlock it misses cannot be hidden by it) and lists the clauses so taken.

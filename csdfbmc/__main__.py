@@ -1,8 +1,9 @@
-"""python -m csdfbmc <diagram.json> <twins.py> [--max-states N] [--opaque error|true] [--json]
+"""python -m csdfbmc <diagram.json> <twins.py> [--max-states N] [--opaque error|true] [--avoid EVENT] [--json]
 
 Reads a diagram as csdfparse prints it and the twins of its clauses, walks the
-reachable states within the bound, and reports the deadlocks and tau cycles it
-finds. Exits 1 when it finds any, 2 on a usage or loading error.
+reachable states within the bound, and reports the deadlocks, the tau cycles,
+the broken invariants and, with --avoid, the cycles that never perform the
+event. Exits 1 when it finds any, 2 on a usage or loading error.
 """
 import argparse
 import json
@@ -19,13 +20,14 @@ def main(argv=None) -> int:
     ap.add_argument("twins", help="the Python module holding DOMAINS and CLAUSES")
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
     ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause without a twin means (default: refuse)")
+    ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
 
     try:
         diagram = Diagram.load(a.diagram)
         twins = load_twins(a.twins)
-        result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states).run()
+        result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid).run()
     except (OSError, ValueError, KeyError, PurityError) as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
@@ -36,12 +38,17 @@ def main(argv=None) -> int:
     else:
         print(f"states: {len(result.states)}" + (" (truncated at the bound)" if result.truncated else ""))
         for s in result.deadlocks:
-            print(f"deadlock at {s[0]} {list(s[1])} after {result.trace_to(s)}")
+            print(f"deadlock at {result.describe(s)} after {result.trace_to(s)}")
         for cycle in result.tau_cycles:
             print(f"tau cycle through {[c[0] for c in cycle]} reached after {result.trace_to(cycle[0])}")
+        for name, s in result.violations:
+            print(f"invariant {name!r} broken at {result.describe(s)} after {result.trace_to(s)}")
+        for cycle in result.avoiding_cycles:
+            print(f"cycle without {result.avoid} through {[c[0] for c in cycle]} reached after {result.trace_to(cycle[0])}")
         for c in result.opaque_clauses:
             print(f"taken as true (no twin): {c}")
-    return 1 if result.deadlocks or result.tau_cycles else 0
+    found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles
+    return 1 if found else 0
 
 
 if __name__ == "__main__":

@@ -40,14 +40,14 @@ class ExplorerTest(unittest.TestCase):
     def test_reaches_every_valuation_the_clauses_admit(self):
         result = Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
         self.assertEqual(
-            {("a", (2,)), ("a", (1,)), ("a", (0,)), ("b", ())},
+            {("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())},
             set(result.states),
         )
 
     def test_reports_a_state_with_no_way_out_as_a_deadlock(self):
         result = Explorer(Diagram.from_json(COUNTER), COUNTER_TWINS).run()
-        self.assertEqual([("b", ())], result.deadlocks)
-        self.assertEqual(["dec", "dec", "stop"], result.trace_to(("b", ())))
+        self.assertEqual([("b", (), ())], result.deadlocks)
+        self.assertEqual(["dec", "dec", "stop"], result.trace_to(("b", (), ())))
 
     def test_an_end_edge_is_a_way_out(self):
         diagram = dict(COUNTER, end_edge={"src": "b", "guard": "true", "line": 8})
@@ -60,7 +60,7 @@ class ExplorerTest(unittest.TestCase):
         ])
         twins = Twins(domains=COUNTER_TWINS.domains, clauses=dict(COUNTER_TWINS.clauses, **{"n' = n": lambda n, n_: n_ == n}))
         result = Explorer(Diagram.from_json(diagram), twins).run()
-        self.assertEqual([[("a", (0,))]], result.tau_cycles)
+        self.assertEqual([[("a", (0,), ())]], result.tau_cycles)
 
     def test_event_parameters_range_over_their_domain(self):
         diagram = dict(COUNTER, edges=[
@@ -75,8 +75,8 @@ class ExplorerTest(unittest.TestCase):
             },
         )
         result = Explorer(Diagram.from_json(diagram), twins).run()
-        self.assertEqual({("a", (2,)), ("a", (3,))}, set(result.states))
-        self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,))))
+        self.assertEqual({("a", (2,), ()), ("a", (3,), ())}, set(result.states))
+        self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,), ())))
 
     def test_a_clause_without_a_twin_is_refused_by_default(self):
         twins = Twins(domains={"n": range(0, 4)}, clauses={k: v for k, v in COUNTER_TWINS.clauses.items() if k != "n > 0"})
@@ -88,7 +88,7 @@ class ExplorerTest(unittest.TestCase):
         twins = Twins(domains={"n": range(0, 4)}, clauses={k: v for k, v in COUNTER_TWINS.clauses.items() if k != "n > 0"})
         result = Explorer(Diagram.from_json(COUNTER), twins, opaque="true").run()
         # dec fires at n = 0 too, but no value in the domain satisfies n' = n - 1.
-        self.assertEqual({("a", (2,)), ("a", (1,)), ("a", (0,)), ("b", ())}, set(result.states))
+        self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual(["n > 0"], result.opaque_clauses)
 
     def test_the_bound_on_states_stops_the_walk(self):

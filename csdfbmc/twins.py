@@ -13,7 +13,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Iterable
 
 
@@ -58,6 +58,15 @@ def check_pure(source: str, path: str = "<twins>") -> None:
 class Twins:
     domains: dict[str, Iterable]
     clauses: dict[str, Callable[..., bool]]
+    # invariants: name -> predicate over the state variables and ghosts it
+    # reads, checked at every reachable state that binds all of them.
+    invariants: dict[str, Callable[..., bool]] = field(default_factory=dict)
+    # ghosts: name -> (initial value, {event name: update}). A ghost is a value
+    # the diagram does not keep - a running total, a count - that follows the
+    # events; an update reads the ghosts, the event's parameters and the state
+    # variables before the step, and returns the new value. A ghost with no
+    # update for an event keeps its value.
+    ghosts: dict[str, tuple[object, dict[str, Callable[..., object]]]] = field(default_factory=dict)
 
     def domain(self, name: str) -> list:
         if name not in self.domains:
@@ -66,12 +75,19 @@ class Twins:
 
     def evaluate(self, clause: str, env: dict) -> bool:
         """Applies the clause's twin to the names it reads, taken from env."""
-        fn = self.clauses[clause]
-        params = inspect.signature(fn).parameters
-        missing = [p for p in params if p not in env]
-        if missing:
-            raise KeyError(f"the twin of {clause!r} reads {missing}, which this step does not bind; it may read {sorted(env)}")
-        return bool(fn(**{p: env[p] for p in params}))
+        return bool(apply(self.clauses[clause], env, what=f"the twin of {clause!r}"))
+
+    def binds(self, fn: Callable, env: dict) -> bool:
+        return all(p in env for p in inspect.signature(fn).parameters)
+
+
+def apply(fn: Callable, env: dict, *, what: str):
+    """Calls fn with the names its signature asks for, taken from env."""
+    params = inspect.signature(fn).parameters
+    missing = [p for p in params if p not in env]
+    if missing:
+        raise KeyError(f"{what} reads {missing}, which this step does not bind; it may read {sorted(env)}")
+    return fn(**{p: env[p] for p in params})
 
 
 def load_twins(path: str) -> Twins:
@@ -84,4 +100,10 @@ def load_twins(path: str) -> Twins:
     for table in ("DOMAINS", "CLAUSES"):
         if not isinstance(getattr(module, table, None), dict):
             raise PurityError(f"{path}: the module must define {table} as a dict")
-    return Twins(domains=dict(module.DOMAINS), clauses=dict(module.CLAUSES))
+    for table in ("INVARIANTS", "GHOSTS"):
+        if not isinstance(getattr(module, table, {}), dict):
+            raise PurityError(f"{path}: {table} must be a dict when defined")
+    return Twins(
+        domains=dict(module.DOMAINS), clauses=dict(module.CLAUSES),
+        invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
+    )

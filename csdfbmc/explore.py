@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import itertools
+import sys
 from dataclasses import dataclass, field
 
 from csdfbmc.model import Diagram, Edge
-from csdfbmc.twins import Twins
+from csdfbmc.twins import Twins, apply
 
-State = tuple[str, tuple]  # (state id, values of its variables in declaration order)
+# (state id, values of its variables in declaration order, values of the ghosts)
+State = tuple[str, tuple, tuple]
 
 
 @dataclass
@@ -19,6 +21,10 @@ class Result:
     opaque_clauses: list[str]
     truncated: bool
     bound: int
+    violations: list[tuple[str, State]] = field(default_factory=list)
+    avoiding_cycles: list[list[State]] = field(default_factory=list)
+    avoid: str | None = None
+    ghost_names: tuple[str, ...] = ()
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -30,15 +36,27 @@ class Result:
 
     def to_json(self) -> dict:
         def st(s: State) -> dict:
-            return {"state": s[0], "values": list(s[1])}
+            d = {"state": s[0], "values": list(s[1])}
+            if self.ghost_names:
+                d["ghosts"] = dict(zip(self.ghost_names, s[2]))
+            return d
         return {
             "states": len(self.states),
             "truncated": self.truncated,
             "bound": self.bound,
             "deadlocks": [{"at": st(s), "trace": self.trace_to(s)} for s in self.deadlocks],
             "tau_cycles": [{"cycle": [st(s) for s in cycle], "trace": self.trace_to(cycle[0])} for cycle in self.tau_cycles],
+            "violations": [{"invariant": name, "at": st(s), "trace": self.trace_to(s)} for name, s in self.violations],
+            "avoid": self.avoid,
+            "avoiding_cycles": [{"cycle": [st(s) for s in cycle], "trace": self.trace_to(cycle[0])} for cycle in self.avoiding_cycles],
             "opaque_clauses": self.opaque_clauses,
         }
+
+    def describe(self, s: State) -> str:
+        text = f"{s[0]} {list(s[1])}"
+        if self.ghost_names:
+            text += " " + str(dict(zip(self.ghost_names, s[2])))
+        return text
 
 
 class Explorer:
@@ -48,16 +66,23 @@ class Explorer:
     opaque says what a clause without a twin means: "error" refuses it, "true"
     takes it as satisfied (an over-approximation, so a deadlock it reports may
     be spurious while a deadlock it misses cannot be hidden by it).
+
+    avoid names an event; the walk then also reports every cycle among the
+    reachable states that performs no transition of that event. Under a
+    fairness assumption written as a finite bound (a resend count in the
+    domains), such a cycle is a livelock: a run that never gets to the event.
     """
 
-    def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000):
+    def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000, avoid: str | None = None):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
         self.twins = twins
         self.opaque = opaque
         self.max_states = max_states
+        self.avoid = avoid
         self.opaque_seen: dict[str, None] = {}
+        self.ghost_names = tuple(twins.ghosts)
 
     # -- clauses --------------------------------------------------------------
 
@@ -76,8 +101,10 @@ class Explorer:
         names = self.d.vars[sid]
         return itertools.product(*(self.twins.domain(n) for n in names))
 
-    def _env(self, sid: str, values: tuple, params: dict | None = None, after: tuple[str, tuple] | None = None) -> dict:
-        env = dict(zip(self.d.vars[sid], values))
+    def _env(self, state: State, params: dict | None = None, after: tuple[str, tuple] | None = None) -> dict:
+        sid, values, ghosts = state
+        env = dict(zip(self.ghost_names, ghosts))
+        env.update(zip(self.d.vars[sid], values))
         if params:
             env.update(params)
         if after is not None:
@@ -85,30 +112,51 @@ class Explorer:
             env.update({n + "_": v for n, v in zip(self.d.vars[dst], dst_values)})
         return env
 
+    def _ghosts_after(self, state: State, name: str, params: dict) -> tuple:
+        env = self._env(state, params)
+        out = []
+        for ghost, (_, updates) in self.twins.ghosts.items():
+            if name in updates:
+                out.append(apply(updates[name], env, what=f"the update of ghost {ghost!r} on {name}"))
+            else:
+                out.append(env[ghost])
+        return tuple(out)
+
+    def _check_invariants(self, state: State) -> list[str]:
+        env = self._env(state)
+        broken = []
+        for name, fn in self.twins.invariants.items():
+            if self.twins.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}"):
+                broken.append(name)
+        return broken
+
     # -- transitions ----------------------------------------------------------
 
     def initial(self) -> list[State]:
-        return [(self.d.start, vals) for vals in self._valuations(self.d.start)
-                if self._holds(self.d.start_post, self._env(self.d.start, vals))]
+        ghosts = tuple(init for init, _ in self.twins.ghosts.values())
+        return [s for vals in self._valuations(self.d.start)
+                for s in [(self.d.start, vals, ghosts)]
+                if self._holds(self.d.start_post, self._env(s))]
 
-    def successors(self, state: State) -> list[tuple[str, State]]:
-        """(event as taken, next state) for every enabled transition."""
-        sid, values = state
-        out: list[tuple[str, State]] = []
+    def successors(self, state: State) -> list[tuple[str, str, State]]:
+        """(event name, event as taken, next state) for every enabled transition."""
+        sid, values, _ = state
+        out: list[tuple[str, str, State]] = []
         for e in self.d.out_edges(sid):
             for args in itertools.product(*(self.twins.domain(p) for p in e.params)):
                 params = dict(zip(e.params, args))
-                if not self._holds(e.guard, self._env(sid, values, params)):
+                if not self._holds(e.guard, self._env(state, params)):
                     continue
                 label = e.name if not e.params else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
+                ghosts = self._ghosts_after(state, e.name, params)
                 for dst_vals in self._valuations(e.dst):
-                    if self._holds(e.post, self._env(sid, values, params, (e.dst, dst_vals))):
-                        out.append((label, (e.dst, dst_vals)))
+                    if self._holds(e.post, self._env(state, params, (e.dst, dst_vals))):
+                        out.append((e.name, label, (e.dst, dst_vals, ghosts)))
         return out
 
     def can_end(self, state: State) -> bool:
         end = self.d.end
-        return end is not None and end.src == state[0] and self._holds(end.guard, self._env(state[0], state[1]))
+        return end is not None and end.src == state[0] and self._holds(end.guard, self._env(state))
 
     # -- the walk --------------------------------------------------------------
 
@@ -117,43 +165,54 @@ class Explorer:
         order: list[State] = []
         queue: list[State] = []
         tau_next: dict[State, list[State]] = {}
+        avoid_next: dict[State, list[State]] = {}
         deadlocks: list[State] = []
+        violations: list[tuple[str, State]] = []
         truncated = False
+
+        def visit(s: State):
+            parents.setdefault(s, None)
+            order.append(s)
+            queue.append(s)
+            for name in self._check_invariants(s):
+                violations.append((name, s))
 
         for s in self.initial():
             if s not in parents:
-                parents[s] = None
-                order.append(s)
-                queue.append(s)
+                visit(s)
 
         i = 0
         while i < len(queue):
             s = queue[i]
             i += 1
             succ = self.successors(s)
-            tau_next[s] = [t for label, t in succ if label == "tau"]
+            tau_next[s] = [t for name, _, t in succ if name == "tau"]
+            if self.avoid is not None:
+                avoid_next[s] = [t for name, _, t in succ if name != self.avoid]
             if not succ and not self.can_end(s):
                 deadlocks.append(s)
-            for label, t in succ:
+            for _, label, t in succ:
                 if t in parents:
                     continue
                 if len(order) >= self.max_states:
                     truncated = True
                     continue
                 parents[t] = (s, label)
-                order.append(t)
-                queue.append(t)
+                visit(t)
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,
-            tau_cycles=_tau_cycles(order, tau_next),
+            tau_cycles=_cycles(order, tau_next),
             opaque_clauses=list(self.opaque_seen), truncated=truncated, bound=self.max_states,
+            violations=violations,
+            avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None else [],
+            avoid=self.avoid, ghost_names=self.ghost_names,
         )
 
 
-def _tau_cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[list[State]]:
-    """One cycle per strongly connected component of the tau graph that has a
-    cycle, in the order the states were met."""
+def _cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[list[State]]:
+    """One cycle per strongly connected component of the given graph that has
+    a cycle, in the order the states were met."""
     index: dict[State, int] = {}
     low: dict[State, int] = {}
     on_stack: set[State] = set()
@@ -183,7 +242,6 @@ def _tau_cycles(states: list[State], tau_next: dict[State, list[State]]) -> list
             if len(comp) > 1 or v in tau_next.get(v, ()):
                 cycles.append(comp)
 
-    import sys
     sys.setrecursionlimit(max(sys.getrecursionlimit(), len(states) + 1000))
     for s in states:
         if s not in index:
