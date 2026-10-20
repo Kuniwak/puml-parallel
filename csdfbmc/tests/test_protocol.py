@@ -17,13 +17,18 @@ class WireEncodingTest(unittest.TestCase):
                 self.assertEqual(v, to_wire(v))
                 self.assertEqual(v, from_wire(to_wire(v)))
 
-    def test_containers_are_tagged_and_come_back_equal(self):
+    def test_containers_are_tagged(self):
+        for value, wire in [
+            ((1, 2), {"tuple": [1, 2]}),
+            (frozenset({2, 1}), {"set": [1, 2]}),
+            (FrozenMap({"k": 1}), {"map": [["k", 1]]}),
+        ]:
+            with self.subTest(value=value):
+                self.assertEqual(wire, to_wire(value))
+
+    def test_a_nested_value_comes_back_equal_through_json(self):
         v = FrozenMap({"t1": FrozenMap({"state": "署名済み", "手数料": 2}), 3: (1, frozenset({"a"}))})
-        wire = json.loads(json.dumps(to_wire(v)))
-        self.assertEqual(v, from_wire(wire))
-        self.assertEqual({"tuple": [1, 2]}, to_wire((1, 2)))
-        self.assertEqual({"set": [1, 2]}, to_wire(frozenset({2, 1})))
-        self.assertEqual({"map": [["k", 1]]}, to_wire(FrozenMap({"k": 1})))
+        self.assertEqual(v, from_wire(json.loads(json.dumps(to_wire(v)))))
 
     def test_a_boolean_stays_a_boolean(self):
         self.assertIs(True, from_wire(to_wire(True)))
@@ -102,13 +107,16 @@ class TransportTest(unittest.TestCase):
         self.addCleanup(command.close)
         return {"command": command, "module": start_module("csdfbmc.python_glue", [])}
 
-    def test_both_answer_hello_and_the_value_requests_alike(self):
-        for how, ev in self.evaluators().items():
-            with self.subTest(how=how):
-                self.assertEqual("python", ev.language)
-                self.assertEqual(Analysis(opaque=False, reads=("m",), writes=("m",)), ev.analyse("[{'m': m.set('k', (1, 2))}]", "post"))
-                self.assertEqual([[{"m": FrozenMap({"k": (1, 2)})}]], ev.post("[{'m': m.set('k', (1, 2))}]", [{"m": FrozenMap()}]))
-                self.assertEqual([True], ev.guard("len(s) == 2", [{"s": frozenset({1, 2})}]))
+    def test_both_answer_alike(self):
+        for ask, want in [
+            (lambda ev: ev.language, "python"),
+            (lambda ev: ev.analyse("[{'m': m.set('k', (1, 2))}]", "post"), Analysis(opaque=False, reads=("m",), writes=("m",))),
+            (lambda ev: ev.post("[{'m': m.set('k', (1, 2))}]", [{"m": FrozenMap()}]), [[{"m": FrozenMap({"k": (1, 2)})}]]),
+            (lambda ev: ev.guard("len(s) == 2", [{"s": frozenset({1, 2})}]), [True]),
+        ]:
+            for how, ev in self.evaluators().items():
+                with self.subTest(how=how, want=want):
+                    self.assertEqual(want, ask(ev))
 
     def test_an_error_answer_is_raised_with_its_message(self):
         for how, ev in self.evaluators().items():

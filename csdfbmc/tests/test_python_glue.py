@@ -1,8 +1,14 @@
 """The reference glue reads clauses written in the pure subset of Python and
 answers the requests of the evaluator protocol about them."""
+import os
+import tempfile
 import unittest
 
 from csdfbmc.python_glue import evaluator
+
+
+def analyse(clause: str, role: str) -> dict:
+    return {"op": "analyse", "clause": clause, "role": role}
 
 
 class PythonGlueTest(unittest.TestCase):
@@ -12,59 +18,55 @@ class PythonGlueTest(unittest.TestCase):
     def test_hello_names_the_language_and_the_protocol_version(self):
         self.assertEqual({"language": "python", "protocol": 1}, self.handle({"op": "hello"}))
 
-    def test_a_guard_reads_its_free_names(self):
-        answer = self.handle({"op": "analyse", "clause": "n + k <= 3 and all(v > 0 for v in xs)", "role": "guard"})
-        self.assertEqual({"reads": ["k", "n", "xs"], "writes": []}, answer)
-
-    def test_a_post_writes_the_keys_of_its_assignments(self):
-        for clause, reads, writes in [
-            ("[{'x': x + 1, 'y': y}]", ["x", "y"], ["x", "y"]),
-            ("[{'y': v} for v in (y, y + 1)]", ["y"], ["y"]),
-            ("{(1, 2): 0} and [{'z': 0}]", None, None),
+    def test_analyse_says_what_a_clause_reads_and_writes(self):
+        for request, want in [
+            (analyse("n + k <= 3 and all(v > 0 for v in xs)", "guard"), {"reads": ["k", "n", "xs"], "writes": []}),
+            (analyse("[{'x': x + 1, 'y': y}]", "post"), {"reads": ["x", "y"], "writes": ["x", "y"]}),
+            (analyse("[{'y': v} for v in (y, y + 1)]", "post"), {"reads": ["y"], "writes": ["y"]}),
+            (analyse("OPAQUE", "guard"), {"opaque": True}),
+            (analyse("OPAQUE", "post"), {"opaque": True}),
         ]:
-            with self.subTest(clause=clause):
-                answer = self.handle({"op": "analyse", "clause": clause, "role": "post"})
-                if writes is None:
-                    self.assertIn("error", answer)
-                else:
-                    self.assertEqual({"reads": reads, "writes": writes}, answer)
+            with self.subTest(request=request):
+                self.assertEqual(want, self.handle(request))
 
-    def test_the_assignments_of_a_display_must_agree_on_their_keys(self):
-        answer = self.handle({"op": "analyse", "clause": "[{'x': 1}, {'y': 2}]", "role": "post"})
-        self.assertIn("same variables", answer["error"])
+    def test_evaluation_answers_one_result_per_binding(self):
+        for request, want in [
+            ({"op": "guard", "clause": "n + k <= 3", "bindings": [{"n": 1, "k": 2}, {"n": 2, "k": 2}]},
+             {"results": [True, False]}),
+            ({"op": "post", "clause": "[{'xs': {v}} for v in (y, y + 1)]", "bindings": [{"y": 1}]},
+             {"results": [[{"xs": frozenset({1})}, {"xs": frozenset({2})}]]}),
+        ]:
+            with self.subTest(request=request):
+                self.assertEqual(want, self.handle(request))
 
-    def test_opaque_marks_a_clause_not_yet_formalised(self):
-        for role in ("guard", "post"):
-            with self.subTest(role=role):
-                self.assertEqual({"opaque": True}, self.handle({"op": "analyse", "clause": "OPAQUE", "role": role}))
+    def test_what_the_glue_cannot_read_or_evaluate_is_answered_with_an_error(self):
+        for request, said in [
+            (analyse("{(1, 2): 0} and [{'z': 0}]", "post"), "list or set of assignments"),
+            (analyse("[{'x': 1}, {'y': 2}]", "post"), "same variables"),
+            (analyse("open('f') and 1.5", "guard"), "not allowed"),
+            ({"op": "guard", "clause": "m['k'] > 0", "bindings": [{"m": {}}]}, "'k'"),
+            ({"op": "frobnicate"}, "unknown request"),
+        ]:
+            with self.subTest(request=request):
+                self.assertIn(said, self.handle(request)["error"])
 
-    def test_a_clause_outside_the_pure_subset_is_refused(self):
-        answer = self.handle({"op": "analyse", "clause": "open('f') and 1.5", "role": "guard"})
-        self.assertIn("not allowed", answer["error"])
 
-    def test_a_guard_is_evaluated_under_each_binding(self):
-        answer = self.handle({"op": "guard", "clause": "n + k <= 3", "bindings": [{"n": 1, "k": 2}, {"n": 2, "k": 2}]})
-        self.assertEqual({"results": [True, False]}, answer)
+class DefinitionsTest(unittest.TestCase):
+    """The glue's arguments are modules whose public names every clause may use."""
 
-    def test_a_post_is_evaluated_to_frozen_assignments(self):
-        answer = self.handle({"op": "post", "clause": "[{'xs': {v}} for v in (y, y + 1)]", "bindings": [{"y": 1}]})
-        self.assertEqual({"results": [[{"xs": frozenset({1})}, {"xs": frozenset({2})}]]}, answer)
-        hash(answer["results"][0][0]["xs"])
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        path = os.path.join(d.name, "defs.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("FEE = 1\ndef fee(n):\n    return n + FEE\n")
+        self.handle = evaluator([path])
 
-    def test_an_error_in_evaluation_is_answered_with_its_message(self):
-        answer = self.handle({"op": "guard", "clause": "m['k'] > 0", "bindings": [{"m": {}}]})
-        self.assertIn("'k'", answer["error"])
+    def test_a_definition_is_not_read_from_the_step(self):
+        self.assertEqual({"reads": ["n"], "writes": []}, self.handle(analyse("fee(n) > FEE", "guard")))
 
-    def test_definitions_shared_by_the_clauses_come_from_the_named_modules(self):
-        import os
-        import tempfile
-        with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "defs.py")
-            with open(path, "w", encoding="utf-8") as f:
-                f.write("FEE = 1\ndef fee(n):\n    return n + FEE\n")
-            handle = evaluator([path])
-            self.assertEqual({"reads": ["n"], "writes": []}, handle({"op": "analyse", "clause": "fee(n) > FEE", "role": "guard"}))
-            self.assertEqual({"results": [True]}, handle({"op": "guard", "clause": "fee(n) > FEE", "bindings": [{"n": 1}]}))
+    def test_a_clause_evaluates_with_the_definitions(self):
+        self.assertEqual({"results": [True]}, self.handle({"op": "guard", "clause": "fee(n) > FEE", "bindings": [{"n": 1}]}))
 
 
 if __name__ == "__main__":

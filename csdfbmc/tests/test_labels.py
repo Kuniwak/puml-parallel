@@ -4,6 +4,7 @@ to, and what it evaluates to, and needs no twin keyed by prose."""
 import io
 import json
 import os
+import shlex
 import sys
 import tempfile
 import unittest
@@ -169,55 +170,47 @@ class Lying(Counting):
 class LabelsCommandTest(unittest.TestCase):
     """csdfbmc and csdfbmc next take the glue as a command or as a module."""
 
-    def files(self):
-        d = tempfile.mkdtemp()
-        diagram, twins = os.path.join(d, "d.json"), os.path.join(d, "t.py")
-        with open(diagram, "w", encoding="utf-8") as f:
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.diagram, self.twins = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
+        with open(self.diagram, "w", encoding="utf-8") as f:
             json.dump(COUNTER, f)
-        with open(twins, "w", encoding="utf-8") as f:
-            f.write("DOMAINS = {}\nCLAUSES = {}\n")
-        return diagram, twins
+        with open(self.twins, "w", encoding="utf-8") as f:
+            f.write("DOMAINS = {}\n")
 
     def run_main(self, main, *args):
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
-            code = main(list(args))
+            code = main([self.diagram, self.twins, *args])
         return code, out.getvalue(), err.getvalue()
 
     def test_the_checker_reads_the_clauses_through_either_form_of_the_glue(self):
         from csdfbmc.__main__ import main
-        diagram, twins = self.files()
-        command = f"{sys.executable} -E -s -B -m csdfbmc.python_glue"
+        # The command finds the package through PYTHONPATH (so no -E), wherever the test runs.
+        command = shlex.join(["env", f"PYTHONPATH={ROOT}", sys.executable, "-s", "-B", "-m", "csdfbmc.python_glue"])
         for flag, value in (("--evaluator", command), ("--evaluator-module", "csdfbmc.python_glue")):
             with self.subTest(flag=flag):
-                cwd = os.getcwd()
-                os.chdir(ROOT)
-                try:
-                    code, out, err = self.run_main(main, diagram, twins, flag, value)
-                finally:
-                    os.chdir(cwd)
+                code, out, err = self.run_main(main, flag, value)
                 self.assertEqual(1, code, err)
                 self.assertIn("deadlock at b [] after ['dec', 'dec', 'stop']", out)
 
     def test_next_reads_the_clauses_through_the_glue(self):
         from csdfbmc.next import main
-        diagram, twins = self.files()
-        code, out, err = self.run_main(main, diagram, twins, "--evaluator-module", "csdfbmc.python_glue", "--initial")
+        code, out, err = self.run_main(main, "--evaluator-module", "csdfbmc.python_glue", "--initial")
         self.assertEqual(0, code, err)
         self.assertEqual({"candidates": [{"params": {}, "values": [2]}]}, json.loads(out))
 
     def test_a_glue_that_cannot_start_is_a_loading_error(self):
         from csdfbmc.__main__ import main
-        diagram, twins = self.files()
-        code, _, err = self.run_main(main, diagram, twins, "--evaluator-module", "no.such.glue")
+        code, _, err = self.run_main(main, "--evaluator-module", "no.such.glue")
         self.assertEqual(2, code)
         self.assertIn("no.such.glue", err)
 
     def test_the_two_forms_of_the_glue_exclude_each_other(self):
         from csdfbmc.__main__ import main
-        diagram, twins = self.files()
         with self.assertRaises(SystemExit):
-            self.run_main(main, diagram, twins, "--evaluator", "x", "--evaluator-module", "y")
+            self.run_main(main, "--evaluator", "x", "--evaluator-module", "y")
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

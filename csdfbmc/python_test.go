@@ -73,15 +73,17 @@ func TestTheFormalWithdrawExampleReportsTheSameDeadlockThroughTheGlue(t *testing
 		{"--evaluator", py + " -E -s -B -m csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
 		{"--evaluator-module", "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
 	} {
-		cmd := exec.Command(py, append([]string{"-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/withdraw_formal.json", "examples/bmc/withdraw_formal_defs.py"}, glue...)...)
-		cmd.Dir = ".."
-		out, err := cmd.CombinedOutput()
-		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
-			t.Fatalf("%s: want exit status 1 (a deadlock found), got %v\n%s", glue[0], err, out)
-		}
-		if want := "states: 22\ndeadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']\n"; string(out) != want {
-			t.Errorf("%s: want the report of the prose example, got:\n%s", glue[0], out)
-		}
+		t.Run(glue[0], func(t *testing.T) {
+			cmd := exec.Command(py, append([]string{"-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/withdraw_formal.json", "examples/bmc/withdraw_formal_defs.py"}, glue...)...)
+			cmd.Dir = ".."
+			out, err := cmd.CombinedOutput()
+			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+				t.Fatalf("want exit status 1 (a deadlock found), got %v\n%s", err, out)
+			}
+			if want := "states: 22\ndeadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']\n"; string(out) != want {
+				t.Errorf("want the report of the prose example, got:\n%s", out)
+			}
+		})
 	}
 }
 
