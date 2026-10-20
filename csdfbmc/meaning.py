@@ -24,6 +24,8 @@ OPAQUE = object()
 class TwinsMeaning:
     # readable: the clauses can be read, as source, to check SYMMETRIC.
     readable = True
+    # by_prose: the twins' CLAUSES give the meaning.
+    by_prose = True
 
     def __init__(self, diagram: Diagram, twins: Twins):
         self.d = diagram
@@ -88,6 +90,7 @@ class GlueMeaning:
     """The meaning a glue gives the clauses. client is a Client of the
     protocol; it is asked through Memoising and Validating."""
     readable = False
+    by_prose = False
 
     def __init__(self, client):
         self.client = Memoising(Validating(client))

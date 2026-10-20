@@ -53,12 +53,8 @@ def to_wire(value):
     if isinstance(value, tuple):
         return {"tuple": [to_wire(v) for v in value]}
     if isinstance(value, (set, frozenset)):
-        items = [to_wire(v) for v in value]
-        try:
-            items.sort()
-        except TypeError:
-            pass
-        return {"set": items}
+        # One order for any items, so that a set is always sent the same way.
+        return {"set": sorted((to_wire(v) for v in value), key=lambda w: json.dumps(w, sort_keys=True, ensure_ascii=False))}
     raise TypeError(f"{value!r} is not a value the protocol carries: integers, strings, booleans, null, tuples, sets and maps")
 
 
@@ -155,10 +151,12 @@ def serve(handle: Handle, stdin, stdout) -> None:
     for line in stdin:
         if not line.strip():
             continue
-        request = json.loads(line)
         try:
+            request = json.loads(line)
+            if not isinstance(request, dict):
+                raise ValueError(f"a request is a JSON object, not {request!r}")
             answer = answer_to_wire(request.get("op"), handle(request_from_wire(request)))
-        except (TypeError, ValueError) as e:
+        except Exception as e:  # every line gets an answer, so the checker is never left waiting
             answer = {"error": f"{type(e).__name__}: {e}"}
         stdout.write(json.dumps(answer, ensure_ascii=False) + "\n")
         stdout.flush()
@@ -233,7 +231,9 @@ class Client:
             answer = handle({"op": "hello"})
             if answer.get("protocol") != PROTOCOL:
                 raise EvaluatorError(f"the glue speaks protocol {answer.get('protocol')!r}; csdfbmc speaks {PROTOCOL}")
-            self.language = str(answer.get("language", "?"))
+            if not isinstance(answer.get("language"), str) or not answer["language"]:
+                raise EvaluatorError(f"the glue's hello names no language: {answer!r}")
+            self.language = answer["language"]
         except EvaluatorError:
             close()
             raise
@@ -244,17 +244,36 @@ class Client:
             raise EvaluatorError(f"the {self.language} glue answered {request.get('op')} of {request.get('clause')!r}: {answer['error']}")
         return answer
 
+    def _malformed(self, op: str, clause: str, answer, why: str) -> EvaluatorError:
+        return EvaluatorError(f"the {self.language} glue answered {op} of {clause!r} with {answer!r}: {why}")
+
     def analyse(self, clause: str, role: str) -> Analysis:
         answer = self._request({"op": "analyse", "clause": clause, "role": role})
-        if answer.get("opaque"):
+        if answer.get("opaque") is True:
             return Analysis(opaque=True)
+        names = [answer.get("reads"), answer.get("writes")]
+        if not all(isinstance(ns, list) and all(isinstance(n, str) for n in ns) for ns in names):
+            raise self._malformed("analyse", clause, answer, "reads and writes must be lists of names, or opaque true")
         return Analysis(opaque=False, reads=tuple(answer["reads"]), writes=tuple(answer["writes"]))
 
-    def guard(self, clause: str, bindings: list[dict]) -> list:
-        return self._request({"op": "guard", "clause": clause, "bindings": bindings})["results"]
+    def _results(self, op: str, clause: str, bindings: list[dict]) -> list:
+        answer = self._request({"op": op, "clause": clause, "bindings": bindings})
+        results = answer.get("results")
+        if not isinstance(results, list) or len(results) != len(bindings):
+            raise self._malformed(op, clause, answer, f"want one result per binding, {len(bindings)} in all")
+        return results
+
+    def guard(self, clause: str, bindings: list[dict]) -> list[bool]:
+        results = self._results("guard", clause, bindings)
+        if not all(isinstance(r, bool) for r in results):
+            raise self._malformed("guard", clause, results, "a guard is a truth value")
+        return results
 
     def post(self, clause: str, bindings: list[dict]) -> list[list[dict]]:
-        return self._request({"op": "post", "clause": clause, "bindings": bindings})["results"]
+        results = self._results("post", clause, bindings)
+        if not all(isinstance(r, list) and all(isinstance(a, Mapping) for a in r) for r in results):
+            raise self._malformed("post", clause, results, "a post is a list of assignments per binding")
+        return results
 
     def close(self) -> None:
         self._close()

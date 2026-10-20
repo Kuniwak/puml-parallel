@@ -76,6 +76,12 @@ class LabelsTest(unittest.TestCase):
         self.assertEqual(len(result.states), len(guards))
         self.assertEqual([3, 3], [len(r["bindings"]) for r in guards[:2]])
 
+    def test_twins_keyed_by_prose_are_refused_with_a_glue(self):
+        twins = Twins(domains={}, clauses={"n > 0": lambda n: n > 0})
+        with self.assertRaises(ValueError) as cm:
+            Explorer(counter(), twins, meaning=glue())
+        self.assertIn("CLAUSES", str(cm.exception))
+
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
         lying = Lying(python_glue())
         with self.assertRaises(ValueError) as cm:

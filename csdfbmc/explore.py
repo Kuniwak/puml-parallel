@@ -195,6 +195,8 @@ class Explorer:
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         # meaning: what the hand-written and constrain clauses mean.
         self.meaning = meaning if meaning is not None else TwinsMeaning(diagram, twins)
+        if not self.meaning.by_prose and (twins.clauses or twins.locals):
+            raise ValueError("the clauses are read through a glue, so CLAUSES and --local twins would not be used; leave them out")
         self.por = PartialOrder(self) if por else None
         if symmetry and not self.meaning.readable:
             raise ValueError("--symmetry checks SYMMETRIC by reading the clauses, which it cannot do for clauses read through a glue")
