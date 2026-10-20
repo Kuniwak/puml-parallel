@@ -195,6 +195,15 @@ where a condition on another map goes; the local diagram cannot see one.
 Hand-written edges are left alone: they already say everything they were meant
 to.
 
+A constrain's note may carry the guard's *formal twin* on its next line,
+`formal: <expression>`: the same condition in a language a program can
+evaluate, where the guard itself is natural language. The expansion keeps the
+twin with the clause it stands for (`formal` on the constrain clause in
+`-format json`); the text of the expansion is unchanged. A `formal:` line
+under anything but a constrain, a second one, or an empty one is refused. A
+local clause's twin is not written here: it lives next to the clause in the
+local diagram and is looked up by the clause's text.
+
 A constrain reaches **every** matching generated edge, in every state. The block
 its note points at is a drawing: it tells a reader which family the condition is
 about, and it narrows nothing. A parameter of the constrain that no matching

@@ -92,14 +92,18 @@ const (
 // for a frame, and Path and Line for where a local or constrain clause was
 // written (a constrain has no Path: it is in the global diagram).
 type ExpandedClause struct {
-	Kind  ClauseKind `json:"kind"`
-	Text  string     `json:"text"`
-	Map   string     `json:"map,omitempty"`
-	ID    string     `json:"id,omitempty"`
-	State string     `json:"state,omitempty"`
-	Var   string     `json:"var,omitempty"`
-	Path  string     `json:"path,omitempty"`
-	Line  int        `json:"line,omitempty"`
+	Kind ClauseKind `json:"kind"`
+	Text string     `json:"text"`
+	// Formal is the clause's formal twin when the author wrote one next to it
+	// (a constrain's "formal:" line); a local clause's twin lives with the
+	// local diagram and is looked up by Text.
+	Formal string `json:"formal,omitempty"`
+	Map    string `json:"map,omitempty"`
+	ID     string `json:"id,omitempty"`
+	State  string `json:"state,omitempty"`
+	Var    string `json:"var,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Line   int    `json:"line,omitempty"`
 }
 
 // conjoin is the predicate the clauses spell, joined by the connective.

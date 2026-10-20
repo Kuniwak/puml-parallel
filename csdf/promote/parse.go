@@ -68,6 +68,9 @@ type scanner struct {
 	// parent is the composite state the scanner is inside, empty at the top
 	// level. Only one level is allowed, so this is a name rather than a stack.
 	parent csdf.StateID
+	// lastDirectiveIsConstrain says what the note being read holds, so that a
+	// formal line is attached only under a constrain.
+	lastDirectiveIsConstrain bool
 }
 
 func (s *scanner) run() error {
@@ -285,10 +288,12 @@ func (s *scanner) readNote(i int) (int, error) {
 				continue
 			}
 			before := len(s.syncs) + len(s.constrains)
+			constrainsBefore := len(s.constrains)
 			if err := s.readDirective(line, anchor, body+1); err != nil {
 				return 0, err
 			}
 			read = len(s.syncs)+len(s.constrains) > before
+			s.lastDirectiveIsConstrain = len(s.constrains) > constrainsBefore
 			if !read {
 				// A note that is not a directive is there for the picture, and
 				// the rest of it is prose.
@@ -299,6 +304,11 @@ func (s *scanner) readNote(i int) (int, error) {
 		if isDirective(line) {
 			return 0, fmt.Errorf("line %d: this note holds a second directive; write one note per directive", body+1)
 		}
+		if strings.HasPrefix(line, formalPrefix) {
+			if err := s.readFormal(line, body+1); err != nil {
+				return 0, err
+			}
+		}
 	}
 
 	if assume {
@@ -307,6 +317,28 @@ func (s *scanner) readNote(i int) (int, error) {
 	}
 	s.blank(end - i + 1)
 	return end + 1, nil
+}
+
+// formalPrefix opens the line of a constrain note that carries the guard's
+// formal twin.
+const formalPrefix = "formal:"
+
+// readFormal attaches a "formal: <expression>" line to the constrain the note
+// holds. Only a constrain has a guard for a twin to stand for.
+func (s *scanner) readFormal(line string, at int) error {
+	expr := strings.TrimSpace(strings.TrimPrefix(line, formalPrefix))
+	if expr == "" {
+		return fmt.Errorf("line %d: the formal line is empty; write \"formal: <expression>\"", at)
+	}
+	if len(s.constrains) == 0 || s.constrains[len(s.constrains)-1].Line > at || !s.lastDirectiveIsConstrain {
+		return fmt.Errorf("line %d: a formal line belongs under a constrain, which has a guard for it to stand for", at)
+	}
+	c := &s.constrains[len(s.constrains)-1]
+	if c.Formal != "" {
+		return fmt.Errorf("line %d: this constrain already has a formal line; a guard has one twin", at)
+	}
+	c.Formal = expr
+	return nil
 }
 
 // isAssume reports whether a note line opens an assume directive, which the
