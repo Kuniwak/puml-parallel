@@ -52,6 +52,13 @@ class PartialOrderTest(unittest.TestCase):
         for s in reduced.deadlocks:
             self.assertEqual(full.trace_to(s) != [], reduced.trace_to(s) != [])
 
+    def test_a_constrain_that_reads_the_whole_map_ties_the_instances(self):
+        # len(accounts) < 2 on OPEN: opening a1 can disable opening a2, so
+        # the instances are not independent.
+        exp = {**WITHOUT_CLOSE, "edges": [dict(e) for e in WITHOUT_CLOSE["edges"]]}
+        exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "text": "口座は1つまで", "formal": "len(accounts) < 1", "line": 30}]
+        self.assertEqual(len(walk(exp).states), len(walk(exp, por=True).states))
+
     def test_an_invariant_that_reads_the_map_keeps_its_moves_visible(self):
         inv = {"残高は上限以下": lambda accounts: all(r.残高 <= 3 for r in accounts.values() if "残高" in r)}
         self.assertEqual(len(walk(WITHOUT_CLOSE, invariants=inv).states), len(walk(WITHOUT_CLOSE, invariants=inv, por=True).states))

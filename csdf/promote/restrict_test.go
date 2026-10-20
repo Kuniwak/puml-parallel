@@ -196,3 +196,17 @@ func holds(s csdf.State, v csdf.Var) bool {
 	}
 	return false
 }
+
+// A hand-written edge is opaque text, so it is kept; on a state that held a
+// left-out map it may still name the map, and the author is told so.
+func TestRestrictWarnsOfAHandWrittenEdgeOnAStateThatHeldALeftOutMap(t *testing.T) {
+	global := strings.Replace(syncGlobal, "@enduml", "running --> running : 締め ; true ; buys' = buys ∧ cycles' = cycles\n@enduml", 1)
+	_, diags := restrict(t, global, syncLocals, "buys")
+	found := false
+	for _, d := range diags {
+		found = found || (d.Severity == promote.SeverityWarning && strings.Contains(d.Message, "hand-written") && strings.Contains(d.Message, "cycles"))
+	}
+	if !found {
+		t.Errorf("want a warning naming the hand-written edge and cycles, got %v", diags)
+	}
+}

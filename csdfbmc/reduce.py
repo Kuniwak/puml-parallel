@@ -8,8 +8,9 @@ of everything else. A map m is independent in a control state g when:
 
 - every edge out of g is a self-loop, so the walk never leaves g, and no edge
   out of g is a tau edge, so there is no tau cycle there to lose;
-- every edge out of g that moves m moves m alone, updates no ghost, and reads
-  no state variable or ghost but m;
+- every edge out of g that moves m moves m alone, updates no ghost, reads no
+  state variable or ghost but m, and reads m only through clauses about its
+  own instance (a constrain such as len(m) < 2 ties the instances together);
 - no other edge out of g, and no ghost update of its event, reads m, and no
   invariant reads m (the visibility proviso).
 
@@ -19,7 +20,9 @@ alone when none of them is the --avoid event and none leads to a state
 already met; otherwise the state is expanded in full (the cycle proviso,
 which in a breadth-first walk puts a fully expanded state on every cycle).
 What a clause reads is what its twin's signature asks for, or the names of
-its formal expression; an opaque clause, taken as true, reads nothing.
+its formal expression; an opaque clause, taken as true, reads nothing. A twin
+is taken to read only what it names: one that reaches a map through a helper
+defeats the analysis.
 
 Symmetry stores a state by one representative of its renamings of the
 instance IDs the twins module declares SYMMETRIC. The walk still expands the
@@ -53,6 +56,15 @@ def _signature(fn: Callable) -> set[str]:
 
 def _formal_names(expr: str) -> set[str]:
     return {n.id for n in ast.walk(ast.parse(expr, mode="eval")) if isinstance(n, ast.Name)}
+
+
+def _names_beyond(expr: str, own_id: str | None) -> set[str]:
+    """The names expr reads, but a map read only as m[own_id]."""
+    tree = ast.parse(expr, mode="eval")
+    keyed = {id(n.value) for n in ast.walk(tree)
+             if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name)
+             and isinstance(n.slice, ast.Name) and n.slice.id == own_id}
+    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in keyed}
 
 
 def moved_maps(e: Edge) -> set[str]:
@@ -90,6 +102,23 @@ class PartialOrder:
                 reads |= _signature(updates[e.name]) & self.names
         return reads
 
+    def _shared_reads(self, e: Edge) -> set[str]:
+        """What e's clauses read beyond the one instance they are about: a
+        constrain or hand-written clause reading a map reads every instance
+        of it, so it ties the instances together - unless it is a formal
+        expression that reads the map only as m[id], at the edge's own ID."""
+        own_id = next((c.id or self.ex.d.promotes[c.map].id_param for c in e.post if c.kind in _MOVES), None)
+        reads: set[str] = set()
+        for c in e.guard + e.post:
+            if c.kind in _INSTANCE_KINDS or (c.kind == "local" and c.map):
+                continue
+            fn = self.ex._twin(c)
+            if fn is not None and getattr(fn, "formal", False):
+                reads |= _names_beyond(c.formal, own_id) & self.names
+            else:
+                reads |= self._clause_reads(c)
+        return reads
+
     def independent(self, g: str) -> set[str]:
         """The maps whose instances move independently in control state g."""
         if g in self._independent:
@@ -101,7 +130,8 @@ class PartialOrder:
                 own = [e for e in edges if m in moved_maps(e)]
                 others = [e for e in edges if m not in moved_maps(e)]
                 if (m not in self.invariant_reads
-                        and all(moved_maps(e) == {m} and e.name not in self.ghost_events and self._edge_reads(e) <= {m} for e in own)
+                        and all(moved_maps(e) == {m} and e.name not in self.ghost_events and self._edge_reads(e) <= {m}
+                                and not self._shared_reads(e) for e in own)
                         and all(m not in self._edge_reads(e) for e in others)):
                     out.add(m)
         self._independent[g] = out

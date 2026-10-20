@@ -23,7 +23,10 @@ import (
 //
 // A constrain clause is known to read a map only through its formal twin. One
 // with no twin stays and is reported once, since nothing says whether it reads
-// a left-out map. Hand-written edges are kept as they were. x is not changed.
+// a left-out map. Hand-written edges are kept as they were, with a warning
+// when they touch a state that held a left-out map. What a formal twin reads
+// is the names it spells; a twin that reaches a map through a helper defeats
+// that. x is not changed.
 func Restrict(x *Expansion, keep []string) (*Expansion, []Diagnostic) {
 	r := &restriction{}
 	kept, dropped := r.partition(x.Promotes, keep)
@@ -47,6 +50,7 @@ func Restrict(x *Expansion, keep []string) (*Expansion, []Diagnostic) {
 
 	for _, e := range x.Edges {
 		if e.Origin == "" {
+			r.handWritten(e, x.Diagram, dropped)
 			out.Edges = append(out.Edges, e)
 			continue
 		}
@@ -57,6 +61,26 @@ func Restrict(x *Expansion, keep []string) (*Expansion, []Diagnostic) {
 	}
 	out.sortEdges()
 	return out, r.diags
+}
+
+// handWritten warns of a hand-written edge between states that held a
+// left-out map: its predicates are opaque text, which may still name the map.
+func (r *restriction) handWritten(e ExpandedEdge, d *csdf.Diagram, dropped map[csdf.Var]bool) {
+	var held []string
+	for _, id := range []csdf.StateID{e.Edge.Src, e.Edge.Dst} {
+		for _, v := range d.States[id].Vars {
+			if dropped[v.Name] && !slices.Contains(held, string(v.Name)) {
+				held = append(held, string(v.Name))
+			}
+		}
+	}
+	if len(held) == 0 {
+		return
+	}
+	r.once(fmt.Sprintf("hand\x00%d", e.Edge.Line), Diagnostic{
+		Severity: SeverityWarning, Line: e.Edge.Line,
+		Message: fmt.Sprintf("the hand-written edge %s --> %s : %s is kept as written, and may still read %s, which -only leaves out", e.Edge.Src, e.Edge.Dst, e.Edge.Event, strings.Join(held, ", ")),
+	})
 }
 
 type restriction struct {

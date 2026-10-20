@@ -287,7 +287,11 @@ type — and leaves out the others:
   `formal:` twin names. A constrain with no twin cannot be told apart, so it
   is kept, with a warning saying so. The post clauses and frames of a
   left-out map go with the map.
-- Hand-written edges are kept as they were written.
+- Hand-written edges are kept as they were written. Their predicates are
+  opaque text, so one on a state that held a left-out map is reported as a
+  warning: it may still name the map.
+- What a `formal:` twin reads is the names it spells. A twin that reaches a
+  map through a helper defeats that, and the clause is kept.
 
 With every listed clause taken as true, each run of the full expansion
 projects onto a run of the restricted one. So a broken invariant and an
