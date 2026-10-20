@@ -5,9 +5,9 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
-from csdfbmc.model import Clause, Diagram
+from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins, apply, check_pure
-from csdfbmc.values import FrozenMap, freeze
+from csdfbmc.values import FrozenMap, encode, freeze
 
 # The key under which an instance's record holds its local state's name; the
 # local variables are the other keys.
@@ -31,7 +31,9 @@ State = tuple[str, tuple, tuple]
 @dataclass
 class Result:
     states: list[State]
-    parents: dict[State, tuple[State, str] | None]
+    # parents: state -> (previous state, event as taken, the edge) or None for
+    # an initial state.
+    parents: dict[State, tuple[State, str, "Edge"] | None]
     deadlocks: list[State]
     tau_cycles: list[list[State]]
     opaque_clauses: list[str]
@@ -55,27 +57,42 @@ class Result:
         """The events from the start state to state, as the walk first reached it."""
         events: list[str] = []
         while self.parents[state] is not None:
-            state, event = self.parents[state]
+            state, event, _ = self.parents[state]
             events.append(event)
         return list(reversed(events))
 
+    def replay_to(self, state: State) -> dict:
+        """What a REPL needs to walk to state: the initial values and, per
+        step, the edge taken (its event text, source, destination and line)
+        and the values of the state it leads to, as JSON."""
+        steps = []
+        while self.parents[state] is not None:
+            prev, _, edge = self.parents[state]
+            steps.append({"event": edge.event, "src": edge.src, "dst": edge.dst, "line": edge.line,
+                          "values": [encode(v) for v in state[1]]})
+            state = prev
+        steps.reverse()
+        return {"initial": [encode(v) for v in state[1]], "steps": steps}
+
     def to_json(self) -> dict:
         def st(s: State) -> dict:
-            d = {"state": s[0], "values": list(s[1])}
+            d = {"state": s[0], "values": [encode(v) for v in s[1]]}
             if self.ghost_names:
                 d["ghosts"] = dict(zip(self.ghost_names, s[2]))
             return d
+        def at(s: State) -> dict:
+            return {"at": st(s), "trace": self.trace_to(s), "replay": self.replay_to(s)}
         return {
             "states": len(self.states),
             "truncated": self.truncated,
             "bound": self.bound,
-            "deadlocks": [{"at": st(s), "trace": self.trace_to(s)} for s in self.deadlocks],
-            "tau_cycles": [{"cycle": [st(s) for s in cycle], "trace": self.trace_to(cycle[0])} for cycle in self.tau_cycles],
-            "violations": [{"invariant": name, "at": st(s), "trace": self.trace_to(s)} for name, s in self.violations],
+            "deadlocks": [at(s) for s in self.deadlocks],
+            "tau_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.tau_cycles],
+            "violations": [{"invariant": name, **at(s)} for name, s in self.violations],
             "avoid": self.avoid,
-            "avoiding_cycles": [{"cycle": [st(s) for s in cycle], "trace": self.trace_to(cycle[0])} for cycle in self.avoiding_cycles],
-            "empty_posts": [{"at": st(s), "event": label, "trace": self.trace_to(s)} for s, label in self.empty_posts],
-            "unconstrained": [{"at": st(s), "event": label, "variables": list(names), "trace": self.trace_to(s)} for s, label, names in self.unconstrained],
+            "avoiding_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.avoiding_cycles],
+            "empty_posts": [{"event": label, **at(s)} for s, label in self.empty_posts],
+            "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
             "opaque_clauses": self.opaque_clauses,
         }
 
@@ -322,10 +339,10 @@ class Explorer:
             raise KeyError(f"the start edge leaves {list(missing)} of state {self.d.start!r} without a value; its post twins must assign every variable")
         return [(self.d.start, v, ghosts) for v in vals]
 
-    def successors(self, state: State) -> list[tuple[str, str, State]]:
-        """(event name, event as taken, next state) for every enabled transition."""
+    def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
+        """(event name, event as taken, next state, edge) for every enabled transition."""
         sid, values, _ = state
-        out: list[tuple[str, str, State]] = []
+        out: list[tuple[str, str, State, Edge]] = []
         for e in self.d.out_edges(sid):
             names = e.params + e.implicit_ids()
             for args in itertools.product(*(self.twins.domain(p) for p in names)):
@@ -342,7 +359,7 @@ class Explorer:
                     self.empty_posts.append((state, label))
                     continue
                 for dst_vals in vals:
-                    out.append((e.name, label, (e.dst, dst_vals, ghosts)))
+                    out.append((e.name, label, (e.dst, dst_vals, ghosts), e))
         return out
 
     def can_end(self, state: State) -> bool:
@@ -377,18 +394,18 @@ class Explorer:
             s = queue[i]
             i += 1
             succ = self.successors(s)
-            tau_next[s] = [t for name, _, t in succ if name == "tau"]
+            tau_next[s] = [t for name, _, t, _ in succ if name == "tau"]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
-                avoid_next[s] = [t for name, _, t in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
+                avoid_next[s] = [t for name, _, t, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
             if not succ and not self.can_end(s):
                 deadlocks.append(s)
-            for _, label, t in succ:
+            for _, label, t, edge in succ:
                 if t in parents:
                     continue
                 if len(order) >= self.max_states:
                     truncated = True
                     continue
-                parents[t] = (s, label)
+                parents[t] = (s, label, edge)
                 visit(t)
 
         return Result(
