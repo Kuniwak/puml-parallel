@@ -22,11 +22,6 @@ from csdfbmc.twins import Twins, apply, check_pure, reads
 OPAQUE = object()
 
 
-def is_opaque(clause: Clause) -> bool:
-    """Whether the clause is the tool word @opaque (docs/SYNTAX.md)."""
-    return clause.opaque
-
-
 class Meaning(Protocol):
     """What the walk needs to know of the hand-written and constrain clauses."""
     # readable: the clauses can be read, as source, to check SYMMETRIC.
@@ -151,7 +146,7 @@ class GlueMeaning:
         return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or run with opaque='true'"
 
 
-class ReservedOpaque:
+class OpaqueWord:
     """inner, but the tool word @opaque means nothing whatever inner
     would say: it is not formalised, and nobody is asked about it."""
 
@@ -161,24 +156,24 @@ class ReservedOpaque:
         self.by_prose = inner.by_prose
 
     def names(self, clause: Clause, role: str) -> set[str] | None:
-        return None if is_opaque(clause) else self.inner.names(clause, role)
+        return None if clause.opaque else self.inner.names(clause, role)
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        return None if is_opaque(clause) else self.inner.names_beyond(clause, own_id)
+        return None if clause.opaque else self.inner.names_beyond(clause, own_id)
 
     def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
-        if not is_opaque(clause):
+        if not clause.opaque:
             self.inner.prefetch(clause, role, envs)
 
     def evaluate(self, clause: Clause, role: str, env: dict):
-        return OPAQUE if is_opaque(clause) else self.inner.evaluate(clause, role, env)
+        return OPAQUE if clause.opaque else self.inner.evaluate(clause, role, env)
 
     def opaque_message(self, clause: Clause) -> str:
-        if is_opaque(clause):
+        if clause.opaque:
             return f"the clause {clause.text!r} is not formalised yet; formalise it, or run with opaque='true'"
         return self.inner.opaque_message(clause)
 
 
 def standard(inner: Meaning) -> Meaning:
     """inner as every walk takes it: with the tool word @opaque."""
-    return ReservedOpaque(inner)
+    return OpaqueWord(inner)

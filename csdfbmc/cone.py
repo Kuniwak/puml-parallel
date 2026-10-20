@@ -27,7 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from csdfbmc.meaning import Meaning, is_opaque
+from csdfbmc.meaning import Meaning
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins, reads
 
@@ -88,7 +88,7 @@ def _sets(writes: Writes, c: Clause) -> set[str]:
         return {c.var}
     if c.kind in ("update", "create", "delete", "empty") or (c.kind == "local" and c.map):
         return {c.map}
-    if c.kind == "dropped" or is_opaque(c):
+    if c.kind == "dropped" or c.opaque:
         return set()
     return writes(c) or set()
 
@@ -104,7 +104,7 @@ def _framed_and_written(writes: Writes, post: tuple[Clause, ...]) -> set[str]:
     others = [c for c in post if c.kind != "frame"]
     out: set[str] = set()
     for c in others:
-        if c.kind in ("local", "constrain") and not (c.kind == "local" and c.map) and not is_opaque(c) \
+        if c.kind in ("local", "constrain") and not (c.kind == "local" and c.map) and not c.opaque \
                 and writes(c) is None:
             return framed  # writes unknown: it might set any of them
         out |= _sets(writes, c) & framed

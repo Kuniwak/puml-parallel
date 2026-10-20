@@ -2,7 +2,7 @@
 import unittest
 from csdfbmc.tests import fixture
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, ReservedOpaque, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, TwinsMeaning
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
@@ -65,17 +65,17 @@ class ReservedOpaqueTest(unittest.TestCase):
         ]:
             with self.subTest(name):
                 client = Recording({"n > 0": Analysis(opaque=False, reads=("n",))}, lambda b: b["n"] > 0)
-                meaning = ReservedOpaque(GlueMeaning(client))
+                meaning = OpaqueWord(GlueMeaning(client))
                 got = ask(meaning, clause)
                 self.assertEqual(want, got)
                 self.assertEqual(want_asked, client.asked)
 
     def test_opaque_is_not_formalised_even_when_the_twins_have_it(self):
-        meaning = ReservedOpaque(TwinsMeaning(EMPTY, Twins(domains={}, clauses={"@opaque": lambda: True})))
+        meaning = OpaqueWord(TwinsMeaning(EMPTY, Twins(domains={}, clauses={"@opaque": lambda: True})))
         self.assertIs(OPAQUE, meaning.evaluate(OPAQUE_CLAUSE, "guard", {}))
 
     def test_the_message_names_the_tool_word(self):
-        meaning = ReservedOpaque(GlueMeaning(Recording({}, lambda b: True)))
+        meaning = OpaqueWord(GlueMeaning(Recording({}, lambda b: True)))
         self.assertIn("'@opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
 
 
