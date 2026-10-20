@@ -58,7 +58,7 @@ rather than the last (the rule is not greedy). Every line in between, along with
 lines, is discarded. Because the markers are themselves PlantUML line comments, the
 wrapped content (for example Graphviz directives such as `left to right direction`) is still
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
-Comment delimiters inside double-quoted strings are treated as ordinary text.
+Comment delimiters inside a state name are ordinary text. A clause language's quotes are not the tools': a comment delimiter, `;` or ` ∧ ` inside one is read as anywhere else.
 An event is a channel followed by its fields, in the CSP style: `c?x` receives `x`
 (the environment chooses its value) and `c!y` chooses `y` internally (the post gives
 it its value). `tau` is the internal event. An event names its fields and carries

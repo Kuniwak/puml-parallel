@@ -442,12 +442,10 @@ func (p *Parser) parseUntilNewline() (string, error) {
 
 func (p *Parser) parseUntil(stops ...byte) (string, error) {
 	var result strings.Builder
-	inString := false
-	escaped := false
 	var lastWritten byte
 
 	for !p.isAtEnd() && !containsByte(stops, p.peek()) {
-		if !inString && p.peekString("/'") {
+		if p.peekString("/'") {
 			needsSeparator := result.Len() > 0 && lastWritten != ' ' && lastWritten != '\t' && lastWritten != '\r' && lastWritten != '\n'
 			if err := p.skipBlockComment(); err != nil {
 				return "", fmt.Errorf("csdf.Parser.parseUntil: %w", err)
@@ -461,29 +459,17 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 		}
 
 		c := p.peek()
-		result.WriteByte(p.peek())
+		result.WriteByte(c)
 		p.advance()
 		lastWritten = c
 
-		// Outside a string a backslash escapes the next character, so \; is
-		// part of the clause rather than the end of it.
-		if !inString && c == '\\' && !p.isAtEnd() && p.peek() != '\n' {
-			result.WriteByte(p.peek())
+		// \; is part of the clause rather than the end of it, and \\ is a
+		// backslash that escapes nothing after it (docs/SYNTAX.md). A clause
+		// language's quotes are not the tools', so they protect nothing.
+		if c == '\\' && !p.isAtEnd() && (p.peek() == ';' || p.peek() == '\\') {
 			lastWritten = p.peek()
+			result.WriteByte(lastWritten)
 			p.advance()
-			continue
-		}
-
-		if escaped {
-			escaped = false
-			continue
-		}
-		if inString && c == '\\' {
-			escaped = true
-			continue
-		}
-		if c == '"' {
-			inString = !inString
 		}
 	}
 	return strings.TrimSpace(result.String()), nil

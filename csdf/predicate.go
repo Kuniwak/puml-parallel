@@ -40,9 +40,8 @@ func (p Predicate) Clauses() []Predicate {
 	text := string(p)
 	start := 0
 	for i := 0; i < len(text); {
-		if text[i] == '\\' && i+1 < len(text) {
-			_, size := utf8.DecodeRuneInString(text[i+1:])
-			i += 1 + size
+		if _, size, ok := escapeAt(text, i); ok {
+			i += size
 			continue
 		}
 		if strings.HasPrefix(text[i:], ClauseConnective) {
@@ -56,19 +55,30 @@ func (p Predicate) Clauses() []Predicate {
 	return append(clauses, Predicate(strings.TrimSpace(text[start:])))
 }
 
+// escapeAt reports whether text holds an escape at i: a backslash before one
+// of the characters of the tools' vocabulary. It gives that character and the
+// width of the escape. A backslash before anything else escapes nothing.
+func escapeAt(text string, i int) (rune, int, bool) {
+	if text[i] != '\\' || i+1 >= len(text) {
+		return 0, 0, false
+	}
+	r, size := utf8.DecodeRuneInString(text[i+1:])
+	if !strings.ContainsRune(clauseEscapes, r) {
+		return 0, 0, false
+	}
+	return r, 1 + size, true
+}
+
 // ClauseText is the clause as its language reads it: the escapes of the
 // tools' vocabulary removed. A backslash before any other character stays.
 func ClauseText(clause Predicate) string {
 	var sb strings.Builder
 	text := string(clause)
 	for i := 0; i < len(text); {
-		if text[i] == '\\' && i+1 < len(text) {
-			r, size := utf8.DecodeRuneInString(text[i+1:])
-			if strings.ContainsRune(clauseEscapes, r) {
-				sb.WriteRune(r)
-				i += 1 + size
-				continue
-			}
+		if r, size, ok := escapeAt(text, i); ok {
+			sb.WriteRune(r)
+			i += size
+			continue
 		}
 		sb.WriteByte(text[i])
 		i++
@@ -76,27 +86,39 @@ func ClauseText(clause Predicate) string {
 	return sb.String()
 }
 
-// EscapeClause writes text as one clause: the characters of the tools'
-// vocabulary are escaped, and so is a backslash that would escape one.
+// EscapeClause writes text as one clause, escaping only what would otherwise
+// be read as the tools' vocabulary: ; and @, the ∧ of a connective, and a
+// backslash that would escape the character after it. So the text of a clause
+// that needed no escape is written as it is.
 func EscapeClause(text string) Predicate {
 	var sb strings.Builder
-	for _, r := range text {
-		if strings.ContainsRune(clauseEscapes, r) {
+	for i, r := range text {
+		rest := text[i+utf8.RuneLen(r):]
+		switch {
+		case r == ';' || r == '@':
 			sb.WriteByte('\\')
+		case r == '∧' && strings.HasSuffix(text[:i], " ") && strings.HasPrefix(rest, " "):
+			sb.WriteByte('\\')
+		case r == '\\' && rest != "":
+			if next, _ := utf8.DecodeRuneInString(rest); strings.ContainsRune(clauseEscapes, next) {
+				sb.WriteByte('\\')
+			}
 		}
 		sb.WriteRune(r)
 	}
 	return Predicate(sb.String())
 }
 
-// CheckClauses refuses a clause that uses a word of the tools' vocabulary the
-// tools do not know: an unescaped @ starts one, and @opaque is the only one.
+// CheckClauses refuses an empty clause, and a clause that uses a word of the
+// tools' vocabulary the tools do not know: an unescaped @ starts one, and
+// @opaque is the only one.
 func CheckClauses(p Predicate) error {
 	for _, c := range p.Clauses() {
-		if IsOpaque(c) {
-			continue
-		}
-		if i := unescapedIndex(string(c), '@'); i >= 0 {
+		switch {
+		case IsOpaque(c):
+		case c == "":
+			return fmt.Errorf("csdf.CheckClauses: %q has an empty clause, with nothing between two connectives or after one", p)
+		case unescapedIndex(string(c), '@') >= 0:
 			return fmt.Errorf("csdf.CheckClauses: %q: %s starts a word of the tools, and %s is the only one; write \\@ for the character", c, ToolWordPrefix, PredicateOpaque)
 		}
 	}
@@ -107,10 +129,11 @@ func CheckClauses(p Predicate) error {
 // escapes, or -1.
 func unescapedIndex(text string, b byte) int {
 	for i := 0; i < len(text); i++ {
-		switch text[i] {
-		case '\\':
-			i++
-		case b:
+		if _, size, ok := escapeAt(text, i); ok {
+			i += size - 1
+			continue
+		}
+		if text[i] == b {
 			return i
 		}
 	}

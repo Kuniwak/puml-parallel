@@ -2,6 +2,7 @@ package csdf
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -20,6 +21,10 @@ func TestClausesSplitsAConjunctionOnTheCoreConnective(t *testing.T) {
 		{name: "Conjunction round-trips", p: Conjunction("a", "b"), want: []Predicate{"a", "b"}},
 		{name: "an escaped connective is part of the clause", p: `a \∧ b ∧ c`, want: []Predicate{`a \∧ b`, "c"}},
 		{name: "an escaped backslash does not escape the connective", p: `a \\ ∧ b`, want: []Predicate{`a \\`, "b"}},
+		{name: "a backslash before a space hides nothing", p: `a\ ∧ b`, want: []Predicate{`a\`, "b"}},
+		{name: "a backslash before a multibyte character hides nothing", p: `a\あ ∧ b`, want: []Predicate{`a\あ`, "b"}},
+		{name: "a trailing backslash is part of the clause", p: `a ∧ b\`, want: []Predicate{"a", `b\`}},
+		{name: "quotes are the clause language's, not the tools'", p: `s == "a ∧ b"`, want: []Predicate{`s == "a`, `b"`}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,6 +107,8 @@ func TestCheckClausesRefusesAnUnknownToolWord(t *testing.T) {
 		"x > 0":                true,
 		"@opaque ∧ x > 0":      true,
 		`mail \@ host`:         true,
+		`\x@`:                  false,
+		`"a@b"`:                false,
 		"@opaq":                false,
 		"x > 0 ∧ opaque @here": false,
 		"OPAQUE":               true,
@@ -115,7 +122,7 @@ func TestCheckClausesRefusesAnUnknownToolWord(t *testing.T) {
 }
 
 func TestEscapeClauseIsTheInverseOfClauseText(t *testing.T) {
-	for _, text := range []string{"x > 0", "a ∧ b", "f(x) ; g", "mail @ host", `a \ b`, `a \∧ b`, `\n`} {
+	for _, text := range []string{"x > 0", "a ∧ b", "a∧b", "f(x) ; g", "mail @ host", `a \ b`, `a \∧ b`, `\n`, `x \b`, `b\`} {
 		t.Run(text, func(t *testing.T) {
 			escaped := EscapeClause(text)
 			if got := ClauseText(escaped); got != text {
@@ -126,6 +133,26 @@ func TestEscapeClauseIsTheInverseOfClauseText(t *testing.T) {
 			}
 			if err := CheckClauses(escaped); err != nil {
 				t.Errorf("CheckClauses(EscapeClause(%q)) = %v", text, err)
+			}
+		})
+	}
+}
+
+func TestEscapeClauseLeavesWhatNeedsNoEscapeAsItIs(t *testing.T) {
+	for text, want := range map[string]Predicate{`x \b`: `x \b`, "a∧b": "a∧b", "a ∧ b": `a \∧ b`, "f(x) ; g": `f(x) \; g`, `\∧`: `\\∧`} {
+		t.Run(text, func(t *testing.T) {
+			if got := EscapeClause(text); got != want {
+				t.Errorf("EscapeClause(%q) = %q, want %q", text, got, want)
+			}
+		})
+	}
+}
+
+func TestCheckClausesRefusesAnEmptyClause(t *testing.T) {
+	for _, p := range []Predicate{"a ∧  ∧ b", "a ∧ ", " ∧ a"} {
+		t.Run(string(p), func(t *testing.T) {
+			if err := CheckClauses(p); err == nil || !strings.Contains(err.Error(), "empty clause") {
+				t.Errorf("CheckClauses(%q) = %v, want an empty clause refused", p, err)
 			}
 		})
 	}
