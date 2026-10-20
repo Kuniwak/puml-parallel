@@ -40,6 +40,28 @@ type IRLivelockFree struct {
 	Constants    []IRConst                     `json:"constants"` // global opaque constants in scope
 	Edges        []IREdge                      `json:"edges"`     // the labelled transitions
 	Init         IRInit                        `json:"init"`
+	// Assumptions are the diagram's assume notes: what it assumes of its runs
+	// as a whole, which a backend takes as hypotheses of the theorem. Never
+	// null, only empty.
+	Assumptions []IRAssumption `json:"assumptions"`
+}
+
+// IRAssumption is one assume note of a diagram, opaque text like a predicate.
+// A backend declares a proposition named after its ID (Side.AssumptionName)
+// and states the theorem under it.
+type IRAssumption struct {
+	ID   string         `json:"id"`
+	Text csdf.Predicate `json:"text"`
+	Line int            `json:"line"` // 1-based
+}
+
+// BuildAssumptions copies the diagram's assumptions into the IR, never as null.
+func BuildAssumptions(d *csdf.Diagram) []IRAssumption {
+	out := make([]IRAssumption, 0, len(d.Assumptions))
+	for _, a := range d.Assumptions {
+		out = append(out, IRAssumption{ID: a.ID, Text: a.Text, Line: a.Line})
+	}
+	return out
 }
 
 type IRState struct {
@@ -341,6 +363,7 @@ func BuildLivelockFree(d *csdf.Diagram) IRLivelockFree {
 		Init:         init,
 		Edges:        edges,
 		Predicates:   ps.Map(),
+		Assumptions:  BuildAssumptions(d),
 	}
 }
 
