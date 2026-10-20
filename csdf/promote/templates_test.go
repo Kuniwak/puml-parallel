@@ -23,7 +23,7 @@ func TestExpandRendersTheClausesWithTheGivenTemplates(t *testing.T) {
 		t.Fatalf("promote.Expand() expansion = nil, diagnostics = %v", diags)
 	}
 
-	want := "running --> running : SETTLE(約定ID) ; 約定ID は buys にある、buys の 約定ID は〈記帳済み〉 ; buys から 約定ID を除く、cycles は変わらない"
+	want := "running --> running : SETTLE(約定ID) ; 約定ID は buys にある ∧ buys の 約定ID は〈記帳済み〉 ; buys から 約定ID を除く ∧ cycles は変わらない"
 	if got := x.String(); !strings.Contains(got, want) {
 		t.Errorf("promote.Expand() missing line:\n%s\ngot:\n%s", want, got)
 	}
@@ -32,5 +32,17 @@ func TestExpandRendersTheClausesWithTheGivenTemplates(t *testing.T) {
 func TestLoadTemplatesRefusesOneThatCannotRender(t *testing.T) {
 	if _, err := promote.LoadTemplates("../../examples/promote/testdata/broken.tmpl"); err == nil {
 		t.Fatal("promote.LoadTemplates() error = nil, want a refusal")
+	}
+}
+
+// The connective between clauses is grammar, not wording: a template that tries
+// to change it would hide the clause boundaries from every tool downstream.
+func TestLoadTemplatesRefusesOneThatRedefinesTheConnective(t *testing.T) {
+	_, err := promote.LoadTemplates("../../examples/promote/testdata/and.tmpl")
+	if err == nil {
+		t.Fatal("promote.LoadTemplates() error = nil, want a refusal of the \"and\" template")
+	}
+	if !strings.Contains(err.Error(), "and") {
+		t.Errorf("promote.LoadTemplates() error = %v, want it to name the \"and\" template", err)
 	}
 }

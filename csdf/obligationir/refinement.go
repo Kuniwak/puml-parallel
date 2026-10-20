@@ -29,6 +29,9 @@ type IRSide struct {
 	// reachable tau-cycle and so discharges its divergence-freedom obligation
 	// structurally.
 	StructurallyLivelockFree *bool `json:"structurally_livelock_free,omitempty"`
+	// Assumptions are this side's assume notes, hypotheses of the theorem.
+	// Never null, only empty.
+	Assumptions []IRAssumption `json:"assumptions"`
 }
 
 // IREnd is the guarded successful termination of a diagram (its EndEdge).
@@ -73,10 +76,11 @@ func BuildRefinement(mode IRRefinementMode, spec, impl *csdf.Diagram) IRRefineme
 func buildSide(ps *PredicateSet, d *csdf.Diagram, mode IRRefinementMode) IRSide {
 	states := BuildStates(d)
 	side := IRSide{
-		States: states,
-		Init:   BuildInit(ps, d, states),
-		Edges:  BuildEdges(ps, d, states),
-		End:    BuildEnd(ps, d, states),
+		States:      states,
+		Init:        BuildInit(ps, d, states),
+		Edges:       BuildEdges(ps, d, states),
+		End:         BuildEnd(ps, d, states),
+		Assumptions: BuildAssumptions(d),
 	}
 	if mode == IRRefinementModeFailuresDivergence {
 		_, free := csdf.CheckLivelockFree(d)

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"text/template"
+
+	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 // Clause is what a clause template is rendered with. Src and Dst are the names
@@ -18,8 +20,10 @@ type Clause struct {
 	Var string
 }
 
-// The clauses the expansion generates, each replaceable on its own. "and" is
-// what the clauses of one predicate are joined with.
+// The clauses the expansion generates, each replaceable on its own. What joins
+// the clauses of one predicate is not among them: the connective is grammar
+// (csdf.ClauseConnective), and a template that changed it would hide the clause
+// boundaries from every tool downstream.
 const (
 	clauseInDom    = "inDom"
 	clauseNotInDom = "notInDom"
@@ -28,8 +32,11 @@ const (
 	clauseCreate   = "create"
 	clauseDelete   = "delete"
 	clauseFrame    = "frame"
-	clauseAnd      = "and"
 )
+
+// connectiveTemplate is the name an older template file gave the connective,
+// which LoadTemplates refuses.
+const connectiveTemplate = "and"
 
 // defaultTemplates is the symbolic wording, which is the default because it does
 // not belong to any one natural language. A -template file replaces the clauses
@@ -42,7 +49,6 @@ const defaultTemplates = `
 {{define "create"}}{{.Map}}' = {{.Map}} ∪ { {{- .ID}} ↦ 〈{{.Dst}}〉}{{end}}
 {{define "delete"}}{{.Map}}' = { {{- .ID -}} } ⩤ {{.Map}}{{end}}
 {{define "frame"}}{{.Var}}' = {{.Var}}{{end}}
-{{define "and"}} ∧ {{end}}
 `
 
 // Templates is the wording of the generated clauses.
@@ -71,10 +77,13 @@ func LoadTemplates(path string) (*Templates, error) {
 	if _, err := t.Parse(string(bs)); err != nil {
 		return nil, fmt.Errorf("promote.LoadTemplates: %q: %w", path, err)
 	}
+	if t.Lookup(connectiveTemplate) != nil {
+		return nil, fmt.Errorf("promote.LoadTemplates: %q: the %q template is not accepted: the clauses are joined by %q, which is grammar rather than wording", path, connectiveTemplate, csdf.ClauseConnective)
+	}
 
 	ts := &Templates{t: t}
 	probe := Clause{Map: "m", ID: "id", Src: "S", Dst: "T", Var: "v"}
-	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame, clauseAnd} {
+	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame} {
 		if _, err := ts.render(name, probe); err != nil {
 			return nil, fmt.Errorf("promote.LoadTemplates: %q: %w", path, err)
 		}
@@ -99,9 +108,4 @@ func (ts *Templates) render(name string, c Clause) (string, error) {
 		return "", err
 	}
 	return sb.String(), nil
-}
-
-// join puts the clauses of one predicate together.
-func (ts *Templates) join(clauses []string) string {
-	return strings.Join(clauses, ts.clause(clauseAnd, Clause{}))
 }

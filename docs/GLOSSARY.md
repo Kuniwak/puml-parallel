@@ -7,6 +7,15 @@ A representation format for state transition diagrams.
 Refer to SYNTAX.md for grammar rules.
 It is a subset of PlantUML's state diagram notation.
 
+Assumption
+----------
+What a diagram assumes of its runs as a whole, written as a floating note
+holding one `assume` line. A fairness assumption is the typical one: no guard
+can say that a transaction whose fee keeps being raised is eventually confirmed,
+because a guard is about one step. The text is opaque, like a predicate, and
+the obligation compilers carry it as a hypothesis of the theorem.
+Refer to SYNTAX.md.
+
 Promotion
 ---------
 Writing a family of like instances as one state variable holding a partial map

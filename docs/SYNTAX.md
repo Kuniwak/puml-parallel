@@ -6,13 +6,16 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" inlineTrivia 0*1(diagramName) LF trivia 1*(stateDecl trivia) startEdgeDecl trivia *(edgeDecl trivia) 0*1(endEdgeDecl trivia) "@enduml" LF
+diagram = "@startuml" inlineTrivia 0*1(diagramName) LF trivia *((stateDecl / assumeDecl) trivia) startEdgeDecl trivia *((edgeDecl / assumeDecl) trivia) 0*1(endEdgeDecl trivia) *(assumeDecl trivia) "@enduml" LF
 diagramName = 1*(HTAB / unicode_char)
 stateDecl = "state" inlineSeparator stateName inlineSeparator "as" inlineSeparator stateID inlineTrivia LF trivia *(stateVarDecl trivia)
 stateVarDecl = stateID inlineTrivia ":" inlineTrivia var inlineTrivia 0*1(";" inlineTrivia varType) LF
 startEdgeDecl = "[*]" inlineSeparator "-->" inlineSeparator stateID 0*1(inlineTrivia ":" inlineSeparator post) inlineTrivia LF
 edgeDecl = stateID inlineSeparator "-->" inlineSeparator stateID inlineTrivia ":" inlineTrivia event 0*1(inlineTrivia ";" inlineTrivia guard 0*1(inlineTrivia ";" inlineTrivia post)) inlineTrivia LF
 endEdgeDecl = stateID inlineSeparator "-->" inlineSeparator "[*]" 0*1(inlineTrivia ":" inlineSeparator guard) inlineTrivia LF
+assumeDecl = "note" inlineSeparator "as" inlineSeparator noteID inlineTrivia LF *(inlineTrivia LF) inlineTrivia "assume" inlineSeparator assumption inlineTrivia LF *(inlineTrivia LF) inlineTrivia "end" inlineSeparator "note" inlineTrivia LF
+noteID = id
+assumption = 1*textElement
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
@@ -58,6 +61,25 @@ An event must remain non-empty after comments and surrounding whitespace are rem
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
+
+An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
+what the diagram assumes of its runs as a whole — a fairness assumption such as
+"a transaction whose fee keeps being raised is eventually confirmed" — which no
+guard can state, because a guard is about one step. The assumption is opaque text
+like a predicate; `csdflivelockfree` and `csdfrefinement` carry it as a hypothesis
+of the obligation, and `csdfparallel` gives a composition the assumptions of both
+sides. A note is the one PlantUML-only element the grammar admits, so that the
+picture shows the assumption next to the diagram; a note for the picture alone,
+and an anchored note (`note left of s`), still go in a `CSDF-IGNORE` region.
+
+A `guard` or a `post` is a conjunction of *clauses* joined by the connective ` ∧ `
+(U+2227 with one space on each side). The clause is the unit the tools treat as
+opaque text: `csdfparallel` conjoins the predicates of two edges with it, and
+`csdfpromote` joins the clauses it generates and the clauses the author wrote with
+it, so a tool that reads an expansion gets the clauses back by splitting on it
+(`Predicate.Clauses`). The connective is grammar, not wording, so a clause must not
+contain it; a natural-language "and" (`a、かつ b`, `a and b`) is part of its clause.
+A `guard` or `post` that is omitted, or is the literal `true`, has no clause.
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 
 The following symbols are ABNF core rules:
@@ -114,6 +136,11 @@ type EndEdge struct {
 	Src   StateID
 	Guard string
 }
+
+type Assumption struct {
+	ID   string
+	Text string
+}
 ```
 
 
@@ -128,6 +155,7 @@ Semantics
 | `startEdgeDecl`                            | `StartEdge`        | Represents a declaration of transition to the initial state.                                                                                                             |
 | `edgeDecl`                                 | `Edge`             | Represents a declaration of a directed edge.                                                                                                                             |
 | `endEdgeDecl`                              | `EndEdge`          | Represents a declaration of transition to the end state.                                                                                                                 |
+| `assumeDecl`                               | `Assumption`       | Represents an assumption about the runs of the diagram as a whole, written as a floating note holding one `assume` line. `noteID` names it; `assumption` is its natural-language text. |
 | `stateName`                                | `string`           | State name. Represents a string with leading and trailing double quotes removed and escapes resolved.                                                                    |
 | `escape_backslash`                         | `rune`             | Represents `\`.                                                                                                                                                          |
 | `escape_dquote`                            | `rune`             | Represents `"`.                                                                                                                                                          |
@@ -183,6 +211,8 @@ noteID          = id
 
 syncBody        = "sync" inlineSeparator eventName inlineTrivia ":" inlineTrivia mapRef *(inlineTrivia "," inlineTrivia mapRef)
 constrainBody   = "constrain" inlineSeparator eventName inlineTrivia "(" inlineTrivia param *(inlineTrivia "," inlineTrivia param) inlineTrivia ")" inlineTrivia ";" inlineTrivia guard
+formalLine      = inlineTrivia "formal:" inlineTrivia expression
+expression      = 1*unicode_char_except_LF
 mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")"
 
 preprocessorLine = "!" *unicode_char_except_LF LF

@@ -90,6 +90,19 @@ several maps is written as a floating `note as <id>`. PlantUML's state diagrams
 have no `<id> .. <state>` link, so there is no way to draw a line from a
 floating note.
 
+**`assume`** is the core grammar's own note (docs/SYNTAX.md): a floating note
+holding one `assume <text>` line states what the diagram assumes of its runs
+as a whole, such as "a transaction whose fee keeps being raised is eventually
+confirmed". It is not a directive — it narrows no edge, because no guard can
+say it — so `csdfpromote` leaves it in place and the expansion carries it, where
+`csdflivelockfree` and `csdfrefinement` take it as a hypothesis. It cannot be
+anchored to a block: an assumption is about the whole system.
+`examples/promote/ATTEMPTS.puml` is the worked example: a stuck transaction
+attempt is replaced by one paying a higher fee, the `constrain` says what a
+replacement is, and the `assume` note says that the replacements stop, which
+is the hypothesis `csdflivelockfree` states its theorem under once the
+attempts are hidden.
+
 Everything else in the file is ordinary Composable State Diagram syntax:
 hand-written states, the start edge, and hand-written edges such as the ones
 that switch operating modes.
@@ -182,6 +195,15 @@ where a condition on another map goes; the local diagram cannot see one.
 Hand-written edges are left alone: they already say everything they were meant
 to.
 
+A constrain's note may carry the guard's *formal twin* on its next line,
+`formal: <expression>`: the same condition in a language a program can
+evaluate, where the guard itself is natural language. The expansion keeps the
+twin with the clause it stands for (`formal` on the constrain clause in
+`-format json`); the text of the expansion is unchanged. A `formal:` line
+under anything but a constrain, a second one, or an empty one is refused. A
+local clause's twin is not written here: it lives next to the clause in the
+local diagram and is looked up by the clause's text.
+
 A constrain reaches **every** matching generated edge, in every state. The block
 its note points at is a drawing: it tells a reader which family the condition is
 about, and it narrows nothing. A parameter of the constrain that no matching
@@ -218,20 +240,34 @@ file:
 | `create`   | `Map`, `ID`, `Dst`  | `m' = m ∪ {id ↦ 〈T〉}`      |
 | `delete`   | `Map`, `ID`         | `m' = {id} ⩤ m`            |
 | `frame`    | `Var`               | `v' = v`                   |
-| `and`      | —                   | ` ∧ `                      |
 
 A clause the file does not define keeps its default. Every clause is rendered
 once when the file is read, so a template that cannot render is refused rather
 than turning into an opaque predicate. A Japanese set ships as
 `examples/promote/templates/ja.tmpl`.
 
+What joins the clauses is not wording: a predicate of the expansion is its
+clauses joined by the connective ` ∧ ` (docs/SYNTAX.md), the generated ones
+first and then the author's, so that a tool reading the expansion gets the
+clauses back by splitting on it. A template file that defines `and`, the name
+an earlier version gave the connective, is refused.
+
+The clauses are also kept apart in the expansion's own structure: every edge
+that `Expand` generates carries them one by one (`ExpandedEdge.Guard` and
+`.Post`), each with its kind — `in_dom`, `not_in_dom`, `at_state`, `update`,
+`create`, `delete`, `frame` for the generated clauses, whose meaning a tool
+can act on without reading the wording, and `local` or `constrain` for the
+author's clauses, which stay opaque text — together with the map, instance ID
+and local state the generated clause is about, or the file and line the
+author's clause was written on. `csdfpromote -format json` prints them.
+
 
 Output
 ------
 
 Plain Composable State Diagram syntax: the directives, the `!include`s, the
-notes and the preprocessor lines are gone, and the composite states are
-flattened into ordinary ones. Hand-written states and edges are kept as they
+notes but the `assume` ones, and the preprocessor lines are gone, and the
+composite states are flattened into ordinary ones. Hand-written states and edges are kept as they
 were, and every edge is printed in the canonical order. A line comment above
 each generated edge names the local edge it came from; `-no-comments` leaves
 them out.

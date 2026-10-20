@@ -59,11 +59,12 @@ $ csdfrepl diagram.png
 `csdfparse` writes one JSON object followed by a newline. Its keys use
 `snake_case`, and optional end edges are represented by `null` when absent.
 State variables are objects with a `name` and an optional `type`. Events are
-free-form strings.
+free-form strings. `assumptions` lists the diagram's assume notes (see
+[SYNTAX.md](./docs/SYNTAX.md)); like `edges` it is a list, never `null`.
 
 ```console
 $ csdfparse < examples/valid/skip.puml
-{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"}}
+{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"},"assumptions":[]}
 ```
 
 ## Hiding
@@ -96,6 +97,16 @@ diagram still renders, and the picture shows the promotion.
 $ csdfpromote examples/promote/TRADES.puml
 $ csdfpromote -lint-only -Werror examples/promote/TRADES.puml
 $ csdfpromote examples/promote/TRADES.puml | csdflivelockfree -
+```
+
+Every predicate of the expansion is its clauses joined by the connective ` ∧ `
+(see [SYNTAX.md](./docs/SYNTAX.md)): the generated ones first, then the
+author's, copied verbatim. `-format json` writes the expansion as JSON instead,
+with every generated edge's clauses one by one and each clause's kind, so a
+program reading it never has to parse the wording back.
+
+```console
+$ csdfpromote -format json examples/promote/TRADES.puml
 ```
 
 Every other tool refuses a diagram that still holds directives, and says to run
@@ -272,7 +283,13 @@ natural-language text; every `tau` transition then gets `guard_L<line>` and `pos
 aliases of those declarations, so a human or LLM can replace the declaration by the real
 predicate body and discharge the proof. An omitted guard or postcondition is the one
 exception: its text really is `true`, so it stays a definition. Both targets name predicates identically, so the two skeletons can be
-read side by side. State-variable values are arbitrary JSON, so each variable is typed
+read side by side. An assume note of the diagram (see [SYNTAX.md](./docs/SYNTAX.md)) —
+what it assumes of its runs as a whole, such as "a transaction whose fee keeps being
+raised is eventually confirmed", which no guard can state — is listed under `assumptions`
+in the IR and becomes an uninterpreted proposition `assume_<id>` in the skeletons, under
+which the theorem is stated: `theorem livelock_free (h_assume_fair : assume_fair) : …` in
+Lean, `assumes "assume_fair" shows …` in Isabelle. That is where a fairness assumption
+belongs: a `constrain` would refuse the step, which is a different system. State-variable values are arbitrary JSON, so each variable is typed
 with a generated `val`/`Val` datatype (floats folded into the integer case for now); any
 declared `; Type` annotation is preserved as a comment on the state constructor.
 
@@ -581,7 +598,9 @@ set.
 
 Predicates use the same `pred_<id>` spelling as `csdflivelockfree`, are shared by both
 diagrams, and dedupe across them, so formalising a predicate once serves every obligation
-it appears in. They are *uninterpreted* — an `opaque` declaration in Lean, a `consts`
+it appears in. Each side's assume notes are listed under its `assumptions` and become
+side-qualified propositions (`assume_<id>_S`, `assume_<id>_I`) under which the theorem is
+stated. They are *uninterpreted* — an `opaque` declaration in Lean, a `consts`
 declaration in Isabelle — carrying the natural-language text and a `TODO(csdf)` marker as
 comments. Defining them as `True` instead would not be a placeholder but a different
 diagram, one in which every guard fires, so the theorem could be discharged for diagrams
@@ -654,6 +673,84 @@ $ csdflivelockfree examples/valid/vending_machine.puml | obligationirc -target l
 
 This is handy when the IR is produced or stored separately. A file argument, a `-`
 argument, and stdin are all equivalent.
+
+## Bounded model checking
+
+`csdfbmc` is a Python package (standard library only, Python 3.11 or later)
+that decides the properties the other tools can only state as obligations, by
+walking the reachable states of a diagram over *finite* domains. The Go tools
+own the structure: `csdfparse` prints the diagram as JSON, and
+`csdfpromote -format json` prints an expansion with the clauses of every edge.
+The package owns the values: each clause's *formal twin*, a pure Python
+function keyed by the clause's prose, and the domains the state variables and
+event parameters range over.
+
+```console
+$ csdfparse examples/bmc/withdraw.puml > examples/bmc/withdraw.json
+$ python3 -m csdfbmc examples/bmc/withdraw.json examples/bmc/withdraw_twins.py
+states: 22
+deadlock at sending [3, 3] after ['出庫(数量=3)']
+...
+```
+
+A twins module defines two tables. `DOMAINS` maps a state variable or an event
+parameter to the finite set of its values. `CLAUSES` maps a clause, spelled
+exactly as in the diagram, to a function of the names it reads: the event's
+parameters, the state variables before the step, and the variables after it
+with a trailing underscore (`残高_` for `残高'`). A guard clause reads the first
+two kinds, a post clause all three; a twin is applied to the names its
+signature asks for. The module is restricted to a pure subset of Python — a
+clause is one expression; no assignment inside a function, no loop, no
+exception, no I/O, no randomness, no float — which `load_twins` checks with
+`ast` before importing it, so that evaluating a clause is deterministic and
+decided by enumeration.
+
+Two more tables are optional. `INVARIANTS` maps a name to a predicate over the
+state variables and ghosts it reads; it is checked at every reachable state
+that binds all of them, and a state that breaks it is reported with its trace.
+`GHOSTS` maps a name to `(initial value, {event name: update})`: a value the
+diagram does not keep — a running total, a count — that follows the events. An
+update reads the ghosts, the event's parameters and the state variables before
+the step and returns the new value; a ghost with no update for an event keeps
+its value. Ghosts are part of the state the walk tells states apart by, so a
+total that grows without bound is cut by `--max-states`.
+
+The walk is breadth-first over (control state, valuation, ghosts) triples, up to
+`--max-states`. It reports every reachable state with no enabled transition and
+no end edge as a deadlock, with the trace that reached it, and every cycle of
+`tau` transitions among the reachable states as a tau cycle. With
+`--avoid EVENT` it also reports every cycle among the reachable states that
+never performs that event: under a fairness assumption written as a finite
+bound (a resend count in the domains), such a cycle is a run that never gets to
+the event, which is the livelock the `assume` note was about. A clause without a
+twin is refused; `--opaque true` takes it as satisfied instead, which
+over-approximates the behaviour (a deadlock it then reports may be spurious; a
+deadlock it misses cannot be hidden by it) and lists the clauses so taken.
+`--json` prints the same as JSON. The exit status is 1 when something was
+found, 2 when the inputs could not be read.
+
+The walk also reports, apart from the properties, every (state, event) where
+the guard held but no valuation in the domains satisfied the post, as
+"domain too small?": a real post always admits some values, so that is where
+the declared domains cut the behaviour off, not a finding about the diagram.
+
+The first worked example, `examples/bmc/withdraw.puml`, is a two-state ledger:
+a transfer is accepted when its twin of `残高で払える` says so and completes when
+the balance also covers the fee. The explorer reports the states with no way
+out and the trace to each; change the twin and the report changes with it,
+which is the point: writing the twin is where the question gets asked.
+
+The second, `examples/bmc/wallet.puml`, is a toy ledger with deposits, one
+transfer at a time with a retry, and a fee refund from outside the balance. It
+checks six properties at once: no deadlock; no livelock under the fairness
+assumption (the `assume` note, which the twins turn into the bound `RESENDS`,
+with `--avoid 確定 --within sending`); and four `INVARIANTS` over `GHOSTS` that
+total the events, relating the balance to the amounts moved and the fees paid
+and refunded. The run reports a deadlock with its trace; the comments in
+`wallet_twins.py` say which twin to change to make every check pass.
+The Python tests run with
+`python3 -m unittest discover -s csdfbmc/tests -t .`, and `go test ./...` runs
+them too when a `python3` is on the PATH.
 
 ## Interactive exploration
 

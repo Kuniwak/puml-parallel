@@ -43,8 +43,9 @@ state "稼働中" as running {
 						Line: 4,
 					},
 				},
-				StartEdge: csdf.StartEdge{Dst: "running", Post: "accounts は空", Line: 12},
-				Edges:     []csdf.Edge{},
+				StartEdge:   csdf.StartEdge{Dst: "running", Post: "accounts は空", Line: 12},
+				Edges:       []csdf.Edge{},
+				Assumptions: []csdf.Assumption{},
 			},
 			wantPromotes: []promote.Promote{{
 				Map: "accounts", IDParam: "口座ID", Type: "Account",

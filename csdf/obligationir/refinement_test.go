@@ -45,7 +45,8 @@ s1 --> s0 : b
 			Edges: []IREdge{
 				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 5},
 			},
-			Init: IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
+			Init:        IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
+			Assumptions: []IRAssumption{},
 		},
 		Impl: IRSide{
 			States: map[csdf.StateID]IRState{
@@ -56,7 +57,8 @@ s1 --> s0 : b
 				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 5},
 				{Src: "s1", Dst: "s0", Event: "b", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 6},
 			},
-			Init: IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
+			Init:        IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
+			Assumptions: []IRAssumption{},
 		},
 	}
 

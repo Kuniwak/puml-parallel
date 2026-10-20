@@ -70,6 +70,7 @@ a --> a : tau ; n > 0 ; n' = n - 1
 			PostArgs: []IRArg{{Name: "n", Type: "Nat"}},
 			Line:     4,
 		},
+		Assumptions: []IRAssumption{},
 	}
 
 	// Execute
@@ -124,6 +125,7 @@ s0 --> s1 : a
 			PostArgs: []IRArg{},
 			Line:     4,
 		},
+		Assumptions: []IRAssumption{},
 	}
 
 	// Execute
@@ -175,6 +177,7 @@ s0: ready ; bool
 			PostArgs: []IRArg{{Name: "ready", Type: "bool"}},
 			Line:     4,
 		},
+		Assumptions: []IRAssumption{},
 	}
 
 	if !reflect.DeepEqual(want, got) {

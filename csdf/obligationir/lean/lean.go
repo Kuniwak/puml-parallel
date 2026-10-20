@@ -75,14 +75,58 @@ func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 	WriteNewLine(w, 2)
 
 	WritePredicates(w, ir.Predicates)
+	WriteAssumptions(w, side, ir.Assumptions)
 
 	if err := WriteTransitionSystem(w, side, ir.Init, ir.States, ir.Edges, ir.Predicates); err != nil {
 		return fmt.Errorf("lean.WriteLivelockFree: %w", err)
 	}
 
-	WriteLivelockTheorem(w, side, "livelock_free")
+	WriteLivelockTheorem(w, side, "livelock_free", AssumptionNames(side, ir.Assumptions))
 	WriteNewLine(w, 1)
 	return nil
+}
+
+// AssumptionTODO marks a declaration standing for an assumption nobody has
+// formalised, spelled like PredicateTODO so that a checker refusing an
+// undischarged obligation catches it too.
+const AssumptionTODO = `TODO(csdf): not formalised; this assumption is uninterpreted.`
+
+// AssumptionNames lists the propositions standing for a side's assumptions,
+// in the order the diagram states them.
+func AssumptionNames(side obligationir.Side, as []obligationir.IRAssumption) []string {
+	names := make([]string, 0, len(as))
+	for _, a := range as {
+		names = append(names, side.AssumptionName(a.ID))
+	}
+	return names
+}
+
+// WriteAssumptions declares the proposition each assume note stands for. Like
+// a predicate it is opaque, not True: an assumption taken for granted would
+// discharge the theorem for a diagram it does not hold of.
+func WriteAssumptions(w io.Writer, side obligationir.Side, as []obligationir.IRAssumption) {
+	for _, a := range as {
+		WriteLineComment(w, AssumptionTODO)
+		WriteNewLine(w, 1)
+		WriteLineComment(w, string(a.Text))
+		WriteNewLine(w, 1)
+		io.WriteString(w, `opaque `)
+		io.WriteString(w, side.AssumptionName(a.ID))
+		io.WriteString(w, ` : Prop`)
+		WriteNewLine(w, 2)
+	}
+}
+
+// WriteHypotheses writes the binders that put the named propositions in scope
+// of a theorem: " (h_<name> : <name>)" for each.
+func WriteHypotheses(w io.Writer, names []string) {
+	for _, name := range names {
+		io.WriteString(w, ` (h_`)
+		io.WriteString(w, name)
+		io.WriteString(w, ` : `)
+		io.WriteString(w, name)
+		io.WriteString(w, `)`)
+	}
 }
 
 // WritePredicates writes the opaque-predicate placeholder layer, sorted by id.
@@ -152,9 +196,10 @@ func WriteRelations(
 // still fail it on valuations the diagram can never enter. Reachable is closed
 // under step, so guarding the source alone matches Isabelle's wf_on without
 // needing Mathlib's Set.WellFoundedOn.
-func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string) {
+func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string, hypotheses []string) {
 	io.WriteString(w, `theorem `)
 	io.WriteString(w, name)
+	WriteHypotheses(w, hypotheses)
 	io.WriteString(w, ` :
     WellFounded (fun s' s => `)
 	io.WriteString(w, side.Qualify("Reachable"))

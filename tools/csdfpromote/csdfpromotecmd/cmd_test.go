@@ -64,6 +64,21 @@ func TestNewMainFunc(t *testing.T) {
 			args:       []string{"-json", accountsPath},
 			wantStdout: []string{`"map":"accounts"`},
 		},
+		"-format json prints the expansion with its clauses": {
+			args:         []string{"-format", "json", accountsPath},
+			wantStdout:   []string{`"kind":"in_dom"`, `"origin":"promote:`},
+			wantNoStdout: []string{"@startuml"},
+		},
+		"-format json with -no-comments leaves the origins out": {
+			args:         []string{"-format", "json", "-no-comments", accountsPath},
+			wantNoStdout: []string{`"origin"`},
+		},
+		"an unknown -format is refused": {
+			args:            []string{"-format", "tsv", accountsPath},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "unknown output",
+		},
 		"-template rewords the clauses": {
 			args:       []string{"-template", "../../../examples/promote/templates/ja.tmpl", accountsPath},
 			wantStdout: []string{"口座ID は accounts にない"},

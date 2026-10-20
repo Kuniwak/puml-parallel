@@ -110,6 +110,11 @@ func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
 	if err := WritePredicates(w, ir.Predicates); err != nil {
 		return fmt.Errorf("isabelle.WriteRefinement: %w", err)
 	}
+	for _, s := range sides(ir) {
+		if err := WriteAssumptions(w, s.Side, s.IR.Assumptions); err != nil {
+			return fmt.Errorf("isabelle.WriteRefinement: %w", err)
+		}
+	}
 
 	for _, s := range sides(ir) {
 		if err := WriteSideAliases(w, s.Side, s.IR, ir.Predicates); err != nil {
@@ -144,7 +149,11 @@ func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
 		WriteInitialisableTheorem(w, s)
 	}
 
-	WriteRefinementTheorem(w, ir.Mode)
+	var hypotheses []string
+	for _, s := range sides(ir) {
+		hypotheses = append(hypotheses, AssumptionNames(s.Side, s.IR.Assumptions)...)
+	}
+	WriteRefinementTheorem(w, ir.Mode, hypotheses)
 	WriteNewLine(w, 2)
 
 	io.WriteString(w, `end`)
@@ -630,17 +639,20 @@ func WriteLivelockLayer(w io.Writer, s sideIR, m map[obligationir.IRPredicateID]
 		return fmt.Errorf("isabelle.WriteLivelockLayer: %w", err)
 	}
 
-	WriteLivelockTheorem(w, s.States, s.Side.Qualify("livelock_free"))
+	WriteLivelockTheorem(w, s.States, s.Side.Qualify("livelock_free"), AssumptionNames(s.Side, s.IR.Assumptions))
 	WriteNewLine(w, 2)
 	return nil
 }
 
-// WriteRefinementTheorem writes the obligation itself.
-func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode) {
+// WriteRefinementTheorem writes the obligation itself, under the hypotheses
+// that stand for both sides' assumptions.
+func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode, hypotheses []string) {
 	if mode == obligationir.IRRefinementModeTrace {
 		io.WriteString(w, `(* Every trace of the Impl diagram is a trace of the Spec diagram: in CSP-Prover
    P <=T Q unfolds to traces Q <= traces P. *)
-theorem refines_t: "SpecProc <=T ImplProc"
+theorem refines_t:`)
+		WriteAssumesShows(w, hypotheses)
+		io.WriteString(w, `"SpecProc <=T ImplProc"
   oops`)
 		return
 	}
@@ -657,7 +669,9 @@ theorem refines_t: "SpecProc <=T ImplProc"
 	io.WriteString(w, `(* Every stable failure of the Impl diagram is one of the Spec diagram: in
    CSP-Prover P <=F Q unfolds to failures Q <= failures P, and <=F subsumes
    trace inclusion. *)
-theorem refines_f: "SpecProc <=F ImplProc"
+theorem refines_f:`)
+	WriteAssumesShows(w, hypotheses)
+	io.WriteString(w, `"SpecProc <=F ImplProc"
   oops`)
 }
 

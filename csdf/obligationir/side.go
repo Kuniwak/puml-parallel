@@ -60,6 +60,11 @@ func (s Side) Ctor(id csdf.StateID) string { return s.CtorPrefix + Mangle(string
 // tau_step, reachable, init, ...).
 func (s Side) Qualify(name string) string { return name + s.Suffix }
 
+// AssumptionName is the proposition standing for an assume note, named after
+// the note's id. The id is a CSDF name, so it is mangled, and the name is
+// side-qualified: an assumption belongs to the diagram that states it.
+func (s Side) AssumptionName(id string) string { return s.Qualify("assume_" + Mangle(id)) }
+
 // GuardName is the alias of an edge's guard predicate, named after its source line.
 func (s Side) GuardName(line int) string { return s.alias("guard", line) }
 

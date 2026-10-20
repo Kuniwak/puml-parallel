@@ -30,8 +30,9 @@ func NewParser(input string) *Parser {
 
 func (p *Parser) Parse() (*Diagram, error) {
 	diagram := &Diagram{
-		States: make(map[StateID]State),
-		Edges:  []Edge{},
+		States:      make(map[StateID]State),
+		Edges:       []Edge{},
+		Assumptions: []Assumption{},
 	}
 
 	if !p.expectString("@startuml") {
@@ -63,7 +64,7 @@ func (p *Parser) Parse() (*Diagram, error) {
 		if p.isAtEnd() || p.peekString("@enduml") {
 			break
 		}
-		if diagram.EndEdge != nil {
+		if diagram.EndEdge != nil && !p.peekString("note") {
 			return nil, fmt.Errorf("csdf.Parser.Parse: expected @enduml after end edge at line %d, col %d", p.line, p.col)
 		}
 
@@ -73,6 +74,12 @@ func (p *Parser) Parse() (*Diagram, error) {
 				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
 			diagram.States[state.ID] = state.State
+		} else if p.peekString("note") {
+			assumption, err := p.parseAssumeNote()
+			if err != nil {
+				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
+			}
+			diagram.Assumptions = append(diagram.Assumptions, assumption)
 		} else if p.peekString("[*]") {
 			startEdge, err := p.parseStartEdge()
 			if err != nil {
@@ -676,6 +683,76 @@ func (p *Parser) skipLine() {
 	}
 	if !p.isAtEnd() {
 		p.advance()
+	}
+}
+
+// parseAssumeNote reads a note holding one assume directive:
+//
+//	note as <id>
+//	  assume <text>
+//	end note
+//
+// A note is PlantUML's own syntax, so the picture shows the assumption next to
+// the diagram. The core accepts no other note: one for the picture alone goes
+// in a CSDF-IGNORE region, as every other PlantUML-only line does.
+func (p *Parser) parseAssumeNote() (Assumption, error) {
+	const hint = "a note holds one assume directive (\"note as <id>\", \"assume <text>\", \"end note\"); a note for the picture goes in a CSDF-IGNORE region"
+	startLine, startCol := p.line, p.col
+	p.expectString("note")
+	if err := p.skipInlineTrivia(); err != nil {
+		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+	}
+	if !p.expectString("as") {
+		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: an assume note is floating, not anchored to a state, at line %d, col %d: %s", startLine, startCol, hint)
+	}
+	if err := p.skipInlineTrivia(); err != nil {
+		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+	}
+	id, err := p.parseID()
+	if err != nil {
+		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+	}
+	if err := p.skipInlineTrivia(); err != nil {
+		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+	}
+	if !p.expectNewlines() {
+		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: expected newline after the note's id at line %d, col %d", p.line, p.col)
+	}
+
+	assumption := Assumption{ID: id}
+	read := false
+	for {
+		if p.isAtEnd() {
+			return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: unterminated assume note at line %d, col %d", startLine, startCol)
+		}
+		line := p.line
+		text, err := p.parseUntil('\n')
+		if err != nil {
+			return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+		}
+		p.expectNewlines()
+		switch {
+		case text == "":
+			continue
+		case strings.TrimSpace(strings.TrimPrefix(text, "end")) == "note" && strings.HasPrefix(text, "end"):
+			if !read {
+				return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: the note at line %d holds no assume directive: %s", startLine, hint)
+			}
+			return assumption, nil
+		case strings.HasPrefix(text, "assume ") || text == "assume":
+			if read {
+				return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: the note at line %d holds a second assume directive at line %d; write one note per assumption", startLine, line)
+			}
+			body := strings.TrimSpace(strings.TrimPrefix(text, "assume"))
+			if body == "" {
+				return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: the assume directive at line %d has no text", line)
+			}
+			assumption.Text = Predicate(body)
+			assumption.Line = line
+			read = true
+		default:
+			return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: unexpected line %d in the note at line %d: %s", line, startLine, hint)
+		}
 	}
 }
 

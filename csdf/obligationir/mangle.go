@@ -130,6 +130,13 @@ func (t *NameTable) AddEvents(edges []IREdge) {
 	}
 }
 
+// AddAssumptions records the id of every assume note.
+func (t *NameTable) AddAssumptions(as []IRAssumption) {
+	for _, a := range as {
+		t.Add(a.ID)
+	}
+}
+
 // RefinementNameTable lists every name of a refinement obligation that Mangle
 // had to encode.
 func RefinementNameTable(ir IRRefinement) []MangledName {
@@ -139,6 +146,7 @@ func RefinementNameTable(ir IRRefinement) []MangledName {
 	}
 	for _, s := range []IRSide{ir.Spec, ir.Impl} {
 		t.AddStates(s.States)
+		t.AddAssumptions(s.Assumptions)
 	}
 	return t.Entries()
 }
@@ -149,5 +157,6 @@ func LivelockFreeNameTable(ir IRLivelockFree) []MangledName {
 	t := NewNameTable()
 	t.AddStates(ir.States)
 	t.AddEvents(ir.Edges)
+	t.AddAssumptions(ir.Assumptions)
 	return t.Entries()
 }

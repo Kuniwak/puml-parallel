@@ -127,10 +127,9 @@ func (e *expander) mergeSyncs(edges []ExpandedEdge) []ExpandedEdge {
 					parts[i] = e.parts(blocks[i], edge, plan.sync.Targets[i].Param)
 					moved[i] = blocks[i].Map
 				}
-				edges = append(edges, ExpandedEdge{
-					Edge:   e.compose(g, parts, moved...),
-					Origin: e.syncOrigin(plan, blocks, parts),
-				})
+				merged := e.compose(g, parts, moved...)
+				merged.Origin = e.syncOrigin(plan, blocks, parts)
+				edges = append(edges, merged)
 			}
 		}
 	}
@@ -163,12 +162,10 @@ func (e *expander) constrain(edges []ExpandedEdge) {
 			matched++
 			taken = appendUnique(taken, args...)
 
-			guard := edges[i].Edge.Guard
-			if csdf.IsTrue(guard) {
-				edges[i].Edge.Guard = c.Guard
-				continue
+			for _, clause := range c.Guard.Clauses() {
+				edges[i].Guard = append(edges[i].Guard, ExpandedClause{Kind: ClauseConstrain, Text: string(clause), Formal: c.Formal, Line: c.Line})
 			}
-			edges[i].Edge.Guard = csdf.Predicate(e.templates.join([]string{string(guard), string(c.Guard)}))
+			edges[i].Edge.Guard = conjoin(edges[i].Guard)
 		}
 		if matched == 0 {
 			e.errorf(c.Line, "no expanded edge is %q with %d argument%s", c.Event, len(c.Params), plural(len(c.Params)))
