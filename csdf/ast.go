@@ -44,6 +44,20 @@ type Diagram struct {
 	StartEdge StartEdge         `json:"start_edge"`
 	Edges     []Edge            `json:"edges"`
 	EndEdge   *EndEdge          `json:"end_edge"`
+	// Assumptions are what the diagram assumes of its runs as a whole, such as
+	// a fairness assumption, written as assume notes. They are never null in
+	// JSON, only empty.
+	Assumptions []Assumption `json:"assumptions"`
+}
+
+// Assumption is one assume note: a property of the runs of the diagram that no
+// guard can state, such as "a transaction whose fee keeps being raised is
+// eventually confirmed". It is opaque text like a predicate, and the tools
+// that compile proof obligations carry it as a hypothesis.
+type Assumption struct {
+	ID   string    `json:"id"`
+	Text Predicate `json:"text"`
+	Line int       `json:"line"` // 1-based source line of the assume line.
 }
 
 type State struct {
@@ -146,11 +160,12 @@ func (d *Diagram) Clone() *Diagram {
 	}
 
 	return &Diagram{
-		Name:      d.Name,
-		States:    states,
-		StartEdge: d.StartEdge,
-		Edges:     append([]Edge{}, d.Edges...),
-		EndEdge:   endEdge,
+		Name:        d.Name,
+		States:      states,
+		StartEdge:   d.StartEdge,
+		Edges:       append([]Edge{}, d.Edges...),
+		EndEdge:     endEdge,
+		Assumptions: append([]Assumption{}, d.Assumptions...),
 	}
 }
 
@@ -224,6 +239,10 @@ func (d *Diagram) StringWithEdgeComments(before func(i int) string) string {
 			sb.WriteString(fmt.Sprintf(" : %s", d.EndEdge.Guard))
 		}
 		sb.WriteString("\n")
+	}
+
+	for _, a := range d.Assumptions {
+		sb.WriteString(fmt.Sprintf("note as %s\n  assume %s\nend note\n", a.ID, a.Text))
 	}
 
 	sb.WriteString("@enduml\n")

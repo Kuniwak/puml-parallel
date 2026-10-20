@@ -89,6 +89,10 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 			Post: Conjunction(dL.StartEdge.Post, dR.StartEdge.Post),
 		},
 		Edges: make([]Edge, 0),
+		// What each side assumes of its runs, the composition assumes of its
+		// own: an assumption is about the whole run, so it has no state to
+		// pair and no event to synchronise.
+		Assumptions: append(append([]Assumption{}, dL.Assumptions...), dR.Assumptions...),
 	}
 
 	marked := make(map[StateID]struct{})

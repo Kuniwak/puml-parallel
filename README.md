@@ -59,11 +59,12 @@ $ csdfrepl diagram.png
 `csdfparse` writes one JSON object followed by a newline. Its keys use
 `snake_case`, and optional end edges are represented by `null` when absent.
 State variables are objects with a `name` and an optional `type`. Events are
-free-form strings.
+free-form strings. `assumptions` lists the diagram's assume notes (see
+[SYNTAX.md](./docs/SYNTAX.md)); like `edges` it is a list, never `null`.
 
 ```console
 $ csdfparse < examples/valid/skip.puml
-{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"}}
+{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"},"assumptions":[]}
 ```
 
 ## Hiding

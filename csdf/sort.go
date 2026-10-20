@@ -24,6 +24,9 @@ func Sort(d *Diagram) *Diagram {
 	if out.EndEdge != nil {
 		out.EndEdge.Line = 0
 	}
+	for i := range out.Assumptions {
+		out.Assumptions[i].Line = 0
+	}
 
 	SortEdges(out.Edges)
 	return out
