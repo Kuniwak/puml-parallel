@@ -65,6 +65,26 @@ func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 	}
 }
 
+// The first example with every clause written in Python is read through the
+// reference glue, as a command or in-process, and finds the same deadlock.
+func TestTheFormalWithdrawExampleReportsTheSameDeadlockThroughTheGlue(t *testing.T) {
+	py := python(t)
+	for _, glue := range [][]string{
+		{"--evaluator", py + " -E -s -B -m csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
+		{"--evaluator-module", "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
+	} {
+		cmd := exec.Command(py, append([]string{"-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/withdraw_formal.json", "examples/bmc/withdraw_formal_defs.py"}, glue...)...)
+		cmd.Dir = ".."
+		out, err := cmd.CombinedOutput()
+		if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+			t.Fatalf("%s: want exit status 1 (a deadlock found), got %v\n%s", glue[0], err, out)
+		}
+		if want := "states: 22\ndeadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']\n"; string(out) != want {
+			t.Errorf("%s: want the report of the prose example, got:\n%s", glue[0], out)
+		}
+	}
+}
+
 // The expansion of a promoted diagram is walked with the global twins and the
 // twins of each family; the fee-bumping example comes out clean.
 func TestThePromotedExampleWalksClean(t *testing.T) {
