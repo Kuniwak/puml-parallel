@@ -190,8 +190,11 @@ class CommandTransport:
             raise EvaluatorError(f"the glue {self._argv!r} answered {op} with {line.strip()!r}: {e}") from e
 
     def close(self) -> None:
-        if self._proc.poll() is None:
+        try:
             self._proc.stdin.close()
+        except OSError:
+            pass  # the glue stopped already; its end of the pipe is gone
+        if self._proc.poll() is None:
             try:
                 self._proc.wait(timeout=5)
             except subprocess.TimeoutExpired:

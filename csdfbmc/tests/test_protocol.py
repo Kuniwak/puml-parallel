@@ -124,6 +124,16 @@ class TransportTest(unittest.TestCase):
                 ev.guard("x >", [{}])
             self.assertIn("x >", str(cm.exception))
 
+    def test_a_glue_that_stops_before_hello_leaves_no_pipe_open(self):
+        import gc
+        import warnings
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            with self.assertRaises(EvaluatorError):
+                start_command([sys.executable, "-c", "pass"])
+            gc.collect()
+        self.assertEqual([], [w for w in caught if issubclass(w.category, ResourceWarning)])
+
     def test_a_glue_speaking_another_protocol_version_is_refused(self):
         with self.assertRaises(EvaluatorError) as cm:
             start_command([sys.executable, "-c", "import sys; sys.stdin.readline(); print('{\"language\": \"x\", \"protocol\": 99}')"])
