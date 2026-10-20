@@ -91,6 +91,9 @@ const (
 	ClauseFrame     ClauseKind = "frame"      // state variable Var is unchanged
 	ClauseLocal     ClauseKind = "local"      // a clause of the local edge, verbatim
 	ClauseConstrain ClauseKind = "constrain"  // a clause of a constrain directive, verbatim
+	// ClauseDropped is a guard clause that read a map Restrict left out. It is
+	// listed rather than lost, and taken as true: it is not in the predicate.
+	ClauseDropped ClauseKind = "dropped"
 )
 
 // ExpandedClause is one clause of a generated edge. Text is the clause as it
@@ -111,13 +114,18 @@ type ExpandedClause struct {
 	Var    string `json:"var,omitempty"`
 	Path   string `json:"path,omitempty"`
 	Line   int    `json:"line,omitempty"`
+	// Maps are the left-out maps a dropped clause read.
+	Maps []string `json:"maps,omitempty"`
 }
 
-// conjoin is the predicate the clauses spell, joined by the connective.
+// conjoin is the predicate the clauses spell, joined by the connective. A
+// dropped clause is listed beside the predicate, not in it.
 func conjoin(clauses []ExpandedClause) csdf.Predicate {
-	texts := make([]csdf.Predicate, len(clauses))
-	for i, c := range clauses {
-		texts[i] = csdf.Predicate(c.Text)
+	texts := make([]csdf.Predicate, 0, len(clauses))
+	for _, c := range clauses {
+		if c.Kind != ClauseDropped {
+			texts = append(texts, csdf.Predicate(c.Text))
+		}
 	}
 	return csdf.ConjoinClauses(texts)
 }

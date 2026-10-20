@@ -265,6 +265,40 @@ the `<<promote>>` blocks (`promotes`) and the local diagrams they include
 clause reads local variables that the expansion's text never spells out.
 
 
+Keeping some families
+---------------------
+
+A global diagram with many families expands into a state whose maps hold
+every family's instances, and a bounded walk of all of it blows up even when
+the question is about a few families that touch the rest lightly.
+`-only MAP[,MAP…]` keeps the named families — each written as its map or its
+type — and leaves out the others:
+
+- The maps of the left-out families go from every state, and so do the edges
+  that only they move.
+- On an edge a kept family takes together with a left-out one (a `sync`), the
+  kept side stays and the event keeps every argument. The left-out side is
+  now the environment, which offers the event.
+- A guard clause that read a left-out map is not removed in silence. It is
+  taken as true and listed: as a warning, and in `-format json` as a clause
+  of kind `dropped`, outside the predicate, with the `maps` it read. A
+  generated clause about a left-out map and a local clause of a left-out
+  family read it by construction; a `constrain` clause reads what its
+  `formal:` twin names. A constrain with no twin cannot be told apart, so it
+  is kept, with a warning saying so. The post clauses and frames of a
+  left-out map go with the map.
+- Hand-written edges are kept as they were written.
+
+With every listed clause taken as true, each run of the full expansion
+projects onto a run of the restricted one. So a broken invariant and an
+event-avoiding cycle over the kept families survive the restriction. A
+deadlock does not: one that a left-out family causes by refusing an event, or
+by never meeting a listed clause, has no counterpart in the restriction. The
+listed clauses are exactly what was assumed; restate the ones that matter as
+`assume` notes, or let a checker take them as true and say so (`csdfbmc`
+reports them as `dropped_clauses`).
+
+
 Output
 ------
 

@@ -50,6 +50,16 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err := promote.Refusal(diags, opts.Werror); err != nil {
 			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 		}
+		if len(opts.Only) > 0 {
+			restricted, rdiags := promote.Restrict(expansion, opts.Only)
+			for _, d := range rdiags {
+				fmt.Fprintln(inout.Stderr, d)
+			}
+			if err := promote.Refusal(rdiags, opts.Werror); err != nil {
+				return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
+			}
+			expansion = restricted
+		}
 		if opts.LintOnly {
 			return nil
 		}

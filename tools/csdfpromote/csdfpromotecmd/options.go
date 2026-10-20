@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/promote"
@@ -21,9 +22,12 @@ type Options struct {
 	Werror     bool
 	LintOnly   bool
 	JSON       bool
-	Output     promote.Output
-	Args       []string
-	Bytes      []byte
+	// Only names the families the expansion keeps, by map or by type; empty
+	// keeps them all.
+	Only   []string
+	Output promote.Output
+	Args   []string
+	Bytes  []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -59,8 +63,17 @@ where a CLAUSE is {"kind": K, "text": T, ...} with K one of in_dom, not_in_dom,
 at_state, update, create, delete, frame (the generated clauses, with "map",
 "id", "state" or "var" saying what they are about), local (a clause of the
 local edge, with the "path" and "line" it was written on) or constrain (a
-clause of a constrain directive, with its "line"). An edge the author wrote by
-hand has no origin and no clauses.
+clause of a constrain directive, with its "line") or dropped (a guard clause
+that read a map -only left out, with the "maps" it read; it is listed, not in
+the predicate). An edge the author wrote by hand has no origin and no clauses.
+
+With -only, the expansion keeps the named families (a map, or the type of
+one) and leaves out the others' maps and the edges only they move. An event a
+kept family takes together with a left-out one stays, offered by the
+environment. A guard clause that read a left-out map is taken as true and
+listed: as a warning, and as a dropped clause. Every invariant violation and
+event-avoiding cycle over the kept families survives the restriction; a
+deadlock a left-out family caused does not.
 
 Options:
 `)
@@ -72,6 +85,7 @@ Examples:
   $ csdfpromote -template examples/promote/templates/ja.tmpl path/to/GLOBAL.puml
   $ csdfpromote path/to/GLOBAL.puml | csdflivelockfree -
   $ csdfpromote -format json path/to/GLOBAL.puml
+  $ csdfpromote -only orders,Shipment -format json path/to/GLOBAL.puml
 `)
 		}
 
@@ -83,6 +97,7 @@ Examples:
 		werror := flags.Bool("Werror", false, "treat warnings as errors")
 		lintOnly := flags.Bool("lint-only", false, "check the directives without printing the expansion")
 		asJSON := flags.Bool("json", false, "print the parsed directives as JSON instead of expanding them")
+		only := flags.String("only", "", "comma-separated families to keep, each a map or a type (default: all)")
 		var format string
 		flags.StringVar(&format, "format", promote.OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program, with the clauses of every edge)")
 
@@ -127,9 +142,21 @@ Examples:
 			Werror:     *werror,
 			LintOnly:   *lintOnly,
 			JSON:       *asJSON,
+			Only:       splitList(*only),
 			Output:     output,
 			Args:       args,
 			Bytes:      bs,
 		}, nil
 	}
+}
+
+// splitList reads a comma-separated list, dropping the empty items.
+func splitList(s string) []string {
+	var out []string
+	for _, item := range strings.Split(s, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			out = append(out, item)
+		}
+	}
+	return out
 }
