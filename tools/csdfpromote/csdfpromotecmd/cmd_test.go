@@ -83,6 +83,26 @@ func TestNewMainFunc(t *testing.T) {
 			args:       []string{"-template", "../../../examples/promote/templates/ja.tmpl", accountsPath},
 			wantStdout: []string{"口座ID は accounts にない"},
 		},
+		"-only keeps the named families": {
+			args:         []string{"-only", "buys", "../../../examples/promote/TRADES.puml"},
+			wantStdout:   []string{"buys ; 約定ID ⇸ Buy"},
+			wantNoStdout: []string{"REPORT("},
+		},
+		"-only names a family by its type": {
+			args:         []string{"-only", "Buy", "../../../examples/promote/TRADES.puml"},
+			wantNoStdout: []string{"REPORT("},
+		},
+		"-only lists what it drops on stderr and in the JSON": {
+			args:       []string{"-only", "buys", "-format", "json", "../../../examples/promote/TRADES.puml"},
+			wantStdout: []string{`"kind":"dropped"`, `"maps":["cycles"]`},
+			wantStderr: "-only leaves out",
+		},
+		"-only refuses an unknown family": {
+			args:            []string{"-only", "sells", "../../../examples/promote/TRADES.puml"},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      `"sells"`,
+		},
 		"-v prints the version": {
 			args:       []string{"-v"},
 			wantStdout: []string{version.Version + "\n"},

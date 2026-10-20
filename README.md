@@ -805,6 +805,27 @@ $ csdfbmc attempts.json examples/bmc/attempts_twins.py \
 states: 496
 ```
 
+Two opt-in reductions shrink the walk of an expansion without changing what
+it finds, so a finding can always be confirmed without them. `--por` is
+partial-order reduction: at a state it takes the moves of one instance in
+place of every enabled move, when that instance's family is independent in
+the control state — every edge there is a self-loop and none is `tau`; the
+family's edges move it alone, update no ghost and read nothing but its own
+map; no other edge, ghost update or invariant reads its map — and none of
+those moves is the `--avoid` event or leads to a state already met. What a
+clause reads is what its twin's signature asks for, or the names in its
+`formal:` expression. `--symmetry` stores a state by one representative of
+its renamings of the instance IDs the twins module lists in `SYMMETRIC`
+(`SYMMETRIC = ["試行ID"]`); the walk expands the state it met first, so every
+trace it reports is a run of the diagram. The declaration is refused when a
+twin could tell two IDs apart: an ID written as a constant (a literal that
+lists every ID, as the domain does, names none), an ID ordered by `<`, `<=`,
+`>`, `>=`, `sorted`, `min` or `max`, or a domain holding IDs that is not
+closed under renaming them. The check is syntactic and does not follow a
+value through a helper. Under either reduction an empty or unconstrained post
+is reported only at the states the walk still meets. The third example walks
+104 states instead of 496 with `--symmetry`.
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.

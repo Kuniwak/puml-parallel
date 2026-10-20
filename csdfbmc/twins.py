@@ -21,7 +21,8 @@ their own twins module, passed by the path the expansion names the local
 diagram with; a local twin reads the event's parameters and the instance's
 own variables. The global module holds the twins of the hand-written and
 constrain clauses, the domains of the instance IDs, and the ghosts and
-invariants, which may read the maps.
+invariants, which may read the maps. SYMMETRIC, when defined, lists the
+instance-ID parameters whose values are interchangeable (see csdfbmc.reduce).
 """
 from __future__ import annotations
 
@@ -85,6 +86,11 @@ class Twins:
     # locals: the twins of each family's local diagram, by the path the
     # expansion names it with. A local clause of a family is looked up there.
     locals: dict[str, "Twins"] = field(default_factory=dict)
+    # symmetric: the instance-ID parameters whose values are interchangeable,
+    # which --symmetry lets the walk store one state per renaming of.
+    symmetric: tuple[str, ...] = ()
+    # sources: (path, source) of the module, which the symmetry check reads.
+    sources: list[tuple[str, str]] = field(default_factory=list)
 
     def domain(self, name: str) -> list:
         if name in self.domains:
@@ -126,10 +132,13 @@ def load_twins(path: str) -> Twins:
     for table in ("DOMAINS", "CLAUSES"):
         if not isinstance(getattr(module, table, None), dict):
             raise PurityError(f"{path}: the module must define {table} as a dict")
+    if not isinstance(getattr(module, "SYMMETRIC", ()), (list, tuple, set, frozenset)):
+        raise PurityError(f"{path}: SYMMETRIC must be a list of instance-ID parameters when defined")
     for table in ("INVARIANTS", "GHOSTS"):
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
     return Twins(
         domains=dict(module.DOMAINS), clauses=dict(module.CLAUSES),
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
+        symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
     )
