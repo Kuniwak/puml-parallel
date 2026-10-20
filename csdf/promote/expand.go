@@ -112,6 +112,9 @@ type ExpandedClause struct {
 	Text string `json:"text,omitempty"`
 	// Opaque marks the tool word @opaque, a clause not formalised yet.
 	Opaque bool `json:"opaque,omitempty"`
+	// Rename maps a name Text reads to the name of the predicate it stands
+	// for, as the clause's renaming @[from := to] says.
+	Rename map[string]string `json:"rename,omitempty"`
 	// Formal is the clause's formal twin when the author wrote one next to it
 	// (a constrain's "formal:" line); a local clause's twin lives with the
 	// local diagram and is looked up by Text.
@@ -132,8 +135,15 @@ func authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) Expan
 	from.Kind = kind
 	if csdf.IsOpaque(clause) {
 		from.Opaque = true
-	} else {
-		from.Text = csdf.ClauseText(clause)
+		return from
+	}
+	renames, body, _ := csdf.SplitRenaming(clause)
+	from.Text = csdf.ClauseText(body)
+	for _, r := range renames {
+		if from.Rename == nil {
+			from.Rename = map[string]string{}
+		}
+		from.Rename[r.From] = r.To
 	}
 	return from
 }
@@ -150,7 +160,11 @@ func conjoin(clauses []ExpandedClause) csdf.Predicate {
 		case c.Opaque:
 			texts = append(texts, csdf.PredicateOpaque)
 		default:
-			texts = append(texts, csdf.EscapeClause(c.Text))
+			var renames []csdf.Rename
+			for from, to := range c.Rename {
+				renames = append(renames, csdf.Rename{From: from, To: to})
+			}
+			texts = append(texts, csdf.RenameClause(csdf.EscapeClause(c.Text), renames))
 		}
 	}
 	return csdf.ConjoinClauses(texts)

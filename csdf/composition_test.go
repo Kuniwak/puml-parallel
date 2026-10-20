@@ -45,7 +45,7 @@ s2_s1 --> s2_s2 : out
 	// Execute
 	composite, err := ComposeParallel(
 		MustLoadDiagrams("../examples/valid/in.puml", "../examples/valid/out.puml"),
-		[]Event{"sync"},
+		[]string{"sync"},
 	)
 	if err != nil {
 		t.Fatalf("ComposeParallel() error = %v", err)
@@ -126,52 +126,73 @@ func TestStatePairPreservesStateVarTypes(t *testing.T) {
 	// Teardown: no resources to release.
 }
 
-func TestComposeParallelMatchesWholeEvent(t *testing.T) {
-	left := &Diagram{
-		States: map[StateID]State{
-			"l0": {Name: "Left 0"},
-			"l1": {Name: "Left 1"},
+func TestComposeParallelSynchronisesOnChannels(t *testing.T) {
+	side := func(prefix string, e Edge) *Diagram {
+		e.Src, e.Dst = StateID(prefix+"0"), StateID(prefix+"1")
+		return &Diagram{
+			States:    map[StateID]State{StateID(prefix + "0"): {Name: prefix + "0"}, StateID(prefix + "1"): {Name: prefix + "1"}},
+			StartEdge: StartEdge{Dst: StateID(prefix + "0")},
+			Edges:     []Edge{e},
+		}
+	}
+	tests := []struct {
+		name  string
+		left  Edge
+		right Edge
+		sync  []string
+		want  []Edge
+	}{
+		{
+			name:  "fields named alike are one value",
+			left:  Edge{Event: "send?x", Guard: "x > 0"},
+			right: Edge{Event: "send?x", Post: "m' = x"},
+			sync:  []string{"send"},
+			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send?x", Guard: "x > 0", Post: "m' = x"}},
 		},
-		StartEdge: StartEdge{Dst: "l0"},
-		Edges: []Edge{
-			{Src: "l0", Dst: "l1", Event: "send(x)", Guard: "", Post: ""},
+		{
+			name:  "fields named apart are renamed on the right, without rewriting a clause",
+			left:  Edge{Event: "send?x", Guard: "x > 0"},
+			right: Edge{Event: "send?y", Guard: "y < 5 ∧ @opaque", Post: "m' = y"},
+			sync:  []string{"send"},
+			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send?x", Guard: "x > 0 ∧ @[y := x] y < 5 ∧ @opaque", Post: "@[y := x] m' = y"}},
+		},
+		{
+			name:  "a field chosen on either side is chosen",
+			left:  Edge{Event: "send?x"},
+			right: Edge{Event: "send!x"},
+			sync:  []string{"send"},
+			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send!x"}},
+		},
+		{
+			name:  "a channel not synchronised interleaves",
+			left:  Edge{Event: "send?x"},
+			right: Edge{Event: "send?y"},
+			want: []Edge{
+				{Src: "l0_r0", Dst: "l1_r0", Event: "send?x"},
+				{Src: "l0_r0", Dst: "l0_r1", Event: "send?y"},
+				{Src: "l0_r1", Dst: "l1_r1", Event: "send?x"},
+				{Src: "l1_r0", Dst: "l1_r1", Event: "send?y"},
+			},
 		},
 	}
-	right := &Diagram{
-		States: map[StateID]State{
-			"r0": {Name: "Right 0"},
-			"r1": {Name: "Right 1"},
-		},
-		StartEdge: StartEdge{Dst: "r0"},
-		Edges: []Edge{
-			{Src: "r0", Dst: "r1", Event: "send(y)", Guard: "", Post: ""},
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composite, err := ComposeParallel2(side("l", tt.left), side("r", tt.right), tt.sync)
+			if err != nil {
+				t.Fatalf("ComposeParallel2() error = %v", err)
+			}
+			if diff := cmp.Diff(tt.want, composite.Edges); diff != "" {
+				t.Errorf("ComposeParallel2() edges mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
+}
 
-	composite, err := ComposeParallel2(left, right, []Event{"send(x)"})
-	if err != nil {
-		t.Fatalf("ComposeParallel2() error = %v", err)
-	}
-	if len(composite.Edges) != 1 {
-		t.Fatalf("ComposeParallel2() edges = %#v, want one unsynchronized edge", composite.Edges)
-	}
-	if composite.Edges[0].Event != "send(y)" {
-		t.Errorf("ComposeParallel2() event = %q, want send(y)", composite.Edges[0].Event)
-	}
-
-	right.Edges[0].Event = "send(x)"
-	composite, err = ComposeParallel2(left, right, []Event{"send(x)"})
-	if err != nil {
-		t.Fatalf("ComposeParallel2() matching event error = %v", err)
-	}
-	if len(composite.Edges) != 1 {
-		t.Fatalf("ComposeParallel2() matching event edges = %#v, want one synchronized edge", composite.Edges)
-	}
-	if composite.Edges[0].Event != "send(x)" {
-		t.Errorf("ComposeParallel2() synchronized event = %q, want send(x)", composite.Edges[0].Event)
-	}
-	if composite.Edges[0].Dst != "l1_r1" {
-		t.Errorf("ComposeParallel2() synchronized destination = %q, want l1_r1", composite.Edges[0].Dst)
+func TestComposeParallelRefusesASynchronisedChannelWithFieldsOfAnotherNumber(t *testing.T) {
+	left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send?x"}}}
+	right := &Diagram{States: map[StateID]State{"r0": {}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "send?x?y"}}}
+	if _, err := ComposeParallel2(left, right, []string{"send"}); err == nil {
+		t.Error("ComposeParallel2() error = nil, want send?x and send?x?y refused")
 	}
 }
 

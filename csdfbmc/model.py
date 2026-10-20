@@ -38,13 +38,16 @@ class Clause:
     formal: str | None = None  # a constrain's formal twin, written next to it
     maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
     opaque: bool = False
+    # rename: (from, to) pairs, sorted: the clause reads the name from for the
+    # value the predicate it is in names to (a composition writes them).
+    rename: tuple[tuple[str, str], ...] = ()
 
     @classmethod
     def from_json(cls, c: dict) -> "Clause":
         opaque = c.get("opaque") is True
         return cls(kind=c["kind"], text=OPAQUE_WORD if opaque else c["text"], opaque=opaque, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
-                   maps=tuple(c.get("maps", ())))
+                   maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 
 
 def local_clauses(owner: dict, key: str) -> tuple[Clause, ...]:

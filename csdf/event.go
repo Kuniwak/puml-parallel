@@ -33,6 +33,16 @@ func ParseEvent(text string) (Event, error) {
 	return NewEvent(channel, fields...), nil
 }
 
+// ParseChannel reads a channel: an event's name without its fields, which is
+// what a composition synchronises on.
+func ParseChannel(text string) (string, error) {
+	channel := strings.TrimSpace(text)
+	if !isID(channel) {
+		return "", fmt.Errorf("csdf.ParseChannel: %q is not a channel, which is an identifier with no ?field or !field", text)
+	}
+	return channel, nil
+}
+
 // NewEvent writes the event on channel with the given fields.
 func NewEvent(channel string, fields ...Field) Event {
 	var sb strings.Builder

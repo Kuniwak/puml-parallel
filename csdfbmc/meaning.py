@@ -168,12 +168,63 @@ class OpaqueWord:
     def evaluate(self, clause: Clause, role: str, env: dict):
         return OPAQUE if clause.opaque else self.inner.evaluate(clause, role, env)
 
+    def writes(self, clause: Clause) -> set[str] | None:
+        """What inner says a post clause gives a value to; for a meaning that
+        can say it (GlueMeaning)."""
+        return None if clause.opaque else self.inner.writes(clause)
+
     def opaque_message(self, clause: Clause) -> str:
         if clause.opaque:
             return f"the clause {clause.text!r} is not formalised yet; formalise it, or run with opaque='true'"
         return self.inner.opaque_message(clause)
 
 
+class Renaming:
+    """inner, with each renamed clause read in the names of the predicate it
+    is in: a name it reads stands for the value its renaming binds it to."""
+
+    def __init__(self, inner: Meaning):
+        self.inner = inner
+        self.readable = inner.readable
+        self.by_prose = inner.by_prose
+
+    @staticmethod
+    def _outer(clause: Clause, names: set[str] | None) -> set[str] | None:
+        to = dict(clause.rename)
+        return None if names is None else {to.get(n, n) for n in names}
+
+    @staticmethod
+    def _env(clause: Clause, env: dict) -> dict:
+        if not clause.rename:
+            return env
+        return {**env, **{f: env[t] for f, t in clause.rename if t in env}}
+
+    def names(self, clause: Clause, role: str) -> set[str] | None:
+        return self._outer(clause, self.inner.names(clause, role))
+
+    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
+        return self._outer(clause, self.inner.names_beyond(clause, own_id))
+
+    def writes(self, clause: Clause) -> set[str] | None:
+        """What inner says a post clause gives a value to; for a meaning that
+        can say it (GlueMeaning)."""
+        return self._outer(clause, self.inner.writes(clause))
+
+    def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
+        self.inner.prefetch(clause, role, [self._env(clause, env) for env in envs])
+
+    def evaluate(self, clause: Clause, role: str, env: dict):
+        result = self.inner.evaluate(clause, role, self._env(clause, env))
+        if role == "post" and clause.rename and isinstance(result, (list, tuple)):
+            to = dict(clause.rename)
+            result = [{to.get(k, k): v for k, v in a.items()} for a in result]
+        return result
+
+    def opaque_message(self, clause: Clause) -> str:
+        return self.inner.opaque_message(clause)
+
+
 def standard(inner: Meaning) -> Meaning:
-    """inner as every walk takes it: with the tool word @opaque."""
-    return OpaqueWord(inner)
+    """inner as every walk takes it: with the tool word @opaque, and each
+    renamed clause read in the names of its predicate."""
+    return OpaqueWord(Renaming(inner))

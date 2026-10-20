@@ -29,12 +29,17 @@ expands each subcommand's own help.
 ## Usage
 
 ```console
-$ csdfparallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...
+$ csdfparallel [--sync channel1;channel2;...] <file1.puml> [file2.puml] ...
 ```
 
 ### Options
 
-- `--sync`: Semicolon-separated list of synchronization events for interface parallel
+- `--sync`: Semicolon-separated list of the channels to synchronise on (interface
+  parallel). An edge on one of them is taken by both sides together, with the same
+  number of fields; the composite event names the fields as the left side does,
+  and a field chosen (`!`) on either side is chosen. Where the right side names a
+  field otherwise, each of its clauses is read through a renaming, `@[y := x] …`,
+  so no clause is rewritten (see [SYNTAX.md](./docs/SYNTAX.md)).
 
 ### Examples
 ```console
@@ -312,7 +317,7 @@ may be `-` for standard input unless the diagram is.
 ```console
 $ csdftracechk examples/valid/vending_machine.puml trace.tsv
 $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trace2.tsv
-$ csdfparallel -sync 'insert?coin' a.puml b.puml | csdftracechk - trace.tsv
+$ csdfparallel -sync 'insert' a.puml b.puml | csdftracechk - trace.tsv
 $ (echo path; find traces -name '*.tsv') | csdftracechk -traces - examples/valid/vending_machine.puml
 ```
 

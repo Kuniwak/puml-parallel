@@ -192,3 +192,37 @@ accNone --> accOpen : OPEN ; a \∧ b ∧ @opaque
 		t.Errorf("guard = %q, want %q", open.Edge.Guard, want)
 	}
 }
+
+// A renamed clause reaches the expansion as its body, with its renaming
+// beside it, and the expanded diagram writes it back as it was written.
+func TestExpandKeepsTheRenamingOfAClause(t *testing.T) {
+	got, diags := expand(t, `@startuml ACCOUNTS
+state "稼働中" as running {
+  running : accounts ; 口座ID ⇸ Account
+  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+    !include local/ACCOUNT.puml
+  }
+}
+
+[*] --> running : accounts は空
+@enduml
+`, map[string]string{
+		"local/ACCOUNT.puml": `@startuml ACCOUNT
+state "未開設" as accNone
+state "開設済み" as accOpen
+[*] --> accNone
+accNone --> accOpen : OPEN?額 ; @[y := 額] y > 0
+@enduml
+`,
+	})
+	if len(diags) != 0 {
+		t.Fatalf("promote.Expand() diagnostics = %v, want none", diags)
+	}
+	open := got.Edges[0]
+	if c := open.Guard[1]; c.Text != "y > 0" || c.Rename["y"] != "額" {
+		t.Errorf("guard clause = %+v, want y > 0 renamed y := 額", c)
+	}
+	if want := `口座ID ∉ dom accounts ∧ @[y := 額] y > 0`; string(open.Edge.Guard) != want {
+		t.Errorf("guard = %q, want %q", open.Edge.Guard, want)
+	}
+}

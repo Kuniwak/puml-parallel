@@ -39,11 +39,11 @@ type HideExpr struct {
 
 func (e *HideExpr) isExpr() {}
 
-// InterfaceParallelExpr composes Procs in parallel synchronising on Sync (CSP
-// interface parallel). Procs holds interfaces, so the nested expressions are
+// InterfaceParallelExpr composes Procs in parallel synchronising on the
+// channels Sync (CSP interface parallel). Procs holds interfaces, so the nested expressions are
 // read by parseExpr rather than by encoding/json.
 type InterfaceParallelExpr struct {
-	Sync  []Event
+	Sync  []string
 	Procs []Expr
 }
 
@@ -93,7 +93,7 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 
 	case OpInterfaceParallel:
 		var e struct {
-			Sync  []Event           `json:"sync"`
+			Sync  []string          `json:"sync"`
 			Procs []json.RawMessage `json:"procs"`
 		}
 		if err := json.Unmarshal(raw, &e); err != nil {
@@ -101,6 +101,11 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 		}
 		if len(e.Procs) < 1 {
 			return nil, fmt.Errorf("an %s expression requires at least one proc", OpInterfaceParallel)
+		}
+		for _, c := range e.Sync {
+			if _, err := ParseChannel(c); err != nil {
+				return nil, fmt.Errorf("in the sync of an %s expression: %w", OpInterfaceParallel, err)
+			}
 		}
 		procs := make([]Expr, 0, len(e.Procs))
 		for i, rawProc := range e.Procs {

@@ -33,7 +33,7 @@ func (s StatePair) StateWithID() StateWithID {
 	}
 }
 
-func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) {
+func ComposeParallel(diagrams []*Diagram, syncChannels []string) (*Diagram, error) {
 	if len(diagrams) < 1 {
 		return nil, fmt.Errorf("csdf.ComposeParallel: at least one diagrams are required for interface parallel")
 	}
@@ -48,24 +48,27 @@ func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) 
 	if len(diagrams) > 2 {
 		for _, d := range diagrams[2:] {
 			var err error
-			dL, err = ComposeParallel2(dL, d, syncEvents)
+			dL, err = ComposeParallel2(dL, d, syncChannels)
 			if err != nil {
 				return nil, fmt.Errorf("csdf.ComposeParallel: %w", err)
 			}
 		}
 	}
 
-	return ComposeParallel2(dL, dR, syncEvents)
+	return ComposeParallel2(dL, dR, syncChannels)
 }
 
-func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
+// ComposeParallel2 is the interface parallel of dL and dR, synchronised on
+// syncChannels: an edge on one of them is taken by both sides together, with
+// the fields of the two events standing for one value each.
+func ComposeParallel2(dL, dR *Diagram, syncChannels []string) (*Diagram, error) {
 	if dL.EndEdge != nil || dR.EndEdge != nil {
 		return nil, fmt.Errorf("csdf.ComposeParallel2: end edges are not supported for interface parallel")
 	}
 
-	ss := make(map[Event]struct{})
-	for _, event := range syncEvents {
-		ss[event] = struct{}{}
+	ss := make(map[string]struct{})
+	for _, channel := range syncChannels {
+		ss[channel] = struct{}{}
 	}
 
 	initStatePair := StatePair{
@@ -109,117 +112,91 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	return out, nil
 }
 
-func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncEvents map[Event]struct{}, out *Diagram) error {
+func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncChannels map[string]struct{}, out *Diagram) error {
 	currentPair := (*queue)[0]
 	currentPairID := currentPair.ID()
 	*queue = (*queue)[1:]
 
-	evs := make(map[Event]struct{})
-	evL := make(map[Event]map[StateID][]Edge)
-	evR := make(map[Event]map[StateID][]Edge)
-	for _, tL := range tsL {
-		if tL.Src == currentPair.Left.ID {
-			evs[tL.Event] = struct{}{}
-			if _, ok := evL[tL.Event]; !ok {
-				evL[tL.Event] = make(map[StateID][]Edge)
-			}
-			evL[tL.Event][tL.Dst] = append(evL[tL.Event][tL.Dst], tL)
+	add := func(next StatePair, e Edge) {
+		out.States[next.ID()] = next.State()
+		e.Src, e.Dst, e.Line = currentPairID, next.ID(), 0
+		out.Edges = append(out.Edges, e)
+		if _, ok := (*marked)[next.ID()]; !ok {
+			*queue = append(*queue, next)
+			(*marked)[next.ID()] = struct{}{}
 		}
 	}
-
-	for _, tR := range tsR {
-		if tR.Src == currentPair.Right.ID {
-			evs[tR.Event] = struct{}{}
-			if _, ok := evR[tR.Event]; !ok {
-				evR[tR.Event] = make(map[StateID][]Edge)
-			}
-			evR[tR.Event][tR.Dst] = append(evR[tR.Event][tR.Dst], tR)
-		}
+	synced := func(e Edge) bool {
+		_, ok := syncChannels[e.Event.Channel()]
+		return ok
 	}
 
-	for ev := range evs {
-		// Para3
-		if _, ok := syncEvents[ev]; ok {
-			if dstLs, ok := evL[ev]; ok {
-				if dstRs, ok := evR[ev]; ok {
-					for dstL, esL := range dstLs {
-						for dstR, esR := range dstRs {
-							for _, eL := range esL {
-								for _, eR := range esR {
-									nextStatePair := StatePair{
-										Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
-										Right: StateWithID{ID: dstR, State: dR.States[dstR]},
-									}
-									out.States[nextStatePair.ID()] = nextStatePair.State()
-									out.Edges = append(out.Edges, Edge{
-										Src:   currentPairID,
-										Dst:   nextStatePair.ID(),
-										Event: ev,
-										Guard: Conjunction(eL.Guard, eR.Guard),
-										Post:  Conjunction(eL.Post, eR.Post),
-									})
-									if _, ok := (*marked)[nextStatePair.ID()]; !ok {
-										*queue = append(*queue, nextStatePair)
-										(*marked)[nextStatePair.ID()] = struct{}{}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
+	for _, eL := range tsL {
+		if eL.Src != currentPair.Left.ID {
 			continue
 		}
-
-		// Para1
-		if dstLs, ok := evL[ev]; ok {
-			for dstL, esL := range dstLs {
-				for _, eL := range esL {
-					nextStatePair := StatePair{
-						Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
-						Right: currentPair.Right,
-					}
-					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
-						Src:   currentPairID,
-						Dst:   nextStatePair.ID(),
-						Event: ev,
-						Guard: eL.Guard,
-						Post:  eL.Post,
-					})
-					if _, ok := (*marked)[nextStatePair.ID()]; !ok {
-						*queue = append(*queue, nextStatePair)
-						(*marked)[nextStatePair.ID()] = struct{}{}
-					}
-				}
-			}
+		left := StateWithID{ID: eL.Dst, State: dL.States[eL.Dst]}
+		if !synced(eL) {
+			// Para1
+			add(StatePair{Left: left, Right: currentPair.Right}, Edge{Event: eL.Event, Guard: eL.Guard, Post: eL.Post})
+			continue
 		}
-
-		// Para2
-		if dstRs, ok := evR[ev]; ok {
-			for dstR, esR := range dstRs {
-				for _, eR := range esR {
-					nextStatePair := StatePair{
-						Left:  currentPair.Left,
-						Right: StateWithID{ID: dstR, State: dR.States[dstR]},
-					}
-					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
-						Src:   currentPairID,
-						Dst:   nextStatePair.ID(),
-						Event: ev,
-						Guard: eR.Guard,
-						Post:  eR.Post,
-					})
-					if _, ok := (*marked)[nextStatePair.ID()]; !ok {
-						*queue = append(*queue, nextStatePair)
-						(*marked)[nextStatePair.ID()] = struct{}{}
-					}
-				}
+		// Para3
+		for _, eR := range tsR {
+			if eR.Src != currentPair.Right.ID || eR.Event.Channel() != eL.Event.Channel() {
+				continue
 			}
+			e, err := synchronise(eL, eR)
+			if err != nil {
+				return err
+			}
+			add(StatePair{Left: left, Right: StateWithID{ID: eR.Dst, State: dR.States[eR.Dst]}}, e)
 		}
 	}
+	for _, eR := range tsR {
+		if eR.Src != currentPair.Right.ID || synced(eR) {
+			continue
+		}
+		// Para2
+		add(StatePair{Left: currentPair.Left, Right: StateWithID{ID: eR.Dst, State: dR.States[eR.Dst]}}, Edge{Event: eR.Event, Guard: eR.Guard, Post: eR.Post})
+	}
 	return nil
+}
+
+// synchronise is the edge both sides take together on one channel. Its event
+// names each field as the left does; a right clause reads its own name for a
+// field through a renaming, so no clause text is rewritten. A field chosen
+// internally on either side is chosen on the composite.
+func synchronise(eL, eR Edge) (Edge, error) {
+	fL, fR := eL.Event.Fields(), eR.Event.Fields()
+	if len(fL) != len(fR) {
+		return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s and %s (lines %d, %d) synchronise on %s with %d and %d fields", eL.Event, eR.Event, eL.Line, eR.Line, eL.Event.Channel(), len(fL), len(fR))
+	}
+	fields := make([]Field, len(fL))
+	var renames []Rename
+	for i := range fL {
+		fields[i] = fL[i]
+		if fR[i].Dir == Chosen {
+			fields[i].Dir = Chosen
+		}
+		if fR[i].Name != fL[i].Name {
+			renames = append(renames, Rename{From: fR[i].Name, To: fL[i].Name})
+		}
+	}
+	return Edge{
+		Event: NewEvent(eL.Event.Channel(), fields...),
+		Guard: Conjunction(eL.Guard, renamed(eR.Guard, renames)),
+		Post:  Conjunction(eL.Post, renamed(eR.Post, renames)),
+	}, nil
+}
+
+// renamed is p with each clause read through renames.
+func renamed(p Predicate, renames []Rename) Predicate {
+	clauses := p.Clauses()
+	for i, c := range clauses {
+		clauses[i] = RenameClause(c, renames)
+	}
+	return ConjoinClauses(clauses)
 }
 
 func ComposeStateIDs(s1, s2 StateID) StateID {

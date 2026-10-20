@@ -6,13 +6,12 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 type Options struct {
 	Common *tools.CommonOptions
-	Sync   []csdf.Event
+	Sync   []string
 	Files  []string
 	// Args is the raw command line, kept to record the command that generated
 	// the composed diagram.
@@ -44,7 +43,7 @@ Examples:
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
-		syncFlag := flags.String("sync", "", "semicolon-separated list of synchronization events")
+		syncFlag := flags.String("sync", "", "semicolon-separated list of the channels to synchronise on")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -66,9 +65,14 @@ Examples:
 			return nil, fmt.Errorf("csdfparallelcmd.NewParseOptionsFunc: too few arguments")
 		}
 
+		sync, err := tools.ParseChannels(*syncFlag)
+		if err != nil {
+			return nil, fmt.Errorf("csdfparallelcmd.NewParseOptionsFunc: -sync: %w", err)
+		}
+
 		return &Options{
 			Common: commonOpts,
-			Sync:   tools.ParseEvents(*syncFlag),
+			Sync:   sync,
 			Files:  files,
 			Args:   args,
 		}, nil

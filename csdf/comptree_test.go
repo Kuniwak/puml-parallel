@@ -23,7 +23,7 @@ func TestParseExprReadsProcessExpressions(t *testing.T) {
 		"interface parallel (holding a list of nested expressions)": {
 			Source: `{"op": "INTERFACE_PARALLEL", "sync": ["EVT-A"], "procs": [{"op": "REFER", "path": "A.puml"}, {"op": "REFER", "path": "B.puml"}]}`,
 			Expected: &InterfaceParallelExpr{
-				Sync:  []Event{"EVT-A"},
+				Sync:  []string{"EVT-A"},
 				Procs: []Expr{&ReferExpr{Path: "A.puml"}, &ReferExpr{Path: "B.puml"}},
 			},
 		},
@@ -148,7 +148,7 @@ s0 --> s1 : sync
 @enduml`), nil
 	}
 	expr := Expr(&InterfaceParallelExpr{
-		Sync: []Event{"sync"},
+		Sync: []string{"sync"},
 		Procs: []Expr{
 			&ReferExpr{Path: "A"},
 			&ReferExpr{Path: "B"},
