@@ -8,7 +8,8 @@ import (
 
 // python finds the interpreter. The commands run with -E -s so that neither
 // the environment nor the user site can change what the tests import, while
-// the working directory stays on the path, which is how -m finds the package.
+// the working directory stays on the path, which is how -m finds the package;
+// -B keeps bytecode out of the tree, where a release archive would pick it up.
 func python(t *testing.T) string {
 	t.Helper()
 	path, err := exec.LookPath("python3")
@@ -19,7 +20,7 @@ func python(t *testing.T) string {
 }
 
 func TestPythonUnitTestsPass(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-m", "unittest", "discover", "-s", "tests", "-t", "..")
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "unittest", "discover", "-s", "tests", "-t", "..")
 	cmd.Dir = "."
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("python unit tests failed: %v\n%s", err, out)
@@ -29,7 +30,7 @@ func TestPythonUnitTestsPass(t *testing.T) {
 // The first worked example reaches a state with no way out, and the report
 // names it with its trace.
 func TestTheWithdrawExampleReportsADeadlock(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-m", "csdfbmc", "examples/bmc/withdraw.json", "examples/bmc/withdraw_twins.py")
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/withdraw.json", "examples/bmc/withdraw_twins.py")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
@@ -45,7 +46,7 @@ func TestTheWithdrawExampleReportsADeadlock(t *testing.T) {
 // The toy ledger checks six properties at once; as written it reports a
 // deadlock after the retries and nothing else.
 func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-m", "csdfbmc", "examples/bmc/wallet.json", "examples/bmc/wallet_twins.py", "--avoid", "確定", "--within", "sending")
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/wallet.json", "examples/bmc/wallet_twins.py", "--avoid", "確定", "--within", "sending")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {

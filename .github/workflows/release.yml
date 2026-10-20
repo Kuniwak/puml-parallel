@@ -27,7 +27,12 @@ jobs:
         
     - name: Run tests
       run: go test -v ./...
-      
+
+    # The archives take examples/**; Python bytecode written there by a test
+    # or a stray run must not ship with them.
+    - name: Remove Python bytecode
+      run: find . -name '__pycache__' -type d -prune -exec rm -rf {} + ; find . -name '*.pyc' -delete
+
     - name: Run GoReleaser
       uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
       with:

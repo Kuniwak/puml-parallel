@@ -2,6 +2,7 @@ package csdfhelpcmd
 
 import (
 	"github.com/Kuniwak/puml-parallel/tools"
+	"github.com/Kuniwak/puml-parallel/tools/csdfbmc/csdfbmccmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfcomp/csdfcompcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfevents/csdfeventscmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfhide/csdfhidecmd"
@@ -98,6 +99,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "obligationirc",
 			Summary: "Compiles the livelock-freedom proof-obligation IR to JSON IR, Isabelle/HOL, or Lean 4.",
 			Run:     tools.NewCommandFunc(obligationirccmd.NewParseOptionsFunc(), obligationirccmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfbmc",
+			Summary: "Runs the bounded model checker over the formal twins of a diagram's clauses, within finite domains (Python, carried by the binary).",
+			Run:     tools.NewCommandFunc(csdfbmccmd.NewParseOptionsFunc(), csdfbmccmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfrepl",

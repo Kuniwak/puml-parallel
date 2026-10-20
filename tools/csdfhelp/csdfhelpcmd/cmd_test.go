@@ -103,7 +103,7 @@ func TestNewMainFuncSelection(t *testing.T) {
 		},
 		"-short lists every non-hidden tool without Markdown (representative value)": {
 			Args:            []string{"-short"},
-			WantContains:    []string{"csdfparse: ", "csdfreplcmd: "},
+			WantContains:    []string{"csdfparse: ", "csdfreplcmd: ", "csdfbmc: "},
 			WantNotContains: []string{"# ", "```", "csdfhelp: "},
 		},
 	}
