@@ -23,7 +23,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
 		}
 
-		fmt.Fprint(inout.Stdout, csdf.Hide(diagram, opts.Events).String())
+		fmt.Fprint(inout.Stdout, csdf.Hide(diagram, opts.Channels).String())
 		return nil
 	}
 }

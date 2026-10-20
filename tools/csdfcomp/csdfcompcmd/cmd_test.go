@@ -43,7 +43,7 @@ func TestNewMainFuncComposesATree(t *testing.T) {
 						{"op": "REFER", "path": "out.puml"}
 					]
 				},
-				"events": ["sync"]
+				"channels": ["sync"]
 			}`,
 		},
 	}

@@ -77,16 +77,18 @@ $ csdfparse < examples/valid/skip.puml
 
 ## Hiding
 
-`csdfhide` hides events of a single CSDF diagram following CSP hiding semantics
-(`P \ A`): every edge carrying a hidden event becomes an internal `tau`
-transition. The result is printed as PlantUML.
+`csdfhide` hides channels of a single CSDF diagram following CSP hiding semantics
+(`P \ {|c|}`): every edge on a hidden channel becomes an internal `tau`
+transition, whatever its fields. A hidden field is a value the `tau` chooses
+(`c?x` hidden is `⊓ x. τ`): the clauses still read `x`, and `csdfbmc` chooses it
+from `DOMAINS`. The result is printed as PlantUML.
 
 ```console
-$ csdfhide -events 'sync' examples/valid/in.puml
-$ csdfparallel -sync 'sync' examples/valid/in.puml examples/valid/out.puml | csdfhide -events 'sync' -
+$ csdfhide -channels 'sync' examples/valid/in.puml
+$ csdfparallel -sync 'sync' examples/valid/in.puml examples/valid/out.puml | csdfhide -channels 'sync' -
 ```
 
-Events that do not occur in the diagram are ignored. A file argument, a `-`
+Channels that do not occur in the diagram are ignored. A file argument, a `-`
 argument, and stdin are all equivalent.
 
 ## Promotion
@@ -145,7 +147,7 @@ $ csdfcomp -base examples/valid < examples/valid/in_out_tree.json
       {"op": "REFER", "path": "out.puml"}
     ]
   },
-  "events": ["sync"]
+  "channels": ["sync"]
 }
 ```
 
@@ -705,7 +707,10 @@ deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
 ```
 
 A twins module defines two tables. `DOMAINS` maps an event parameter to the
-finite set of its values. `CLAUSES` maps a clause, spelled exactly as in the
+finite set of its values. A `tau` chooses from it too: a name a `tau`'s clauses
+read that is neither a state variable nor a field, as hiding `c?x` leaves `x`,
+is chosen nondeterministically from its domain, and a name with no domain is an
+error. `CLAUSES` maps a clause, spelled exactly as in the
 diagram, to a function of the names it reads: the event's parameters, the
 state variables before the step, and the ghosts; a twin is applied to the
 names its signature asks for. A guard twin returns a truth value. A post twin

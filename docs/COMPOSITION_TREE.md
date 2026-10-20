@@ -18,7 +18,7 @@ top-level specification.
       {"op": "REFER", "path": "path/to/COMPONENT-B.puml"}
     ]
   },
-  "events": ["EVT-A", "EVT-B"]
+  "channels": ["EVT-A", "EVT-B"]
 }
 ```
 
@@ -49,14 +49,15 @@ from standard input), which `csdfcomp -base` overrides. The path must not be emp
 
 
 ### Hiding expression
-Hides the given events of the given process (CSP hiding, `P \ A`): every edge
-carrying one of the events becomes an internal `tau` transition. Events that do
-not occur in the process are ignored.
+Hides the given channels of the given process (CSP hiding, `P \ {|c|}`): every
+edge on one of them becomes an internal `tau` transition, whatever its fields. A
+hidden field is a value the `tau` chooses, which the clauses still read by its
+name. Channels that do not occur in the process are ignored.
 
 ```json
 {
   "op": "HIDE",
-  "events": string[],
+  "channels": string[],
   "proc": proc
 }
 ```

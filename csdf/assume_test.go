@@ -78,7 +78,7 @@ func TestTransformationsKeepTheAssumptions(t *testing.T) {
 	d := MustParse(assumeSource)
 	want := d.Assumptions
 
-	if got := Hide(d, []Event{"a"}).Assumptions; !cmp.Equal(want, got) {
+	if got := Hide(d, []string{"a"}).Assumptions; !cmp.Equal(want, got) {
 		t.Errorf("Hide() assumptions = %v, want %v", got, want)
 	}
 	sorted := Sort(d).Assumptions

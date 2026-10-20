@@ -25,9 +25,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		var events []string
 		if opts.OnlyCommon {
-			events = csdf.CommonEvents(diagrams)
+			events = csdf.CommonChannels(diagrams)
 		} else {
-			events = csdf.AllEvents(diagrams)
+			events = csdf.AllChannels(diagrams)
 		}
 
 		for _, event := range events {

@@ -65,8 +65,9 @@ it its value). `tau` is the internal event. An event names its fields and carrie
 no value and no expression; anything about a value is said by the guard and the
 post, which read a field by its name. Whitespace and comments around `?` and `!`
 are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and
-`csdfpromote` matches `sync` and `constrain` by the channel; hiding goes by the
-whole event text.
+`csdfpromote` matches `sync` and `constrain` by the channel, and hiding hides
+channels: a hidden field is a value the `tau` chooses, which the clauses still
+read by its name.
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).

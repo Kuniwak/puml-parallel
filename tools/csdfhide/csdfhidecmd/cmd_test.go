@@ -24,7 +24,7 @@ s1 --> s2 : tau
 `
 
 	// Act
-	exitStatus := cmdFunc([]string{"-events", "sync", "../../../examples/valid/in.puml"}, spy.New())
+	exitStatus := cmdFunc([]string{"-channels", "sync", "../../../examples/valid/in.puml"}, spy.New())
 
 	// Assert
 	if exitStatus != 0 {

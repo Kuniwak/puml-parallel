@@ -37,7 +37,7 @@ func Registry() []toolsdoc.Entry {
 		},
 		{
 			Name:    "csdfevents",
-			Summary: "Prints the events used across one or more Composable State Diagrams.",
+			Summary: "Prints the channels used across one or more Composable State Diagrams.",
 			Run:     tools.NewCommandFunc(csdfeventscmd.NewParseOptionsFunc(), csdfeventscmd.NewMainFunc()),
 		},
 		{
@@ -47,7 +47,7 @@ func Registry() []toolsdoc.Entry {
 		},
 		{
 			Name:    "csdfhide",
-			Summary: "Hides events of a Composable State Diagram following CSP hiding semantics.",
+			Summary: "Hides channels of a Composable State Diagram following CSP hiding semantics.",
 			Run:     tools.NewCommandFunc(csdfhidecmd.NewParseOptionsFunc(), csdfhidecmd.NewMainFunc()),
 		},
 		{

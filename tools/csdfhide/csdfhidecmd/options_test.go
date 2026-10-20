@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -33,12 +32,12 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Expected: &Options{Common: tools.NewCommonOptionsDefault(), Bytes: []byte("@startuml\n@enduml\n")},
 		},
 		"two events (representative value)": {
-			Args:  []string{"-events", "x;y", "-"},
+			Args:  []string{"-channels", "x;y", "-"},
 			Stdin: "@startuml\n@enduml\n",
 			Expected: &Options{
-				Common: tools.NewCommonOptionsDefault(),
-				Events: []csdf.Event{"x", "y"},
-				Bytes:  []byte("@startuml\n@enduml\n"),
+				Common:   tools.NewCommonOptionsDefault(),
+				Channels: []string{"x", "y"},
+				Bytes:    []byte("@startuml\n@enduml\n"),
 			},
 		},
 	}

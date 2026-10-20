@@ -6,14 +6,13 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 type Options struct {
-	Common *tools.CommonOptions
-	Events []csdf.Event
-	Bytes  []byte
+	Common   *tools.CommonOptions
+	Channels []string
+	Bytes    []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -27,9 +26,10 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			w := flags.Output()
 			fmt.Fprintf(w, `Usage: csdfhide [options] [file.puml|file.png]
 
-Hides the given events of a Composable State Diagram following CSP hiding
-semantics (P \ A): every edge carrying a hidden event becomes an internal tau
-transition. The result is printed as PlantUML.
+Hides the given channels of a Composable State Diagram following CSP hiding
+semantics (P \ {|c|}): every edge on a hidden channel becomes an internal tau
+transition, whatever its fields; a hidden field is a value the tau chooses,
+which the clauses still read by its name. The result is printed as PlantUML.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:
@@ -37,15 +37,15 @@ Options:
 			flags.PrintDefaults()
 			fmt.Fprintf(w, `
 Examples:
-  $ csdfhide -events 'insert;drop' path/to/file.puml
-  $ csdfhide -events 'insert;drop' < path/to/file.puml
-  $ csdfparallel -sync 'sync' a.puml b.puml | csdfhide -events 'sync' -
+  $ csdfhide -channels 'insert;drop' path/to/file.puml
+  $ csdfhide -channels 'insert;drop' < path/to/file.puml
+  $ csdfparallel -sync 'sync' a.puml b.puml | csdfhide -channels 'sync' -
 `)
 		}
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
-		eventsFlag := flags.String("events", "", "semicolon-separated list of events to hide")
+		channelsFlag := flags.String("channels", "", "semicolon-separated list of the channels to hide")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -67,10 +67,15 @@ Examples:
 			return nil, fmt.Errorf("csdfhidecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
 
+		channels, err := tools.ParseChannels(*channelsFlag)
+		if err != nil {
+			return nil, fmt.Errorf("csdfhidecmd.NewParseOptionsFunc: -channels: %w", err)
+		}
+
 		return &Options{
-			Common: commonOpts,
-			Events: tools.ParseEvents(*eventsFlag),
-			Bytes:  bs,
+			Common:   commonOpts,
+			Channels: channels,
+			Bytes:    bs,
 		}, nil
 	}
 }

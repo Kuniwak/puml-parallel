@@ -17,8 +17,8 @@ func TestParseExprReadsProcessExpressions(t *testing.T) {
 			Expected: &ReferExpr{Path: "path/to/A.puml"},
 		},
 		"hide (wrapping a nested expression)": {
-			Source:   `{"op": "HIDE", "events": ["EVT-A"], "proc": {"op": "REFER", "path": "A.puml"}}`,
-			Expected: &HideExpr{Events: []Event{"EVT-A"}, Proc: &ReferExpr{Path: "A.puml"}},
+			Source:   `{"op": "HIDE", "channels": ["EVT-A"], "proc": {"op": "REFER", "path": "A.puml"}}`,
+			Expected: &HideExpr{Channels: []string{"EVT-A"}, Proc: &ReferExpr{Path: "A.puml"}},
 		},
 		"interface parallel (holding a list of nested expressions)": {
 			Source: `{"op": "INTERFACE_PARALLEL", "sync": ["EVT-A"], "procs": [{"op": "REFER", "path": "A.puml"}, {"op": "REFER", "path": "B.puml"}]}`,
@@ -47,9 +47,9 @@ func TestParseExprRejectsInvalidTrees(t *testing.T) {
 	testCases := map[string]string{
 		"unknown op":                       `{"op": "SEQ", "procs": []}`,
 		"refer without a path":             `{"op": "REFER"}`,
-		"hide without a proc":              `{"op": "HIDE", "events": ["a"]}`,
+		"hide without a proc":              `{"op": "HIDE", "channels": ["a"]}`,
 		"interface parallel without procs": `{"op": "INTERFACE_PARALLEL", "sync": []}`,
-		"broken nested expression":         `{"op": "HIDE", "events": ["a"], "proc": {"op": "REFER"}}`,
+		"broken nested expression":         `{"op": "HIDE", "channels": ["a"], "proc": {"op": "REFER"}}`,
 		"not an object":                    `["op"]`,
 	}
 
@@ -76,7 +76,7 @@ func TestComposeTreeComposesAndHidesReferencedDiagrams(t *testing.T) {
 				{"op": "REFER", "path": "out.puml"}
 			]
 		},
-		"events": ["sync"]
+		"channels": ["sync"]
 	}`))
 	if err != nil {
 		t.Fatalf("want nil, got %#v", err)

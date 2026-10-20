@@ -6,12 +6,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestAllEvents(t *testing.T) {
+func TestAllChannels(t *testing.T) {
 	// Arrange
 	want := []string{"in", "sync"}
 
 	// Act
-	got := AllEvents(MustLoadDiagrams("../examples/valid/in.puml"))
+	got := AllChannels(MustLoadDiagrams("../examples/valid/in.puml"))
 
 	// Assert
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -19,12 +19,14 @@ func TestAllEvents(t *testing.T) {
 	}
 }
 
-func TestCommonEvents(t *testing.T) {
+func TestCommonChannels(t *testing.T) {
 	// Arrange
-	want := []string{"choose?product", "drop?product", "insert?coin"}
+	// The two sides name the fields of showAvailable and showPurchasable apart,
+	// and still synchronise on them.
+	want := []string{"choose", "drop", "insert", "showAvailable", "showPurchasable"}
 
 	// Act
-	got := CommonEvents(MustLoadDiagrams(
+	got := CommonChannels(MustLoadDiagrams(
 		"../examples/valid/user.puml",
 		"../examples/valid/vending_machine.puml",
 	))

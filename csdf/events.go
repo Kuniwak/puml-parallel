@@ -4,41 +4,42 @@ import (
 	"sort"
 )
 
-// AllEvents returns the sorted set of events used across the given diagrams.
-func AllEvents(diagrams []*Diagram) []string {
-	set := make(map[Event]struct{})
+// AllChannels returns the sorted set of channels used across the given
+// diagrams, which is what a composition synchronises on and hiding hides.
+func AllChannels(diagrams []*Diagram) []string {
+	set := make(map[string]struct{})
 	for _, diagram := range diagrams {
 		for _, edge := range diagram.Edges {
-			set[edge.Event] = struct{}{}
+			set[edge.Event.Channel()] = struct{}{}
 		}
 	}
 
-	events := make([]string, 0, len(set))
-	for event := range set {
-		events = append(events, string(event))
+	channels := make([]string, 0, len(set))
+	for channel := range set {
+		channels = append(channels, channel)
 	}
-	sort.Strings(events)
-	return events
+	sort.Strings(channels)
+	return channels
 }
 
-// CommonEvents returns the sorted events that appear in every diagram.
-func CommonEvents(diagrams []*Diagram) []string {
-	count := make(map[Event]int)
+// CommonChannels returns the sorted channels that appear in every diagram.
+func CommonChannels(diagrams []*Diagram) []string {
+	count := make(map[string]int)
 	for _, diagram := range diagrams {
-		seen := make(map[Event]struct{})
+		seen := make(map[string]struct{})
 		for _, edge := range diagram.Edges {
-			seen[edge.Event] = struct{}{}
+			seen[edge.Event.Channel()] = struct{}{}
 		}
-		for event := range seen {
-			count[event]++
+		for channel := range seen {
+			count[channel]++
 		}
 	}
 
 	total := len(diagrams)
 	common := make([]string, 0)
-	for event, c := range count {
+	for channel, c := range count {
 		if c == total {
-			common = append(common, string(event))
+			common = append(common, channel)
 		}
 	}
 	sort.Strings(common)
