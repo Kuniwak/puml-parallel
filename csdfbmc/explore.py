@@ -8,9 +8,14 @@ from dataclasses import dataclass, field
 
 from csdfbmc.formal import FORMAL_GLOBALS, RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
+from csdfbmc.protocol import Evaluator
 from csdfbmc.reduce import PartialOrder, Symmetry, formal_names, names_beyond
 from csdfbmc.twins import Twins, apply, check_pure
 from csdfbmc.values import FrozenMap, encode, freeze
+
+# What a clause with no meaning to evaluate stands for: no twin, or a glue
+# that says the clause is not formalised yet.
+_OPAQUE = object()
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -162,6 +167,12 @@ class Explorer:
     domains), such a cycle is a livelock: a run that never gets to the event.
     within narrows those cycles to the control states named.
 
+    evaluator is a glue of the evaluator protocol (csdfbmc.protocol): every
+    hand-written and constrain clause is then read through it, by its text,
+    in place of a twin, and a clause the glue says is opaque follows the
+    opaque rule. A clause is asked once per value of the names it reads.
+    symmetry cannot be checked then, and is refused.
+
     por and symmetry turn on the reductions of csdfbmc.reduce: the walk then
     meets fewer states and reports the same deadlocks, broken invariants and
     cycles. An empty or unconstrained post is reported only at the states
@@ -170,7 +181,7 @@ class Explorer:
 
     def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
-                 por: bool = False, symmetry: bool = False):
+                 por: bool = False, symmetry: bool = False, evaluator: Evaluator | None = None):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
@@ -188,7 +199,13 @@ class Explorer:
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         self._formals: dict[str, object] = {}
+        # evaluator: the glue the clauses are read through, in place of twins.
+        self.evaluator = evaluator
+        self._analyses: dict[tuple[str, str], dict] = {}
+        self._answers: dict[tuple, object] = {}
         self.por = PartialOrder(self) if por else None
+        if symmetry and evaluator is not None:
+            raise ValueError("--symmetry checks SYMMETRIC by reading the clauses, which it cannot do for clauses read through a glue")
         self.symmetry = Symmetry(diagram, twins) if symmetry else None
 
     # -- environments -----------------------------------------------------------
@@ -239,10 +256,13 @@ class Explorer:
         run.formal = True
         return run
 
-    def clause_names(self, clause: Clause) -> set[str] | None:
-        """The names a hand-written or constrain clause reads: what its twin's
-        signature asks for, or the names of its formal expression. None for
-        an opaque clause."""
+    def clause_names(self, clause: Clause, role: str) -> set[str] | None:
+        """The names a hand-written or constrain clause reads, as a guard or
+        a post: what the glue says, or what its twin's signature asks for,
+        or the names of its formal expression. None for an opaque clause."""
+        if self.evaluator is not None:
+            analysis = self._analysis(clause, role)
+            return None if analysis.get("opaque") else set(analysis["reads"])
         fn = self._twin(clause)
         if fn is None:
             return None
@@ -251,10 +271,51 @@ class Explorer:
     def clause_names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
         """The names a clause reads but a map read only as m[own_id], when
         that can be told (a formal expression); None otherwise."""
+        if self.evaluator is not None:
+            return None
         fn = self._twin(clause)
         if fn is not None and getattr(fn, "formal", False):
             return names_beyond(clause.formal, own_id)
         return None
+
+    # -- clauses read through a glue --------------------------------------------
+
+    def _analysis(self, clause: Clause, role: str) -> dict:
+        key = (clause.text, role)
+        if key not in self._analyses:
+            self._analyses[key] = self.evaluator.request({"op": "analyse", "clause": clause.text, "role": role})
+        return self._analyses[key]
+
+    def _evaluate(self, clause: Clause, role: str, env: dict):
+        """What the glue evaluates clause to under env, or _OPAQUE. A clause
+        is pure, so it is asked once per value of the names it reads."""
+        analysis = self._analysis(clause, role)
+        if analysis.get("opaque"):
+            return _OPAQUE
+        reads = analysis["reads"]
+        missing = [n for n in reads if n not in env]
+        if missing:
+            raise KeyError(f"the clause {clause.text!r} reads {missing}, which this step does not bind; it may read {sorted(env)}")
+        binding = {n: env[n] for n in reads}
+        key = (clause.text, role, tuple(binding[n] for n in reads))
+        if key not in self._answers:
+            result = self.evaluator.request({"op": role, "clause": clause.text, "bindings": [binding]})["results"][0]
+            if role == "post":
+                writes = set(analysis["writes"])
+                for a in result:
+                    if set(a) != writes:
+                        raise ValueError(f"the glue answered the post clause {clause.text!r} with {a!r}, which does not give a value to exactly {sorted(writes)}")
+            self._answers[key] = result
+        return self._answers[key]
+
+    def _value(self, clause: Clause, role: str, env: dict):
+        """What clause evaluates to under env, through the glue or its twin,
+        or _OPAQUE when it has no meaning to evaluate."""
+        if self.evaluator is not None:
+            return self._evaluate(clause, role, env)
+        if self._twin(clause) is None:
+            return _OPAQUE
+        return self._call(clause, env)
 
     def _call(self, clause: Clause, env: dict):
         fn = self._twin(clause)
@@ -266,6 +327,8 @@ class Explorer:
 
     def _missing_twin(self, clause: Clause) -> bool:
         """Records an opaque clause, or refuses it; True when it is to be taken as true."""
+        if self.opaque == "error" and self.evaluator is not None:
+            raise KeyError(f"the {self.evaluator.language} glue says the clause {clause.text!r} is not formalised; formalise it, or run with opaque='true'")
         if self.opaque == "error":
             where = f"in the twins of {self.d.local_of(clause).path}" if clause.kind == "local" and clause.map else "in CLAUSES"
             raise KeyError(f"no twin for the clause {clause.text!r} {where}; add it, or run with opaque='true'")
@@ -292,19 +355,20 @@ class Explorer:
             return True
         if c.kind not in ("local", "constrain"):
             raise ValueError(f"unknown clause kind {c.kind!r} in a guard")
-        if self._twin(c) is None:
-            return self._missing_twin(c)
         scope = self._instance_env(c, env) if c.map and c.kind == "local" else env
-        return bool(self._call(c, scope))
+        value = self._value(c, "guard", scope)
+        if value is _OPAQUE:
+            return self._missing_twin(c)
+        return bool(value)
 
     # -- posts ------------------------------------------------------------------
 
     def _assignments(self, c: Clause, env: dict) -> list[dict] | None:
         """What a post twin returns, as frozen assignments; None when opaque."""
-        if self._twin(c) is None:
+        returned = self._value(c, "post", env)
+        if returned is _OPAQUE:
             self._missing_twin(c)
             return None
-        returned = self._call(c, env)
         if isinstance(returned, (bool, int, str)) or returned is None:
             raise TypeError(f"the twin of the post clause {c.text!r} returned {returned!r}; a post twin returns a collection of assignments such as [{{'x': x + 1}}]")
         out = []

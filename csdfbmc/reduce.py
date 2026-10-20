@@ -19,8 +19,8 @@ and none can enable or disable it. The transitions of one instance are taken
 alone when none of them is the --avoid event and none leads to a state
 already met; otherwise the state is expanded in full (the cycle proviso,
 which in a breadth-first walk puts a fully expanded state on every cycle).
-What a clause reads is what its twin's signature asks for, or the names of
-its formal expression; an opaque clause, taken as true, reads nothing. A twin
+What a clause reads is what its twin's signature asks for, the names of its
+formal expression, or what the glue says it reads; an opaque clause, taken as true, reads nothing. A twin
 is taken to read only what it names: one that reaches a map through a helper
 defeats the analysis.
 
@@ -67,6 +67,10 @@ def names_beyond(expr: str, own_id: str | None) -> set[str]:
     return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in keyed}
 
 
+def _with_roles(e: Edge) -> list[tuple[Clause, str]]:
+    return [(c, "guard") for c in e.guard] + [(c, "post") for c in e.post]
+
+
 def moved_maps(e: Edge) -> set[str]:
     return {c.map for c in e.post if c.kind in _MOVES}
 
@@ -81,12 +85,12 @@ class PartialOrder:
         self.ghost_events = {event for _, updates in twins.ghosts.values() for event in updates}
         self._independent: dict[str, set[str]] = {}
 
-    def _clause_reads(self, c: Clause) -> set[str]:
+    def _clause_reads(self, c: Clause, role: str) -> set[str]:
         if c.kind in _INSTANCE_KINDS:
             return {c.map}
         if c.kind in ("frame", "dropped"):
             return set()  # a frame copies a variable; it neither enables nor changes anything
-        names = self.ex.clause_names(c)
+        names = self.ex.clause_names(c, role)
         if names is None:
             return {c.map} if c.map else set()
         if c.kind == "local" and c.map:
@@ -95,7 +99,7 @@ class PartialOrder:
         return names & self.names
 
     def _edge_reads(self, e: Edge) -> set[str]:
-        reads = set().union(*(self._clause_reads(c) for c in e.guard + e.post))
+        reads = set().union(*(self._clause_reads(c, role) for c, role in _with_roles(e)))
         for _, updates in self.ex.twins.ghosts.values():
             if e.name in updates:
                 reads |= _signature(updates[e.name]) & self.names
@@ -108,14 +112,14 @@ class PartialOrder:
         expression that reads the map only as m[id], at the edge's own ID."""
         own_id = next((c.id or self.ex.d.promotes[c.map].id_param for c in e.post if c.kind in _MOVES), None)
         reads: set[str] = set()
-        for c in e.guard + e.post:
+        for c, role in _with_roles(e):
             if c.kind in _INSTANCE_KINDS or (c.kind == "local" and c.map):
                 continue
             beyond = self.ex.clause_names_beyond(c, own_id)
             if beyond is not None:
                 reads |= beyond & self.names
             else:
-                reads |= self._clause_reads(c)
+                reads |= self._clause_reads(c, role)
         return reads
 
     def independent(self, g: str) -> set[str]:
