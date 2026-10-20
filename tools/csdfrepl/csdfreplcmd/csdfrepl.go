@@ -18,9 +18,18 @@ import (
 // HistoryEntry is the explored-state record; the engine owns the type.
 type HistoryEntry = animation.HistoryEntry
 
+// runOptions is what a run may start with: a replay to walk first, and a
+// suggester for the value prompts, given directly or built from the parsed
+// diagram (which may hand back a cleanup).
+type runOptions struct {
+	Replay              *animation.Replay
+	Suggester           animation.Suggester
+	SuggesterForDiagram func(*csdf.Diagram) (animation.Suggester, func(), error)
+}
+
 // runWithSolver runs the REPL on file. With a replay, the session first walks
 // the recorded path and the prompt opens at the state it reaches.
-func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver, replay *animation.Replay) error {
+func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver, run runOptions) error {
 	bs, err := os.ReadFile(file)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot read the file: %w: %q", err, file)
@@ -43,6 +52,15 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 	} else {
 		lines = newLineReader(inout.Stdin)
 	}
+	suggester := run.Suggester
+	if suggester == nil && run.SuggesterForDiagram != nil {
+		built, cleanup, err := run.SuggesterForDiagram(diagram)
+		if err != nil {
+			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+		}
+		defer cleanup()
+		suggester = built
+	}
 	repl := repl{
 		diagram:    diagram,
 		session:    session,
@@ -50,12 +68,13 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		interrupts: interrupts,
 		lines:      lines,
 		terminal:   terminal,
+		suggester:  suggester,
 	}
-	if replay != nil {
-		if err := session.Replay(*replay); err != nil {
+	if run.Replay != nil {
+		if err := session.Replay(*run.Replay); err != nil {
 			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
 		}
-		_, _ = fmt.Fprintf(inout.Stdout, "Replayed %d step(s); the path is in the history.\n\n", len(replay.Steps))
+		_, _ = fmt.Fprintf(inout.Stdout, "Replayed %d step(s); the path is in the history.\n\n", len(run.Replay.Steps))
 		repl.replayed = true
 	}
 	return repl.run()
@@ -161,6 +180,9 @@ type repl struct {
 	// replayed says the session already stands at a state when the loop
 	// starts, so the first prompt is a command prompt, not a value prompt.
 	replayed bool
+	// suggester, when set, is asked at every value prompt what values the
+	// pending transition admits; "#N" then enters the N-th.
+	suggester animation.Suggester
 }
 
 func (r *repl) run() error {
@@ -245,12 +267,31 @@ const (
 )
 
 func (r *repl) askStateValues() (inputOutcome, error) {
+	var suggestions []animation.Suggestion
+	if r.suggester != nil {
+		got, err := r.session.Suggest(r.suggester)
+		if err != nil {
+			r.displayError(err.Error())
+		} else {
+			suggestions = got
+		}
+	}
 	for {
 		group, guard, post, _, prev := r.session.Pending()
 		r.displayStateValuePrompt(prev, group, guard, post)
+		if r.suggester != nil && suggestions != nil {
+			animation.RenderSuggestions(r.stdout, suggestions)
+		}
 		line, outcome, err := r.readLine("state> ")
 		if err != nil {
 			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
+		}
+		if picked, isPick, pickErr := animation.PickSuggestion(line, suggestions); isPick {
+			if pickErr != nil {
+				r.displayError(pickErr.Error())
+				continue
+			}
+			line = picked
 		}
 		if outcome == inputExit {
 			return inputExit, nil
