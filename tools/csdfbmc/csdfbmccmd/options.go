@@ -46,6 +46,10 @@ Checker options (the checker's --help lists them in full):
   --within STATE       with --avoid, look among these control states only
   --first              stop at the first deadlock, broken invariant or unconstrained post
   --all                list every finding instead of one per shape with a count
+  --por                take the moves of one independent instance at a time
+                       (partial-order reduction)
+  --symmetry           store one state per renaming of the instance IDs the
+                       twins module declares SYMMETRIC
   --json               print the result as JSON
 
 "csdfbmc next <diagram.json> <twins.py> (--initial | --state JSON --edge N)"

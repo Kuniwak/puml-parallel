@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass, field
 
 from csdfbmc.model import Clause, Diagram, Edge
+from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.twins import Twins, apply, check_pure
 from csdfbmc.values import FrozenMap, encode, freeze
 
@@ -173,10 +174,16 @@ class Explorer:
     fairness assumption written as a finite bound (a resend count in the
     domains), such a cycle is a livelock: a run that never gets to the event.
     within narrows those cycles to the control states named.
+
+    por and symmetry turn on the reductions of csdfbmc.reduce: the walk then
+    meets fewer states and reports the same deadlocks, broken invariants and
+    cycles. An empty or unconstrained post is reported only at the states
+    the walk still meets.
     """
 
     def __init__(self, diagram: Diagram, twins: Twins, *, opaque: str = "error", max_states: int = 100_000,
-                 avoid: str | None = None, within: list[str] | None = None, first: bool = False):
+                 avoid: str | None = None, within: list[str] | None = None, first: bool = False,
+                 por: bool = False, symmetry: bool = False):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
@@ -194,6 +201,8 @@ class Explorer:
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         self._formals: dict[str, object] = {}
+        self.por = PartialOrder(self) if por else None
+        self.symmetry = Symmetry(diagram, twins) if symmetry else None
 
     # -- environments -----------------------------------------------------------
 
@@ -418,11 +427,15 @@ class Explorer:
 
     def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
         """(event name, event as taken, next state, edge) for every enabled transition."""
-        out: list[tuple[str, str, State, Edge]] = []
+        return [tr[:4] for tr in self._transitions(state)]
+
+    def _transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
+        """successors, each with the parameter valuation it was taken with."""
+        out = []
         for e in self.d.out_edges(state[0]):
-            for _, label, nexts in self._edge_successors(state, e):
+            for params, label, nexts in self._edge_successors(state, e):
                 for t in nexts:
-                    out.append((e.name, label, t, e))
+                    out.append((e.name, label, t, e, params))
         return out
 
     # -- what a REPL asks at a value prompt ------------------------------------
@@ -464,8 +477,18 @@ class Explorer:
         deadlocks: list[State] = []
         violations: list[tuple[str, State]] = []
         truncated = False
+        # seen: the states met, each by its representative under symmetry, to
+        # the state the walk met first and expands.
+        seen: dict[State, State] = {}
+
+        def key(s: State) -> State:
+            return self.symmetry.canonical(s) if self.symmetry else s
+
+        def met(s: State) -> State | None:
+            return seen.get(key(s))
 
         def visit(s: State):
+            seen[key(s)] = s
             parents.setdefault(s, None)
             order.append(s)
             queue.append(s)
@@ -473,7 +496,7 @@ class Explorer:
                 violations.append((name, s))
 
         for s in self.initial():
-            if s not in parents:
+            if met(s) is None:
                 visit(s)
 
         stopped = False
@@ -484,23 +507,26 @@ class Explorer:
             if self.first and (violations or self.unconstrained):
                 stopped = True
                 break
-            succ = self.successors(s)
-            tau_next[s] = [t for name, _, t, _ in succ if name == "tau"]
-            if self.avoid is not None and (self.within is None or s[0] in self.within):
-                avoid_next[s] = [t for name, _, t, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
+            succ = self._transitions(s)
             if not succ and not self.can_end(s):
                 deadlocks.append(s)
                 if self.first:
                     stopped = True
                     break
-            for _, label, t, edge in succ:
-                if t in parents:
+            if self.por:
+                succ = self.por.ample(s, succ, lambda t: met(t) is not None)
+            for _, label, t, edge, _ in succ:
+                if met(t) is not None:
                     continue
                 if len(order) >= self.max_states:
                     truncated = True
                     continue
                 parents[t] = (s, label, edge)
                 visit(t)
+            nexts = [(name, met(t) or t) for name, _, t, _, _ in succ]
+            tau_next[s] = [t for name, t in nexts if name == "tau"]
+            if self.avoid is not None and (self.within is None or s[0] in self.within):
+                avoid_next[s] = [t for name, t in nexts if name != self.avoid and (self.within is None or t[0] in self.within)]
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,

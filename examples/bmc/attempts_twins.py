@@ -18,6 +18,10 @@ DOMAINS = {
     "置換Tx": record(置換元=IDS, 手数料=[2, 3]),
 }
 
+# The attempts are interchangeable: no twin names one or orders them, so
+# --symmetry may store one state per renaming of their IDs.
+SYMMETRIC = ["試行ID"]
+
 CLAUSES = {
     "attempts は空": lambda: [{"attempts": FrozenMap()}],
     "置換Tx の置換元 は〈滞留〉にあり、置換Tx の手数料 > 置換元 の手数料":

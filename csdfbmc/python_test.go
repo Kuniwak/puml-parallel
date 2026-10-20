@@ -79,3 +79,18 @@ func TestThePromotedExampleWalksClean(t *testing.T) {
 		t.Errorf("want only the state count, got:\n%s", out)
 	}
 }
+
+// The attempts are declared SYMMETRIC, so --symmetry walks one state per
+// renaming of their IDs and still comes out clean.
+func TestThePromotedExampleWalksCleanUnderSymmetry(t *testing.T) {
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts.json", "examples/bmc/attempts_twins.py",
+		"--local", "local/ATTEMPT.puml=examples/bmc/attempt_local_twins.py", "--avoid", "CONFIRMED", "--symmetry", "--por")
+	cmd.Dir = ".."
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("want exit status 0 (nothing found), got %v\n%s", err, out)
+	}
+	if string(out) != "states: 104\n" {
+		t.Errorf("want the 104 representatives of the 496 states, got:\n%s", out)
+	}
+}

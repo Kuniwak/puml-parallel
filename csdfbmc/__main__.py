@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--json]
+"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
 json prints it, and the twins of its clauses, walks the reachable states within
@@ -7,7 +7,8 @@ and, with --avoid, the cycles that never perform the event. Findings of one
 shape are reported once with their count and the shortest trace; --all lists
 every one, and --first stops the walk at the first deadlock, broken invariant
 or unconstrained post. For an expansion, --local names the twins of each
-family's local diagram by the path the expansion uses. Exits 1 when it finds
+family's local diagram by the path the expansion uses. --por and --symmetry
+reduce the states walked without changing what is found. Exits 1 when it finds
 any, 2 on a usage or loading error.
 """
 import argparse
@@ -70,6 +71,8 @@ def main(argv=None) -> int:
     ap.add_argument("--within", metavar="STATE", action="append", help="with --avoid, look for the cycles among these control states only (repeatable)")
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock, broken invariant or unconstrained post (cycles are then not looked for)")
     ap.add_argument("--all", action="store_true", help="list every finding instead of one per shape with a count")
+    ap.add_argument("--por", action="store_true", help="take the moves of one independent instance at a time (partial-order reduction)")
+    ap.add_argument("--symmetry", action="store_true", help="store one state per renaming of the IDs the twins declare SYMMETRIC")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
 
@@ -81,7 +84,8 @@ def main(argv=None) -> int:
             if not sep or not path or not module:
                 raise ValueError(f"--local expects PATH=TWINS.py, got {spec!r}")
             twins.locals[path] = load_twins(module)
-        result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first).run()
+        result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
+                          por=a.por, symmetry=a.symmetry).run()
     except (OSError, ValueError, KeyError, PurityError) as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
