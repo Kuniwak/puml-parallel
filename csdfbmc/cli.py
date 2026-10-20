@@ -7,6 +7,7 @@ import shlex
 from contextlib import contextmanager
 from typing import Iterator
 
+from csdfbmc.cone import NO_WRITES
 from csdfbmc.meaning import GlueMeaning, TwinsMeaning, standard
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
@@ -37,9 +38,10 @@ def _load_twins(a: argparse.Namespace) -> Twins:
 
 
 @contextmanager
-def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object]]:
-    """The diagram, the twins and the meaning of the clauses the parsed
-    arguments name; a glue started for them is closed on leaving."""
+def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object, object]]:
+    """The diagram, the twins, the meaning of the clauses and what tells the
+    writes of a post clause (csdfbmc.cone), as the parsed arguments name
+    them; a glue started for them is closed on leaving."""
     client = None
     if a.evaluator is not None:
         client = start_command(shlex.split(a.evaluator))
@@ -51,7 +53,11 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object]]:
     try:
         diagram = Diagram.load(a.diagram)
         twins = _load_twins(a)
-        yield diagram, twins, standard(GlueMeaning(checked(client)) if client is not None else TwinsMeaning(diagram, twins))
+        if client is not None:
+            glue = GlueMeaning(checked(client))
+            yield diagram, twins, standard(glue), glue.writes
+        else:
+            yield diagram, twins, standard(TwinsMeaning(diagram, twins)), NO_WRITES
     finally:
         if client is not None:
             client.close()

@@ -14,6 +14,7 @@ import json
 import sys
 
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
+from csdfbmc.cone import Cone
 from csdfbmc.explore import Explorer
 
 
@@ -28,8 +29,8 @@ def main(argv=None) -> int:
         ap.error("give --initial, or both --state and --edge")
 
     try:
-        with opened(a) as (diagram, twins, meaning):
-            candidates = _candidates(Explorer(diagram, twins, meaning=meaning), a)
+        with opened(a) as (diagram, twins, meaning, _):
+            candidates = _candidates(Explorer(diagram, twins, meaning, cone=Cone.keep_all()), a)
     except (*LOADING_ERRORS, IndexError, TypeError) as e:
         print(f"csdfbmc next: {e}", file=sys.stderr)
         return 2

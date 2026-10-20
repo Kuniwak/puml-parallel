@@ -869,6 +869,26 @@ value through a helper. Under either reduction an empty or unconstrained post
 is reported only at the states the walk still meets. The third example walks
 104 states instead of 496 with `--symmetry`.
 
+`--cone` leaves out the state variables outside the *cone of influence*:
+those that nothing deciding a step or a property reads. A step can be taken
+when its guard holds and its post clauses admit a successor, so the cone is
+every variable read by a guard (the end edge's included), by a post clause
+the author wrote, by an invariant or by a ghost update. The built-in clauses
+of an expansion - a frame, an instance created, moved or removed - always
+admit one successor and only carry a value across, so they decide nothing.
+A variable outside the cone is then only ever given a value or carried
+across: one set from an event's parameters, such as who approved or when a
+notice went out, while a log appended to its own value stays in. The walk
+projected onto the control states and the cone is bisimilar to the full
+one, and finds the same deadlocks, cycles, broken invariants, empty posts
+and variables left without a value. Every post clause is still evaluated;
+a left-out variable just has no value in the state (null in `--json`). The
+report lists the kept variables and each left-out one with the edges that
+set it. A clause whose reads are unknown (`opaque`), or an invariant or
+ghost update that takes any keyword, keeps the cone from being computed,
+and the report says so. A replay from such a walk carries nulls, so walk
+without `--cone` to replay a finding in the REPL.
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.

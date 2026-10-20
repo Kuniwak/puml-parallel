@@ -5,6 +5,7 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
+from csdfbmc.cone import Cone
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning, standard
@@ -45,6 +46,13 @@ class Result:
     # dropped_clauses: the guard clauses csdfpromote -only listed as reading a
     # left-out map, which the walk took as true, as (text, maps).
     dropped_clauses: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
+    # relevant: the variables the cone kept, in the order the diagram
+    # declares them; None when every variable was kept. dropped: each one
+    # left out, with the edges whose posts set it. cone_blocked_by: what
+    # kept the cone from being computed.
+    relevant: tuple[str, ...] | None = None
+    dropped: dict[str, list[str]] = field(default_factory=dict)
+    cone_blocked_by: tuple[str, ...] = ()
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -88,6 +96,9 @@ class Result:
             "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
             "opaque_clauses": self.opaque_clauses,
             "dropped_clauses": [{"text": text, "maps": list(maps)} for text, maps in self.dropped_clauses],
+            "relevant": list(self.relevant) if self.relevant is not None else None,
+            "dropped_variables": self.dropped,
+            "cone_blocked_by": list(self.cone_blocked_by),
             "groups": self.groups(),
             "stopped_early": self.stopped_early,
         }
@@ -179,11 +190,11 @@ class Explorer:
     @classmethod
     def of_twins(cls, diagram: Diagram, twins: Twins, **options) -> "Explorer":
         """An Explorer whose clauses mean what the twins say."""
-        return cls(diagram, twins, standard(TwinsMeaning(diagram, twins)), **options)
+        return cls(diagram, twins, standard(TwinsMeaning(diagram, twins)), cone=Cone.keep_all(), **options)
 
     def __init__(self, diagram: Diagram, twins: Twins, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
-                 por: bool = False, symmetry: bool = False):
+                 por: bool = False, symmetry: bool = False, cone: Cone):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
@@ -202,6 +213,8 @@ class Explorer:
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         # meaning: what the hand-written and constrain clauses mean.
         self.meaning = meaning
+        # cone says which variables the walk keeps (csdfbmc.cone).
+        self.cone = cone
         if not self.meaning.by_prose and (twins.clauses or twins.locals):
             raise ValueError("the clauses are read through a glue, so the twins' CLAUSES and their locals would not be used; leave them out")
         self.por = PartialOrder(self) if por else None
@@ -297,7 +310,8 @@ class Explorer:
         local_posts: dict[str, list[Clause]] = {}
         for c in clauses:
             if c.kind == "frame":
-                joined = self._join(joined, [{c.var: env[c.var]}])
+                # A left-out variable has no value to carry across.
+                joined = self._join(joined, [{c.var: env[c.var] if self.cone.keeps(c.var) else None}])
             elif c.kind in ("update", "create", "delete"):
                 moves[c.map] = c
             elif c.kind == "local" and c.map:
@@ -313,6 +327,16 @@ class Explorer:
 
         for m, move in moves.items():
             idv = self._id_of(move, env)
+            if not self.cone.keeps(m):
+                # A left-out map has no local post clauses, since they read
+                # it; a move into a state with variables then leaves them
+                # without a value, as in the full walk. Otherwise the move
+                # admits one successor, and the map has no value.
+                names = self.d.local_of(move).vars_of(move.state) if move.kind != "delete" else ()
+                if names:
+                    return [], tuple(f"{m}[{idv}].{n}" for n in names)
+                joined = self._join(joined, [{m: None}])
+                continue
             current = env[m]
             if move.kind == "delete":
                 joined = self._join(joined, [{m: current.without(idv)}])
@@ -343,7 +367,10 @@ class Explorer:
             missing = tuple(n for n in names if n not in joined[0])
             if missing:
                 return [], missing
-        return [tuple(j[n] for n in names) for j in joined], ()
+        # A variable left out of the cone has no value in the state; the
+        # successors that differ only in it are one.
+        projected = dict.fromkeys(tuple(j[n] if self.cone.keeps(n) else None for n in names) for j in joined)
+        return list(projected), ()
 
     # -- ghosts and invariants --------------------------------------------------
 
@@ -520,7 +547,14 @@ class Explorer:
             avoid=self.avoid, ghost_names=self.ghost_names,
             empty_posts=self.empty_posts, unconstrained=self.unconstrained,
             stopped_early=stopped, dropped_clauses=list(self.dropped_seen),
+            relevant=self._relevant_in_order(), dropped=self.cone.dropped, cone_blocked_by=self.cone.blocked_by,
         )
+
+    def _relevant_in_order(self) -> tuple[str, ...] | None:
+        if self.cone.relevant is None:
+            return None
+        declared = dict.fromkeys(v for vs in self.d.vars.values() for v in vs)
+        return tuple(v for v in declared if v in self.cone.relevant)
 
 
 def _cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[list[State]]:
