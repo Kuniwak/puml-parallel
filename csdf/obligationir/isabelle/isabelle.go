@@ -74,12 +74,15 @@ begin`)
 		if err := WritePredicates(w, ir.Predicates); err != nil {
 			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
+		if err := WriteAssumptions(w, side, ir.Assumptions); err != nil {
+			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
+		}
 
 		if err := WriteTransitionSystem(w, side, ir.Init, ir.States, ir.Edges, ir.Predicates); err != nil {
 			return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 		}
 
-		WriteLivelockTheorem(w, side, "livelock_free")
+		WriteLivelockTheorem(w, side, "livelock_free", AssumptionNames(side, ir.Assumptions))
 		WriteNewLine(w, 2)
 	}
 	io.WriteString(w, `end`)
@@ -163,16 +166,76 @@ func WriteRelations(
 // It is restricted to the reachable states: over all of st the property is
 // strictly stronger than livelock freedom, so a diagram that is livelock free can
 // still fail it on valuations the diagram can never enter.
-func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string) {
+func WriteLivelockTheorem(w io.Writer, side obligationir.Side, name string, hypotheses []string) {
 	io.WriteString(w, `theorem `)
 	io.WriteString(w, name)
-	io.WriteString(w, `: "wf_on {s. `)
+	io.WriteString(w, `:`)
+	WriteAssumesShows(w, hypotheses)
+	io.WriteString(w, `"wf_on {s. `)
 	io.WriteString(w, side.Qualify("reachable"))
 	io.WriteString(w, ` s} {(s', s). `)
 	io.WriteString(w, side.Qualify("tau_step"))
 	io.WriteString(w, ` s s'}"`)
 	WriteNewLine(w, 1)
 	io.WriteString(w, `  oops`)
+}
+
+// AssumptionTODO marks a declaration standing for an assumption nobody has
+// formalised, spelled like PredicateTODO so that a checker refusing an
+// undischarged obligation catches it too.
+const AssumptionTODO = `TODO(csdf): not formalised; this assumption is uninterpreted.`
+
+// AssumptionNames lists the constants standing for a side's assumptions, in
+// the order the diagram states them.
+func AssumptionNames(side obligationir.Side, as []obligationir.IRAssumption) []string {
+	names := make([]string, 0, len(as))
+	for _, a := range as {
+		names = append(names, side.AssumptionName(a.ID))
+	}
+	return names
+}
+
+// WriteAssumptions declares the boolean constant each assume note stands for.
+// Like a predicate it is uninterpreted, not True: an assumption taken for
+// granted would discharge the theorem for a diagram it does not hold of.
+func WriteAssumptions(w io.Writer, side obligationir.Side, as []obligationir.IRAssumption) error {
+	for _, a := range as {
+		if err := WriteLineComment(w, NewConstWriter(AssumptionTODO)); err != nil {
+			return fmt.Errorf("isabelle.WriteAssumptions: %w", err)
+		}
+		WriteNewLine(w, 1)
+		if err := WriteLineComment(w, NewConstWriter(string(a.Text))); err != nil {
+			return fmt.Errorf("isabelle.WriteAssumptions: %w", err)
+		}
+		WriteNewLine(w, 1)
+		if err := WriteConsts(w, NewConstWriter(side.AssumptionName(a.ID)), nil, NewConstWriter("bool"), 0); err != nil {
+			return fmt.Errorf("isabelle.WriteAssumptions: %w", err)
+		}
+		WriteNewLine(w, 2)
+	}
+	return nil
+}
+
+// WriteAssumesShows writes what stands between a theorem's name and its
+// statement: a space when there is no hypothesis, and otherwise an "assumes"
+// line naming every hypothesis followed by "shows", each on its own line.
+func WriteAssumesShows(w io.Writer, hypotheses []string) {
+	if len(hypotheses) == 0 {
+		io.WriteString(w, ` `)
+		return
+	}
+	WriteNewLine(w, 1)
+	io.WriteString(w, `  assumes `)
+	for i, name := range hypotheses {
+		if i > 0 {
+			io.WriteString(w, ` and `)
+		}
+		io.WriteString(w, `"`)
+		io.WriteString(w, name)
+		io.WriteString(w, `"`)
+	}
+	WriteNewLine(w, 1)
+	io.WriteString(w, `  shows `)
 }
 
 // WritePredicate writes the declaration a natural-language predicate stands for.

@@ -283,7 +283,13 @@ natural-language text; every `tau` transition then gets `guard_L<line>` and `pos
 aliases of those declarations, so a human or LLM can replace the declaration by the real
 predicate body and discharge the proof. An omitted guard or postcondition is the one
 exception: its text really is `true`, so it stays a definition. Both targets name predicates identically, so the two skeletons can be
-read side by side. State-variable values are arbitrary JSON, so each variable is typed
+read side by side. An assume note of the diagram (see [SYNTAX.md](./docs/SYNTAX.md)) —
+what it assumes of its runs as a whole, such as "a transaction whose fee keeps being
+raised is eventually confirmed", which no guard can state — is listed under `assumptions`
+in the IR and becomes an uninterpreted proposition `assume_<id>` in the skeletons, under
+which the theorem is stated: `theorem livelock_free (h_assume_fair : assume_fair) : …` in
+Lean, `assumes "assume_fair" shows …` in Isabelle. That is where a fairness assumption
+belongs: a `constrain` would refuse the step, which is a different system. State-variable values are arbitrary JSON, so each variable is typed
 with a generated `val`/`Val` datatype (floats folded into the integer case for now); any
 declared `; Type` annotation is preserved as a comment on the state constructor.
 
@@ -592,7 +598,9 @@ set.
 
 Predicates use the same `pred_<id>` spelling as `csdflivelockfree`, are shared by both
 diagrams, and dedupe across them, so formalising a predicate once serves every obligation
-it appears in. They are *uninterpreted* — an `opaque` declaration in Lean, a `consts`
+it appears in. Each side's assume notes are listed under its `assumptions` and become
+side-qualified propositions (`assume_<id>_S`, `assume_<id>_I`) under which the theorem is
+stated. They are *uninterpreted* — an `opaque` declaration in Lean, a `consts`
 declaration in Isabelle — carrying the natural-language text and a `TODO(csdf)` marker as
 comments. Defining them as `True` instead would not be a placeholder but a different
 diagram, one in which every guard fires, so the theorem could be discharged for diagrams

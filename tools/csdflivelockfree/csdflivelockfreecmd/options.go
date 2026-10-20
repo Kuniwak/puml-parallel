@@ -51,7 +51,14 @@ TODO(csdf) marker as undischarged. CSDF names are not prover identifiers, so
 events, state ids and variable names are encoded, and the output opens with a
 table giving the originals of the names that had to be encoded. The IR sets
 structurally=true when no reachable "tau" cycle exists,
-in which case no obligation is emitted at all. A file argument, a "-" argument,
+in which case no obligation is emitted at all.
+
+An assume note of the diagram ("note as <id>" holding "assume <text>", see
+docs/SYNTAX.md) is what the diagram assumes of its runs as a whole, such as a
+fairness assumption no guard can state. The IR lists them under "assumptions";
+for isabelle and lean each becomes an uninterpreted proposition named
+assume_<id>, declared like a predicate under a TODO(csdf) marker, and the
+theorem is stated under those hypotheses. A file argument, a "-" argument,
 and standard input are all equivalent.
 
 Options:

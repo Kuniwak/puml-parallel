@@ -119,6 +119,9 @@ namespace `)
 	WriteNewLine(w, 2)
 
 	WritePredicates(w, ir.Predicates)
+	for _, s := range sides(ir) {
+		WriteAssumptions(w, s.Side, s.IR.Assumptions)
+	}
 
 	for _, s := range sides(ir) {
 		WriteSideAliases(w, s.Side, s.IR, ir.Predicates)
@@ -149,7 +152,11 @@ namespace `)
 		WriteInitialisableTheorem(w, s)
 	}
 
-	WriteRefinementTheorem(w, ir.Mode)
+	var hypotheses []string
+	for _, s := range sides(ir) {
+		hypotheses = append(hypotheses, AssumptionNames(s.Side, s.IR.Assumptions)...)
+	}
+	WriteRefinementTheorem(w, ir.Mode, hypotheses)
 	WriteNewLine(w, 2)
 
 	io.WriteString(w, `end `)
@@ -621,17 +628,20 @@ func WriteLivelockLayer(w io.Writer, s sideIR, m map[obligationir.IRPredicateID]
 		return fmt.Errorf("lean.WriteLivelockLayer: %w", err)
 	}
 
-	WriteLivelockTheorem(w, s.States, s.Side.Qualify("livelock_free"))
+	WriteLivelockTheorem(w, s.States, s.Side.Qualify("livelock_free"), AssumptionNames(s.Side, s.IR.Assumptions))
 	WriteNewLine(w, 2)
 	return nil
 }
 
-// WriteRefinementTheorem writes the obligation itself.
-func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode) {
+// WriteRefinementTheorem writes the obligation itself, under the hypotheses
+// that stand for both sides' assumptions.
+func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode, hypotheses []string) {
 	if mode == obligationir.IRRefinementModeTrace {
 		io.WriteString(w, `-- Every trace of the Impl diagram is a trace of the Spec diagram: refT P1 M1 M2 P2
 -- unfolds to semTf P2 M2 <= semTf P1 M1.
-theorem refines_t : refTfix SpecProc ImplProc := by
+theorem refines_t`)
+		WriteHypotheses(w, hypotheses)
+		io.WriteString(w, ` : refTfix SpecProc ImplProc := by
   sorry`)
 		return
 	}
@@ -648,7 +658,9 @@ theorem refines_t : refTfix SpecProc ImplProc := by
 	io.WriteString(w, `-- Every stable failure of the Impl diagram is one of the Spec diagram: refF
 -- P1 M1 M2 P2 unfolds to semFf P2 M2 <= semFf P1 M1, and it subsumes trace
 -- inclusion.
-theorem refines_f : refFfix SpecProc ImplProc := by
+theorem refines_f`)
+	WriteHypotheses(w, hypotheses)
+	io.WriteString(w, ` : refFfix SpecProc ImplProc := by
   sorry`)
 }
 
