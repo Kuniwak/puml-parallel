@@ -58,15 +58,15 @@ func translate(f clause.Formula, avoid map[string]bool) (logic.Formula, error) {
 		}
 		return logic.And(fs...), nil
 	case clause.Atom:
-		name, args, err := clause.FunctionOf(f)
+		fn, err := clause.FunctionOf(f)
 		if err != nil {
 			return nil, err
 		}
-		ts, err := terms(args)
+		ts, err := terms(fn.Args)
 		if err != nil {
 			return nil, err
 		}
-		return logic.Pred(name, true, ts...), nil
+		return logic.Pred(fn.Name, true, ts...), nil
 	case clause.Builtin:
 		return builtin(f)
 	case clause.Exists:

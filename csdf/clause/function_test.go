@@ -33,17 +33,15 @@ func TestFunctionOfAnAtom(t *testing.T) {
 			a := firstAtom(f)
 
 			// Execute
-			gotName, gotArgs, err := FunctionOf(a)
+			got, err := FunctionOf(a)
 
 			// Assert
 			if err != nil {
 				t.Fatalf("want nil, got %v", err)
 			}
-			if gotName != tc.wantName {
-				t.Errorf("want %q, got %q", tc.wantName, gotName)
-			}
-			if diff := cmp.Diff(tc.wantArgs, gotArgs); diff != "" {
-				t.Errorf("args mismatch (-want +got):\n%s", diff)
+			want := Function{Name: tc.wantName, Args: tc.wantArgs}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
