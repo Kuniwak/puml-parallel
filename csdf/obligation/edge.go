@@ -34,7 +34,8 @@ func Step(d core.Diagram, e core.Edge) (logic.Formula, error) {
 // environment or, for a tau, chosen by the diagram, its guard holds and its
 // post admits some values after it. Each variable it chooses has the type
 // named like it, the field or the state variable, which is the convention
-// until fields and state variables carry types of their own.
+// until fields and state variables carry types of their own. A claim that
+// some state satisfies it is sound only under Axioms of the edge's clauses.
 func Enabled(d core.Diagram, e core.Edge) (logic.Formula, error) {
 	step, err := Step(d, e)
 	if err != nil {
