@@ -257,6 +257,16 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   in text nest unless escaped.
 - In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
   anything else is itself.
+- A variable bound by `@exists` is a de Bruijn index inside the tools. The
+  tools print it with the name the tool that made it gave (its hint), unless
+  that name is free in the clause or bound by an enclosing `@exists`; then
+  with the least `name2`, `name3`, … that is neither (`name_2` after a name
+  ending in a digit). A hint that is no identifier is an error, never
+  replaced.
+- Printing and parsing back gives the same clause: the tools write
+  `${name}` where `$name` would read differently (before a space and a
+  letter, or before a `'` that is text), one space between `$name` and a
+  letter, and a backslash before what would otherwise be syntax.
 
 
 Global Diagram Format
