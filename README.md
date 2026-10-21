@@ -728,6 +728,20 @@ the two is needed: without a glue there is nothing to read the clauses with.
 A round trip over a pipe costs about 12 µs for a Python glue and 25 µs for a
 Ruby one.
 
+Protocol 2 is the protocol of atoms (`docs/CLAUSE_DESIGN.md`), which the
+walk moves to in a later step of #76. A checker asking for it says
+`{"op": "hello", "protocol": 2}`. A request then carries an atom as the glue
+receives it — `{"text": [...], "holes": [...], "primed": [...]}`, the text
+without its holes, the argument each hole reads, and which arguments are
+values after the step — and the values of the arguments by index, never a
+name: `guard` and `post` take a list of values per evaluation (a post only
+those before the step, and answers lists of values after it, one per primed
+argument), and the optional `symmetric` takes the indices of the arguments
+that range over IDs and of the maps keyed by them. There is no `analyse` and
+no `beyond`: what an atom reads is its holes, which the tools know. The
+reference glue reads each hole as a name of its own; a post atom is
+`$x' == e`, `$x' in e`, or a tuple of every value after the step on the left.
+
 The reference glue, `csdfbmc.python_glue`, reads a pure subset of Python —
 an expression; no assignment inside a function, no loop statement, no
 exception, no I/O, no randomness, no float — so that evaluating a clause is

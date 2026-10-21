@@ -45,6 +45,25 @@ tuples, sets or maps with keys other than strings: integers, strings,
 booleans and null as themselves, and {"tuple": [...]}, {"set": [...]},
 {"map": [[key, value], ...]} for the containers of csdfbmc.values.
 
+Protocol 2 is the protocol of atoms (docs/CLAUSE_DESIGN.md). The checker
+asks for it with {"op": "hello", "protocol": 2}, and a glue that speaks it
+answers "protocol": 2. An ATOM is {"text": [TEXT, ...], "holes": [INDEX, ...],
+"primed": [BOOL, ...]}: the text without its holes, one piece more than the
+holes; the argument each hole reads; and whether each argument is a value
+after the step. A glue never sees a name; values come by argument index:
+
+- {"op": "guard", "atom": ATOM, "values": [[VALUE, ...], ...]}
+  -> {"results": [true | false, ...]}, one per list of values.
+- {"op": "post", "atom": ATOM, "values": [[VALUE, ...], ...]}, the values of
+  the arguments before the step -> {"results": [[[VALUE, ...], ...], ...]}:
+  per list, the lists of values after the step the atom allows, one value
+  per primed argument, in order.
+- {"op": "symmetric", "atom": ATOM, "params": [INDEX, ...], "maps": [INDEX,
+  ...], "groups": [[ID, ...], ...]}, optional as in protocol 1.
+
+There is no analyse and no beyond: what an atom reads is its holes, which the
+tools know themselves.
+
 A glue written in Python may also be loaded in-process: a module whose
 evaluator(args) returns a function from a request to its answer, with the
 checker's values in place of their encoding. csdfbmc.python_glue is both.
