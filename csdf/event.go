@@ -3,6 +3,7 @@ package csdf
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -56,6 +57,17 @@ func NewEvent(channel string, fields ...Field) Event {
 		sb.WriteString(f.Name)
 	}
 	return Event(sb.String())
+}
+
+// HasParams reports whether an edge's predicates read parameters of its
+// event: the fields it receives, or, for a tau, the values it chooses (a
+// hidden event's), which a tool cannot tell from none since it reads no
+// clause. A sent field is no parameter: it is a value the state holds.
+func (e Edge) HasParams() bool {
+	if e.Event == Tau {
+		return true
+	}
+	return slices.ContainsFunc(e.Event.Fields(), func(f Field) bool { return f.Dir == Received })
 }
 
 // Channel is the name the event synchronises on. Channel and Fields take

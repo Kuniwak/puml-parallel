@@ -202,11 +202,17 @@ func (ix index) takes(u csdf.StateID, c Column) []take {
 			continue
 		}
 		g, p := e.Guard, e.Post
-		guard := func(v logic.Var) logic.Formula { return pred(g, OfferedParams, v) }
+		// An event that receives nothing has no parameters to apply its
+		// predicates to: a sent field is a value the state holds.
+		var params []logic.Var
+		if e.HasParams() {
+			params = []logic.Var{OfferedParams}
+		}
+		guard := func(v logic.Var) logic.Formula { return pred(g, append(slices.Clone(params), v)...) }
 		ts = append(ts, take{
 			guard: guard,
 			taken: func(v logic.Var) []conjunct {
-				return []conjunct{holds(guard(v)), binding(pred(p, OfferedParams, v, NextValues), NextValues)}
+				return []conjunct{holds(guard(v)), binding(pred(p, append(slices.Clone(params), v, NextValues)...), NextValues)}
 			},
 			result: Goto{State: e.Dst},
 		})

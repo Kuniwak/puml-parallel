@@ -10,18 +10,18 @@ import (
 // The variables a condition speaks of. The names are fixed:
 //
 //	x    the values of the state variables of the row's state
-//	c    the parameters of the column's event, as the environment offers them
+//	c    the fields the column's event receives, as the environment offers
+//	     them; an event that receives nothing has none (csdf.Edge.HasParams)
 //	x'   the values of the state variables of the state an accepted event
 //	     leads to
 //	ci   the parameters of the event of the i-th tau step, which was hidden and
 //	     so is chosen inside the diagram
 //	xi   the values of the state variables after the i-th tau step
 //
-// The parameters are not parsed out of the event: a variable stands for them
-// all, whatever they are, so that no syntax of parameters has to be fixed.
+// One variable stands for all the parameters of an event, whatever they are.
 const (
 	// OfferedParams are the parameters of the column's event.
-	OfferedParams logic.Var = "c"
+	OfferedParams = logic.OfferedParams
 	// NextValues are the values after an accepted event.
 	NextValues logic.Var = "x'"
 )
@@ -36,7 +36,7 @@ func ValuesAfterStep(i int) logic.Var {
 }
 
 // ParamsOfStep names the parameters of the event of the i-th tau step.
-func ParamsOfStep(i int) logic.Var { return logic.Var(fmt.Sprintf("c%d", i)) }
+func ParamsOfStep(i int) logic.Var { return logic.ParamsOfStep(i) }
 
 // stepVars are the variables k tau steps introduce, in step order: the
 // parameters of a step before the values after it.

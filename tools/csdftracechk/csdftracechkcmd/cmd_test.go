@@ -31,7 +31,7 @@ func TestNewMainFunc(t *testing.T) {
 			WantStdout: []string{
 				"# " + ok + ": ACCEPTED",
 				"coins' is {coin}",
-				"Obligation: ∀ x0 x1. post_1(x0, x1) → true",
+				"Obligation: ∀ x0 c1 x1. post_1(c1, x0, x1) → true",
 				"## Prompt",
 			},
 		},

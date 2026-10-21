@@ -56,7 +56,8 @@ variables before its step, a postcondition to those and the values after (an
 end edge reads the values only). The variables are
 
   x    the values of the row's state
-  c    the parameters of the column's event, as the environment offers them
+  c    the fields the column's event receives, as the environment offers
+       them; an event that receives nothing has none
   x'   the values of the state an accepted event leads to
   ci   the parameters of the event of the i-th tau step
   xi   the values after the i-th tau step
@@ -101,8 +102,8 @@ with a cell per column in the same order. An OUTCOME is
 without "state", and C is a syntax tree: {"op": OP, ...}, where OP is true,
 false, atom (with "name", "quoted" and "args"), not, and, or, implies (with
 "operands"), exists or forall (with "vars" and "operands"). A guard is an atom
-applied to (c, xi) or, for an end edge, (xi); a postcondition to three
-variables. Being no TSV, it has no column to clash with, and -expr-mode does
+applied to (c, xi), or to (xi) for an end edge and an event that receives
+nothing (a sent field is the state's); a postcondition to those and x'. Being no TSV, it has no column to clash with, and -expr-mode does
 not apply.
 
 A file argument, a "-" argument, and standard input are all equivalent.

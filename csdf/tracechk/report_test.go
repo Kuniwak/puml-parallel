@@ -114,7 +114,7 @@ a --> a : y ; n > 0
 				"| tau | `b --> a` (L9) | m = 0 | n' = n |\n" +
 				"| next | `b --> b` (L10) | m > 0 | true |\n" +
 				"\n" +
-				"Obligation: ∀ x0 x1. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) → (guard_L9(x1) ∧ ∃ x'. post_L9(x1, x')) ∨ guard_L10(x1)\n" +
+				"Obligation: ∀ x0 x1. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) → (∃ c'. guard_L9(c', x1) ∧ ∃ x'. post_L9(c', x1, x')) ∨ guard_L10(x1)\n" +
 				"\n" +
 				"### Path 2.2: reaches a\n" +
 				"\n" +
@@ -132,7 +132,7 @@ a --> a : y ; n > 0
 				"|-------------------------------|------------|-------|------|\n" +
 				"| next | `a --> a` (L11) | n > 0 | true |\n" +
 				"\n" +
-				"Obligation: ∀ x0 x1 x2. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ guard_2(x1) ∧ post_2(x1, x2) → guard_L11(x2)\n" +
+				"Obligation: ∀ x0 x1 c2 x2. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ guard_2(c2, x1) ∧ post_2(c2, x1, x2) → guard_L11(x2)\n" +
 				"\n" +
 				"## Prompt\n" +
 				"\n" +
@@ -193,5 +193,54 @@ a --> c : x ; g
 	}
 	if want := "Obligation: ∀ x0. true → (∃ x'. post_L6(x0, x')) ∨ guard_L7(x0)\n"; !strings.Contains(sb.String(), want) {
 		t.Errorf("want %q in the report, got\n%s", want, sb.String())
+	}
+}
+
+// A received value is a parameter of its step: bound universally along the
+// path, since it occurs only in the premise, and existentially for the next
+// event, which a trace names without a value. A sent value is the state's.
+func TestWriteMarkdownBindsTheParametersOfEachStep(t *testing.T) {
+	tests := map[string]struct {
+		diagram string
+		trace   []csdf.Event
+		want    []string
+	}{
+		"a received field": {
+			diagram: "[*] --> a\na --> b : insert?coin ; coin > 0 ; n' = coin\nb --> a : report!n\n",
+			trace:   []csdf.Event{"insert?coin", "report!n"},
+			want: []string{
+				"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0) ∧ ∃ x'. post_L7(c, x0, x')\n",
+				"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) ∧ post_1(c1, x0, x1) → true\n",
+			},
+		},
+		"a received and a sent field, then a bare tau out": {
+			diagram: "[*] --> a\na --> b : e?v!n ; v > n\nb --> b : tau\nb --> a : f\n",
+			trace:   []csdf.Event{"e?v!n", "f"},
+			want: []string{
+				"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0)\n",
+				"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) → true ∨ true\n",
+			},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			d := csdf.MustParse("@startuml\nstate \"a\" as a\na: n\nstate \"b\" as b\nb: n\n" + tt.diagram + "@enduml\n")
+			result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: tt.trace})
+			var sb strings.Builder
+
+			// Act
+			err := tracechk.WriteMarkdown(&sb, d, result)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(sb.String(), want) {
+					t.Errorf("want %q in the report, got\n%s", want, sb.String())
+				}
+			}
+		})
 	}
 }

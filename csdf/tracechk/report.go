@@ -3,6 +3,7 @@ package tracechk
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -129,7 +130,7 @@ func writeObligation(sb *strings.Builder, d *csdf.Diagram, p PrefixPath) {
 	for _, e := range p.Next {
 		conclusion = append(conclusion, enabled(e, n))
 	}
-	obligation := logic.Forall(valuations(n), logic.Implies(pathPredicates(d, p.Path), logic.Or(conclusion...)))
+	obligation := logic.Forall(pathVars(p.Path), logic.Implies(pathPredicates(d, p.Path), logic.Or(conclusion...)))
 	fmt.Fprintf(sb, "Obligation: %s\n\n", notation.Spell(obligation))
 }
 
@@ -145,17 +146,58 @@ var notation = func() logic.Notation {
 	return n
 }()
 
-// enabled is the enabledness of an edge at valuation xn: its guard holds and
-// its post admits some successor. A predicate that is exactly true is left out.
+// enabled is the enabledness of an edge at valuation xn: for some
+// parameters, its guard holds and its post admits some successor. A received
+// value is offered by the environment, and a trace names no value, so the
+// event is enabled when some value is accepted; a tau chooses its values
+// itself. A predicate that is exactly true is left out.
 func enabled(e csdf.Edge, n int) logic.Formula {
+	var params []logic.Var
+	if e.HasParams() {
+		params = []logic.Var{offered(e)}
+	}
 	var parts []logic.Formula
 	if !csdf.IsTrue(e.Guard) {
-		parts = append(parts, logic.Atom(fmt.Sprintf("guard_L%d", e.Line), valuation(n)))
+		parts = append(parts, atom(fmt.Sprintf("guard_L%d", e.Line), params, valuation(n)))
 	}
 	if !csdf.IsTrue(e.Post) {
-		parts = append(parts, logic.Exists([]logic.Var{"x'"}, logic.Atom(fmt.Sprintf("post_L%d", e.Line), valuation(n), "x'")))
+		parts = append(parts, logic.Exists([]logic.Var{"x'"}, atom(fmt.Sprintf("post_L%d", e.Line), params, valuation(n), "x'")))
 	}
-	return logic.And(parts...)
+	if len(parts) == 0 {
+		return logic.True // nothing to say of the values, so none is bound
+	}
+	return logic.Exists(params, logic.And(parts...))
+}
+
+// offered names the parameters of an edge out of the reached state: those
+// the environment offers for the next event, and those a tau chooses.
+func offered(e csdf.Edge) logic.Var {
+	if e.Event == csdf.Tau {
+		return logic.ChosenParams
+	}
+	return logic.OfferedParams
+}
+
+// atom applies a predicate to its event's parameters, when it has some, and
+// then to the valuations.
+func atom(name string, params []logic.Var, valuations ...logic.Var) logic.Formula {
+	return logic.Atom(name, slices.Concat(params, valuations)...)
+}
+
+// pathVars are the variables of a path, in step order: x0, then each step's
+// parameters before the valuation after it. They are all bound universally:
+// a step's parameters occur only in the premise, so the obligation holds for
+// every value an environment offered and every value a tau chose that lead
+// to the reached valuation.
+func pathVars(path Path) []logic.Var {
+	vars := []logic.Var{valuation(0)}
+	for i, e := range path {
+		if e.HasParams() {
+			vars = append(vars, logic.ParamsOfStep(i+1))
+		}
+		vars = append(vars, valuation(i+1))
+	}
+	return vars
 }
 
 // pathPredicates is the conjunction of the predicates along a path, over the
@@ -167,11 +209,15 @@ func pathPredicates(d *csdf.Diagram, path Path) logic.Formula {
 		conjuncts = append(conjuncts, logic.Atom("post_0", valuation(0)))
 	}
 	for i, e := range path {
+		var args []logic.Var
+		if e.HasParams() {
+			args = append(args, logic.ParamsOfStep(i+1))
+		}
 		if !csdf.IsTrue(e.Guard) {
-			conjuncts = append(conjuncts, logic.Atom(fmt.Sprintf("guard_%d", i+1), valuation(i)))
+			conjuncts = append(conjuncts, atom(fmt.Sprintf("guard_%d", i+1), args, valuation(i)))
 		}
 		if !csdf.IsTrue(e.Post) {
-			conjuncts = append(conjuncts, logic.Atom(fmt.Sprintf("post_%d", i+1), valuation(i), valuation(i+1)))
+			conjuncts = append(conjuncts, atom(fmt.Sprintf("post_%d", i+1), args, valuation(i), valuation(i+1)))
 		}
 	}
 	return logic.And(conjuncts...)
