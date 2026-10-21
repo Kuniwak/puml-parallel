@@ -23,7 +23,11 @@ type Free struct {
 	Primed bool
 }
 
-func (Free) isTerm() {}
+// Bound is a variable bound by an enclosing ∃: Index 0 is the nearest.
+type Bound struct{ Index int }
+
+func (Free) isTerm()  {}
+func (Bound) isTerm() {}
 
 // Index is the entry of Map at Key, m[k].
 type Index struct{ Map, Key Term }

@@ -123,6 +123,57 @@ func TestParseReadsBuiltins(t *testing.T) {
 	}
 }
 
+func TestParseReadsExists(t *testing.T) {
+	tests := map[string]struct {
+		text string
+		want Formula
+	}{
+		"a bound variable is an index": {
+			text: "@exists(v) ($v > $x)",
+			want: Exists{Hint: "v", Body: and(atom(hole(Bound{Index: 0}), Text(" > "), hole(pre("x"))))},
+		},
+		"the innermost binder wins": {
+			text: "@exists(v) (@exists(v) (@eq(v, w)))",
+			want: Exists{Hint: "v", Body: and(Exists{Hint: "v", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{Index: 0}, pre("w")}})})},
+		},
+		"an outer binder is one index further": {
+			text: "@exists(m) (@exists(k) (@in(k, m)))",
+			want: Exists{Hint: "m", Body: and(Exists{Hint: "k", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{Index: 0}, Bound{Index: 1}}})})},
+		},
+		"parentheses in a body's text nest": {
+			text: "@exists(v) (f($v) > 0) ∧ $y",
+			want: Exists{Hint: "v", Body: and(atom(Text("f("), hole(Bound{Index: 0}), Text(") > 0")))},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := Parse(tt.text)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Parse(%q) error = %v", tt.text, err)
+			}
+			if diff := cmp.Diff(tt.want, got.Conjuncts[0]); diff != "" {
+				t.Errorf("Parse(%q) mismatch (-want +got):\n%s", tt.text, diff)
+			}
+		})
+	}
+}
+
+func TestParseAuthoredRefusesExists(t *testing.T) {
+	// Setup
+	text := "$x > 0 ∧ @exists(v) (@eq(v, x))"
+
+	// Execute
+	got, err := ParseAuthored(text)
+
+	// Assert
+	if err == nil {
+		t.Errorf("ParseAuthored(%q) = %#v, want an error", text, got)
+	}
+}
+
 func TestParseRefuses(t *testing.T) {
 	tests := map[string]string{
 		"an unclosed term hole":          "${x",
@@ -140,6 +191,9 @@ func TestParseRefuses(t *testing.T) {
 		"@frame with one map":            "@frame(m')",
 		"an unknown tool word":           "@foo(x)",
 		"a tool word with text after it": "@eq(x, y) z",
+		"a bound variable primed":        "@exists(v) ($v' > 0)",
+		"an unclosed body":               "@exists(v) ($v > 0",
+		"an empty body":                  "@exists(v) ()",
 	}
 	for name, text := range tests {
 		t.Run(name, func(t *testing.T) {

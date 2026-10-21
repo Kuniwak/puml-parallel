@@ -227,13 +227,14 @@ posts described above.
 
 ```abnf
 clause   = [conjunct *(" ∧ " conjunct)]
-conjunct = builtin / atom
+conjunct = builtin / exists / atom
 builtin  = "@eq(" term ", " term ")"        ; equal
          / "@ne(" term ", " term ")"        ; differ
          / "@in(" term ", " term ")"        ; key in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
          / "@at(" term ", " id ")"          ; instance at a state of its local diagram
+exists   = "@exists(" id ") (" clause ")" ; written by tools only
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = id ["'"] *("[" term "]" / "." id) ["'"]
          / id "(" [term *(", " term)] ")" ; an environment function
@@ -250,6 +251,10 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   after the step. An environment function has no value after the step.
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
 - A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
+- `@exists(v) (…)` binds `v` in its body; the innermost binder of a name
+  wins, and a bound variable has no value after the step. Authors do not
+  write it (`docs/CLAUSE_DESIGN.md`); tools do. Inside a body, parentheses
+  in text nest unless escaped.
 - In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
   anything else is itself.
 

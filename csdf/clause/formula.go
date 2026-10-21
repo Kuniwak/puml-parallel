@@ -6,6 +6,15 @@ type Formula interface{ isFormula() }
 // And is the conjunction of its conjuncts; none is true.
 type And struct{ Conjuncts []Formula }
 
+// Exists binds one variable in Body, where it is Bound{0}. Only tools write
+// it (docs/CLAUSE_DESIGN.md). Hint is the name the variable is printed with
+// when that captures nothing; it carries no meaning, and two formulas that
+// differ only in hints are α-equivalent.
+type Exists struct {
+	Hint string
+	Body And
+}
+
 // Atom is text that a language interprets, with holes for the values it
 // reads.
 type Atom struct{ Parts []Part }
@@ -22,5 +31,6 @@ type Hole struct{ Term Term }
 func (Text) isPart() {}
 func (Hole) isPart() {}
 
-func (And) isFormula()  {}
-func (Atom) isFormula() {}
+func (And) isFormula()    {}
+func (Exists) isFormula() {}
+func (Atom) isFormula()   {}

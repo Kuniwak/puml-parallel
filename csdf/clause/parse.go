@@ -26,12 +26,39 @@ func Parse(text string) (And, error) {
 	if err != nil {
 		return And{}, fmt.Errorf("clause.Parse: %q: %w", text, err)
 	}
+	if !p.atEnd() {
+		return And{}, fmt.Errorf("clause.Parse: %q: unexpected %q at %d", text, string(p.src[p.pos:]), p.pos)
+	}
 	return f, nil
 }
 
+// ParseAuthored reads a clause an author wrote: Parse, refusing ∃, which
+// only tools write.
+func ParseAuthored(text string) (And, error) {
+	f, err := Parse(text)
+	if err != nil {
+		return And{}, err
+	}
+	if hasExists(f) {
+		return And{}, fmt.Errorf("clause.ParseAuthored: %q: @exists is written by tools only", text)
+	}
+	return f, nil
+}
+
+func hasExists(f And) bool {
+	for _, c := range f.Conjuncts {
+		if _, ok := c.(Exists); ok {
+			return true
+		}
+	}
+	return false
+}
+
 type parser struct {
-	src []rune
-	pos int
+	src   []rune
+	pos   int
+	scope []string // names bound by enclosing ∃, innermost last
+	body  int      // how many ∃ bodies the parser is in
 }
 
 func (p *parser) atEnd() bool { return p.pos >= len(p.src) }
@@ -57,8 +84,10 @@ func (p *parser) expect(s string) error {
 	return nil
 }
 
+// clause reads conjuncts up to the end, or, in an ∃ body, up to the ")"
+// that closes it.
 func (p *parser) clause() (And, error) {
-	if p.atEnd() {
+	if p.atEnd() || p.closesBody() {
 		return And{}, nil
 	}
 	var cs []Formula
@@ -76,11 +105,50 @@ func (p *parser) clause() (And, error) {
 }
 
 func (p *parser) conjunct() (Formula, error) {
+	if p.hasPrefix(existsWord) {
+		return p.exists()
+	}
 	if p.peek() == toolPrefix {
 		return p.builtin()
 	}
 	return p.atom()
 }
+
+const existsWord = "@exists("
+
+// exists reads @exists(name) (clause); name is Bound{0} in the clause.
+func (p *parser) exists() (Formula, error) {
+	start := p.pos
+	p.pos += len([]rune(existsWord))
+	hint := p.name()
+	if hint == "" {
+		return nil, fmt.Errorf("@exists at %d: expected a name", start)
+	}
+	if err := p.expect(") ("); err != nil {
+		return nil, fmt.Errorf("@exists at %d: %w", start, err)
+	}
+	p.scope = append(p.scope, hint)
+	p.body++
+	body, err := p.clause()
+	p.scope, p.body = p.scope[:len(p.scope)-1], p.body-1
+	if err != nil {
+		return nil, err
+	}
+	if len(body.Conjuncts) == 0 {
+		return nil, fmt.Errorf("@exists at %d: an empty body", start)
+	}
+	if err := p.expect(")"); err != nil {
+		return nil, fmt.Errorf("@exists at %d: %w", start, err)
+	}
+	if !p.atEnd() && !p.hasPrefix(conjSep) && !p.closesBody() {
+		return nil, fmt.Errorf("@exists at %d: expected %q or the end at %d", start, conjSep, p.pos)
+	}
+	return Exists{Hint: hint, Body: body}, nil
+}
+
+// closesBody reports whether the parser is at the ")" that closes the ∃
+// body it is in.
+func (p *parser) closesBody() bool { return p.body > 0 && p.peek() == ')' }
 
 // builtin reads @word(term, …), by the table of builtins.
 func (p *parser) builtin() (Formula, error) {
@@ -118,18 +186,25 @@ func (p *parser) builtin() (Formula, error) {
 	if err := p.expect(")"); err != nil {
 		return nil, fmt.Errorf("@%s at %d: %w", op, start, err)
 	}
-	if !p.atEnd() && !p.hasPrefix(conjSep) {
+	if !p.atEnd() && !p.hasPrefix(conjSep) && !p.closesBody() {
 		return nil, fmt.Errorf("@%s at %d: expected %q or the end at %d", op, start, conjSep, p.pos)
 	}
 	return b, nil
 }
 
-// atom reads text and holes up to an unescaped " ∧ " or the end.
+// atom reads text and holes up to an unescaped " ∧ ", the end, or, in an ∃
+// body, a ")" that closes more than the atom opened.
 func (p *parser) atom() (Formula, error) {
 	var parts []Part
 	var text []rune
-	for !p.atEnd() && !p.hasPrefix(conjSep) {
+	depth := 0
+	for !p.atEnd() && !p.hasPrefix(conjSep) && !(depth == 0 && p.closesBody()) {
 		r := p.peek()
+		if p.body > 0 && r == '(' {
+			depth++
+		} else if p.body > 0 && r == ')' {
+			depth--
+		}
 		switch {
 		case r == escape && p.peekAt(1) != 0 && strings.ContainsRune(escapable, p.peekAt(1)):
 			text = append(text, p.peekAt(1))
@@ -147,7 +222,11 @@ func (p *parser) atom() (Formula, error) {
 			if len(text) > 0 {
 				parts, text = append(parts, Text(text)), nil
 			}
-			parts = append(parts, Hole{Term: p.nameHole()})
+			t, err := p.nameHole()
+			if err != nil {
+				return nil, err
+			}
+			parts = append(parts, Hole{Term: t})
 		default:
 			text = append(text, r)
 			p.pos++
@@ -164,17 +243,27 @@ func (p *parser) atom() (Formula, error) {
 
 // nameHole reads $name or $name'. One space after it belongs to the hole
 // when the next character could continue the name.
-func (p *parser) nameHole() Term {
+func (p *parser) nameHole() (Term, error) {
 	p.pos++ // $
-	v := Free{Name: p.name()}
-	if p.peek() == '\'' {
-		v.Primed = true
-		p.pos++
-	}
+	name := p.name()
+	primed := p.prime()
 	if p.peek() == ' ' && ident.IsRune(p.peekAt(1)) {
 		p.pos++
 	}
-	return v
+	return p.variable(name, primed)
+}
+
+// variable resolves name against the enclosing binders.
+func (p *parser) variable(name string, primed bool) (Term, error) {
+	for i := len(p.scope) - 1; i >= 0; i-- {
+		if p.scope[i] == name {
+			if primed {
+				return nil, fmt.Errorf("%s is bound by @exists and has no value after the step", name)
+			}
+			return Bound{Index: len(p.scope) - 1 - i}, nil
+		}
+	}
+	return Free{Name: name, Primed: primed}, nil
 }
 
 // startsHoleName reports whether r may start the name of a $name hole: an
@@ -208,7 +297,10 @@ func (p *parser) term() (Term, error) {
 		return p.app(name)
 	}
 	primed := p.prime()
-	var t Term = Free{Name: name}
+	t, err := p.variable(name, false)
+	if err != nil {
+		return nil, err
+	}
 	path := false
 	for {
 		if p.hasPrefix("[") {
@@ -238,10 +330,13 @@ func (p *parser) term() (Term, error) {
 		}
 		primed = true
 	}
-	if primed {
-		return primeRoot(t), nil
+	if !primed {
+		return t, nil
 	}
-	return t, nil
+	if _, bound := root(t).(Bound); bound {
+		return nil, fmt.Errorf("the term at %d starts from a variable bound by @exists, which has no value after the step", start)
+	}
+	return primeRoot(t), nil
 }
 
 func (p *parser) app(fn string) (Term, error) {
@@ -283,6 +378,17 @@ func (p *parser) name() string {
 	return string(p.src[start:p.pos])
 }
 
+// root is the variable a path starts from.
+func root(t Term) Term {
+	switch t := t.(type) {
+	case Index:
+		return root(t.Map)
+	case Field:
+		return root(t.Of)
+	}
+	return t
+}
+
 // primeRoot primes the variable a path starts from.
 func primeRoot(t Term) Term {
 	switch t := t.(type) {
@@ -293,5 +399,5 @@ func primeRoot(t Term) Term {
 	case Free:
 		return Free{Name: t.Name, Primed: true}
 	}
-	panic("clause.primeRoot: a path starts from a variable")
+	panic("clause.primeRoot: a path starts from a free variable")
 }
