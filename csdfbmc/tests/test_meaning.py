@@ -118,5 +118,41 @@ class RenamedOntoNothingTest(unittest.TestCase):
             meaning.evaluate(RENAMED, "guard", {"y": 1})
 
 
+
+EQUAL = Clause("local", "@eq(y, z)", eq=("y", "z"))
+
+
+class EqualityTest(unittest.TestCase):
+    """@eq(y, z) is the tools' own clause: the values named y and z are equal.
+    No glue is asked about it."""
+
+    def setUp(self):
+        self.client = Recording({}, lambda b: True)
+        self.meaning = standard(GlueMeaning(self.client))
+
+    def test_it_reads_its_two_names(self):
+        self.assertEqual({"y", "z"}, self.meaning.names(EQUAL, "guard"))
+
+    def test_it_holds_where_the_two_values_are_equal(self):
+        self.assertEqual([True, False], [self.meaning.evaluate(EQUAL, "guard", {"y": 1, "z": z}) for z in (1, 2)])
+        self.assertEqual([], self.client.asked)
+
+    def test_it_is_read_from_json(self):
+        self.assertEqual(EQUAL, Clause.from_json({"kind": "local", "eq": ["y", "z"]}))
+
+    def test_in_a_post_it_admits_one_assignment_of_nothing_where_the_values_are_equal(self):
+        self.assertEqual([[{}], []], [self.meaning.evaluate(EQUAL, "post", {"y": 1, "z": z}) for z in (1, 2)])
+
+    def test_it_writes_nothing(self):
+        self.assertEqual(set(), self.meaning.writes(EQUAL))
+
+    def test_values_of_another_kind_are_not_equal(self):
+        self.assertIs(False, self.meaning.evaluate(EQUAL, "guard", {"y": 1, "z": True}))
+
+    def test_a_name_the_step_does_not_bind_is_refused(self):
+        with self.assertRaisesRegex(KeyError, "'z'"):
+            self.meaning.evaluate(EQUAL, "guard", {"y": 1})
+
+
 if __name__ == "__main__":
     unittest.main()

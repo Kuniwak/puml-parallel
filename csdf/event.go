@@ -12,8 +12,9 @@ type Direction string
 const (
 	// Received is a field whose value the environment chooses: c?x.
 	Received Direction = "?"
-	// Chosen is a field whose value the diagram chooses internally: c!y.
-	Chosen Direction = "!"
+	// Sent is a field whose value the event sends: c!y sends the value y has
+	// at the step.
+	Sent Direction = "!"
 )
 
 // Field is one field of an event: its direction and the name its clauses read

@@ -201,6 +201,7 @@ class Explorer:
         self.twins = twins
         self.opaque = opaque
         self._tau_choices: dict[tuple, tuple[str, ...]] = {}
+        self._check_sent()
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
@@ -412,7 +413,7 @@ class Explorer:
         names = e.params + e.implicit_ids() + self._chosen_by_tau(e)
         out = []
         for params in self._enabled(state, e, names):
-            label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
+            label = self._label(e, self._env(state, params), params)
             ghosts = self._ghosts_after(state, e.name, params)
             vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
             if missing:
@@ -425,6 +426,24 @@ class Explorer:
                 continue
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
+
+    @staticmethod
+    def _label(e: Edge, env: dict, params: dict) -> str:
+        """The event as taken: each field, in the event's order, with the value
+        received or sent (c!y sends the value y has at the step), then what
+        the step chose that the event does not carry, as a tau's choices."""
+        shown = {n: env[n] for _, n in e.fields}
+        shown.update((n, v) for n, v in params.items() if n not in shown)
+        return e.name if not shown else e.name + "(" + ", ".join(f"{p}={v}" for p, v in shown.items()) + ")"
+
+    def _check_sent(self) -> None:
+        """Refuses an edge that sends a name its step does not bind: c!y sends
+        a state variable before the step or a field the event receives."""
+        for e in self.d.edges:
+            bound = set(self.d.vars.get(e.src, ())) | set(e.params)
+            for n in e.sent:
+                if n not in bound:
+                    raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
 
     def _chosen_by_tau(self, e: Edge) -> tuple[str, ...]:
         """The values a tau chooses: the names its clauses read that are not

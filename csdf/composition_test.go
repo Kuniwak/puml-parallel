@@ -164,6 +164,13 @@ func TestComposeParallelSynchronisesOnChannels(t *testing.T) {
 			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send!x"}},
 		},
 		{
+			name:  "a sent field names the value, and the receiving side reads it through a renaming",
+			left:  Edge{Event: "send?x", Guard: "x > 0"},
+			right: Edge{Event: "send!y"},
+			sync:  []string{"send"},
+			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send!y", Guard: "@[x := y] x > 0"}},
+		},
+		{
 			name:  "a channel not synchronised interleaves",
 			left:  Edge{Event: "send?x"},
 			right: Edge{Event: "send?y"},
@@ -185,14 +192,6 @@ func TestComposeParallelSynchronisesOnChannels(t *testing.T) {
 				t.Errorf("ComposeParallel2() edges mismatch (-want +got):\n%s", diff)
 			}
 		})
-	}
-}
-
-func TestComposeParallelRefusesASynchronisedChannelWithFieldsOfAnotherNumber(t *testing.T) {
-	left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send?x"}}}
-	right := &Diagram{States: map[StateID]State{"r0": {}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "send?x?y"}}}
-	if _, err := ComposeParallel2(left, right, []string{"send"}); err == nil {
-		t.Error("ComposeParallel2() error = nil, want send?x and send?x?y refused")
 	}
 }
 
@@ -295,10 +294,10 @@ l0_r0 --> l1_r0 : x ; g2 ; p1
 	}
 }
 
-func TestComposeParallelRefusesARenamingThatWouldCaptureAName(t *testing.T) {
+func TestComposeParallelRefusesASynchronisationThatCannotMeanOneValuePerField(t *testing.T) {
 	tests := map[string]struct {
-		left, right Edge
-		rightVars   []StateVar
+		left, right         Edge
+		leftVars, rightVars []StateVar
 	}{
 		"the left field is a right state variable": {
 			left: Edge{Event: "send?x"}, right: Edge{Event: "send?y", Guard: "x > y"}, rightVars: []StateVar{{Name: "x"}},
@@ -306,20 +305,32 @@ func TestComposeParallelRefusesARenamingThatWouldCaptureAName(t *testing.T) {
 		"the left field is a right state variable of the destination": {
 			left: Edge{Event: "send?x"}, right: Edge{Event: "send?y", Post: "x' = y"}, rightVars: []StateVar{{Name: "x"}},
 		},
+		"the right sent field is a left state variable": {
+			left: Edge{Event: "send?x", Guard: "x > y"}, right: Edge{Event: "send!y"}, leftVars: []StateVar{{Name: "y"}}, rightVars: []StateVar{{Name: "y"}},
+		},
+		"a renaming onto a field the side keeps": {
+			left: Edge{Event: "c?a?b"}, right: Edge{Event: "c?b!a"},
+		},
+		"both sides sending a state variable of one name": {
+			left: Edge{Event: "send!y"}, right: Edge{Event: "send!y"}, leftVars: []StateVar{{Name: "y"}}, rightVars: []StateVar{{Name: "y"}},
+		},
+		"fields of another number": {
+			left: Edge{Event: "send?x"}, right: Edge{Event: "send?x?y"},
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
 			tt.left.Src, tt.left.Dst, tt.right.Src, tt.right.Dst = "l0", "l0", "r0", "r0"
-			left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{tt.left}}
+			left := &Diagram{States: map[StateID]State{"l0": {Vars: tt.leftVars}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{tt.left}}
 			right := &Diagram{States: map[StateID]State{"r0": {Vars: tt.rightVars}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{tt.right}}
 
 			// Execute
-			_, err := ComposeParallel2(left, right, []string{"send"})
+			_, err := ComposeParallel2(left, right, []string{tt.left.Event.Channel()})
 
 			// Assert
 			if err == nil {
-				t.Error("ComposeParallel2() error = nil, want the capture refused")
+				t.Error("ComposeParallel2() error = nil, want the synchronisation refused")
 			}
 		})
 	}
@@ -372,5 +383,23 @@ func TestComposeParallelComposesThreeDiagramsFromTheLeft(t *testing.T) {
 	want := []Edge{{Src: "a_b_c", Dst: "a_b_c", Event: "send?x", Guard: "x > 0 ∧ @[y := x] y < 5 ∧ @[z := x] z ≠ 2"}}
 	if diff := cmp.Diff(want, composite.Edges); diff != "" {
 		t.Errorf("ComposeParallel() edges mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestComposeParallelSynchronisesTwoSidesSendingOneFieldOnAnEqualValue(t *testing.T) {
+	// Setup: c!y ‖ c!z synchronises only where the two values are equal.
+	left := &Diagram{States: map[StateID]State{"l0": {Vars: []StateVar{{Name: "y"}}}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send!y", Guard: "y > 0"}}}
+	right := &Diagram{States: map[StateID]State{"r0": {Vars: []StateVar{{Name: "z"}}}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "send!z"}}}
+
+	// Execute
+	composite, err := ComposeParallel2(left, right, []string{"send"})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("ComposeParallel2() error = %v", err)
+	}
+	want := []Edge{{Src: "l0_r0", Dst: "l0_r0", Event: "send!y", Guard: "y > 0 ∧ @eq(y, z)"}}
+	if diff := cmp.Diff(want, composite.Edges); diff != "" {
+		t.Errorf("ComposeParallel2() edges mismatch (-want +got):\n%s", diff)
 	}
 }

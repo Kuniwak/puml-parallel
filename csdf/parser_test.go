@@ -339,7 +339,7 @@ func TestParseEvents(t *testing.T) {
 	}{
 		{name: "a channel alone", event: "reset", wantEvent: "reset", wantChannel: "reset"},
 		{name: "received and chosen fields", event: "c?x!y", wantEvent: "c?x!y", wantChannel: "c",
-			wantFields: []Field{{Dir: Received, Name: "x"}, {Dir: Chosen, Name: "y"}}},
+			wantFields: []Field{{Dir: Received, Name: "x"}, {Dir: Sent, Name: "y"}}},
 		{name: "unicode, digits and kebab case", event: "AUDIT-BEGIN?監査ID?2nd", wantEvent: "AUDIT-BEGIN?監査ID?2nd", wantChannel: "AUDIT-BEGIN",
 			wantFields: []Field{{Dir: Received, Name: "監査ID"}, {Dir: Received, Name: "2nd"}}},
 		{name: "block comments and spaces between tokens removed", event: "send /' implementation detail '/ ? m", wantEvent: "send?m", wantChannel: "send",
@@ -758,7 +758,7 @@ func TestParseRefusesAnUnknownToolWord(t *testing.T) {
 				src += "[*] --> s0\n"
 			}
 			parser := NewParser(src + line + "\n@enduml\n")
-			if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "@opaque and a renaming are the only ones") {
+			if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "are the only ones") {
 				t.Errorf("Parse() error = %v, want an unknown tool word refused", err)
 			}
 		})

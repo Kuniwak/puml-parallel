@@ -60,8 +60,10 @@ wrapped content (for example Graphviz directives such as `left to right directio
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
 Comment delimiters inside a state name are ordinary text. A clause language's quotes are not the tools': a comment delimiter, `;` or ` ∧ ` inside one is read as anywhere else.
 An event is a channel followed by its fields, in the CSP style: `c?x` receives `x`
-(the environment chooses its value) and `c!y` chooses `y` internally (the post gives
-it its value). `tau` is the internal event. An event names its fields and carries
+(the environment chooses its value, from those the guard accepts) and `c!y` sends
+the value of `y`, which the step already binds: a state variable before the step, or
+a field the same event receives (`c?x!x`). A sent field ranges over nothing, and a
+constant is sent through a state variable that holds it. `tau` is the internal event. An event names its fields and carries
 no value and no expression; anything about a value is said by the guard and the
 post, which read a field by its name. Whitespace and comments around `?` and `!`
 are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and
@@ -99,7 +101,7 @@ what they must read:
   separates clauses. ` ∧ ` is not an
   operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
   `a and b`). `∨` and every other symbol belong to the clause.
-- **Tool words** start with `@`, and there are two:
+- **Tool words** start with `@`, and there are three:
   - `@opaque` is a clause not formalised yet, which says nothing a tool can read,
     and which a checker takes by its own rule (`csdfbmc --opaque`).
   - A renaming `@[y := x, …] clause` before a clause says that the name `y` the
@@ -108,6 +110,10 @@ what they must read:
     rewritten; csdfparse writes it as the clause's `rename` (`{"y": "x"}`). It is
     written exactly `@[from := to, …] ` (one space after `]`), its names sorted, and
     the renamings in it are simultaneous: `@[a := b, b := a]` swaps two names.
+  - `@eq(a, b)` is a clause of its own: the values named `a` and `b` are equal.
+    Composition writes it when both sides send one field (`c!y ‖ c!z`), which they
+    do only where the two values are equal; csdfparse writes it as `{"eq": ["a",
+    "b"]}`. A tool renames the names in it, since it is the tools' word.
 
   Any other word starting with an unescaped `@` is refused.
 - **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
@@ -196,7 +202,7 @@ Semantics
 | `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
 | `varType`                                  | `string`           | Represents an optional state-variable type. Leading and trailing whitespace is removed.                                                                                   |
-| `event`                                    | `Event`            | An event: a channel and its `?` (received) and `!` (chosen internally) fields, written without whitespace. `Event.Channel` and `Event.Fields` take it apart, and csdfparse writes them as `channel` and `fields` next to `event`. When it is exactly `tau`, it is an internal transition. |
+| `event`                                    | `Event`            | An event: a channel and its `?` (received) and `!` (sent) fields, written without whitespace. `Event.Channel` and `Event.Fields` take it apart, and csdfparse writes them as `channel` and `fields` next to `event`. When it is exactly `tau`, it is an internal transition. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
 | `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |

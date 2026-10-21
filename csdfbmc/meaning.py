@@ -227,7 +227,54 @@ class Renaming:
         return self.inner.opaque_message(clause)
 
 
+def same_value(a, b) -> bool:
+    """Whether two values are one value: of one kind as well as equal, so
+    that 1 is not True and not 1.0, all the way into tuples and sets."""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, tuple):
+        return len(a) == len(b) and all(same_value(x, y) for x, y in zip(a, b))
+    return a == b
+
+
+class EqualityWord:
+    """inner, but the tool word @eq(a, b) means that the values named a and b
+    are equal, whatever inner would say: nobody is asked about it. In a post
+    it admits the one assignment of nothing where they are equal, and none
+    where they are not."""
+
+    def __init__(self, inner: Meaning):
+        self.inner = inner
+        self.readable = inner.readable
+        self.by_prose = inner.by_prose
+
+    def names(self, clause: Clause, role: str) -> set[str] | None:
+        return set(clause.eq) if clause.eq else self.inner.names(clause, role)
+
+    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
+        return set(clause.eq) if clause.eq else self.inner.names_beyond(clause, own_id)
+
+    def writes(self, clause: Clause) -> set[str] | None:
+        return set() if clause.eq else self.inner.writes(clause)
+
+    def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
+        if not clause.eq:
+            self.inner.prefetch(clause, role, envs)
+
+    def evaluate(self, clause: Clause, role: str, env: dict):
+        if not clause.eq:
+            return self.inner.evaluate(clause, role, env)
+        missing = [n for n in clause.eq if n not in env]
+        if missing:
+            raise KeyError(f"the clause {clause.text!r} reads {missing}, which this step does not bind; it may read {sorted(env)}")
+        equal = same_value(env[clause.eq[0]], env[clause.eq[1]])
+        return equal if role == "guard" else ([{}] if equal else [])
+
+    def opaque_message(self, clause: Clause) -> str:
+        return self.inner.opaque_message(clause)
+
+
 def standard(inner: Meaning) -> Meaning:
-    """inner as every walk takes it: with the tool word @opaque, and each
-    renamed clause read in the names of its predicate."""
-    return OpaqueWord(Renaming(inner))
+    """inner as every walk takes it: with the tool words @opaque and @eq, and
+    each renamed clause read in the names of its predicate."""
+    return OpaqueWord(EqualityWord(Renaming(inner)))

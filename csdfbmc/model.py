@@ -10,12 +10,20 @@ from dataclasses import dataclass, field
 OPAQUE_WORD = "@opaque"
 
 
-def split_event(e: dict) -> tuple[str, tuple[str, ...]]:
-    """The channel and field names of an edge's event, as csdfparse writes
-    them out: the grammar of an event is read by csdfparse alone."""
+RECEIVED, SENT = "?", "!"
+
+
+def split_event(e: dict) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """The channel and the fields, (direction, name) in the event's order, of
+    an edge's event, as csdfparse writes them out: the grammar of an event is
+    read by csdfparse alone."""
     if "channel" not in e or "fields" not in e:
         raise ValueError(f"the edge on {e.get('event')!r} has no channel and fields; write the diagram with csdfparse 3 or later")
-    return e["channel"], tuple(f["name"] for f in e["fields"])
+    fields = tuple((f["dir"], f["name"]) for f in e["fields"])
+    for d, n in fields:
+        if d not in (RECEIVED, SENT):
+            raise ValueError(f"the field {n!r} of {e['event']!r} has the direction {d!r}, which is neither ? nor !")
+    return e["channel"], fields
 
 
 @dataclass(frozen=True)
@@ -41,11 +49,16 @@ class Clause:
     # rename: (from, to) pairs, sorted: the clause reads the name from for the
     # value the predicate it is in names to (a composition writes them).
     rename: tuple[tuple[str, str], ...] = ()
+    # eq: the two names the tool word @eq(a, b) says are equal; its text is
+    # the word itself.
+    eq: tuple[str, ...] = ()
 
     @classmethod
     def from_json(cls, c: dict) -> "Clause":
         opaque = c.get("opaque") is True
-        return cls(kind=c["kind"], text=OPAQUE_WORD if opaque else c["text"], opaque=opaque, map=c.get("map"), id=c.get("id"), state=c.get("state"),
+        eq = tuple(c.get("eq", ()))
+        text = OPAQUE_WORD if opaque else f"@eq({eq[0]}, {eq[1]})" if eq else c["text"]
+        return cls(kind=c["kind"], text=text, opaque=opaque, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
                    maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 
@@ -65,10 +78,20 @@ class Edge:
     dst: str
     event: str
     name: str
-    params: tuple[str, ...]
+    fields: tuple[tuple[str, str], ...]  # (direction, name), in the event's order
     guard: tuple[Clause, ...]
     post: tuple[Clause, ...]
     line: int
+
+    @property
+    def params(self) -> tuple[str, ...]:
+        """The received fields, c?x: values the environment offers."""
+        return tuple(dict.fromkeys(n for d, n in self.fields if d == RECEIVED))
+
+    @property
+    def sent(self) -> tuple[str, ...]:
+        """The sent fields, c!y: names the step binds."""
+        return tuple(n for d, n in self.fields if d == SENT)
 
     @property
     def is_tau(self) -> bool:
@@ -172,13 +195,13 @@ class Diagram:
         vars_ = {sid: tuple(v["name"] for v in st.get("vars", [])) for sid, st in d["states"].items()}
         edges = []
         for e in raw_edges:
-            name, params = split_event(e)
+            name, fields = split_event(e)
             key = (e["src"], e["dst"], e["event"], e.get("guard"), e.get("post"))
             if by_text is not None and key in by_text:
                 guard, post = by_text[key]
             else:
                 guard, post = local_clauses(e, "guard"), local_clauses(e, "post")
-            edges.append(Edge(src=e["src"], dst=e["dst"], event=e["event"], name=name, params=params,
+            edges.append(Edge(src=e["src"], dst=e["dst"], event=e["event"], name=name, fields=fields,
                               guard=guard, post=post, line=e.get("line", 0)))
         end = None
         if d.get("end_edge"):

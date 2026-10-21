@@ -115,6 +115,9 @@ type ExpandedClause struct {
 	// Rename maps a name Text reads to the name of the predicate it stands
 	// for, as the clause's renaming @[from := to] says.
 	Rename map[string]string `json:"rename,omitempty"`
+	// Eq names the two values the tool word @eq(a, b) says are equal; such a
+	// clause has no text.
+	Eq []string `json:"eq,omitempty"`
 	// Formal is the clause's formal twin when the author wrote one next to it
 	// (a constrain's "formal:" line); a local clause's twin lives with the
 	// local diagram and is looked up by Text.
@@ -139,6 +142,13 @@ func (e *expander) authored(kind ClauseKind, clause csdf.Predicate, from Expande
 		from.Opaque = true
 		return from
 	}
+	if a, b, ok, err := csdf.SplitEquality(clause); err != nil {
+		e.errorf(from.Line, "%v", err)
+		return from
+	} else if ok {
+		from.Eq = []string{a, b}
+		return from
+	}
 	renames, body, err := csdf.SplitRenaming(clause)
 	if err != nil {
 		e.errorf(from.Line, "%v", err)
@@ -159,6 +169,8 @@ func conjoin(clauses []ExpandedClause) csdf.Predicate {
 		case c.Kind == ClauseDropped || c.Kind == ClauseEmpty:
 		case c.Opaque:
 			texts = append(texts, csdf.PredicateOpaque)
+		case len(c.Eq) == 2:
+			texts = append(texts, csdf.NewEquality(c.Eq[0], c.Eq[1]))
 		default:
 			// An escaped text holds no renaming of its own, so this cannot fail.
 			clause, err := csdf.RenameClause(csdf.EscapeClause(c.Text), csdf.RenamesFromMap(c.Rename))
