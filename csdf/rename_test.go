@@ -99,12 +99,17 @@ func TestAnEscapedClauseHoldsNoRenaming(t *testing.T) {
 
 func TestSplitEquality(t *testing.T) {
 	tests := map[Predicate]struct {
-		a, b string
-		ok   bool
+		a, b    string
+		ok      bool
+		wantErr bool
 	}{
 		"@eq(y, z)":     {a: "y", b: "z", ok: true},
 		"@eq(監査ID, id)": {a: "監査ID", b: "id", ok: true},
 		"y = z":         {},
+		"@eq(y)":        {wantErr: true},
+		"@eq(y, z":      {wantErr: true},
+		"@eq(y,z)":      {wantErr: true},
+		"@eq(y, y)":     {wantErr: true},
 	}
 	for clause, tt := range tests {
 		t.Run(string(clause), func(t *testing.T) {
@@ -112,42 +117,55 @@ func TestSplitEquality(t *testing.T) {
 			a, b, ok, err := SplitEquality(clause)
 
 			// Assert
-			if err != nil || ok != tt.ok || a != tt.a || b != tt.b {
-				t.Errorf("SplitEquality(%q) = %q, %q, %v, %v, want %q, %q, %v", clause, a, b, ok, err, tt.a, tt.b, tt.ok)
+			if (err != nil) != tt.wantErr || ok != tt.ok || a != tt.a || b != tt.b {
+				t.Errorf("SplitEquality(%q) = %q, %q, %v, %v, want %q, %q, %v, error %v", clause, a, b, ok, err, tt.a, tt.b, tt.ok, tt.wantErr)
 			}
 		})
 	}
 }
 
-func TestSplitEqualityRefusesAMalformedEquality(t *testing.T) {
-	for _, clause := range []Predicate{"@eq(y)", "@eq(y, z", "@eq(y,z)", "@eq(y, y)", "@eq(y, z) ∧"} {
-		t.Run(string(clause), func(t *testing.T) {
+func TestCheckClausesAcceptsAnEqualityAndRefusesOneUnderARenaming(t *testing.T) {
+	for p, ok := range map[Predicate]bool{"x > 0 ∧ @eq(y, z)": true, "@[a := b] @eq(a, c)": false} {
+		t.Run(string(p), func(t *testing.T) {
 			// Execute
-			_, _, _, err := SplitEquality(clause)
+			err := CheckClauses(p)
 
 			// Assert
-			if err == nil {
-				t.Errorf("SplitEquality(%q) error = nil, want one", clause)
+			if (err == nil) != ok {
+				t.Errorf("CheckClauses(%q) = %v, want ok %v", p, err, ok)
 			}
 		})
 	}
 }
 
-func TestAnEqualityIsCheckedRenamedAndWrittenAsJSON(t *testing.T) {
-	// Setup
-	p := Predicate("x > 0 ∧ @eq(y, z)")
+func TestRenameClauseRenamesTheNamesOfAnEquality(t *testing.T) {
+	tests := map[string]struct {
+		renames []Rename
+		want    Predicate
+	}{
+		"apart":               {renames: []Rename{{"z", "w"}}, want: "@eq(y, w)"},
+		"onto one name, true": {renames: []Rename{{"z", "y"}}, want: ""},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := RenameClause("@eq(y, z)", tt.renames)
 
+			// Assert
+			if err != nil || got != tt.want {
+				t.Errorf("RenameClause() = %q, %v, want %q", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestClausesJSONWritesAnEqualityAsItsNames(t *testing.T) {
 	// Execute
-	err := CheckClauses(p)
-	renamed, renameErr := RenameClause("@eq(y, z)", []Rename{{"z", "w"}})
-	got, jsonErr := p.ClausesJSON()
+	got, err := Predicate("x > 0 ∧ @eq(y, z)").ClausesJSON()
 
 	// Assert
-	if err != nil || renameErr != nil || jsonErr != nil {
-		t.Fatalf("errors = %v, %v, %v", err, renameErr, jsonErr)
-	}
-	if renamed != "@eq(y, w)" {
-		t.Errorf("RenameClause() = %q, want @eq(y, w): a tool word is the tools' to rename", renamed)
+	if err != nil {
+		t.Fatal(err)
 	}
 	if diff := cmp.Diff([]ClauseJSON{{Text: "x > 0"}, {Eq: []string{"y", "z"}}}, got); diff != "" {
 		t.Errorf("ClausesJSON() mismatch (-want +got):\n%s", diff)

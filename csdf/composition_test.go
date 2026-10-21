@@ -311,6 +311,9 @@ func TestComposeParallelRefusesASynchronisationThatCannotMeanOneValuePerField(t 
 		"a renaming onto a field the side keeps": {
 			left: Edge{Event: "c?a?b"}, right: Edge{Event: "c?b!a"},
 		},
+		"both sides sending a state variable of one name": {
+			left: Edge{Event: "send!y"}, right: Edge{Event: "send!y"}, leftVars: []StateVar{{Name: "y"}}, rightVars: []StateVar{{Name: "y"}},
+		},
 		"fields of another number": {
 			left: Edge{Event: "send?x"}, right: Edge{Event: "send?x?y"},
 		},

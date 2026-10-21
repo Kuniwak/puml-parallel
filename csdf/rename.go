@@ -52,7 +52,8 @@ func SplitRenaming(clause Predicate) ([]Rename, Predicate, error) {
 	return renames, body, nil
 }
 
-// RenameClause is clause read with each From of renames bound to To. A clause
+// RenameClause is clause read with each From of renames bound to To; an
+// equality renamed onto one name says nothing, and is the omitted predicate. A clause
 // that already has a renaming gets the two composed into one; a name that
 // comes to stand for itself is left out. @opaque reads nothing, so it is not
 // renamed.
@@ -70,6 +71,9 @@ func RenameClause(clause Predicate, renames []Rename) (Predicate, error) {
 		}
 		if r, ok := to[b]; ok {
 			b = r
+		}
+		if a == b {
+			return "", nil // a value equals itself: the clause says nothing
 		}
 		return NewEquality(a, b), nil
 	}

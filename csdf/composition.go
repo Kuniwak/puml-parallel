@@ -194,6 +194,12 @@ func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 			fields[i] = fL[i]
 			if fL[i].Name != fR[i].Name {
 				equalities = append(equalities, NewEquality(fL[i].Name, fR[i].Name))
+				continue
+			}
+			_, onLeft := varsL[Var(fL[i].Name)]
+			_, onRight := varsR[Var(fR[i].Name)]
+			if onLeft && onRight {
+				return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s (line %d) and %s (line %d) both send their own state variable %s, which the composite could not tell apart to say they are equal; name them apart", eL.Event, eL.Line, eR.Event, eR.Line, fL[i].Name)
 			}
 			continue
 		}
@@ -253,13 +259,15 @@ func renamedOntoAKeptField(own, composite []Field, renames []Rename) (string, bo
 
 // renamed is p with each clause read through renames.
 func renamed(p Predicate, renames []Rename) (Predicate, error) {
-	clauses := p.Clauses()
-	for i, c := range clauses {
+	var clauses []Predicate
+	for _, c := range p.Clauses() {
 		r, err := RenameClause(c, renames)
 		if err != nil {
 			return "", fmt.Errorf("csdf.ComposeParallel2: %w", err)
 		}
-		clauses[i] = r
+		if !IsTrue(r) {
+			clauses = append(clauses, r)
+		}
 	}
 	return ConjoinClauses(clauses), nil
 }

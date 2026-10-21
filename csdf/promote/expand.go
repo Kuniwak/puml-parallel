@@ -142,10 +142,10 @@ func (e *expander) authored(kind ClauseKind, clause csdf.Predicate, from Expande
 		from.Opaque = true
 		return from
 	}
-	if a, b, ok, err := csdf.SplitEquality(clause); err != nil || ok {
-		if err != nil {
-			e.errorf(from.Line, "%v", err)
-		}
+	if a, b, ok, err := csdf.SplitEquality(clause); err != nil {
+		e.errorf(from.Line, "%v", err)
+		return from
+	} else if ok {
 		from.Eq = []string{a, b}
 		return from
 	}
