@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -27,6 +28,11 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		"single file (representative value)": {
 			Args:     []string{"a.puml"},
 			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml"},
+		},
+		"a checks module and the glue csdfbmc reads the clauses through": {
+			Args: []string{"-checks", "c.py", "-evaluator-module", "csdfbmc.python_glue", "a.puml"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml",
+				Checker: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
 		},
 	}
 
@@ -62,6 +68,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		},
 		"too many arguments (representative value)": {
 			Args: []string{"a.puml", "b.puml"},
+		},
+		"a checks module without a glue": {
+			Args: []string{"-checks", "c.py", "a.puml"},
+		},
+		"the twins of an earlier csdfbmc": {
+			Args: []string{"-twins", "t.py", "a.puml"},
 		},
 	}
 

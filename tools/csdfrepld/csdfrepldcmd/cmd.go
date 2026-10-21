@@ -27,12 +27,12 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		sock := tools.ResolveSocketPath(opts.Sock, inout.Env)
 		service := proto.NewService(version.Version, opts.Common.Debug())
-		if opts.Twins != "" {
+		if opts.Checker.Asks() {
 			service.SetSuggesters(func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error) {
 				if diagramJSON != "" {
-					return &bmc.Suggester{Diagram: diagramJSON, Twins: opts.Twins, Locals: opts.Locals}, func() {}, nil
+					return &bmc.Suggester{Diagram: diagramJSON, Checker: opts.Checker}, func() {}, nil
 				}
-				return bmc.ForDiagram(d, opts.Twins, opts.Locals)
+				return bmc.ForDiagram(d, opts.Checker)
 			})
 		}
 

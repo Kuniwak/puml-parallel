@@ -35,7 +35,7 @@ type Request struct {
 	Index   *int   `json:"index,omitempty"`   // select (optional) / jump (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
-	// (statevar), when the daemon has twins to suggest from.
+	// (statevar), when the daemon has a checker to suggest from.
 	Pick *int `json:"pick,omitempty"`
 	// DiagramJSON (session_new) is the JSON the checker reads for this session
 	// when the file is an expansion; empty means the file's own parse.
@@ -81,7 +81,7 @@ type Pending struct {
 	Guard    csdf.Predicate     `json:"guard"`
 	Post     csdf.Predicate     `json:"post"`
 	// Suggestions are the values the checker admits for this prompt, when
-	// the daemon has twins; nil otherwise.
+	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`
 }
 

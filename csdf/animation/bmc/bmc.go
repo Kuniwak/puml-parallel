@@ -1,11 +1,12 @@
 // Package bmc is the animation.Suggester backed by the csdfbmc checker: it
-// asks "csdfbmc next" what values the twins admit at a value prompt.
+// asks "csdfbmc next" what values the clauses admit at a value prompt.
 package bmc
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,22 +17,68 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 )
 
+// Checker is what csdfbmc reads besides the diagram: the checks module of the
+// domains, ghosts and invariants, and the glue every clause is read through,
+// as a command line (Evaluator) or a Python module and its arguments
+// (EvaluatorModule). The zero Checker asks nothing.
+type Checker struct {
+	Checks          string
+	Evaluator       string
+	EvaluatorModule string
+}
+
+// DeclareFlags declares -checks, -evaluator and -evaluator-module on fs, and
+// returns the Checker they fill in.
+func DeclareFlags(fs *flag.FlagSet) *Checker {
+	c := &Checker{}
+	fs.StringVar(&c.Checks, "checks", "", "csdfbmc checks module (DOMAINS, GHOSTS, INVARIANTS); with a glue, the value prompt suggests the values the clauses admit")
+	fs.StringVar(&c.Evaluator, "evaluator", "", "with -checks, the command line of the glue csdfbmc reads the clauses through")
+	fs.StringVar(&c.EvaluatorModule, "evaluator-module", "", "with -checks, the Python module (and its arguments) of the glue csdfbmc reads the clauses through, such as csdfbmc.python_glue")
+	return c
+}
+
+// Asks reports whether the Checker is set, so that value prompts suggest.
+func (c Checker) Asks() bool { return c.Checks != "" }
+
+// Validate refuses a Checker that csdfbmc could not run: a checks module
+// needs a glue, a glue needs a checks module, and the glue has one form.
+func (c Checker) Validate() error {
+	glue := c.Evaluator != "" || c.EvaluatorModule != ""
+	switch {
+	case c.Evaluator != "" && c.EvaluatorModule != "":
+		return errors.New("give -evaluator or -evaluator-module, not both")
+	case c.Checks != "" && !glue:
+		return errors.New("-checks needs -evaluator or -evaluator-module: csdfbmc reads every clause through a glue (csdfbmc.python_glue reads Python)")
+	case glue && c.Checks == "":
+		return errors.New("-evaluator and -evaluator-module need -checks, the module of the domains")
+	}
+	return nil
+}
+
+// NextArgs are the arguments of "csdfbmc next" for the diagram JSON at path,
+// before what next is asked.
+func (c Checker) NextArgs(diagram string) []string {
+	args := []string{"next", diagram, c.Checks}
+	if c.Evaluator != "" {
+		return append(args, "--evaluator", c.Evaluator)
+	}
+	return append(args, "--evaluator-module", c.EvaluatorModule)
+}
+
 // Suggester runs csdfbmc. Diagram is the JSON the checker reads (csdfparse's
-// output, or an expansion from csdfpromote -format json), Twins the twins
-// module, Locals the per-family twins of an expansion as PATH=TWINS.py, and
-// Command the csdfbmc executable (found on the PATH, or beside this binary,
-// when empty).
+// output, or an expansion from csdfpromote -format json), Checker what it
+// reads besides, and Command the csdfbmc executable (found on the PATH, or
+// beside this binary, when empty).
 type Suggester struct {
 	Diagram string
-	Twins   string
-	Locals  []string
+	Checker Checker
 	Command string
 }
 
 // ForDiagram writes d as csdfparse would print it to a temporary file and
 // returns a Suggester reading it, so a REPL started on a .puml needs no JSON
 // of its own. The caller removes the file with the returned function.
-func ForDiagram(d *csdf.Diagram, twins string, locals []string) (*Suggester, func(), error) {
+func ForDiagram(d *csdf.Diagram, checker Checker) (*Suggester, func(), error) {
 	f, err := os.CreateTemp("", "csdfrepl-*.json")
 	if err != nil {
 		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
@@ -42,7 +89,7 @@ func ForDiagram(d *csdf.Diagram, twins string, locals []string) (*Suggester, fun
 		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
 	}
 	_ = f.Close()
-	return &Suggester{Diagram: f.Name(), Twins: twins, Locals: locals}, func() { _ = os.Remove(f.Name()) }, nil
+	return &Suggester{Diagram: f.Name(), Checker: checker}, func() { _ = os.Remove(f.Name()) }, nil
 }
 
 func (s *Suggester) Initial() ([]animation.Suggestion, error) {
@@ -62,11 +109,7 @@ func (s *Suggester) run(args ...string) ([]animation.Suggestion, error) {
 	if err != nil {
 		return nil, err
 	}
-	full := []string{"next", s.Diagram, s.Twins}
-	for _, l := range s.Locals {
-		full = append(full, "--local", l)
-	}
-	full = append(full, args...)
+	full := append(s.Checker.NextArgs(s.Diagram), args...)
 	cmd := exec.Command(command, full...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

@@ -4,19 +4,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 type Options struct {
 	Common *tools.CommonOptions
 	Sock   string
-	// Twins is the csdfbmc twins module that lets every session's value
-	// prompts suggest values; Locals the per-family twins of an expansion.
-	Twins  string
-	Locals []string
+	// Checker is what csdfbmc reads to let every session's value prompts
+	// suggest values.
+	Checker bmc.Checker
 }
 
 // CommonOptions returns the parsed common options.
@@ -42,14 +41,16 @@ The socket path defaults to $%s, then $XDG_RUNTIME_DIR/%s, then <tmp>/%s.
 Examples:
   $ csdfrepld
   $ csdfrepld -sock /tmp/csdfrepld.sock
+  $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue
+
+With -checks and a glue, value prompts suggest the values the clauses admit,
+as csdfbmc reads them, and statevar -pick enters one.
 `, tools.SocketEnv, tools.SocketName, tools.SocketName)
 		}
 
 		var sock string
 		flags.StringVar(&sock, "sock", "", "path of the Unix domain socket to listen on")
-		twins := flags.String("twins", "", "csdfbmc twins module; value prompts then suggest the values it admits and statevar -pick works")
-		var locals repeated
-		flags.Var(&locals, "local", "with -twins, the twins of a family's local diagram as PATH=TWINS.py (repeatable)")
+		checker := bmc.DeclareFlags(flags)
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -69,11 +70,10 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		return &Options{Common: commonOpts, Sock: sock, Twins: *twins, Locals: []string(locals)}, nil
+		if err := checker.Validate(); err != nil {
+			return nil, fmt.Errorf("csdfrepldcmd.NewParseOptionsFunc: %w", err)
+		}
+
+		return &Options{Common: commonOpts, Sock: sock, Checker: *checker}, nil
 	}
 }
-
-type repeated []string
-
-func (r *repeated) String() string     { return strings.Join(*r, ",") }
-func (r *repeated) Set(v string) error { *r = append(*r, v); return nil }

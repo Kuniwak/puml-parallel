@@ -176,7 +176,7 @@ func parseReplay() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd replay", inout)
 		setLeafUsage(flags, "csdfreplcmd replay [-finding <n>] [-s <id>] [-json] <csdfbmc.json>",
-			"Walk a fresh session (just created with \"session new\", no values entered)\nalong the path csdfbmc --json recorded under one of its findings, entering\nthe initial values and every step, and show the state it reaches. The\nfindings are numbered from 0 in the order the output lists them: deadlocks,\ntau cycles, broken invariants, avoiding cycles, empty posts, unconstrained\nposts. A step that cannot be taken is an error, and the session stays at\nthe last state reached.\n\nExample:\n  csdfbmc diagram.json twins.py --json > findings.json\n  SID=$(csdfreplcmd session new diagram.puml)\n  csdfreplcmd replay -finding 0 findings.json")
+			"Walk a fresh session (just created with \"session new\", no values entered)\nalong the path csdfbmc --json recorded under one of its findings, entering\nthe initial values and every step, and show the state it reaches. The\nfindings are numbered from 0 in the order the output lists them: deadlocks,\ntau cycles, broken invariants, avoiding cycles, empty posts, unconstrained\nposts. A step that cannot be taken is an error, and the session stays at\nthe last state reached.\n\nExample:\n  csdfbmc diagram.json checks.py --evaluator-module csdfbmc.python_glue --json > findings.json\n  SID=$(csdfreplcmd session new diagram.puml)\n  csdfreplcmd replay -finding 0 findings.json")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -220,13 +220,13 @@ func parseStatevar() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd statevar", inout)
 		setLeafUsage(flags, "csdfreplcmd statevar -json <json-array> | -json-file <file> | -pick <n> [-s <id>]",
-			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -twins.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
+			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -checks and a glue.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		var jsonText, jsonFile string
 		flags.StringVar(&jsonText, "json", "", "state variable values as a JSON array")
 		flags.StringVar(&jsonFile, "json-file", "", "file containing the JSON array of state variable values")
-		pick := flags.Int("pick", -1, "enter the n-th suggestion instead (needs a daemon started with -twins)")
+		pick := flags.Int("pick", -1, "enter the n-th suggestion instead (needs a daemon started with -checks and a glue)")
 		opts, err := parseLeaf(flags, args, cf)
 		if err != nil || opts.help {
 			return opts, err
@@ -291,7 +291,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
 		setLeafUsage(flags, "csdfreplcmd session new [-diagram-json <file>] [-json] <file.puml|file.png>",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. With a daemon started with -twins,\n-diagram-json names the JSON the checker reads for this session (an\nexpansion from csdfpromote -format json); default: the file's own parse.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. With a daemon started with -checks,\n-diagram-json names the JSON the checker reads for this session (an\nexpansion from csdfpromote -format json); default: the file's own parse.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
 		diagramJSON := flags.String("diagram-json", "", "the JSON csdfbmc reads for this session (an expansion)")

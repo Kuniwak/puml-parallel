@@ -45,12 +45,12 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			replay = &findings[opts.Finding].Replay
 		}
 		run := runOptions{Replay: replay}
-		if opts.Twins != "" {
+		if opts.Checker.Asks() {
 			if opts.DiagramJSON != "" {
-				run.Suggester = &bmc.Suggester{Diagram: opts.DiagramJSON, Twins: opts.Twins, Locals: opts.Locals}
+				run.Suggester = &bmc.Suggester{Diagram: opts.DiagramJSON, Checker: opts.Checker}
 			} else {
 				run.SuggesterForDiagram = func(d *csdf.Diagram) (animation.Suggester, func(), error) {
-					return bmc.ForDiagram(d, opts.Twins, opts.Locals)
+					return bmc.ForDiagram(d, opts.Checker)
 				}
 			}
 		}

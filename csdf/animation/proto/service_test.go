@@ -396,10 +396,10 @@ func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
 	}
 }
 
-func TestPickWithoutTwinsIsRefused(t *testing.T) {
+func TestPickWithoutACheckerIsRefused(t *testing.T) {
 	service, id := newSession(t)
 	resp := service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(0)})
-	if resp.OK || !strings.Contains(resp.Error, "-twins") {
-		t.Errorf("statevar -pick without twins = %+v, want a refusal naming -twins", resp)
+	if resp.OK || !strings.Contains(resp.Error, "-checks") {
+		t.Errorf("statevar -pick without a checker = %+v, want a refusal naming -checks", resp)
 	}
 }
