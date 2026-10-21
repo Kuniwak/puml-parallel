@@ -137,6 +137,14 @@ class ExplorerTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, message.replace("$", r"\$")):
                     fixture.explorer(diagram, environment=env)
 
+    def test_a_function_the_environment_leaves_undecided_is_an_error_not_false(self):
+        # Setup
+        env = environments.Environment(decide=environments.nothing, seed=7, given=())
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, r"decided nothing for '\$_ が 正'"):
+            fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
+
     def test_a_seed_decides_every_function(self):
         # Execute
         result = fixture.explorer(self.with_two_atoms(), environment=environments.over({}, {}, 7), max_states=10).run()

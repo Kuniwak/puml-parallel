@@ -281,12 +281,15 @@ class Explorer:
     def _decided(self, clause: Clause, env: dict) -> bool:
         """What the environment says a guard clause not formalised means at
         env: the function its atom names, of the values of its holes
-        (csdfbmc.atoms). _check_environment saw to it that it decides."""
+        (csdfbmc.atoms). Undecided is an error, never false."""
         f = function_of(clause.text)
         missing = [a for a in f.args if a not in env]
         if missing:
             raise KeyError(f"the atom {clause.text!r} reads {', '.join(missing)}, which the step does not bind")
-        return self._decide(f.name, tuple(env[a] for a in f.args))
+        value = self._decide(f.name, tuple(env[a] for a in f.args))
+        if value is None:
+            raise ValueError(f"the environment decided nothing for {f.name!r}; give it, or choose it with --seed N")
+        return value
 
     # -- guards -----------------------------------------------------------------
 
