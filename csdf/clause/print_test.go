@@ -28,12 +28,12 @@ func TestPrintWritesTheSurfaceSyntax(t *testing.T) {
 			want: "@eq(x, y') ∧ @at(i, s) ∧ @frame(m', m, k)",
 		},
 		"an ∃ keeps its hint when it captures nothing": {
-			f:    Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))},
-			want: "@exists(v) (@eq(v, x))",
+			f:    Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, pre("x")))},
+			want: "@exists(v : T) (@eq(v, x))",
 		},
 		"an ∃ takes a fresh name when its hint would capture": {
-			f:    Exists{Hint: "x", Body: and(eq(Bound{0}, pre("x")))},
-			want: "@exists(x2) (@eq(x2, x))",
+			f:    Exists{Hint: "x", Type: "T", Body: and(eq(Bound{0}, pre("x")))},
+			want: "@exists(x2 : T) (@eq(x2, x))",
 		},
 	}
 	for name, tt := range tests {
@@ -68,10 +68,10 @@ func TestParseOfPrintIsTheFormula(t *testing.T) {
 		"a backslash before a reserved character":                 and(atom(Text(`\;`))),
 		"∧ and ; in text":                                         and(atom(Text("a ∧ b; c"))),
 		"a name that starts with a digit":                         and(atom(hole(pre("1st")), Text(" > 0"))),
-		"parentheses in an ∃ body":                                Exists{Hint: "v", Body: and(atom(Text(") f("), hole(Bound{0}), Text("(")))},
-		"a backslash at the end of an ∃ body":                     Exists{Hint: "v", Body: and(atom(hole(Bound{0}), Text(`\`)))},
-		"nested binders with one hint":                            Exists{Hint: "v", Body: and(Exists{Hint: "v", Body: and(eq(Bound{0}, Bound{1}))})},
-		"a binder whose hint is a free name inside":               Exists{Hint: "x", Body: and(Exists{Hint: "x2", Body: and(eq(Bound{1}, pre("x")), eq(Bound{0}, pre("x2")))})},
+		"parentheses in an ∃ body":                                Exists{Hint: "v", Type: "T", Body: and(atom(Text(") f("), hole(Bound{0}), Text("(")))},
+		"a backslash at the end of an ∃ body":                     Exists{Hint: "v", Type: "T", Body: and(atom(hole(Bound{0}), Text(`\`)))},
+		"nested binders with one hint":                            Exists{Hint: "v", Type: "T", Body: and(Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, Bound{1}))})},
+		"a binder whose hint is a free name inside":               Exists{Hint: "x", Type: "T", Body: and(Exists{Hint: "x2", Type: "T", Body: and(eq(Bound{1}, pre("x")), eq(Bound{0}, pre("x2")))})},
 		"an environment function":                                 and(atom(hole(App{Fn: "f", Args: []Term{pre("x"), post("y")}}), Text(" > 0"))),
 		"a hole after a hole":                                     and(atom(hole(pre("x")), hole(pre("y")))),
 	}
@@ -119,7 +119,7 @@ func TestPrintRefusesAFormulaThatIsNotWellFormed(t *testing.T) {
 	}{
 		"a dangling index":             {f: and(eq(Bound{0}, pre("x"))), want: "clause.Print: clause.LocallyClosed: the index 0 is under 0 binders"},
 		"a name that is no identifier": {f: and(atom(hole(pre("a b")))), want: `clause.Print: clause.WellFormed: the variable "a b" is no identifier`},
-		"a hint that is no name":       {f: Exists{Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint "" of an ∃ is no identifier`},
+		"a hint that is no name":       {f: Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint "" of an ∃ is no identifier`},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -138,7 +138,7 @@ func TestPrintOfParseIsTheTextAuthorsWrite(t *testing.T) {
 		"$在庫 が $数量 以上ある",
 		"${locations[from].在庫} > 0 ∧ @ne(from, to)",
 		"costs $100",
-		"@exists(v) (f($v) > 0) ∧ $y",
+		"@exists(v : T) (f($v) > 0) ∧ $y",
 		"@update(m', m, k, v) ∧ @frame(m', m, k)",
 	} {
 		t.Run(text, func(t *testing.T) {

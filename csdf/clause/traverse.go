@@ -34,7 +34,7 @@ func MapFormula(f Formula, depth int, leaf func(v Term, depth int) Term) Formula
 	case And:
 		return mapAnd(f, depth, leaf)
 	case Exists:
-		return Exists{Hint: f.Hint, Body: mapAnd(f.Body, depth+1, leaf)}
+		return Exists{Hint: f.Hint, Type: f.Type, Body: mapAnd(f.Body, depth+1, leaf)}
 	case Atom:
 		parts := make([]Part, len(f.Parts))
 		for i, p := range f.Parts {

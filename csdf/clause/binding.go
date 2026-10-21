@@ -24,10 +24,10 @@ func TermLocallyClosed(t Term) error {
 	return LocallyClosed(Atom{Parts: []Part{Hole{Term: t}}})
 }
 
-// Close binds v in f: ∃v. f, with the occurrences of v before the step
+// Close binds v, ranging over the type typ, in f: ∃v : typ. f, with the occurrences of v before the step
 // becoming the index of the new binder. Bound variables are never primed,
 // so v must not be, and v' stays free: it is the diagram's v after the step.
-func Close(f Formula, v Free) (Exists, error) {
+func Close(f Formula, v Free, typ string) (Exists, error) {
 	if v.Primed {
 		return Exists{}, fmt.Errorf("clause.Close: %s' is the value after the step and cannot be bound", v.Name)
 	}
@@ -40,7 +40,7 @@ func Close(f Formula, v Free) (Exists, error) {
 		}
 		return t
 	})
-	return Exists{Hint: v.Name, Body: Normalize(body)}, nil
+	return Exists{Hint: v.Name, Type: typ, Body: Normalize(body)}, nil
 }
 
 // Open is the body of e with its variable replaced by t.

@@ -34,7 +34,7 @@ func TestFreeVars(t *testing.T) {
 			want: []Free{pre("m"), pre("k"), pre("a")},
 		},
 		"not the bound ones": {
-			text: "@exists(v) (@eq(v, w))",
+			text: "@exists(v : T) (@eq(v, w))",
 			want: []Free{pre("w")},
 		},
 		"none in true": {

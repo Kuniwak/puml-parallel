@@ -18,7 +18,7 @@ func normalConjuncts(f Formula, out []Formula) []Formula {
 		}
 		return out
 	case Exists:
-		return append(out, Exists{Hint: f.Hint, Body: Normalize(f.Body)})
+		return append(out, Exists{Hint: f.Hint, Type: f.Type, Body: Normalize(f.Body)})
 	case Atom:
 		return append(out, normalAtom(f))
 	case Builtin:
@@ -82,7 +82,7 @@ func withoutHints(f And) And {
 	cs := make([]Formula, len(f.Conjuncts))
 	for i, c := range f.Conjuncts {
 		if e, ok := c.(Exists); ok {
-			c = Exists{Body: withoutHints(e.Body)}
+			c = Exists{Type: e.Type, Body: withoutHints(e.Body)}
 		}
 		cs[i] = c
 	}

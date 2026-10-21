@@ -9,8 +9,9 @@ import (
 )
 
 // Env is what a diagram takes from outside to be expanded: the values of
-// each name (a variable bound by ∃ takes the type of its hint, as a name
-// takes the type of the same name, until binders carry types), the meaning
+// each type (a variable bound by ∃ ranges over the type it carries; a state
+// variable or a field, until they carry types, over the type of the same
+// name), the meaning
 // of each atom, keyed by AtomKey, and the environment functions.
 type Env struct {
 	Types map[string][]Value
@@ -53,7 +54,7 @@ func (ev evaluator) holds(f clause.Formula, bound []Value) (bool, error) {
 		}
 		return true, nil
 	case clause.Exists:
-		for _, v := range ev.env.Types[f.Hint] {
+		for _, v := range ev.env.Types[f.Type] {
 			ok, err := ev.holds(f.Body, append(append([]Value{}, bound...), v))
 			if err != nil || ok {
 				return ok, err

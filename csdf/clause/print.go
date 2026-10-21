@@ -80,7 +80,7 @@ func (pr *printer) exists(e Exists) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return existsWord + name + ") (" + body + ")", nil
+	return existsWord + name + existsType + e.Type + ") (" + body + ")", nil
 }
 
 func (pr *printer) builtin(b Builtin) (string, error) {

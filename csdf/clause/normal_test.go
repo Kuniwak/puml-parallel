@@ -24,8 +24,8 @@ func TestNormalize(t *testing.T) {
 			want: and(atom(Text("ab"), hole(pre("x")))),
 		},
 		"normalizes an ∃ body": {
-			f:    Exists{Hint: "v", Body: and(and(atom(Text("a"))))},
-			want: and(Exists{Hint: "v", Body: and(atom(Text("a")))}),
+			f:    Exists{Hint: "v", Type: "T", Body: and(and(atom(Text("a"))))},
+			want: and(Exists{Hint: "v", Type: "T", Body: and(atom(Text("a")))}),
 		},
 		"no arguments are no arguments": {
 			f:    atom(hole(App{Fn: "f", Args: []Term{}})),
@@ -51,8 +51,8 @@ func TestAlphaEqual(t *testing.T) {
 		want bool
 	}{
 		"hints carry no meaning": {
-			a:    Exists{Hint: "v", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{0}, pre("x")}})},
-			b:    Exists{Hint: "w", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{0}, pre("x")}})},
+			a:    Exists{Hint: "v", Type: "T", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{0}, pre("x")}})},
+			b:    Exists{Hint: "w", Type: "T", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{0}, pre("x")}})},
 			want: true,
 		},
 		"up to the normal form": {
@@ -61,8 +61,8 @@ func TestAlphaEqual(t *testing.T) {
 			want: true,
 		},
 		"a bound variable is not a free one": {
-			a:    Exists{Hint: "x", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{0}, pre("x")}})},
-			b:    Exists{Hint: "x", Body: and(Builtin{Op: OpEq, Args: []Term{pre("x"), pre("x")}})},
+			a:    Exists{Hint: "x", Type: "T", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{0}, pre("x")}})},
+			b:    Exists{Hint: "x", Type: "T", Body: and(Builtin{Op: OpEq, Args: []Term{pre("x"), pre("x")}})},
 			want: false,
 		},
 		"free names matter": {

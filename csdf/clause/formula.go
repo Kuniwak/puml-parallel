@@ -9,9 +9,11 @@ type And struct{ Conjuncts []Formula }
 // Exists binds one variable in Body, where it is Bound{0}. Only tools write
 // it (docs/CLAUSE_DESIGN.md). Hint is the name the variable is printed with
 // when that captures nothing; it carries no meaning, and two formulas that
-// differ only in hints are α-equivalent.
+// differ only in hints are α-equivalent. Type names the type the variable
+// ranges over (docs/CLAUSE_DESIGN.md, P16); it carries meaning.
 type Exists struct {
 	Hint string
+	Type string
 	Body And
 }
 

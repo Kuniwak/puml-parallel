@@ -129,21 +129,21 @@ func TestParseReadsExists(t *testing.T) {
 		text string
 		want Formula
 	}{
-		"a bound variable is an index": {
-			text: "@exists(v) ($v > $x)",
-			want: Exists{Hint: "v", Body: and(atom(hole(Bound{Index: 0}), Text(" > "), hole(pre("x"))))},
+		"a bound variable is an index, of the type it is given": {
+			text: "@exists(v : T) ($v > $x)",
+			want: Exists{Hint: "v", Type: "T", Body: and(atom(hole(Bound{Index: 0}), Text(" > "), hole(pre("x"))))},
 		},
 		"the innermost binder wins": {
-			text: "@exists(v) (@exists(v) (@eq(v, w)))",
-			want: Exists{Hint: "v", Body: and(Exists{Hint: "v", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{Index: 0}, pre("w")}})})},
+			text: "@exists(v : T) (@exists(v : T) (@eq(v, w)))",
+			want: Exists{Hint: "v", Type: "T", Body: and(Exists{Hint: "v", Type: "T", Body: and(Builtin{Op: OpEq, Args: []Term{Bound{Index: 0}, pre("w")}})})},
 		},
 		"an outer binder is one index further": {
-			text: "@exists(m) (@exists(k) (@in(k, m)))",
-			want: Exists{Hint: "m", Body: and(Exists{Hint: "k", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{Index: 0}, Bound{Index: 1}}})})},
+			text: "@exists(m : T) (@exists(k : T) (@in(k, m)))",
+			want: Exists{Hint: "m", Type: "T", Body: and(Exists{Hint: "k", Type: "T", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{Index: 0}, Bound{Index: 1}}})})},
 		},
 		"parentheses in a body's text nest": {
-			text: "@exists(v) (f($v) > 0) ∧ $y",
-			want: Exists{Hint: "v", Body: and(atom(Text("f("), hole(Bound{Index: 0}), Text(") > 0")))},
+			text: "@exists(v : T) (f($v) > 0) ∧ $y",
+			want: Exists{Hint: "v", Type: "T", Body: and(atom(Text("f("), hole(Bound{Index: 0}), Text(") > 0")))},
 		},
 	}
 	for name, tt := range tests {
@@ -164,7 +164,7 @@ func TestParseReadsExists(t *testing.T) {
 
 func TestParseAuthoredRefusesExists(t *testing.T) {
 	// Setup
-	text := "$x > 0 ∧ @exists(v) (@eq(v, x))"
+	text := "$x > 0 ∧ @exists(v : T) (@eq(v, x))"
 
 	// Execute
 	_, err := ParseAuthored(text)
@@ -193,9 +193,10 @@ func TestParseRefuses(t *testing.T) {
 		"@frame with one map":            {text: "@frame(m')", want: "@frame at 0 takes 2 terms"},
 		"an unknown tool word":           {text: "@foo(x)", want: "unknown tool word @foo at 0"},
 		"a tool word with text after it": {text: "@eq(x, y) z", want: `@eq at 0: expected " ∧ " or the end at 9`},
-		"a bound variable primed":        {text: "@exists(v) ($v' > 0)", want: "v is bound by @exists and has no value after the step"},
-		"an unclosed body":               {text: "@exists(v) ($v > 0", want: `expected ")"`},
-		"an empty body":                  {text: "@exists(v) ()", want: "@exists at 0: an empty body"},
+		"a bound variable primed":        {text: "@exists(v : T) ($v' > 0)", want: "v is bound by @exists and has no value after the step"},
+		"an unclosed body":               {text: "@exists(v : T) ($v > 0", want: `expected ")"`},
+		"a binder without its type":      {text: "@exists(v) ($v > 0)", want: `expected " : "`},
+		"an empty body":                  {text: "@exists(v : T) ()", want: "@exists at 0: an empty body"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

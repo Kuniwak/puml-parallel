@@ -109,10 +109,10 @@ func promoteAlone(p Promotion, f Family, e Edge) (Edge, error) {
 	if e.Event.Channel == Tau {
 		// An internal event has no argument: the instance is any that can
 		// take it (docs/PROMOTION.md).
-		if guard, err = bind(guard, f.ID); err != nil {
+		if guard, err = bind(guard, f.ID, f.ID); err != nil {
 			return Edge{}, err
 		}
-		if post, err = bind(and(guard, post), f.ID); err != nil {
+		if post, err = bind(and(guard, post), f.ID, f.ID); err != nil {
 			return Edge{}, err
 		}
 		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: guard, Post: post}, nil
@@ -253,13 +253,12 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 	}
 	post := clause.Normalize(clause.And{Conjuncts: posts})
 	for i := len(bound) - 1; i >= 0; i-- {
-		e, err := clause.Close(post, bound[i])
+		// An intermediate map ranges over the type of the map it stands
+		// for.
+		e, err := clause.Close(post, bound[i], boundMap[i])
 		if err != nil {
 			return clause.And{}, clause.And{}, err
 		}
-		// The evaluator types a bound variable by its hint: the map it
-		// stands for.
-		e.Hint = boundMap[i]
 		post = clause.And{Conjuncts: []clause.Formula{e}}
 	}
 	return clause.Normalize(clause.And{Conjuncts: guards}), post, nil

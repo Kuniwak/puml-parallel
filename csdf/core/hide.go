@@ -28,10 +28,12 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 				continue
 			}
 			var err error
-			if guard, err = bind(guard, f.Name); err != nil {
+			// Until fields carry types, a field's type is the one named
+			// like it.
+			if guard, err = bind(guard, f.Name, f.Name); err != nil {
 				return nil, fmt.Errorf("core.Hide: %s: %w", e.Event.Channel, err)
 			}
-			if post, err = bind(post, f.Name); err != nil {
+			if post, err = bind(post, f.Name, f.Name); err != nil {
 				return nil, fmt.Errorf("core.Hide: %s: %w", e.Event.Channel, err)
 			}
 		}
@@ -40,9 +42,9 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 	return out, nil
 }
 
-// bind is ∃name. f.
-func bind(f clause.And, name string) (clause.And, error) {
-	e, err := clause.Close(f, clause.Free{Name: name})
+// bind is ∃name : typ. f.
+func bind(f clause.And, name, typ string) (clause.And, error) {
+	e, err := clause.Close(f, clause.Free{Name: name}, typ)
 	if err != nil {
 		return clause.And{}, err
 	}
