@@ -3,10 +3,10 @@
 ' guarded SKIP is covered too.
 state "init" as init
 init: step
-state "vm-idle" as vm-idle
-vm-idle: and
+state "vm_待機" as vm_待機
+vm_待機: and
 [*] --> init : both are set initially
-init --> vm-idle : tau ; step is positive ; and' is step
-vm-idle --> init : choose?a-product ; ; step' is and
-vm-idle --> [*] : nothing is left
+init --> vm_待機 : tau ; step is positive ; and' is step
+vm_待機 --> init : choose?a_商品 ; ; step' is and
+vm_待機 --> [*] : nothing is left
 @enduml
