@@ -6,6 +6,30 @@ import unittest
 from csdfbmc.checks import Checks, load_checks, PurityError
 
 
+class TypesTest(unittest.TestCase):
+    def test_a_name_ranges_over_the_type_typeof_gives_it(self):
+        # Setup
+        checks = Checks(types={"口座ID": ["a1", "a2"]}, typeof={"相手ID": "口座ID"})
+
+        # Execute
+        values = checks.domain("相手ID")
+
+        # Assert
+        self.assertEqual(["a1", "a2"], values)
+        self.assertTrue(checks.declares("相手ID"))
+
+    def test_a_name_typeof_does_not_name_takes_the_type_of_its_own_name(self):
+        # Setup
+        checks = Checks(types={"額": [1, 2]}, typeof={"相手ID": "口座ID"})
+
+        # Execute
+        values = checks.domain("額")
+
+        # Assert
+        self.assertEqual([1, 2], values)
+        self.assertFalse(checks.declares("相手ID"))
+
+
 class LoadChecksTest(unittest.TestCase):
     def write(self, source):
         d = tempfile.mkdtemp()

@@ -66,7 +66,7 @@ def check_pure(source: str, path: str = "<checks>") -> None:
 
 @dataclass
 class Checks:
-    # types: a name -> the finite values it ranges over.
+    # types: a type -> the finite values it ranges over (its carrier set).
     types: dict[str, Iterable]
     # invariants: name -> predicate over the state variables and ghosts it
     # reads, checked at every reachable state that binds all of them.
@@ -82,18 +82,27 @@ class Checks:
     symmetric: tuple[str, ...] = ()
     # sources: (path, source) of the module, which the symmetry check reads.
     sources: list[tuple[str, str]] = field(default_factory=list)
+    # typeof: a name -> its type; a name it does not list has the type of
+    # its own name.
+    typeof: dict[str, str] = field(default_factory=dict)
+
+    def type_of(self, name: str) -> str:
+        return self.typeof.get(name, name)
 
     def declares(self, name: str) -> bool:
         """Whether name has a type, and so values to range over."""
-        return name in self.types
+        return self.type_of(name) in self.types
 
     def typed_names(self) -> dict[str, list]:
-        """Every name that has a type, with its values."""
-        return {name: list(values) for name, values in self.types.items()}
+        """Every name that has a type, with its values: the names TYPEOF
+        lists, and each type under its own name."""
+        names = {name: list(values) for name, values in self.types.items()}
+        names.update((name, list(self.types[t])) for name, t in self.typeof.items() if t in self.types)
+        return names
 
     def domain(self, name: str) -> list:
-        if name in self.types:
-            return list(self.types[name])
+        if self.declares(name):
+            return list(self.types[self.type_of(name)])
         raise KeyError(f"no domain declared for {name!r}; add it to DOMAINS")
 
     def binds(self, fn: Callable, env: dict) -> bool:
