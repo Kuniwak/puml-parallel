@@ -330,13 +330,21 @@ before it (`tau` steps included), the report tabulates the guards and
 postconditions along the path and states the obligation
 
 ```
-∀ x0 x1 ... xi. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ ... → unstable(xi) ∨ enabled(xi)
+∀ x0 c1 x1 ... ci xi. post_0(x0) ∧ guard_1(c1, x0) ∧ post_1(c1, x0, x1) ∧ ... → unstable(xi) ∨ enabled(xi)
 ```
 
-where `x0` is the valuation the start edge admits and `xi` the valuation after
-step `i`, `unstable(xi)` says some `tau` edge out of the state reached is
-enabled, and `enabled(xi)` says some edge for the event is: its guard holds and
-its post admits a successor, the same enabledness `csdfrefinement` uses. The
+where `x0` is the valuation the start edge admits, `xi` the valuation after
+step `i`, and `ci` the parameters of step `i`'s event: the fields it receives,
+or the values a `tau` chooses. A step whose event receives nothing has no `ci`;
+a sent field is not a parameter, since it is a value the state holds. The
+parameters occur only in the premise, so binding them universally makes the
+obligation hold for every value the environment offered and every value a
+`tau` chose on the way. `unstable(xi)` says some `tau` edge out of the state
+reached is enabled for some values it chooses, `∃ c'. guard(c', xi) ∧ ∃ x'.
+post(c', xi, x')`, and `enabled(xi)` says some edge for the event is, for some
+value offered: `∃ c. guard(c, xi) ∧ ∃ x'. post(c, xi, x')`. A trace names no
+value, so its event is performed when some value is accepted; that the post
+admits a successor for every accepted value is not asked. The
 report ends with a prompt asking a reader, a person or an LLM, to decide
 whether every obligation holds. As with the other checkers the predicates are
 natural language, so the tool never decides that itself: exit 0 means only that
