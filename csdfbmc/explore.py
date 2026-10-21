@@ -221,8 +221,8 @@ class Explorer:
             raise ValueError("the clauses are read through a glue, so the twins' CLAUSES and their locals would not be used; leave them out")
         self.por = PartialOrder(self) if por else None
         if symmetry and not self.meaning.readable:
-            raise ValueError("symmetry is checked by reading the clauses for SYMMETRIC, which cannot be done for clauses read through a glue")
-        self.symmetry = Symmetry(diagram, twins) if symmetry else None
+            raise ValueError("symmetry is checked by asking of every clause whether it tells the IDs apart, which this glue does not answer (its hello supports no \"symmetric\")")
+        self.symmetry = Symmetry(diagram, twins, self.meaning) if symmetry else None
 
     # -- environments -----------------------------------------------------------
 

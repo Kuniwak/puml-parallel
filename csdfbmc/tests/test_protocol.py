@@ -76,15 +76,40 @@ class ClientTest(unittest.TestCase):
             ("a post that is not a list of assignments", {"post": {"results": [[1]]}}, lambda c: c.post("x", [{}])),
             ("an answer that is not an object", {"guard": [True]}, lambda c: c.guard("x", [{}])),
             ("an error that is not a message", {"guard": {"error": ["x"]}}, lambda c: c.guard("x", [{}])),
+            ("beyond without reads", {"beyond": {}}, lambda c: c.beyond("x", "guard", "i")),
+            ("symmetric that is not a truth value", {"symmetric": {"symmetric": 1}}, lambda c: c.symmetric("x", "guard", [], [], [])),
+            ("not symmetric without why", {"symmetric": {"symmetric": False}}, lambda c: c.symmetric("x", "guard", [], [], [])),
         ]:
-            client = Client(fake({"hello": HELLO, **answers}), NO_CLOSE)
+            client = Client(fake({"hello": dict(HELLO, supports=["beyond", "symmetric"]), **answers}), NO_CLOSE)
             with self.subTest(name), self.assertRaises(EvaluatorError):
                 ask(client)
+
+
+class SupportsTest(unittest.TestCase):
+    """A glue answers beyond and symmetric only when its hello says it
+    does; the client asks nothing of one that does not."""
+
+    def test_a_glue_that_supports_them_is_asked(self):
+        client = Client(fake({"hello": dict(HELLO, supports=["beyond", "symmetric"]),
+                              "beyond": {"reads": ["n"]}, "symmetric": {"symmetric": False, "why": "i is ordered"}}), NO_CLOSE)
+        self.assertEqual(("n",), client.beyond("x", "guard", "i"))
+        self.assertEqual("i is ordered", client.symmetric("x", "guard", ["i"], [], [["a", "b"]]))
+
+    def test_a_glue_that_does_not_is_not_asked(self):
+        client = Client(fake({"hello": HELLO}), NO_CLOSE)
+        self.assertEqual(frozenset(), client.supports)
+        with self.assertRaises(EvaluatorError):
+            client.beyond("x", "guard", "i")
+
+    def test_a_hello_with_supports_that_are_not_names_is_refused(self):
+        with self.assertRaises(EvaluatorError):
+            Client(fake({"hello": dict(HELLO, supports="beyond")}), NO_CLOSE)
 
 
 class Recording:
     """A client answering from tables, which records the bindings it is asked about."""
     language = "fake"
+    supports = frozenset()
 
     def __init__(self, analyses: dict, answer):
         self.analyses, self.answer, self.asked = analyses, answer, []

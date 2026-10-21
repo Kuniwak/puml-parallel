@@ -42,6 +42,7 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable
 
+from csdfbmc import formal
 from csdfbmc.formal import free_names
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins
@@ -61,11 +62,7 @@ def formal_names(expr: str) -> set[str]:
 
 def names_beyond(expr: str, own_id: str | None) -> set[str]:
     """The names expr reads, but a map read only as m[own_id]."""
-    tree = ast.parse(expr, mode="eval")
-    keyed = {id(n.value) for n in ast.walk(tree)
-             if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name)
-             and isinstance(n.slice, ast.Name) and n.slice.id == own_id}
-    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in keyed}
+    return formal.names_beyond(ast.parse(expr, mode="eval"), own_id)
 
 
 def _with_roles(e: Edge) -> list[tuple[Clause, str]]:
@@ -169,7 +166,7 @@ class PartialOrder:
 
 
 class Symmetry:
-    def __init__(self, diagram: Diagram, twins: Twins):
+    def __init__(self, diagram: Diagram, twins: Twins, meaning=None):
         if not twins.symmetric:
             raise ValueError("--symmetry needs the twins module to declare SYMMETRIC, the instance-ID parameters whose values are interchangeable")
         ids = {p.id_param for p in diagram.promotes.values()}
@@ -193,6 +190,8 @@ class Symmetry:
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self._check_domains(diagram, twins)
         self._check_sources(diagram, twins)
+        if meaning is not None:
+            self._check_clauses(diagram, meaning)
 
     def _check_domains(self, diagram: Diagram, twins: Twins) -> None:
         """A domain that holds symmetric IDs (a record naming another
@@ -222,31 +221,23 @@ class Symmetry:
                 if c.formal:
                     self._check(ast.parse(c.formal, mode="eval"), f"<formal line {c.line}>")
 
+    def _check_clauses(self, diagram: Diagram, meaning) -> None:
+        """Asks the meaning of each clause the author wrote whether it tells
+        two IDs apart: a glue answers it for the clauses it reads."""
+        for e in diagram.edges:
+            for clauses, role in ((e.guard, "guard"), (e.post, "post")):
+                for c in clauses:
+                    if c.kind not in ("local", "constrain"):
+                        continue
+                    why = meaning.tells_apart(c, role, self.params, self.maps, self.groups)
+                    if why is not None:
+                        raise ValueError(f"line {c.line}: the clause {c.text!r} tells the IDs apart: {why}; drop it from SYMMETRIC or from the clause")
+
     def _check(self, tree: ast.AST, path: str) -> None:
-        # A literal listing every ID of a group (the domain, written out)
-        # names none of them in particular.
-        skip = set()
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
-                listed = {e.value for e in node.elts if isinstance(e, ast.Constant)}
-                if any(g <= listed for g in self.groups):
-                    skip |= set(map(id, node.elts))
-        symmetric = self.params | self.maps
-        for node in ast.walk(tree):
-            if id(node) in skip:
-                continue
-            line = getattr(node, "lineno", 0)
-            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in self.values:
-                raise ValueError(f"{path}:{line}: the constant {node.value!r} names one symmetric ID, so the IDs are not interchangeable; drop it from SYMMETRIC or from the twin")
-            if isinstance(node, ast.Compare) and any(isinstance(op, (ast.Lt, ast.LtE, ast.Gt, ast.GtE)) for op in node.ops):
-                # An ID used as a key (m[id].x < 3) is not itself ordered.
-                for operand in [node.left, *node.comparators]:
-                    if isinstance(operand, ast.Name) and operand.id in self.params:
-                        raise ValueError(f"{path}:{line}: {operand.id} is ordered, so the IDs are not interchangeable; drop it from SYMMETRIC or from the twin")
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("sorted", "min", "max"):
-                for n in ast.walk(node):
-                    if isinstance(n, ast.Name) and n.id in symmetric:
-                        raise ValueError(f"{path}:{line}: {node.func.id} orders {n.id}, so the IDs are not interchangeable; drop it from SYMMETRIC or from the twin")
+        found = formal.tells_apart(tree, self.params, self.maps, self.groups)
+        if found is not None:
+            line, how = found
+            raise ValueError(f"{path}:{line}: {how}, so the IDs are not interchangeable; drop it from SYMMETRIC or from the twin")
 
     def canonical(self, state):
         """The representative of state's renamings: the least under a fixed

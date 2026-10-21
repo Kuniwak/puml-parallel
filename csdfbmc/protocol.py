@@ -5,7 +5,8 @@ A glue is a long-running process that reads one JSON request per line on its
 standard input and writes one JSON answer per line on its standard output,
 in order. The requests are:
 
-- {"op": "hello"} -> {"language": NAME, "protocol": 1}, first.
+- {"op": "hello"} -> {"language": NAME, "protocol": 1}, first. It may add
+  "supports": [OP, ...], the optional requests below the glue answers.
 - {"op": "analyse", "clause": TEXT, "role": "guard" | "post"}
   -> {"reads": [NAME, ...], "writes": [NAME, ...]}: the names the clause
   reads and, for a post, the variables it gives a value to, known without
@@ -15,6 +16,19 @@ in order. The requests are:
 - {"op": "post", "clause": TEXT, "bindings": [BINDING, ...]}
   -> {"results": [[ASSIGNMENT, ...], ...]}: per binding, the successor
   values of the clause's writes, each assignment giving every one of them.
+
+Two requests are optional, for what the walk's reductions need to know of a
+clause and only the clause's language can tell; the checker sends them only
+to a glue whose hello supports them, and does without the reduction else:
+
+- {"op": "beyond", "clause": TEXT, "role": ROLE, "own_id": NAME}
+  -> {"reads": [NAME, ...]}: the names the clause reads, leaving out a map it
+  reads only at the key own_id (partial-order reduction).
+- {"op": "symmetric", "clause": TEXT, "role": ROLE, "params": [NAME, ...],
+  "maps": [NAME, ...], "groups": [[ID, ...], ...]} -> {"symmetric": true}, or
+  {"symmetric": false, "why": MESSAGE}: whether the clause tells apart two IDs
+  of a group, which params range over and maps are keyed by (symmetry
+  reduction).
 
 A binding and an assignment are JSON objects from names to values. Any
 request may be answered with {"error": MESSAGE}. A clause must be pure and
@@ -120,18 +134,30 @@ Handle = Callable[[dict], dict]
 
 
 def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: Callable[[str, dict], bool],
-            post: Callable[[str, dict], list[dict]]) -> Handle:
+            post: Callable[[str, dict], list[dict]],
+            beyond: Callable[[str, str, str | None], list[str]] | None = None,
+            symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None) -> Handle:
     """The Handle of a glue, from what is particular to its language:
     analyse(text, role) says what a clause reads and writes, guard(text,
-    binding) and post(text, binding) evaluate a clause under one binding. hello, the
-    batches and the error answers are the protocol's and are the same for
-    every glue."""
+    binding) and post(text, binding) evaluate a clause under one binding.
+    beyond(text, role, own_id) and symmetric(text, role, params, maps,
+    groups), when given, answer what the walk's reductions ask (None from
+    symmetric: the clause tells no two IDs apart; a message: how it does).
+    hello, the batches and the error answers are the protocol's and are the
+    same for every glue."""
+    supports = [op for op, fn in (("beyond", beyond), ("symmetric", symmetric)) if fn is not None]
 
     def handle(request: dict) -> dict:
         op = request.get("op")
         try:
             if op == "hello":
-                return {"language": language, "protocol": PROTOCOL}
+                hello = {"language": language, "protocol": PROTOCOL}
+                return dict(hello, supports=supports) if supports else hello
+            if op == "beyond" and beyond is not None:
+                return {"reads": beyond(request["clause"], request["role"], request["own_id"])}
+            if op == "symmetric" and symmetric is not None:
+                why = symmetric(request["clause"], request["role"], request["params"], request["maps"], request["groups"])
+                return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
             if op == "analyse":
                 a = analyse(request["clause"], request["role"])
                 return {"opaque": True} if a.opaque else {"reads": list(a.reads), "writes": list(a.writes)}
@@ -219,8 +245,11 @@ class ClientLike(Protocol):
     """What the checker needs of a glue: Client, and the decorators that
     wrap one."""
     language: str
+    supports: frozenset[str]
 
     def analyse(self, clause: str, role: str) -> "Analysis": ...
+    def beyond(self, clause: str, role: str, own_id: str | None) -> tuple[str, ...]: ...
+    def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None: ...
     def guard(self, clause: str, bindings: list[dict]) -> list[bool]: ...
     def post(self, clause: str, bindings: list[dict]) -> list[list[dict]]: ...
     def close(self) -> None: ...
@@ -256,6 +285,10 @@ class Client:
             if not isinstance(answer.get("language"), str) or not answer["language"]:
                 raise EvaluatorError(f"the glue's hello names no language: {answer!r}")
             self.language = answer["language"]
+            supports = answer.get("supports", [])
+            if not isinstance(supports, list) or not all(isinstance(op, str) for op in supports):
+                raise EvaluatorError(f"the glue's hello says it supports {supports!r}, not a list of requests")
+            self.supports = frozenset(supports)
         except EvaluatorError:
             close()
             raise
@@ -301,6 +334,30 @@ class Client:
             raise self._malformed("post", clause, results, "a post is a list of assignments per binding")
         return results
 
+    def _supported(self, op: str, clause: str) -> None:
+        if op not in self.supports:
+            raise EvaluatorError(f"the {self.language} glue does not answer {op}, which was asked of {clause!r}")
+
+    def beyond(self, clause: str, role: str, own_id: str | None) -> tuple[str, ...]:
+        """The names the clause reads, but a map it reads only at own_id."""
+        self._supported("beyond", clause)
+        answer = self._request({"op": "beyond", "clause": clause, "role": role, "own_id": own_id})
+        reads = answer.get("reads")
+        if not isinstance(reads, list) or not all(isinstance(n, str) for n in reads):
+            raise self._malformed("beyond", clause, answer, "reads must be a list of names")
+        return tuple(reads)
+
+    def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None:
+        """How the clause tells two IDs of a group apart, or None when it
+        does not."""
+        self._supported("symmetric", clause)
+        answer = self._request({"op": "symmetric", "clause": clause, "role": role, "params": params, "maps": maps, "groups": groups})
+        if answer.get("symmetric") is True:
+            return None
+        if answer.get("symmetric") is not False or not isinstance(answer.get("why"), str):
+            raise self._malformed("symmetric", clause, answer, "symmetric is true, or false with a why")
+        return answer["why"]
+
     def close(self) -> None:
         self._close()
 
@@ -329,9 +386,16 @@ class Validating:
     def __init__(self, inner: ClientLike):
         self.inner = inner
         self.language = inner.language
+        self.supports = inner.supports
 
     def analyse(self, clause: str, role: str) -> Analysis:
         return self.inner.analyse(clause, role)
+
+    def beyond(self, clause: str, role: str, own_id: str | None) -> tuple[str, ...]:
+        return self.inner.beyond(clause, role, own_id)
+
+    def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None:
+        return self.inner.symmetric(clause, role, params, maps, groups)
 
     def guard(self, clause: str, bindings: list[dict]) -> list:
         return self.inner.guard(clause, bindings)
@@ -357,8 +421,19 @@ class Memoising:
     def __init__(self, inner: ClientLike):
         self.inner = inner
         self.language = inner.language
+        self.supports = inner.supports
         self._analyses: dict[tuple[str, str], Analysis] = {}
         self._answers: dict[tuple, object] = {}
+        self._beyond: dict[tuple, tuple[str, ...]] = {}
+
+    def beyond(self, clause: str, role: str, own_id: str | None) -> tuple[str, ...]:
+        key = (clause, role, own_id)
+        if key not in self._beyond:
+            self._beyond[key] = self.inner.beyond(clause, role, own_id)
+        return self._beyond[key]
+
+    def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None:
+        return self.inner.symmetric(clause, role, params, maps, groups)
 
     def analyse(self, clause: str, role: str) -> Analysis:
         key = (clause, role)

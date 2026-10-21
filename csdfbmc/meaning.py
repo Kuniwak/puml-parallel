@@ -24,13 +24,15 @@ OPAQUE = object()
 
 class Meaning(Protocol):
     """What the walk needs to know of the hand-written and constrain clauses."""
-    # readable: the clauses can be read, as source, to check SYMMETRIC.
+    # readable: the clauses can be checked for SYMMETRIC, by reading them as
+    # source (twins) or by asking whoever reads them (tells_apart).
     readable: bool
     # by_prose: the twins' CLAUSES give the meaning.
     by_prose: bool
 
     def names(self, clause: Clause, role: str) -> set[str] | None: ...
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None: ...
+    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None: ...
     def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None: ...
     def evaluate(self, clause: Clause, role: str, env: dict): ...
     def opaque_message(self, clause: Clause) -> str: ...
@@ -85,6 +87,11 @@ class TwinsMeaning:
     def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
         pass
 
+    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        """None: the twins modules and formal expressions are read as source
+        by the symmetry check itself."""
+        return None
+
     def evaluate(self, clause: Clause, role: str, env: dict):
         """What clause evaluates to under env, or OPAQUE."""
         fn = self._twin(clause)
@@ -101,12 +108,17 @@ class TwinsMeaning:
 
 class GlueMeaning:
     """The meaning a glue gives the clauses, asked through client as given
-    (csdfbmc.protocol.checked is what the commands give)."""
-    readable = False
+    (csdfbmc.protocol.checked is what the commands give). What the walk's
+    reductions need of a clause is asked of the glue when it answers it, and
+    is unknown otherwise."""
     by_prose = False
 
     def __init__(self, client: ClientLike):
         self.client = client
+        self.readable = "symmetric" in client.supports
+
+    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        return self.client.symmetric(clause.text, role, sorted(params), sorted(maps), [sorted(g) for g in groups])
 
     def _binding(self, clause: Clause, reads: tuple[str, ...], env: dict) -> dict:
         missing = [n for n in reads if n not in env]
@@ -119,7 +131,9 @@ class GlueMeaning:
         return None if analysis.opaque else set(analysis.reads)
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        return None
+        if "beyond" not in self.client.supports:
+            return None
+        return set(self.client.beyond(clause.text, "guard", own_id))
 
     def writes(self, clause: Clause) -> set[str] | None:
         """The variables a post clause gives a value to, as the glue says."""
@@ -160,6 +174,9 @@ class OpaqueWord:
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
         return None if clause.opaque else self.inner.names_beyond(clause, own_id)
+
+    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        return None if clause.opaque else self.inner.tells_apart(clause, role, params, maps, groups)
 
     def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
         if not clause.opaque:
@@ -206,7 +223,16 @@ class Renaming:
         return self._outer(clause, self.inner.names(clause, role))
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        return self._outer(clause, self.inner.names_beyond(clause, own_id))
+        inner_id = next((f for f, t in clause.rename if t == own_id), own_id)
+        return self._outer(clause, self.inner.names_beyond(clause, inner_id))
+
+    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        """Asked in the clause's own names: a name renamed onto a symmetric
+        one is symmetric there, and one renamed away is not the outer one."""
+        def inner(names: set[str]) -> set[str]:
+            renamed_from = {f for f, _ in clause.rename}
+            return {f for f, t in clause.rename if t in names} | {n for n in names if n not in renamed_from}
+        return self.inner.tells_apart(clause, role, inner(params), inner(maps), groups)
 
     def writes(self, clause: Clause) -> set[str] | None:
         """What inner says a post clause gives a value to; for a meaning that
@@ -253,6 +279,10 @@ class EqualityWord:
 
     def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
         return set(clause.eq) if clause.eq else self.inner.names_beyond(clause, own_id)
+
+    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        # An equality of two names names no ID and orders none.
+        return None if clause.eq else self.inner.tells_apart(clause, role, params, maps, groups)
 
     def writes(self, clause: Clause) -> set[str] | None:
         return set() if clause.eq else self.inner.writes(clause)
