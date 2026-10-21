@@ -10,6 +10,11 @@ const (
 	OpNe Op = "ne"
 	// OpIn says the key Args[0] is in the domain of the map Args[1].
 	OpIn Op = "in"
+	// OpNotIn says the key Args[0] is not in the domain of the map Args[1]:
+	// the instance it names does not exist.
+	OpNotIn Op = "notin"
+	// OpEmpty says the map Args[0] has no entries.
+	OpEmpty Op = "empty"
 	// OpUpdate says the map Args[0] is Args[1] with the key Args[2] mapped
 	// to Args[3].
 	OpUpdate Op = "update"
@@ -47,6 +52,8 @@ var builtins = map[Op]BuiltinSpec{
 	OpEq:     {Terms: 2},
 	OpNe:     {Terms: 2},
 	OpIn:     {Terms: 2},
+	OpNotIn:  {Terms: 2},
+	OpEmpty:  {Terms: 1},
 	OpUpdate: {Terms: 4},
 	OpFrame:  {Terms: 2, Variadic: true},
 	OpAt:     {Terms: 1, State: true},

@@ -104,6 +104,19 @@ func builtin(b clause.Builtin, args []Value) (bool, error) {
 		}
 		_, in := m[Key(args[0])]
 		return in, nil
+	case clause.OpNotIn:
+		m, ok := args[1].(Map)
+		if !ok {
+			return false, fmt.Errorf("core: @notin of %s, not a map", Key(args[1]))
+		}
+		_, in := m[Key(args[0])]
+		return !in, nil
+	case clause.OpEmpty:
+		m, ok := args[0].(Map)
+		if !ok {
+			return false, fmt.Errorf("core: @empty of %s, not a map", Key(args[0]))
+		}
+		return len(m) == 0, nil
 	case clause.OpUpdate:
 		m1, ok1 := args[0].(Map)
 		m0, ok0 := args[1].(Map)
