@@ -94,6 +94,9 @@ def from_wire(wire):
 
 
 PROTOCOL = 1
+# The protocol of atoms (docs/CLAUSE_DESIGN.md): a request carries an atom and
+# the values of its arguments by index, never a name.
+PROTOCOL_ATOMS = 2
 
 
 class EvaluatorError(Exception):
@@ -172,6 +175,9 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
     def handle(request: dict) -> dict:
         op = request.get("op")
         try:
+            if op == "hello" and request.get("protocol") == PROTOCOL_ATOMS and atom_guard and atom_post:
+                hello = {"language": language, "protocol": PROTOCOL_ATOMS}
+                return dict(hello, supports=["symmetric"]) if atom_symmetric else hello
             if op == "hello":
                 hello = {"language": language, "protocol": PROTOCOL}
                 return dict(hello, supports=supports) if supports else hello
@@ -401,6 +407,88 @@ class Client:
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+
+class AtomClient:
+    """The checker's side of protocol 2 over a Handle: atoms and the values
+    of their arguments by index. It says hello asking for protocol 2 and
+    refuses a glue that answers with another."""
+
+    def __init__(self, handle: Handle, close: Callable[[], None]):
+        self._handle = handle
+        self._close = close
+        try:
+            answer = handle({"op": "hello", "protocol": PROTOCOL_ATOMS})
+            if not isinstance(answer, dict) or answer.get("protocol") != PROTOCOL_ATOMS:
+                raise EvaluatorError(f"the glue answered hello with {answer!r}; csdfbmc reads atoms through protocol {PROTOCOL_ATOMS}")
+            if not isinstance(answer.get("language"), str) or not answer["language"]:
+                raise EvaluatorError(f"the glue's hello names no language: {answer!r}")
+            self.language = answer["language"]
+            supports = answer.get("supports", [])
+            if not isinstance(supports, list) or not all(isinstance(op, str) for op in supports):
+                raise EvaluatorError(f"the glue's hello says it supports {supports!r}, not a list of requests")
+            self.supports = frozenset(supports)
+        except EvaluatorError:
+            close()
+            raise
+
+    def _request(self, request: dict) -> dict:
+        answer = self._handle(request)
+        if not isinstance(answer, dict):
+            raise self._malformed(request, answer, "an answer is an object")
+        if "error" in answer:
+            if not isinstance(answer["error"], str):
+                raise self._malformed(request, answer, "an error is a message")
+            raise EvaluatorError(f"the {self.language} glue answered {request['op']} of the atom {_shown(request['atom'])}: {answer['error']}")
+        return answer
+
+    def _malformed(self, request: dict, answer, why: str) -> EvaluatorError:
+        return EvaluatorError(f"the {self.language} glue answered {request['op']} of the atom {_shown(request['atom'])} with {answer!r}: {why}")
+
+    def _results(self, op: str, atom: dict, values: list[list]) -> list:
+        request = {"op": op, "atom": atom, "values": values}
+        answer = self._request(request)
+        results = answer.get("results")
+        if not isinstance(results, list) or len(results) != len(values):
+            raise self._malformed(request, answer, f"want one result per list of values, {len(values)} in all")
+        return results
+
+    def guard(self, atom: dict, values: list[list]) -> list[bool]:
+        results = self._results("guard", atom, values)
+        if not all(isinstance(r, bool) for r in results):
+            raise self._malformed({"op": "guard", "atom": atom}, results, "a guard is a truth value")
+        return results
+
+    def post(self, atom: dict, values: list[list]) -> list[list[list]]:
+        """Per list of values before the step, the lists of values after it
+        the atom allows, of its primed arguments in order."""
+        results = self._results("post", atom, values)
+        if not all(isinstance(r, list) and all(isinstance(a, list) for a in r) for r in results):
+            raise self._malformed({"op": "post", "atom": atom}, results, "a post is a list of lists of values per list of values")
+        return results
+
+    def symmetric(self, atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
+        """How the atom tells two IDs of a group apart, or None when it does
+        not; params and maps are indices of its arguments."""
+        if "symmetric" not in self.supports:
+            raise EvaluatorError(f"the {self.language} glue does not answer symmetric, which was asked of the atom {_shown(atom)}")
+        request = {"op": "symmetric", "atom": atom, "params": params, "maps": maps, "groups": groups}
+        answer = self._request(request)
+        if answer.get("symmetric") is True:
+            return None
+        if answer.get("symmetric") is not False or not isinstance(answer.get("why"), str):
+            raise self._malformed(request, answer, "symmetric is true, or false with a why")
+        return answer["why"]
+
+    def close(self) -> None:
+        self._close()
+
+
+def _shown(atom: dict) -> str:
+    """An atom as a message shows it, its holes as $0, $1, … by argument."""
+    text = atom.get("text", [])
+    holes = atom.get("holes", [])
+    return repr(text[0] + "".join(f"${h}" + t for h, t in zip(holes, text[1:]))) if text else repr(atom)
 
 
 def start_command(argv: list[str], *, cwd: str | None = None, env: dict | None = None) -> Client:
