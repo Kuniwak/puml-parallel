@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from csdfbmc.cone import Cone
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.meaning import OPAQUE, Meaning, TwinsMeaning, standard
+from csdfbmc.meaning import OPAQUE, Meaning
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.twins import Twins, apply
 from csdfbmc.values import FrozenMap, encode, freeze
@@ -33,13 +33,12 @@ class Result:
     avoid: str | None = None
     ghost_names: tuple[str, ...] = ()
     # empty_posts: (state, event as taken) where the guard held but the post
-    # twins returned no successor. A real post always admits some values, so
-    # this is a twin that says less than the clause, or a clause that cannot
-    # be satisfied from this state.
+    # clauses admitted no successor: a clause that cannot be satisfied from
+    # this state, or post clauses that disagree.
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
-    # unconstrained: (state, event as taken, variables) where the post twins
+    # unconstrained: (state, event as taken, variables) where the post clauses
     # left variables of the next state without a value: a post clause is
-    # missing, or its twin constrains fewer variables than it should.
+    # missing, or one constrains fewer variables than it should.
     unconstrained: list[tuple[State, str, tuple[str, ...]]] = field(default_factory=list)
     # stopped_early: the walk stopped at the first finding (first=True).
     stopped_early: bool = False
@@ -150,20 +149,19 @@ class Result:
 
 class Explorer:
     """Enumerates the states a diagram can reach when its clauses mean what
-    their twins say. A guard twin decides; a post twin returns the successor
-    values of the variables it constrains, as a collection of partial
-    assignments, and the successors of an edge are the natural join of what
-    its clauses return. Event parameters range over the declared domains.
+    meaning says. A guard decides; a post returns the successor values of the
+    variables it constrains, as a collection of partial assignments, and the
+    successors of an edge are the natural join of what its clauses return.
+    Event parameters range over the declared domains.
 
     In an expansion of a promoted diagram, a map variable holds, per instance
     ID, a record of the local state's name (under "state") and the local
     variables. The generated clauses (in_dom, at_state, update, create, delete,
-    frame) have their meaning built in; a local clause is evaluated with the
-    family's twins over the instance's variables and the event's parameters;
-    a constrain clause with the global twins, or with the formal expression
-    written next to it.
+    frame) have their meaning built in; a local clause is evaluated over the
+    instance's variables and the event's parameters, a constrain clause over
+    the maps.
 
-    opaque says what a clause without a twin means: "error" refuses it, "true"
+    opaque says what a clause not formalised yet means: "error" refuses it, "true"
     takes it as satisfied (an over-approximation, so a deadlock it reports may
     be spurious while a deadlock it misses cannot be hidden by it).
 
@@ -174,23 +172,20 @@ class Explorer:
     within narrows those cycles to the control states named.
 
     meaning says what the hand-written and constrain clauses mean
-    (csdfbmc.meaning): the twins (TwinsMeaning, which of_twins gives), or a
-    glue of the evaluator protocol (GlueMeaning), which reads every clause
-    by its text, each as meaning.standard makes it, with the tool word
-    @opaque. A clause
-    the meaning has nothing for follows the opaque rule. symmetry is refused
-    when the meaning cannot be read to check SYMMETRIC.
+    (csdfbmc.meaning): a glue of the evaluator protocol (GlueMeaning), which
+    reads every clause by its text, as meaning.standard makes it, with the
+    tool words. A clause the meaning has nothing for follows the opaque rule.
+    symmetry is refused when the meaning cannot say whether a clause tells
+    the IDs apart.
+
+    twins is the checks module: the domains, ghosts, invariants and the
+    symmetric parameters.
 
     por and symmetry turn on the reductions of csdfbmc.reduce: the walk then
     meets fewer states and reports the same deadlocks, broken invariants and
     cycles. An empty or unconstrained post is reported only at the states
     the walk still meets.
     """
-
-    @classmethod
-    def of_twins(cls, diagram: Diagram, twins: Twins, **options) -> "Explorer":
-        """An Explorer whose clauses mean what the twins say."""
-        return cls(diagram, twins, standard(TwinsMeaning(diagram, twins)), cone=Cone.keep_all(), **options)
 
     def __init__(self, diagram: Diagram, twins: Twins, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
@@ -217,8 +212,6 @@ class Explorer:
         self.meaning = meaning
         # cone says which variables the walk keeps (csdfbmc.cone).
         self.cone = cone
-        if not self.meaning.by_prose and (twins.clauses or twins.locals):
-            raise ValueError("the clauses are read through a glue, so the twins' CLAUSES and their locals would not be used; leave them out")
         self.por = PartialOrder(self) if por else None
         if symmetry and not self.meaning.readable:
             raise ValueError("symmetry is checked by asking of every clause whether it tells the IDs apart, which this glue does not answer (its hello supports no \"symmetric\")")
@@ -249,7 +242,7 @@ class Explorer:
             local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
         return local_env
 
-    def _missing_twin(self, clause: Clause) -> bool:
+    def _not_formalised(self, clause: Clause) -> bool:
         """Records an opaque clause, or refuses it; True when it is to be taken as true."""
         if self.opaque == "error":
             raise KeyError(self.meaning.opaque_message(clause))
@@ -279,23 +272,23 @@ class Explorer:
         scope = self._instance_env(c, env) if c.map and c.kind == "local" else env
         value = self.meaning.evaluate(c, "guard", scope)
         if value is OPAQUE:
-            return self._missing_twin(c)
+            return self._not_formalised(c)
         return bool(value)
 
     # -- posts ------------------------------------------------------------------
 
     def _assignments(self, c: Clause, env: dict) -> list[dict] | None:
-        """What a post twin returns, as frozen assignments; None when opaque."""
+        """What a post clause admits, as frozen assignments; None when opaque."""
         returned = self.meaning.evaluate(c, "post", env)
         if returned is OPAQUE:
-            self._missing_twin(c)
+            self._not_formalised(c)
             return None
         if isinstance(returned, (bool, int, str)) or returned is None:
-            raise TypeError(f"the twin of the post clause {c.text!r} returned {returned!r}; a post twin returns a collection of assignments such as [{{'x': x + 1}}]")
+            raise TypeError(f"the post clause {c.text!r} gave {returned!r}; a post gives a collection of assignments such as [{{'x': x + 1}}]")
         out = []
         for a in returned:
             if not hasattr(a, "items"):
-                raise TypeError(f"the twin of the post clause {c.text!r} returned {a!r}; each successor is a mapping from variable names to values")
+                raise TypeError(f"the post clause {c.text!r} gave {a!r}; each successor is a mapping from variable names to values")
             out.append({k: freeze(v) for k, v in a.items()})
         return out
 
@@ -403,7 +396,7 @@ class Explorer:
         env = dict(zip(self.ghost_names, ghosts))
         vals, missing = self._successor_values(self.d.start_post, env, self.d.start)
         if missing:
-            raise KeyError(f"the start edge leaves {list(missing)} of state {self.d.start!r} without a value; its post twins must assign every variable")
+            raise KeyError(f"the start edge leaves {list(missing)} of state {self.d.start!r} without a value; its post clauses must give every variable a value")
         return [(self.d.start, v, ghosts) for v in vals]
 
     def _edge_successors(self, state: State, e: Edge, record: bool = True):
@@ -524,7 +517,7 @@ class Explorer:
         return [[encode(v) for v in s[1]] for s in self.initial()]
 
     def candidates(self, state_id: str, values: list, edge_index: int) -> list[dict]:
-        """The values the twins admit after the edge_index-th outgoing edge of
+        """The values the clauses admit after the edge_index-th outgoing edge of
         state_id (in the diagram's order) from the given values, per parameter
         valuation: [{"params": {...}, "values": [...]}, ...]. The ghosts are
         taken at their initial values, since a REPL does not keep them."""

@@ -34,7 +34,7 @@ class GroupTest(unittest.TestCase):
         self.assertEqual(["halve"], g["trace"])  # the shortest representative
 
     def test_violations_group_by_invariant_and_state(self):
-        checks = Twins(domains={}, clauses={}, invariants={"n < 5": lambda n: n < 5})
+        checks = Twins(domains={}, invariants={"n < 5": lambda n: n < 5})
         result = fixture.explorer(MANY, checks).run()
         groups = [g for g in result.groups() if g["kind"] == "violation"]
         self.assertEqual([("n < 5", "a")], [(g["invariant"], g["at"]) for g in groups])

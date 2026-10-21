@@ -2,10 +2,11 @@
 
 The Go tools own the structure: csdfparse prints the diagram as JSON and
 csdfpromote -format json prints an expansion with the clauses of every edge.
-This package owns the values: the formal twin of each clause (a pure Python
-function keyed by the clause's prose), the finite domains the values are drawn
-from, and the walk over the product of control states and valuations that
-checks for deadlocks and tau cycles within the bound.
+This package owns the values: it reads every clause through a glue of the
+evaluator protocol (csdfbmc.python_glue reads Python), takes the finite
+domains, ghosts and invariants from a checks module, and walks the product of
+control states and valuations, checking for deadlocks and tau cycles within
+the bound.
 """
 from csdfbmc.model import Diagram
 from csdfbmc.twins import Twins, load_twins, PurityError

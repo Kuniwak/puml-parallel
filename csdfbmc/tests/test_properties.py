@@ -22,7 +22,7 @@ LEDGER = {
 
 
 def ledger_checks(**extra):
-    return Twins(domains={"額": [1, 2, 3]}, clauses={}, **extra)
+    return Twins(domains={"額": [1, 2, 3]}, **extra)
 
 
 # COUNTER with a bump that goes back up at n = 0, so the walk can avoid stop

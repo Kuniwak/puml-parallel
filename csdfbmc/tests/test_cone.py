@@ -33,7 +33,7 @@ AUDITED = {
     "assumptions": [],
 }
 
-NO_TWINS = Twins(domains={}, clauses={})
+NO_TWINS = Twins(domains={})
 
 
 def memoed():
@@ -97,7 +97,7 @@ class ConeTest(unittest.TestCase):
             ("an expansion that frames a memo", memoed()),
             ("a family nothing reads, missing a local value", UNREAD_FAMILY),
         ]:
-            twins = Twins(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2], "i": ["a1"]}, clauses={})
+            twins = Twins(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2], "i": ["a1"]})
             with self.subTest(name):
                 full = self.walk(diagram, reduce=False, twins=twins).groups()
                 reduced = self.walk(diagram, reduce=True, twins=twins).groups()
@@ -114,8 +114,8 @@ class ConeTest(unittest.TestCase):
 
     def test_a_variable_an_invariant_or_a_ghost_reads_is_kept(self):
         for name, twins in [
-            ("an invariant", Twins(domains={}, clauses={}, invariants={"log is a bit": lambda log: log in (0, 1)})),
-            ("a ghost", Twins(domains={}, clauses={}, ghosts={"seen": (0, {"dec": lambda seen, log: seen + log})})),
+            ("an invariant", Twins(domains={}, invariants={"log is a bit": lambda log: log in (0, 1)})),
+            ("a ghost", Twins(domains={}, ghosts={"seen": (0, {"dec": lambda seen, log: seen + log})})),
         ]:
             with self.subTest(name):
                 self.assertEqual(("n", "log"), self.walk(AUDITED, reduce=True, twins=twins, max_states=50).relevant)
@@ -124,7 +124,7 @@ class ConeTest(unittest.TestCase):
         for name, diagram, twins, blocked in [
             ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque"), NO_TWINS, "@opaque"),
             ("an invariant taking any keyword", AUDITED,
-             Twins(domains={}, clauses={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
+             Twins(domains={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
         ]:
             with self.subTest(name):
                 reduced = self.walk(diagram, reduce=True, twins=twins, opaque="true", max_states=50)
@@ -149,16 +149,6 @@ class FramedAndWrittenTest(unittest.TestCase):
         client = start_module("csdfbmc.python_glue", [])
         self.addCleanup(client.close)
         return client
-
-
-class TwinsConeTest(unittest.TestCase):
-    def test_a_twin_taking_any_keyword_keeps_the_cone_from_being_computed(self):
-        from csdfbmc.meaning import TwinsMeaning
-        d = fixture.diagram(edit(AUDITED, "dec", guard="positive"))
-        twins = Twins(domains={}, clauses={"positive": lambda **env: env["n"] > 0})
-        c = cone.compute(d, twins, standard(TwinsMeaning(d, twins)), writes=cone.NO_WRITES)
-        self.assertIsNone(c.relevant)
-        self.assertIn("positive", c.blocked_by)
 
 
 class ConeCommandTest(unittest.TestCase):

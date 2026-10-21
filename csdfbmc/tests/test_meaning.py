@@ -2,23 +2,10 @@
 import unittest
 from csdfbmc.tests import fixture
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, Renaming, TwinsMeaning, standard
+from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, Renaming, standard
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
-from csdfbmc.twins import Twins
-
-EMPTY = fixture.diagram({"states": {"a": {"name": "a", "vars": [], "line": 1}},
-                           "start_edge": {"dst": "a", "line": 1}, "edges": [], "end_edge": None})
-
-
-class TwinsMeaningTest(unittest.TestCase):
-    def test_a_formal_expression_reads_the_names_it_does_not_bind(self):
-        meaning = TwinsMeaning(EMPTY, Twins(domains={}, clauses={}))
-        clause = Clause("constrain", "どれも正", formal="all(v > 0 for v in xs) and (lambda w: w)(y)")
-        names = meaning.names(clause, "guard")
-        self.assertLessEqual({"xs", "y"}, names)
-        self.assertFalse({"v", "w"} & names)
 
 
 class GlueMeaningTest(unittest.TestCase):
@@ -69,10 +56,6 @@ class ReservedOpaqueTest(unittest.TestCase):
                 got = ask(meaning, clause)
                 self.assertEqual(want, got)
                 self.assertEqual(want_asked, client.asked)
-
-    def test_opaque_is_not_formalised_even_when_the_twins_have_it(self):
-        meaning = OpaqueWord(TwinsMeaning(EMPTY, Twins(domains={}, clauses={"@opaque": lambda: True})))
-        self.assertIs(OPAQUE, meaning.evaluate(OPAQUE_CLAUSE, "guard", {}))
 
     def test_the_message_names_the_tool_word(self):
         meaning = OpaqueWord(GlueMeaning(Recording({}, lambda b: True)))

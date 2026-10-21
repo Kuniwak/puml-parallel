@@ -1,19 +1,18 @@
-"""python -m csdfbmc <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--evaluator CMD | --evaluator-module MODULE] [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
-json prints it, and the twins of its clauses, walks the reachable states within
-the bound, and reports the deadlocks, the tau cycles, the broken invariants
-and, with --avoid, the cycles that never perform the event. Findings of one
-shape are reported once with their count and the shortest trace; --all lists
-every one, and --first stops the walk at the first deadlock, broken invariant
-or unconstrained post. For an expansion, --local names the twins of each
-family's local diagram by the path the expansion uses. --evaluator and
---evaluator-module read every clause through a glue of the evaluator
-protocol, in place of twins (see csdfbmc.protocol). --por and --symmetry
+json prints it, with every clause read through a glue of the evaluator
+protocol (see csdfbmc.protocol; csdfbmc.python_glue reads Python), and the
+checks module of its domains, ghosts and invariants. It walks the reachable
+states within the bound, and reports the deadlocks, the tau cycles, the
+broken invariants and, with --avoid, the cycles that never perform the
+event. Findings of one shape are reported once with their count and the
+shortest trace; --all lists every one, and --first stops the walk at the
+first deadlock, broken invariant or unconstrained post. --por and --symmetry
 reduce the states walked without changing what is found, and so does
 --cone, which leaves out the variables outside the cone of influence of the
-guards, invariants and ghosts. Exits 1 when it finds
-any, 2 on a usage or loading error.
+guards, invariants and ghosts. Exits 1 when it finds any, 2 on a usage or
+loading error.
 """
 import argparse
 import json
@@ -79,13 +78,13 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
-    ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause without a twin means (default: refuse)")
+    ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause not formalised yet means (default: refuse)")
     ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
     ap.add_argument("--within", metavar="STATE", action="append", help="with --avoid, look for the cycles among these control states only (repeatable)")
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock, broken invariant or unconstrained post (cycles are then not looked for)")
     ap.add_argument("--all", action="store_true", help="list every finding instead of one per shape with a count")
     ap.add_argument("--por", action="store_true", help="take the moves of one independent instance at a time (partial-order reduction)")
-    ap.add_argument("--symmetry", action="store_true", help="store one state per renaming of the IDs the twins declare SYMMETRIC")
+    ap.add_argument("--symmetry", action="store_true", help="store one state per renaming of the IDs the checks module declares SYMMETRIC")
     ap.add_argument("--cone", action="store_true", help="leave out the variables nothing that decides a step or a property reads (cone of influence)")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
     a = ap.parse_args(argv)
@@ -114,7 +113,7 @@ def main(argv=None) -> int:
         else:
             print_groups(result)
         for c in result.opaque_clauses:
-            print(f"taken as true (no twin): {c}")
+            print(f"taken as true (not formalised): {c}")
         if a.cone:
             print_cone(result)
         for text, maps in result.dropped_clauses:

@@ -48,7 +48,6 @@ class Clause:
     var: str | None = None     # the framed variable
     path: str | None = None    # the local diagram, for a local clause of a family
     line: int = 0
-    formal: str | None = None  # a constrain's formal twin, written next to it
     maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
     opaque: bool = False
     # rename: (from, to) pairs, sorted: the clause reads the name from for the
@@ -78,7 +77,7 @@ class Clause:
         else:
             raise ValueError(f"the clause {c!r} has the form {form!r}, which is none of text, opaque and eq")
         return cls(kind=c["kind"], text=text, opaque=form == FORM_OPAQUE, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
-                   var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
+                   var=c.get("var"), path=c.get("path"), line=c.get("line", 0),
                    maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 
 

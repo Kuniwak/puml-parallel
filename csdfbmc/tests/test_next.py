@@ -20,7 +20,7 @@ class CandidatesTest(unittest.TestCase):
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6},
             {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 7},
         ])
-        ex = fixture.explorer(diagram, Twins(domains={"k": [1, 2]}, clauses={}))
+        ex = fixture.explorer(diagram, Twins(domains={"k": [1, 2]}))
         self.assertEqual([{"params": {"k": 1}, "values": [3]}], ex.candidates("a", [2], 0))
         self.assertEqual([], ex.candidates("a", [2], 1))  # stop needs n = 0
 

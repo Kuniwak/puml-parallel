@@ -1,7 +1,7 @@
-"""python -m csdfbmc.next <diagram.json> <twins.py> [--local PATH=TWINS.py]... [--evaluator CMD | --evaluator-module MODULE] (--initial | --state JSON --edge N)
+"""python -m csdfbmc.next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) (--initial | --state JSON --edge N)
 
 What a REPL asks the checker at a value prompt: with --initial, the values of
-the start state the twins admit; with --state and --edge, the values after
+the start state the clauses admit; with --state and --edge, the values after
 the N-th outgoing edge (in the diagram's order) of the given state, per
 parameter valuation. The state is a runtime state as csdfrepl and csdfreplcmd
 print it ({"state_id": ..., "values": [{"name": ..., "value": ...}, ...]}),

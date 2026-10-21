@@ -42,7 +42,7 @@ class Cone:
     # blocked_by: what kept R from being computed, when it could not be.
     blocked_by: tuple[str, ...] = ()
     # dropped: each variable left out, with the edges whose posts set it as
-    # far as writes tells (a twin says what it sets only when it runs).
+    # far as writes tells (a glue may not say what a post sets).
     dropped: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
@@ -79,7 +79,7 @@ Writes = Callable[[Clause], "set[str] | None"]
 
 
 def NO_WRITES(clause: Clause) -> None:
-    """The writes of a meaning that cannot tell them, such as twins."""
+    """The writes of a meaning that cannot tell them."""
     return None
 
 

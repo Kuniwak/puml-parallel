@@ -66,19 +66,6 @@ EXPANSION = {
     "locals": {"local/ACCOUNT.puml": LOCAL},
 }
 
-GLOBAL_TWINS = Twins(
-    domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2]},
-    clauses={"accounts は空": lambda: [{"accounts": FrozenMap()}]},
-    locals={"local/ACCOUNT.puml": Twins(
-        domains={},
-        clauses={
-            "残高' = 額": lambda 額: [{"残高": 額}],
-            "0 < 額": lambda 額: 0 < 額,
-            "残高' = 残高 + 額": lambda 残高, 額: [{"残高": 残高 + 額}],
-            "残高 = 0": lambda 残高: 残高 == 0,
-        },
-    )},
-)
 
 # The expansion with every clause written in the reference Python glue's
 # language, as a front end renders the formal labels in place of the prose.
@@ -105,7 +92,7 @@ def relabel(value):
 GLUE_EXPANSION = relabel(EXPANSION)
 
 # The checks of the expansion: the domains of the received fields.
-GLOBAL_CHECKS = Twins(domains=GLOBAL_TWINS.domains, clauses={})
+GLOBAL_CHECKS = Twins(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2]})
 
 
 class PromotedModelTest(unittest.TestCase):
@@ -148,13 +135,6 @@ class PromotedExplorerTest(unittest.TestCase):
         self.assertTrue(result.unconstrained)
         self.assertEqual(("accounts[a1].残高",), result.unconstrained[0][2])
 
-    def test_a_constrain_without_twin_or_formal_is_refused(self):
-        exp = {**EXPANSION, "edges": [dict(e) for e in EXPANSION["edges"]]}
-        dep = exp["edges"][1]
-        dep["guard"] = [dict(c, formal=None) if c["kind"] == "constrain" else c for c in dep["guard"]]
-        with self.assertRaises(KeyError):
-            Explorer.of_twins(fixture.diagram(exp), GLOBAL_TWINS).run()
-
     def test_a_tau_edge_ranges_over_the_instances(self):
         tau = {"src": "running", "dst": "running", "event": "tau", "channel": "tau", "fields": [], "guard": "g", "post": "p", "line": 0}
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
@@ -173,7 +153,7 @@ class PromotedExplorerTest(unittest.TestCase):
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
             {"edge": tau, "origin": "promote: local/ACCOUNT.puml",
              "guard": [{"kind": "local", "form": "text", "text": "残高 == 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
-        explorer = fixture.explorer(relabel(exp), Twins(domains=dict(GLOBAL_CHECKS.domains, 残高=[0, 1]), clauses={}))
+        explorer = fixture.explorer(relabel(exp), Twins(domains=dict(GLOBAL_CHECKS.domains, 残高=[0, 1])))
 
         # Execute
         chosen = explorer._chosen_by_tau(explorer.d.edges[-1])
