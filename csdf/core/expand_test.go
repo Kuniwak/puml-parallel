@@ -20,6 +20,7 @@ func mustParse(t *testing.T, text string) clause.And {
 // counter counts x from 0 up to 1 on inc!x and back to 0 on reset.
 func counter(t *testing.T) (*Diagram, Env) {
 	d := &Diagram{
+		States:   []string{"s"},
 		Vars:     map[string][]string{"s": {"x"}},
 		Init:     "s",
 		InitPost: mustParse(t, "$x' = 0"),
@@ -67,14 +68,14 @@ func TestExpandRefusesANameWithoutAType(t *testing.T) {
 		want string
 	}{
 		"a state variable": {d: &Diagram{
-			Vars: map[string][]string{"s": {"y"}}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
+			States: []string{"s"}, Vars: map[string][]string{"s": {"y"}}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
 		}, want: "no type y"},
 		"a received field": {d: &Diagram{
-			Vars: map[string][]string{"s": nil}, Init: "s",
+			States: []string{"s"}, Init: "s",
 			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "put", Fields: []Field{{Name: "y"}}}}},
 		}, want: "no type y"},
 		"a variable bound by ∃": {d: &Diagram{
-			Vars: map[string][]string{"s": nil}, Init: "s",
+			States: []string{"s"}, Init: "s",
 			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "go"}, Guard: mustParse(t, "@exists(v : Y) (@eq(v, v))")}},
 		}, want: "no type Y"},
 	}
@@ -96,5 +97,26 @@ func assertErrorContains(t *testing.T, err error, want string) {
 	t.Helper()
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("err = %v, want one containing %q", err, want)
+	}
+}
+
+func TestExpandRefusesAStateItDoesNotDeclare(t *testing.T) {
+	cases := map[string]struct {
+		d    *Diagram
+		want string
+	}{
+		"the initial state":         {d: &Diagram{States: []string{"s"}, Init: "t"}, want: "t"},
+		"the source of an edge":     {d: &Diagram{States: []string{"s"}, Init: "s", Edges: []Edge{{Src: "u", Dst: "s", Event: Event{Channel: "go"}}}}, want: "u"},
+		"the target of an edge":     {d: &Diagram{States: []string{"s"}, Init: "s", Edges: []Edge{{Src: "s", Dst: "u", Event: Event{Channel: "go"}}}}, want: "u"},
+		"a state holding variables": {d: &Diagram{States: []string{"s"}, Vars: map[string][]string{"u": {"x"}}, Init: "s"}, want: "u"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := Expand(c.d, Env{Types: map[string][]Value{"x": {0}}})
+
+			// Assert
+			assertErrorContains(t, err, "no state "+c.want)
+		})
 	}
 }

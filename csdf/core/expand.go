@@ -12,6 +12,9 @@ import (
 // state variables, over the values env gives. A label is the channel and
 // the values of the event's fields, joined by "."; an internal event is τ.
 func Expand(d *Diagram, env Env) (*lts.LTS, error) {
+	if err := d.declared(); err != nil {
+		return nil, fmt.Errorf("core.Expand: %w", err)
+	}
 	x := &expander{d: d, env: env, ids: map[string]lts.State{}}
 	inits, err := x.posts(d.Init, valuation{before: map[string]Value{}}, d.InitPost)
 	if err != nil {

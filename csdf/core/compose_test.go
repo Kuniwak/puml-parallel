@@ -7,7 +7,7 @@ import (
 )
 
 func oneState(t *testing.T, state string, vars []string, init string, edges ...Edge) *Diagram {
-	return &Diagram{Vars: map[string][]string{state: vars}, Init: state, InitPost: mustParse(t, init), Edges: edges}
+	return &Diagram{States: []string{state}, Vars: map[string][]string{state: vars}, Init: state, InitPost: mustParse(t, init), Edges: edges}
 }
 
 func loop(t *testing.T, state string, e Event, guard, post string) Edge {
@@ -119,5 +119,28 @@ func TestComposeRefuses(t *testing.T) {
 			// Assert
 			assertErrorContains(t, err, c.want)
 		})
+	}
+}
+
+func TestComposeKeepsAStateWithoutVariables(t *testing.T) {
+	// Setup: l steps from a to b on go while r, whose one state holds
+	// nothing, stays.
+	l := &Diagram{States: []string{"a", "b"}, Init: "a", Edges: []Edge{{Src: "a", Dst: "b", Event: ev("go")}}}
+	r := &Diagram{States: []string{"r"}, Init: "r"}
+	want := handLTS(tr{0, "go", 1})
+
+	// Execute
+	composite, err := Compose(l, r, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Expand(composite, bits())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lts.StableFailuresEqual(got, want) {
+		t.Errorf("not stable-failures equivalent: %#v", got.Trans)
 	}
 }

@@ -176,8 +176,9 @@ func family(p Promotion, m string) Family {
 // DEPART takes an item away and ARRIVE brings one.
 func location(t *testing.T) *Diagram {
 	return &Diagram{
-		Vars: map[string][]string{"l0": nil, "open": {"stock"}},
-		Init: "l0",
+		States: []string{"l0", "open"},
+		Vars:   map[string][]string{"open": {"stock"}},
+		Init:   "l0",
 		Edges: []Edge{
 			{Src: "l0", Dst: "open", Event: ev("OPEN"), Post: mustParse(t, "$stock' = 1")},
 			{Src: "open", Dst: "open", Event: ev("DEPART", recv("q")), Guard: mustParse(t, "$stock >= $q"), Post: mustParse(t, "$stock' = $stock - $q")},
@@ -189,8 +190,8 @@ func location(t *testing.T) *Diagram {
 // shipment: absent at s0, created waiting, and moved once.
 func shipment(t *testing.T) *Diagram {
 	return &Diagram{
-		Vars: map[string][]string{"s0": nil, "waiting": nil, "moved": nil},
-		Init: "s0",
+		States: []string{"s0", "waiting", "moved"},
+		Init:   "s0",
 		Edges: []Edge{
 			{Src: "s0", Dst: "waiting", Event: ev("NEW")},
 			{Src: "waiting", Dst: "moved", Event: ev("MOVE", recv("q"))},
@@ -273,7 +274,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 	}{
 		{"instances of one family interleave", Promotion{State: "G", Families: []Family{
 			{Map: "shipments", ID: "s", Local: &Diagram{
-				Vars: map[string][]string{"s0": nil, "waiting": nil, "moved": nil}, Init: "s0",
+				States: []string{"s0", "waiting", "moved"}, Init: "s0",
 				Edges: []Edge{{Src: "s0", Dst: "waiting", Event: ev("NEW")}, {Src: "waiting", Dst: "moved", Event: ev("SHIP")}}}},
 		}}},
 		{"a sync moves two instances of one family (#65)", Promotion{State: "G",

@@ -21,14 +21,19 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 		Init:     pair(l.Init, r.Init),
 		InitPost: Conj(l.InitPost, r.InitPost),
 	}
-	for ls, lv := range l.Vars {
-		for rs, rv := range r.Vars {
+	for _, ls := range l.States {
+		for _, rs := range r.States {
+			lv, rv := l.Vars[ls], r.Vars[rs]
 			for _, v := range lv {
 				if slices.Contains(rv, v) {
 					return nil, fmt.Errorf("core.Compose: both %s and %s hold %s", ls, rs, v)
 				}
 			}
-			out.Vars[pair(ls, rs)] = append(append([]string{}, lv...), rv...)
+			s := pair(ls, rs)
+			out.States = append(out.States, s)
+			if vars := append(slices.Clone(lv), rv...); len(vars) > 0 {
+				out.Vars[s] = vars
+			}
 		}
 	}
 	synced := func(c string) bool { return c != Tau && slices.Contains(sync, c) }
@@ -36,16 +41,16 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 		if synced(e.Event.Channel) {
 			continue
 		}
-		for rs, rv := range r.Vars {
-			out.Edges = append(out.Edges, alone(e, pair(e.Src, rs), pair(e.Dst, rs), rv))
+		for _, rs := range r.States {
+			out.Edges = append(out.Edges, alone(e, pair(e.Src, rs), pair(e.Dst, rs), r.Vars[rs]))
 		}
 	}
 	for _, e := range r.Edges {
 		if synced(e.Event.Channel) {
 			continue
 		}
-		for ls, lv := range l.Vars {
-			out.Edges = append(out.Edges, alone(e, pair(ls, e.Src), pair(ls, e.Dst), lv))
+		for _, ls := range l.States {
+			out.Edges = append(out.Edges, alone(e, pair(ls, e.Src), pair(ls, e.Dst), l.Vars[ls]))
 		}
 	}
 	for _, el := range l.Edges {

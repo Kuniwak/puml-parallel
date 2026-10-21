@@ -52,7 +52,7 @@ type Promotion struct {
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, error) {
-	out := &Diagram{Init: p.State, Vars: map[string][]string{}}
+	out := &Diagram{States: []string{p.State}, Init: p.State, Vars: map[string][]string{}}
 	var maps []string
 	var start []clause.Formula
 	for _, f := range p.Families {

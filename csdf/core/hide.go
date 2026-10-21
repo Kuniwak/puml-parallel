@@ -15,7 +15,7 @@ import (
 // on the value chosen. A sent field names a value already bound, so it is
 // dropped.
 func Hide(d *Diagram, channels []string) (*Diagram, error) {
-	out := &Diagram{Vars: d.Vars, Init: d.Init, InitPost: d.InitPost}
+	out := &Diagram{States: d.States, Vars: d.Vars, Init: d.Init, InitPost: d.InitPost}
 	for _, e := range d.Edges {
 		if !slices.Contains(channels, e.Event.Channel) {
 			out.Edges = append(out.Edges, e)
