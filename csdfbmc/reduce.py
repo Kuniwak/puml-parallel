@@ -68,6 +68,12 @@ def moved_maps(e: Edge) -> set[str]:
     return {c.map for c in e.post if c.kind in _MOVES}
 
 
+def moves_one_instance(e: Edge) -> bool:
+    """Whether e moves one instance of one map: a sync that moves two
+    instances of a map ties them together."""
+    return sum(c.kind in _MOVES for c in e.post) == 1
+
+
 class PartialOrder:
     def __init__(self, explorer):
         self.ex = explorer
@@ -81,8 +87,10 @@ class PartialOrder:
     def _clause_reads(self, c: Clause, role: str) -> set[str]:
         if c.kind in _INSTANCE_KINDS:
             return {c.map}
-        if c.kind in ("frame", "dropped"):
-            return set()  # a frame copies a variable; it neither enables nor changes anything
+        if c.kind in ("frame", "dropped", "distinct"):
+            # A frame copies a variable, and distinct compares the event's
+            # IDs; neither reads a state variable.
+            return set()
         names = self.ex.meaning.names(c, role)
         if names is None:
             return {c.map} if c.map else set()
@@ -126,7 +134,7 @@ class PartialOrder:
                 own = [e for e in edges if m in moved_maps(e)]
                 others = [e for e in edges if m not in moved_maps(e)]
                 if (m not in self.invariant_reads
-                        and all(moved_maps(e) == {m} and e.name not in self.ghost_events and self._edge_reads(e) <= {m}
+                        and all(moved_maps(e) == {m} and moves_one_instance(e) and e.name not in self.ghost_events and self._edge_reads(e) <= {m}
                                 and not self._shared_reads(e) for e in own)
                         and all(m not in self._edge_reads(e) for e in others)):
                     out.add(m)

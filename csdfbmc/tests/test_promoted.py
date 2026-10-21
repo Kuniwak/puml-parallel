@@ -48,18 +48,18 @@ EXPANSION = {
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("not_in_dom", "口座ID ∉ dom accounts")],
          "post": [gen("create", "accounts' = accounts ∪ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                  {"kind": "local", "form": "text", "text": "残高' = 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 6}]},
+                  {"kind": "local", "form": "text", "text": "残高' = 額", "map": "accounts", "id": "口座ID", "path": "local/ACCOUNT.puml", "line": 6}]},
         {"edge": {"src": "running", "dst": "running", "event": "DEPOSIT?口座ID?額", "channel": "DEPOSIT", "fields": [{"dir": "?", "name": "口座ID"}, {"dir": "?", "name": "額"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み"),
-                   {"kind": "local", "form": "text", "text": "0 < 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7},
+                   {"kind": "local", "form": "text", "text": "0 < 額", "map": "accounts", "id": "口座ID", "path": "local/ACCOUNT.puml", "line": 7},
                    {"kind": "constrain", "form": "text", "text": "残高 + 額 ≤ 上限", "formal": "accounts[口座ID].残高 + 額 <= 3", "line": 20}],
          "post": [gen("update", "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                  {"kind": "local", "form": "text", "text": "残高' = 残高 + 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7}]},
+                  {"kind": "local", "form": "text", "text": "残高' = 残高 + 額", "map": "accounts", "id": "口座ID", "path": "local/ACCOUNT.puml", "line": 7}]},
         {"edge": {"src": "running", "dst": "running", "event": "CLOSE?口座ID", "channel": "CLOSE", "fields": [{"dir": "?", "name": "口座ID"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み"),
-                   {"kind": "local", "form": "text", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}],
+                   {"kind": "local", "form": "text", "text": "残高 = 0", "map": "accounts", "id": "口座ID", "path": "local/ACCOUNT.puml", "line": 8}],
          "post": [gen("delete", "accounts' = {口座ID} ⩤ accounts")]},
     ],
     "promotes": [{"map": "accounts", "id_param": "口座ID", "type": "Account", "path": "local/ACCOUNT.puml", "alias": "runningAccounts", "in": "running", "line": 4}],
@@ -142,7 +142,7 @@ class PromotedExplorerTest(unittest.TestCase):
              "origin": "promote: local/ACCOUNT.puml",
              "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み")],
              "post": [gen("update", "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                      {"kind": "local", "form": "text", "text": "[{'残高': 残高}]", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 9}]}]}
+                      {"kind": "local", "form": "text", "text": "[{'残高': 残高}]", "map": "accounts", "id": "口座ID", "path": "local/ACCOUNT.puml", "line": 9}]}]}
         result = fixture.explorer(relabel(exp), GLOBAL_CHECKS).run()
         self.assertTrue(result.tau_cycles)
 
@@ -152,7 +152,7 @@ class PromotedExplorerTest(unittest.TestCase):
         tau = {"src": "running", "dst": "running", "event": "tau", "channel": "tau", "fields": [], "guard": "g", "post": "p", "line": 0}
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
             {"edge": tau, "origin": "promote: local/ACCOUNT.puml",
-             "guard": [{"kind": "local", "form": "text", "text": "残高 == 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
+             "guard": [{"kind": "local", "form": "text", "text": "残高 == 0", "map": "accounts", "id": "口座ID", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
         explorer = fixture.explorer(relabel(exp), Checks(domains=dict(GLOBAL_CHECKS.domains, 残高=[0, 1])))
 
         # Execute

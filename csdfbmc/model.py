@@ -37,7 +37,7 @@ class Clause:
     wrote (map None in a flat diagram, the family's map in an expansion),
     "constrain" for a constrain directive's, and one of the generated kinds of
     csdfpromote - in_dom, not_in_dom, at_state, update, create, delete, frame,
-    and empty on the start edge - whose meaning is built in. text is the
+    distinct, and empty on the start edge - whose meaning is built in. text is the
     clause as its language reads it; opaque marks the tool word @opaque, whose
     text is the word itself."""
     kind: str
@@ -49,6 +49,7 @@ class Clause:
     path: str | None = None    # the local diagram, for a local clause of a family
     line: int = 0
     maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
+    ids: tuple[str, ...] = ()   # the two ID parameters a distinct clause says differ
     opaque: bool = False
     # rename: (from, to) pairs, sorted: the clause reads the name from for the
     # value the predicate it is in names to (a composition writes them).
@@ -78,7 +79,7 @@ class Clause:
             raise ValueError(f"the clause {c!r} has the form {form!r}, which is none of text, opaque and eq")
         return cls(kind=c["kind"], text=text, opaque=form == FORM_OPAQUE, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0),
-                   maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
+                   maps=tuple(c.get("maps", ())), ids=tuple(c.get("ids", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 
 
 def local_clauses(owner: dict, key: str) -> tuple[Clause, ...]:
@@ -190,6 +191,10 @@ class Diagram:
             if e.get("guard") or e.get("post"):
                 by_text[key] = (tuple(Clause.from_json(c) for c in e.get("guard", [])),
                                 tuple(Clause.from_json(c) for c in e.get("post", [])))
+        for guard, post in by_text.values():
+            for c in (*guard, *post):
+                if c.kind == "local" and c.map and not c.id:
+                    raise ValueError(f"the local clause {c.text!r} of {c.map!r} does not say which instance it is about (id); run csdfpromote again")
         out = cls._from_flat(d, d.get("edges", []), by_text)
         # The start edge's clauses one by one, the maps' empty start among
         # them; an expansion from before it carried them has only the text.

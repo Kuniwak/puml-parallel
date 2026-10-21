@@ -1,0 +1,12 @@
+@startuml LOCATION
+' One location and its stock. It sends stock when a MOVE departs from it and
+' receives it when a MOVE arrives at it.
+state "なし" as locNone
+state "稼働中" as locOpen
+locOpen : 在庫
+
+[*] --> locNone
+locNone --> locOpen : OPEN ; ; [{'在庫': 2}]
+locOpen --> locOpen : DEPART?数量 ; 在庫 >= 数量 ; [{'在庫': 在庫 - 数量}]
+locOpen --> locOpen : ARRIVE?数量 ; ; [{'在庫': 在庫 + 数量}]
+@enduml

@@ -227,8 +227,12 @@ class Explorer:
             env.update(params)
         return env
 
+    def _id_param(self, clause: Clause) -> str:
+        """The event parameter the instance a clause is about is written as."""
+        return clause.id
+
     def _id_of(self, clause: Clause, env: dict):
-        param = clause.id or self.d.promotes[clause.map].id_param
+        param = self._id_param(clause)
         if param not in env:
             raise KeyError(f"the clause {clause.text!r} needs the instance ID {param!r}, which the event does not carry")
         return env[param]
@@ -262,6 +266,9 @@ class Explorer:
         if c.kind == "at_state":
             record = env[c.map].get(self._id_of(c, env))
             return record is not None and record[RECORD_STATE] == c.state
+        if c.kind == "distinct":
+            a, b = c.ids
+            return env[a] != env[b]
         if c.kind == "frame":
             return True
         if c.kind == "dropped":
@@ -301,8 +308,10 @@ class Explorer:
         """The valuations of dst the post clauses admit, and the variables no
         clause gave a value (then the valuations are empty)."""
         joined: list[dict] = [{}]
-        moves: dict[str, Clause] = {}
-        local_posts: dict[str, list[Clause]] = {}
+        # The moves of each map, in order: a sync may move two instances of
+        # one map, each with the local post clauses of its own ID.
+        moves: dict[str, list[Clause]] = {}
+        local_posts: dict[tuple[str, str], list[Clause]] = {}
         for c in clauses:
             if c.kind == "empty":
                 joined = self._join(joined, [{c.map: FrozenMap() if self.cone.keeps(c.map) else None}])
@@ -310,9 +319,9 @@ class Explorer:
                 # A left-out variable has no value to carry across.
                 joined = self._join(joined, [{c.var: env[c.var] if self.cone.keeps(c.var) else None}])
             elif c.kind in ("update", "create", "delete"):
-                moves[c.map] = c
+                moves.setdefault(c.map, []).append(c)
             elif c.kind == "local" and c.map:
-                local_posts.setdefault(c.map, []).append(c)
+                local_posts.setdefault((c.map, self._id_param(c)), []).append(c)
             elif c.kind in ("local", "constrain"):
                 a = self._assignments(c, env)
                 if a is not None:
@@ -322,42 +331,45 @@ class Explorer:
             if not joined:
                 return [], ()
 
-        for m, move in moves.items():
-            idv = self._id_of(move, env)
+        for m, ms in moves.items():
             if not self.cone.keeps(m):
                 # A left-out map has no local post clauses, since they read
                 # it; a move into a state with variables then leaves them
                 # without a value, as in the full walk. Otherwise the move
                 # admits one successor, and the map has no value.
-                names = self.d.local_of(move).vars_of(move.state) if move.kind != "delete" else ()
-                if names:
-                    return [], tuple(f"{m}[{idv}].{n}" for n in names)
+                for move in ms:
+                    names = self.d.local_of(move).vars_of(move.state) if move.kind != "delete" else ()
+                    if names:
+                        return [], tuple(f"{m}[{self._id_of(move, env)}].{n}" for n in names)
                 joined = self._join(joined, [{m: None}])
                 continue
-            current = env[m]
-            if move.kind == "delete":
-                joined = self._join(joined, [{m: current.without(idv)}])
-                continue
-            local = self.d.local_of(move)
-            names = local.vars_of(move.state)
-            scope = self._instance_env(move, env)
-            records: list[dict] = [{}]
-            for c in local_posts.get(m, []):
-                a = self._assignments(c, scope)
-                if a is not None:
-                    records = self._join(records, a)
-                if not records:
-                    return [], ()
-            missing = tuple(f"{m}[{idv}].{n}" for n in names if n not in records[0])
-            if missing:
-                return [], missing
-            joined = self._join(joined, [
-                {m: current.set(idv, FrozenMap({RECORD_STATE: move.state, **{n: r[n] for n in names}}))} for r in records])
+            # Each move reads the instance as it was before the step and
+            # applies to the map as the earlier moves left it.
+            values = [env[m]]
+            for move in ms:
+                idv = self._id_of(move, env)
+                if move.kind == "delete":
+                    values = [v.without(idv) for v in values]
+                    continue
+                names = self.d.local_of(move).vars_of(move.state)
+                scope = self._instance_env(move, env)
+                records: list[dict] = [{}]
+                for c in local_posts.get((m, self._id_param(move)), []):
+                    a = self._assignments(c, scope)
+                    if a is not None:
+                        records = self._join(records, a)
+                    if not records:
+                        return [], ()
+                missing = tuple(f"{m}[{idv}].{n}" for n in names if n not in records[0])
+                if missing:
+                    return [], missing
+                values = [v.set(idv, FrozenMap({RECORD_STATE: move.state, **{n: r[n] for n in names}})) for v in values for r in records]
+            joined = self._join(joined, [{m: v} for v in values])
             if not joined:
                 return [], ()
-        for m in local_posts:
-            if m not in moves:
-                raise ValueError(f"the post has local clauses for map {m!r} but no update, create or delete of it")
+        for m, idp in local_posts:
+            if not any(self._id_param(move) == idp for move in moves.get(m, ())):
+                raise ValueError(f"the post has local clauses for map {m!r} at {idp!r} but no update, create or delete of it")
 
         names = self.d.vars[dst]
         if joined:

@@ -1,0 +1,13 @@
+@startuml SHIPMENT
+' One shipment: planned with the quantity it moves, then moved once, by that
+' quantity.
+state "なし" as shNone
+state "計画済み" as shPlanned
+shPlanned : 予定数量
+state "移動済み" as shMoved
+shMoved : 予定数量
+
+[*] --> shNone
+shNone --> shPlanned : PLAN?計画数量 ; ; [{'予定数量': 計画数量}]
+shPlanned --> shMoved : MOVE?数量 ; 数量 == 予定数量 ; [{'予定数量': 予定数量}]
+@enduml

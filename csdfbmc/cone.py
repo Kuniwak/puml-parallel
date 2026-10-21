@@ -63,7 +63,7 @@ def _decides(meaning: Meaning, c: Clause, role: str) -> set[str] | None:
     when that cannot be told."""
     if c.kind in _INSTANCE_GUARDS:
         return {c.map}
-    if c.kind in _BUILT_IN_POSTS or c.kind == "dropped":
+    if c.kind in _BUILT_IN_POSTS or c.kind in ("dropped", "distinct"):
         return set()
     names = meaning.names(c, role)
     if names is None:

@@ -103,3 +103,34 @@ func TestThePromotedExampleWalksCleanUnderSymmetry(t *testing.T) {
 		t.Errorf("want the 104 representatives of the 496 states, got:\n%s", out)
 	}
 }
+
+// A sync moves two instances of the family of locations at once, and the
+// stock the move takes out of one is what it puts into the other, so the
+// conservation invariant holds. Partial-order reduction does not take such a
+// move for one of a single instance, so it walks every state.
+func TestTheExampleThatMovesTwoInstancesWalksClean(t *testing.T) {
+	cases := map[string]struct{ extra []string }{
+		"in full":                      {extra: nil},
+		"with partial-order reduction": {extra: []string{"--por"}},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			args := append([]string{"-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/move/move.json", "examples/bmc/move/checks.py",
+				"--evaluator-module", "csdfbmc.python_glue"}, c.extra...)
+			cmd := exec.Command(python(t), args...)
+			cmd.Dir = ".."
+
+			// Execute
+			out, err := cmd.CombinedOutput()
+
+			// Assert
+			if err != nil {
+				t.Fatalf("want exit status 0 (nothing found), got %v\n%s", err, out)
+			}
+			if string(out) != "states: 68\n" {
+				t.Errorf("want only the state count, got:\n%s", out)
+			}
+		})
+	}
+}

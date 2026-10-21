@@ -40,6 +40,43 @@ func TestNewMainFuncExpandsTheRecordedExample(t *testing.T) {
 	}
 }
 
+// The csdfbmc examples walk the JSON expansion recorded beside each diagram,
+// so the recording must be what the command prints now.
+func TestNewMainFuncPrintsTheRecordedJSONOfTheBMCExamples(t *testing.T) {
+	cases := map[string]struct {
+		diagram  string
+		recorded string
+	}{
+		"attempts": {diagram: "../../../examples/bmc/attempts/ATTEMPTS.puml", recorded: "../../../examples/bmc/attempts/attempts.json"},
+		"move":     {diagram: "../../../examples/bmc/move/MOVE.puml", recorded: "../../../examples/bmc/move/move.json"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+			spy := cli.SpyProcInout()
+			bs, err := os.ReadFile(c.recorded)
+			if err != nil {
+				t.Fatalf("ReadFile() error = %v", err)
+			}
+
+			// Execute
+			exitStatus := cmdFunc([]string{"-format", "json", c.diagram}, spy.New())
+
+			// Assert
+			if exitStatus != 0 {
+				t.Fatalf("want 0, got %d\n%s", exitStatus, spy.Stderr.String())
+			}
+			// The recording was made from the repository root; the command names
+			// the diagram as it was given.
+			want := strings.Replace(string(bs), "csdfpromote -format json examples/", "csdfpromote -format json ../../../examples/", 1)
+			if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+				t.Errorf("rerun csdfpromote -format json on %s (-recorded +got):\n%s", c.diagram, diff)
+			}
+		})
+	}
+}
+
 // The command's other runs differ only in what they print, so they are one
 // table: the arguments, the exit status, and what standard output has to say.
 func TestNewMainFunc(t *testing.T) {

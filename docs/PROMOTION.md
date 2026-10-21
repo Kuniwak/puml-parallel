@@ -205,6 +205,7 @@ of one map are two instances, so the expansion adds the guard clause
 `distinct`, `from ≠ to`, and the moves chain through the map rather than say
 `m'` twice: `locations₁ = locations ⊕ {from ↦ 〈…〉} ∧ locations' = locations₁ ⊕
 {to ↦ 〈…〉}`. Each local clause says, by its `id`, which instance it is about.
+`examples/bmc/move/` walks such a diagram.
 
 `constrain e?q… ; c` conjoins `c` onto the guard of every generated edge that
 matches `e` in channel and the directions of its fields, creations and merged edges included. This is

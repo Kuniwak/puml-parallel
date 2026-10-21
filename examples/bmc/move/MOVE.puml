@@ -1,0 +1,24 @@
+@startuml MOVE
+' Moving stock: one MOVE takes stock out of one location and into another, so
+' two instances of the family of locations take it, each in its own role.
+' Every clause is written in Python, read through the reference glue.
+state "稼働中" as running {
+  running : shipments ; 出荷ID ⇸ Shipment
+  running : locations ; 拠点ID ⇸ Location
+
+  state "shipments : 出荷ID ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+  state "locations : 拠点ID ⇸ Location" as runningLocations <<promote>> {
+    !include local/LOCATION.puml
+  }
+}
+
+[*] --> running : [{'shipments': FrozenMap(), 'locations': FrozenMap()}]
+' The scenario may rest once every planned shipment has moved.
+running --> [*] : all(r.state == '移動済み' for r in shipments.values())
+
+note as move
+  sync MOVE : shipments(出荷ID), locations(from).DEPART, locations(to).ARRIVE
+end note
+@enduml
