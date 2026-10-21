@@ -22,10 +22,56 @@ syntax.
 
 A diagram whose transitions carry guards and postconditions over state
 variables denotes a labelled transition system: expanding the state
-variables away gives a graph without them. That graph (or, equivalently for
-our purposes, its traces and failures) is the meaning. Any representation of
-a clause, text or JSON, is acceptable as long as it determines that meaning
-by itself, and every operator must preserve it.
+variables away gives a graph without them. The meaning ⟦D⟧ of a diagram D
+is that graph in the stable failures model of CSP: two diagrams mean the
+same when their graphs are stable-failures equivalent (=SF), and one refines
+another by stable-failures refinement (⊑SF).
+
+The stable failures model is used throughout, for every operator below:
+
+- it is a congruence for the CSP operators, so the algebraic laws of CSP
+  (for example a → (P ⊓ Q) = (a → P) ⊓ (a → Q)) hold, which strong
+  bisimulation would not grant;
+- equality and refinement must be taken in one model, or an abstraction
+  proven under one would not compose with a construction proven under
+  another.
+
+Divergence is therefore not part of the meaning. Checking livelock would
+need the failures-divergences model, and moving to it would be a change for
+every operator at once, not for one.
+
+Any representation of a clause, text or JSON, is acceptable as long as it
+determines that meaning by itself.
+
+### What each kind of operator must satisfy
+
+Every operator below is given a denotation, and the obligation depends on
+its kind:
+
+| Kind | Operators | Obligation |
+|---|---|---|
+| Change of representation | splitting a conjunction, parsing and printing, α-renaming | ⟦op(D)⟧ =SF ⟦D⟧ |
+| Constructor | composition, hiding, channel renaming, promotion, replicated composition | ⟦op(D₁, …)⟧ =SF op_sem(⟦D₁⟧, …), where op_sem is the CSP operator |
+| Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑SF ⟦D⟧: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
+| Analysis | evaluation, translation to logic, refinement checking | sound with respect to ⟦·⟧, and complete where stated |
+| Optimisation | partial-order reduction, symmetry, cone of influence | the answer to the property checked is unchanged; the graph may differ |
+
+For composition, op_sem is the CSP parallel operator on the graphs:
+⟦D₁ ‖A D₂⟧ =SF ⟦D₁⟧ ‖A ⟦D₂⟧; for hiding, ⟦D \ C⟧ =SF ⟦D⟧ \ C.
+
+For promotion, op_sem is a CSP term built from the local diagram P:
+
+- each instance i starts absent; creation leads it into P with every
+  channel c renamed to c.i, and deletion leads it back to absent;
+- all instances are interleaved over the set of IDs, ||| i ∈ ID;
+- a sync renames the local events it takes to the global event and
+  synchronises on it (for `MOVE`, `DEPART.from` and `ARRIVE.to` become
+  `MOVE`).
+
+The map of a promoted diagram is then the tuple of the instances' local
+states, domain membership is "not absent", and an instance's control state
+is its position in P; the obligation is that the expanded graph of the
+promoted diagram is stable-failures equivalent to that term.
 
 ## Operators on clauses
 
@@ -75,7 +121,7 @@ Each property names the operators that need it.
 | P8 | The meaning of an atom is given by a glue | O7 |
 | P9 | An atom has an ordered list of arguments, its free variables | O8, O9 |
 | P10 | IDs are told apart from constants | O10, O16 |
-| P11 | Every operator preserves the meaning (the expanded graph) | O1–O17 |
+| P11 | Every operator has a denotation and meets the obligation of its kind (see "What each kind of operator must satisfy") | O1–O17 |
 | P12 | A representation is self-contained: no meaning lives outside it | O12, and through it O7, O8 |
 | P13 | Reserved words are told apart from the author's words, with escapes | O12, O13 |
 | P14 | Identifiers may use Unicode | O12 |
