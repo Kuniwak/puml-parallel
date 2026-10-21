@@ -27,7 +27,7 @@ import (
 //	csdf_update(m', m, k, v)  m' is m with k mapped to v
 //	csdf_frame(m', m, k…)     m' and m agree everywhere but at the keys
 //	csdf_at(t, S)             the instance t is at the state S, written
-//	                          StatePrefix followed by its name
+//	                          as StateConstant names it
 //
 // @notin is the negation of csdf_in; @eq and @ne are equalities. A clause
 // that reads an entry of a map is conjoined with csdf_in of its key, since a
@@ -44,6 +44,27 @@ const (
 // so that a state never shares a name with a constant or an environment
 // function of the clauses.
 const StatePrefix = "csdf_state_"
+
+// StateConstant is the constant the state of the builtin @at(t, S) becomes:
+// StatePrefix, then the family the instance belongs to and a dot, then S. The
+// family is the map the instance is an entry of, m for m[x], so that one state
+// name in the local diagrams of two families is two constants; an instance
+// that is no entry of a map names the state alone. The dot is in no name, so
+// no two qualified states meet.
+func StateConstant(b clause.Builtin) string {
+	if family, ok := familyOf(b.Args[0]); ok {
+		return StatePrefix + family + "." + b.State
+	}
+	return StatePrefix + b.State
+}
+
+func familyOf(t clause.Term) (string, bool) {
+	if _, ok := t.(clause.Index); !ok {
+		return "", false
+	}
+	root, ok := clause.Root(t).(clause.Free)
+	return root.Name, ok
+}
 
 // Formula is the formula of the logic that f states. A free variable is the
 // variable of its name, primed with ' when it is a value after the step; a
@@ -178,7 +199,7 @@ func builtin(b clause.Builtin) (logic.Formula, error) {
 	case clause.OpFrame:
 		return logic.Pred(PredFrame, false, args...), nil
 	case clause.OpAt:
-		return logic.Pred(PredAt, false, args[0], logic.Apply(StatePrefix+b.State)), nil
+		return logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(b))), nil
 	}
 	return nil, fmt.Errorf("obligation.Formula: no builtin @%s", b.Op)
 }

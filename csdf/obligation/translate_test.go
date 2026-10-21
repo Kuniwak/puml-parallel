@@ -66,9 +66,13 @@ func TestFormulaOfAClause(t *testing.T) {
 			Clause: "@in(k, m) ∧ @notin(k, n) ∧ @empty(m) ∧ @update(m', m, k, v) ∧ @frame(m', m, k)",
 			Want:   "csdf_in(k, m) ∧ ¬csdf_in(k, n) ∧ csdf_empty(m) ∧ csdf_update(m', m, k, v) ∧ csdf_frame(m', m, k)",
 		},
-		"@at applies to the state as a constant of its own namespace": {
+		"@at applies to the state as a constant of its family's namespace": {
 			Clause: "@at(locations[from], 倉庫待ち)",
-			Want:   "csdf_in(from, locations) ∧ csdf_at(locations[from], csdf_state_倉庫待ち)",
+			Want:   "csdf_in(from, locations) ∧ csdf_at(locations[from], csdf_state_locations.倉庫待ち)",
+		},
+		"@at of an instance that is no entry of a map names the state alone": {
+			Clause: "@at(t, 倉庫待ち)",
+			Want:   "csdf_at(t, csdf_state_倉庫待ち)",
 		},
 		"an existential binds a fresh name of its hint": {
 			Clause: "@exists(m : M) (@update(m, n, k, v) ∧ @update(n', m, j, w))",

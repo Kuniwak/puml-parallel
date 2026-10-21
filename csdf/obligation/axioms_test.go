@@ -39,6 +39,10 @@ func TestTheAxiomsOfTheSymbolsClausesUse(t *testing.T) {
 			Clauses: []string{"@at(x, A)", "@exists(y : Y) (@at(y, B) ∧ @at(y, A))"},
 			Want:    []string{"∀t. ¬(csdf_at(t, csdf_state_A) ∧ csdf_at(t, csdf_state_B))"},
 		},
+		"states of different families are never paired": {
+			Clauses: []string{"@at(m[x], A) ∧ @at(m[y], B) ∧ @at(n[z], A)"},
+			Want:    []string{"∀t. ¬(csdf_at(t, csdf_state_m.A) ∧ csdf_at(t, csdf_state_m.B))"},
+		},
 	}
 
 	for name, tc := range testCases {

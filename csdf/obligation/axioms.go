@@ -2,6 +2,7 @@ package obligation
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -12,7 +13,7 @@ import (
 // those the clauses fs use: an empty map has no key; an update maps its key to
 // its value and keeps every other entry; a frame keeps every entry but at its
 // keys, one axiom for each number of keys; an instance is at one state at a
-// time, for each two states csdf_at names. csdf_in itself needs none.
+// time, for each two states csdf_at names of one family (StateConstant). csdf_in itself needs none.
 //
 // An obligation is stated without them, and a target assumes them. A claim
 // that a formula is valid stays sound without them, though some valid claims
@@ -21,7 +22,7 @@ import (
 func Axioms(fs ...clause.Formula) []logic.Formula {
 	var empty, update bool
 	var frames []int
-	var states []string
+	states := map[string][]string{}
 	for _, f := range fs {
 		eachBuiltin(f, func(b clause.Builtin) {
 			switch b.Op {
@@ -34,8 +35,9 @@ func Axioms(fs ...clause.Formula) []logic.Formula {
 					frames = append(frames, n)
 				}
 			case clause.OpAt:
-				if !slices.Contains(states, b.State) {
-					states = append(states, b.State)
+				family, _ := familyOf(b.Args[0])
+				if c := StateConstant(b); !slices.Contains(states[family], c) {
+					states[family] = append(states[family], c)
 				}
 			}
 		})
@@ -51,10 +53,14 @@ func Axioms(fs ...clause.Formula) []logic.Formula {
 	for _, n := range frames {
 		axioms = append(axioms, frameAxiom(n))
 	}
-	slices.Sort(states)
-	for i, s := range states {
-		for _, t := range states[i+1:] {
-			axioms = append(axioms, atAxiom(s, t))
+	families := slices.Sorted(maps.Keys(states))
+	for _, family := range families {
+		cs := states[family]
+		slices.Sort(cs)
+		for i, c := range cs {
+			for _, d := range cs[i+1:] {
+				axioms = append(axioms, atAxiom(c, d))
+			}
 		}
 	}
 	return axioms
@@ -127,7 +133,7 @@ func frameAxiom(n int) logic.Formula {
 
 func atAxiom(s, t string) logic.Formula {
 	at := func(state string) logic.Formula {
-		return logic.Pred(PredAt, false, axT, logic.Apply(StatePrefix+state))
+		return logic.Pred(PredAt, false, axT, logic.Apply(state))
 	}
 	return logic.Forall([]logic.Var{axT}, logic.Not(logic.And(at(s), at(t))))
 }
