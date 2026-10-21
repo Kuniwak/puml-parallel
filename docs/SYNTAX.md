@@ -265,8 +265,10 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   replaced.
 - Printing and parsing back gives the same clause: the tools write
   `${name}` where `$name` would read differently (before a space and a
-  letter, or before a `'` that is text), one space between `$name` and a
-  letter, and a backslash before what would otherwise be syntax.
+  character that could continue a name, or before a `'` that is text), one
+  space between `$name` and a character that could continue a name (a
+  letter, a digit or `_`), and a backslash before what would otherwise be
+  syntax.
 
 
 Global Diagram Format
