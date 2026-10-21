@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
-from csdfbmc.protocol import Analysis, handler
+from csdfbmc.protocol import Analysis, atom_text, handler
 from csdfbmc.checks import check_pure
 from csdfbmc.values import freeze
 
@@ -127,12 +127,11 @@ _HOLE = "_csdf_hole_"
 def _atom_source(atom: dict) -> tuple[str, list[str]]:
     """The Python an atom is, its holes read as names, and those names by
     argument index."""
-    text, holes = atom["text"], atom["holes"]
+    text = atom["text"]
     if any(_HOLE in t for t in text):
         raise ValueError(f"an atom of this glue may not use the names {_HOLE}N, which stand for its holes")
     names = [f"{_HOLE}{i}" for i in range(len(atom["primed"]))]
-    source = text[0] + "".join(names[h] + t for h, t in zip(holes, text[1:]))
-    return source, names
+    return atom_text(atom, lambda i: names[i]), names
 
 
 _POST_SHAPE = ("a post atom of this glue is $x' == expression, $x' in expression, or a tuple of every "
