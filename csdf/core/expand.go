@@ -74,7 +74,11 @@ func (x *expander) step(out *lts.LTS, cur lts.State) error {
 		if e.Src != n.state {
 			continue
 		}
-		for _, fields := range x.offers(e.Event) {
+		offers, err := x.offers(e.Event)
+		if err != nil {
+			return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+		}
+		for _, fields := range offers {
 			before := map[string]Value{}
 			for k, v := range n.vars {
 				before[k] = v
@@ -109,15 +113,19 @@ func (x *expander) step(out *lts.LTS, cur lts.State) error {
 
 // offers are the values of the fields an event receives, every combination
 // of their types.
-func (x *expander) offers(e Event) []map[string]Value {
+func (x *expander) offers(e Event) ([]map[string]Value, error) {
 	out := []map[string]Value{{}}
 	for _, f := range e.Fields {
 		if f.Send {
 			continue
 		}
+		vals, err := x.env.values(f.Name)
+		if err != nil {
+			return nil, err
+		}
 		var grown []map[string]Value
 		for _, o := range out {
-			for _, v := range x.env.Types[f.Name] {
+			for _, v := range vals {
 				m := map[string]Value{}
 				for k, w := range o {
 					m[k] = w
@@ -128,7 +136,7 @@ func (x *expander) offers(e Event) []map[string]Value {
 		}
 		out = grown
 	}
-	return out
+	return out, nil
 }
 
 func (x *expander) label(e Event, vals map[string]Value) (string, error) {
@@ -151,9 +159,13 @@ func (x *expander) label(e Event, vals map[string]Value) (string, error) {
 func (x *expander) posts(dst string, before valuation, post clause.And) ([]map[string]Value, error) {
 	cands := []map[string]Value{{}}
 	for _, v := range x.d.Vars[dst] {
+		vals, err := x.env.values(v)
+		if err != nil {
+			return nil, err
+		}
 		var grown []map[string]Value
 		for _, c := range cands {
-			for _, val := range x.env.Types[v] {
+			for _, val := range vals {
 				m := map[string]Value{}
 				for k, w := range c {
 					m[k] = w

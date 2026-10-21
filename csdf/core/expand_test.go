@@ -1,6 +1,7 @@
 package core
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -57,5 +58,43 @@ func TestExpandWalksTheValues(t *testing.T) {
 	}
 	if !lts.StableFailuresEqual(got, want) {
 		t.Errorf("not stable-failures equivalent: %#v", got.Trans)
+	}
+}
+
+func TestExpandRefusesANameWithoutAType(t *testing.T) {
+	cases := map[string]struct {
+		d    *Diagram
+		want string
+	}{
+		"a state variable": {d: &Diagram{
+			Vars: map[string][]string{"s": {"y"}}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
+		}, want: "no type y"},
+		"a received field": {d: &Diagram{
+			Vars: map[string][]string{"s": nil}, Init: "s",
+			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "put", Fields: []Field{{Name: "y"}}}}},
+		}, want: "no type y"},
+		"a variable bound by ∃": {d: &Diagram{
+			Vars: map[string][]string{"s": nil}, Init: "s",
+			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "go"}, Guard: mustParse(t, "@exists(v : Y) (@eq(v, v))")}},
+		}, want: "no type Y"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			env := Env{Types: map[string][]Value{"x": {0}}}
+
+			// Execute
+			_, err := Expand(c.d, env)
+
+			// Assert
+			assertErrorContains(t, err, c.want)
+		})
+	}
+}
+
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+	if err == nil || !strings.Contains(err.Error(), want) {
+		t.Errorf("err = %v, want one containing %q", err, want)
 	}
 }

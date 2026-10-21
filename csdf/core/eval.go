@@ -20,6 +20,16 @@ type Env struct {
 	Funcs map[string]func(args []Value) Value
 }
 
+// values are the values of the type typ; a type the environment does not
+// give is an error, never an empty type.
+func (env Env) values(typ string) ([]Value, error) {
+	vals, ok := env.Types[typ]
+	if !ok {
+		return nil, fmt.Errorf("core: no type %s in the environment", typ)
+	}
+	return vals, nil
+}
+
 // AtomKey is the wire text of an atom with its holes written #i, i the
 // argument the hole reads.
 func AtomKey(w clause.AtomWire) string {
@@ -66,7 +76,11 @@ func (ev evaluator) holds(f clause.Formula, bound []Value) (bool, error) {
 		}
 		return true, nil
 	case clause.Exists:
-		for _, v := range ev.env.Types[f.Type] {
+		vals, err := ev.env.values(f.Type)
+		if err != nil {
+			return false, err
+		}
+		for _, v := range vals {
 			ok, err := ev.holds(f.Body, append(append([]Value{}, bound...), v))
 			if err != nil || ok {
 				return ok, err
