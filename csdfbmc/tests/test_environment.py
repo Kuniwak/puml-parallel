@@ -33,7 +33,7 @@ class GivenTest(unittest.TestCase):
         decide = given_over({"p": lambda n: n}, nothing)
 
         # Execute, Assert
-        with self.assertRaisesRegex(TypeError, "'p'"):
+        with self.assertRaisesRegex(ValueError, "'p'"):
             decide("p", (1,))
 
     def test_nothing_decides_no_name(self):

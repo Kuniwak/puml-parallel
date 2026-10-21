@@ -74,7 +74,7 @@ def _given_over_named(given: Mapping[str, Given], inner: Decide) -> Decide:
             return g
         value = g(*args)
         if not isinstance(value, bool):
-            raise TypeError(f"the environment's {name!r} gave {value!r}; it gives True or False")
+            raise ValueError(f"the environment's {name!r} gave {value!r}; it gives True or False")
         return value
     return decide
 

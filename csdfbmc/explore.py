@@ -1,6 +1,8 @@
 """The walk over the product of control states and valuations."""
 from __future__ import annotations
 
+import inspect
+
 import itertools
 import sys
 from dataclasses import dataclass, field
@@ -268,8 +270,23 @@ class Explorer:
             if authored(c) and self.meaning.names(c, "post") is None:
                 raise ValueError(f"the post clause {c.text!r} is not formalised; the environment does not decide a post clause "
                                  "yet, so formalise it in the glue's language")
-        guards = [c for e in self.d.edges for c in e.guard] + (list(self.d.end.guard) if self.d.end is not None else [])
-        functions = dict.fromkeys(function_of(c.text).name for c in guards if authored(c) and self.meaning.names(c, "guard") is None)
+        guards = [(c, self._bindable(e.src, e.params, c)) for e in self.d.edges for c in e.guard]
+        if self.d.end is not None:
+            guards += [(c, self._bindable(self.d.end.src, (), c)) for c in self.d.end.guard]
+        functions: dict[str, int] = {}
+        for c, bindable in guards:
+            if not authored(c) or self.meaning.names(c, "guard") is not None:
+                continue
+            f = function_of(c.text)
+            unbound = [a for a in f.args if a not in bindable]
+            if unbound:
+                raise ValueError(f"the atom {c.text!r} reads {', '.join(unbound)}, which the step does not bind")
+            functions.setdefault(f.name, len(f.args))
+        for name, g in self.environment.given.items():
+            if name in functions and callable(g) and not _takes(g, functions[name]):
+                n = functions[name]
+                raise ValueError(f"{name!r} has {n} hole{'' if n == 1 else 's'}, but the function given takes other arguments; "
+                                 "give a function of the holes, in order")
         unknown = [g for g in self.environment.given if g not in functions]
         if unknown:
             raise ValueError(f"the environment names no function of the diagram: {', '.join(map(repr, unknown))}")
@@ -277,6 +294,15 @@ class Explorer:
         if undecided and self.environment.seed is None:
             raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
                              "give each in ENVIRONMENT or with --env NAME=true|false, or choose them with --seed N")
+
+    def _bindable(self, src: str, params: tuple[str, ...], clause: Clause) -> set[str]:
+        """The names a guard clause on an edge out of src with params may
+        read: the ghosts, src's variables, the event's fields, and a
+        family's clause the instance's own variables too."""
+        names = set(self.ghost_names) | set(self.d.vars[src]) | set(params)
+        if clause.kind == "local" and clause.map:
+            names |= {v for vs in self.d.local_of(clause).vars.values() for v in vs}
+        return names
 
     def _decided(self, clause: Clause, env: dict) -> bool:
         """What the environment says a guard clause not formalised means at
@@ -694,3 +720,14 @@ def _cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[lis
         if s not in index:
             connect(s)
     return cycles
+
+
+def _takes(g, n: int) -> bool:
+    """Whether g can be called with n arguments in order."""
+    try:
+        inspect.signature(g).bind(*range(n))
+    except TypeError:
+        return False
+    except ValueError:
+        return True
+    return True

@@ -46,6 +46,8 @@ class EnvironmentCommandTest(unittest.TestCase):
             ("a malformed --env", ("--env", "$n が 正=maybe"), "TYPES = {}\n", "--env expects NAME=true or NAME=false"),
             ("a function nothing decides", (), "TYPES = {}\n", "nothing decides the environment's functions '$_ が 正'"),
             ("a given name of no function", ("--env", "$n が 零=true", "--seed", "1"), "TYPES = {}\n", "names no function of the diagram: '$_ が 零'"),
+            ("a function of other arguments", (), 'TYPES = {}\nENVIRONMENT = {"$n が 正": lambda: True}\n', "has 1 hole"),
+            ("a function giving other than a truth value", (), 'TYPES = {}\nENVIRONMENT = {"$n が 正": lambda n: n}\n', "it gives True or False"),
         ]
         for name, args, checks, message in cases:
             with self.subTest(name):

@@ -130,6 +130,10 @@ class ExplorerTest(unittest.TestCase):
              "names no function of the diagram: '$_ が 零'"),
             ("a post not formalised", dict(COUNTER, edges=[dict(COUNTER["edges"][0], post="$n が 減る"), COUNTER["edges"][1]]),
              environments.over({}, {}, 7), "the post clause '$n が 減る' is not formalised"),
+            ("a given function taking other than the atom's holes", self.without_its_guard(),
+             environments.over({}, {"$n が 正": lambda n, m: True}, None), "'$_ が 正' has 1 hole, but the function given takes"),
+            ("a hole the step does not bind", dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$k が 正"), COUNTER["edges"][1]]),
+             environments.over({}, {}, 7), "the atom '$k が 正' reads k, which the step does not bind"),
         ]
         for name, diagram, env, message in cases:
             with self.subTest(name):
@@ -143,6 +147,14 @@ class ExplorerTest(unittest.TestCase):
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, r"decided nothing for '\$_ が 正'"):
+            fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
+
+    def test_a_given_function_giving_other_than_a_truth_value_is_refused(self):
+        # Setup
+        env = environments.over({}, {"$n が 正": lambda n: n}, None)
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "gave 2; it gives True or False"):
             fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
 
     def test_a_seed_decides_every_function(self):
