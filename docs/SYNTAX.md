@@ -218,6 +218,28 @@ Semantics
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
 
 
+Clauses (draft)
+---------------
+**Draft for v3.0.0 (#76); no tool reads this syntax yet.** It is the surface
+syntax of the clause representation in `csdf/clause`, which follows
+`docs/CLAUSE_DESIGN.md`. It will replace the clause syntax of guards and
+posts described above.
+
+```abnf
+clause   = [conjunct]
+conjunct = atom
+atom     = 1*(text / "$" holeName ["'"])
+holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
+```
+
+- A `$name` hole ends where its name ends (`id`): whatever follows, `[`,
+  `.`, `-` or anything else, is the atom's language. When the next character
+  could continue the name, one space separates them and belongs to the hole,
+  so `$在庫 が` reads the hole `在庫` and the text `が`.
+- `$` not followed by a letter or `_` is text, so `$100` is text. `\$` is
+  always text.
+
+
 Global Diagram Format
 ---------------------
 The grammar above is what every tool reads. `csdfpromote` reads an upper-compatible
