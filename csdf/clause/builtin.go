@@ -31,20 +31,26 @@ type Builtin struct {
 
 func (Builtin) isFormula() {}
 
-// builtinSpec is what the parser, the printer and the traversal know of a
-// builtin: how many terms it takes, whether more may follow, and whether a
-// state name follows them.
-type builtinSpec struct {
-	terms    int
-	variadic bool
-	state    bool
+// BuiltinSpec is what is known of a builtin's shape: how many terms it
+// takes, whether more may follow, and whether a state name follows them.
+type BuiltinSpec struct {
+	Terms    int
+	Variadic bool
+	State    bool
 }
 
-var builtins = map[Op]builtinSpec{
-	OpEq:     {terms: 2},
-	OpNe:     {terms: 2},
-	OpIn:     {terms: 2},
-	OpUpdate: {terms: 4},
-	OpFrame:  {terms: 2, variadic: true},
-	OpAt:     {terms: 1, state: true},
+var builtins = map[Op]BuiltinSpec{
+	OpEq:     {Terms: 2},
+	OpNe:     {Terms: 2},
+	OpIn:     {Terms: 2},
+	OpUpdate: {Terms: 4},
+	OpFrame:  {Terms: 2, Variadic: true},
+	OpAt:     {Terms: 1, State: true},
+}
+
+// Spec is the shape of the builtin o; ok is false for a word that names no
+// builtin.
+func (o Op) Spec() (spec BuiltinSpec, ok bool) {
+	spec, ok = builtins[o]
+	return spec, ok
 }

@@ -58,17 +58,17 @@ func wellFormed(f Formula) error {
 }
 
 func wellFormedBuiltin(b Builtin) error {
-	spec, ok := builtins[b.Op]
+	spec, ok := b.Op.Spec()
 	if !ok {
 		return fmt.Errorf("an unknown builtin @%s", b.Op)
 	}
-	if len(b.Args) < spec.terms || (!spec.variadic && len(b.Args) > spec.terms) {
-		return fmt.Errorf("@%s takes %d terms, not %d", b.Op, spec.terms, len(b.Args))
+	if len(b.Args) < spec.Terms || (!spec.Variadic && len(b.Args) > spec.Terms) {
+		return fmt.Errorf("@%s takes %d terms, not %d", b.Op, spec.Terms, len(b.Args))
 	}
-	if spec.state != (b.State != "") {
-		return fmt.Errorf("@%s: a state %q where the table says state = %v", b.Op, b.State, spec.state)
+	if spec.State != (b.State != "") {
+		return fmt.Errorf("@%s: a state %q where the table says state = %v", b.Op, b.State, spec.State)
 	}
-	if spec.state && !ident.Is(b.State) {
+	if spec.State && !ident.Is(b.State) {
 		return fmt.Errorf("@%s: the state %q is no identifier", b.Op, b.State)
 	}
 	for _, t := range b.Args {
@@ -82,10 +82,10 @@ func wellFormedBuiltin(b Builtin) error {
 func wellFormedTerm(t Term) error {
 	switch t.(type) {
 	case Index, Field:
-		switch root(t).(type) {
+		switch Root(t).(type) {
 		case Free, Bound:
 		default:
-			return fmt.Errorf("a path starts from a variable, not from %#v", root(t))
+			return fmt.Errorf("a path starts from a variable, not from %#v", Root(t))
 		}
 	}
 	switch t := t.(type) {

@@ -99,7 +99,10 @@ func (pr *printer) builtin(b Builtin) (string, error) {
 // is written depends on what follows it; after is the rune after the atom.
 func (pr *printer) atom(a Atom, after rune) (string, error) {
 	pieces := make([]string, len(a.Parts))
-	unmatched := pr.unmatchedParens(a)
+	unmatched := map[int]map[int]bool{}
+	if pr.body > 0 {
+		unmatched = UnmatchedParens(a)
+	}
 	next := string(after)
 	if after == 0 {
 		next = ""
@@ -108,7 +111,7 @@ func (pr *printer) atom(a Atom, after rune) (string, error) {
 		var s string
 		switch p := a.Parts[i].(type) {
 		case Text:
-			s = pr.text(string(p), firstRune(next), i == 0, unmatched[i])
+			s = EscapeText(string(p), firstRune(next), i == 0, unmatched[i])
 		case Hole:
 			var err error
 			if s, err = pr.hole(p.Term, next); err != nil {
@@ -119,73 +122,6 @@ func (pr *printer) atom(a Atom, after rune) (string, error) {
 		next = s + next
 	}
 	return strings.Join(pieces, ""), nil
-}
-
-// unmatchedParens marks, for each text part of a, the parentheses that have
-// no partner in the atom. Inside an ∃ body Parse nests parentheses in text,
-// so only those need escaping; outside one, none do.
-func (pr *printer) unmatchedParens(a Atom) map[int]map[int]bool {
-	marks := map[int]map[int]bool{}
-	if pr.body == 0 {
-		return marks
-	}
-	type pos struct{ part, r int }
-	var open []pos
-	for i, p := range a.Parts {
-		t, ok := p.(Text)
-		if !ok {
-			continue
-		}
-		marks[i] = map[int]bool{}
-		for j, r := range []rune(string(t)) {
-			switch r {
-			case '(':
-				open = append(open, pos{i, j})
-			case ')':
-				if len(open) == 0 {
-					marks[i][j] = true
-				} else {
-					open = open[:len(open)-1]
-				}
-			}
-		}
-	}
-	for _, o := range open {
-		marks[o.part][o.r] = true
-	}
-	return marks
-}
-
-// text escapes what Parse would otherwise read as syntax: a backslash
-// before a character it escapes, a $ that would start a hole, ∧ and ;, an
-// @ that starts a conjunct, and the parentheses unmatched marks.
-func (pr *printer) text(s string, after rune, startsConjunct bool, unmatched map[int]bool) string {
-	rs := []rune(s)
-	var b strings.Builder
-	for i, r := range rs {
-		next := after
-		if i+1 < len(rs) {
-			next = rs[i+1]
-		}
-		var esc bool
-		switch r {
-		case escape:
-			esc = next != 0 && strings.ContainsRune(escapable, next)
-		case holeSigil:
-			esc = startsHoleName(next) || next == '{'
-		case '∧', ';':
-			esc = true
-		case toolPrefix:
-			esc = i == 0 && startsConjunct
-		case '(', ')':
-			esc = unmatched[i]
-		}
-		if esc {
-			b.WriteRune(escape)
-		}
-		b.WriteRune(r)
-	}
-	return b.String()
 }
 
 // hole writes $name when Parse would read it back as the same hole, and
@@ -274,4 +210,69 @@ func firstRune(s string) rune {
 	}
 	r, _ := utf8.DecodeRuneInString(s)
 	return r
+}
+
+// UnmatchedParens marks, for each text part of a by its index in a.Parts,
+// the runes that are parentheses with no partner in the atom. Inside an ∃
+// body Parse nests parentheses in text, so only these need escaping there.
+func UnmatchedParens(a Atom) map[int]map[int]bool {
+	marks := map[int]map[int]bool{}
+	type pos struct{ part, r int }
+	var open []pos
+	for i, p := range a.Parts {
+		t, ok := p.(Text)
+		if !ok {
+			continue
+		}
+		marks[i] = map[int]bool{}
+		for j, r := range []rune(string(t)) {
+			switch r {
+			case '(':
+				open = append(open, pos{i, j})
+			case ')':
+				if len(open) == 0 {
+					marks[i][j] = true
+				} else {
+					open = open[:len(open)-1]
+				}
+			}
+		}
+	}
+	for _, o := range open {
+		marks[o.part][o.r] = true
+	}
+	return marks
+}
+
+// EscapeText escapes, in the text s of an atom, what Parse would otherwise
+// read as syntax: a backslash before a character it escapes, a $ that would
+// start a hole, ∧ and ;, an @ that starts a conjunct (startsConjunct), and
+// the runes unmatched marks. after is the rune printed after s, 0 at the end.
+func EscapeText(s string, after rune, startsConjunct bool, unmatched map[int]bool) string {
+	rs := []rune(s)
+	var b strings.Builder
+	for i, r := range rs {
+		next := after
+		if i+1 < len(rs) {
+			next = rs[i+1]
+		}
+		var esc bool
+		switch r {
+		case escape:
+			esc = next != 0 && strings.ContainsRune(escapable, next)
+		case holeSigil:
+			esc = startsHoleName(next) || next == '{'
+		case '∧', ';':
+			esc = true
+		case toolPrefix:
+			esc = i == 0 && startsConjunct
+		case '(', ')':
+			esc = unmatched[i]
+		}
+		if esc {
+			b.WriteRune(escape)
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }

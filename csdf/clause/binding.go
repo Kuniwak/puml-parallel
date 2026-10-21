@@ -15,7 +15,9 @@ func LocallyClosed(f Formula) error {
 	return err
 }
 
-func termLocallyClosed(t Term) error {
+// TermLocallyClosed reports, as an error, an index of t; a term alone has
+// no binder, so any index in it is unbound.
+func TermLocallyClosed(t Term) error {
 	return LocallyClosed(Atom{Parts: []Part{Hole{Term: t}}})
 }
 
@@ -43,7 +45,7 @@ func Open(e Exists, t Term) (And, error) {
 	if err := LocallyClosed(e); err != nil {
 		return And{}, fmt.Errorf("clause.Open: %w", err)
 	}
-	if err := termLocallyClosed(t); err != nil {
+	if err := TermLocallyClosed(t); err != nil {
 		return And{}, fmt.Errorf("clause.Open: the term: %w", err)
 	}
 	body := MapFormula(e.Body, 0, func(v Term, depth int) Term {
@@ -61,7 +63,7 @@ func Substitute(f Formula, v Free, t Term) (And, error) {
 	if err := LocallyClosed(f); err != nil {
 		return And{}, fmt.Errorf("clause.Substitute: %w", err)
 	}
-	if err := termLocallyClosed(t); err != nil {
+	if err := TermLocallyClosed(t); err != nil {
 		return And{}, fmt.Errorf("clause.Substitute: the term: %w", err)
 	}
 	return Normalize(MapFormula(f, 0, func(u Term, _ int) Term {

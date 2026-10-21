@@ -155,7 +155,7 @@ func (p *parser) builtin() (Formula, error) {
 	start := p.pos
 	p.pos++ // @
 	op := Op(p.name())
-	spec, ok := builtins[op]
+	spec, ok := op.Spec()
 	if !ok {
 		return nil, fmt.Errorf("unknown tool word @%s at %d", op, start)
 	}
@@ -163,10 +163,10 @@ func (p *parser) builtin() (Formula, error) {
 		return nil, err
 	}
 	b := Builtin{Op: op, Args: []Term{}}
-	for i := 0; i < spec.terms || (spec.variadic && !p.hasPrefix(")")); i++ {
+	for i := 0; i < spec.Terms || (spec.Variadic && !p.hasPrefix(")")); i++ {
 		if i > 0 {
 			if err := p.expect(", "); err != nil {
-				return nil, fmt.Errorf("@%s at %d takes %d terms: %w", op, start, spec.terms, err)
+				return nil, fmt.Errorf("@%s at %d takes %d terms: %w", op, start, spec.Terms, err)
 			}
 		}
 		t, err := p.term()
@@ -175,7 +175,7 @@ func (p *parser) builtin() (Formula, error) {
 		}
 		b.Args = append(b.Args, t)
 	}
-	if spec.state {
+	if spec.State {
 		if err := p.expect(", "); err != nil {
 			return nil, fmt.Errorf("@%s at %d takes a state: %w", op, start, err)
 		}
@@ -337,10 +337,11 @@ func (p *parser) term() (Term, error) {
 	if !primed {
 		return t, nil
 	}
-	if _, bound := root(t).(Bound); bound {
+	primedT, err := PrimeRoot(t)
+	if err != nil {
 		return nil, fmt.Errorf("the term at %d starts from a variable bound by @exists, which has no value after the step", start)
 	}
-	return primeRoot(t), nil
+	return primedT, nil
 }
 
 func (p *parser) app(fn string) (Term, error) {
@@ -380,28 +381,4 @@ func (p *parser) name() string {
 		p.pos++
 	}
 	return string(p.src[start:p.pos])
-}
-
-// root is the variable a path starts from.
-func root(t Term) Term {
-	switch t := t.(type) {
-	case Index:
-		return root(t.Map)
-	case Field:
-		return root(t.Of)
-	}
-	return t
-}
-
-// primeRoot primes the variable a path starts from.
-func primeRoot(t Term) Term {
-	switch t := t.(type) {
-	case Index:
-		return Index{Map: primeRoot(t.Map), Key: t.Key}
-	case Field:
-		return Field{Of: primeRoot(t.Of), Name: t.Name}
-	case Free:
-		return Free{Name: t.Name, Primed: true}
-	}
-	panic("clause.primeRoot: a path starts from a free variable")
 }

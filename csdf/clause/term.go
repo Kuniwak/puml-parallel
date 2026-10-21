@@ -13,6 +13,8 @@
 // apart, and no package outside this one adds a case.
 package clause
 
+import "fmt"
+
 // Term is a value a clause speaks of.
 type Term interface{ isTerm() }
 
@@ -47,3 +49,37 @@ type App struct {
 func (Index) isTerm() {}
 func (Field) isTerm() {}
 func (App) isTerm()   {}
+
+// Root is the term a path starts from: the map of an Index, the record of a
+// Field, followed down; any other term is its own root.
+func Root(t Term) Term {
+	switch t := t.(type) {
+	case Index:
+		return Root(t.Map)
+	case Field:
+		return Root(t.Of)
+	}
+	return t
+}
+
+// PrimeRoot primes the free variable a path starts from: m[k].f becomes
+// m'[k].f. A path from anything else has no value after the step.
+func PrimeRoot(t Term) (Term, error) {
+	switch t := t.(type) {
+	case Index:
+		m, err := PrimeRoot(t.Map)
+		if err != nil {
+			return nil, err
+		}
+		return Index{Map: m, Key: t.Key}, nil
+	case Field:
+		o, err := PrimeRoot(t.Of)
+		if err != nil {
+			return nil, err
+		}
+		return Field{Of: o, Name: t.Name}, nil
+	case Free:
+		return Free{Name: t.Name, Primed: true}, nil
+	}
+	return nil, fmt.Errorf("clause.PrimeRoot: %#v is not a free variable", t)
+}
