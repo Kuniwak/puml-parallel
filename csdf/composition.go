@@ -205,6 +205,15 @@ func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 		}
 		*renames = append(*renames, Rename{From: other.Name, To: named.Name})
 	}
+	for _, side := range []struct {
+		edge    Edge
+		fields  []Field
+		renames []Rename
+	}{{eL, fL, renamesL}, {eR, fR, renamesR}} {
+		if name, ok := renamedOntoAKeptField(side.fields, fields, side.renames); ok {
+			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s (line %d) would read two of its fields as %s; name them apart", side.edge.Event, side.edge.Line, name)
+		}
+	}
 	var parts [4]Predicate
 	for i, p := range []struct {
 		pred    Predicate
@@ -221,6 +230,20 @@ func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 		Guard: Conjunction(parts[0], parts[1]),
 		Post:  Conjunction(parts[2], parts[3]),
 	}, nil
+}
+
+// renamedOntoAKeptField reports a name one side's field is renamed onto that
+// another of its fields keeps: the side would then read two fields, which may
+// differ, as one. A swap is no capture, since the other field is renamed too.
+func renamedOntoAKeptField(own, composite []Field, renames []Rename) (string, bool) {
+	for _, r := range renames {
+		for i, f := range own {
+			if f.Name == r.To && composite[i].Name == f.Name {
+				return r.To, true
+			}
+		}
+	}
+	return "", false
 }
 
 // renamed is p with each clause read through renames.

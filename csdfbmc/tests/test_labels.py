@@ -317,14 +317,32 @@ class SentFieldTest(unittest.TestCase):
         # Assert
         self.assertEqual(["inc", "report(n=1)"], sorted(labels))
 
+    def test_the_label_follows_the_order_of_the_fields(self):
+        # Setup
+        diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!n?k")])
+        explorer = Explorer(fixture.diagram(diagram), Twins(domains={"k": [7]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute
+        labels = [label for _, label, _, _ in explorer.successors(("a", (1,), ()))]
+
+        # Assert
+        self.assertEqual(["report(n=1, k=7)"], labels)
+
+    def test_a_ghost_is_not_a_name_an_event_sends(self):
+        # Setup
+        diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!g")])
+        twins = Twins(domains={}, clauses={}, ghosts={"g": (0, {})})
+
+        # Execute, Assert
+        with self.assertRaisesRegex(KeyError, "sends 'g'"):
+            Explorer(fixture.diagram(diagram), twins, meaning=glue(python_glue()), cone=Cone.keep_all())
+
     def test_a_sent_field_whose_name_the_step_does_not_bind_is_refused(self):
         # Setup
         diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!m")])
-        explorer = Explorer(fixture.diagram(diagram), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
-
-        # Execute, Assert
+        # Execute, Assert: refused before a walk, whether or not it is enabled.
         with self.assertRaisesRegex(KeyError, "sends 'm'"):
-            explorer.run()
+            Explorer(fixture.diagram(diagram), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
 
 
 if __name__ == "__main__":

@@ -382,7 +382,7 @@ For `vending_machine.puml` it writes this table (shown here as Markdown, with
 a line break for each line of a cell, and the parameters of two long event
 names cut to `…`):
 
-| state | name | insert?coin | showAvailable?… | showPurchasable?… | choose?product | drop?product |
+| state | name | insert?coin | showAvailable!… | showPurchasable?… | choose?product | drop?product |
 |---|---|---|---|---|---|---|
 | vmIdle | vmIdle | ["coins' is {coin}, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | ["availableProducts' remains the same"(c, x, x')] → vmIdle | × | × | × |
 | vmCoinsInserted | vmCoinsInserted | × | × | ["availableProducts' and coins' remain the same"(c, x, x')] → vmWaitingChoosing | × | × |
@@ -479,7 +479,7 @@ and `x` exactly where the full one holds for some `x'`, and only no longer says
 what the values after are. For
 `vending_machine.puml` the cells above become
 
-| state | name | insert?coin | showAvailable?… | showPurchasable?… | choose?product | drop?product |
+| state | name | insert?coin | showAvailable!… | showPurchasable?… | choose?product | drop?product |
 |---|---|---|---|---|---|---|
 | vmIdle | vmIdle | → vmCoinsInserted | → vmIdle | × | × | × |
 | vmCoinsInserted | vmCoinsInserted | × | × | → vmWaitingChoosing | × | × |

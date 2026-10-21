@@ -10,13 +10,20 @@ from dataclasses import dataclass, field
 OPAQUE_WORD = "@opaque"
 
 
-def split_event(e: dict) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
-    """The channel, and the received and the sent field names, of an edge's
-    event, as csdfparse writes
-    them out: the grammar of an event is read by csdfparse alone."""
+RECEIVED, SENT = "?", "!"
+
+
+def split_event(e: dict) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """The channel and the fields, (direction, name) in the event's order, of
+    an edge's event, as csdfparse writes them out: the grammar of an event is
+    read by csdfparse alone."""
     if "channel" not in e or "fields" not in e:
         raise ValueError(f"the edge on {e.get('event')!r} has no channel and fields; write the diagram with csdfparse 3 or later")
-    return e["channel"], tuple(f["name"] for f in e["fields"] if f["dir"] == "?"), tuple(f["name"] for f in e["fields"] if f["dir"] == "!")
+    fields = tuple((f["dir"], f["name"]) for f in e["fields"])
+    for d, n in fields:
+        if d not in (RECEIVED, SENT):
+            raise ValueError(f"the field {n!r} of {e['event']!r} has the direction {d!r}, which is neither ? nor !")
+    return e["channel"], fields
 
 
 @dataclass(frozen=True)
@@ -66,11 +73,20 @@ class Edge:
     dst: str
     event: str
     name: str
-    params: tuple[str, ...]  # the received fields, c?x: values the environment offers
+    fields: tuple[tuple[str, str], ...]  # (direction, name), in the event's order
     guard: tuple[Clause, ...]
     post: tuple[Clause, ...]
     line: int
-    sent: tuple[str, ...] = ()  # the sent fields, c!y: names bound at the step
+
+    @property
+    def params(self) -> tuple[str, ...]:
+        """The received fields, c?x: values the environment offers."""
+        return tuple(dict.fromkeys(n for d, n in self.fields if d == RECEIVED))
+
+    @property
+    def sent(self) -> tuple[str, ...]:
+        """The sent fields, c!y: names the step binds."""
+        return tuple(n for d, n in self.fields if d == SENT)
 
     @property
     def is_tau(self) -> bool:
@@ -174,13 +190,13 @@ class Diagram:
         vars_ = {sid: tuple(v["name"] for v in st.get("vars", [])) for sid, st in d["states"].items()}
         edges = []
         for e in raw_edges:
-            name, params, sent = split_event(e)
+            name, fields = split_event(e)
             key = (e["src"], e["dst"], e["event"], e.get("guard"), e.get("post"))
             if by_text is not None and key in by_text:
                 guard, post = by_text[key]
             else:
                 guard, post = local_clauses(e, "guard"), local_clauses(e, "post")
-            edges.append(Edge(src=e["src"], dst=e["dst"], event=e["event"], name=name, params=params, sent=sent,
+            edges.append(Edge(src=e["src"], dst=e["dst"], event=e["event"], name=name, fields=fields,
                               guard=guard, post=post, line=e.get("line", 0)))
         end = None
         if d.get("end_edge"):
