@@ -85,11 +85,30 @@ class Glue:
         found = tells_apart(ast.parse(clause, mode="eval"), set(params), set(maps), [frozenset(g) for g in groups])
         return None if found is None else f"{found[1]}, so the IDs are not interchangeable"
 
+    def atom_guard(self, atom: dict, values: list) -> bool:
+        source, names = _atom_source(atom)
+        return bool(self._eval(source, "guard", dict(zip(names, values))))
+
     def guard(self, clause: str, binding: dict) -> bool:
         return bool(self._eval(clause, "guard", binding))
 
     def post(self, clause: str, binding: dict) -> list[dict]:
         return [{k: freeze(v) for k, v in a.items()} for a in self._eval(clause, "post", binding)]
+
+
+# The name an atom's argument i is read as; an atom's own text may not use it.
+_HOLE = "_csdf_hole_"
+
+
+def _atom_source(atom: dict) -> tuple[str, list[str]]:
+    """The Python an atom is, its holes read as names, and those names by
+    argument index."""
+    text, holes = atom["text"], atom["holes"]
+    if any(_HOLE in t for t in text):
+        raise ValueError(f"an atom of this glue may not use the names {_HOLE}N, which stand for its holes")
+    names = [f"{_HOLE}{i}" for i in range(len(atom["primed"]))]
+    source = text[0] + "".join(names[h] + t for h, t in zip(holes, text[1:]))
+    return source, names
 
 
 def _load_defs(path: str) -> dict:
@@ -106,7 +125,7 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     modules of shared definitions."""
     glue = Glue(args)
     return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post,
-                   beyond=glue.beyond, symmetric=glue.symmetric)
+                   beyond=glue.beyond, symmetric=glue.symmetric, atom_guard=glue.atom_guard)
 
 
 if __name__ == "__main__":

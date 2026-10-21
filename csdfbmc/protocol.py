@@ -109,15 +109,27 @@ def _bindings_from_wire(bindings: list[dict]) -> list[dict]:
     return [{k: from_wire(v) for k, v in b.items()} for b in bindings]
 
 
+def _values_to_wire(values: list[list]) -> list[list]:
+    return [[to_wire(v) for v in vs] for vs in values]
+
+
+def _values_from_wire(values: list[list]) -> list[list]:
+    return [[from_wire(v) for v in vs] for vs in values]
+
+
 def request_to_wire(request: dict) -> dict:
     if "bindings" in request:
         return dict(request, bindings=_bindings_to_wire(request["bindings"]))
+    if "values" in request:
+        return dict(request, values=_values_to_wire(request["values"]))
     return request
 
 
 def request_from_wire(request: dict) -> dict:
     if "bindings" in request:
         return dict(request, bindings=_bindings_from_wire(request["bindings"]))
+    if "values" in request:
+        return dict(request, values=_values_from_wire(request["values"]))
     return request
 
 
@@ -141,7 +153,8 @@ Handle = Callable[[dict], dict]
 def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: Callable[[str, dict], bool],
             post: Callable[[str, dict], list[dict]],
             beyond: Callable[[str, str, str | None], list[str]] | None = None,
-            symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None) -> Handle:
+            symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None,
+            atom_guard: Callable[[dict, list], bool] | None = None) -> Handle:
     """The Handle of a glue, from what is particular to its language:
     analyse(text, role) says what a clause reads and writes, guard(text,
     binding) and post(text, binding) evaluate a clause under one binding.
@@ -163,6 +176,8 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
             if op == "symmetric" and symmetric is not None:
                 why = symmetric(request["clause"], request["role"], request["params"], request["maps"], request["groups"])
                 return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
+            if "atom" in request and op == "guard" and atom_guard is not None:
+                return {"results": [atom_guard(request["atom"], vs) for vs in request["values"]]}
             if op == "analyse":
                 a = analyse(request["clause"], request["role"])
                 return {"opaque": True} if a.opaque else {"reads": list(a.reads), "writes": list(a.writes)}
