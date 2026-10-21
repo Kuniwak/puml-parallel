@@ -6,6 +6,9 @@ import "fmt"
 // binds. Close, Open and Substitute take only locally closed formulas, and
 // Print prints only them.
 func LocallyClosed(f Formula) error {
+	if err := shaped(f); err != nil {
+		return fmt.Errorf("clause.LocallyClosed: %w", err)
+	}
 	var err error
 	EachVar(f, func(v Term, depth int) {
 		if b, ok := v.(Bound); ok && b.Index >= depth && err == nil {

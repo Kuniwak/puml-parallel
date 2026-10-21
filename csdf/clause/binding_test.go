@@ -183,3 +183,23 @@ func TestLocallyClosed(t *testing.T) {
 		})
 	}
 }
+
+func TestOperationsRefuseAFormulaOfUnknownShapeWithoutPanicking(t *testing.T) {
+	// Setup
+	broken := And{Conjuncts: []Formula{nil}}
+	tests := map[string]func() error{
+		"Print":      func() error { _, err := Print(broken); return err },
+		"Close":      func() error { _, err := Close(broken, pre("v")); return err },
+		"Open":       func() error { _, err := Open(Exists{Hint: "v", Body: broken}, pre("y")); return err },
+		"Substitute": func() error { _, err := Substitute(broken, pre("x"), pre("y")); return err },
+	}
+	for name, call := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := call()
+
+			// Assert
+			assertErrorContains(t, err, "an unknown formula")
+		})
+	}
+}

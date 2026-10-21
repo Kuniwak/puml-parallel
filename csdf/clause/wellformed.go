@@ -121,3 +121,63 @@ func wellFormedTerm(t Term) error {
 	}
 	return nil
 }
+
+// shaped reports, as an error, a formula, part or term of f that is none of
+// the cases this package defines, nil included. The traversals panic on one,
+// so every operation that takes a formula from outside checks this first.
+func shaped(f Formula) error {
+	switch f := f.(type) {
+	case And:
+		for _, c := range f.Conjuncts {
+			if err := shaped(c); err != nil {
+				return err
+			}
+		}
+		return nil
+	case Exists:
+		return shaped(f.Body)
+	case Atom:
+		for _, p := range f.Parts {
+			switch p := p.(type) {
+			case Text:
+			case Hole:
+				if err := shapedTerm(p.Term); err != nil {
+					return err
+				}
+			default:
+				return fmt.Errorf("an unknown part %#v", p)
+			}
+		}
+		return nil
+	case Builtin:
+		for _, t := range f.Args {
+			if err := shapedTerm(t); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("an unknown formula %#v", f)
+}
+
+func shapedTerm(t Term) error {
+	switch t := t.(type) {
+	case Free, Bound:
+		return nil
+	case Index:
+		if err := shapedTerm(t.Map); err != nil {
+			return err
+		}
+		return shapedTerm(t.Key)
+	case Field:
+		return shapedTerm(t.Of)
+	case App:
+		for _, a := range t.Args {
+			if err := shapedTerm(a); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("an unknown term %#v", t)
+}

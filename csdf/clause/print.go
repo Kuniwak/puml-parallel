@@ -14,6 +14,9 @@ import (
 // variable or an enclosing binder's name; then with a fresh name. A formula
 // that is not well formed is an error.
 func Print(f Formula) (string, error) {
+	if err := shaped(f); err != nil {
+		return "", fmt.Errorf("clause.Print: %w", err)
+	}
 	n := Normalize(f)
 	if err := WellFormed(n); err != nil {
 		return "", fmt.Errorf("clause.Print: %w", err)
