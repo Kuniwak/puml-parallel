@@ -165,6 +165,12 @@ func TestAnEdgeThatReadsWhatItDoesNotBindIsRefused(t *testing.T) {
 			},
 			Want: "sends 額",
 		},
+		"a field received twice": {
+			Edge: func(t *testing.T) core.Edge {
+				return core.Edge{Src: "s", Dst: "s", Event: core.Event{Channel: "IN", Fields: []core.Field{{Name: "額"}, {Name: "額"}}}}
+			},
+			Want: "receives 額 twice",
+		},
 		"a received field named like a state variable": {
 			Edge: func(t *testing.T) core.Edge {
 				return core.Edge{Src: "s", Dst: "s", Event: core.Event{Channel: "IN", Fields: []core.Field{{Name: "在庫"}}}}

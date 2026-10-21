@@ -77,6 +77,9 @@ func declared(d core.Diagram, e core.Edge) error {
 			return fmt.Errorf("the edge %s -> %s receives %s, which names a state variable", e.Src, e.Dst, f.Name)
 		}
 		if !f.Send {
+			if before[f.Name] {
+				return fmt.Errorf("the edge %s -> %s receives %s twice", e.Src, e.Dst, f.Name)
+			}
 			before[f.Name] = true
 		}
 	}
