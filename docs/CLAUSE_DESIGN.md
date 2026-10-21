@@ -75,7 +75,22 @@ For promotion, op_sem is a CSP term built from the local diagram P:
 - all instances are interleaved over the set of IDs, ||| i ∈ ID;
 - a sync renames the local events it takes to the global event and
   synchronises on it (for `MOVE`, `DEPART.from` and `ARRIVE.to` become
-  `MOVE`).
+  `MOVE`);
+- what a clause of the global diagram reads of a bound instance is carried
+  by the event: instance i offers `MOVE.i.v` for the values v it holds, its
+  prefix being `MOVE.i!v → …`, and the global side receives them with
+  `MOVE.i?x`. One process depends on another's state only through
+  communication, so a clause reading two instances is this communication,
+  written implicitly;
+- a many-to-one renaming then forgets the carried values, `MOVE.i.v` to
+  `MOVE.i`, so the alphabet of the promoted diagram is what the author
+  wrote. Renaming introduces no τ, so divergence is unchanged by it.
+
+The offers are part of this term, not of the local diagram: P keeps its own
+meaning, and only the instance as it appears in the term offers the event
+(P12). Read alone, that instance offers an event that leaves it unchanged,
+so hiding the event there would make a τ self-loop; in the promoted term
+the step is a τ self-loop only if the global side is unchanged as well.
 
 The map of a promoted diagram is then the tuple of the instances' local
 states, domain membership is "not absent", and an instance's control state
@@ -107,7 +122,7 @@ Foreseen; the design must leave room for them:
 | # | Operator | Meaning |
 |---|---|---|
 | O14 | Nested promotion | promoting a diagram that is itself promoted |
-| O15 | Channel renaming | CSP `P[[a <- b]]` |
+| O15 | Channel renaming | CSP `P[[a <- b]]`, many-to-one included; promotion already uses one internally to forget the values a sync reads |
 | O16 | Replicated composition | `|||` over a set of IDs, generalising families |
 | O17 | Data abstraction | shrinking the state space through an abstraction map |
 
@@ -225,8 +240,10 @@ and never permuted by symmetry.
 A clause of a local diagram reads only its own instance, because the
 instances are interleaved (|||) and one process does not see another's
 state. A clause of the global diagram, on a sync, may read the instances
-that sync binds, `at` included. Encoding control this way preserves the
-expanded graph, since only transitions change it.
+that sync binds, `at` included, through the communication in the
+denotation of promotion. Encoding control this way preserves the expanded
+graph, once the renaming there has forgotten the values carried, since only
+transitions change it.
 
 Only tools write ∃; authors write atoms, builtins and ∧. Letting authors
 write ∃ later is an addition that breaks no diagram. A field computed from
@@ -254,7 +271,9 @@ so that they capture nothing.
 A livelock analysis is stated against failures-divergences, outside ⟦·⟧.
 Only operators whose obligation preserves divergence may be used before it:
 changes of representation and constructors (for hiding, divergence is part
-of what is checked). Abstractions and optimisations proven only under ⊑SF
+of what is checked). A constructor used before one must meet its obligation
+under failures-divergences, not only =SF; promotion does, since its term
+adds only synchronisation and renaming, neither of which introduces τ. Abstractions and optimisations proven only under ⊑SF
 must not be; partial-order reduction preserves divergence only with a cycle
 proviso, and must say so before it is used for one.
 
