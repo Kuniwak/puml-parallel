@@ -3,6 +3,8 @@ nothing that decides whether a step can be taken, and no property, reads
 them, so the walk finds the same without them."""
 import json
 import unittest
+
+from csdfbmc.environment import NONE
 from csdfbmc.tests import fixture
 
 from csdfbmc import cone
@@ -73,7 +75,7 @@ class ConeTest(unittest.TestCase):
         d = fixture.diagram(diagram)
         meaning = standard(GlueMeaning(checked(client)))
         c = cone.compute(d, checks, meaning, writes=GlueMeaning(checked(client)).writes) if reduce else Cone.keep_all()
-        return Explorer(d, checks, meaning, cone=c, **options).run()
+        return Explorer(d, checks, meaning, cone=c, environment=NONE, **options).run()
 
     def test_a_variable_nothing_reads_is_left_out_of_the_states(self):
         reduced = self.walk(AUDITED, reduce=True)

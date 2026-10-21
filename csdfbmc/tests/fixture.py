@@ -66,7 +66,9 @@ def explorer(d, checks=None, **options):
     from csdfbmc.checks import Checks
     if not isinstance(d, Diagram):
         d = diagram(d)
+    from csdfbmc import environment
     options.setdefault("cone", Cone.keep_all())
+    options.setdefault("environment", environment.NONE)
     return Explorer(d, checks if checks is not None else Checks(types={}), glue_meaning(), **options)
 
 

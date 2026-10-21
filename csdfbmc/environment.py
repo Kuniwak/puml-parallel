@@ -11,41 +11,91 @@ arguments, so that the same seed walks the same states again and different
 seeds widen what bounded checking covers. A given function wins over the
 seed. The report names the seed and the given functions, which is all a run
 needs to be reproduced.
+
+What decides is a function (Decide) built from combinators - nothing,
+seeded, given_over - and an Environment is that function together with what
+reproduces it.
 """
 from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Callable
 
 from csdfbmc.checks import apply
 
 Given = bool | Callable[..., bool]
 
+# Decide is the value of the function named name for the arguments args, or
+# None when it decides nothing for that name.
+Decide = Callable[[str, Mapping], "bool | None"]
 
-class Environment:
-    def __init__(self, *, given: dict[str, Given] | None = None, seed: int | None = None):
-        self.given = dict(given or {})
-        self.seed = seed
 
-    def decide(self, name: str, args: dict) -> bool | None:
-        """The value of the function name for args; None when nothing gives
-        or seeds it."""
-        if name in self.given:
-            g = self.given[name]
-            if isinstance(g, bool):
-                return g
-            value = apply(g, args, what=f"the environment's {name!r}")
-            if not isinstance(value, bool):
-                raise TypeError(f"the environment's {name!r} gave {value!r}; it gives True or False")
-            return value
-        if self.seed is None:
-            return None
-        key = "\0".join((str(self.seed), name, canonical(dict(args))))
+def nothing(name: str, args: Mapping) -> bool | None:
+    """Decides no function."""
+    return None
+
+
+def seeded(seed: int) -> Decide:
+    """Every function, chosen from seed by hashing it with the function's
+    name and its arguments."""
+    def decide(name: str, args: Mapping) -> bool | None:
+        key = "\0".join((str(seed), name, canonical(dict(args))))
         return hashlib.sha256(key.encode("utf-8")).digest()[0] & 1 == 1
+    return decide
+
+
+def given_over(given: Mapping[str, Given], inner: Decide) -> Decide:
+    """The functions given, a truth value or a pure function of the names it
+    reads, and inner for the rest."""
+    given = dict(given)
+
+    def decide(name: str, args: Mapping) -> bool | None:
+        if name not in given:
+            return inner(name, args)
+        g = given[name]
+        if isinstance(g, bool):
+            return g
+        value = apply(g, dict(args), what=f"the environment's {name!r}")
+        if not isinstance(value, bool):
+            raise TypeError(f"the environment's {name!r} gave {value!r}; it gives True or False")
+        return value
+    return decide
+
+
+def recording(decide: Decide, seen: dict[str, None]) -> Decide:
+    """decide, noting in seen, in order, each name it decided."""
+    def recorded(name: str, args: Mapping) -> bool | None:
+        value = decide(name, args)
+        if value is not None:
+            seen.setdefault(name)
+        return value
+    return recorded
+
+
+@dataclass(frozen=True)
+class Environment:
+    """What decides the functions, and what reproduces it: the seed and the
+    names given."""
+    decide: Decide
+    seed: int | None
+    given: tuple[str, ...]
 
     def to_json(self) -> dict:
         return {"seed": self.seed, "given": sorted(self.given)}
+
+
+# NONE decides nothing: no function is given, and there is no seed.
+NONE = Environment(decide=nothing, seed=None, given=())
+
+
+def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | None) -> Environment:
+    """The environment of a run: given over the checks module's ENVIRONMENT
+    (module), and the seed, when there is one, for the rest."""
+    merged = {**module, **given}
+    return Environment(decide=given_over(merged, seeded(seed) if seed is not None else nothing),
+                       seed=seed, given=tuple(merged))
 
 
 def canonical(v) -> str:

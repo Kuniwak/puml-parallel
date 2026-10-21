@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from csdfbmc.cone import Cone
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.environment import Environment
+from csdfbmc.environment import Environment, recording
 from csdfbmc.meaning import OPAQUE, Meaning
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.checks import Checks, apply
@@ -172,8 +172,9 @@ class Explorer:
     (csdfbmc.environment), applied to the names the step binds: a clause the
     glue cannot read is the function named by its text, and the n-th @opaque
     of the diagram, counting the start edge, then the edges in order, guard
-    before post, then the end edge, is the function @opaque#n. It defaults to
-    the functions the checks module gives (ENVIRONMENT).
+    before post, then the end edge, is the function @opaque#n. The caller
+    builds it, with the checks module's ENVIRONMENT in it when wanted
+    (csdfbmc.environment.over); csdfbmc.environment.NONE decides nothing.
 
     opaque says what such a clause means when the environment does not decide
     it: "error" refuses it, "true" takes it as satisfied (an
@@ -204,15 +205,16 @@ class Explorer:
 
     def __init__(self, diagram: Diagram, checks: Checks, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
-                 por: bool = False, symmetry: bool = False, cone: Cone, environment: Environment | None = None):
+                 por: bool = False, symmetry: bool = False, cone: Cone, environment: Environment):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
         self.checks = checks
         self.opaque = opaque
-        self.environment = environment if environment is not None else Environment(given=checks.environment)
+        self.environment = environment
         self._function_names = self._name_the_opaque_clauses()
         self.decided_seen: dict[str, None] = {}
+        self._decide = recording(environment.decide, self.decided_seen)
         self._tau_choices: dict[tuple, tuple[str, ...]] = {}
         self._check_sent()
         self.max_states = max_states
@@ -276,10 +278,9 @@ class Explorer:
         """What the environment, or else the opaque rule, says a guard clause
         not formalised means at env."""
         name = self._function_name(clause)
-        value = self.environment.decide(name, env)
+        value = self._decide(name, env)
         if value is None:
             return self._not_formalised(clause)
-        self.decided_seen.setdefault(name)
         return value
 
     def _not_formalised(self, clause: Clause) -> bool:

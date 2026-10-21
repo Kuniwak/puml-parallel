@@ -10,7 +10,7 @@ from csdfbmc.tests import fixture
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import EvaluatorError
 from csdfbmc.checks import Checks
-from csdfbmc.environment import Environment
+from csdfbmc import environment as environments
 
 
 COUNTER = {
@@ -86,7 +86,7 @@ class ExplorerTest(unittest.TestCase):
         }
         for name, (given, want) in cases.items():
             with self.subTest(name):
-                environment = Environment(given={"@opaque#1": given})
+                environment = environments.over({}, {"@opaque#1": given}, None)
 
                 # Execute
                 result = fixture.explorer(self.without_its_guard(), environment=environment, max_states=10).run()
@@ -98,7 +98,7 @@ class ExplorerTest(unittest.TestCase):
     def test_a_seed_walks_the_same_states_again_and_is_reported(self):
         # Setup
         def walk():
-            return fixture.explorer(self.without_its_guard(), environment=Environment(seed=7), max_states=10).run()
+            return fixture.explorer(self.without_its_guard(), environment=environments.over({}, {}, 7), max_states=10).run()
 
         # Execute
         first, again = walk(), walk()
@@ -106,16 +106,6 @@ class ExplorerTest(unittest.TestCase):
         # Assert
         self.assertEqual(first.states, again.states)
         self.assertEqual({"seed": 7, "given": [], "decided": ["@opaque#1"]}, first.to_json()["environment"])
-
-    def test_the_checks_module_gives_the_environment_by_default(self):
-        # Setup
-        checks = Checks(types={}, environment={"@opaque#1": False})
-
-        # Execute
-        result = fixture.explorer(self.without_its_guard(), checks, max_states=10).run()
-
-        # Assert
-        self.assertEqual({("a", (2,), ())}, set(result.states))
 
     def test_the_bound_on_states_stops_the_walk(self):
         result = fixture.explorer(COUNTER, max_states=2).run()

@@ -11,6 +11,7 @@ from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
 from csdfbmc.checks import PurityError, Checks, load_checks
+from csdfbmc import environment as environments
 from csdfbmc.environment import Environment
 
 # What reading the inputs may raise; each command reports it and exits 2.
@@ -31,13 +32,13 @@ def add_inputs(ap: argparse.ArgumentParser) -> None:
 def environment(a: argparse.Namespace, checks: Checks) -> Environment:
     """The environment the arguments and the checks module give: --env over
     ENVIRONMENT, and --seed for the rest."""
-    given = dict(checks.environment)
+    given = {}
     for word in a.env:
         name, sep, value = word.rpartition("=")
         if not sep or not name or value not in ("true", "false"):
             raise ValueError(f"--env expects NAME=true or NAME=false, not {word!r}")
         given[name] = value == "true"
-    return Environment(given=given, seed=a.seed)
+    return environments.over(checks.environment, given, a.seed)
 
 
 @contextmanager

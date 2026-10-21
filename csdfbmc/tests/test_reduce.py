@@ -1,6 +1,8 @@
 """Partial-order and symmetry reduction: fewer states walked, the same
 findings reported."""
 import unittest
+
+from csdfbmc.environment import NONE
 from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
@@ -60,7 +62,7 @@ class PartialOrderTest(unittest.TestCase):
 
         # Execute
         full = walk(WITHOUT_CLOSE).run()
-        unasked = Explorer(d, checks, meaning=glue(NotAnswering(python_glue())), cone=Cone.keep_all(), por=True).run()
+        unasked = Explorer(d, checks, meaning=glue(NotAnswering(python_glue())), cone=Cone.keep_all(), environment=NONE, por=True).run()
 
         # Assert
         self.assertEqual(len(full.states), len(unasked.states))
