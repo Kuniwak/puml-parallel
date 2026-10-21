@@ -50,7 +50,8 @@ as csdfbmc reads them, and statevar -pick enters one.
 
 		var sock string
 		flags.StringVar(&sock, "sock", "", "path of the Unix domain socket to listen on")
-		checker := bmc.DeclareFlags(flags)
+		var checker bmc.Checker
+		tools.DeclareCheckerOptions(flags, &checker)
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
@@ -74,6 +75,6 @@ as csdfbmc reads them, and statevar -pick enters one.
 			return nil, fmt.Errorf("csdfrepldcmd.NewParseOptionsFunc: %w", err)
 		}
 
-		return &Options{Common: commonOpts, Sock: sock, Checker: *checker}, nil
+		return &Options{Common: commonOpts, Sock: sock, Checker: checker}, nil
 	}
 }

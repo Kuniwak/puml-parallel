@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -25,16 +24,6 @@ type Checker struct {
 	Checks          string
 	Evaluator       string
 	EvaluatorModule string
-}
-
-// DeclareFlags declares -checks, -evaluator and -evaluator-module on fs, and
-// returns the Checker they fill in.
-func DeclareFlags(fs *flag.FlagSet) *Checker {
-	c := &Checker{}
-	fs.StringVar(&c.Checks, "checks", "", "csdfbmc checks module (DOMAINS, GHOSTS, INVARIANTS); with a glue, the value prompt suggests the values the clauses admit")
-	fs.StringVar(&c.Evaluator, "evaluator", "", "with -checks, the command line of the glue csdfbmc reads the clauses through")
-	fs.StringVar(&c.EvaluatorModule, "evaluator-module", "", "with -checks, the Python module (and its arguments) of the glue csdfbmc reads the clauses through, such as csdfbmc.python_glue")
-	return c
 }
 
 // Asks reports whether the Checker is set, so that value prompts suggest.

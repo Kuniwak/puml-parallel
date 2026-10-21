@@ -66,7 +66,8 @@ Examples:
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
 		replay := flags.String("replay", "", "csdfbmc --json output whose finding to walk before the first prompt")
 		finding := flags.Int("finding", 0, "with -replay, which finding to walk, numbered from 0")
-		checker := bmc.DeclareFlags(flags)
+		var checker bmc.Checker
+		tools.DeclareCheckerOptions(flags, &checker)
 		diagramJSON := flags.String("diagram-json", "", "with -checks, the JSON csdfbmc reads (an expansion); default: the file's own parse")
 
 		if err := flags.Parse(args); err != nil {
@@ -92,6 +93,6 @@ Examples:
 		}
 
 		return &Options{Common: commonOpts, File: flags.Arg(0), Replay: *replay, Finding: *finding,
-			Checker: *checker, DiagramJSON: *diagramJSON}, nil
+			Checker: checker, DiagramJSON: *diagramJSON}, nil
 	}
 }
