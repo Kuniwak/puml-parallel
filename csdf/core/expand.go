@@ -12,7 +12,7 @@ import (
 // state variables, over the values env gives. A label is the channel and
 // the values of the event's fields, joined by "."; an internal event is τ.
 func Expand(d *Diagram, env Env) (*lts.LTS, error) {
-	if err := d.declared(); err != nil {
+	if err := d.wellFormed(); err != nil {
 		return nil, fmt.Errorf("core.Expand: %w", err)
 	}
 	if len(d.Ends) > 0 {

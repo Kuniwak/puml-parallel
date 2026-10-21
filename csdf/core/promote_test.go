@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
 
@@ -195,6 +196,14 @@ func TestPromoteRefuses(t *testing.T) {
 			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev("PING", send("code"))}}}}), "code"},
 		{"a local internal edge with fields", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
 			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev(Tau, recv("code"))}}}}), "fields"},
+		{"a local diagram naming a state it does not declare", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
+			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "off", Event: ev("PING")}}}}), "no state off"},
+		{"a local clause that is not well formed", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
+			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev("PING"),
+				Guard: clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Free{Name: "x"}}}}}}}}}), "clause.WellFormed"},
+		{"a sync clause that is not well formed", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}, Sync{Event: "MOVE",
+			Guard: clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Free{Name: "from"}}}}},
+			Targets: []Target{{Map: "locations", ID: "from", Event: "DEPART"}}}), "clause.WellFormed"},
 		{"a family without its creation event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Delete: "CLOSE"}), "no creation event"},
 		{"end edges without a deletion event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN"}), "no deletion event"},
 		{"a creation event named like a local one", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "DEPART", Delete: "CLOSE"}), "DEPART"},

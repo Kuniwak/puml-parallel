@@ -120,3 +120,28 @@ func TestExpandRefusesAStateItDoesNotDeclare(t *testing.T) {
 		})
 	}
 }
+
+func TestExpandRefusesAClauseThatIsNotWellFormed(t *testing.T) {
+	short := clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: "x"}}}}}
+	dangling := clause.And{Conjuncts: []clause.Formula{clause.Atom{Parts: []clause.Part{clause.Hole{Term: clause.Bound{Index: 0}}, clause.Text(" > 0")}}}}
+	cases := map[string]struct {
+		d    *Diagram
+		want string
+	}{
+		"a builtin short of arguments in a guard": {d: &Diagram{States: []string{"s"}, Init: "s",
+			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "go"}, Guard: short}}}, want: "clause.WellFormed"},
+		"a builtin short of arguments in the start edge": {d: &Diagram{States: []string{"s"}, Vars: map[string][]string{"s": {"x"}}, Init: "s", InitPost: short},
+			want: "clause.WellFormed"},
+		"an index no binder binds in a post": {d: &Diagram{States: []string{"s"}, Init: "s",
+			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "go"}, Post: dangling}}}, want: "the index 0"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := Expand(c.d, Env{Types: map[string][]Value{"x": {0}}})
+
+			// Assert
+			assertErrorContains(t, err, c.want)
+		})
+	}
+}

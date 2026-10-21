@@ -57,6 +57,9 @@ func Promote(p Promotion) (*Diagram, error) {
 	var maps []string
 	var start []clause.Formula
 	for _, f := range p.Families {
+		if err := f.Local.wellFormed(); err != nil {
+			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+		}
 		if err := lifecycle(f); err != nil {
 			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
@@ -67,6 +70,9 @@ func Promote(p Promotion) (*Diagram, error) {
 	out.InitPost = clause.And{Conjuncts: start}
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
+		if err := clause.WellFormed(s.Guard); err != nil {
+			return nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+		}
 		edges, err := promoteSync(p, s)
 		if err != nil {
 			return nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)

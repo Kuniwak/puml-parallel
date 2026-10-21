@@ -77,3 +77,27 @@ func (d *Diagram) declared() error {
 	}
 	return nil
 }
+
+// wellFormed reports, as an error, a state d names but does not declare, or
+// a clause of d that is not well formed (clause.WellFormed).
+func (d *Diagram) wellFormed() error {
+	if err := d.declared(); err != nil {
+		return err
+	}
+	if err := clause.WellFormed(d.InitPost); err != nil {
+		return fmt.Errorf("the start edge: %w", err)
+	}
+	for _, e := range d.Edges {
+		for _, c := range []clause.And{e.Guard, e.Post} {
+			if err := clause.WellFormed(c); err != nil {
+				return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+			}
+		}
+	}
+	for _, e := range d.Ends {
+		if err := clause.WellFormed(e.Guard); err != nil {
+			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return nil
+}

@@ -42,8 +42,14 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 	return out, nil
 }
 
-// Bind is ∃name : typ. f.
+// Bind is ∃name : typ. f. When f does not read name, it is f itself: a
+// binder of nothing says only that typ has a value, and every type a
+// diagram ranges over has one; this also keeps the result well formed, as
+// an ∃ with an empty body is not.
 func Bind(f clause.And, name, typ string) (clause.And, error) {
+	if !slices.Contains(clause.FreeVars(f), clause.Free{Name: name}) {
+		return f, nil
+	}
 	e, err := clause.Close(f, clause.Free{Name: name}, typ)
 	if err != nil {
 		return clause.And{}, err
