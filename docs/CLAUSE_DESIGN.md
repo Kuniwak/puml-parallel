@@ -36,9 +36,14 @@ The stable failures model is used throughout, for every operator below:
   proven under one would not compose with a construction proven under
   another.
 
-Divergence is therefore not part of the meaning. Checking livelock would
-need the failures-divergences model, and moving to it would be a change for
-every operator at once, not for one.
+Divergence is therefore not part of the meaning; it is discharged
+separately. csdflivelockfree emits a livelock-freedom proof obligation for a
+diagram, and for a divergence-free process stable-failures equivalence and
+failures-divergences equivalence coincide. So the stable failures model is
+enough wherever that obligation is proven. Hiding and composition can
+create divergence that their operands did not have, so the obligation is
+proven for each diagram whose meaning is relied on, after hiding, not only
+for its parts.
 
 Any representation of a clause, text or JSON, is acceptable as long as it
 determines that meaning by itself.
@@ -86,7 +91,7 @@ Present:
 | O5 | Relational composition | two updates of one map in one step; tau closure in obligations |
 | O6 | Generation of atoms | equality, distinctness, domain membership, map update, frame and opaque clauses, stated by a tool |
 | O7 | Evaluation | a valuation gives a truth value or a set of next valuations (csdfbmc, `csdf.SolveJSON`) |
-| O8 | Translation to logic | proof obligations (csdftracechk, csdftranstable, csdfrefinement) |
+| O8 | Translation to logic | proof obligations (csdftracechk, csdftranstable, csdfrefinement, csdflivelockfree) |
 | O9 | Free-name extraction | partial-order reduction, cone of influence, symmetry, restriction |
 | O10 | Permutation of IDs | symmetry reduction |
 | O11 | Refinement checking | relating a specification diagram to an implementation (csdfrefinement) |
