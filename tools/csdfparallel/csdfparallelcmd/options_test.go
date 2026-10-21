@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -33,7 +32,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Args: []string{"-sync", "x;y", "a.puml", "b.puml"},
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
-				Sync:   []csdf.Event{"x", "y"},
+				Sync:   []string{"x", "y"},
 				Files:  []string{"a.puml", "b.puml"},
 				Args:   []string{"-sync", "x;y", "a.puml", "b.puml"},
 			},
@@ -87,5 +86,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 				t.Error("want not nil, got nil")
 			}
 		})
+	}
+}
+
+func TestNewParseOptionsFuncRefusesAnEventForAChannel(t *testing.T) {
+	_, err := NewParseOptionsFunc()([]string{"-sync", "insert?coin", "a.puml", "b.puml"}, cli.SpyProcInout().New())
+	if err == nil {
+		t.Error("want -sync insert?coin refused, since composition synchronises on channels")
 	}
 }

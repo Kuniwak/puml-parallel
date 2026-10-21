@@ -3,24 +3,31 @@ package csdf
 import "encoding/json"
 
 // ClauseJSON is one clause as JSON, as its language reads it: its text with
-// the escapes removed, or the tool word @opaque, which has no text.
+// the escapes removed, or the tool word @opaque, which has no text. Rename
+// maps a name the text reads to the name of the predicate it stands for.
 type ClauseJSON struct {
-	Text   string `json:"text,omitempty"`
-	Opaque bool   `json:"opaque,omitempty"`
+	Text   string            `json:"text,omitempty"`
+	Opaque bool              `json:"opaque,omitempty"`
+	Rename map[string]string `json:"rename,omitempty"`
 }
 
 // ClausesJSON takes a predicate apart into its clauses, so a reader in another
-// language need not split or unescape it again. It is never null.
-func (p Predicate) ClausesJSON() []ClauseJSON {
+// language need not split or unescape it again. It is never null; a clause
+// whose renaming does not parse is an error.
+func (p Predicate) ClausesJSON() ([]ClauseJSON, error) {
 	out := []ClauseJSON{}
 	for _, c := range p.Clauses() {
 		if IsOpaque(c) {
 			out = append(out, ClauseJSON{Opaque: true})
-		} else {
-			out = append(out, ClauseJSON{Text: ClauseText(c)})
+			continue
 		}
+		renames, body, err := SplitRenaming(c)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ClauseJSON{Text: ClauseText(body), Rename: RenamesMap(renames)})
 	}
-	return out
+	return out, nil
 }
 
 type startEdgeJSON struct {
@@ -31,7 +38,11 @@ type startEdgeJSON struct {
 }
 
 func (e StartEdge) MarshalJSON() ([]byte, error) {
-	return json.Marshal(startEdgeJSON{Dst: e.Dst, Post: e.Post, PostClauses: e.Post.ClausesJSON(), Line: e.Line})
+	post, err := e.Post.ClausesJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(startEdgeJSON{Dst: e.Dst, Post: e.Post, PostClauses: post, Line: e.Line})
 }
 
 // UnmarshalJSON reads the post whole and derives its clauses from it: the
@@ -53,7 +64,11 @@ type endEdgeJSON struct {
 }
 
 func (e EndEdge) MarshalJSON() ([]byte, error) {
-	return json.Marshal(endEdgeJSON{Src: e.Src, Guard: e.Guard, GuardClauses: e.Guard.ClausesJSON(), Line: e.Line})
+	guard, err := e.Guard.ClausesJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(endEdgeJSON{Src: e.Src, Guard: e.Guard, GuardClauses: guard, Line: e.Line})
 }
 
 // UnmarshalJSON reads the guard whole and derives its clauses from it: the

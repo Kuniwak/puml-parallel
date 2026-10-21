@@ -30,20 +30,20 @@ type ReferExpr struct {
 
 func (e *ReferExpr) isExpr() {}
 
-// HideExpr hides Events of Proc (CSP hiding, P \ A). Proc is an interface, so
+// HideExpr hides the channels Channels of Proc (CSP hiding, P \ {|c|}). Proc is an interface, so
 // the nested expression is read by parseExpr rather than by encoding/json.
 type HideExpr struct {
-	Events []Event
-	Proc   Expr
+	Channels []string
+	Proc     Expr
 }
 
 func (e *HideExpr) isExpr() {}
 
-// InterfaceParallelExpr composes Procs in parallel synchronising on Sync (CSP
-// interface parallel). Procs holds interfaces, so the nested expressions are
+// InterfaceParallelExpr composes Procs in parallel synchronising on the
+// channels Sync (CSP interface parallel). Procs holds interfaces, so the nested expressions are
 // read by parseExpr rather than by encoding/json.
 type InterfaceParallelExpr struct {
-	Sync  []Event
+	Sync  []string
 	Procs []Expr
 }
 
@@ -79,8 +79,8 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 
 	case OpHide:
 		var e struct {
-			Events []Event         `json:"events"`
-			Proc   json.RawMessage `json:"proc"`
+			Channels []string        `json:"channels"`
+			Proc     json.RawMessage `json:"proc"`
 		}
 		if err := json.Unmarshal(raw, &e); err != nil {
 			return nil, fmt.Errorf("cannot read a %s expression: %w", OpHide, err)
@@ -89,11 +89,16 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 		if err != nil {
 			return nil, fmt.Errorf("in the proc of a %s expression: %w", OpHide, err)
 		}
-		return &HideExpr{Events: e.Events, Proc: proc}, nil
+		for _, c := range e.Channels {
+			if _, err := ParseChannel(c); err != nil {
+				return nil, fmt.Errorf("in the channels of a %s expression: %w", OpHide, err)
+			}
+		}
+		return &HideExpr{Channels: e.Channels, Proc: proc}, nil
 
 	case OpInterfaceParallel:
 		var e struct {
-			Sync  []Event           `json:"sync"`
+			Sync  []string          `json:"sync"`
 			Procs []json.RawMessage `json:"procs"`
 		}
 		if err := json.Unmarshal(raw, &e); err != nil {
@@ -101,6 +106,11 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 		}
 		if len(e.Procs) < 1 {
 			return nil, fmt.Errorf("an %s expression requires at least one proc", OpInterfaceParallel)
+		}
+		for _, c := range e.Sync {
+			if _, err := ParseChannel(c); err != nil {
+				return nil, fmt.Errorf("in the sync of an %s expression: %w", OpInterfaceParallel, err)
+			}
 		}
 		procs := make([]Expr, 0, len(e.Procs))
 		for i, rawProc := range e.Procs {
@@ -166,7 +176,7 @@ func composeTree(expr Expr, load DiagramLoader) (*Diagram, error) {
 		if err != nil {
 			return nil, err
 		}
-		return Hide(proc, e.Events), nil
+		return Hide(proc, e.Channels), nil
 
 	case *InterfaceParallelExpr:
 		procs := make([]*Diagram, 0, len(e.Procs))

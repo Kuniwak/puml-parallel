@@ -200,6 +200,7 @@ class Explorer:
         self.d = diagram
         self.twins = twins
         self.opaque = opaque
+        self._tau_choices: dict[tuple, tuple[str, ...]] = {}
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
@@ -408,7 +409,7 @@ class Explorer:
         """(params, event as taken, next states) for every parameter valuation
         of e that is enabled from state. With record, what the walk reports
         (unconstrained and empty posts) is kept."""
-        names = e.params + e.implicit_ids()
+        names = e.params + e.implicit_ids() + self._chosen_by_tau(e)
         out = []
         for params in self._enabled(state, e, names):
             label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
@@ -425,12 +426,59 @@ class Explorer:
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
 
+    def _chosen_by_tau(self, e: Edge) -> tuple[str, ...]:
+        """The values a tau chooses: the names its clauses read that are not
+        state variables (an instance's own among them), ghosts or fields but
+        have a domain. Hiding c?x leaves such a tau, which is the internal
+        choice of x over its domain; a name with no domain is not chosen, and
+        is refused when read. A tau names what it chose in its label, as
+        tau(x=1), as a promoted tau names the instance it chose.
+
+        A tau the author wrote is read by the same rule, so a name that has a
+        domain is chosen whether hiding left it or not."""
+        if not e.is_tau:
+            return ()
+        key = (e.src, e.dst, e.line, e.guard, e.post)
+        if key not in self._tau_choices:
+            bound = set(self.d.vars.get(e.src, ())) | set(self.d.vars.get(e.dst, ())) | set(self.ghost_names) | set(e.params) | set(e.implicit_ids())
+            chosen: dict[str, None] = {}
+            for role, clauses in (("guard", e.guard), ("post", e.post)):
+                for c in clauses:
+                    if c.kind not in ("local", "constrain"):
+                        continue
+                    own = set()
+                    if c.kind == "local" and c.map:
+                        # A family's clause reads the instance's own variables.
+                        own = {v for vs in self.d.local_of(c).vars.values() for v in vs}
+                    for n in sorted(self.meaning.names(c, role) or ()):
+                        if n not in bound and n not in own and n in self.twins.domains:
+                            chosen.setdefault(n)
+            self._tau_choices[key] = tuple(chosen)
+        return self._tau_choices[key]
+
+    def _values(self, e: Edge, name: str) -> list:
+        """The values e's field name ranges over: its domain, and of those
+        only the ones every name renamed onto it can also take. A composition
+        renames a side's field onto the other's, and the two synchronise only
+        on a value both sides can take."""
+        values = self.twins.domain(name)
+        for c in e.guard + e.post:
+            for f, t in c.rename:
+                if t != name:
+                    continue
+                try:
+                    held = self.twins.domain(f)
+                except KeyError:
+                    continue  # a name with no domain of its own takes any value
+                values = [v for v in values if v in held]
+        return values
+
     def _enabled(self, state: State, e: Edge, names: tuple[str, ...]) -> list[dict]:
         """The parameter valuations of e whose guard holds at state. The
         guard is taken clause by clause over every valuation still enabled,
         so a clause read through a glue costs one request per edge."""
         alive = [(params, self._env(state, params))
-                 for params in (dict(zip(names, args)) for args in itertools.product(*(self.twins.domain(p) for p in names)))]
+                 for params in (dict(zip(names, args)) for args in itertools.product(*(self._values(e, p) for p in names)))]
         for c in e.guard:
             if c.kind in ("local", "constrain"):
                 self.meaning.prefetch(c, "guard", [self._instance_env(c, env) if c.map and c.kind == "local" else env for _, env in alive])

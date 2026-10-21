@@ -2,7 +2,7 @@
 import unittest
 from csdfbmc.tests import fixture
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, TwinsMeaning
+from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, TwinsMeaning, standard
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
@@ -77,6 +77,45 @@ class ReservedOpaqueTest(unittest.TestCase):
     def test_the_message_names_the_tool_word(self):
         meaning = OpaqueWord(GlueMeaning(Recording({}, lambda b: True)))
         self.assertIn("'@opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
+
+
+RENAMED = Clause("local", "y > 0", rename=(("y", "x"),))
+
+
+class RenamingTest(unittest.TestCase):
+    """A renamed clause reads its own name for a value the predicate it is in
+    names otherwise: the clause is asked about with that name bound to it."""
+
+    def setUp(self):
+        self.client = Recording({"y > 0": Analysis(opaque=False, reads=("y",))}, lambda b: b["y"] > 0)
+        self.meaning = standard(GlueMeaning(self.client))
+
+    def test_the_clause_reads_the_names_of_the_predicate_it_is_in(self):
+        self.assertEqual({"x"}, self.meaning.names(RENAMED, "guard"))
+
+    def test_the_clause_is_evaluated_with_its_name_bound_to_the_value(self):
+        self.assertIs(True, self.meaning.evaluate(RENAMED, "guard", {"x": 1}))
+        self.assertEqual([[{"y": 1}]], self.client.asked)
+
+    def test_a_clause_without_a_renaming_is_left_alone(self):
+        self.assertEqual({"y"}, self.meaning.names(Clause("local", "y > 0"), "guard"))
+
+    def test_a_renaming_is_read_from_json(self):
+        self.assertEqual(RENAMED, Clause.from_json({"kind": "local", "text": "y > 0", "rename": {"y": "x"}}))
+
+
+class RenamedWritesTest(unittest.TestCase):
+    def test_what_a_renamed_post_writes_is_named_as_its_predicate_names_it(self):
+        client = Recording({"[{'y': 1}]": Analysis(opaque=False, reads=(), writes=("y",))}, lambda b: [{"y": 1}])
+        clause = Clause("local", "[{'y': 1}]", rename=(("y", "x"),))
+        self.assertEqual({"x"}, standard(GlueMeaning(client)).writes(clause))
+
+
+class RenamedOntoNothingTest(unittest.TestCase):
+    def test_a_renaming_onto_a_name_the_step_does_not_bind_is_refused(self):
+        meaning = standard(GlueMeaning(Recording({"y > 0": Analysis(opaque=False, reads=("y",))}, lambda b: True)))
+        with self.assertRaisesRegex(KeyError, "renamed onto"):
+            meaning.evaluate(RENAMED, "guard", {"y": 1})
 
 
 if __name__ == "__main__":

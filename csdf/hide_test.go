@@ -6,17 +6,22 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestHideRenamesHiddenEventsToTau(t *testing.T) {
-	// Setup: hiding "a" turns the a-edge internal and leaves "b" visible.
+func TestHideRenamesTheEventsOfHiddenChannelsToTau(t *testing.T) {
+	// Setup: hiding the channel a turns every a-edge internal, whatever its
+	// fields, and leaves b visible. A hidden field becomes a value the tau
+	// chooses: the clauses still read it by its name.
 	d := MustParse(`@startuml
 [*] --> s0
 s0 --> s1 : a
-s1 --> s2 : b
+s1 --> s2 : a?x ; x > 0
+s2 --> s0 : b?y
 @enduml`)
 
-	got := Hide(d, []Event{"a"})
+	// Execute
+	got := Hide(d, []string{"a"})
 
-	want := []Event{Tau, "b"}
+	// Assert
+	want := []Event{Tau, Tau, "b?y"}
 	events := make([]Event, 0, len(got.Edges))
 	for _, e := range got.Edges {
 		events = append(events, e.Event)
@@ -38,7 +43,7 @@ s0 --> s1 : a
 s1 --> [*]
 @enduml`)
 
-	got := Hide(d, []Event{"a"})
+	got := Hide(d, []string{"a"})
 
 	got.Edges[0].Event = "mutated"
 	got.States["s0"].Vars[0].Name = "mutated"

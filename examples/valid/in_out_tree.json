@@ -8,5 +8,5 @@
       {"op": "REFER", "path": "out.puml"}
     ]
   },
-  "events": ["sync"]
+  "channels": ["sync"]
 }

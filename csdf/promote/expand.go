@@ -112,6 +112,9 @@ type ExpandedClause struct {
 	Text string `json:"text,omitempty"`
 	// Opaque marks the tool word @opaque, a clause not formalised yet.
 	Opaque bool `json:"opaque,omitempty"`
+	// Rename maps a name Text reads to the name of the predicate it stands
+	// for, as the clause's renaming @[from := to] says.
+	Rename map[string]string `json:"rename,omitempty"`
 	// Formal is the clause's formal twin when the author wrote one next to it
 	// (a constrain's "formal:" line); a local clause's twin lives with the
 	// local diagram and is looked up by Text.
@@ -128,13 +131,20 @@ type ExpandedClause struct {
 
 // authored is a clause the author wrote, of the given kind, with what says
 // where it came from: its text as its language reads it, or opaque.
-func authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) ExpandedClause {
+// A renaming that does not parse is an error of the expansion, at the line the
+// clause was written on: a diagram built in code need not have been checked.
+func (e *expander) authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) ExpandedClause {
 	from.Kind = kind
 	if csdf.IsOpaque(clause) {
 		from.Opaque = true
-	} else {
-		from.Text = csdf.ClauseText(clause)
+		return from
 	}
+	renames, body, err := csdf.SplitRenaming(clause)
+	if err != nil {
+		e.errorf(from.Line, "%v", err)
+	}
+	from.Text = csdf.ClauseText(body)
+	from.Rename = csdf.RenamesMap(renames)
 	return from
 }
 
@@ -150,7 +160,12 @@ func conjoin(clauses []ExpandedClause) csdf.Predicate {
 		case c.Opaque:
 			texts = append(texts, csdf.PredicateOpaque)
 		default:
-			texts = append(texts, csdf.EscapeClause(c.Text))
+			// An escaped text holds no renaming of its own, so this cannot fail.
+			clause, err := csdf.RenameClause(csdf.EscapeClause(c.Text), csdf.RenamesFromMap(c.Rename))
+			if err != nil {
+				panic(fmt.Sprintf("promote.conjoin: %v", err))
+			}
+			texts = append(texts, clause)
 		}
 	}
 	return csdf.ConjoinClauses(texts)
@@ -234,7 +249,7 @@ func (e *expander) run() (*Expansion, []Diagnostic) {
 func (e *expander) start(d *csdf.Diagram) []ExpandedClause {
 	out := []ExpandedClause{}
 	for _, c := range d.StartEdge.Post.Clauses() {
-		out = append(out, authored(ClauseLocal, c, ExpandedClause{Line: d.StartEdge.Line}))
+		out = append(out, e.authored(ClauseLocal, c, ExpandedClause{Line: d.StartEdge.Line}))
 	}
 	held := map[csdf.Var]bool{}
 	for _, v := range d.States[d.StartEdge.Dst].Vars {
@@ -304,7 +319,7 @@ func (e *expander) parts(p Promote, edge csdf.Edge, id string) edgeParts {
 func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) []ExpandedClause {
 	var clauses []ExpandedClause
 	for _, c := range pred.Clauses() {
-		clauses = append(clauses, authored(ClauseLocal, c, ExpandedClause{Map: string(p.Map), Path: e.paths[p.Map], Line: edge.Line}))
+		clauses = append(clauses, e.authored(ClauseLocal, c, ExpandedClause{Map: string(p.Map), Path: e.paths[p.Map], Line: edge.Line}))
 	}
 	return clauses
 }

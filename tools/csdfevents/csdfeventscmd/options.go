@@ -26,7 +26,8 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			w := flags.Output()
 			fmt.Fprintf(w, `Usage: csdfevents [options] <file1.puml> [file2.puml] ...
 
-Prints the events used across one or more Composable State Diagrams.
+Prints the channels used across one or more Composable State Diagrams: what
+csdfparallel -sync synchronises on and csdfhide -channels hides.
 
 Options:
 `)
@@ -40,7 +41,7 @@ Examples:
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
-		onlyCommon := flags.Bool("only-common", false, "show only common events across all files")
+		onlyCommon := flags.Bool("only-common", false, "show only the channels common to all files")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {

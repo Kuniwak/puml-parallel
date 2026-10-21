@@ -33,6 +33,19 @@ func ParseEvent(text string) (Event, error) {
 	return NewEvent(channel, fields...), nil
 }
 
+// ParseChannel reads a channel: an event's name without its fields, which is
+// what a composition synchronises on.
+func ParseChannel(text string) (string, error) {
+	channel := strings.TrimSpace(text)
+	if !isID(channel) {
+		return "", fmt.Errorf("csdf.ParseChannel: %q is not a channel, which is an identifier with no ?field or !field", text)
+	}
+	if Event(channel) == Tau {
+		return "", fmt.Errorf("csdf.ParseChannel: tau is the internal event, which is neither synchronised nor hidden")
+	}
+	return channel, nil
+}
+
 // NewEvent writes the event on channel with the given fields.
 func NewEvent(channel string, fields ...Field) Event {
 	var sb strings.Builder
@@ -117,7 +130,15 @@ func (e Edge) MarshalJSON() ([]byte, error) {
 	if fields == nil {
 		fields = []Field{}
 	}
-	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: e.Guard.ClausesJSON(), Post: e.Post, PostClauses: e.Post.ClausesJSON(), Line: e.Line})
+	guard, err := e.Guard.ClausesJSON()
+	if err != nil {
+		return nil, err
+	}
+	post, err := e.Post.ClausesJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: guard, Post: e.Post, PostClauses: post, Line: e.Line})
 }
 
 // UnmarshalJSON reads the event, guard and post whole, the event by the

@@ -29,12 +29,17 @@ expands each subcommand's own help.
 ## Usage
 
 ```console
-$ csdfparallel [--sync event1;event2;...] <file1.puml> [file2.puml] ...
+$ csdfparallel [--sync channel1;channel2;...] <file1.puml> [file2.puml] ...
 ```
 
 ### Options
 
-- `--sync`: Semicolon-separated list of synchronization events for interface parallel
+- `--sync`: Semicolon-separated list of the channels to synchronise on (interface
+  parallel). An edge on one of them is taken by both sides together, with the same
+  number of fields; the composite event names the fields as the left side does,
+  and a field chosen (`!`) on either side is chosen. Where the right side names a
+  field otherwise, each of its clauses is read through a renaming, `@[y := x] …`,
+  so no clause is rewritten (see [SYNTAX.md](./docs/SYNTAX.md)).
 
 ### Examples
 ```console
@@ -72,16 +77,18 @@ $ csdfparse < examples/valid/skip.puml
 
 ## Hiding
 
-`csdfhide` hides events of a single CSDF diagram following CSP hiding semantics
-(`P \ A`): every edge carrying a hidden event becomes an internal `tau`
-transition. The result is printed as PlantUML.
+`csdfhide` hides channels of a single CSDF diagram following CSP hiding semantics
+(`P \ {|c|}`): every edge on a hidden channel becomes an internal `tau`
+transition, whatever its fields. A hidden field is a value the `tau` chooses
+(`c?x` hidden is `⊓ x. τ`): the clauses still read `x`, and `csdfbmc` chooses it
+from `DOMAINS`. The result is printed as PlantUML.
 
 ```console
-$ csdfhide -events 'sync' examples/valid/in.puml
-$ csdfparallel -sync 'sync' examples/valid/in.puml examples/valid/out.puml | csdfhide -events 'sync' -
+$ csdfhide -channels 'sync' examples/valid/in.puml
+$ csdfparallel -sync 'sync' examples/valid/in.puml examples/valid/out.puml | csdfhide -channels 'sync' -
 ```
 
-Events that do not occur in the diagram are ignored. A file argument, a `-`
+Channels that do not occur in the diagram are ignored. A file argument, a `-`
 argument, and stdin are all equivalent.
 
 ## Promotion
@@ -140,7 +147,7 @@ $ csdfcomp -base examples/valid < examples/valid/in_out_tree.json
       {"op": "REFER", "path": "out.puml"}
     ]
   },
-  "events": ["sync"]
+  "channels": ["sync"]
 }
 ```
 
@@ -312,7 +319,7 @@ may be `-` for standard input unless the diagram is.
 ```console
 $ csdftracechk examples/valid/vending_machine.puml trace.tsv
 $ csdftracechk -match prefix examples/valid/vending_machine.puml trace1.tsv trace2.tsv
-$ csdfparallel -sync 'insert?coin' a.puml b.puml | csdftracechk - trace.tsv
+$ csdfparallel -sync 'insert' a.puml b.puml | csdftracechk - trace.tsv
 $ (echo path; find traces -name '*.tsv') | csdftracechk -traces - examples/valid/vending_machine.puml
 ```
 
@@ -700,7 +707,13 @@ deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
 ```
 
 A twins module defines two tables. `DOMAINS` maps an event parameter to the
-finite set of its values. `CLAUSES` maps a clause, spelled exactly as in the
+finite set of its values. A `tau` chooses from it too: a name a `tau`'s clauses
+read that is neither a state variable nor a field, as hiding `c?x` leaves `x`,
+is chosen nondeterministically from its domain, and a name with no domain is an
+error. A `tau` the author wrote is read by the same rule, and names what it
+chose in its label (`tau(x=1)`), as a promoted `tau` names its instance. A field a composition renamed
+another side's field onto (`@[y := x]`) ranges over the values both domains
+hold: `ch?x ‖ ch?y` synchronises only on a value both sides can take. `CLAUSES` maps a clause, spelled exactly as in the
 diagram, to a function of the names it reads: the event's parameters, the
 state variables before the step, and the ghosts; a twin is applied to the
 names its signature asks for. A guard twin returns a truth value. A post twin

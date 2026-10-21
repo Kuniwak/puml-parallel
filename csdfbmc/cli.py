@@ -54,8 +54,8 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object, obje
         diagram = Diagram.load(a.diagram)
         twins = _load_twins(a)
         if client is not None:
-            glue = GlueMeaning(checked(client))
-            yield diagram, twins, standard(glue), glue.writes
+            meaning = standard(GlueMeaning(checked(client)))
+            yield diagram, twins, meaning, meaning.writes
         else:
             yield diagram, twins, standard(TwinsMeaning(diagram, twins)), NO_WRITES
     finally:

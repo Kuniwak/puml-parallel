@@ -33,39 +33,48 @@ func (s StatePair) StateWithID() StateWithID {
 	}
 }
 
-func ComposeParallel(diagrams []*Diagram, syncEvents []Event) (*Diagram, error) {
+func ComposeParallel(diagrams []*Diagram, syncChannels []string) (*Diagram, error) {
 	if len(diagrams) < 1 {
 		return nil, fmt.Errorf("csdf.ComposeParallel: at least one diagrams are required for interface parallel")
 	}
 
-	if len(diagrams) == 1 {
-		return diagrams[0], nil
-	}
-
-	dL := diagrams[0]
-	dR := diagrams[1]
-
-	if len(diagrams) > 2 {
-		for _, d := range diagrams[2:] {
-			var err error
-			dL, err = ComposeParallel2(dL, d, syncEvents)
-			if err != nil {
-				return nil, fmt.Errorf("csdf.ComposeParallel: %w", err)
-			}
+	// Left to right, so the composite names each field as the first diagram does.
+	composite := diagrams[0]
+	for _, d := range diagrams[1:] {
+		var err error
+		composite, err = ComposeParallel2(composite, d, syncChannels)
+		if err != nil {
+			return nil, fmt.Errorf("csdf.ComposeParallel: %w", err)
 		}
 	}
-
-	return ComposeParallel2(dL, dR, syncEvents)
+	return composite, nil
 }
 
-func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
+// ComposeParallel2 is the interface parallel of dL and dR, synchronised on
+// syncChannels: an edge on one of them is taken by both sides together, with
+// the fields of the two events standing for one value each.
+func ComposeParallel2(dL, dR *Diagram, syncChannels []string) (*Diagram, error) {
 	if dL.EndEdge != nil || dR.EndEdge != nil {
 		return nil, fmt.Errorf("csdf.ComposeParallel2: end edges are not supported for interface parallel")
 	}
 
-	ss := make(map[Event]struct{})
-	for _, event := range syncEvents {
-		ss[event] = struct{}{}
+	ss := make(map[string]struct{})
+	for _, channel := range syncChannels {
+		ss[channel] = struct{}{}
+	}
+	if err := checkFieldCounts(ss, dL, dR); err != nil {
+		return nil, fmt.Errorf("csdf.ComposeParallel2: %w", err)
+	}
+	// Every pair of edges a synchronised channel could pair is checked for a
+	// capture, whether or not a walk reaches it, as the field counts are.
+	for _, eL := range dL.Edges {
+		for _, eR := range dR.Edges {
+			if _, ok := ss[eL.Event.Channel()]; ok && eL.Event.Channel() == eR.Event.Channel() {
+				if _, err := synchronise(eL, eR, rightVars(dR, eR)); err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	initStatePair := StatePair{
@@ -109,113 +118,143 @@ func ComposeParallel2(dL, dR *Diagram, syncEvents []Event) (*Diagram, error) {
 	return out, nil
 }
 
-func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncEvents map[Event]struct{}, out *Diagram) error {
+func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, marked *map[StateID]struct{}, syncChannels map[string]struct{}, out *Diagram) error {
 	currentPair := (*queue)[0]
 	currentPairID := currentPair.ID()
 	*queue = (*queue)[1:]
 
-	evs := make(map[Event]struct{})
-	evL := make(map[Event]map[StateID][]Edge)
-	evR := make(map[Event]map[StateID][]Edge)
-	for _, tL := range tsL {
-		if tL.Src == currentPair.Left.ID {
-			evs[tL.Event] = struct{}{}
-			if _, ok := evL[tL.Event]; !ok {
-				evL[tL.Event] = make(map[StateID][]Edge)
-			}
-			evL[tL.Event][tL.Dst] = append(evL[tL.Event][tL.Dst], tL)
+	add := func(next StatePair, e Edge) {
+		out.States[next.ID()] = next.State()
+		e.Src, e.Dst, e.Line = currentPairID, next.ID(), 0
+		out.Edges = append(out.Edges, e)
+		if _, ok := (*marked)[next.ID()]; !ok {
+			*queue = append(*queue, next)
+			(*marked)[next.ID()] = struct{}{}
 		}
 	}
-
-	for _, tR := range tsR {
-		if tR.Src == currentPair.Right.ID {
-			evs[tR.Event] = struct{}{}
-			if _, ok := evR[tR.Event]; !ok {
-				evR[tR.Event] = make(map[StateID][]Edge)
-			}
-			evR[tR.Event][tR.Dst] = append(evR[tR.Event][tR.Dst], tR)
-		}
+	synced := func(e Edge) bool {
+		_, ok := syncChannels[e.Event.Channel()]
+		return ok
 	}
 
-	for ev := range evs {
-		// Para3
-		if _, ok := syncEvents[ev]; ok {
-			if dstLs, ok := evL[ev]; ok {
-				if dstRs, ok := evR[ev]; ok {
-					for dstL, esL := range dstLs {
-						for dstR, esR := range dstRs {
-							for _, eL := range esL {
-								for _, eR := range esR {
-									nextStatePair := StatePair{
-										Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
-										Right: StateWithID{ID: dstR, State: dR.States[dstR]},
-									}
-									out.States[nextStatePair.ID()] = nextStatePair.State()
-									out.Edges = append(out.Edges, Edge{
-										Src:   currentPairID,
-										Dst:   nextStatePair.ID(),
-										Event: ev,
-										Guard: Conjunction(eL.Guard, eR.Guard),
-										Post:  Conjunction(eL.Post, eR.Post),
-									})
-									if _, ok := (*marked)[nextStatePair.ID()]; !ok {
-										*queue = append(*queue, nextStatePair)
-										(*marked)[nextStatePair.ID()] = struct{}{}
-									}
-								}
-							}
-						}
-					}
-				}
-			}
+	for _, eL := range tsL {
+		if eL.Src != currentPair.Left.ID {
 			continue
 		}
-
-		// Para1
-		if dstLs, ok := evL[ev]; ok {
-			for dstL, esL := range dstLs {
-				for _, eL := range esL {
-					nextStatePair := StatePair{
-						Left:  StateWithID{ID: dstL, State: dL.States[dstL]},
-						Right: currentPair.Right,
-					}
-					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
-						Src:   currentPairID,
-						Dst:   nextStatePair.ID(),
-						Event: ev,
-						Guard: eL.Guard,
-						Post:  eL.Post,
-					})
-					if _, ok := (*marked)[nextStatePair.ID()]; !ok {
-						*queue = append(*queue, nextStatePair)
-						(*marked)[nextStatePair.ID()] = struct{}{}
-					}
-				}
-			}
+		left := StateWithID{ID: eL.Dst, State: dL.States[eL.Dst]}
+		if !synced(eL) {
+			// Para1
+			add(StatePair{Left: left, Right: currentPair.Right}, Edge{Event: eL.Event, Guard: eL.Guard, Post: eL.Post})
+			continue
 		}
-
+		// Para3
+		for _, eR := range tsR {
+			if eR.Src != currentPair.Right.ID || eR.Event.Channel() != eL.Event.Channel() {
+				continue
+			}
+			e, err := synchronise(eL, eR, rightVars(dR, eR))
+			if err != nil {
+				return err
+			}
+			add(StatePair{Left: left, Right: StateWithID{ID: eR.Dst, State: dR.States[eR.Dst]}}, e)
+		}
+	}
+	for _, eR := range tsR {
+		if eR.Src != currentPair.Right.ID || synced(eR) {
+			continue
+		}
 		// Para2
-		if dstRs, ok := evR[ev]; ok {
-			for dstR, esR := range dstRs {
-				for _, eR := range esR {
-					nextStatePair := StatePair{
-						Left:  currentPair.Left,
-						Right: StateWithID{ID: dstR, State: dR.States[dstR]},
-					}
-					out.States[nextStatePair.ID()] = nextStatePair.State()
-					out.Edges = append(out.Edges, Edge{
-						Src:   currentPairID,
-						Dst:   nextStatePair.ID(),
-						Event: ev,
-						Guard: eR.Guard,
-						Post:  eR.Post,
-					})
-					if _, ok := (*marked)[nextStatePair.ID()]; !ok {
-						*queue = append(*queue, nextStatePair)
-						(*marked)[nextStatePair.ID()] = struct{}{}
-					}
-				}
+		add(StatePair{Left: currentPair.Left, Right: StateWithID{ID: eR.Dst, State: dR.States[eR.Dst]}}, Edge{Event: eR.Event, Guard: eR.Guard, Post: eR.Post})
+	}
+	return nil
+}
+
+// synchronise is the edge both sides take together on one channel. Its event
+// names each field as the left does; a right clause reads its own name for a
+// field through a renaming, so no clause text is rewritten. A field chosen
+// internally on either side is chosen on the composite.
+//
+// A renaming must not capture a name: a left field name that a right clause
+// reads as a state variable of its own is refused, since the renamed clause
+// would read the field instead. The tools do not read clauses, so a name a
+// right clause reads otherwise (a ghost of a checker, or a value a tau
+// chooses) cannot be told, and naming those apart is the author's. Renamings are simultaneous, so two fields
+// swapped (ch?a?b with ch?b?a) are two renamings, not a capture.
+func synchronise(eL, eR Edge, rightVars map[Var]struct{}) (Edge, error) {
+	fL, fR := eL.Event.Fields(), eR.Event.Fields()
+	fields := make([]Field, len(fL))
+	var renames []Rename
+	for i := range fL {
+		fields[i] = fL[i]
+		if fR[i].Dir == Chosen {
+			fields[i].Dir = Chosen
+		}
+		if fR[i].Name == fL[i].Name {
+			continue
+		}
+		if _, ok := rightVars[Var(fL[i].Name)]; ok {
+			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s synchronises with %s (line %d), whose state variable %s its field %s would be renamed onto; name them apart", eL.Event, eR.Event, eR.Line, fL[i].Name, fR[i].Name)
+		}
+		renames = append(renames, Rename{From: fR[i].Name, To: fL[i].Name})
+	}
+	guard, err := renamed(eR.Guard, renames)
+	if err != nil {
+		return Edge{}, err
+	}
+	post, err := renamed(eR.Post, renames)
+	if err != nil {
+		return Edge{}, err
+	}
+	return Edge{
+		Event: NewEvent(eL.Event.Channel(), fields...),
+		Guard: Conjunction(eL.Guard, guard),
+		Post:  Conjunction(eL.Post, post),
+	}, nil
+}
+
+// renamed is p with each clause read through renames.
+func renamed(p Predicate, renames []Rename) (Predicate, error) {
+	clauses := p.Clauses()
+	for i, c := range clauses {
+		r, err := RenameClause(c, renames)
+		if err != nil {
+			return "", fmt.Errorf("csdf.ComposeParallel2: %w", err)
+		}
+		clauses[i] = r
+	}
+	return ConjoinClauses(clauses), nil
+}
+
+// rightVars are the state variables a right edge's clauses read: those of the
+// states it leaves and enters.
+func rightVars(d *Diagram, e Edge) map[Var]struct{} {
+	vars := map[Var]struct{}{}
+	for _, id := range []StateID{e.Src, e.Dst} {
+		for _, v := range d.States[id].Vars {
+			vars[v.Name] = struct{}{}
+		}
+	}
+	return vars
+}
+
+// checkFieldCounts refuses a synchronised channel whose edges, on either side,
+// do not all have one number of fields: the two sides must agree on every
+// value, whether or not a walk reaches the edge.
+func checkFieldCounts(sync map[string]struct{}, diagrams ...*Diagram) error {
+	first := map[string]Edge{}
+	for _, d := range diagrams {
+		for _, e := range d.Edges {
+			channel := e.Event.Channel()
+			if _, ok := sync[channel]; !ok {
+				continue
+			}
+			f, ok := first[channel]
+			if !ok {
+				first[channel] = e
+				continue
+			}
+			if len(f.Event.Fields()) != len(e.Event.Fields()) {
+				return fmt.Errorf("%s (line %d) and %s (line %d) synchronise on %s with %d and %d fields", f.Event, f.Line, e.Event, e.Line, channel, len(f.Event.Fields()), len(e.Event.Fields()))
 			}
 		}
 	}

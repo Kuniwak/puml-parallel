@@ -98,3 +98,13 @@ func TestStartAndEndEdgeJSONCarryTheirClauses(t *testing.T) {
 		t.Errorf("json.Unmarshal(StartEdge) = %#v, %v", back, err)
 	}
 }
+
+func TestParseChannelRefusesTau(t *testing.T) {
+	// Execute
+	_, err := ParseChannel("tau")
+
+	// Assert
+	if err == nil {
+		t.Error("ParseChannel(tau) error = nil, want tau refused")
+	}
+}

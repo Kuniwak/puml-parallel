@@ -758,7 +758,7 @@ func TestParseRefusesAnUnknownToolWord(t *testing.T) {
 				src += "[*] --> s0\n"
 			}
 			parser := NewParser(src + line + "\n@enduml\n")
-			if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "@opaque is the only one") {
+			if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "@opaque and a renaming are the only ones") {
 				t.Errorf("Parse() error = %v, want an unknown tool word refused", err)
 			}
 		})

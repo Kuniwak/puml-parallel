@@ -64,8 +64,10 @@ An event is a channel followed by its fields, in the CSP style: `c?x` receives `
 it its value). `tau` is the internal event. An event names its fields and carries
 no value and no expression; anything about a value is said by the guard and the
 post, which read a field by its name. Whitespace and comments around `?` and `!`
-are removed, so `c ? x` is `c?x`. Composition and hiding go by the whole event
-text, and `csdfpromote` matches `sync` and `constrain` by the channel.
+are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and
+`csdfpromote` matches `sync` and `constrain` by the channel, and hiding hides
+channels: a hidden field is a value the `tau` chooses, which the clauses still
+read by its name.
 
 Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
@@ -97,10 +99,17 @@ what they must read:
   separates clauses. ` ∧ ` is not an
   operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
   `a and b`). `∨` and every other symbol belong to the clause.
-- **Tool words** start with `@`. `@opaque` is the one there is: a clause not
-  formalised yet, which says nothing a tool can read, and which a checker takes by
-  its own rule (`csdfbmc --opaque`). Any other word starting with an unescaped `@`
-  is refused.
+- **Tool words** start with `@`, and there are two:
+  - `@opaque` is a clause not formalised yet, which says nothing a tool can read,
+    and which a checker takes by its own rule (`csdfbmc --opaque`).
+  - A renaming `@[y := x, …] clause` before a clause says that the name `y` the
+    clause reads stands for the value the predicate names `x`. Composition writes it
+    when two synchronised events name a field differently, so that no clause is
+    rewritten; csdfparse writes it as the clause's `rename` (`{"y": "x"}`). It is
+    written exactly `@[from := to, …] ` (one space after `]`), its names sorted, and
+    the renamings in it are simultaneous: `@[a := b, b := a]` swaps two names.
+
+  Any other word starting with an unescaped `@` is refused.
 - **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
   A backslash before any other character is part of the clause. A reader of the
   clause gets it with the escapes removed: csdfparse writes each predicate's

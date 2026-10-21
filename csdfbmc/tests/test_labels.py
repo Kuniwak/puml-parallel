@@ -2,6 +2,7 @@
 through a glue: the checker asks it what a clause reads and gives a value
 to, and what it evaluates to, and needs no twin keyed by prose."""
 import io
+from dataclasses import replace
 import json
 import os
 import shlex
@@ -13,7 +14,7 @@ from csdfbmc.tests import fixture
 
 from csdfbmc.cone import Cone
 from csdfbmc.explore import Explorer
-from csdfbmc.model import Diagram
+from csdfbmc.model import Clause, Diagram
 from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.protocol import Client, EvaluatorError, checked, start_module
 from csdfbmc.twins import Twins
@@ -227,6 +228,66 @@ class LabelsCommandTest(unittest.TestCase):
 
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+# What hiding put?x leaves: a tau whose clauses still read x.
+HIDDEN = {
+    "states": {"a": {"name": "a", "vars": [{"name": "n"}], "line": 2}},
+    "start_edge": {"dst": "a", "post": "[{'n': 0}]", "line": 3},
+    "edges": [{"src": "a", "dst": "a", "event": "tau", "guard": "x > 0 and n + x <= 3", "post": "[{'n': n + x}]", "line": 4}],
+    "end_edge": None, "assumptions": [],
+}
+
+
+class HiddenFieldTest(unittest.TestCase):
+    """A name a tau reads that is neither a state variable nor a field is a
+    value the tau chooses: hiding c?x leaves ⊓ x. τ, over the domain of x."""
+
+    def test_a_tau_chooses_a_value_it_reads_from_its_domain(self):
+        # Setup
+        explorer = Explorer(fixture.diagram(HIDDEN), Twins(domains={"x": [0, 1, 2]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute
+        result = explorer.run()
+
+        # Assert
+        self.assertEqual({("a", (n,), ()) for n in range(4)}, set(result.states))
+        self.assertIn("tau(x=1)", [label for _, label, _, _ in explorer.successors(("a", (0,), ()))])
+
+    def test_a_name_with_no_domain_is_not_chosen_but_refused(self):
+        # Setup
+        explorer = Explorer(fixture.diagram(HIDDEN), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute, Assert
+        with self.assertRaisesRegex(KeyError, "'x'"):
+            explorer.run()
+
+
+
+# What composing put?x with put?y leaves: the right clause reads y for x.
+SYNCED = {
+    "states": {"a": {"name": "a", "vars": [{"name": "n"}], "line": 2}},
+    "start_edge": {"dst": "a", "post": "[{'n': 0}]", "line": 3},
+    "edges": [{"src": "a", "dst": "a", "event": "put?x", "guard": "", "post": "[{'n': x}]", "line": 4}],
+    "end_edge": None, "assumptions": [],
+}
+
+
+class SynchronisedDomainTest(unittest.TestCase):
+    """Two sides synchronise only on a value both can take: a field renamed
+    onto another ranges over the values both their domains hold."""
+
+    def test_a_field_ranges_over_the_domains_of_the_names_renamed_onto_it(self):
+        # Setup
+        d = fixture.diagram(SYNCED)
+        d.edges[0] = replace(d.edges[0], guard=(Clause("local", "y >= 0", rename=(("y", "x"),)),))
+        explorer = Explorer(d, Twins(domains={"x": [0, 1, 2], "y": [0, 1]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute
+        result = explorer.run()
+
+        # Assert
+        self.assertEqual({("a", (0,), ()), ("a", (1,), ())}, set(result.states))
 
 
 if __name__ == "__main__":
