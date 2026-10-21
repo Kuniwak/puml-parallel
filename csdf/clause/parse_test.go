@@ -31,6 +31,26 @@ func TestParseReadsAnAtomWithNameHoles(t *testing.T) {
 			text: `\$x`,
 			want: and(atom(Text("$x"))),
 		},
+		"a term hole indexes and selects a field": {
+			text: "${locations[from].在庫} > 0",
+			want: and(atom(hole(Field{Of: Index{Map: pre("locations"), Key: pre("from")}, Name: "在庫"}), Text(" > 0"))),
+		},
+		"a trailing prime primes the variable a path starts from": {
+			text: "${locations[from].在庫'}",
+			want: and(atom(hole(Field{Of: Index{Map: post("locations"), Key: pre("from")}, Name: "在庫"}))),
+		},
+		"a prime after the root name": {
+			text: "${locations'[from]}",
+			want: and(atom(hole(Index{Map: post("locations"), Key: pre("from")}))),
+		},
+		"a term hole holds an environment function": {
+			text: "${f(x, y')}",
+			want: and(atom(hole(App{Fn: "f", Args: []Term{pre("x"), post("y")}}))),
+		},
+		"a term hole names a variable starting with a digit": {
+			text: "${1st}",
+			want: and(atom(hole(pre("1st")))),
+		},
 		"the empty clause is true": {
 			text: "",
 			want: And{},
@@ -57,3 +77,25 @@ func atom(ps ...Part) Atom  { return Atom{Parts: ps} }
 func hole(t Term) Hole      { return Hole{Term: t} }
 func pre(name string) Free  { return Free{Name: name} }
 func post(name string) Free { return Free{Name: name, Primed: true} }
+
+func TestParseRefuses(t *testing.T) {
+	tests := map[string]string{
+		"an unclosed term hole":  "${x",
+		"an empty term hole":     "${}",
+		"a path primed twice":    "${m'[k]'}",
+		"a function primed":      "${f(x)'}",
+		"an unclosed index":      "${m[k}",
+		"a field without a name": "${m.}",
+	}
+	for name, text := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := Parse(text)
+
+			// Assert
+			if err == nil {
+				t.Errorf("Parse(%q) = %#v, want an error", text, got)
+			}
+		})
+	}
+}

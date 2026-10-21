@@ -228,7 +228,9 @@ posts described above.
 ```abnf
 clause   = [conjunct]
 conjunct = atom
-atom     = 1*(text / "$" holeName ["'"])
+atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
+term     = id ["'"] *("[" term "]" / "." id) ["'"]
+         / id "(" [term *(", " term)] ")" ; an environment function
 holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 ```
 
@@ -236,7 +238,11 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   `.`, `-` or anything else, is the atom's language. When the next character
   could continue the name, one space separates them and belongs to the hole,
   so `$在庫 が` reads the hole `在庫` and the text `が`.
-- `$` not followed by a letter or `_` is text, so `$100` is text. `\$` is
+- `${term}` holds any term, for indexing, fields, environment functions
+  and names that start with a digit (`${1st}`). A trailing `'` primes the
+  variable the path starts from: `${m[k].f'}` is the entry at `k` of `m`
+  after the step. An environment function has no value after the step.
+- `$` not followed by a letter, `_` or `{` is text, so `$100` is text. `\$` is
   always text.
 
 

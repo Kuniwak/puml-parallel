@@ -24,3 +24,22 @@ type Free struct {
 }
 
 func (Free) isTerm() {}
+
+// Index is the entry of Map at Key, m[k].
+type Index struct{ Map, Key Term }
+
+// Field is the field Name of Of, t.f.
+type Field struct {
+	Of   Term
+	Name string
+}
+
+// App is an environment function applied to its arguments, f(t, …).
+type App struct {
+	Fn   string
+	Args []Term
+}
+
+func (Index) isTerm() {}
+func (Field) isTerm() {}
+func (App) isTerm()   {}
