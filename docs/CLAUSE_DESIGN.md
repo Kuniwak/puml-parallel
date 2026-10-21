@@ -60,6 +60,7 @@ its kind:
 | Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑SF ⟦D⟧: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
 | Analysis | evaluation, translation to logic, refinement checking | sound with respect to ⟦·⟧, and complete where stated |
 | Optimisation | partial-order reduction, symmetry, cone of influence | the answer to the property checked is unchanged; the graph may differ |
+| Livelock analysis | csdflivelockfree, the tau and `--avoid` cycles csdfbmc reports | sound with respect to failures-divergences; see below |
 
 For composition, op_sem is the CSP parallel operator on the graphs:
 ⟦D₁ ‖A D₂⟧ =SF ⟦D₁⟧ ‖A ⟦D₂⟧; for hiding, ⟦D \ C⟧ =SF ⟦D⟧ \ C.
@@ -142,8 +143,15 @@ result:
 | Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
 | Q4 | Narrowed domains for values | approximating the environment and bounded checking (O7) |
+| Q5 | The fields an equality builtin determines: `f = t` where f is a field of the event and t a term over the state and other determined fields | computing f instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
+
+Q5 is read only from builtins, never from atoms, whose text the tools do not
+interpret. It is more than speed: a field computed from its equality does
+not depend on DOMAINS, so bounded checking no longer misses a step because
+the value the state requires lies outside the declared domain (an error of
+the Q4 approximation, not of the meaning).
 
 Natural language and formal languages fit the same frame (P15): an atom
 without a glue is an uninterpreted predicate of its arguments, and the
@@ -211,7 +219,11 @@ that sync binds, `at` included. Encoding control this way preserves the
 expanded graph, since only transitions change it.
 
 Only tools write ∃; authors write atoms, builtins and ∧. Letting authors
-write ∃ later is an addition that breaks no diagram.
+write ∃ later is an addition that breaks no diagram. A field computed from
+the state, such as a stock check reporting the values it was computed from,
+needs no ∃: an equality builtin determines it (Q5). A choice the system
+makes nondeterministically is the motivating case if authors are ever to
+write ∃; `!` keeps its meaning of sending a value already bound at the step.
 
 Negation and disjunction are left undefined until an operator needs them;
 see the open questions.
@@ -226,6 +238,15 @@ Substitution, renaming and α-equivalence are then defined once, for every
 operator, instead of being handled case by case (P3). Fresh names are
 needed only when a clause is printed back (O12), and printing chooses them
 so that they capture nothing.
+
+### Livelock analyses
+
+A livelock analysis is stated against failures-divergences, outside ⟦·⟧.
+Only operators whose obligation preserves divergence may be used before it:
+changes of representation and constructors (for hiding, divergence is part
+of what is checked). Abstractions and optimisations proven only under ⊑SF
+must not be; partial-order reduction preserves divergence only with a cycle
+proviso, and must say so before it is used for one.
 
 ## Open questions
 
