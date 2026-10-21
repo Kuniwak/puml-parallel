@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 // Direction says who chooses the value of an event's field (docs/SYNTAX.md).
@@ -39,7 +41,7 @@ func ParseEvent(text string) (Event, error) {
 // what a composition synchronises on.
 func ParseChannel(text string) (string, error) {
 	channel := strings.TrimSpace(text)
-	if !isID(channel) {
+	if !ident.Is(channel) {
 		return "", fmt.Errorf("csdf.ParseChannel: %q is not a channel, which is an identifier with no ?field or !field", text)
 	}
 	if Event(channel) == Tau {
@@ -90,7 +92,7 @@ func splitEvent(text string) (string, []Field, error) {
 		i = len(text)
 	}
 	channel := strings.TrimSpace(text[:i])
-	if !isID(channel) {
+	if !ident.Is(channel) {
 		return "", nil, fmt.Errorf("csdf.ParseEvent: %q: expected a channel, then ?field or !field, each an identifier", text)
 	}
 	var fields []Field
@@ -102,25 +104,13 @@ func splitEvent(text string) (string, []Field, error) {
 			j = len(rest)
 		}
 		name := strings.TrimSpace(rest[:j])
-		if !isID(name) {
+		if !ident.Is(name) {
 			return "", nil, fmt.Errorf("csdf.ParseEvent: %q: expected an identifier after %q", text, dir)
 		}
 		fields = append(fields, Field{Dir: dir, Name: name})
 		rest = rest[j:]
 	}
 	return channel, fields, nil
-}
-
-func isID(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if !isIDRune(r) {
-			return false
-		}
-	}
-	return true
 }
 
 // edgeJSON is an edge as JSON: the event is written whole and also taken

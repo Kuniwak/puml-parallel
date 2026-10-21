@@ -3,8 +3,9 @@ package csdf
 import (
 	"fmt"
 	"strings"
-	"unicode"
 	"unicode/utf8"
+
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 const (
@@ -417,13 +418,13 @@ func (p *Parser) parseEvent() (Event, error) {
 func (p *Parser) parseID() (string, error) {
 	var result strings.Builder
 
-	if p.isAtEnd() || !isIDRune(p.peekRune()) {
+	if p.isAtEnd() || !ident.IsRune(p.peekRune()) {
 		return "", fmt.Errorf("csdf.Parser.parseID: expected identifier at line %d, col %d", p.line, p.col)
 	}
 
 	for !p.isAtEnd() {
 		r, size := p.peekRuneSize()
-		if !isIDRune(r) {
+		if !ident.IsRune(r) {
 			break
 		}
 		result.WriteRune(r)
@@ -476,13 +477,6 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 		}
 	}
 	return strings.TrimSpace(result.String()), nil
-}
-
-// isIDRune reports whether r may appear in an identifier. Unicode letters and
-// digits are accepted so that identifiers can be written in any language;
-// PlantUML accepts them too, which keeps CSDF a subset of PlantUML.
-func isIDRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
 func (p *Parser) peekRune() rune {

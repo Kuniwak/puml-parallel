@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
 
-// idPattern matches an identifier the way csdf.Parser does: Unicode letters and
-// digits, "_" and "-". \w is ASCII-only in RE2, which would reject an id
-// written in Japanese.
-const idPattern = `[\p{L}\p{N}_]+`
+// idPattern matches an identifier the way csdf.Parser does. \w is ASCII-only
+// in RE2, which would reject an id written in Japanese.
+const idPattern = ident.Pattern
 
 // The directives are all line-shaped, and so is PlantUML's own syntax for them,
 // so they are lifted out line by line. Every line that is lifted is replaced by
