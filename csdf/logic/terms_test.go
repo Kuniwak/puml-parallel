@@ -138,3 +138,61 @@ func TestEqualitiesAreEqualWhenTheirTermsAre(t *testing.T) {
 		t.Errorf("want true and false, got %v and %v", same, other)
 	}
 }
+
+func TestATypedExistential(t *testing.T) {
+	type testCase struct {
+		Formula logic.Formula
+		Tree    logic.Tree
+	}
+
+	testCases := map[string]testCase{
+		"its variables carry their types in the tree": {
+			Formula: logic.ExistsTyped(vs("m1"), []string{"locations"}, p("m1")),
+			Tree: logic.Tree{Op: logic.OpExists, Vars: vs("m1"), Types: []string{"locations"},
+				Operands: []logic.Tree{{Op: logic.OpAtom, Name: "p", Args: vs("m1")}}},
+		},
+		"simplifying it drops the type of a variable it unbinds": {
+			Formula: logic.Simplify(logic.ExistsTyped(vs("a", "b"), []string{"A", "B"}, p("b"))),
+			Tree: logic.Tree{Op: logic.OpExists, Vars: vs("b"), Types: []string{"B"},
+				Operands: []logic.Tree{{Op: logic.OpAtom, Name: "p", Args: vs("b")}}},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got := logic.TreeOf(tc.Formula)
+
+			// Assert
+			if diff := cmp.Diff(tc.Tree, got); diff != "" {
+				t.Errorf("tree mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestATypedExistentialIsSpelledAsAnyOther(t *testing.T) {
+	// Setup
+	n := mustNotation(t, symbols)
+
+	// Execute
+	got := n.Spell(logic.ExistsTyped(vs("m1"), []string{"locations"}, p("m1")))
+
+	// Assert
+	if got != "∃m1. p(m1)" {
+		t.Errorf("want %q, got %q", "∃m1. p(m1)", got)
+	}
+}
+
+func TestExistentialsOfOtherTypesDiffer(t *testing.T) {
+	// Setup
+	a := logic.ExistsTyped(vs("x"), []string{"A"}, p("x"))
+
+	// Execute
+	got := logic.Equal(a, logic.ExistsTyped(vs("x"), []string{"B"}, p("x")))
+
+	// Assert
+	if got {
+		t.Error("want false, got true")
+	}
+}

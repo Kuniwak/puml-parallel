@@ -53,10 +53,12 @@ type junction struct {
 
 type implies struct{ antecedent, consequent Formula }
 
-// quantifier binds at least one variable.
+// quantifier binds at least one variable. types, when not nil, holds the
+// type of each variable, in the order of vars.
 type quantifier struct {
 	forall bool
 	vars   []Var
+	types  []string
 	body   Formula
 }
 
@@ -124,12 +126,26 @@ func Exists(vars []Var, body Formula) Formula {
 // Forall binds vars universally in body; binding none is body itself.
 func Forall(vars []Var, body Formula) Formula { return newQuantifier("logic.Forall", true, vars, body) }
 
+// ExistsTyped binds vars existentially in body, each of the type of the same
+// position in types; binding none is body itself. The types are part of the
+// formula and of its tree; a notation spells the variables alone.
+func ExistsTyped(vars []Var, types []string, body Formula) Formula {
+	if len(types) != len(vars) {
+		panic(fmt.Sprintf("logic.ExistsTyped: %d variables but %d types", len(vars), len(types)))
+	}
+	return newTypedQuantifier("logic.ExistsTyped", false, vars, types, body)
+}
+
 func newQuantifier(caller string, forall bool, vars []Var, body Formula) Formula {
+	return newTypedQuantifier(caller, forall, vars, nil, body)
+}
+
+func newTypedQuantifier(caller string, forall bool, vars []Var, types []string, body Formula) Formula {
 	mustBeFormula(caller, body)
 	if len(vars) == 0 {
 		return body
 	}
-	return quantifier{forall: forall, vars: slices.Clone(vars), body: body}
+	return quantifier{forall: forall, vars: slices.Clone(vars), types: slices.Clone(types), body: body}
 }
 
 func mustBeFormula(caller string, f Formula) {
@@ -288,16 +304,20 @@ func (q quantifier) simplify() Formula {
 		read[v] = true
 	}
 	var vars []Var
-	for _, v := range q.vars {
+	var types []string
+	for i, v := range q.vars {
 		if read[v] {
 			vars = append(vars, v)
+			if q.types != nil {
+				types = append(types, q.types[i])
+			}
 		}
 	}
-	return newQuantifier("logic.Simplify", q.forall, vars, body)
+	return newTypedQuantifier("logic.Simplify", q.forall, vars, types, body)
 }
 func (q quantifier) equal(g Formula) bool {
 	r, ok := g.(quantifier)
-	return ok && q.forall == r.forall && slices.Equal(q.vars, r.vars) && q.body.equal(r.body)
+	return ok && q.forall == r.forall && slices.Equal(q.vars, r.vars) && slices.Equal(q.types, r.types) && q.body.equal(r.body)
 }
 
 // Connectives are the spellings of a notation, spaces included.
@@ -448,7 +468,8 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 //	not                    the negation of the one operand
 //	and, or                the conjunction or disjunction of the operands
 //	implies                the implication from the first operand to the second
-//	exists, forall         the one operand with Vars bound
+//	exists, forall         the one operand with Vars bound, each of the type
+//	                       of the same position in Types when it has them
 //
 // and the fields another Op has no use for are left empty.
 type Tree struct {
@@ -458,6 +479,7 @@ type Tree struct {
 	Args     []Var      `json:"args,omitempty"`
 	Terms    []TermTree `json:"terms,omitempty"`
 	Vars     []Var      `json:"vars,omitempty"`
+	Types    []string   `json:"types,omitempty"`
 	Operands []Tree     `json:"operands,omitempty"`
 }
 
@@ -518,7 +540,7 @@ func (q quantifier) tree() Tree {
 	if q.forall {
 		op = OpForall
 	}
-	return Tree{Op: op, Vars: slices.Clone(q.vars), Operands: []Tree{q.body.tree()}}
+	return Tree{Op: op, Vars: slices.Clone(q.vars), Types: slices.Clone(q.types), Operands: []Tree{q.body.tree()}}
 }
 
 // quote writes text as a JSON string. HTML characters are left as they are:
