@@ -167,13 +167,28 @@ term    ::= var | var' | term[term].field | envfn(term, …)
 A variable bound by ∃ may stand for any value, a map included; that is how
 an intermediate state is named (P5, P6).
 
-An atom is text with marked holes. In the examples below the identifiers are
-Japanese, as P14 allows, and the marker is not yet chosen:
+An atom is text with holes. In the examples below the identifiers are
+Japanese, as P14 allows:
 
 ```
-‹在庫'› = ‹在庫› - ‹数量›
-‹在庫› が ‹数量› 以上ある
+$在庫' = $在庫 - $数量
+$在庫 が $数量 以上ある
+${locations[from].在庫'} = ${locations[from].在庫} - $数量
 ```
+
+A hole is written in one of two ways:
+
+- `$x` or `$x'`: a name, optionally primed. It ends where the name ends;
+  whatever follows, `[`, `.` or anything else, belongs to the atom's
+  language. Where the next character could continue a name, as a Japanese
+  particle does, a space separates them.
+- `${term}`: any term, closed by its brace, for indexing and fields. Tools
+  print this form when substitution puts a term in a hole; authors may write
+  it too.
+
+`\$` is a literal dollar sign, for languages that use one. The tools print a
+space after a `$x` hole only when the next character could continue its
+name.
 
 - The tools know only where the holes are. Substitution (O2, O3) fills a hole
   with a term, so it never parses the text and never captures (P2–P4).
@@ -199,7 +214,6 @@ so that they capture nothing.
 
 ## Open questions
 
-- The hole marker, and how it is escaped.
 - Whether authors may write ∃, or only tools.
 - How an instance's control state (the state of its local diagram) is a
   term, and whether a clause may read another instance's control state:
