@@ -1,10 +1,6 @@
 package csdfbmc_test
 
 import (
-	"bufio"
-	"encoding/json"
-	"os/exec"
-	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -20,38 +16,18 @@ func TestTheGlueReadsTheAtomsTheToolsWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wire, _ := clause.Wire(f.Conjuncts[0].(clause.Atom))
-	lines := []map[string]any{
-		{"op": "hello", "protocol": 2},
-		{"op": "post", "atom": wire, "values": [][]any{{1}}},
-	}
-	var in strings.Builder
-	for _, l := range lines {
-		b, err := json.Marshal(l)
-		if err != nil {
-			t.Fatal(err)
-		}
-		in.Write(append(b, '\n'))
-	}
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc.python_glue")
-	cmd.Dir = ".."
-	cmd.Stdin = strings.NewReader(in.String())
+	wire, terms := clause.Wire(f.Conjuncts[0].(clause.Atom))
 
 	// Execute
-	out, err := cmd.Output()
+	answers := runGlue(t,
+		map[string]any{"op": "hello", "protocol": 2},
+		map[string]any{"op": "post", "atom": wire, "values": [][]any{{1}}},
+	)
 
 	// Assert
-	if err != nil {
-		t.Fatalf("the glue failed: %v", err)
-	}
-	var answers []map[string]any
-	sc := bufio.NewScanner(strings.NewReader(string(out)))
-	for sc.Scan() {
-		var a map[string]any
-		if err := json.Unmarshal(sc.Bytes(), &a); err != nil {
-			t.Fatal(err)
-		}
-		answers = append(answers, a)
+	wantTerms := []clause.Term{clause.Free{Name: "x", Primed: true}, clause.Free{Name: "x"}}
+	if diff := cmp.Diff(wantTerms, terms); diff != "" {
+		t.Errorf("Wire terms mismatch (-want +got):\n%s", diff)
 	}
 	want := []map[string]any{
 		{"language": "python", "protocol": float64(2), "supports": []any{"symmetric"}},

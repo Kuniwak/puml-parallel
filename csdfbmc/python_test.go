@@ -1,6 +1,8 @@
 package csdfbmc_test
 
 import (
+	"bufio"
+	"encoding/json"
 	"os/exec"
 	"strings"
 	"testing"
@@ -17,6 +19,37 @@ func python(t *testing.T) string {
 		t.Skip("python3 is not on the PATH")
 	}
 	return path
+}
+
+// runGlue runs the reference glue as a command, writes each request to it as
+// one JSON line, and gives back its answers, one decoded JSON object each.
+func runGlue(t *testing.T, requests ...map[string]any) []map[string]any {
+	t.Helper()
+	var in strings.Builder
+	for _, r := range requests {
+		b, err := json.Marshal(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		in.Write(append(b, '\n'))
+	}
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc.python_glue")
+	cmd.Dir = ".."
+	cmd.Stdin = strings.NewReader(in.String())
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("the glue failed: %v", err)
+	}
+	var answers []map[string]any
+	sc := bufio.NewScanner(strings.NewReader(string(out)))
+	for sc.Scan() {
+		var a map[string]any
+		if err := json.Unmarshal(sc.Bytes(), &a); err != nil {
+			t.Fatal(err)
+		}
+		answers = append(answers, a)
+	}
+	return answers
 }
 
 func TestPythonUnitTestsPass(t *testing.T) {

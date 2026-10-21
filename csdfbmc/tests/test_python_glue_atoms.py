@@ -14,14 +14,20 @@ class PythonGlueAtomTest(unittest.TestCase):
         self.handle = evaluator([])
 
     def test_a_guard_is_evaluated_per_list_of_values(self):
-        # Setup
-        request = {"op": "guard", "atom": atom(["", " > ", ""], [0, 1], [False, False]), "values": [[3, 2], [1, 2]]}
+        tests = {
+            "two lists of values": (atom(["", " > ", ""], [0, 1], [False, False]), [[3, 2], [1, 2]], [True, False]),
+            "no holes": (atom(["1 < 2"], [], []), [[]], [True]),
+        }
+        for name, (a, values, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                request = {"op": "guard", "atom": a, "values": values}
 
-        # Execute
-        answer = self.handle(request)
+                # Execute
+                answer = self.handle(request)
 
-        # Assert
-        self.assertEqual({"results": [True, False]}, answer)
+                # Assert
+                self.assertEqual({"results": want}, answer)
 
     def test_a_post_gives_the_values_after_the_step_per_list_of_values_before_it(self):
         tests = {
@@ -69,9 +75,10 @@ class PythonGlueAtomTest(unittest.TestCase):
                 answer = self.handle(request)
 
                 # Assert
+                why = answer.get("why")
                 self.assertEqual(symmetric, answer["symmetric"])
-                if said:
-                    self.assertIn(said, answer["why"])
+                self.assertEqual(said is None, why is None)
+                self.assertIn(said or "", why or "")
 
 
 if __name__ == "__main__":

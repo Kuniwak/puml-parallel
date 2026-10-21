@@ -15,24 +15,46 @@ def fake(answers: dict):
 
 class AtomClientTest(unittest.TestCase):
     def test_it_asks_the_glue_about_atoms(self):
-        # Setup
-        client = AtomClient(evaluator([]), NO_CLOSE)
+        tests = {
+            "a guard": (lambda c: c.guard(GREATER, [[3, 2], [1, 2]]), [True, False]),
+            "a post": (lambda c: c.post(NEXT, [[2]]), [[[3]]]),
+        }
+        for name, (ask, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                client = AtomClient(evaluator([]), NO_CLOSE)
 
-        # Execute
-        guards = client.guard(GREATER, [[3, 2], [1, 2]])
-        posts = client.post(NEXT, [[2]])
+                # Execute
+                got = ask(client)
 
-        # Assert
-        self.assertEqual([True, False], guards)
-        self.assertEqual([[[3]]], posts)
+                # Assert
+                self.assertEqual(want, got)
 
-    def test_a_glue_speaking_protocol_1_only_is_refused(self):
-        # Setup
-        handle = fake({"hello": {"language": "old", "protocol": 1}})
+    def test_a_wrong_answer_is_refused(self):
+        hello = {"language": "fake", "protocol": 2}
+        tests = {
+            "a glue speaking protocol 1 only":
+                ({"hello": {"language": "old", "protocol": 1}}, AtomClient, lambda c: None, "protocol 2"),
+            "fewer results than lists of values":
+                ({"hello": hello, "guard": {"results": [True]}}, AtomClient, lambda c: c.guard(GREATER, [[1, 2], [3, 4]]), "one result per list of values"),
+            "a guard that is not a truth value":
+                ({"hello": hello, "guard": {"results": [1]}}, AtomClient, lambda c: c.guard(GREATER, [[1, 2]]), "a guard is a truth value"),
+            "a post that is not lists of values":
+                ({"hello": hello, "post": {"results": [[3]]}}, AtomClient, lambda c: c.post(NEXT, [[2]]), "a post is a list of lists"),
+            "symmetric of a glue that does not answer it":
+                ({"hello": hello}, AtomClient, lambda c: c.symmetric(GREATER, [0], [], [["a1", "a2"]]), "does not answer symmetric"),
+            "a post giving another number of values":
+                ({"hello": hello, "post": {"results": [[[1, 2]]]}}, lambda h, close: checked_atoms(AtomClient(h, close)),
+                 lambda c: c.post(NEXT, [[2]]), "1 value after the step"),
+        }
+        for name, (answers, client_of, ask, error) in tests.items():
+            with self.subTest(name):
+                # Setup
+                handle = fake(answers)
 
-        # Execute, Assert
-        with self.assertRaisesRegex(EvaluatorError, "protocol 2"):
-            AtomClient(handle, NO_CLOSE)
+                # Execute, Assert
+                with self.assertRaisesRegex(EvaluatorError, error):
+                    ask(client_of(handle, NO_CLOSE))
 
 
 class CountingGlue:
@@ -59,16 +81,6 @@ class CheckedAtomsTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(2, glue.asked)
-
-    def test_a_post_giving_another_number_of_values_is_refused(self):
-        # Setup
-        handle = fake({"hello": {"language": "fake", "protocol": 2}, "post": {"results": [[[1, 2]]]}})
-        client = checked_atoms(AtomClient(handle, NO_CLOSE))
-
-        # Execute, Assert
-        with self.assertRaisesRegex(EvaluatorError, "1 value after the step"):
-            client.post(NEXT, [[2]])
-
 
 if __name__ == "__main__":
     unittest.main()
