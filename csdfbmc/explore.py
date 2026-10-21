@@ -29,6 +29,10 @@ class Result:
     tau_cycles: list[list[State]]
     truncated: bool
     bound: int
+    # environment: the seed and the given functions of the environment, and
+    # the functions it decided a clause by (csdfbmc.environment); what a run
+    # needs to be reproduced.
+    environment: dict
     violations: list[tuple[str, State]] = field(default_factory=list)
     avoiding_cycles: list[list[State]] = field(default_factory=list)
     avoid: str | None = None
@@ -37,10 +41,6 @@ class Result:
     # clauses admitted no successor: a clause that cannot be satisfied from
     # this state, or post clauses that disagree.
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
-    # environment: the seed and the given functions of the environment, and
-    # the functions it decided a clause by (csdfbmc.environment); what a run
-    # needs to be reproduced.
-    environment: dict = field(default_factory=lambda: {"seed": None, "given": [], "decided": []})
     # unconstrained: (state, event as taken, variables) where the post clauses
     # left variables of the next state without a value: a post clause is
     # missing, or one constrains fewer variables than it should.
