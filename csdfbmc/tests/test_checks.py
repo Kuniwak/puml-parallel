@@ -46,9 +46,9 @@ class LoadChecksTest(unittest.TestCase):
         with self.assertRaises(PurityError):
             load_checks(self.write("INVARIANTS = {}\n"))
 
-    def test_refuses_the_twins_of_prose_clauses(self):
-        # Setup: CLAUSES were the twins of an earlier csdfbmc; the clauses are
-        # read through a glue now.
+    def test_refuses_the_clauses_an_earlier_csdfbmc_read(self):
+        # Setup: the clauses are read through a glue now, so CLAUSES would
+        # otherwise be silently ignored.
         path = self.write("DOMAINS = {}\nCLAUSES = {}\n")
 
         # Execute, Assert

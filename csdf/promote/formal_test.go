@@ -7,9 +7,8 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/promote"
 )
 
-// A constrain's guard is written in the language a glue reads, so a formal
-// line, the twin of a prose guard, is refused with what to write instead,
-// wherever it stands.
+// A constrain's guard is written in the language a glue reads, so a formal:
+// line is refused with what to write instead, wherever it stands.
 func TestParseGlobalRefusesAFormalLine(t *testing.T) {
 	cases := map[string]string{
 		"under a constrain": "  constrain DEPOSIT?口座ID?額 ; 額 は最小単位の倍数\n  formal: 額 % UNIT == 0\n",

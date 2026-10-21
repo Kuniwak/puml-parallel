@@ -4,9 +4,9 @@ walk checks besides the clauses.
 A checks module is ordinary Python restricted to a pure subset. It defines
 DOMAINS (event parameter -> iterable of values) and, when wanted, GHOSTS,
 INVARIANTS and SYMMETRIC. The clauses themselves are read through a glue of
-the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, the
-formal twins of the prose clauses of an earlier csdfbmc, is refused: write
-the clauses in the glue's language instead.
+the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
+earlier csdfbmc read, is refused: write the clauses in the glue's language
+instead.
 
 A ghost is a value the diagram does not keep - a running total, a count -
 that follows the events; an invariant is a predicate over the state
@@ -122,7 +122,7 @@ def load_checks(path: str) -> Checks:
     if not isinstance(getattr(module, "SYMMETRIC", ()), (list, tuple, set, frozenset)):
         raise PurityError(f"{path}: SYMMETRIC must be a list of instance-ID parameters when defined")
     if hasattr(module, "CLAUSES"):
-        raise PurityError(f"{path}: CLAUSES, the twins of prose clauses, are no longer read; write the clauses in the "
+        raise PurityError(f"{path}: CLAUSES is no longer read; write the clauses in the "
                           "language of a glue (csdfbmc.python_glue reads Python) and read them with --evaluator-module")
     for table in ("INVARIANTS", "GHOSTS"):
         if not isinstance(getattr(module, table, {}), dict):

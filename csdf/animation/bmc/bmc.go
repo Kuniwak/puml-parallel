@@ -37,7 +37,7 @@ func (c Checker) Validate() error {
 	case c.Evaluator != "" && c.EvaluatorModule != "":
 		return errors.New("give -evaluator or -evaluator-module, not both")
 	case c.Checks != "" && !glue:
-		return errors.New("-checks needs -evaluator or -evaluator-module: csdfbmc reads every clause through a glue (csdfbmc.python_glue reads Python)")
+		return errors.New("-checks needs a glue: csdfbmc reads every clause through one; pass -evaluator or -evaluator-module (csdfbmc.python_glue reads Python)")
 	case glue && c.Checks == "":
 		return errors.New("-evaluator and -evaluator-module need -checks, the module of the domains")
 	}

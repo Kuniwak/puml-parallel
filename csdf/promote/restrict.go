@@ -20,8 +20,9 @@ import (
 // or an event-avoiding cycle over the kept families survives it; a deadlock
 // that a left-out family caused by refusing does not.
 //
-// A constrain clause is written in whatever language a glue reads, so nothing
-// here says whether it reads a left-out map: it stays, and is reported once.
+// A constrain clause is written in whatever language a glue reads, and
+// csdfpromote cannot tell which maps a clause reads: it stays, and is reported
+// once.
 // Hand-written edges are kept as they were, with a warning when they touch a
 // state that held a left-out map. x is not changed.
 func Restrict(x *Expansion, keep []string) (*Expansion, []Diagnostic) {
@@ -176,7 +177,7 @@ func (r *restriction) guardClause(c ExpandedClause, dropped map[csdf.Var]bool) E
 	case c.Kind == ClauseConstrain:
 		r.once(fmt.Sprintf("unknown\x00%d\x00%s", c.Line, c.Text), Diagnostic{
 			Severity: SeverityWarning, Line: c.Line,
-			Message: fmt.Sprintf("-only cannot tell whether the constrain clause %q reads a map it leaves out, since no tool reads a clause; it is kept", c.Text),
+			Message: fmt.Sprintf("-only cannot tell whether the constrain clause %q reads a map it leaves out, since csdfpromote cannot tell which maps a clause reads; it is kept", c.Text),
 		})
 		return c
 	case dropped[csdf.Var(c.Map)]:

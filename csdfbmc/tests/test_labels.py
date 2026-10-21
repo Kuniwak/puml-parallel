@@ -1,7 +1,8 @@
 """A diagram whose clauses are written in a formal language is walked
 through a glue: the checker asks it what a clause reads and gives a value
-to, and what it evaluates to, and needs no twin keyed by prose."""
+to, and what it evaluates to."""
 import io
+from contextlib import redirect_stderr
 from dataclasses import replace
 import json
 import os
@@ -194,19 +195,27 @@ class LabelsCommandTest(unittest.TestCase):
         self.assertEqual(0, code, err)
         self.assertEqual({"candidates": [{"params": {}, "values": [2]}]}, json.loads(out))
 
-    def test_a_walk_without_a_glue_or_with_local_twins_is_refused(self):
+    def test_a_walk_without_a_glue_is_refused(self):
         from csdfbmc.__main__ import main
-        for name, args, said in [
-            ("no glue", (), "--evaluator-module"),
-            ("--local checks", ("--evaluator-module", "csdfbmc.python_glue", "--local", "local/A.puml=a.py"), "--local"),
+
+        # Execute
+        code, _, err = self.run_main(main)
+
+        # Assert
+        self.assertEqual(2, code)
+        self.assertIn("csdfbmc reads every clause through one", err)
+
+    def test_the_command_line_refuses_two_glues_and_local(self):
+        from csdfbmc.__main__ import main
+        for name, args in [
+            ("both forms", ("--evaluator", "glue", "--evaluator-module", "csdfbmc.python_glue")),
+            ("--local", ("--evaluator-module", "csdfbmc.python_glue", "--local", "local/A.puml=a.py")),
         ]:
             with self.subTest(name):
-                # Execute
-                code, _, err = self.run_main(main, *args)
-
-                # Assert
-                self.assertEqual(2, code)
-                self.assertIn(said, err)
+                # Execute, Assert
+                with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+                    self.run_main(main, *args)
+                self.assertEqual(2, raised.exception.code)
 
     def test_a_glue_that_cannot_start_is_a_loading_error(self):
         from csdfbmc.__main__ import main

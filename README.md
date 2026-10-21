@@ -771,9 +771,9 @@ variables before the step and returns the new value; a ghost with no update
 for an event keeps its value. Ghosts are part of the state the walk tells
 states apart by, so a total that grows without bound is cut by
 `--max-states`. `SYMMETRIC` lists the instance-ID parameters whose values are
-interchangeable, for `--symmetry`. A module that defines `CLAUSES`, the
-formal twins of prose clauses an earlier `csdfbmc` read, is refused, and so
-is `--local`: write the clauses in the glue's language instead.
+interchangeable, for `--symmetry`. A module that defines `CLAUSES`, which an
+earlier `csdfbmc` read, is refused: write the clauses in the glue's language
+instead.
 
 The walk is breadth-first over (control state, valuation, ghosts) triples, up to
 `--max-states`. It reports every reachable state with no enabled transition and

@@ -312,14 +312,15 @@ func (s *scanner) readNote(i int) (int, error) {
 	return end + 1, nil
 }
 
-// formalPrefix opened the line of a constrain note that carried the guard's
-// formal twin, which is no longer read: a clause is written in the language
-// a glue reads, so a guard has no second spelling.
+// formalPrefix opened a line of a constrain note that gave its guard a second,
+// formal spelling, which is no longer read: a clause is written in the
+// language a glue reads. The line is refused rather than read as part of the
+// note, which would silently drop it.
 const formalPrefix = "formal:"
 
 // refuseFormal refuses a formal line, saying what to write instead.
 func refuseFormal(at int) error {
-	return fmt.Errorf("line %d: a formal: line, the twin of a constrain's guard, is no longer read; write the guard itself in the language of a glue (csdfbmc.python_glue reads Python)", at)
+	return fmt.Errorf("line %d: formal: lines are no longer read; write the constrain's guard itself in the language of a glue (csdfbmc.python_glue reads Python)", at)
 }
 
 // isAssume reports whether a note line opens an assume directive, which the

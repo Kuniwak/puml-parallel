@@ -22,10 +22,6 @@ def add_inputs(ap: argparse.ArgumentParser) -> None:
     glue = ap.add_mutually_exclusive_group()
     glue.add_argument("--evaluator", metavar="CMD", help="read every clause through the glue this command line starts (the evaluator protocol)")
     glue.add_argument("--evaluator-module", metavar="MODULE", help="read every clause through the glue this Python module and its arguments load in-process")
-    # --local named the twins of a family's local diagram, which are gone; it
-    # is still read so that a command line written for them is refused with
-    # what to do instead.
-    ap.add_argument("--local", metavar="PATH=TWINS.py", action="append", default=[], help=argparse.SUPPRESS)
 
 
 @contextmanager
@@ -33,11 +29,8 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Checks, object, obj
     """The diagram, the checks, the meaning of the clauses and what tells the
     writes of a post clause (csdfbmc.cone), as the parsed arguments name
     them; the glue started for them is closed on leaving."""
-    if a.local:
-        raise ValueError("--local named the twins of a family's local clauses, which are no longer read; write the local "
-                         "clauses in the language of a glue and read every clause with --evaluator-module")
     if a.evaluator is None and a.evaluator_module is None:
-        raise ValueError("the clauses are read through a glue of the evaluator protocol; pass --evaluator CMD or "
+        raise ValueError("a walk needs a glue: csdfbmc reads every clause through one; pass --evaluator CMD or "
                          "--evaluator-module MODULE (csdfbmc.python_glue reads Python)")
     if a.evaluator is not None:
         client = start_command(shlex.split(a.evaluator))

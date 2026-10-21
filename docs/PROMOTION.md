@@ -197,8 +197,8 @@ to.
 
 A constrain's guard is written like any other clause: in natural language,
 or in the language of a `csdfbmc` glue when the diagram is to be checked. A
-`formal:` line under a constrain, the twin of a prose guard that an earlier
-`csdfpromote` carried, is refused with that advice.
+`formal:` line under a constrain, which an earlier `csdfpromote` carried, is
+refused with that advice.
 
 A constrain reaches **every** matching generated edge, in every state. The block
 its note points at is a drawing: it tells a reader which family the condition is
