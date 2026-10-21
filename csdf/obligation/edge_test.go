@@ -8,6 +8,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligation"
+	"github.com/google/go-cmp/cmp"
 )
 
 func mustParse(t *testing.T, text string) clause.And {
@@ -184,5 +185,25 @@ func TestAnEdgeThatReadsWhatItDoesNotBindIsRefused(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestEnabledTypesWhatItChoosesByTheTypeNamedLikeIt(t *testing.T) {
+	// Setup
+	d := core.Diagram{States: []string{"s"}, Vars: map[string][]string{"s": {"在庫"}}, Init: "s"}
+	e := core.Edge{Src: "s", Dst: "s",
+		Event: core.Event{Channel: "OUT", Fields: []core.Field{{Name: "数量"}}},
+		Guard: mustParse(t, "$在庫 ≥ $数量"), Post: mustParse(t, "$在庫' = $在庫 - $数量")}
+	want := []string{"数量", "在庫"}
+
+	// Execute
+	got, err := obligation.Enabled(d, e)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("want nil, got %v", err)
+	}
+	if diff := cmp.Diff(want, logic.TreeOf(got).Types); diff != "" {
+		t.Errorf("types mismatch (-want +got):\n%s", diff)
 	}
 }

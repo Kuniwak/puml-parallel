@@ -32,22 +32,27 @@ func Step(d core.Diagram, e core.Edge) (logic.Formula, error) {
 // Enabled is that an edge of d can be taken from the values of its source
 // state: for some values of the fields its event receives, offered by the
 // environment or, for a tau, chosen by the diagram, its guard holds and its
-// post admits some values after it.
+// post admits some values after it. Each variable it chooses has the type
+// named like it, the field or the state variable, which is the convention
+// until fields and state variables carry types of their own.
 func Enabled(d core.Diagram, e core.Edge) (logic.Formula, error) {
 	step, err := Step(d, e)
 	if err != nil {
 		return nil, fmt.Errorf("obligation.Enabled: %w", err)
 	}
 	var chosen []logic.Var
+	var types []string
 	for _, f := range e.Event.Fields {
 		if !f.Send {
 			chosen = append(chosen, logic.Var(f.Name))
+			types = append(types, f.Name)
 		}
 	}
 	for _, v := range d.Vars[e.Dst] {
 		chosen = append(chosen, Var(clause.Free{Name: v, Primed: true}))
+		types = append(types, v)
 	}
-	return logic.Simplify(logic.Exists(chosen, step)), nil
+	return logic.Simplify(logic.ExistsTyped(chosen, types, step)), nil
 }
 
 // declared checks that e names states of d and reads only what it binds: a
