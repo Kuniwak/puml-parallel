@@ -49,17 +49,43 @@ class PythonGlueAtomTest(unittest.TestCase):
 
     def test_a_post_of_another_shape_is_refused(self):
         tests = {
-            "no value after the step on the left": atom(["", " == ", ""], [0, 1], [False, True]),
-            "a value after the step on the right": atom(["", " == ", ""], [0, 1], [True, True]),
-            "not an equation": atom(["", " > 0"], [0], [True]),
+            "no value after the step on the left": (atom(["", " == ", ""], [0, 1], [False, True]), [[1]],
+                                                    "argument 0 is a value before the step"),
+            "a value after the step on the right": (atom(["", " == ", ""], [0, 1], [True, True]), [[]], "a post atom of this glue"),
+            "not an equation": (atom(["", " > 0"], [0], [True]), [[]], "a post atom of this glue"),
         }
-        for name, a in tests.items():
+        for name, (a, values, said) in tests.items():
             with self.subTest(name):
                 # Execute
-                answer = self.handle({"op": "post", "atom": a, "values": [[1]]})
+                answer = self.handle({"op": "post", "atom": a, "values": values})
 
                 # Assert
-                self.assertIn("a post atom of this glue", answer["error"])
+                self.assertIn(said, answer["error"])
+
+    def test_a_malformed_request_is_refused(self):
+        tests = {
+            "text not one piece more than the holes": (
+                {"op": "guard", "atom": atom(["", " > 0", ""], [0], [False]), "values": [[1]]}, "one piece of text more than"),
+            "a hole reading no argument": (
+                {"op": "guard", "atom": atom(["", " > 0"], [1], [False]), "values": [[1]]}, "argument 1"),
+            "values of another number than the arguments": (
+                {"op": "guard", "atom": atom(["", " > 0"], [0], [False]), "values": [[1, 2]]}, "2 values"),
+            "text naming what stands for a hole": (
+                {"op": "guard", "atom": atom(["_csdf_hole_0 + ", " > 0"], [0], [False]), "values": [[1]]}, "_csdf_hole_"),
+            "an unprimed hole on the left of a post": (
+                {"op": "post", "atom": atom(["(", ", ", ") == (1, 2)"], [0, 1], [True, False]), "values": [[1]]},
+                "argument 1 is a value before the step"),
+            "a choice of another length than the values after the step": (
+                {"op": "post", "atom": atom(["(", ", ", ") in [(1, 2, 3)]"], [0, 1], [True, True]), "values": [[]]},
+                "3 values"),
+        }
+        for name, (request, said) in tests.items():
+            with self.subTest(name):
+                # Execute
+                answer = self.handle(request)
+
+                # Assert
+                self.assertIn(said, answer.get("error", ""))
 
     def test_symmetric_says_whether_an_atom_tells_two_ids_apart(self):
         tests = {

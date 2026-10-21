@@ -89,6 +89,8 @@ class Glue:
 
     def atom_guard(self, atom: dict, values: list) -> bool:
         source, names = _atom_source(atom)
+        if len(values) != len(names):
+            raise ValueError(f"the atom has {len(names)} arguments, but was given {len(values)} values")
         return bool(self._eval(source, "guard", dict(zip(names, values))))
 
     def atom_symmetric(self, atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
@@ -107,7 +109,9 @@ class Glue:
         source, names = _atom_source(atom)
         primed = [n for n, p in zip(names, atom["primed"]) if p]
         before = [n for n, p in zip(names, atom["primed"]) if not p]
-        targets, chosen = _post_shape(source, primed)
+        if len(values) != len(before):
+            raise ValueError(f"the atom has {len(before)} arguments before the step, but was given {len(values)} values")
+        targets, chosen = _post_shape(source, primed, before)
         options = self._eval(chosen, "guard", dict(zip(before, values)))
         if targets.is_tuple:
             return [[freeze(v) for v in _ordered(targets.names, primed, o)] for o in options]
@@ -127,10 +131,15 @@ _HOLE = "_csdf_hole_"
 def _atom_source(atom: dict) -> tuple[str, list[str]]:
     """The Python an atom is, its holes read as names, and those names by
     argument index."""
-    text = atom["text"]
+    text, holes, primed = atom["text"], atom["holes"], atom["primed"]
+    if len(text) != len(holes) + 1:
+        raise ValueError(f"an atom has one piece of text more than it has holes, not {len(text)} pieces for {len(holes)} holes")
+    for k, h in enumerate(holes):
+        if not isinstance(h, int) or isinstance(h, bool) or not 0 <= h < len(primed):
+            raise ValueError(f"hole {k} reads argument {h!r}, but the atom has {len(primed)} arguments")
     if any(_HOLE in t for t in text):
         raise ValueError(f"an atom of this glue may not use the names {_HOLE}N, which stand for its holes")
-    names = [f"{_HOLE}{i}" for i in range(len(atom["primed"]))]
+    names = [f"{_HOLE}{i}" for i in range(len(primed))]
     return atom_text(atom, lambda i: names[i]), names
 
 
@@ -144,7 +153,7 @@ class _Targets:
     is_tuple: bool
 
 
-def _post_shape(source: str, primed: list[str]) -> tuple[_Targets, str]:
+def _post_shape(source: str, primed: list[str], before: list[str]) -> tuple[_Targets, str]:
     """What a post atom gives a value to, and the source of the collection
     of what it may choose for them."""
     body = ast.parse(source, mode="eval").body
@@ -157,6 +166,10 @@ def _post_shape(source: str, primed: list[str]) -> tuple[_Targets, str]:
         targets = _Targets(tuple(e.id for e in left.elts), True)
     else:
         raise ValueError(_POST_SHAPE)
+    for n in targets.names:
+        if n in before:
+            raise ValueError(f"argument {n[len(_HOLE):]} is a value before the step; the left of a post atom holds only "
+                             f"the values after it")
     if sorted(targets.names) != sorted(primed) or free_names(right) & set(primed):
         raise ValueError(_POST_SHAPE)
     right_source = ast.unparse(right)
@@ -165,6 +178,8 @@ def _post_shape(source: str, primed: list[str]) -> tuple[_Targets, str]:
 
 def _ordered(names: tuple[str, ...], primed: list[str], option) -> list:
     """option, a tuple of values for names, reordered as primed."""
+    if len(option) != len(names):
+        raise ValueError(f"the post atom chose {option!r}, {len(option)} values for {len(names)} values after the step")
     by_name = dict(zip(names, option))
     return [by_name[n] for n in primed]
 
