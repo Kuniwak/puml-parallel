@@ -53,6 +53,27 @@ class PartialOrderTest(unittest.TestCase):
         for s in reduced.deadlocks:
             self.assertEqual(full.trace_to(s) != [], reduced.trace_to(s) != [])
 
+    def test_through_a_glue_it_reads_what_the_glue_says_a_clause_reads_beyond_its_instance(self):
+        # Setup: the constrain reads accounts only at its own ID, which the
+        # glue says when asked beyond; a glue that does not answer it leaves
+        # the constrain reading every instance.
+        from csdfbmc.cone import Cone
+        from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue, relabel
+        d = fixture.diagram(relabel(WITHOUT_CLOSE))
+        checks = Twins(domains=GLOBAL_TWINS.domains, clauses={})
+        silent = NotAnswering(python_glue())
+
+        # Execute
+        full = Explorer(d, checks, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
+        reduced = Explorer(d, checks, meaning=glue(python_glue()), cone=Cone.keep_all(), por=True).run()
+        unasked = Explorer(d, checks, meaning=glue(silent), cone=Cone.keep_all(), por=True).run()
+
+        # Assert
+        self.assertEqual(len(walk(WITHOUT_CLOSE, por=True).states), len(reduced.states))
+        self.assertLess(len(reduced.states), len(full.states))
+        self.assertEqual(len(full.states), len(unasked.states))
+        self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))
+
     def test_a_constrain_that_reads_the_whole_map_ties_the_instances(self):
         # len(accounts) < 2 on OPEN: opening a1 can disable opening a2, so
         # the instances are not independent.

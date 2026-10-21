@@ -137,18 +137,48 @@ class FormalExpansionTest(unittest.TestCase):
         self.assertEqual(set(prose.states), set(result.states))
         self.assertEqual(prose.deadlocks, result.deadlocks)
 
-    def test_symmetry_is_refused_since_the_checker_cannot_read_the_clauses(self):
+    def test_symmetry_asks_the_glue_whether_a_clause_tells_the_ids_apart(self):
+        # Setup
+        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
+        symmetric = dict(symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
+        prose = Explorer.of_twins(fixture.diagram(EXPANSION), Twins(domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, locals=GLOBAL_TWINS.locals, **symmetric), symmetry=True).run()
+        twins = Twins(domains=self.twins.domains, clauses={}, **symmetric)
+
+        # Execute
+        result = Explorer(self.diagram, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True).run()
+
+        # Assert
+        self.assertEqual(len(prose.states), len(result.states))
+        self.assertEqual(prose.deadlocks, result.deadlocks)
+
+    def test_symmetry_is_refused_with_a_glue_that_does_not_answer_it(self):
+        # Setup
         twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
-        with self.assertRaises(ValueError) as cm:
-            Explorer(self.diagram, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
-        self.assertIn("through a glue", str(cm.exception))
+        silent = NotAnswering(python_glue())
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "does not answer"):
+            Explorer(self.diagram, twins, meaning=glue(silent), cone=Cone.keep_all(), symmetry=True)
+
+    def test_symmetry_refuses_a_clause_the_glue_says_tells_the_ids_apart(self):
+        # Setup
+        from csdfbmc.tests.test_promoted import EXPANSION
+        twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
+        # A constrain written in the glue's language, with no formal twin.
+        named = json.loads(json.dumps(relabel(EXPANSION), ensure_ascii=False).replace(
+            '"formal": "accounts[口座ID].残高 + 額 <= 3", ', "").replace("accounts[口座ID].残高 + 額 <= 3", "口座ID != 'a1'"))
+        d = fixture.diagram(named)
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "tells the IDs apart"):
+            Explorer(d, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
 
 
 class Counting:
     """A Client that records what it is asked."""
 
     def __init__(self, inner: Client):
-        self.inner, self.language, self.requests = inner, inner.language, []
+        self.inner, self.language, self.supports, self.requests = inner, inner.language, inner.supports, []
 
     def analyse(self, clause, role):
         return self.inner.analyse(clause, role)
@@ -163,6 +193,14 @@ class Counting:
 
     def close(self):
         self.inner.close()
+
+
+class NotAnswering(Counting):
+    """A Client of a glue that answers none of the optional requests."""
+
+    def __init__(self, inner: Client):
+        super().__init__(inner)
+        self.supports = frozenset()
 
 
 class Lying(Counting):

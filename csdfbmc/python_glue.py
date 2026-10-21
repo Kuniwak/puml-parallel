@@ -12,7 +12,7 @@ import ast
 import importlib.util
 from typing import Callable
 
-from csdfbmc.formal import FORMAL_GLOBALS, free_names
+from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
 from csdfbmc.protocol import Analysis, handler
 from csdfbmc.twins import check_pure
 from csdfbmc.values import freeze
@@ -75,6 +75,16 @@ class Glue:
         _, reads, writes = self._compile(clause, role)
         return Analysis(opaque=False, reads=tuple(reads), writes=tuple(writes))
 
+    def beyond(self, clause: str, role: str, own_id: str | None) -> list[str]:
+        """The names the clause reads, but a map read only at own_id."""
+        tree = ast.parse(clause, mode="eval")
+        return sorted(names_beyond(tree, own_id) - set(self.globals))
+
+    def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None:
+        """How the clause tells two IDs of a group apart, or None."""
+        found = tells_apart(ast.parse(clause, mode="eval"), set(params), set(maps), [frozenset(g) for g in groups])
+        return None if found is None else f"{found[1]}, so the IDs are not interchangeable"
+
     def guard(self, clause: str, binding: dict) -> bool:
         return bool(self._eval(clause, "guard", binding))
 
@@ -95,7 +105,8 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     """The handler of the protocol's requests; args are the paths of the
     modules of shared definitions."""
     glue = Glue(args)
-    return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post)
+    return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post,
+                   beyond=glue.beyond, symmetric=glue.symmetric)
 
 
 if __name__ == "__main__":

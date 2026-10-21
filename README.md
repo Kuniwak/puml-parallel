@@ -799,7 +799,13 @@ JSON answer per line. A glue answers `hello` (its language and protocol
 version); `analyse`, the names a clause reads and, for a post, the variables
 it gives a value to, without evaluating it, or `{"opaque": true}` for a
 clause not yet formalised, which follows `--opaque`; and `guard` and `post`,
-the clause's value under each of a batch of bindings. Values are tagged JSON
+the clause's value under each of a batch of bindings. Two more requests are
+optional, and a glue lists the ones it answers in its `hello`: `beyond`, the
+names a clause reads except a map it reads only at its own instance's ID, and
+`symmetric`, whether a clause tells two symmetric instance IDs apart. They
+are what `--por` and `--symmetry` need of a clause, and only its language can
+tell; with a glue that answers neither, `--por` takes a clause to read every
+instance of a map it reads, and `--symmetry` is refused. Values are tagged JSON
 (`{"tuple": …}`, `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has none of
 them. Clauses must be pure: the checker asks about a clause once per value of
 the names it reads, and about a guard once per edge for every parameter

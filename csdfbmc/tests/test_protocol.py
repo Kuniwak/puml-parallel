@@ -8,7 +8,7 @@ import sys
 import unittest
 import warnings
 
-from csdfbmc.protocol import NO_CLOSE, Analysis, Client, EvaluatorError, Memoising, Validating, from_wire, serve, start_command, start_module, to_wire
+from csdfbmc.protocol import NO_CLOSE, Analysis, Client, answers, EvaluatorError, Memoising, Validating, from_wire, serve, start_command, start_module, to_wire
 from csdfbmc.values import FrozenMap
 
 
@@ -76,15 +76,63 @@ class ClientTest(unittest.TestCase):
             ("a post that is not a list of assignments", {"post": {"results": [[1]]}}, lambda c: c.post("x", [{}])),
             ("an answer that is not an object", {"guard": [True]}, lambda c: c.guard("x", [{}])),
             ("an error that is not a message", {"guard": {"error": ["x"]}}, lambda c: c.guard("x", [{}])),
+            ("beyond without reads", {"beyond": {}}, lambda c: c.beyond("x", "guard", "i")),
+            ("symmetric that is not a truth value", {"symmetric": {"symmetric": 1}}, lambda c: c.symmetric("x", "guard", [], [], [])),
+            ("not symmetric without why", {"symmetric": {"symmetric": False}}, lambda c: c.symmetric("x", "guard", [], [], [])),
         ]:
-            client = Client(fake({"hello": HELLO, **answers}), NO_CLOSE)
+            client = Client(fake({"hello": dict(HELLO, supports=["beyond", "symmetric"]), **answers}), NO_CLOSE)
             with self.subTest(name), self.assertRaises(EvaluatorError):
                 ask(client)
+
+
+class SupportsTest(unittest.TestCase):
+    """A glue answers beyond and symmetric only when its hello says it
+    does; the client asks nothing of one that does not."""
+
+    def test_the_optional_requests_are_asked_of_a_glue_that_answers_them(self):
+        for name, ask, want in [
+            ("beyond", lambda c: c.beyond("x", "guard", "i"), ("n",)),
+            ("symmetric", lambda c: c.symmetric("x", "guard", ["i"], [], [["a", "b"]]), "i is ordered"),
+        ]:
+            with self.subTest(name):
+                # Setup
+                client = Client(fake({"hello": dict(HELLO, supports=["beyond", "symmetric"]),
+                                      "beyond": {"reads": ["n"]}, "symmetric": {"symmetric": False, "why": "i is ordered"}}), NO_CLOSE)
+
+                # Execute
+                got = ask(client)
+
+                # Assert
+                self.assertEqual(want, got)
+
+    def test_a_glue_that_does_not_answer_them_is_not_asked(self):
+        # Setup
+        client = Client(fake({"hello": HELLO}), NO_CLOSE)
+
+        # Execute, Assert
+        self.assertFalse(answers(client, "beyond"))
+        with self.assertRaises(EvaluatorError):
+            client.beyond("x", "guard", "i")
+
+    def test_a_hello_with_supports_that_are_not_names_is_refused(self):
+        # Execute, Assert
+        with self.assertRaises(EvaluatorError):
+            Client(fake({"hello": dict(HELLO, supports="beyond")}), NO_CLOSE)
+
+    def test_validating_refuses_a_name_beyond_that_the_clause_does_not_read(self):
+        # Setup
+        inner = Client(fake({"hello": dict(HELLO, supports=["beyond"]), "analyse": {"reads": ["n"], "writes": []},
+                             "beyond": {"reads": ["n", "m"]}}), NO_CLOSE)
+
+        # Execute, Assert
+        with self.assertRaisesRegex(EvaluatorError, "'m'"):
+            Validating(inner).beyond("x", "guard", "i")
 
 
 class Recording:
     """A client answering from tables, which records the bindings it is asked about."""
     language = "fake"
+    supports = frozenset()
 
     def __init__(self, analyses: dict, answer):
         self.analyses, self.answer, self.asked = analyses, answer, []

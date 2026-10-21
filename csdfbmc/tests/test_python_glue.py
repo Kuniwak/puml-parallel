@@ -16,7 +16,33 @@ class PythonGlueTest(unittest.TestCase):
         self.handle = evaluator([])
 
     def test_hello_names_the_language_and_the_protocol_version(self):
-        self.assertEqual({"language": "python", "protocol": 1}, self.handle({"op": "hello"}))
+        self.assertEqual({"language": "python", "protocol": 1, "supports": ["beyond", "symmetric"]}, self.handle({"op": "hello"}))
+
+    def test_beyond_leaves_out_a_map_read_only_at_the_own_id(self):
+        for clause, want in [
+            ("accounts[i]['n'] > 0", ["i"]),
+            ("accounts[i]['n'] + accounts[j]['n'] > 0", ["accounts", "i", "j"]),
+            ("len(accounts) < 2", ["accounts"]),
+            ("n > 0", ["n"]),
+        ]:
+            with self.subTest(clause):
+                answer = self.handle({"op": "beyond", "clause": clause, "role": "guard", "own_id": "i"})
+                self.assertEqual(want, answer["reads"])
+
+    def test_symmetric_says_whether_a_clause_tells_two_ids_apart(self):
+        ask = {"op": "symmetric", "role": "guard", "params": ["i"], "maps": ["accounts"], "groups": [["a1", "a2"]]}
+        for clause, symmetric, said in [
+            ("i in accounts", True, None),
+            ("i in ['a1', 'a2']", True, None),
+            ("i == 'a1'", False, "'a1'"),
+            ("i < j", False, "ordered"),
+            ("sorted(accounts)[0] == i", False, "sorted"),
+        ]:
+            with self.subTest(clause):
+                answer = self.handle(dict(ask, clause=clause))
+                self.assertEqual(symmetric, answer["symmetric"])
+                if said:
+                    self.assertIn(said, answer["why"])
 
     def test_analyse_says_what_a_clause_reads_and_writes(self):
         for request, want in [
