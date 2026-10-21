@@ -17,7 +17,7 @@ import (
 // The text of the start edge is the author's alone, so a tool reading the
 // expansion as a plain diagram sees what it saw before.
 func TestTheStartEdgeStartsEveryKeptMapEmpty(t *testing.T) {
-	author := promote.ExpandedClause{Kind: promote.ClauseLocal, Text: "buys と cycles は空", Line: 14}
+	author := promote.ExpandedClause{Kind: promote.ClauseLocal, Form: csdf.FormText, Text: "buys と cycles は空", Line: 14}
 	empty := func(m string) promote.ExpandedClause {
 		return promote.ExpandedClause{Kind: promote.ClauseEmpty, Text: m + " = ∅", Map: m}
 	}

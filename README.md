@@ -70,7 +70,8 @@ State variables are objects with a `name` and an optional `type`. An edge's `eve
 written whole and also taken apart into its `channel` and `fields` (each a `dir`,
 `?` or `!`, and a `name`). Each guard and post is likewise written whole and
 taken apart into its clauses, `guard_clauses` and `post_clauses`, each
-`{"text": …}` with its escapes removed or `{"opaque": true}`. `assumptions` lists the diagram's assume notes (see
+saying its `form`: `{"form": "text", "text": …}` with its escapes removed,
+`{"form": "opaque"}` or `{"form": "eq", "eq": [a, b]}`. `assumptions` lists the diagram's assume notes (see
 [SYNTAX.md](./docs/SYNTAX.md)); like `edges` it is a list, never `null`.
 
 ```console

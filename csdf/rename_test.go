@@ -19,9 +19,9 @@ func TestSplitRenaming(t *testing.T) {
 	}
 	for clause, tt := range tests {
 		t.Run(string(clause), func(t *testing.T) {
-			got, body, err := SplitRenaming(clause)
+			got, body, err := splitRenaming(clause)
 			if err != nil || !slices.Equal(got, tt.want) || body != tt.body {
-				t.Errorf("SplitRenaming(%q) = %v, %q, %v, want %v, %q", clause, got, body, err, tt.want, tt.body)
+				t.Errorf("splitRenaming(%q) = %v, %q, %v, want %v, %q", clause, got, body, err, tt.want, tt.body)
 			}
 		})
 	}
@@ -30,8 +30,8 @@ func TestSplitRenaming(t *testing.T) {
 func TestSplitRenamingRefusesAMalformedRenaming(t *testing.T) {
 	for _, clause := range []Predicate{"@[y := x]", "@[y = x] y", "@[y := x y", "@[y := x, y := z] y", "@[] y", "@[y := x] @opaque", "@[y := y] y"} {
 		t.Run(string(clause), func(t *testing.T) {
-			if _, _, err := SplitRenaming(clause); err == nil {
-				t.Errorf("SplitRenaming(%q) error = nil, want one", clause)
+			if _, _, err := splitRenaming(clause); err == nil {
+				t.Errorf("splitRenaming(%q) error = nil, want one", clause)
 			}
 		})
 	}
@@ -59,13 +59,19 @@ func TestRenameClause(t *testing.T) {
 	}
 }
 
-func TestRenameClauseRefusesAMalformedRenaming(t *testing.T) {
-	// Execute
-	_, err := RenameClause("@[y = x] y", []Rename{{"y", "x"}})
+func TestRenameClauseRefusesAClauseThatDoesNotParse(t *testing.T) {
+	// A predicate built in code need not have been checked, so renaming it
+	// checks it as ParseClause does.
+	for _, clause := range []Predicate{"@[y = x] y", "x @ y", ""} {
+		t.Run(string(clause), func(t *testing.T) {
+			// Execute
+			_, err := RenameClause(clause, []Rename{{"y", "x"}})
 
-	// Assert
-	if err == nil {
-		t.Error("RenameClause() error = nil, want the malformed renaming refused")
+			// Assert
+			if err == nil {
+				t.Errorf("RenameClause(%q) error = nil, want it refused", clause)
+			}
+		})
 	}
 }
 
@@ -81,7 +87,7 @@ func TestARenamedClauseIsCheckedAndReadByItsBody(t *testing.T) {
 	if err != nil || jsonErr != nil {
 		t.Fatalf("CheckClauses(%q) = %v, ClausesJSON() error = %v", p, err, jsonErr)
 	}
-	want := []ClauseJSON{{Text: "x > 0"}, {Text: "y ∧ z", Rename: map[string]string{"y": "x"}}}
+	want := []ClauseJSON{{Form: FormText, Text: "x > 0"}, {Form: FormText, Text: "y ∧ z", Rename: map[string]string{"y": "x"}}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ClausesJSON() mismatch (-want +got):\n%s", diff)
 	}
@@ -89,11 +95,11 @@ func TestARenamedClauseIsCheckedAndReadByItsBody(t *testing.T) {
 
 func TestAnEscapedClauseHoldsNoRenaming(t *testing.T) {
 	// Execute
-	renames, body, err := SplitRenaming(EscapeClause("@[y := x] y"))
+	renames, body, err := splitRenaming(EscapeClause("@[y := x] y"))
 
 	// Assert
 	if err != nil || renames != nil || body != `\@[y := x] y` {
-		t.Errorf("SplitRenaming(EscapeClause(...)) = %v, %q, %v, want no renaming", renames, body, err)
+		t.Errorf("splitRenaming(EscapeClause(...)) = %v, %q, %v, want no renaming", renames, body, err)
 	}
 }
 
@@ -114,11 +120,11 @@ func TestSplitEquality(t *testing.T) {
 	for clause, tt := range tests {
 		t.Run(string(clause), func(t *testing.T) {
 			// Execute
-			a, b, ok, err := SplitEquality(clause)
+			a, b, ok, err := splitEquality(clause)
 
 			// Assert
 			if (err != nil) != tt.wantErr || ok != tt.ok || a != tt.a || b != tt.b {
-				t.Errorf("SplitEquality(%q) = %q, %q, %v, %v, want %q, %q, %v, error %v", clause, a, b, ok, err, tt.a, tt.b, tt.ok, tt.wantErr)
+				t.Errorf("splitEquality(%q) = %q, %q, %v, %v, want %q, %q, %v, error %v", clause, a, b, ok, err, tt.a, tt.b, tt.ok, tt.wantErr)
 			}
 		})
 	}
@@ -167,7 +173,7 @@ func TestClausesJSONWritesAnEqualityAsItsNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff([]ClauseJSON{{Text: "x > 0"}, {Eq: []string{"y", "z"}}}, got); diff != "" {
+	if diff := cmp.Diff([]ClauseJSON{{Form: FormText, Text: "x > 0"}, {Form: FormEq, Eq: []string{"y", "z"}}}, got); diff != "" {
 		t.Errorf("ClausesJSON() mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -112,15 +112,16 @@ what they must read:
     the renamings in it are simultaneous: `@[a := b, b := a]` swaps two names.
   - `@eq(a, b)` is a clause of its own: the values named `a` and `b` are equal.
     Composition writes it when both sides send one field (`c!y ‖ c!z`), which they
-    do only where the two values are equal; csdfparse writes it as `{"eq": ["a",
-    "b"]}`. A tool renames the names in it, since it is the tools' word.
+    do only where the two values are equal; csdfparse writes it as `{"form": "eq",
+    "eq": ["a", "b"]}`. A tool renames the names in it, since it is the tools' word.
 
   Any other word starting with an unescaped `@` is refused.
 - **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
   A backslash before any other character is part of the clause. A reader of the
   clause gets it with the escapes removed: csdfparse writes each predicate's
-  clauses so, as `guard_clauses` and `post_clauses` (`{"text": …}`, or
-  `{"opaque": true}`).
+  clauses so, as `guard_clauses` and `post_clauses`, each saying its `form`:
+  `{"form": "text", "text": …}` (with a `rename` when renamed),
+  `{"form": "opaque"}`, or `{"form": "eq", "eq": [a, b]}`.
 
 The following symbols are ABNF core rules:
 

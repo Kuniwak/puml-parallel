@@ -77,7 +77,11 @@ func TestFormalClausesLeaveOutTheOpaqueOnes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.p), func(t *testing.T) {
-			if got := tt.p.FormalClauses(); !reflect.DeepEqual(got, tt.want) {
+			var got []Predicate
+			for _, c := range tt.p.FormalClauses() {
+				got = append(got, c.Predicate())
+			}
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FormalClauses() = %q, want %q", got, tt.want)
 			}
 		})

@@ -2,12 +2,13 @@ package csdf
 
 import "encoding/json"
 
-// ClauseJSON is one clause as JSON, as its language reads it: its text with
-// the escapes removed, or the tool word @opaque, which has no text. Rename
+// ClauseJSON is one clause as JSON, as its language reads it: its form, and
+// for a text clause its text with the escapes removed. Rename
 // maps a name the text reads to the name of the predicate it stands for.
 type ClauseJSON struct {
+	// Form says what the clause is: "text", "opaque" or "eq".
+	Form   ClauseForm        `json:"form"`
 	Text   string            `json:"text,omitempty"`
-	Opaque bool              `json:"opaque,omitempty"`
 	Rename map[string]string `json:"rename,omitempty"`
 	// Eq names the two values the tool word @eq(a, b) says are equal.
 	Eq []string `json:"eq,omitempty"`
@@ -19,21 +20,11 @@ type ClauseJSON struct {
 func (p Predicate) ClausesJSON() ([]ClauseJSON, error) {
 	out := []ClauseJSON{}
 	for _, c := range p.Clauses() {
-		if IsOpaque(c) {
-			out = append(out, ClauseJSON{Opaque: true})
-			continue
-		}
-		if a, b, ok, err := SplitEquality(c); err != nil {
-			return nil, err
-		} else if ok {
-			out = append(out, ClauseJSON{Eq: []string{a, b}})
-			continue
-		}
-		renames, body, err := SplitRenaming(c)
+		parsed, err := ParseClause(c)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, ClauseJSON{Text: ClauseText(body), Rename: RenamesMap(renames)})
+		out = append(out, parsed.JSON())
 	}
 	return out, nil
 }

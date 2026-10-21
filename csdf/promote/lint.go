@@ -270,7 +270,7 @@ func (e *expander) warnAboutNotes() {
 		// made only of opaque clauses is not formalised yet, not wrong.
 		formal := c.Guard.FormalClauses()
 		named := slices.ContainsFunc(c.Event.Fields(), func(f csdf.Field) bool {
-			return slices.ContainsFunc(formal, func(clause csdf.Predicate) bool { return strings.Contains(string(clause), f.Name) })
+			return slices.ContainsFunc(formal, func(clause csdf.ParsedClause) bool { return clause.Mentions(f.Name) })
 		})
 		if len(formal) > 0 && !named {
 			e.warnf(c.Line, "the guard of this constrain names none of its fields, so it says nothing about the instance")

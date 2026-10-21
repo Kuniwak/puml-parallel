@@ -110,8 +110,10 @@ type ExpandedClause struct {
 	// Text is the clause as its language reads it, its escapes removed; an
 	// opaque clause has none.
 	Text string `json:"text,omitempty"`
-	// Opaque marks the tool word @opaque, a clause not formalised yet.
-	Opaque bool `json:"opaque,omitempty"`
+	// Form is what a clause the author wrote is (csdf.ParseClause): text, the
+	// tool word @opaque, or @eq. A generated clause has none: its Kind says
+	// what it is.
+	Form csdf.ClauseForm `json:"form,omitempty"`
 	// Rename maps a name Text reads to the name of the predicate it stands
 	// for, as the clause's renaming @[from := to] says.
 	Rename map[string]string `json:"rename,omitempty"`
@@ -133,29 +135,36 @@ type ExpandedClause struct {
 }
 
 // authored is a clause the author wrote, of the given kind, with what says
-// where it came from: its text as its language reads it, or opaque.
-// A renaming that does not parse is an error of the expansion, at the line the
-// clause was written on: a diagram built in code need not have been checked.
+// where it came from, as csdf.ParseClause takes it apart. A clause that does
+// not parse is an error of the expansion, at the line the clause was written
+// on: a diagram built in code need not have been checked.
 func (e *expander) authored(kind ClauseKind, clause csdf.Predicate, from ExpandedClause) ExpandedClause {
 	from.Kind = kind
-	if csdf.IsOpaque(clause) {
-		from.Opaque = true
-		return from
-	}
-	if a, b, ok, err := csdf.SplitEquality(clause); err != nil {
-		e.errorf(from.Line, "%v", err)
-		return from
-	} else if ok {
-		from.Eq = []string{a, b}
-		return from
-	}
-	renames, body, err := csdf.SplitRenaming(clause)
+	parsed, err := csdf.ParseClause(clause)
 	if err != nil {
 		e.errorf(from.Line, "%v", err)
+		return from
 	}
-	from.Text = csdf.ClauseText(body)
-	from.Rename = csdf.RenamesMap(renames)
+	from.Form = parsed.Form
+	switch parsed.Form {
+	case csdf.FormEq:
+		from.Eq = parsed.Eq[:]
+	default:
+		from.Text = parsed.Text()
+		from.Rename = csdf.RenamesMap(parsed.Renames)
+	}
 	return from
+}
+
+// parsed is the clause c records, as csdf.ParseClause would take it apart.
+func (c ExpandedClause) parsed() csdf.ParsedClause {
+	switch c.Form {
+	case csdf.FormOpaque:
+		return csdf.OpaqueClause()
+	case csdf.FormEq:
+		return csdf.EqualityClause(c.Eq[0], c.Eq[1])
+	}
+	return csdf.TextClause(c.Text, csdf.RenamesFromMap(c.Rename))
 }
 
 // conjoin is the predicate the clauses spell, joined by the connective. A
@@ -165,19 +174,8 @@ func (e *expander) authored(kind ClauseKind, clause csdf.Predicate, from Expande
 func conjoin(clauses []ExpandedClause) csdf.Predicate {
 	texts := make([]csdf.Predicate, 0, len(clauses))
 	for _, c := range clauses {
-		switch {
-		case c.Kind == ClauseDropped || c.Kind == ClauseEmpty:
-		case c.Opaque:
-			texts = append(texts, csdf.PredicateOpaque)
-		case len(c.Eq) == 2:
-			texts = append(texts, csdf.NewEquality(c.Eq[0], c.Eq[1]))
-		default:
-			// An escaped text holds no renaming of its own, so this cannot fail.
-			clause, err := csdf.RenameClause(csdf.EscapeClause(c.Text), csdf.RenamesFromMap(c.Rename))
-			if err != nil {
-				panic(fmt.Sprintf("promote.conjoin: %v", err))
-			}
-			texts = append(texts, clause)
+		if c.Kind != ClauseDropped && c.Kind != ClauseEmpty {
+			texts = append(texts, c.parsed().Predicate())
 		}
 	}
 	return csdf.ConjoinClauses(texts)

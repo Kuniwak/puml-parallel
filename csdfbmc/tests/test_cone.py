@@ -138,8 +138,8 @@ class FramedAndWrittenTest(unittest.TestCase):
 
     def test_a_variable_framed_and_written_in_one_post_is_kept(self):
         for name, writes in [("a clause that writes it", lambda c: {"log"}), ("a clause whose writes are unknown", cone.NO_WRITES)]:
-            post = [{"kind": "frame", "text": "log' = log", "var": "log"}, {"kind": "local", "text": "[{'log': 1}]"}]
-            x = {"diagram": {**AUDITED}, "edges": [{"edge": AUDITED["edges"][0], "guard": [{"kind": "local", "text": "n > 0"}], "post": post}]}
+            post = [{"kind": "frame", "text": "log' = log", "var": "log"}, {"kind": "local", "form": "text", "text": "[{'log': 1}]"}]
+            x = {"diagram": {**AUDITED}, "edges": [{"edge": AUDITED["edges"][0], "guard": [{"kind": "local", "form": "text", "text": "n > 0"}], "post": post}]}
             d = fixture.diagram(x)
             meaning = standard(GlueMeaning(checked(self.client())))
             with self.subTest(name):

@@ -1,6 +1,7 @@
 package promote_test
 
 import (
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"strings"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestConstrainCarriesItsFormalTwin(t *testing.T) {
 			}
 		}
 	}
-	want := []promote.ExpandedClause{{Kind: promote.ClauseConstrain, Text: "額 は最小単位の倍数", Formal: "額 % UNIT == 0", Line: 13}}
+	want := []promote.ExpandedClause{{Kind: promote.ClauseConstrain, Form: csdf.FormText, Text: "額 は最小単位の倍数", Formal: "額 % UNIT == 0", Line: 13}}
 	if diff := cmp.Diff(want, clauses); diff != "" {
 		t.Errorf("constrain clauses mismatch (-want +got):\n%s", diff)
 	}

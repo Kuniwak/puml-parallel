@@ -3,6 +3,8 @@ package promote_test
 import (
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
+
 	"github.com/Kuniwak/puml-parallel/csdf/promote"
 	"github.com/google/go-cmp/cmp"
 )
@@ -54,16 +56,16 @@ accOpen --> accOpen : DEPOSIT?額 ; 0 < 額 ∧ 額 ≤ 上限 ; 残高' = 残�
 	wantGuard := []promote.ExpandedClause{
 		{Kind: promote.ClauseInDom, Text: "口座ID ∈ dom accounts", Map: "accounts", ID: "口座ID"},
 		{Kind: promote.ClauseAtState, Text: "accounts(口座ID) ∈ 〈開設済み〉", Map: "accounts", ID: "口座ID", State: "開設済み"},
-		{Kind: promote.ClauseLocal, Text: "0 < 額", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 7},
-		{Kind: promote.ClauseLocal, Text: "額 ≤ 上限", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 7},
-		{Kind: promote.ClauseConstrain, Text: "額 は最小単位の倍数", Line: 14},
+		{Kind: promote.ClauseLocal, Form: csdf.FormText, Text: "0 < 額", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 7},
+		{Kind: promote.ClauseLocal, Form: csdf.FormText, Text: "額 ≤ 上限", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 7},
+		{Kind: promote.ClauseConstrain, Form: csdf.FormText, Text: "額 は最小単位の倍数", Line: 14},
 	}
 	if diff := cmp.Diff(wantGuard, deposit.Guard); diff != "" {
 		t.Errorf("DEPOSIT guard clauses mismatch (-want +got):\n%s", diff)
 	}
 	wantPost := []promote.ExpandedClause{
 		{Kind: promote.ClauseUpdate, Text: "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", Map: "accounts", ID: "口座ID", State: "開設済み"},
-		{Kind: promote.ClauseLocal, Text: "残高' = 残高 + 額", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 7},
+		{Kind: promote.ClauseLocal, Form: csdf.FormText, Text: "残高' = 残高 + 額", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 7},
 		{Kind: promote.ClauseFrame, Text: "day' = day", Var: "day"},
 	}
 	if diff := cmp.Diff(wantPost, deposit.Post); diff != "" {
@@ -182,8 +184,8 @@ accNone --> accOpen : OPEN ; a \∧ b ∧ @opaque
 	open := got.Edges[0]
 	want := []promote.ExpandedClause{
 		{Kind: promote.ClauseNotInDom, Text: "口座ID ∉ dom accounts", Map: "accounts", ID: "口座ID"},
-		{Kind: promote.ClauseLocal, Text: "a ∧ b", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 5},
-		{Kind: promote.ClauseLocal, Opaque: true, Map: "accounts", Path: "local/ACCOUNT.puml", Line: 5},
+		{Kind: promote.ClauseLocal, Form: csdf.FormText, Text: "a ∧ b", Map: "accounts", Path: "local/ACCOUNT.puml", Line: 5},
+		{Kind: promote.ClauseLocal, Form: csdf.FormOpaque, Map: "accounts", Path: "local/ACCOUNT.puml", Line: 5},
 	}
 	if diff := cmp.Diff(want, open.Guard); diff != "" {
 		t.Errorf("guard clauses mismatch (-want +got):\n%s", diff)
