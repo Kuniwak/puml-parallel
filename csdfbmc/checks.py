@@ -66,7 +66,8 @@ def check_pure(source: str, path: str = "<checks>") -> None:
 
 @dataclass
 class Checks:
-    domains: dict[str, Iterable]
+    # types: a name -> the finite values it ranges over.
+    types: dict[str, Iterable]
     # invariants: name -> predicate over the state variables and ghosts it
     # reads, checked at every reachable state that binds all of them.
     invariants: dict[str, Callable[..., bool]] = field(default_factory=dict)
@@ -82,9 +83,17 @@ class Checks:
     # sources: (path, source) of the module, which the symmetry check reads.
     sources: list[tuple[str, str]] = field(default_factory=list)
 
+    def declares(self, name: str) -> bool:
+        """Whether name has a type, and so values to range over."""
+        return name in self.types
+
+    def typed_names(self) -> dict[str, list]:
+        """Every name that has a type, with its values."""
+        return {name: list(values) for name, values in self.types.items()}
+
     def domain(self, name: str) -> list:
-        if name in self.domains:
-            return list(self.domains[name])
+        if name in self.types:
+            return list(self.types[name])
         raise KeyError(f"no domain declared for {name!r}; add it to DOMAINS")
 
     def binds(self, fn: Callable, env: dict) -> bool:
@@ -128,7 +137,7 @@ def load_checks(path: str) -> Checks:
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
     return Checks(
-        domains=dict(module.DOMAINS),
+        types=dict(module.DOMAINS),
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
     )

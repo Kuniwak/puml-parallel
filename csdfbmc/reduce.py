@@ -191,7 +191,7 @@ class Symmetry:
         """A domain that holds symmetric IDs (a record naming another
         instance) must hold every renaming of each of its values, or the
         renaming would tell the IDs apart."""
-        for p, domain in checks.domains.items():
+        for p, domain in checks.typed_names().items():
             if p in self.params:
                 continue
             values = set(domain)

@@ -34,7 +34,7 @@ COUNTER = {
     "assumptions": [],
 }
 
-NO_CHECKS = Checks(domains={})
+NO_CHECKS = Checks(types={})
 
 
 def python_glue() -> Client:
@@ -81,7 +81,7 @@ class LabelsTest(unittest.TestCase):
         diagram = fixture.diagram(dict(COUNTER, edges=[
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
         counting = Counting(python_glue())
-        result = Explorer(diagram, Checks(domains={"k": [1, 2, 3]}), meaning=glue(counting), cone=Cone.keep_all()).run()
+        result = Explorer(diagram, Checks(types={"k": [1, 2, 3]}), meaning=glue(counting), cone=Cone.keep_all()).run()
         guards = [r for r in counting.requests if r["op"] == "guard"]
         self.assertEqual(len(result.states), len(guards))
         self.assertEqual([3, 3], [len(r["bindings"]) for r in guards[:2]])
@@ -101,7 +101,7 @@ class SymmetryThroughAGlueTest(unittest.TestCase):
 
     def setUp(self):
         from csdfbmc.tests.test_promoted import GLOBAL_CHECKS
-        self.checks = Checks(domains=GLOBAL_CHECKS.domains, symmetric=("口座ID",), sources=[("checks.py", "DOMAINS = {}")])
+        self.checks = Checks(types=GLOBAL_CHECKS.types, symmetric=("口座ID",), sources=[("checks.py", "DOMAINS = {}")])
 
     def test_symmetry_is_refused_with_a_glue_that_does_not_answer_it(self):
         # Setup
@@ -253,7 +253,7 @@ class HiddenFieldTest(unittest.TestCase):
 
     def test_a_tau_chooses_a_value_it_reads_from_its_domain(self):
         # Setup
-        explorer = Explorer(fixture.diagram(HIDDEN), Checks(domains={"x": [0, 1, 2]}), meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(fixture.diagram(HIDDEN), Checks(types={"x": [0, 1, 2]}), meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         result = explorer.run()
@@ -289,7 +289,7 @@ class SynchronisedDomainTest(unittest.TestCase):
         # Setup
         d = fixture.diagram(SYNCED)
         d.edges[0] = replace(d.edges[0], guard=(Clause("local", "y >= 0", rename=(("y", "x"),)),))
-        explorer = Explorer(d, Checks(domains={"x": [0, 1, 2], "y": [0, 1]}), meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(d, Checks(types={"x": [0, 1, 2], "y": [0, 1]}), meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         result = explorer.run()
@@ -328,7 +328,7 @@ class SentFieldTest(unittest.TestCase):
     def test_the_label_follows_the_order_of_the_fields(self):
         # Setup
         diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!n?k")])
-        explorer = Explorer(fixture.diagram(diagram), Checks(domains={"k": [7]}), meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(fixture.diagram(diagram), Checks(types={"k": [7]}), meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         labels = [label for _, label, _, _ in explorer.successors(("a", (1,), ()))]
@@ -339,7 +339,7 @@ class SentFieldTest(unittest.TestCase):
     def test_a_ghost_is_not_a_name_an_event_sends(self):
         # Setup
         diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!g")])
-        checks = Checks(domains={}, ghosts={"g": (0, {})})
+        checks = Checks(types={}, ghosts={"g": (0, {})})
 
         # Execute, Assert
         with self.assertRaisesRegex(KeyError, "sends 'g'"):

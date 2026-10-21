@@ -27,9 +27,9 @@ def without_close(expansion):
 WITHOUT_CLOSE = without_close(GLUE_EXPANSION)
 
 
-def walk(expansion=GLUE_EXPANSION, *, invariants=None, symmetric=(), domains=None, **kw):
+def walk(expansion=GLUE_EXPANSION, *, invariants=None, symmetric=(), types=None, **kw):
     """The expansion walked through the reference Python glue."""
-    checks = Checks(domains=domains or GLOBAL_CHECKS.domains, invariants=invariants or {},
+    checks = Checks(types=types or GLOBAL_CHECKS.types, invariants=invariants or {},
                    symmetric=tuple(symmetric), sources=[("checks.py", CHECKS_SOURCE)])
     return fixture.explorer(expansion, checks, **kw)
 
@@ -56,7 +56,7 @@ class PartialOrderTest(unittest.TestCase):
         from csdfbmc.cone import Cone
         from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue
         d = fixture.diagram(WITHOUT_CLOSE)
-        checks = Checks(domains=GLOBAL_CHECKS.domains)
+        checks = Checks(types=GLOBAL_CHECKS.types)
 
         # Execute
         full = walk(WITHOUT_CLOSE).run()
@@ -110,7 +110,7 @@ class SymmetryTest(unittest.TestCase):
 
     def test_a_domain_naming_some_ids_only_is_refused(self):
         with self.assertRaisesRegex(ValueError, "相手ID"):
-            walk(symmetric=("口座ID",), domains=dict(GLOBAL_CHECKS.domains, 相手ID=["a1"]), symmetry=True)
+            walk(symmetric=("口座ID",), types=dict(GLOBAL_CHECKS.types, 相手ID=["a1"]), symmetry=True)
 
     def test_symmetry_without_a_declaration_is_refused(self):
         with self.assertRaisesRegex(ValueError, "SYMMETRIC"):

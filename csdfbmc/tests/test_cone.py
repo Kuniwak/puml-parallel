@@ -33,7 +33,7 @@ AUDITED = {
     "assumptions": [],
 }
 
-NO_CHECKS = Checks(domains={})
+NO_CHECKS = Checks(types={})
 
 
 def memoed():
@@ -97,7 +97,7 @@ class ConeTest(unittest.TestCase):
             ("an expansion that frames a memo", memoed()),
             ("a family nothing reads, missing a local value", UNREAD_FAMILY),
         ]:
-            checks = Checks(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2], "i": ["a1"]})
+            checks = Checks(types={"口座ID": ["a1", "a2"], "額": [0, 1, 2], "i": ["a1"]})
             with self.subTest(name):
                 full = self.walk(diagram, reduce=False, checks=checks).groups()
                 reduced = self.walk(diagram, reduce=True, checks=checks).groups()
@@ -114,8 +114,8 @@ class ConeTest(unittest.TestCase):
 
     def test_a_variable_an_invariant_or_a_ghost_reads_is_kept(self):
         for name, checks in [
-            ("an invariant", Checks(domains={}, invariants={"log is a bit": lambda log: log in (0, 1)})),
-            ("a ghost", Checks(domains={}, ghosts={"seen": (0, {"dec": lambda seen, log: seen + log})})),
+            ("an invariant", Checks(types={}, invariants={"log is a bit": lambda log: log in (0, 1)})),
+            ("a ghost", Checks(types={}, ghosts={"seen": (0, {"dec": lambda seen, log: seen + log})})),
         ]:
             with self.subTest(name):
                 self.assertEqual(("n", "log"), self.walk(AUDITED, reduce=True, checks=checks, max_states=50).relevant)
@@ -124,7 +124,7 @@ class ConeTest(unittest.TestCase):
         for name, diagram, checks, blocked in [
             ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque"), NO_CHECKS, "@opaque"),
             ("an invariant taking any keyword", AUDITED,
-             Checks(domains={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
+             Checks(types={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
         ]:
             with self.subTest(name):
                 reduced = self.walk(diagram, reduce=True, checks=checks, opaque="true", max_states=50)

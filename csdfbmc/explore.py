@@ -463,7 +463,7 @@ class Explorer:
                         # A family's clause reads the instance's own variables.
                         own = {v for vs in self.d.local_of(c).vars.values() for v in vs}
                     for n in sorted(self.meaning.names(c, role) or ()):
-                        if n not in bound and n not in own and n in self.checks.domains:
+                        if n not in bound and n not in own and self.checks.declares(n):
                             chosen.setdefault(n)
             self._tau_choices[key] = tuple(chosen)
         return self._tau_choices[key]

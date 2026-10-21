@@ -67,4 +67,4 @@ def explorer(d, checks=None, **options):
     if not isinstance(d, Diagram):
         d = diagram(d)
     options.setdefault("cone", Cone.keep_all())
-    return Explorer(d, checks if checks is not None else Checks(domains={}), glue_meaning(), **options)
+    return Explorer(d, checks if checks is not None else Checks(types={}), glue_meaning(), **options)

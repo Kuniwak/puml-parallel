@@ -27,7 +27,7 @@ class LoadChecksTest(unittest.TestCase):
 
         # Assert
         self.assertIsInstance(checks, Checks)
-        self.assertEqual([2, 4], list(checks.domains["額"]))
+        self.assertEqual([2, 4], list(checks.types["額"]))
         self.assertTrue(checks.invariants["額 は最小単位の倍数"](額=4))
 
     def test_refuses_a_module_that_is_not_pure(self):

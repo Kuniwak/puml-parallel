@@ -92,7 +92,7 @@ def relabel(value):
 GLUE_EXPANSION = relabel(EXPANSION)
 
 # The checks of the expansion: the domains of the received fields.
-GLOBAL_CHECKS = Checks(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2]})
+GLOBAL_CHECKS = Checks(types={"口座ID": ["a1", "a2"], "額": [0, 1, 2]})
 
 
 class PromotedModelTest(unittest.TestCase):
@@ -153,7 +153,7 @@ class PromotedExplorerTest(unittest.TestCase):
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
             {"edge": tau, "origin": "promote: local/ACCOUNT.puml",
              "guard": [{"kind": "local", "form": "text", "text": "残高 == 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
-        explorer = fixture.explorer(relabel(exp), Checks(domains=dict(GLOBAL_CHECKS.domains, 残高=[0, 1])))
+        explorer = fixture.explorer(relabel(exp), Checks(types=dict(GLOBAL_CHECKS.types, 残高=[0, 1])))
 
         # Execute
         chosen = explorer._chosen_by_tau(explorer.d.edges[-1])
