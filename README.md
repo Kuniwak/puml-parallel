@@ -803,11 +803,27 @@ no end edge as a deadlock, with the trace that reached it, and every cycle of
 `--avoid EVENT` it also reports every cycle among the reachable states that
 never performs that event: under a fairness assumption written as a finite
 bound (a resend count in the domains), such a cycle is a run that never gets to
-the event, which is the livelock the `assume` note was about. A clause not
-formalised yet is refused; `--opaque true` takes it as satisfied instead,
-which over-approximates the behaviour (a deadlock it then reports may be
-spurious; a deadlock it misses cannot be hidden by it) and lists the clauses
-so taken. Findings of one shape are reported once, with their count and the
+the event, which is the livelock the `assume` note was about.
+
+A guard clause not formalised yet — the tool word `@opaque`, or a clause the
+glue cannot read — is a pure function of the names the step binds, which the
+environment gives (docs/CLAUSE_DESIGN.md, P15 and P16). A clause the glue
+cannot read is the function named by its text; the n-th `@opaque` of the
+diagram (the start edge first, then the edges in order, guard before post,
+then the end edge) is `@opaque#n`. The checks module's `ENVIRONMENT` maps such
+a name to `True`, `False` or a pure function of the names it reads;
+`--env NAME=true|false` gives a value over it, and `--seed N` chooses every
+function nothing gives, deterministically, by hashing the seed, the name and
+the arguments, so that one seed walks the same states again and several
+seeds widen what the bound covers. The report names the seed, the given
+functions and the ones a clause was decided by (`environment` in `--json`),
+which is what reproduces a run. A clause the environment does not decide is
+refused; `--opaque true` takes it as satisfied instead, which
+over-approximates the behaviour (a deadlock it then reports may be spurious;
+a deadlock it misses cannot be hidden by it) and lists the clauses so taken.
+A post clause not formalised is not decided by the environment yet: which
+values it writes is known only once its atom's holes are (a later step of
+#76). Findings of one shape are reported once, with their count and the
 shortest trace: deadlocks by control state and the event that led there,
 broken invariants by invariant and control state, cycles by the control
 states they run through, empty and unconstrained posts by event. `--all`

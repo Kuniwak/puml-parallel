@@ -25,7 +25,7 @@ const usage = `Usage: csdfbmc [launcher options] <diagram.json> <checks.py> (--e
 Runs csdfbmc, the bounded model checker, on a diagram as csdfparse prints it,
 or an expansion as csdfpromote -format json prints it, with every clause read
 through a glue of the evaluator protocol and the checks module of its
-domains, ghosts and invariants. The checker is Python (standard library only,
+types, environment, ghosts and invariants. The checker is Python (standard library only,
 3.11 or later); this binary carries its sources and runs them with the
 python3 on the PATH, so a release needs no checkout. The launcher reads its
 own options first and hands every argument after them to the checker as it
@@ -46,7 +46,13 @@ Checker options (the checker's --help lists them in full):
                        in-process; "csdfbmc.python_glue DEFS.py..." reads
                        clauses written in Python. One of the two is needed.
   --max-states N       stop after this many states (default 100000)
-  --opaque error|true  what a clause not formalised yet means (default: refuse)
+  --seed N             choose the functions a clause not formalised denotes
+                       from this seed, where nothing gives them
+  --env NAME=true|false
+                       give the function NAME the value true or false, over
+                       the checks module's ENVIRONMENT (repeatable)
+  --opaque error|true  what a clause not formalised yet means when the
+                       environment does not decide it (default: refuse)
   --avoid EVENT        also report the cycles that never perform EVENT
   --within STATE       with --avoid, look among these control states only
   --first              stop at the first deadlock, broken invariant or unconstrained post
@@ -60,7 +66,11 @@ Checker options (the checker's --help lists them in full):
   --json               print the result as JSON
 
 The checks module defines TYPES (a type -> its finite values) and, when
-wanted, TYPEOF (a name -> its type), GHOSTS, INVARIANTS and SYMMETRIC.
+wanted, TYPEOF (a name -> its type), ENVIRONMENT (the function a clause not
+formalised denotes -> True, False or a pure function of the names it
+reads; the n-th @opaque of the diagram is @opaque#n), GHOSTS, INVARIANTS
+and SYMMETRIC. A run reports its seed and the given functions, which
+reproduce it.
 
 "csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)" answers what a REPL asks at a
