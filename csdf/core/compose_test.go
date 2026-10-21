@@ -1,28 +1,10 @@
 package core
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
-
-// channel is the channel of a label of Expand.
-func channel(label string) string {
-	c, _, _ := strings.Cut(label, ".")
-	return c
-}
-
-func alphabet(channels ...string) func(string) bool {
-	return func(label string) bool {
-		for _, c := range channels {
-			if channel(label) == c {
-				return true
-			}
-		}
-		return false
-	}
-}
 
 func oneState(t *testing.T, state string, vars []string, init string, edges ...Edge) *Diagram {
 	return &Diagram{Vars: map[string][]string{state: vars}, Init: state, InitPost: mustParse(t, init), Edges: edges}
@@ -48,6 +30,21 @@ func bits() Env {
 	}
 }
 
+// lts written by hand: each transition is src, label, dst.
+type tr struct {
+	src   int
+	label string
+	dst   int
+}
+
+func handLTS(ts ...tr) *lts.LTS {
+	l := lts.New(0)
+	for _, t := range ts {
+		l.Add(t.src, t.label, t.dst)
+	}
+	return l
+}
+
 func TestComposeIsTheParallelOfTheMeanings(t *testing.T) {
 	producer := oneState(t, "p", []string{"n"}, "$n' = 0",
 		loop(t, "p", ev("put", send("n")), "", "$n' = 1 - $n"),
@@ -58,32 +55,25 @@ func TestComposeIsTheParallelOfTheMeanings(t *testing.T) {
 		loop(t, "c", ev("put", recv("v")), "$v = 1", "$got' = $v"))
 	listener := oneState(t, "l", []string{"m"}, "$m' = 0",
 		loop(t, "l", ev("put", recv("w")), "", "$m' = $w"))
-	echo := oneState(t, "e", []string{"m"}, "$m' = 1",
+	echo := oneState(t, "e", []string{"m"}, "$m' = 0",
 		loop(t, "e", ev("put", send("m")), "", "$m' = $m"))
+	// The producer alternates put.0 and put.1, idling at will.
+	alternating := handLTS(tr{0, "put.0", 1}, tr{0, "idle", 0}, tr{1, "put.1", 0}, tr{1, "idle", 1})
 	cases := []struct {
-		name   string
-		l, r   *Diagram
-		la, ra []string
+		name string
+		l, r *Diagram
+		want *lts.LTS
 	}{
-		{"a send meets a receive", producer, consumer, []string{"put", "idle"}, []string{"put"}},
-		{"a receive meets a send", consumer, producer, []string{"put"}, []string{"put", "idle"}},
-		{"the receiver's guard reads the sent value", producer, pickyConsumer, []string{"put", "idle"}, []string{"put"}},
-		{"two receives agree on one value", consumer, listener, []string{"put"}, []string{"put"}},
-		{"two sends agree on their values", producer, echo, []string{"put", "idle"}, []string{"put"}},
+		{"a send meets a receive", producer, consumer, alternating},
+		{"a receive meets a send", consumer, producer, alternating},
+		{"the receiver's guard reads the sent value", producer, pickyConsumer, handLTS(tr{0, "idle", 0})},
+		{"two receives agree on one value", consumer, listener, handLTS(tr{0, "put.0", 0}, tr{0, "put.1", 0})},
+		{"two sends agree on their values", producer, echo, handLTS(tr{0, "put.0", 1}, tr{0, "idle", 0}, tr{1, "idle", 1})},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
 			env := bits()
-			l, err := Expand(c.l, env)
-			if err != nil {
-				t.Fatal(err)
-			}
-			r, err := Expand(c.r, env)
-			if err != nil {
-				t.Fatal(err)
-			}
-			want := lts.Parallel([]*lts.LTS{l, r}, []func(string) bool{alphabet(c.la...), alphabet(c.ra...)})
 
 			// Execute
 			composite, err := Compose(c.l, c.r, []string{"put"})
@@ -96,26 +86,38 @@ func TestComposeIsTheParallelOfTheMeanings(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !lts.StableFailuresEqual(got, want) {
-				t.Errorf("not stable-failures equivalent:\ngot  %#v\nwant %#v", got.Trans, want.Trans)
+			if !lts.StableFailuresEqual(got, c.want) {
+				t.Errorf("not stable-failures equivalent:\ngot  %#v\nwant %#v", got.Trans, c.want.Trans)
 			}
 		})
 	}
 }
 
-func TestComposeRefusesACapture(t *testing.T) {
-	// Setup: both receive; renaming the right side's w to the left side's
-	// v would make it read its own state variable v.
-	left := oneState(t, "l", nil, "",
-		loop(t, "l", ev("put", recv("v")), "", ""))
-	right := oneState(t, "r", []string{"v"}, "$v' = 0",
-		loop(t, "r", ev("put", recv("w")), "", "$v' = $w"))
+func TestComposeRefuses(t *testing.T) {
+	cases := map[string]struct {
+		l, r *Diagram
+		want string
+	}{
+		// Both receive; renaming the right side's w to the left side's v
+		// would make it read its own state variable v.
+		"a capture": {
+			l:    oneState(t, "l", nil, "", loop(t, "l", ev("put", recv("v")), "", "")),
+			r:    oneState(t, "r", []string{"v"}, "$v' = 0", loop(t, "r", ev("put", recv("w")), "", "$v' = $w")),
+			want: "capture",
+		},
+		"a state variable both sides hold": {
+			l:    oneState(t, "l", []string{"v"}, "$v' = 0"),
+			r:    oneState(t, "r", []string{"v"}, "$v' = 0"),
+			want: "hold v",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := Compose(c.l, c.r, []string{"put"})
 
-	// Execute
-	_, err := Compose(left, right, []string{"put"})
-
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "capture") {
-		t.Errorf("err = %v, want a capture refused", err)
+			// Assert
+			assertErrorContains(t, err, c.want)
+		})
 	}
 }
