@@ -232,11 +232,12 @@ conjunct = builtin / exists / atom
 builtin  = "@eq(" term ", " term ")"        ; equal
          / "@ne(" term ", " term ")"        ; differ
          / "@in(" term ", " term ")"        ; key in the domain of a map
+         / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
          / "@at(" term ", " id ")"          ; instance at a state of its local diagram
-         / "@all(" term ", " id ")"         ; every instance of a map at a state
-exists   = "@exists(" id ") (" clause ")" ; written by tools only
+         / "@empty(" term ")"               ; a map without entries
+exists   = "@exists(" id " : " id ") (" clause ")" ; written by tools only
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = id ["'"] *("[" term "]" / "." id) ["'"]
          / id "(" [term *(", " term)] ")" ; an environment function
@@ -261,10 +262,12 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   `$x` are the same hole.
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
 - A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
-- `@exists(v) (…)` binds `v` in its body; the innermost binder of a name
+- `@exists(v : T) (…)` binds `v`, ranging over the type `T`, in its body; the innermost binder of a name
   wins, and a bound variable has no value after the step. Authors do not
   write it (`docs/CLAUSE_DESIGN.md`); tools do. Inside a body, parentheses
   in text nest unless escaped.
+- A clause that reads an entry a map does not have, `m[x]` with `x` not in
+  the domain of `m`, is false.
 - In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
   anything else is itself.
 - A variable bound by `@exists` is a de Bruijn index inside the tools. The
