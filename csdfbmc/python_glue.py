@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import re
 from dataclasses import dataclass
 from typing import Callable
 
@@ -89,6 +90,16 @@ class Glue:
     def atom_guard(self, atom: dict, values: list) -> bool:
         source, names = _atom_source(atom)
         return bool(self._eval(source, "guard", dict(zip(names, values))))
+
+    def atom_symmetric(self, atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
+        """How the atom tells two IDs of a group apart, its arguments params
+        ranging over them and maps keyed by them, or None."""
+        source, names = _atom_source(atom)
+        found = tells_apart(ast.parse(source, mode="eval"), {names[i] for i in params}, {names[i] for i in maps},
+                            [frozenset(g) for g in groups])
+        if found is None:
+            return None
+        return re.sub(rf"{_HOLE}(\d+)", r"argument \1", found[1]) + ", so the IDs are not interchangeable"
 
     def atom_post(self, atom: dict, values: list) -> list[list]:
         """The values after the step, of the primed arguments in order, that
@@ -174,7 +185,7 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     glue = Glue(args)
     return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post,
                    beyond=glue.beyond, symmetric=glue.symmetric, atom_guard=glue.atom_guard,
-                   atom_post=glue.atom_post)
+                   atom_post=glue.atom_post, atom_symmetric=glue.atom_symmetric)
 
 
 if __name__ == "__main__":

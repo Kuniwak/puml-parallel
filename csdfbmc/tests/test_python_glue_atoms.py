@@ -54,6 +54,25 @@ class PythonGlueAtomTest(unittest.TestCase):
                 # Assert
                 self.assertIn("a post atom of this glue", answer["error"])
 
+    def test_symmetric_says_whether_an_atom_tells_two_ids_apart(self):
+        tests = {
+            "an ID looked up": (atom(["", " in ", ""], [0, 1], [False, False]), [1], True, None),
+            "an ID compared with a constant": (atom(["", " == 'a1'"], [0], [False]), [], False, "'a1'"),
+            "an ID ordered": (atom(["", " < ", "['x']"], [0, 1], [False, False]), [1], False, "argument 0 is ordered"),
+        }
+        for name, (a, maps, symmetric, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                request = {"op": "symmetric", "atom": a, "params": [0], "maps": maps, "groups": [["a1", "a2"]]}
+
+                # Execute
+                answer = self.handle(request)
+
+                # Assert
+                self.assertEqual(symmetric, answer["symmetric"])
+                if said:
+                    self.assertIn(said, answer["why"])
+
 
 if __name__ == "__main__":
     unittest.main()

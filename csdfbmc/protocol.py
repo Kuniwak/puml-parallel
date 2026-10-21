@@ -157,7 +157,8 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
             beyond: Callable[[str, str, str | None], list[str]] | None = None,
             symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None,
             atom_guard: Callable[[dict, list], bool] | None = None,
-            atom_post: Callable[[dict, list], list[list]] | None = None) -> Handle:
+            atom_post: Callable[[dict, list], list[list]] | None = None,
+            atom_symmetric: Callable[[dict, list[int], list[int], list[list[str]]], str | None] | None = None) -> Handle:
     """The Handle of a glue, from what is particular to its language:
     analyse(text, role) says what a clause reads and writes, guard(text,
     binding) and post(text, binding) evaluate a clause under one binding.
@@ -176,6 +177,9 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
                 return dict(hello, supports=supports) if supports else hello
             if op == "beyond" and beyond is not None:
                 return {"reads": beyond(request["clause"], request["role"], request["own_id"])}
+            if "atom" in request and op == "symmetric" and atom_symmetric is not None:
+                why = atom_symmetric(request["atom"], request["params"], request["maps"], request["groups"])
+                return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
             if op == "symmetric" and symmetric is not None:
                 why = symmetric(request["clause"], request["role"], request["params"], request["maps"], request["groups"])
                 return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
