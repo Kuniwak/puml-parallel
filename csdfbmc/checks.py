@@ -166,6 +166,8 @@ def load_checks(path: str) -> Checks:
             raise PurityError(f"{path}: {table} must be a dict when defined")
     environment = dict(getattr(module, "ENVIRONMENT", {}))
     for name, value in environment.items():
+        if not isinstance(name, str):
+            raise PurityError(f"{path}: ENVIRONMENT names a function by {name!r}; name it by an atom of it, as text")
         if not isinstance(value, bool) and not callable(value):
             raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False or a function of the names it reads")
     return Checks(

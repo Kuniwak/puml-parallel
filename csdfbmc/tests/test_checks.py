@@ -97,6 +97,7 @@ class LoadChecksTest(unittest.TestCase):
         # Setup
         cases = [
             ("an environment value neither a truth value nor a function", 'TYPES = {}\nENVIRONMENT = {"p": 1}\n', "'p'"),
+            ("an environment name that is not text", 'TYPES = {}\nENVIRONMENT = {1: True}\n', "names a function by 1"),
             ("a module without types", "INVARIANTS = {}\n", "TYPES"),
             ("the DOMAINS an earlier csdfbmc read, which would be ignored", 'DOMAINS = {"額": [1]}\n', "TYPES"),
             ("a TYPEOF naming no type", 'TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n', "口座ID"),
