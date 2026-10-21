@@ -52,12 +52,20 @@ def seeded(seed: int) -> Decide:
     return decide
 
 
+def named(given: Mapping[str, Given]) -> dict[str, Given]:
+    """given keyed by the name of each function, whatever atom of it a key
+    is written as."""
+    return {function_of(n).name: g for n, g in given.items()}
+
+
 def given_over(given: Mapping[str, Given], inner: Decide) -> Decide:
     """The functions given, a truth value or a pure function of the
-    arguments in order, each under the name of its function, and inner for
+    arguments in order, each under any atom of its function, and inner for
     the rest."""
-    given = {function_of(n).name: g for n, g in given.items()}
+    return _given_over_named(named(given), inner)
 
+
+def _given_over_named(given: Mapping[str, Given], inner: Decide) -> Decide:
     def decide(name: str, args: tuple) -> bool | None:
         if name not in given:
             return inner(name, args)
@@ -100,9 +108,8 @@ NONE = Environment(decide=nothing, seed=None, given=())
 def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | None) -> Environment:
     """The environment of a run: given over the checks module's ENVIRONMENT
     (module), and the seed, when there is one, for the rest."""
-    merged = {function_of(n).name: g for n, g in module.items()}
-    merged.update((function_of(n).name, g) for n, g in given.items())
-    return Environment(decide=given_over(merged, seeded(seed) if seed is not None else nothing),
+    merged = named(module) | named(given)
+    return Environment(decide=_given_over_named(merged, seeded(seed) if seed is not None else nothing),
                        seed=seed, given=tuple(merged))
 
 

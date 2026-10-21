@@ -28,13 +28,13 @@ class EnvironmentCommandTest(unittest.TestCase):
     def test_env_gives_a_function_its_value_over_the_checks_module(self):
         # Setup
         cases = [
-            ("--env gives it", (), "TYPES = {}\n"),
-            ("--env wins over the checks module", (), 'TYPES = {}\nENVIRONMENT = {"$n が 正": True}\n'),
+            ("--env gives it", "TYPES = {}\n"),
+            ("--env wins over the checks module", 'TYPES = {}\nENVIRONMENT = {"$n が 正": True}\n'),
         ]
-        for name, args, checks in cases:
+        for name, checks in cases:
             with self.subTest(name):
                 # Execute
-                _, out, _ = self.run_main("--env", "$n が 正=false", *args, checks=checks)
+                _, out, _ = self.run_main("--env", "$n が 正=false", checks=checks)
 
                 # Assert
                 self.assertIn("states: 1\n", out)
