@@ -25,9 +25,13 @@ type AtomWire struct {
 }
 
 // Wire is a as a glue receives it, with the terms its arguments stand for,
-// in the order of their indices.
+// in the order of their indices. a may sit under binders: a hole may read an
+// index, whose value the caller gives with the others.
 func Wire(a Atom) (AtomWire, []Term, error) {
-	if err := WellFormed(a); err != nil {
+	if err := shaped(a); err != nil {
+		return AtomWire{}, nil, fmt.Errorf("clause.Wire: %w", err)
+	}
+	if err := wellFormed(a); err != nil {
 		return AtomWire{}, nil, fmt.Errorf("clause.Wire: %w", err)
 	}
 	for _, p := range a.Parts {

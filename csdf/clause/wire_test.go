@@ -104,10 +104,6 @@ func TestWireRefuses(t *testing.T) {
 			atom: Atom{Parts: []Part{nil}},
 			want: "clause.Wire",
 		},
-		"a dangling index": {
-			atom: Atom{Parts: []Part{Hole{Term: Bound{Index: 0}}}},
-			want: "clause.Wire",
-		},
 		"a prime inside an argument of a function": {
 			atom: Atom{Parts: []Part{Hole{Term: App{Fn: "f", Args: []Term{post("x")}}}}},
 			want: "only the variable a term starts from may be primed",
@@ -121,5 +117,25 @@ func TestWireRefuses(t *testing.T) {
 			// Assert
 			assertErrorContains(t, err, tt.want)
 		})
+	}
+}
+
+func TestWireOfAnAtomUnderABinder(t *testing.T) {
+	// Setup
+	a := Atom{Parts: []Part{Hole{Term: Bound{Index: 0}}, Text(" > 0")}}
+	wantWire := AtomWire{Text: []string{"", " > 0"}, Holes: []int{0}, Primed: []bool{false}}
+
+	// Execute
+	gotWire, gotTerms, err := Wire(a)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Wire: %v", err)
+	}
+	if diff := cmp.Diff(wantWire, gotWire); diff != "" {
+		t.Errorf("Wire wire mismatch (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]Term{Bound{Index: 0}}, gotTerms); diff != "" {
+		t.Errorf("Wire terms mismatch (-want +got):\n%s", diff)
 	}
 }
