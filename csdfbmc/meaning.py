@@ -55,7 +55,7 @@ class GlueMeaning:
         return None if analysis.opaque else set(analysis.reads)
 
     def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
-        if not answers(self.client, "beyond"):
+        if not answers(self.client, "beyond") or self.client.analyse(clause.text, role).opaque:
             return None
         return set(self.client.beyond(clause.text, role, own_id))
 

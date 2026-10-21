@@ -2,7 +2,7 @@
 findings reported."""
 import unittest
 
-from csdfbmc.environment import NONE
+from csdfbmc.environment import NONE, over
 from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
@@ -72,6 +72,18 @@ class PartialOrderTest(unittest.TestCase):
         # the instances are not independent.
         exp = without_close(with_constrain("len(accounts) < 1"))
         self.assertEqual(len(walk(exp).run().states), len(walk(exp, por=True).run().states))
+
+    def test_an_atom_of_the_environment_that_reads_the_whole_map_ties_the_instances(self):
+        # Setup: an atom's function reads its holes, here the whole map, so
+        # opening a1 can disable opening a2 as for len(accounts) < 1.
+        exp = without_close(with_constrain("$accounts が 空"))
+        env = over({}, {"$accounts が 空": lambda accounts: len(accounts) < 1}, None)
+
+        # Execute
+        full, reduced = walk(exp, environment=env).run(), walk(exp, environment=env, por=True).run()
+
+        # Assert
+        self.assertEqual(len(full.states), len(reduced.states))
 
     def test_an_invariant_that_reads_the_map_keeps_its_moves_visible(self):
         inv = {"残高は上限以下": lambda accounts: all(r.残高 <= 3 for r in accounts.values() if "残高" in r)}

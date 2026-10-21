@@ -22,7 +22,7 @@ which in a breadth-first walk puts a fully expanded state on every cycle).
 What a clause reads is what the glue says it reads, and what it reads beyond
 its own instance what the glue answers when asked beyond (a glue that does
 not answer it has the clause read every instance of a map it reads); an
-opaque clause, taken as true, reads nothing. A ghost update and an invariant
+clause not formalised, a function of the environment, reads its holes. A ghost update and an invariant
 read what their signatures ask for.
 
 Symmetry stores a state by one representative of its renamings of the
@@ -44,6 +44,7 @@ import itertools
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Callable
 
+from csdfbmc.atoms import function_of
 from csdfbmc import formal
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.checks import Checks
@@ -85,7 +86,9 @@ class PartialOrder:
             return set()  # a frame copies a variable; it neither enables nor changes anything
         names = self.ex.meaning.names(c, role)
         if names is None:
-            return {c.map} if c.map else set()
+            # Not formalised: the environment's function of its holes.
+            names = set(function_of(c.text).args)
+            return ({c.map} if c.map else set()) | (names & self.names)
         if c.kind == "local" and c.map:
             # A local clause reads the instance's own variables, by their local names.
             return {c.map} | (names & set(self.ex.checks.ghosts))
