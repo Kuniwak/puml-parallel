@@ -209,20 +209,11 @@ func (p *parser) atom() (Formula, error) {
 		case r == escape && p.peekAt(1) != 0 && strings.ContainsRune(escapable, p.peekAt(1)):
 			text = append(text, p.peekAt(1))
 			p.pos += 2
-		case r == holeSigil && p.peekAt(1) == '{':
+		case p.atHole():
 			if len(text) > 0 {
 				parts, text = append(parts, Text(text)), nil
 			}
-			t, err := p.termHole()
-			if err != nil {
-				return nil, err
-			}
-			parts = append(parts, Hole{Term: t})
-		case r == holeSigil && startsHoleName(p.peekAt(1)):
-			if len(text) > 0 {
-				parts, text = append(parts, Text(text)), nil
-			}
-			t, err := p.nameHole()
+			t, err := p.hole()
 			if err != nil {
 				return nil, err
 			}
@@ -239,6 +230,19 @@ func (p *parser) atom() (Formula, error) {
 		return nil, fmt.Errorf("empty conjunct at %d", p.pos)
 	}
 	return Atom{Parts: parts}, nil
+}
+
+// atHole reports whether a hole starts here: $ before a brace, or before
+// what may start a name.
+func (p *parser) atHole() bool {
+	return p.peek() == holeSigil && (p.peekAt(1) == '{' || startsHoleName(p.peekAt(1)))
+}
+
+func (p *parser) hole() (Term, error) {
+	if p.peekAt(1) == '{' {
+		return p.termHole()
+	}
+	return p.nameHole()
 }
 
 // nameHole reads $name or $name'. One space after it belongs to the hole
