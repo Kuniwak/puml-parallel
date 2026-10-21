@@ -110,7 +110,7 @@ Present:
 | O3 | Substitution of a name by a term | promotion lifts a local state variable to an entry of a map, `x` to `m[id].x` |
 | O4 | Existential quantification | hiding closes a field of a hidden event; `csdfpromote -only` drops maps |
 | O5 | Relational composition | two updates of one map in one step; tau closure in obligations |
-| O6 | Generation of atoms | equality, distinctness, domain membership, map update, frame and opaque clauses, stated by a tool |
+| O6 | Generation of atoms | equality, distinctness, domain membership, map update and frame, stated by a tool |
 | O7 | Evaluation | a valuation gives a truth value or a set of next valuations (csdfbmc, `csdf.SolveJSON`) |
 | O8 | Translation to logic | proof obligations (csdftracechk, csdftranstable, csdfrefinement, csdflivelockfree) |
 | O9 | Free-name extraction | partial-order reduction, cone of influence, symmetry, restriction |
@@ -174,8 +174,24 @@ the value the state requires lies outside the declared type (an error of
 the Q4 approximation, not of the meaning).
 
 Natural language and formal languages fit the same frame (P15): an atom
-without a glue is an uninterpreted predicate of its arguments, and the
-opaque clause becomes such a predicate too.
+without a glue is an uninterpreted predicate of its arguments. There is no
+separate tool word for a clause not formalised: it is written as an atom
+whose holes are what it reads, such as `$口座 が凍結されていない`.
+
+An environment function is named by its atom, nothing else (P12): its name
+is the atom's text without its holes, and its arguments are the holes, in
+order. Atoms with the same text denote the same function, on every edge
+and in every component, whatever their holes are called; no position,
+numbering or table outside the diagram names one. A function is given, by
+the checks module or the command line, or chosen from a seed; one that is
+neither is refused, never approximated, and the refusal lists every such
+function. A given name that names no function is refused too.
+
+A seed chooses a function by hashing the seed, the function's name and the
+values of its arguments, and nothing else, so a change elsewhere in the
+diagram leaves the choice alone. Values are hashed in a canonical encoding
+that equal values share whatever order a set or a mapping iterates in;
+tuples and lists are encoded alike, as sequences.
 
 Types and constants differ in how long a value lives, and that difference
 is semantic: a field of an event ranges over its type anew at every event
