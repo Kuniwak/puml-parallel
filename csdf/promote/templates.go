@@ -12,12 +12,15 @@ import (
 // Clause is what a clause template is rendered with. Src and Dst are the names
 // of the local states the edge runs between, and Var is the state variable a
 // frame clause is about; each template uses the fields its own clause needs.
+// Before and After name the map before and after a move.
 type Clause struct {
-	Map string
-	ID  string
-	Src string
-	Dst string
-	Var string
+	Map    string
+	ID     string
+	Src    string
+	Dst    string
+	Var    string
+	Before string
+	After  string
 }
 
 // The clauses the expansion generates, each replaceable on its own. What joins
@@ -46,9 +49,9 @@ const defaultTemplates = `
 {{define "inDom"}}{{.ID}} ∈ dom {{.Map}}{{end}}
 {{define "notInDom"}}{{.ID}} ∉ dom {{.Map}}{{end}}
 {{define "atState"}}{{.Map}}({{.ID}}) ∈ 〈{{.Src}}〉{{end}}
-{{define "update"}}{{.Map}}' = {{.Map}} ⊕ { {{- .ID}} ↦ 〈{{.Dst}}〉}{{end}}
-{{define "create"}}{{.Map}}' = {{.Map}} ∪ { {{- .ID}} ↦ 〈{{.Dst}}〉}{{end}}
-{{define "delete"}}{{.Map}}' = { {{- .ID -}} } ⩤ {{.Map}}{{end}}
+{{define "update"}}{{.After}} = {{.Before}} ⊕ { {{- .ID}} ↦ 〈{{.Dst}}〉}{{end}}
+{{define "create"}}{{.After}} = {{.Before}} ∪ { {{- .ID}} ↦ 〈{{.Dst}}〉}{{end}}
+{{define "delete"}}{{.After}} = { {{- .ID -}} } ⩤ {{.Before}}{{end}}
 {{define "frame"}}{{.Var}}' = {{.Var}}{{end}}
 {{define "empty"}}{{.Map}} = ∅{{end}}
 `
@@ -84,7 +87,7 @@ func LoadTemplates(path string) (*Templates, error) {
 	}
 
 	ts := &Templates{t: t}
-	probe := Clause{Map: "m", ID: "id", Src: "S", Dst: "T", Var: "v"}
+	probe := Clause{Map: "m", ID: "id", Src: "S", Dst: "T", Var: "v", Before: "m", After: "m'"}
 	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame, clauseEmpty} {
 		if _, err := ts.render(name, probe); err != nil {
 			return nil, fmt.Errorf("promote.LoadTemplates: %q: %w", path, err)

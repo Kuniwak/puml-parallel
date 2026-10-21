@@ -285,7 +285,7 @@ type edgeParts struct {
 // parts promotes one local edge through map p, writing the instance ID as id.
 // The clauses are not joined here: a synced edge is the conjunction of the parts
 // of one local edge per map, and a plain one is the conjunction of just this.
-func (e *expander) parts(p Promote, edge csdf.Edge, id string) edgeParts {
+func (e *expander) parts(p Promote, edge csdf.Edge, id string, l link) edgeParts {
 	local := e.locals[p.Map]
 	absent := local.StartEdge.Dst
 	src, dst := local.States[edge.Src], local.States[edge.Dst]
@@ -293,7 +293,7 @@ func (e *expander) parts(p Promote, edge csdf.Edge, id string) edgeParts {
 	parts := edgeParts{src: src.Name, dst: dst.Name, id: id, tau: edge.Event == csdf.Tau}
 	parts.name, parts.args = edge.Event.Channel(), edge.Event.Fields()
 
-	c := Clause{Map: string(p.Map), ID: id, Src: src.Name, Dst: dst.Name}
+	c := Clause{Map: string(p.Map), ID: id, Src: src.Name, Dst: dst.Name, Before: l.before, After: l.after}
 	about := func(kind ClauseKind, name string, state string) ExpandedClause {
 		return ExpandedClause{Kind: kind, Text: e.templates.clause(name, c), Map: string(p.Map), ID: id, State: state}
 	}
@@ -332,11 +332,17 @@ func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) 
 
 // promoteEdge lifts one local edge onto the state its block was written in.
 func (e *expander) promoteEdge(p Promote, edge csdf.Edge) ExpandedEdge {
-	parts := e.parts(p, edge, p.IDParam)
+	parts := e.parts(p, edge, p.IDParam, moveOnce(p.Map))
 	out := e.compose(p.In, parts.name, []edgeParts{parts}, p.Map)
 	out.Origin = fmt.Sprintf("promote: %s 〈%s〉 → 〈%s〉", e.paths[p.Map], parts.src, parts.dst)
 	return out
 }
+
+// link is how a move clause names the map before and after it.
+type link struct{ before, after string }
+
+// moveOnce is the link of a map one edge moves once: from m to m'.
+func moveOnce(m csdf.Var) link { return link{before: string(m), after: string(m) + "'"} }
 
 // compose joins the parts of one or more local edges into one global self-loop
 // on state g named name, framing every state variable of g but the maps the

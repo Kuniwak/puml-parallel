@@ -124,7 +124,7 @@ func (e *expander) mergeSyncs(edges []ExpandedEdge) []ExpandedEdge {
 				parts := make([]edgeParts, len(blocks))
 				moved := make([]csdf.Var, len(blocks))
 				for i, edge := range combination {
-					parts[i] = e.parts(blocks[i], edge, plan.sync.Targets[i].Param)
+					parts[i] = e.parts(blocks[i], edge, plan.sync.Targets[i].Param, moveOnce(blocks[i].Map))
 					moved[i] = blocks[i].Map
 				}
 				// The merged event is the sync's, whatever local event each side took.

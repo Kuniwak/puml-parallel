@@ -232,11 +232,13 @@ file:
 | `inDom`    | `Map`, `ID`         | `id ∈ dom m`               |
 | `notInDom` | `Map`, `ID`         | `id ∉ dom m`               |
 | `atState`  | `Map`, `ID`, `Src`  | `m(id) ∈ 〈S〉`              |
-| `update`   | `Map`, `ID`, `Dst`  | `m' = m ⊕ {id ↦ 〈T〉}`      |
-| `create`   | `Map`, `ID`, `Dst`  | `m' = m ∪ {id ↦ 〈T〉}`      |
-| `delete`   | `Map`, `ID`         | `m' = {id} ⩤ m`            |
+| `update`   | `Map`, `ID`, `Dst`, `Before`, `After` | `m' = m ⊕ {id ↦ 〈T〉}`      |
+| `create`   | `Map`, `ID`, `Dst`, `Before`, `After` | `m' = m ∪ {id ↦ 〈T〉}`      |
+| `delete`   | `Map`, `ID`, `Before`, `After`        | `m' = {id} ⩤ m`            |
 | `frame`    | `Var`               | `v' = v`                   |
 | `empty`    | `Map`               | `m = ∅`                    |
+
+`Before` and `After` name the map before and after a move: `m` and `m'`.
 
 A clause the file does not define keeps its default. Every clause is rendered
 once when the file is read, so a template that cannot render is refused rather
