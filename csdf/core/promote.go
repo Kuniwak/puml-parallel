@@ -149,6 +149,12 @@ func promoteAlone(p Promotion, m move) (Edge, error) {
 		return Edge{}, err
 	}
 	if e.Event.Channel == Tau {
+		// An internal event carries no fields (docs/SYNTAX.md); hiding binds
+		// a received one by ∃ instead (Hide), so a local τ edge with fields
+		// is not one a diagram can have.
+		if len(e.Event.Fields) > 0 {
+			return Edge{}, fmt.Errorf("a tau edge from %s has fields, which an internal event cannot carry", e.Src)
+		}
 		// An internal event has no argument: the instance is any that can
 		// take it (docs/PROMOTION.md). The post binds its own instance, one
 		// the guard holds of: ∃id. (g ∧ p), as Hide does.
@@ -179,11 +185,21 @@ func carried(m move) ([]Field, clause.And, error) {
 	for _, v := range m.f.Local.Vars[m.e.Src] {
 		vars[v] = true
 	}
+	received := map[string]bool{}
+	for _, fl := range m.e.Event.Fields {
+		if !fl.Send {
+			received[fl.Name] = true
+		}
+	}
 	var fields []Field
 	var pins []clause.Formula
 	for _, fl := range m.e.Event.Fields {
 		fields = append(fields, Field{Name: fl.Name})
 		switch {
+		case fl.Send && !vars[fl.Name] && !received[fl.Name]:
+			// As in the local diagram's own expansion: a send names a value
+			// the step has bound.
+			return nil, clause.And{}, fmt.Errorf("%s sends %s, which is bound neither by its instance nor by the event", m.e.Event.Channel, fl.Name)
 		case fl.Send && vars[fl.Name]:
 			instance := clause.Index{Map: clause.Free{Name: m.f.Map}, Key: clause.Free{Name: m.id}}
 			pins = append(pins, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: fl.Name}, clause.Field{Of: instance, Name: fl.Name}}})

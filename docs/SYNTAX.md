@@ -63,7 +63,7 @@ An event is a channel followed by its fields, in the CSP style: `c?x` receives `
 (the environment chooses its value, from those the guard accepts) and `c!y` sends
 the value of `y`, which the step already binds: a state variable before the step, or
 a field the same event receives (`c?x!x`). A sent field ranges over nothing, and a
-constant is sent through a state variable that holds it. `tau` is the internal event. An event names its fields and carries
+constant is sent through a state variable that holds it. `tau` is the internal event, and carries no fields. An event names its fields and carries
 no value and no expression; anything about a value is said by the guard and the
 post, which read a field by its name. Whitespace and comments around `?` and `!`
 are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and

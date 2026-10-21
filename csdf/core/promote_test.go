@@ -191,6 +191,10 @@ func TestPromoteRefuses(t *testing.T) {
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "z"},
 		{"a target taking a local internal event", promotion(Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}, Sync{Event: "SEE", Targets: []Target{
 			{Map: "lamps", ID: "l", Event: Tau}}}), "internal"},
+		{"a local edge sending what its instance does not hold", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
+			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev("PING", send("code"))}}}}), "code"},
+		{"a local internal edge with fields", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
+			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev(Tau, recv("code"))}}}}), "fields"},
 		{"a family without its creation event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Delete: "CLOSE"}), "no creation event"},
 		{"end edges without a deletion event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN"}), "no deletion event"},
 		{"a creation event named like a local one", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "DEPART", Delete: "CLOSE"}), "DEPART"},
