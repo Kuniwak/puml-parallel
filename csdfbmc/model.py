@@ -9,6 +9,11 @@ from dataclasses import dataclass, field
 # for the clause where it has no text, in a report.
 OPAQUE_WORD = "@opaque"
 
+# The forms of a clause (csdf.ClauseForm), and the kinds of the clauses an
+# author writes, which say their form.
+FORM_TEXT, FORM_OPAQUE, FORM_EQ = "text", "opaque", "eq"
+AUTHORED_KINDS = ("local", "constrain")
+
 
 RECEIVED, SENT = "?", "!"
 
@@ -55,10 +60,24 @@ class Clause:
 
     @classmethod
     def from_json(cls, c: dict) -> "Clause":
-        opaque = c.get("opaque") is True
-        eq = tuple(c.get("eq", ()))
-        text = OPAQUE_WORD if opaque else f"@eq({eq[0]}, {eq[1]})" if eq else c["text"]
-        return cls(kind=c["kind"], text=text, opaque=opaque, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
+        """A clause as csdfparse or csdfpromote writes it. One the author wrote
+        (kind local or constrain) says by its form what it is; a generated one
+        says it by its kind and is text."""
+        form = c.get("form")
+        if form is None and c["kind"] in AUTHORED_KINDS:
+            raise ValueError(f"the clause {c!r} has no form; write the diagram with csdfparse or csdfpromote 3 or later")
+        form = form or FORM_TEXT
+        eq: tuple[str, ...] = ()
+        if form == FORM_OPAQUE:
+            text = OPAQUE_WORD
+        elif form == FORM_EQ:
+            eq = tuple(c["eq"])
+            text = f"@eq({eq[0]}, {eq[1]})"  # how a report names it
+        elif form == FORM_TEXT:
+            text = c["text"]
+        else:
+            raise ValueError(f"the clause {c!r} has the form {form!r}, which is none of text, opaque and eq")
+        return cls(kind=c["kind"], text=text, opaque=form == FORM_OPAQUE, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
                    maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 

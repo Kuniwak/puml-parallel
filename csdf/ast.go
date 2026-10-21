@@ -43,12 +43,13 @@ func IsOpaque(clause Predicate) bool {
 }
 
 // FormalClauses are the clauses of p that say something a tool can read: all
-// but the opaque ones.
-func (p Predicate) FormalClauses() []Predicate {
-	var out []Predicate
+// but the opaque ones, taken apart by ParseClause. A clause that does not
+// parse is left out.
+func (p Predicate) FormalClauses() []ParsedClause {
+	var out []ParsedClause
 	for _, c := range p.Clauses() {
-		if !IsOpaque(c) {
-			out = append(out, c)
+		if parsed, err := ParseClause(c); err == nil && parsed.Form != FormOpaque {
+			out = append(out, parsed)
 		}
 	}
 	return out

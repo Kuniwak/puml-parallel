@@ -57,7 +57,7 @@ class PartialOrderTest(unittest.TestCase):
         # len(accounts) < 2 on OPEN: opening a1 can disable opening a2, so
         # the instances are not independent.
         exp = {**WITHOUT_CLOSE, "edges": [dict(e) for e in WITHOUT_CLOSE["edges"]]}
-        exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "text": "口座は1つまで", "formal": "len(accounts) < 1", "line": 30}]
+        exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "form": "text", "text": "口座は1つまで", "formal": "len(accounts) < 1", "line": 30}]
         self.assertEqual(len(walk(exp).states), len(walk(exp, por=True).states))
 
     def test_an_invariant_that_reads_the_map_keeps_its_moves_visible(self):

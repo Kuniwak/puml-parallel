@@ -10,7 +10,7 @@ CONNECTIVE = " ∧ "
 def clauses(text):
     if text is None or text.strip() == "":
         return []
-    return [{"opaque": True} if t.strip() == "@opaque" else {"text": t.strip()} for t in text.split(CONNECTIVE)]
+    return [{"form": "opaque"} if t.strip() == "@opaque" else {"form": "text", "text": t.strip()} for t in text.split(CONNECTIVE)]
 
 
 def event(text):

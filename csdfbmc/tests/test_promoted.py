@@ -47,18 +47,18 @@ EXPANSION = {
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("not_in_dom", "口座ID ∉ dom accounts")],
          "post": [gen("create", "accounts' = accounts ∪ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                  {"kind": "local", "text": "残高' = 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 6}]},
+                  {"kind": "local", "form": "text", "text": "残高' = 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 6}]},
         {"edge": {"src": "running", "dst": "running", "event": "DEPOSIT?口座ID?額", "channel": "DEPOSIT", "fields": [{"dir": "?", "name": "口座ID"}, {"dir": "?", "name": "額"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み"),
-                   {"kind": "local", "text": "0 < 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7},
-                   {"kind": "constrain", "text": "残高 + 額 ≤ 上限", "formal": "accounts[口座ID].残高 + 額 <= 3", "line": 20}],
+                   {"kind": "local", "form": "text", "text": "0 < 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7},
+                   {"kind": "constrain", "form": "text", "text": "残高 + 額 ≤ 上限", "formal": "accounts[口座ID].残高 + 額 <= 3", "line": 20}],
          "post": [gen("update", "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                  {"kind": "local", "text": "残高' = 残高 + 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7}]},
+                  {"kind": "local", "form": "text", "text": "残高' = 残高 + 額", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 7}]},
         {"edge": {"src": "running", "dst": "running", "event": "CLOSE?口座ID", "channel": "CLOSE", "fields": [{"dir": "?", "name": "口座ID"}], "guard": "g", "post": "p", "line": 0},
          "origin": "promote: local/ACCOUNT.puml",
          "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み"),
-                   {"kind": "local", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}],
+                   {"kind": "local", "form": "text", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}],
          "post": [gen("delete", "accounts' = {口座ID} ⩤ accounts")]},
     ],
     "promotes": [{"map": "accounts", "id_param": "口座ID", "type": "Account", "path": "local/ACCOUNT.puml", "alias": "runningAccounts", "in": "running", "line": 4}],
@@ -134,7 +134,7 @@ class PromotedExplorerTest(unittest.TestCase):
              "origin": "promote: local/ACCOUNT.puml",
              "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み")],
              "post": [gen("update", "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                      {"kind": "local", "text": "残高' = 残高", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 9}]}]}
+                      {"kind": "local", "form": "text", "text": "残高' = 残高", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 9}]}]}
         twins = Twins(domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, locals={"local/ACCOUNT.puml": Twins(
             domains={}, clauses=dict(GLOBAL_TWINS.locals["local/ACCOUNT.puml"].clauses, **{"残高' = 残高": lambda 残高: [{"残高": 残高}]}))})
         result = Explorer.of_twins(fixture.diagram(exp), twins).run()
@@ -146,7 +146,7 @@ class PromotedExplorerTest(unittest.TestCase):
         tau = {"src": "running", "dst": "running", "event": "tau", "channel": "tau", "fields": [], "guard": "g", "post": "p", "line": 0}
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
             {"edge": tau, "origin": "promote: local/ACCOUNT.puml",
-             "guard": [{"kind": "local", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
+             "guard": [{"kind": "local", "form": "text", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
         twins = Twins(domains=dict(GLOBAL_TWINS.domains, 残高=[0, 1]), clauses=GLOBAL_TWINS.clauses, locals=GLOBAL_TWINS.locals)
         explorer = Explorer.of_twins(fixture.diagram(exp), twins)
 
@@ -181,7 +181,7 @@ class EmptyStartTest(unittest.TestCase):
         for name, start, twins in [
             ("with no twin", [{"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], no_clauses),
             ("beside an author clause that agrees",
-             [{"kind": "local", "text": "accounts は空", "line": 5}, {"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], GLOBAL_TWINS),
+             [{"kind": "local", "form": "text", "text": "accounts は空", "line": 5}, {"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], GLOBAL_TWINS),
         ]:
             with self.subTest(name):
                 explorer = Explorer.of_twins(fixture.diagram(self.expansion(start)), twins)

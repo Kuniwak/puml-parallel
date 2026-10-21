@@ -21,93 +21,53 @@ const (
 	renamingBind  = " := "
 )
 
-// SplitRenaming takes a clause apart into the renaming written before it,
+// splitRenaming takes a clause apart into the renaming written before it,
 // @[from := to, ...], sorted by From, and the clause it applies to. A clause
 // without one has no renames.
-func SplitRenaming(clause Predicate) ([]Rename, Predicate, error) {
+func splitRenaming(clause Predicate) ([]Rename, Predicate, error) {
 	text := string(clause)
 	if !strings.HasPrefix(text, renamingOpen) {
 		return nil, clause, nil
 	}
 	end := strings.Index(text, renamingClose)
 	if end < 0 {
-		return nil, "", fmt.Errorf("csdf.SplitRenaming: %q: expected %q, then the clause it renames", clause, renamingClose)
+		return nil, "", fmt.Errorf("csdf.splitRenaming: %q: expected %q, then the clause it renames", clause, renamingClose)
 	}
 	var renames []Rename
 	for _, part := range strings.Split(text[len(renamingOpen):end], ", ") {
 		from, to, ok := strings.Cut(part, renamingBind)
 		if !ok || !isID(from) || !isID(to) {
-			return nil, "", fmt.Errorf("csdf.SplitRenaming: %q: expected @[name := name, ...]", clause)
+			return nil, "", fmt.Errorf("csdf.splitRenaming: %q: expected @[name := name, ...]", clause)
 		}
 		if from == to || slices.ContainsFunc(renames, func(r Rename) bool { return r.From == from }) {
-			return nil, "", fmt.Errorf("csdf.SplitRenaming: %q: each name is renamed once, to another name", clause)
+			return nil, "", fmt.Errorf("csdf.splitRenaming: %q: each name is renamed once, to another name", clause)
 		}
 		renames = append(renames, Rename{From: from, To: to})
 	}
 	body := Predicate(strings.TrimSpace(text[end+len(renamingClose):]))
 	if body == "" || IsOpaque(body) {
-		return nil, "", fmt.Errorf("csdf.SplitRenaming: %q: a renaming applies to a clause that reads names", clause)
+		return nil, "", fmt.Errorf("csdf.splitRenaming: %q: a renaming applies to a clause that reads names", clause)
 	}
 	sortRenames(renames)
 	return renames, body, nil
 }
 
-// RenameClause is clause read with each From of renames bound to To; an
-// equality renamed onto one name says nothing, and is the omitted predicate. A clause
-// that already has a renaming gets the two composed into one; a name that
-// comes to stand for itself is left out. @opaque reads nothing, so it is not
-// renamed.
+// RenameClause is clause read with each From of renames bound to To
+// (ParsedClause.Renamed), written back; a clause that comes to say nothing is
+// the omitted predicate.
 func RenameClause(clause Predicate, renames []Rename) (Predicate, error) {
-	if len(renames) == 0 || IsOpaque(clause) {
+	if len(renames) == 0 {
 		return clause, nil
 	}
-	if a, b, ok, err := SplitEquality(clause); err != nil {
-		return "", fmt.Errorf("csdf.RenameClause: %w", err)
-	} else if ok {
-		// A tool word is the tools' to rename: its names are rewritten.
-		to := RenamesMap(renames)
-		if r, ok := to[a]; ok {
-			a = r
-		}
-		if r, ok := to[b]; ok {
-			b = r
-		}
-		if a == b {
-			return "", nil // a value equals itself: the clause says nothing
-		}
-		return NewEquality(a, b), nil
-	}
-	inner, body, err := SplitRenaming(clause)
+	c, err := ParseClause(clause)
 	if err != nil {
 		return "", fmt.Errorf("csdf.RenameClause: %w", err)
 	}
-	outer := func(name string) string {
-		for _, r := range renames {
-			if r.From == name {
-				return r.To
-			}
-		}
-		return name
+	renamed, ok := c.Renamed(renames)
+	if !ok {
+		return "", nil
 	}
-	var composed []Rename
-	for _, r := range inner {
-		composed = append(composed, Rename{From: r.From, To: outer(r.To)})
-	}
-	for _, r := range renames {
-		if !slices.ContainsFunc(inner, func(i Rename) bool { return i.From == r.From }) {
-			composed = append(composed, r)
-		}
-	}
-	composed = slices.DeleteFunc(composed, func(r Rename) bool { return r.From == r.To })
-	if len(composed) == 0 {
-		return body, nil
-	}
-	sortRenames(composed)
-	parts := make([]string, len(composed))
-	for i, r := range composed {
-		parts[i] = r.From + renamingBind + r.To
-	}
-	return Predicate(renamingOpen + strings.Join(parts, ", ") + renamingClose + string(body)), nil
+	return renamed.Predicate(), nil
 }
 
 // RenamesMap is renames as a map from each From to its To.
@@ -142,11 +102,11 @@ const (
 	equalitySep   = ", "
 )
 
-// SplitEquality reads the tool word @eq(a, b): the clause that the values
+// splitEquality reads the tool word @eq(a, b): the clause that the values
 // named a and b are equal. Composition writes it when two synchronised events
 // both send one field, so that the two agree on its value without a clause in
 // any glue's language. ok is false for a clause that is not one.
-func SplitEquality(clause Predicate) (a, b string, ok bool, err error) {
+func splitEquality(clause Predicate) (a, b string, ok bool, err error) {
 	text := string(clause)
 	if !strings.HasPrefix(text, equalityOpen) {
 		return "", "", false, nil
@@ -154,7 +114,7 @@ func SplitEquality(clause Predicate) (a, b string, ok bool, err error) {
 	inner, closed := strings.CutSuffix(text[len(equalityOpen):], equalityClose)
 	a, b, cut := strings.Cut(inner, equalitySep)
 	if !closed || !cut || !isID(a) || !isID(b) || a == b {
-		return "", "", false, fmt.Errorf("csdf.SplitEquality: %q: expected @eq(name, name), two names apart", clause)
+		return "", "", false, fmt.Errorf("csdf.splitEquality: %q: expected @eq(name, name), two names apart", clause)
 	}
 	return a, b, true, nil
 }

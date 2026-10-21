@@ -59,7 +59,7 @@ func TestEdgeJSON(t *testing.T) {
 		},
 		"clauses as their language reads them": {
 			edge: Edge{Src: "a", Dst: "b", Event: "go", Guard: `x \∧ y ∧ @opaque`, Post: "z", Line: 3},
-			want: `{"src":"a","dst":"b","event":"go","channel":"go","fields":[],"guard":"x \\∧ y ∧ @opaque","guard_clauses":[{"text":"x ∧ y"},{"opaque":true}],"post":"z","post_clauses":[{"text":"z"}],"line":3}`,
+			want: `{"src":"a","dst":"b","event":"go","channel":"go","fields":[],"guard":"x \\∧ y ∧ @opaque","guard_clauses":[{"form":"text","text":"x ∧ y"},{"form":"opaque"}],"post":"z","post_clauses":[{"form":"text","text":"z"}],"line":3}`,
 		},
 	}
 	for name, tt := range tests {
@@ -86,11 +86,11 @@ func TestEdgeJSONRefusesAnEventOutsideTheGrammar(t *testing.T) {
 
 func TestStartAndEndEdgeJSONCarryTheirClauses(t *testing.T) {
 	start, _ := json.Marshal(StartEdge{Dst: "a", Post: "n = 0 ∧ @opaque", Line: 1})
-	if want := `{"dst":"a","post":"n = 0 ∧ @opaque","post_clauses":[{"text":"n = 0"},{"opaque":true}],"line":1}`; string(start) != want {
+	if want := `{"dst":"a","post":"n = 0 ∧ @opaque","post_clauses":[{"form":"text","text":"n = 0"},{"form":"opaque"}],"line":1}`; string(start) != want {
 		t.Errorf("json.Marshal(StartEdge) = %s, want %s", start, want)
 	}
 	end, _ := json.Marshal(EndEdge{Src: "a", Guard: "done", Line: 2})
-	if want := `{"src":"a","guard":"done","guard_clauses":[{"text":"done"}],"line":2}`; string(end) != want {
+	if want := `{"src":"a","guard":"done","guard_clauses":[{"form":"text","text":"done"}],"line":2}`; string(end) != want {
 		t.Errorf("json.Marshal(EndEdge) = %s, want %s", end, want)
 	}
 	var back StartEdge

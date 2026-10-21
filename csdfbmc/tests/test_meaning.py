@@ -101,7 +101,7 @@ class RenamingTest(unittest.TestCase):
         self.assertEqual({"y"}, self.meaning.names(Clause("local", "y > 0"), "guard"))
 
     def test_a_renaming_is_read_from_json(self):
-        self.assertEqual(RENAMED, Clause.from_json({"kind": "local", "text": "y > 0", "rename": {"y": "x"}}))
+        self.assertEqual(RENAMED, Clause.from_json({"kind": "local", "form": "text", "text": "y > 0", "rename": {"y": "x"}}))
 
 
 class RenamedWritesTest(unittest.TestCase):
@@ -138,7 +138,7 @@ class EqualityTest(unittest.TestCase):
         self.assertEqual([], self.client.asked)
 
     def test_it_is_read_from_json(self):
-        self.assertEqual(EQUAL, Clause.from_json({"kind": "local", "eq": ["y", "z"]}))
+        self.assertEqual(EQUAL, Clause.from_json({"kind": "local", "form": "eq", "eq": ["y", "z"]}))
 
     def test_in_a_post_it_admits_one_assignment_of_nothing_where_the_values_are_equal(self):
         self.assertEqual([[{}], []], [self.meaning.evaluate(EQUAL, "post", {"y": 1, "z": z}) for z in (1, 2)])

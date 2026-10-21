@@ -108,29 +108,11 @@ func EscapeClause(text string) Predicate {
 	return Predicate(sb.String())
 }
 
-// CheckClauses refuses an empty clause, a malformed renaming, and a clause
-// that uses a word of the tools' vocabulary the tools do not know: an
-// unescaped @ starts one, and @opaque and a renaming @[...] before a clause
-// are the ones there are.
+// CheckClauses refuses a predicate with a clause ParseClause refuses.
 func CheckClauses(p Predicate) error {
 	for _, c := range p.Clauses() {
-		if _, _, ok, err := SplitEquality(c); err != nil || ok {
-			if err != nil {
-				return err
-			}
-			continue
-		}
-		_, body, err := SplitRenaming(c)
-		if err != nil {
-			return err
-		}
-		c := body
-		switch {
-		case IsOpaque(c):
-		case c == "":
-			return fmt.Errorf("csdf.CheckClauses: %q has an empty clause, with nothing between two connectives or after one", p)
-		case unescapedIndex(string(c), '@') >= 0:
-			return fmt.Errorf("csdf.CheckClauses: %q: %s starts a word of the tools, and %s, @eq(a, b) and a renaming are the only ones; write \\@ for the character", c, ToolWordPrefix, PredicateOpaque)
+		if _, err := ParseClause(c); err != nil {
+			return fmt.Errorf("csdf.CheckClauses: %q: %w", p, err)
 		}
 	}
 	return nil
