@@ -127,6 +127,17 @@ func builtin(b clause.Builtin, args []Value) (bool, error) {
 			}
 		}
 		return true, nil
+	case clause.OpAll:
+		m, ok := args[0].(Map)
+		if !ok {
+			return false, fmt.Errorf("core: @all of %s, not a map", Key(args[0]))
+		}
+		for _, v := range m {
+			if r, ok := v.(Rec); !ok || r.State != b.State {
+				return false, nil
+			}
+		}
+		return true, nil
 	case clause.OpAt:
 		r, ok := args[0].(Rec)
 		if !ok {
