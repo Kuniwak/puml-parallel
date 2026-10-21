@@ -1,6 +1,7 @@
 package lts
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -22,14 +23,18 @@ func Hide(l *LTS, hidden func(string) bool) *LTS {
 }
 
 // Rename is l[[R]], where to gives the labels a label is renamed to; it may
-// give several, a one-to-many renaming, and τ is never renamed.
-func Rename(l *LTS, to func(string) []string) *LTS {
+// give several, a one-to-many renaming, and τ is never renamed. CSP's
+// renaming is total, so a label to gives no image is an error.
+func Rename(l *LTS, to func(string) []string) (*LTS, error) {
 	out := New(l.Init)
 	for src, byLabel := range l.Trans {
 		for label, dsts := range byLabel {
 			images := []string{Tau}
 			if label != Tau {
 				images = to(label)
+			}
+			if len(images) == 0 {
+				return nil, fmt.Errorf("lts.Rename: %s has no image", label)
 			}
 			for _, image := range images {
 				for _, d := range dsts {
@@ -38,7 +43,7 @@ func Rename(l *LTS, to func(string) []string) *LTS {
 			}
 		}
 	}
-	return out
+	return out, nil
 }
 
 // Parallel is the alphabetised parallel of ps, where alphabets[i] says which

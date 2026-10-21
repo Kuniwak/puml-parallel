@@ -1,6 +1,9 @@
 package lts
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func seq(labels ...string) *LTS {
 	l := New(0)
@@ -22,7 +25,7 @@ func TestOperatorsAgreeWithTheirCSPLaws(t *testing.T) {
 		},
 		{
 			"renaming a to c",
-			Rename(seq("a", "b"), func(l string) []string {
+			mustRename(t, seq("a", "b"), func(l string) []string {
 				if l == "a" {
 					return []string{"c"}
 				}
@@ -40,7 +43,7 @@ func TestOperatorsAgreeWithTheirCSPLaws(t *testing.T) {
 		},
 		{
 			"one-to-many renaming offers every image",
-			Rename(seq("a"), func(string) []string { return []string{"c", "d"} }),
+			mustRename(t, seq("a"), func(string) []string { return []string{"c", "d"} }),
 			fork("c", "d"),
 		},
 		{
@@ -72,4 +75,31 @@ func fork(labels ...string) *LTS {
 		l.Add(0, a, 1)
 	}
 	return l
+}
+
+func mustRename(t *testing.T, l *LTS, to func(string) []string) *LTS {
+	t.Helper()
+	r, err := Rename(l, to)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
+func TestRenameRefusesALabelWithoutAnImage(t *testing.T) {
+	// Setup
+	l := seq("a", "b")
+
+	// Execute
+	_, err := Rename(l, func(label string) []string {
+		if label == "a" {
+			return []string{"c"}
+		}
+		return nil
+	})
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "b") {
+		t.Errorf("err = %v, want one naming b, which has no image", err)
+	}
 }

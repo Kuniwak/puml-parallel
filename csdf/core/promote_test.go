@@ -39,7 +39,11 @@ func denotation(t *testing.T, p Promotion, env Env) *lts.LTS {
 					alpha[im] = true
 				}
 			}
-			procs = append(procs, lts.Rename(local, func(l string) []string { return images[l] }))
+			renamed, err := lts.Rename(local, func(l string) []string { return images[l] })
+			if err != nil {
+				t.Fatal(err)
+			}
+			procs = append(procs, renamed)
 			alphabets = append(alphabets, func(l string) bool { return alpha[l] })
 		}
 	}
