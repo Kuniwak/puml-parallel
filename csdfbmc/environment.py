@@ -92,17 +92,17 @@ def recording(decide: Decide, seen: dict[str, None]) -> Decide:
 @dataclass(frozen=True)
 class Environment:
     """What decides the functions, and what reproduces it: the seed and the
-    names given."""
+    functions given, by name."""
     decide: Decide
     seed: int | None
-    given: tuple[str, ...]
+    given: Mapping[str, Given]
 
     def to_json(self) -> dict:
         return {"seed": self.seed, "given": sorted(self.given)}
 
 
 # NONE decides nothing: no function is given, and there is no seed.
-NONE = Environment(decide=nothing, seed=None, given=())
+NONE = Environment(decide=nothing, seed=None, given={})
 
 
 def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | None) -> Environment:
@@ -110,7 +110,7 @@ def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | No
     (module), and the seed, when there is one, for the rest."""
     merged = named(module) | named(given)
     return Environment(decide=_given_over_named(merged, seeded(seed) if seed is not None else nothing),
-                       seed=seed, given=tuple(merged))
+                       seed=seed, given=merged)
 
 
 def canonical(v) -> str:

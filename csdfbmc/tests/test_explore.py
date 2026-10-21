@@ -106,7 +106,7 @@ class ExplorerTest(unittest.TestCase):
         def asked(diagram):
             seen, seeded = [], environments.over({}, {}, 7)
             env = environments.Environment(decide=lambda name, args: seen.append((name, tuple(args))) or seeded.decide(name, args),
-                                           seed=7, given=())
+                                           seed=7, given={})
             fixture.explorer(diagram, environment=env, max_states=10).run()
             return seen
 
@@ -139,7 +139,7 @@ class ExplorerTest(unittest.TestCase):
 
     def test_a_function_the_environment_leaves_undecided_is_an_error_not_false(self):
         # Setup
-        env = environments.Environment(decide=environments.nothing, seed=7, given=())
+        env = environments.Environment(decide=environments.nothing, seed=7, given={})
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, r"decided nothing for '\$_ が 正'"):
