@@ -82,5 +82,17 @@ class CheckedAtomsTest(unittest.TestCase):
         # Assert
         self.assertEqual(2, glue.asked)
 
+    def test_a_truth_value_is_not_the_number_it_equals(self):
+        # Setup
+        glue = CountingGlue()
+        client = checked_atoms(AtomClient(glue, NO_CLOSE))
+        same = {"text": ["", " is True"], "holes": [0], "primed": [False]}
+
+        # Execute
+        got = client.guard(same, [[1]]) + client.guard(same, [[True]])
+
+        # Assert
+        self.assertEqual([False, True], got)
+
 if __name__ == "__main__":
     unittest.main()

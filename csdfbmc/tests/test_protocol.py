@@ -158,6 +158,17 @@ class DecoratorTest(unittest.TestCase):
         self.assertEqual([True], client.guard("n > 0", [{"n": 1}]))
         self.assertEqual([[{"n": 1}, {"n": 0}]], inner.asked)
 
+    def test_memoising_tells_a_truth_value_from_the_number_it_equals(self):
+        # Setup
+        inner = Recording({"n": Analysis(opaque=False, reads=("n",))}, lambda b: type(b["n"]) is bool)
+        client = Memoising(inner)
+
+        # Execute
+        got = client.guard("n", [{"n": 1}]) + client.guard("n", [{"n": True}])
+
+        # Assert
+        self.assertEqual([False, True], got)
+
     def test_validating_refuses_an_assignment_beside_the_writes(self):
         for name, answer in [("a variable too many", [{"n": 1, "m": 0}]), ("a variable short", [{}])]:
             client = Validating(Recording({"p": Analysis(opaque=False, writes=("n",))}, lambda b: answer))

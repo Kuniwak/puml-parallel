@@ -565,6 +565,13 @@ class Validating:
         self.inner.close()
 
 
+def _typed_key(values: list) -> str:
+    """values as a memo key that tells them apart as the protocol does: in
+    Python, True == 1 and they hash alike, but a glue may answer differently
+    for them."""
+    return json.dumps([to_wire(v) for v in values], sort_keys=True, ensure_ascii=False)
+
+
 class Memoising:
     """A Client that asks about a clause once per value of the names it
     reads, which a pure clause allows, and asks about the bindings of one
@@ -596,7 +603,7 @@ class Memoising:
 
     def _ask(self, role: str, clause: str, bindings: list[dict]) -> list:
         reads = self.analyse(clause, role).reads
-        keys = [(clause, role, tuple(b[n] for n in reads)) for b in bindings]
+        keys = [(clause, role, _typed_key([b[n] for n in reads])) for b in bindings]
         asked: dict[tuple, dict] = {}
         for key, b in zip(keys, bindings):
             if key not in self._answers:
@@ -665,7 +672,7 @@ class MemoisingAtoms:
 
     def _ask(self, op: str, atom: dict, values: list[list]) -> list:
         shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
-        keys = [(op, shape, tuple(vs)) for vs in values]
+        keys = [(op, shape, _typed_key(vs)) for vs in values]
         asked: dict[tuple, list] = {}
         for key, vs in zip(keys, values):
             if key not in self._answers:
