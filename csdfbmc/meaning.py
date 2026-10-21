@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from csdfbmc.atoms import function_of
 from csdfbmc.model import Clause
 from csdfbmc.protocol import ClientLike, answers
 
@@ -42,6 +43,11 @@ class GlueMeaning:
         self.readable = answers(client, "symmetric")
 
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        if self.client.analyse(clause.text, role).opaque:
+            # Not formalised: a function of the environment, which may tell
+            # any two IDs among its holes apart.
+            read = sorted(set(function_of(clause.text).args) & (params | maps))
+            return f"it is a function of the environment of {', '.join(read)}, which may tell the IDs apart" if read else None
         return self.client.symmetric(clause.text, role, sorted(params), sorted(maps), [sorted(g) for g in groups])
 
     def _binding(self, clause: Clause, reads: tuple[str, ...], env: dict) -> dict:

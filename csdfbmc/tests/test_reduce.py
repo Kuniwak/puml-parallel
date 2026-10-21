@@ -118,6 +118,22 @@ class SymmetryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "a1"):
             walk(with_constrain("口座ID == 'a1'"), symmetric=("口座ID",), symmetry=True)
 
+    def test_an_environment_function_of_an_id_is_refused(self):
+        # Setup: an uninterpreted function may tell any two IDs apart.
+        cases = [("an ID", "$口座ID が 特別"), ("a map keyed by IDs", "$accounts が 空")]
+        for name, atom in cases:
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, "environment"):
+                    walk(with_constrain(atom), symmetric=("口座ID",), symmetry=True, environment=over({}, {}, 7))
+
+    def test_an_environment_function_of_no_id_is_symmetric(self):
+        # Execute
+        explorer = walk(with_constrain("$額 が 小さい"), symmetric=("口座ID",), symmetry=True, environment=over({}, {}, 7))
+
+        # Assert
+        self.assertIsNotNone(explorer.symmetry)
+
     def test_a_clause_that_orders_ids_is_refused(self):
         with self.assertRaisesRegex(ValueError, "口座ID"):
             walk(with_constrain("all(口座ID < j for j in accounts)"), symmetric=("口座ID",), symmetry=True)
