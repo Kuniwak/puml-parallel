@@ -598,3 +598,76 @@ def checked(client: ClientLike) -> ClientLike:
     """client as the walk asks it: each answer checked, and each clause asked
     once per value of the names it reads."""
     return Memoising(Validating(client))
+
+
+class ValidatingAtoms:
+    """An AtomClient whose post answers are checked against the atom: each
+    gives exactly one value per primed argument."""
+
+    def __init__(self, inner: AtomClient):
+        self.inner = inner
+        self.language = inner.language
+        self.supports = inner.supports
+
+    def guard(self, atom: dict, values: list[list]) -> list[bool]:
+        return self.inner.guard(atom, values)
+
+    def post(self, atom: dict, values: list[list]) -> list[list[list]]:
+        results = self.inner.post(atom, values)
+        want = sum(atom["primed"])
+        for result in results:
+            for after in result:
+                if len(after) != want:
+                    raise EvaluatorError(f"the {self.language} glue answered the post atom {_shown(atom)} with {after!r}, "
+                                         f"which does not give {want} value after the step, one per primed argument")
+        return results
+
+    def symmetric(self, atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
+        return self.inner.symmetric(atom, params, maps, groups)
+
+    def close(self) -> None:
+        self.inner.close()
+
+
+class MemoisingAtoms:
+    """An AtomClient that asks about an atom once per list of values, which a
+    pure atom allows, and asks about the lists of one batch it was not asked
+    about yet in one request."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.language = inner.language
+        self.supports = inner.supports
+        self._answers: dict[tuple, object] = {}
+
+    def _ask(self, op: str, atom: dict, values: list[list]) -> list:
+        shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
+        keys = [(op, shape, tuple(vs)) for vs in values]
+        asked: dict[tuple, list] = {}
+        for key, vs in zip(keys, values):
+            if key not in self._answers:
+                asked.setdefault(key, vs)
+        if asked:
+            ask = self.inner.guard if op == "guard" else self.inner.post
+            for key, result in zip(asked, ask(atom, list(asked.values()))):
+                self._answers[key] = result
+        return [self._answers[key] for key in keys]
+
+    def guard(self, atom: dict, values: list[list]) -> list[bool]:
+        return self._ask("guard", atom, values)
+
+    def post(self, atom: dict, values: list[list]) -> list[list[list]]:
+        return self._ask("post", atom, values)
+
+    def symmetric(self, atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
+        # Not kept: the symmetry check asks of each atom once, before a walk.
+        return self.inner.symmetric(atom, params, maps, groups)
+
+    def close(self) -> None:
+        self.inner.close()
+
+
+def checked_atoms(client: AtomClient) -> MemoisingAtoms:
+    """client as a walk asks it: each answer checked, and each atom asked
+    once per list of values."""
+    return MemoisingAtoms(ValidatingAtoms(client))
