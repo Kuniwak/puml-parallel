@@ -6,7 +6,7 @@ from csdfbmc.tests import fixture
 from csdfbmc.model import Diagram
 from csdfbmc.twins import Twins
 from csdfbmc.explore import Explorer
-from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
+from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_CHECKS, GLOBAL_TWINS, GLUE_EXPANSION
 
 # The twins of GLOBAL_TWINS as a module would spell them, for the symmetry
 # check, which reads the source.
@@ -34,20 +34,34 @@ def twins(*, invariants=None, global_source=GLOBAL_SOURCE, symmetric=("口座ID"
     )
 
 
-# Without CLOSE an instance never returns to where it was, so the cycle
-# proviso does not force every state to be expanded in full.
-WITHOUT_CLOSE = {**EXPANSION,
-                 "diagram": {**EXPANSION["diagram"], "edges": [e for e in EXPANSION["diagram"]["edges"] if e["event"] != "CLOSE?口座ID"]},
-                 "edges": [e for e in EXPANSION["edges"] if e["edge"]["event"] != "CLOSE?口座ID"]}
+def without_close(expansion):
+    """expansion without CLOSE: an instance never returns to where it was, so
+    the cycle proviso does not force every state to be expanded in full."""
+    return {**expansion,
+            "diagram": {**expansion["diagram"], "edges": [e for e in expansion["diagram"]["edges"] if e["event"] != "CLOSE?口座ID"]},
+            "edges": [e for e in expansion["edges"] if e["edge"]["event"] != "CLOSE?口座ID"]}
 
 
-def walk(expansion=EXPANSION, **kw):
+WITHOUT_CLOSE = without_close(GLUE_EXPANSION)
+
+
+def walk(expansion=GLUE_EXPANSION, *, invariants=None, **kw):
+    """The expansion walked through the reference Python glue."""
+    checks = Twins(domains=GLOBAL_CHECKS.domains, clauses={}, invariants=invariants or {})
+    return fixture.explorer(expansion, checks, **kw).run()
+
+
+def walk_twins(expansion=EXPANSION, **kw):
+    """The prose expansion walked through its twins, which symmetry reads."""
     return Explorer.of_twins(fixture.diagram(expansion), twins(**{k: kw.pop(k) for k in ("invariants", "global_source") if k in kw}), **kw).run()
 
 
 class PartialOrderTest(unittest.TestCase):
     def test_walks_fewer_states_and_finds_the_same_deadlocks(self):
-        full, reduced = walk(WITHOUT_CLOSE), walk(WITHOUT_CLOSE, por=True)
+        # Through twins: the constrain's formal twin reads accounts only as
+        # accounts[口座ID] (names_beyond), which a glue cannot say, so through
+        # a glue the constrain ties the instances and nothing is reduced.
+        full, reduced = walk_twins(without_close(EXPANSION)), walk_twins(without_close(EXPANSION), por=True)
         self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))
         for s in reduced.deadlocks:
@@ -78,7 +92,7 @@ class PartialOrderTest(unittest.TestCase):
         # len(accounts) < 2 on OPEN: opening a1 can disable opening a2, so
         # the instances are not independent.
         exp = {**WITHOUT_CLOSE, "edges": [dict(e) for e in WITHOUT_CLOSE["edges"]]}
-        exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "form": "text", "text": "口座は1つまで", "formal": "len(accounts) < 1", "line": 30}]
+        exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "form": "text", "text": "len(accounts) < 1", "line": 30}]
         self.assertEqual(len(walk(exp).states), len(walk(exp, por=True).states))
 
     def test_an_invariant_that_reads_the_map_keeps_its_moves_visible(self):
@@ -92,14 +106,16 @@ class PartialOrderTest(unittest.TestCase):
 
 
 class SymmetryTest(unittest.TestCase):
+    """Symmetry reads the twins' source to check SYMMETRIC, which a glue's
+    clauses are not."""
     def test_states_that_differ_by_a_renaming_of_the_ids_are_one(self):
-        full, reduced = walk(), walk(symmetry=True)
+        full, reduced = walk_twins(), walk_twins(symmetry=True)
         self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(len(full.deadlocks), len(reduced.deadlocks))
 
     def test_the_trace_is_a_run_of_the_diagram(self):
-        reduced = walk(symmetry=True)
-        full = walk()
+        reduced = walk_twins(symmetry=True)
+        full = walk_twins()
         for s in reduced.states:
             self.assertIn(s, full.parents)
             if reduced.parents[s] is not None:
@@ -109,12 +125,12 @@ class SymmetryTest(unittest.TestCase):
     def test_a_twin_that_compares_an_id_with_a_constant_is_refused(self):
         source = GLOBAL_SOURCE + 'CLAUSES["特別"] = lambda 口座ID: 口座ID == "a1"\n'
         with self.assertRaisesRegex(ValueError, "a1"):
-            walk(global_source=source, symmetry=True)
+            walk_twins(global_source=source, symmetry=True)
 
     def test_a_twin_that_orders_ids_is_refused(self):
         source = GLOBAL_SOURCE + 'CLAUSES["先"] = lambda 口座ID, 相手ID: 口座ID < 相手ID\n'
         with self.assertRaisesRegex(ValueError, "口座ID"):
-            walk(global_source=source, symmetry=True)
+            walk_twins(global_source=source, symmetry=True)
 
     def test_a_domain_naming_some_ids_only_is_refused(self):
         tw = twins()
@@ -127,7 +143,7 @@ class SymmetryTest(unittest.TestCase):
             Explorer.of_twins(fixture.diagram(EXPANSION), twins(symmetric=()), symmetry=True)
 
     def test_both_reductions_together_find_the_same_deadlocks(self):
-        full, reduced = walk(WITHOUT_CLOSE), walk(WITHOUT_CLOSE, por=True, symmetry=True)
+        full, reduced = walk_twins(without_close(EXPANSION)), walk_twins(without_close(EXPANSION), por=True, symmetry=True)
         self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(len(full.deadlocks), len(reduced.deadlocks))
 

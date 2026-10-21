@@ -1,6 +1,7 @@
 """An expansion of a promoted diagram: the state variables are maps from
 instance IDs to local records, the generated clauses have built-in meaning,
-and the local clauses are evaluated with the family's own twins."""
+and the local clauses are read by the reference Python glue in the names of
+the family's own variables."""
 import unittest
 from csdfbmc.tests import fixture
 
@@ -79,6 +80,33 @@ GLOBAL_TWINS = Twins(
     )},
 )
 
+# The expansion with every clause written in the reference Python glue's
+# language, as a front end renders the formal labels in place of the prose.
+FORMAL = {
+    "accounts は空": "[{'accounts': FrozenMap()}]",
+    "残高' = 額": "[{'残高': 額}]",
+    "0 < 額": "0 < 額",
+    "残高' = 残高 + 額": "[{'残高': 残高 + 額}]",
+    "残高 = 0": "残高 == 0",
+    "残高 + 額 ≤ 上限": "accounts[口座ID].残高 + 額 <= 3",
+    "残高' = 残高": "[{'残高': 残高}]",
+}
+
+
+def relabel(value):
+    """value with every clause written in Python in place of its prose."""
+    if isinstance(value, dict):
+        return {k: (FORMAL.get(v, v) if k in ("text", "post", "guard") and isinstance(v, str) else relabel(v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [relabel(v) for v in value]
+    return value
+
+
+GLUE_EXPANSION = relabel(EXPANSION)
+
+# The checks of the expansion: the domains of the received fields.
+GLOBAL_CHECKS = Twins(domains=GLOBAL_TWINS.domains, clauses={})
+
 
 class PromotedModelTest(unittest.TestCase):
     def test_an_expansion_is_recognised_and_keeps_its_clauses(self):
@@ -93,12 +121,12 @@ class PromotedModelTest(unittest.TestCase):
 
 class PromotedExplorerTest(unittest.TestCase):
     def test_instances_are_created_moved_and_deleted_in_the_map(self):
-        result = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run()
+        result = fixture.explorer(GLUE_EXPANSION, GLOBAL_CHECKS).run()
         maps = {s[1][0] for s in result.states}
         self.assertIn(FrozenMap(), maps)
         self.assertIn(FrozenMap({"a1": FrozenMap({"state": "開設済み", "残高": 1})}), maps)
         self.assertIn(FrozenMap({"a1": FrozenMap({"state": "開設済み", "残高": 1}), "a2": FrozenMap({"state": "開設済み", "残高": 2})}), maps)
-        # DEPOSIT keeps 残高 ≤ 3 (the formal twin of the constrain) and CLOSE needs 残高 = 0.
+        # DEPOSIT keeps 残高 ≤ 3 (the constrain) and CLOSE needs 残高 = 0.
         self.assertTrue(all(r.残高 <= 3 for m in maps for r in m.values()))
         # Both IDs used, both balances at the cap: DEPOSIT is barred by the
         # constrain and CLOSE needs 残高 = 0, so nothing can move.
@@ -107,16 +135,16 @@ class PromotedExplorerTest(unittest.TestCase):
         self.assertEqual([], result.unconstrained)
 
     def test_the_trace_names_the_instance(self):
-        result = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run()
+        result = fixture.explorer(GLUE_EXPANSION, GLOBAL_CHECKS).run()
         target = ("running", (FrozenMap({"a2": FrozenMap({"state": "開設済み", "残高": 0})}),), ())
         self.assertIn(target, result.states)
         self.assertEqual(["OPEN(口座ID=a2, 額=0)"], result.trace_to(target))
 
     def test_a_local_post_that_misses_a_local_variable_is_a_finding(self):
-        twins = Twins(domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, locals={"local/ACCOUNT.puml": Twins(
-            domains={}, clauses={"残高' = 額": lambda 額: [{}], "0 < 額": lambda 額: 0 < 額,
-                                 "残高' = 残高 + 額": lambda 残高, 額: [{"残高": 残高 + 額}], "残高 = 0": lambda 残高: 残高 == 0})})
-        result = Explorer.of_twins(fixture.diagram(EXPANSION), twins).run()
+        exp = {**GLUE_EXPANSION, "edges": [dict(e) for e in GLUE_EXPANSION["edges"]]}
+        opened = exp["edges"][0]
+        opened["post"] = [dict(c, text="[{}]") if c["kind"] == "local" else c for c in opened["post"]]
+        result = fixture.explorer(exp, GLOBAL_CHECKS).run()
         self.assertTrue(result.unconstrained)
         self.assertEqual(("accounts[a1].残高",), result.unconstrained[0][2])
 
@@ -134,10 +162,8 @@ class PromotedExplorerTest(unittest.TestCase):
              "origin": "promote: local/ACCOUNT.puml",
              "guard": [gen("in_dom", "口座ID ∈ dom accounts"), gen("at_state", "accounts(口座ID) ∈ 〈開設済み〉", state="開設済み")],
              "post": [gen("update", "accounts' = accounts ⊕ {口座ID ↦ 〈開設済み〉}", state="開設済み"),
-                      {"kind": "local", "form": "text", "text": "残高' = 残高", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 9}]}]}
-        twins = Twins(domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, locals={"local/ACCOUNT.puml": Twins(
-            domains={}, clauses=dict(GLOBAL_TWINS.locals["local/ACCOUNT.puml"].clauses, **{"残高' = 残高": lambda 残高: [{"残高": 残高}]}))})
-        result = Explorer.of_twins(fixture.diagram(exp), twins).run()
+                      {"kind": "local", "form": "text", "text": "[{'残高': 残高}]", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 9}]}]}
+        result = fixture.explorer(relabel(exp), GLOBAL_CHECKS).run()
         self.assertTrue(result.tau_cycles)
 
     def test_a_tau_does_not_choose_an_instance_s_own_variable(self):
@@ -146,9 +172,8 @@ class PromotedExplorerTest(unittest.TestCase):
         tau = {"src": "running", "dst": "running", "event": "tau", "channel": "tau", "fields": [], "guard": "g", "post": "p", "line": 0}
         exp = {**EXPANSION, "diagram": {**EXPANSION["diagram"], "edges": EXPANSION["diagram"]["edges"] + [tau]}, "edges": EXPANSION["edges"] + [
             {"edge": tau, "origin": "promote: local/ACCOUNT.puml",
-             "guard": [{"kind": "local", "form": "text", "text": "残高 = 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
-        twins = Twins(domains=dict(GLOBAL_TWINS.domains, 残高=[0, 1]), clauses=GLOBAL_TWINS.clauses, locals=GLOBAL_TWINS.locals)
-        explorer = Explorer.of_twins(fixture.diagram(exp), twins)
+             "guard": [{"kind": "local", "form": "text", "text": "残高 == 0", "map": "accounts", "path": "local/ACCOUNT.puml", "line": 8}], "post": []}]}
+        explorer = fixture.explorer(relabel(exp), Twins(domains=dict(GLOBAL_CHECKS.domains, 残高=[0, 1]), clauses={}))
 
         # Execute
         chosen = explorer._chosen_by_tau(explorer.d.edges[-1])
@@ -159,11 +184,11 @@ class PromotedExplorerTest(unittest.TestCase):
     def test_a_dropped_clause_is_taken_as_true_and_reported(self):
         # csdfpromote -only lists a guard clause that read a left-out map as
         # dropped: the walk takes it as true and says that it did.
-        exp = {**EXPANSION, "edges": [dict(e) for e in EXPANSION["edges"]]}
+        exp = {**GLUE_EXPANSION, "edges": [dict(e) for e in GLUE_EXPANSION["edges"]]}
         dep = exp["edges"][1]
         dep["guard"] = dep["guard"] + [{"kind": "dropped", "text": "取引所が開いている", "maps": ["markets"], "line": 21}]
-        result = Explorer.of_twins(fixture.diagram(exp), GLOBAL_TWINS).run()
-        self.assertEqual(Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run().states, result.states)
+        result = fixture.explorer(exp, GLOBAL_CHECKS).run()
+        self.assertEqual(fixture.explorer(GLUE_EXPANSION, GLOBAL_CHECKS).run().states, result.states)
         self.assertEqual([{"text": "取引所が開いている", "maps": ["markets"]}], result.to_json()["dropped_clauses"])
 
 
@@ -172,19 +197,18 @@ class EmptyStartTest(unittest.TestCase):
     a clause whose meaning is built in."""
 
     def expansion(self, start) -> dict:
-        x = {**EXPANSION, "start": start}
-        x["diagram"] = {**EXPANSION["diagram"], "start_edge": {"dst": "running", "post": "accounts は空", "line": 5}}
+        x = {**GLUE_EXPANSION, "start": start}
+        x["diagram"] = {**GLUE_EXPANSION["diagram"], "start_edge": {"dst": "running", "post": "accounts は空", "line": 5}}
         return x
 
     def test_the_maps_start_empty(self):
-        no_clauses = Twins(domains=GLOBAL_TWINS.domains, clauses={}, locals=GLOBAL_TWINS.locals)
-        for name, start, twins in [
-            ("with no twin", [{"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], no_clauses),
+        for name, start in [
+            ("alone", [{"kind": "empty", "text": "accounts = ∅", "map": "accounts"}]),
             ("beside an author clause that agrees",
-             [{"kind": "local", "form": "text", "text": "accounts は空", "line": 5}, {"kind": "empty", "text": "accounts = ∅", "map": "accounts"}], GLOBAL_TWINS),
+             [{"kind": "local", "form": "text", "text": "[{'accounts': FrozenMap()}]", "line": 5}, {"kind": "empty", "text": "accounts = ∅", "map": "accounts"}]),
         ]:
             with self.subTest(name):
-                explorer = Explorer.of_twins(fixture.diagram(self.expansion(start)), twins)
+                explorer = fixture.explorer(self.expansion(start), GLOBAL_CHECKS)
                 self.assertEqual([("running", (FrozenMap(),), ())], explorer.initial())
 
     def test_an_expansion_from_before_start_is_read_from_the_start_edge_text(self):

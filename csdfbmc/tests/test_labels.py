@@ -98,24 +98,7 @@ class LabelsTest(unittest.TestCase):
         self.assertIn("[{'n': n - 1}]", str(cm.exception))
 
 
-# The expansion of test_promoted with every clause written in Python, as a
-# front end renders the formal labels in place of the prose.
-FORMAL = {
-    "accounts は空": "[{'accounts': FrozenMap()}]",
-    "残高' = 額": "[{'残高': 額}]",
-    "0 < 額": "0 < 額",
-    "残高' = 残高 + 額": "[{'残高': 残高 + 額}]",
-    "残高 = 0": "残高 == 0",
-    "残高 + 額 ≤ 上限": "accounts[口座ID].残高 + 額 <= 3",
-}
-
-
-def relabel(value):
-    if isinstance(value, dict):
-        return {k: (FORMAL.get(v, v) if k in ("text", "post", "guard") and isinstance(v, str) else relabel(v)) for k, v in value.items()}
-    if isinstance(value, list):
-        return [relabel(v) for v in value]
-    return value
+from csdfbmc.tests.test_promoted import relabel  # noqa: E402
 
 
 class FormalExpansionTest(unittest.TestCase):
