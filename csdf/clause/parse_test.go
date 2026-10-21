@@ -51,6 +51,22 @@ func TestParseReadsAnAtomWithNameHoles(t *testing.T) {
 			text: "${1st}",
 			want: and(atom(hole(pre("1st")))),
 		},
+		"conjuncts are separated by ∧": {
+			text: "$x > 0 ∧ $y > 0",
+			want: and(atom(hole(pre("x")), Text(" > 0")), atom(hole(pre("y")), Text(" > 0"))),
+		},
+		"an escaped ∧ is text": {
+			text: `a \∧ b`,
+			want: and(atom(Text("a ∧ b"))),
+		},
+		"a backslash before a reserved character is that character": {
+			text: `\; \@ \\ \( \)`,
+			want: and(atom(Text(`; @ \ ( )`))),
+		},
+		"a backslash before anything else is itself": {
+			text: `a\b`,
+			want: and(atom(Text(`a\b`))),
+		},
 		"the empty clause is true": {
 			text: "",
 			want: And{},
@@ -86,6 +102,8 @@ func TestParseRefuses(t *testing.T) {
 		"a function primed":      "${f(x)'}",
 		"an unclosed index":      "${m[k}",
 		"a field without a name": "${m.}",
+		"an empty conjunct":      "$x ∧  ∧ $y",
+		"a trailing ∧":           "$x ∧ ",
 	}
 	for name, text := range tests {
 		t.Run(name, func(t *testing.T) {

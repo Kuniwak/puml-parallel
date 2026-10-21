@@ -11,6 +11,10 @@ import (
 const (
 	holeSigil = '$'
 	escape    = '\\'
+	conjSep   = " ∧ "
+	// escapable are the characters a backslash makes text; before anything
+	// else a backslash is itself.
+	escapable = `$∧;@\()`
 )
 
 // Parse reads a clause (docs/SYNTAX.md, "Clauses"). The empty text is true,
@@ -56,22 +60,29 @@ func (p *parser) clause() (And, error) {
 	if p.atEnd() {
 		return And{}, nil
 	}
-	a, err := p.atom()
-	if err != nil {
-		return And{}, err
+	var cs []Formula
+	for {
+		c, err := p.atom()
+		if err != nil {
+			return And{}, err
+		}
+		cs = append(cs, c)
+		if !p.hasPrefix(conjSep) {
+			return And{Conjuncts: cs}, nil
+		}
+		p.pos += len([]rune(conjSep))
 	}
-	return And{Conjuncts: []Formula{a}}, nil
 }
 
-// atom reads text and holes up to the end.
+// atom reads text and holes up to an unescaped " ∧ " or the end.
 func (p *parser) atom() (Formula, error) {
 	var parts []Part
 	var text []rune
-	for !p.atEnd() {
+	for !p.atEnd() && !p.hasPrefix(conjSep) {
 		r := p.peek()
 		switch {
-		case r == escape && p.peekAt(1) == holeSigil:
-			text = append(text, holeSigil)
+		case r == escape && p.peekAt(1) != 0 && strings.ContainsRune(escapable, p.peekAt(1)):
+			text = append(text, p.peekAt(1))
 			p.pos += 2
 		case r == holeSigil && p.peekAt(1) == '{':
 			if len(text) > 0 {
@@ -94,6 +105,9 @@ func (p *parser) atom() (Formula, error) {
 	}
 	if len(text) > 0 {
 		parts = append(parts, Text(text))
+	}
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("empty conjunct at %d", p.pos)
 	}
 	return Atom{Parts: parts}, nil
 }

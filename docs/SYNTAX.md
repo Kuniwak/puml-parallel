@@ -226,7 +226,7 @@ syntax of the clause representation in `csdf/clause`, which follows
 posts described above.
 
 ```abnf
-clause   = [conjunct]
+clause   = [conjunct *(" ∧ " conjunct)]
 conjunct = atom
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = id ["'"] *("[" term "]" / "." id) ["'"]
@@ -242,8 +242,9 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   and names that start with a digit (`${1st}`). A trailing `'` primes the
   variable the path starts from: `${m[k].f'}` is the entry at `k` of `m`
   after the step. An environment function has no value after the step.
-- `$` not followed by a letter, `_` or `{` is text, so `$100` is text. `\$` is
-  always text.
+- `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
+- In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
+  anything else is itself.
 
 
 Global Diagram Format
