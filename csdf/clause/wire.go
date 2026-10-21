@@ -23,7 +23,7 @@ type AtomWire struct {
 
 // Wire is a as a glue receives it, with the terms its arguments stand for,
 // in the order of their indices.
-func Wire(a Atom) (AtomWire, []Term) {
+func Wire(a Atom) (AtomWire, []Term, error) {
 	w := AtomWire{Text: []string{""}, Holes: []int{}, Primed: []bool{}}
 	var terms []Term
 	for _, p := range Normalize(a).Conjuncts[0].(Atom).Parts {
@@ -45,7 +45,7 @@ func Wire(a Atom) (AtomWire, []Term) {
 			w.Text = append(w.Text, "")
 		}
 	}
-	return w, terms
+	return w, terms, nil
 }
 
 func indexOf(terms []Term, t Term) int {

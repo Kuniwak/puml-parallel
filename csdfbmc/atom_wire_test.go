@@ -16,7 +16,10 @@ func TestTheGlueReadsTheAtomsTheToolsWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wire, terms := clause.Wire(f.Conjuncts[0].(clause.Atom))
+	wire, terms, err := clause.Wire(f.Conjuncts[0].(clause.Atom))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Execute
 	answers := runGlue(t,

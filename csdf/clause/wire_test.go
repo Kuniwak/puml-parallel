@@ -44,9 +44,12 @@ func TestWireOfAnAtom(t *testing.T) {
 			a := f.Conjuncts[0].(Atom)
 
 			// Execute
-			gotWire, gotTerms := Wire(a)
+			gotWire, gotTerms, err := Wire(a)
 
 			// Assert
+			if err != nil {
+				t.Fatalf("Wire(%q): %v", tt.text, err)
+			}
 			if diff := cmp.Diff(tt.wantWire, gotWire); diff != "" {
 				t.Errorf("Wire(%q) wire mismatch (-want +got):\n%s", tt.text, diff)
 			}
