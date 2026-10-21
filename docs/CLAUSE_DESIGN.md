@@ -215,7 +215,7 @@ that a language interprets.
 ```
 clause  ::= atom | builtin | clause ∧ clause | ∃ var . clause
 builtin ::= term = term | term ≠ term | term ∈ dom term
-          | map update | frame | term at state
+          | map update | frame | term at state | every instance of term at state
 term    ::= var | var' | term[term].field | envfn(term, …)
 ```
 
