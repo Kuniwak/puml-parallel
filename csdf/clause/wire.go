@@ -1,6 +1,7 @@
 package clause
 
 import (
+	"fmt"
 	"reflect"
 
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
@@ -24,9 +25,14 @@ type AtomWire struct {
 // Wire is a as a glue receives it, with the terms its arguments stand for,
 // in the order of their indices.
 func Wire(a Atom) (AtomWire, []Term, error) {
+	for _, p := range a.Parts {
+		if h, ok := p.(Hole); ok && primedBelowRoot(h.Term) {
+			return AtomWire{}, nil, fmt.Errorf("clause.Wire: %#v: only the variable a term starts from may be primed", h.Term)
+		}
+	}
 	w := AtomWire{Text: []string{""}, Holes: []int{}, Primed: []bool{}}
 	var terms []Term
-	for _, p := range Normalize(a).Conjuncts[0].(Atom).Parts {
+	for _, p := range normalAtom(a).Parts {
 		switch p := p.(type) {
 		case Text:
 			last := len(w.Text) - 1
@@ -62,4 +68,29 @@ func indexOf(terms []Term, t Term) int {
 func isPrimed(t Term) bool {
 	v, ok := Root(t).(Free)
 	return ok && v.Primed
+}
+
+// primedBelowRoot says whether t reads a value after the step anywhere but
+// at its root: in a key, or in an argument of a function.
+func primedBelowRoot(t Term) bool {
+	switch t := t.(type) {
+	case Index:
+		return primedBelowRoot(t.Map) || hasPrimed(t.Key)
+	case Field:
+		return primedBelowRoot(t.Of)
+	case App:
+		return hasPrimed(t)
+	}
+	return false
+}
+
+func hasPrimed(t Term) bool {
+	found := false
+	MapTerm(t, 0, func(v Term, _ int) Term {
+		if f, ok := v.(Free); ok && f.Primed {
+			found = true
+		}
+		return v
+	})
+	return found
 }

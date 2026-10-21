@@ -81,3 +81,32 @@ func TestWireIsTheJSONOfTheProtocol(t *testing.T) {
 		}
 	}
 }
+
+func TestWireRefuses(t *testing.T) {
+	tests := map[string]struct {
+		atom Atom
+		want string
+	}{
+		"a prime on a key, not on the root": {
+			atom: Atom{Parts: []Part{Hole{Term: Index{Map: pre("m"), Key: post("k")}}, Text(" > 0")}},
+			want: "only the variable a term starts from may be primed",
+		},
+		"a prime on a field's record below an index": {
+			atom: Atom{Parts: []Part{Hole{Term: Field{Of: Index{Map: post("m"), Key: post("k")}, Name: "f"}}}},
+			want: "only the variable a term starts from may be primed",
+		},
+		"a prime inside an argument of a function": {
+			atom: Atom{Parts: []Part{Hole{Term: App{Fn: "f", Args: []Term{post("x")}}}}},
+			want: "only the variable a term starts from may be primed",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, _, err := Wire(tt.atom)
+
+			// Assert
+			assertErrorContains(t, err, tt.want)
+		})
+	}
+}
