@@ -68,6 +68,34 @@ class SeededTest(unittest.TestCase):
                 self.assertNotEqual(a, b)
 
 
+class CanonicalTest(unittest.TestCase):
+    """The text a seed hashes, and so what it chooses, never changes."""
+
+    def test_the_encoding_is_pinned(self):
+        # Setup
+        cases = [
+            ("a mapping, its entries sorted", {"n": 1, "b": True}, "{str:'b':bool:True,str:'n':int:1}"),
+            ("a set, its elements sorted", frozenset({2, 1}), "#{int:1,int:2}"),
+            ("a tuple and a list alike", ((1, 2), [1, 2]), "((int:1,int:2),(int:1,int:2))"),
+            ("a FrozenMap as a mapping", FrozenMap({"k": 1}), "{str:'k':int:1}"),
+            ("a string by its repr", "口座", "str:'口座'"),
+        ]
+        for name, value, want in cases:
+            with self.subTest(name):
+                # Execute
+                got = environment.canonical(value)
+
+                # Assert
+                self.assertEqual(want, got)
+
+    def test_a_seed_chooses_what_it_always_chose(self):
+        # Execute
+        got = [seeded(7)("p", {"n": n}) for n in range(8)]
+
+        # Assert
+        self.assertEqual([False, False, True, False, True, True, False, False], got)
+
+
 class RecordingTest(unittest.TestCase):
     def test_records_each_name_decided_once_in_order(self):
         # Setup

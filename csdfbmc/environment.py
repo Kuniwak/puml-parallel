@@ -100,7 +100,11 @@ def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | No
 
 def canonical(v) -> str:
     """v written so that equal values are written alike, whatever order a
-    set or a mapping iterates in."""
+    set or a mapping iterates in: a mapping as its sorted entries, a set as
+    its sorted elements, a tuple or a list alike as the sequence of its
+    elements, and anything else as its type's name and its repr. The seed's
+    choices depend on this text, so it must not change between versions;
+    tests pin it."""
     if isinstance(v, Mapping):
         return "{" + ",".join(sorted(f"{canonical(k)}:{canonical(x)}" for k, x in v.items())) + "}"
     if isinstance(v, (set, frozenset)):
