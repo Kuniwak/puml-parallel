@@ -30,7 +30,7 @@ func TestAnEdgeIsEnabledWhenSomeValuesPassItsGuardAndPost(t *testing.T) {
 					Event: core.Event{Channel: "OUT", Fields: []core.Field{{Name: "数量"}}},
 					Guard: mustParse(t, "$在庫 ≥ $数量"), Post: mustParse(t, "$在庫' = $在庫 - $数量")}
 			},
-			Want: `∃数量 在庫'. "$_ ≥ $_"(在庫, 数量) ∧ "$_ = $_ - $_"(在庫', 在庫, 数量)`,
+			Want: `∃数量 在庫'. "$_0 ≥ $_1"(在庫, 数量) ∧ "$_0 = $_1 - $_2"(在庫', 在庫, 数量)`,
 		},
 		"a sent field is a value the step has bound, never chosen": {
 			Edge: func(t *testing.T) core.Edge {
@@ -44,7 +44,7 @@ func TestAnEdgeIsEnabledWhenSomeValuesPassItsGuardAndPost(t *testing.T) {
 			Edge: func(t *testing.T) core.Edge {
 				return core.Edge{Src: "s", Dst: "t", Event: core.Event{Channel: "GO"}, Guard: mustParse(t, "$ok")}
 			},
-			Want: `"$_"(ok)`,
+			Want: `"$_0"(ok)`,
 		},
 	}
 
@@ -82,7 +82,7 @@ func TestAStepRelatesTheValuesBeforeTheFieldsAndTheValuesAfter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("want nil, got %v", err)
 	}
-	if s, want := symbols.Spell(got), `"$_ > 0"(数量) ∧ "$_ = $_ + $_"(在庫', 在庫, 数量)`; s != want {
+	if s, want := symbols.Spell(got), `"$_0 > 0"(数量) ∧ "$_0 = $_1 + $_2"(在庫', 在庫, 数量)`; s != want {
 		t.Errorf("want %q, got %q", want, s)
 	}
 }

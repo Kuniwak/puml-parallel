@@ -28,15 +28,15 @@ func TestFormulaOfAClause(t *testing.T) {
 	testCases := map[string]testCase{
 		"an atom is its function applied to its holes": {
 			Clause: "$在庫 が $数量 以上ある",
-			Want:   `"$_ が $_ 以上ある"(在庫, 数量)`,
+			Want:   `"$_0 が $_1 以上ある"(在庫, 数量)`,
 		},
 		"a value after the step is the primed variable": {
 			Clause: "$x' = $x + 1",
-			Want:   `"$_ = $_ + 1"(x', x)`,
+			Want:   `"$_0 = $_1 + 1"(x', x)`,
 		},
 		"a hole of a term is the term": {
 			Clause: "${locations[from].在庫} > 0",
-			Want:   `"$_ > 0"(locations[from].在庫)`,
+			Want:   `"$_0 > 0"(locations[from].在庫)`,
 		},
 		"@eq and @ne are equalities": {
 			Clause: "@eq(a, b) ∧ @ne(from, to)",
