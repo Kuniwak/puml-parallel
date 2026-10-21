@@ -155,71 +155,21 @@ func stock(t *testing.T, families ...Family) Env {
 			"#0 = #1 + #2": func(a []Value) bool { return a[0] == a[1].(int)+a[2].(int) },
 		},
 	}
+	return envWith(t, env, families...)
+}
+
+// envWith is env with the type of each family's map, over the IDs env gives
+// the family's ID variable.
+func envWith(t *testing.T, env Env, families ...Family) Env {
+	t.Helper()
 	for _, f := range families {
 		m, err := MapType(f, env.Types[f.ID], env)
 		if err != nil {
 			t.Fatal(err)
 		}
-		types[f.Map] = m
+		env.Types[f.Map] = m
 	}
 	return env
-}
-
-func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
-	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
-	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t), Create: "NEW"}
-	doors := Family{Map: "doors", ID: "loc", Local: door(), Create: "NEW", Delete: "GONE"}
-	cases := []struct {
-		name     string
-		p        Promotion
-		families []Family
-		want     *lts.LTS
-	}{
-		{
-			name:     "instances are created, return to their start state while they exist, and are deleted",
-			p:        Promotion{State: "G", Families: []Family{doors}},
-			families: []Family{doors},
-			want: lts.Parallel(
-				[]*lts.LTS{doorInstance("a"), doorInstance("b")},
-				[]func(string) bool{mentions("a"), mentions("b")}),
-		},
-		{
-			name: "a sync moves two instances of one family (#65)",
-			p: Promotion{State: "G",
-				Families: []Family{locations, shipments},
-				Syncs: []Sync{{Event: "MOVE", Targets: []Target{
-					{Map: "shipments", ID: "s", Event: "MOVE"},
-					{Map: "locations", ID: "from", Event: "DEPART"},
-					{Map: "locations", ID: "to", Event: "ARRIVE"},
-				}}},
-			},
-			families: []Family{locations, shipments},
-			want: lts.Parallel(
-				[]*lts.LTS{locationInstance("a"), locationInstance("b"), shipmentInstance("s1")},
-				[]func(string) bool{mentions("a"), mentions("b"), mentions("s1")}),
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			// Setup
-			env := stock(t, c.families...)
-
-			// Execute
-			promoted, err := Promote(c.p)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := Expand(promoted, env)
-
-			// Assert
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !lts.StableFailuresEqual(got, c.want) {
-				t.Errorf("not stable-failures equivalent:\ngot  %d states\nwant %d states", len(got.Trans), len(c.want.Trans))
-			}
-		})
-	}
 }
 
 func TestPromoteRefuses(t *testing.T) {
@@ -282,34 +232,6 @@ func lampInstance(x string) *lts.LTS {
 	)
 }
 
-func TestPromoteMovesByAnInternalEventOnlyAnInstanceThatCanTakeIt(t *testing.T) {
-	// Setup: with x at c and y at a, only y may move to b.
-	lamps := Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}
-	p := Promotion{State: "G", Families: []Family{lamps}}
-	env := Env{Types: map[string][]Value{"l": {"x", "y"}}}
-	m, err := MapType(lamps, env.Types["l"], env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	env.Types["lamps"] = m
-	want := lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{mentions("x"), mentions("y")})
-
-	// Execute
-	promoted, err := Promote(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := Expand(promoted, env)
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !lts.StableFailuresEqual(got, want) {
-		t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
-	}
-}
-
 func TestMapTypeIsEveryPartialMap(t *testing.T) {
 	// Setup: one ID, absent or at one of two states, one holding a bit.
 	f := Family{Map: "m", ID: "i", Local: &Diagram{
@@ -363,121 +285,48 @@ func gauge() *Diagram {
 	}
 }
 
-func TestPromoteMergesTheFieldsOfASyncByName(t *testing.T) {
-	tanks := Family{Map: "tanks", ID: "k", Local: tank(t), Create: "NEW"}
-	gauges := Family{Map: "gauges", ID: "g", Local: gauge(), Create: "MAKE"}
-	show := func(first, second Target) Sync { return Sync{Event: "SHOW", Targets: []Target{first, second}} }
-	tankTarget, gaugeTarget := Target{Map: "tanks", ID: "k", Event: "SHOW"}, Target{Map: "gauges", ID: "g", Event: "SHOW"}
-	// The tank t1 by hand: 1 holds level 0, 2 level 1; show(ids) is the
-	// label of SHOW with the IDs in the sync's order.
-	tankInstance := func(show func(level string) string) *lts.LTS {
-		return handLTS(tr{0, "NEW.t1", 1}, tr{1, "FILL.t1", 2}, tr{2, "FILL.t1", 2},
-			tr{1, "LOOK.t1.0", 1}, tr{2, "LOOK.t1.1", 2}, tr{1, show("0"), 1}, tr{2, show("1"), 2})
-	}
-	gaugeInstance := func(show func(level string) string) *lts.LTS {
-		return handLTS(tr{0, "MAKE.g1", 1}, tr{1, show("0"), 1}, tr{1, show("1"), 1})
-	}
-	tankFirst := func(level string) string { return "SHOW.t1.g1." + level }
-	gaugeFirst := func(level string) string { return "SHOW.g1.t1." + level }
-	cases := []struct {
-		name string
-		sync Sync
-		want *lts.LTS
-	}{
-		{"a send before a receive fixes the value", show(tankTarget, gaugeTarget),
-			lts.Parallel([]*lts.LTS{tankInstance(tankFirst), gaugeInstance(tankFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})},
-		{"a receive before a send reads it", show(gaugeTarget, tankTarget),
-			lts.Parallel([]*lts.LTS{tankInstance(gaugeFirst), gaugeInstance(gaugeFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			// Setup
-			p := Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{c.sync}}
-			env := Env{Types: map[string][]Value{"k": {"t1"}, "g": {"g1"}, "level": {0, 1}},
-				Atoms: map[string]func([]Value) bool{
-					"#0 = 0":  func(a []Value) bool { return a[0] == 0 },
-					"#0 = 1":  func(a []Value) bool { return a[0] == 1 },
-					"#0 = #1": func(a []Value) bool { return a[0] == a[1] },
-				}}
-			for _, f := range p.Families {
-				m, err := MapType(f, env.Types[f.ID], env)
-				if err != nil {
-					t.Fatal(err)
-				}
-				env.Types[f.Map] = m
-			}
-
-			// Execute
-			promoted, err := Promote(p)
-			if err != nil {
-				t.Fatal(err)
-			}
-			got, err := Expand(promoted, env)
-
-			// Assert
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !lts.StableFailuresEqual(got, c.want) {
-				t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(c.want.Trans))
-			}
-		})
-	}
+// tankInstance is the tank t1 by hand: 1 holds level 0, 2 level 1; show
+// gives the label of SHOW for a level.
+func tankInstance(show func(level string) string) *lts.LTS {
+	return handLTS(tr{0, "NEW.t1", 1}, tr{1, "FILL.t1", 2}, tr{2, "FILL.t1", 2},
+		tr{1, "LOOK.t1.0", 1}, tr{2, "LOOK.t1.1", 2}, tr{1, show("0"), 1}, tr{2, show("1"), 2})
 }
 
-func TestPromoteGivesTwoReceivesOfOneNameOneValue(t *testing.T) {
-	// Setup: one gauge peeks while another glances, both receiving level:
-	// one field.
-	gauges := Family{Map: "gauges", ID: "g", Local: &Diagram{States: []string{"g"}, Init: "g", Edges: []Edge{
+// gaugeInstance is the gauge g1 by hand.
+func gaugeInstance(show func(level string) string) *lts.LTS {
+	return handLTS(tr{0, "MAKE.g1", 1}, tr{1, show("0"), 1}, tr{1, show("1"), 1})
+}
+
+// tankEnv gives the tank and gauge examples their types and atoms.
+func tankEnv(t *testing.T, families ...Family) Env {
+	return envWith(t, Env{Types: map[string][]Value{"k": {"t1"}, "g": {"g1"}, "level": {0, 1}},
+		Atoms: map[string]func([]Value) bool{
+			"#0 = 0":  func(a []Value) bool { return a[0] == 0 },
+			"#0 = 1":  func(a []Value) bool { return a[0] == 1 },
+			"#0 = #1": func(a []Value) bool { return a[0] == a[1] },
+		}}, families...)
+}
+
+// glancer: a gauge receiving a level on PEEK and on GLANCE.
+func glancer() *Diagram {
+	return &Diagram{States: []string{"g"}, Init: "g", Edges: []Edge{
 		{Src: "g", Dst: "g", Event: ev("PEEK", recv("level"))},
 		{Src: "g", Dst: "g", Event: ev("GLANCE", recv("level"))},
-	}}, Create: "MAKE"}
-	p := Promotion{State: "G", Families: []Family{gauges}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
-		{Map: "gauges", ID: "g", Event: "PEEK"}, {Map: "gauges", ID: "h", Event: "GLANCE"}}}}}
-	env := Env{Types: map[string][]Value{"g": {"g1", "g2"}, "h": {"g1", "g2"}, "level": {0, 1}}}
-	m, err := MapType(gauges, env.Types["g"], env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	env.Types["gauges"] = m
-	instance := func(x, y string) *lts.LTS {
-		return handLTS(tr{0, "MAKE." + x, 1},
-			tr{1, "PEEK." + x + "." + y + ".0", 1}, tr{1, "PEEK." + x + "." + y + ".1", 1},
-			tr{1, "PEEK." + y + "." + x + ".0", 1}, tr{1, "PEEK." + y + "." + x + ".1", 1})
-	}
-	want := lts.Parallel([]*lts.LTS{instance("g1", "g2"), instance("g2", "g1")}, []func(string) bool{mentions("g1"), mentions("g2")})
-
-	// Execute
-	promoted, err := Promote(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := Expand(promoted, env)
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !lts.StableFailuresEqual(got, want) {
-		t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
-	}
+	}}
 }
 
-func TestPromoteCarriesWhatASyncClauseReadsByTheEvent(t *testing.T) {
-	// Setup: MOVE is taken only into an empty location, a clause of the
-	// global diagram reading the instance bound to to (#79).
-	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
-	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t), Create: "NEW"}
-	p := Promotion{State: "G", Families: []Family{locations, shipments},
-		Syncs: []Sync{{Event: "MOVE", Guard: mustParse(t, "${locations[to].stock} = 0"), Targets: []Target{
-			{Map: "shipments", ID: "s", Event: "MOVE"},
-			{Map: "locations", ID: "from", Event: "DEPART"},
-			{Map: "locations", ID: "to", Event: "ARRIVE"},
-		}}}}
-	env := stock(t, locations, shipments)
-	// By hand: the instance bound to to offers MOVE carrying its stock, the
-	// others offer every value; the global clause takes only 0; and a
-	// many-to-one renaming forgets what was carried.
+// glancerInstance is the gauge x by hand, peeking with y in either role.
+func glancerInstance(x, y string) *lts.LTS {
+	return handLTS(tr{0, "MAKE." + x, 1},
+		tr{1, "PEEK." + x + "." + y + ".0", 1}, tr{1, "PEEK." + x + "." + y + ".1", 1},
+		tr{1, "PEEK." + y + "." + x + ".0", 1}, tr{1, "PEEK." + y + "." + x + ".1", 1})
+}
+
+// readingDenotation is the denotation of a MOVE taken only into an empty
+// location, by hand: the instance bound to to offers MOVE carrying its
+// stock, the others offer every value; the global clause takes only 0; and
+// a many-to-one renaming forgets what was carried (#79).
+func readingDenotation(t *testing.T) *lts.LTS {
 	carry := func(k int) string { return "|to.stock=" + string(rune('0'+k)) }
 	any := []string{carry(0), carry(1), carry(2)}
 	r := func(role string, k int) []string {
@@ -505,19 +354,112 @@ func TestPromoteCarriesWhatASyncClauseReadsByTheEvent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return want
+}
 
-	// Execute
-	promoted, err := Promote(p)
-	if err != nil {
-		t.Fatal(err)
+func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
+	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
+	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t), Create: "NEW"}
+	doors := Family{Map: "doors", ID: "loc", Local: door(), Create: "NEW", Delete: "GONE"}
+	lamps := Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}
+	tanks := Family{Map: "tanks", ID: "k", Local: tank(t), Create: "NEW"}
+	gauges := Family{Map: "gauges", ID: "g", Local: gauge(), Create: "MAKE"}
+	glancers := Family{Map: "gauges", ID: "g", Local: glancer(), Create: "MAKE"}
+	tankTarget, gaugeTarget := Target{Map: "tanks", ID: "k", Event: "SHOW"}, Target{Map: "gauges", ID: "g", Event: "SHOW"}
+	tankFirst := func(level string) string { return "SHOW.t1.g1." + level }
+	gaugeFirst := func(level string) string { return "SHOW.g1.t1." + level }
+	move := []Target{
+		{Map: "shipments", ID: "s", Event: "MOVE"},
+		{Map: "locations", ID: "from", Event: "DEPART"},
+		{Map: "locations", ID: "to", Event: "ARRIVE"},
 	}
-	got, err := Expand(promoted, env)
+	cases := []struct {
+		name string
+		p    Promotion
+		env  func(t *testing.T) Env
+		want func(t *testing.T) *lts.LTS
+	}{
+		{
+			name: "instances are created, return to their start state while they exist, and are deleted",
+			p:    Promotion{State: "G", Families: []Family{doors}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b")}, []func(string) bool{mentions("a"), mentions("b")})
+			},
+		},
+		{
+			name: "a sync moves two instances of one family (#65)",
+			p:    Promotion{State: "G", Families: []Family{locations, shipments}, Syncs: []Sync{{Event: "MOVE", Targets: move}}},
+			env:  func(t *testing.T) Env { return stock(t, locations, shipments) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel(
+					[]*lts.LTS{locationInstance("a"), locationInstance("b"), shipmentInstance("s1")},
+					[]func(string) bool{mentions("a"), mentions("b"), mentions("s1")})
+			},
+		},
+		{
+			// With x at c and y at a, only y may move to b.
+			name: "an internal event moves only an instance that can take it",
+			p:    Promotion{State: "G", Families: []Family{lamps}},
+			env:  func(t *testing.T) Env { return envWith(t, Env{Types: map[string][]Value{"l": {"x", "y"}}}, lamps) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{mentions("x"), mentions("y")})
+			},
+		},
+		{
+			name: "a sync's fields merged by name: a send before a receive fixes the value",
+			p:    Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{tankTarget, gaugeTarget}}}},
+			env:  func(t *testing.T) Env { return tankEnv(t, tanks, gauges) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{tankInstance(tankFirst), gaugeInstance(tankFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})
+			},
+		},
+		{
+			name: "a sync's fields merged by name: a receive before a send reads it",
+			p:    Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{gaugeTarget, tankTarget}}}},
+			env:  func(t *testing.T) Env { return tankEnv(t, tanks, gauges) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{tankInstance(gaugeFirst), gaugeInstance(gaugeFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})
+			},
+		},
+		{
+			name: "two receives of one name are one value",
+			p: Promotion{State: "G", Families: []Family{glancers}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
+				{Map: "gauges", ID: "g", Event: "PEEK"}, {Map: "gauges", ID: "h", Event: "GLANCE"}}}}},
+			env: func(t *testing.T) Env {
+				return envWith(t, Env{Types: map[string][]Value{"g": {"g1", "g2"}, "h": {"g1", "g2"}, "level": {0, 1}}}, glancers)
+			},
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{glancerInstance("g1", "g2"), glancerInstance("g2", "g1")}, []func(string) bool{mentions("g1"), mentions("g2")})
+			},
+		},
+		{
+			name: "what a sync clause reads is carried by the event (#79)",
+			p: Promotion{State: "G", Families: []Family{locations, shipments},
+				Syncs: []Sync{{Event: "MOVE", Guard: mustParse(t, "${locations[to].stock} = 0"), Targets: move}}},
+			env:  func(t *testing.T) Env { return stock(t, locations, shipments) },
+			want: readingDenotation,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			env, want := c.env(t), c.want(t)
 
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !lts.StableFailuresEqual(got, want) {
-		t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
+			// Execute
+			promoted, err := Promote(c.p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := Expand(promoted, env)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !lts.StableFailuresEqual(got, want) {
+				t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
+			}
+		})
 	}
 }

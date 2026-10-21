@@ -33,6 +33,11 @@ func TestWireOfAnAtom(t *testing.T) {
 			wantWire:  AtomWire{Text: []string{"", "foo"}, Holes: []int{0}, Primed: []bool{false}},
 			wantTerms: []Term{Index{Map: pre("m"), Key: pre("k")}},
 		},
+		"an atom under a binder reads its index as an argument": {
+			text:      "@exists(v : T) ($v > 0)",
+			wantWire:  AtomWire{Text: []string{"", " > 0"}, Holes: []int{0}, Primed: []bool{false}},
+			wantTerms: []Term{Bound{Index: 0}},
+		},
 		"no holes": {
 			text:      "it rains",
 			wantWire:  AtomWire{Text: []string{"it rains"}, Holes: []int{}, Primed: []bool{}},
@@ -46,7 +51,7 @@ func TestWireOfAnAtom(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a := f.Conjuncts[0].(Atom)
+			a := firstAtom(f)
 
 			// Execute
 			gotWire, gotTerms, err := Wire(a)
@@ -120,22 +125,15 @@ func TestWireRefuses(t *testing.T) {
 	}
 }
 
-func TestWireOfAnAtomUnderABinder(t *testing.T) {
-	// Setup
-	a := Atom{Parts: []Part{Hole{Term: Bound{Index: 0}}, Text(" > 0")}}
-	wantWire := AtomWire{Text: []string{"", " > 0"}, Holes: []int{0}, Primed: []bool{false}}
-
-	// Execute
-	gotWire, gotTerms, err := Wire(a)
-
-	// Assert
-	if err != nil {
-		t.Fatalf("Wire: %v", err)
+// firstAtom is the first atom of f, under any ∃.
+func firstAtom(f And) Atom {
+	for _, c := range f.Conjuncts {
+		switch c := c.(type) {
+		case Atom:
+			return c
+		case Exists:
+			return firstAtom(c.Body)
+		}
 	}
-	if diff := cmp.Diff(wantWire, gotWire); diff != "" {
-		t.Errorf("Wire wire mismatch (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff([]Term{Bound{Index: 0}}, gotTerms); diff != "" {
-		t.Errorf("Wire terms mismatch (-want +got):\n%s", diff)
-	}
+	return Atom{}
 }
