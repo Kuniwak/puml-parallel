@@ -8,11 +8,13 @@ import "unicode"
 // Pattern is the rule as a regular expression, for parsers built on regexp.
 const Pattern = `[\p{L}\p{N}_]+`
 
-// IsRune reports whether r may appear in an identifier. Unicode letters and
-// digits are accepted so that identifiers can be written in any language;
-// PlantUML accepts them too, which keeps CSDF a subset of PlantUML.
+// IsRune reports whether r may appear in an identifier: a Unicode letter
+// (category L), a Unicode number (category N, as Pattern's \p{N}) or _.
+// Letters and numbers of any script are accepted so that identifiers can be
+// written in any language; PlantUML accepts them too, which keeps CSDF a
+// subset of PlantUML.
 func IsRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
+	return unicode.IsLetter(r) || unicode.IsNumber(r) || r == '_'
 }
 
 // Is reports whether s is an identifier.
