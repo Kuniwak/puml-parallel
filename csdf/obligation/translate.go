@@ -21,7 +21,8 @@ import (
 //	csdf_empty(m)             m has no entries
 //	csdf_update(m', m, k, v)  m' is m with k mapped to v
 //	csdf_frame(m', m, k…)     m' and m agree everywhere but at the keys
-//	csdf_at(t, S)             the instance t is at the state S
+//	csdf_at(t, S)             the instance t is at the state S, written
+//	                          StatePrefix followed by its name
 //
 // @notin is the negation of csdf_in; @eq and @ne are equalities. A clause
 // that reads an entry of a map is conjoined with csdf_in of its key, since a
@@ -33,6 +34,11 @@ const (
 	PredFrame  = "csdf_frame"
 	PredAt     = "csdf_at"
 )
+
+// StatePrefix begins the constant a state of a local diagram becomes in csdf_at,
+// so that a state never shares a name with a constant or an environment
+// function of the clauses.
+const StatePrefix = "csdf_state_"
 
 // Formula is the formula of the logic that f states. A free variable is the
 // variable of its name, primed with ' when it is a value after the step; a
@@ -167,7 +173,7 @@ func builtin(b clause.Builtin) (logic.Formula, error) {
 	case clause.OpFrame:
 		return logic.Pred(PredFrame, false, args...), nil
 	case clause.OpAt:
-		return logic.Pred(PredAt, false, args[0], logic.Apply(b.State)), nil
+		return logic.Pred(PredAt, false, args[0], logic.Apply(StatePrefix+b.State)), nil
 	}
 	return nil, fmt.Errorf("obligation.Formula: no builtin @%s", b.Op)
 }
