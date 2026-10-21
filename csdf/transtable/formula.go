@@ -21,7 +21,7 @@ import (
 // all, whatever they are, so that no syntax of parameters has to be fixed.
 const (
 	// OfferedParams are the parameters of the column's event.
-	OfferedParams logic.Var = "c"
+	OfferedParams = logic.OfferedParams
 	// NextValues are the values after an accepted event.
 	NextValues logic.Var = "x'"
 )
@@ -36,7 +36,7 @@ func ValuesAfterStep(i int) logic.Var {
 }
 
 // ParamsOfStep names the parameters of the event of the i-th tau step.
-func ParamsOfStep(i int) logic.Var { return logic.Var(fmt.Sprintf("c%d", i)) }
+func ParamsOfStep(i int) logic.Var { return logic.ParamsOfStep(i) }
 
 // stepVars are the variables k tau steps introduce, in step order: the
 // parameters of a step before the values after it.

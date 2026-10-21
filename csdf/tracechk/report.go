@@ -153,41 +153,33 @@ var notation = func() logic.Notation {
 // itself. A predicate that is exactly true is left out.
 func enabled(e csdf.Edge, n int) logic.Formula {
 	var params []logic.Var
-	if hasParams(e) {
+	if e.HasParams() {
 		params = []logic.Var{offered(e)}
 	}
 	var parts []logic.Formula
 	if !csdf.IsTrue(e.Guard) {
-		parts = append(parts, logic.Atom(fmt.Sprintf("guard_L%d", e.Line), append(slices.Clone(params), valuation(n))...))
+		parts = append(parts, atom(fmt.Sprintf("guard_L%d", e.Line), params, valuation(n)))
 	}
 	if !csdf.IsTrue(e.Post) {
-		parts = append(parts, logic.Exists([]logic.Var{"x'"}, logic.Atom(fmt.Sprintf("post_L%d", e.Line), append(slices.Clone(params), valuation(n), "x'")...)))
+		parts = append(parts, logic.Exists([]logic.Var{"x'"}, atom(fmt.Sprintf("post_L%d", e.Line), params, valuation(n), "x'")))
 	}
 	return logic.Exists(params, logic.And(parts...))
 }
 
-// hasParams reports whether an edge's predicates read parameters of its
-// event: the fields it receives, or, for a tau, the values it chooses (a
-// hidden event's), which the tool cannot tell apart from none since it reads
-// no clause. A sent field is no parameter: it is a value the state holds.
-func hasParams(e csdf.Edge) bool {
-	if e.Event == csdf.Tau {
-		return true
-	}
-	return slices.ContainsFunc(e.Event.Fields(), func(f csdf.Field) bool { return f.Dir == csdf.Received })
-}
-
-// offered names the parameters of an edge out of the reached state: c for
-// the next event's, as the environment offers them, and c' for a tau's.
+// offered names the parameters of an edge out of the reached state: those
+// the environment offers for the next event, and those a tau chooses.
 func offered(e csdf.Edge) logic.Var {
 	if e.Event == csdf.Tau {
-		return "c'"
+		return logic.ChosenParams
 	}
-	return "c"
+	return logic.OfferedParams
 }
 
-// params names the parameters of the i-th step's event, all of them in one.
-func params(i int) logic.Var { return logic.Var(fmt.Sprintf("c%d", i)) }
+// atom applies a predicate to its event's parameters, when it has some, and
+// then to the valuations.
+func atom(name string, params []logic.Var, valuations ...logic.Var) logic.Formula {
+	return logic.Atom(name, slices.Concat(params, valuations)...)
+}
 
 // pathVars are the variables of a path, in step order: x0, then each step's
 // parameters before the valuation after it. They are all bound universally:
@@ -197,8 +189,8 @@ func params(i int) logic.Var { return logic.Var(fmt.Sprintf("c%d", i)) }
 func pathVars(path Path) []logic.Var {
 	vars := []logic.Var{valuation(0)}
 	for i, e := range path {
-		if hasParams(e) {
-			vars = append(vars, params(i+1))
+		if e.HasParams() {
+			vars = append(vars, logic.ParamsOfStep(i+1))
 		}
 		vars = append(vars, valuation(i+1))
 	}
@@ -215,14 +207,14 @@ func pathPredicates(d *csdf.Diagram, path Path) logic.Formula {
 	}
 	for i, e := range path {
 		var args []logic.Var
-		if hasParams(e) {
-			args = append(args, params(i+1))
+		if e.HasParams() {
+			args = append(args, logic.ParamsOfStep(i+1))
 		}
 		if !csdf.IsTrue(e.Guard) {
-			conjuncts = append(conjuncts, logic.Atom(fmt.Sprintf("guard_%d", i+1), append(slices.Clone(args), valuation(i))...))
+			conjuncts = append(conjuncts, atom(fmt.Sprintf("guard_%d", i+1), args, valuation(i)))
 		}
 		if !csdf.IsTrue(e.Post) {
-			conjuncts = append(conjuncts, logic.Atom(fmt.Sprintf("post_%d", i+1), append(slices.Clone(args), valuation(i), valuation(i+1))...))
+			conjuncts = append(conjuncts, atom(fmt.Sprintf("post_%d", i+1), args, valuation(i), valuation(i+1)))
 		}
 	}
 	return logic.And(conjuncts...)
