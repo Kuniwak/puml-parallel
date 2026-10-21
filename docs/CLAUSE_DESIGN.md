@@ -160,7 +160,7 @@ that a language interprets.
 ```
 clause  ::= atom | builtin | clause ∧ clause | ∃ var . clause
 builtin ::= term = term | term ≠ term | term ∈ dom term
-          | map update | frame
+          | map update | frame | term at state
 term    ::= var | var' | term[term].field | envfn(term, …)
 ```
 
@@ -198,6 +198,18 @@ name.
 - The builtins are what tools state (P7). Two updates of one map in one step
   bind the intermediate map with ∃ (P5, P6).
 
+### Control state
+
+`t at S` says that the instance t is at the state S of its local diagram.
+A state is a position, not a value: it is never a hole, never in DOMAINS
+and never permuted by symmetry.
+
+A clause of a local diagram reads only its own instance, because the
+instances are interleaved (|||) and one process does not see another's
+state. A clause of the global diagram, on a sync, may read the instances
+that sync binds, `at` included. Encoding control this way preserves the
+expanded graph, since only transitions change it.
+
 Only tools write ∃; authors write atoms, builtins and ∧. Letting authors
 write ∃ later is an addition that breaks no diagram.
 
@@ -217,9 +229,5 @@ so that they capture nothing.
 
 ## Open questions
 
-- How an instance's control state (the state of its local diagram) is a
-  term, and whether a clause may read another instance's control state:
-  encoding control as data preserves the expanded graph as long as only
-  transitions change it.
 - Translation to logic (O8) and refinement (O11) may need negation; when
   they do, decide whether it belongs to the skeleton.
