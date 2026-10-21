@@ -36,7 +36,19 @@ func TestFormulaOfAClause(t *testing.T) {
 		},
 		"a hole of a term is the term": {
 			Clause: "${locations[from].在庫} > 0",
-			Want:   `"$_0 > 0"(locations[from].在庫)`,
+			Want:   `csdf_in(from, locations) ∧ "$_0 > 0"(locations[from].在庫)`,
+		},
+		"a builtin that reads an entry reads it only where it is": {
+			Clause: "@ne(m[k], v)",
+			Want:   "csdf_in(k, m) ∧ ¬(m[k] = v)",
+		},
+		"an entry under the key of another is read where both are": {
+			Clause: "${m[n[k]]} > 0",
+			Want:   `csdf_in(k, n) ∧ csdf_in(n[k], m) ∧ "$_0 > 0"(m[n[k]])`,
+		},
+		"an entry read twice is required once": {
+			Clause: "${m[k]} = ${m[k]}",
+			Want:   `csdf_in(k, m) ∧ "$_0 = $_0"(m[k])`,
 		},
 		"@eq and @ne are equalities": {
 			Clause: "@eq(a, b) ∧ @ne(from, to)",
@@ -48,7 +60,7 @@ func TestFormulaOfAClause(t *testing.T) {
 		},
 		"@at applies to the state as a constant": {
 			Clause: "@at(locations[from], 倉庫待ち)",
-			Want:   "csdf_at(locations[from], 倉庫待ち)",
+			Want:   "csdf_in(from, locations) ∧ csdf_at(locations[from], 倉庫待ち)",
 		},
 		"an existential binds a fresh name of its hint": {
 			Clause: "@exists(m : M) (@update(m, n, k, v) ∧ @update(n', m, j, w))",

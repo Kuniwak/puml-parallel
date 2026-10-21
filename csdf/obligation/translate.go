@@ -8,6 +8,8 @@ package obligation
 
 import (
 	"fmt"
+	"reflect"
+	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
@@ -21,7 +23,9 @@ import (
 //	csdf_frame(m', m, k…)     m' and m agree everywhere but at the keys
 //	csdf_at(t, S)             the instance t is at the state S
 //
-// @notin is the negation of csdf_in; @eq and @ne are equalities.
+// @notin is the negation of csdf_in; @eq and @ne are equalities. A clause
+// that reads an entry of a map is conjoined with csdf_in of its key, since a
+// clause reading an entry that is not there is false.
 const (
 	PredIn     = "csdf_in"
 	PredEmpty  = "csdf_empty"
@@ -66,9 +70,13 @@ func translate(f clause.Formula, avoid map[string]bool) (logic.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		return logic.Pred(fn.Name, true, ts...), nil
+		return where(fn.Args, logic.Pred(fn.Name, true, ts...))
 	case clause.Builtin:
-		return builtin(f)
+		g, err := builtin(f)
+		if err != nil {
+			return nil, err
+		}
+		return where(f.Args, g)
 	case clause.Exists:
 		name := clause.Fresh(avoid, f.Hint)
 		body, err := clause.Open(f, clause.Free{Name: name})
@@ -87,6 +95,55 @@ func translate(f clause.Formula, avoid map[string]bool) (logic.Formula, error) {
 		return logic.ExistsTyped([]logic.Var{logic.Var(name)}, []string{f.Type}, g), nil
 	}
 	return nil, fmt.Errorf("obligation.Formula: %#v is no formula", f)
+}
+
+// where is f read only where every entry of a map its terms read is there: a
+// clause that reads an entry a map does not have is false
+// (docs/CLAUSE_DESIGN.md). An entry is required before a term that reads
+// under its key, and each once.
+func where(ts []clause.Term, f logic.Formula) (logic.Formula, error) {
+	var seen []clause.Index
+	var present []logic.Formula
+	var visit func(t clause.Term) error
+	visit = func(t clause.Term) error {
+		switch t := t.(type) {
+		case clause.Index:
+			if err := visit(t.Map); err != nil {
+				return err
+			}
+			if err := visit(t.Key); err != nil {
+				return err
+			}
+			if slices.ContainsFunc(seen, func(s clause.Index) bool { return reflect.DeepEqual(s, t) }) {
+				return nil
+			}
+			seen = append(seen, t)
+			m, err := term(t.Map)
+			if err != nil {
+				return err
+			}
+			k, err := term(t.Key)
+			if err != nil {
+				return err
+			}
+			present = append(present, logic.Pred(PredIn, false, k, m))
+		case clause.Field:
+			return visit(t.Of)
+		case clause.App:
+			for _, a := range t.Args {
+				if err := visit(a); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	for _, t := range ts {
+		if err := visit(t); err != nil {
+			return nil, err
+		}
+	}
+	return logic.And(append(present, f)...), nil
 }
 
 func builtin(b clause.Builtin) (logic.Formula, error) {
