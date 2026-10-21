@@ -11,7 +11,7 @@ from csdfbmc.tests.test_promoted import GLOBAL_CHECKS, GLUE_EXPANSION
 # The checks module as a module would spell it, for the symmetry check,
 # which reads the source of the checks (ghosts and invariants) itself.
 CHECKS_SOURCE = '''
-DOMAINS = {"口座ID": ["a1", "a2"], "額": [0, 1, 2]}
+TYPES = {"口座ID": ["a1", "a2"], "額": [0, 1, 2]}
 SYMMETRIC = ["口座ID"]
 '''
 

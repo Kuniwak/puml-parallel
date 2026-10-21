@@ -160,7 +160,7 @@ class ConeCommandTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(diagram), f)
         with open(checks, "w", encoding="utf-8") as f:
-            f.write("DOMAINS = {}\n")
+            f.write("TYPES = {}\n")
         out = io.StringIO()
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
             main([path, checks, *args])

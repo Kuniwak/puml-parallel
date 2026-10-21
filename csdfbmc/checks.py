@@ -1,9 +1,11 @@
-"""The checks module: the finite domains of the parameters, and what the
-walk checks besides the clauses.
+"""The checks module: the environment of the diagram, and what the walk
+checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
-DOMAINS (event parameter -> iterable of values) and, when wanted, GHOSTS,
-INVARIANTS and SYMMETRIC. The clauses themselves are read through a glue of
+TYPES (a type -> iterable of its values) and, when wanted, TYPEOF (a name ->
+its type; a name it does not list has the type of its own name),
+GHOSTS, INVARIANTS and SYMMETRIC. An earlier csdfbmc read DOMAINS; a module
+defining it is refused. The clauses themselves are read through a glue of
 the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
 earlier csdfbmc read, is refused: write the clauses in the glue's language
 instead.
@@ -103,7 +105,7 @@ class Checks:
     def domain(self, name: str) -> list:
         if self.declares(name):
             return list(self.types[self.type_of(name)])
-        raise KeyError(f"no domain declared for {name!r}; add it to DOMAINS")
+        raise KeyError(f"no type declared for {name!r}; add it to TYPES, or give it a type with TYPEOF")
 
     def binds(self, fn: Callable, env: dict) -> bool:
         return all(p in env for p in inspect.signature(fn).parameters)
@@ -135,8 +137,17 @@ def load_checks(path: str) -> Checks:
     spec = importlib.util.spec_from_file_location("csdf_checks", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    if not isinstance(getattr(module, "DOMAINS", None), dict):
-        raise PurityError(f"{path}: the module must define DOMAINS as a dict")
+    if hasattr(module, "DOMAINS"):
+        raise PurityError(f"{path}: DOMAINS is no longer read; declare the values as TYPES (a type -> its values), "
+                          "and give a name the type of another name with TYPEOF (a name -> a type)")
+    if not isinstance(getattr(module, "TYPES", None), dict):
+        raise PurityError(f"{path}: the module must define TYPES as a dict (a type -> its values)")
+    typeof = getattr(module, "TYPEOF", {})
+    if not isinstance(typeof, dict):
+        raise PurityError(f"{path}: TYPEOF must be a dict (a name -> a type) when defined")
+    for name, t in typeof.items():
+        if t not in module.TYPES:
+            raise PurityError(f"{path}: TYPEOF gives {name!r} the type {t!r}, which TYPES does not declare")
     if not isinstance(getattr(module, "SYMMETRIC", ()), (list, tuple, set, frozenset)):
         raise PurityError(f"{path}: SYMMETRIC must be a list of instance-ID parameters when defined")
     if hasattr(module, "CLAUSES"):
@@ -146,7 +157,7 @@ def load_checks(path: str) -> Checks:
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
     return Checks(
-        types=dict(module.DOMAINS),
+        types=dict(module.TYPES), typeof=dict(typeof),
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
     )

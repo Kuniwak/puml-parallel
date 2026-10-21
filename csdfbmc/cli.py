@@ -18,7 +18,7 @@ LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError)
 
 def add_inputs(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output)")
-    ap.add_argument("checks", help="the Python module holding DOMAINS and, when wanted, GHOSTS, INVARIANTS and SYMMETRIC")
+    ap.add_argument("checks", help="the Python module holding TYPES and, when wanted, TYPEOF, GHOSTS, INVARIANTS and SYMMETRIC")
     glue = ap.add_mutually_exclusive_group()
     glue.add_argument("--evaluator", metavar="CMD", help="read every clause through the glue this command line starts (the evaluator protocol)")
     glue.add_argument("--evaluator-module", metavar="MODULE", help="read every clause through the glue this Python module and its arguments load in-process")

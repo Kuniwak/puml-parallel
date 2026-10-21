@@ -38,7 +38,7 @@ class NextCommandTest(unittest.TestCase):
         with open(diagram, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(COUNTER), f)
         with open(checks, "w", encoding="utf-8") as f:
-            f.write("DOMAINS = {}\n")
+            f.write("TYPES = {}\n")
         out = io.StringIO()
         with redirect_stdout(out):
             code = next_main([diagram, checks, "--evaluator-module", "csdfbmc.python_glue", *args])

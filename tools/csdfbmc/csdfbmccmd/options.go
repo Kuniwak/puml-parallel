@@ -59,8 +59,8 @@ Checker options (the checker's --help lists them in full):
                        a property reads (cone of influence); same findings
   --json               print the result as JSON
 
-The checks module defines DOMAINS (event parameter -> its finite values) and,
-when wanted, GHOSTS, INVARIANTS and SYMMETRIC.
+The checks module defines TYPES (a type -> its finite values) and, when
+wanted, TYPEOF (a name -> its type), GHOSTS, INVARIANTS and SYMMETRIC.
 
 "csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)" answers what a REPL asks at a

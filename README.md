@@ -85,7 +85,7 @@ $ csdfparse < examples/valid/skip.puml
 (`P \ {|c|}`): every edge on a hidden channel becomes an internal `tau`
 transition, whatever its fields. A hidden field is a value the `tau` chooses
 (`c?x` hidden is `⊓ x. τ`): the clauses still read `x`, and `csdfbmc` chooses it
-from `DOMAINS`. The result is printed as PlantUML.
+from its type in the checks module (`TYPES`). The result is printed as PlantUML.
 
 ```console
 $ csdfhide -channels 'sync' examples/valid/in.puml
@@ -764,10 +764,14 @@ against the same pure subset. A clause written `OPAQUE` or `opaque`, as before
 `@opaque`, is refused with a pointer to `@opaque`.
 
 The checks module is Python too, checked against the same subset before it is
-imported. `DOMAINS` maps an event parameter to the finite set of its values;
-`csdfbmc.values.record(field=domain, …)` and `partial_map(keys, values,
-max_size)` enumerate a domain of records or partial functions from the
-domains of the fields and a bound on the number of keys. A sent field
+imported. `TYPES` maps a type to the finite set of its values (its carrier
+set), and a name ranges over the type of its own name; `TYPEOF` maps a name
+to another type, so that `相手ID` can range over `口座ID`
+(`TYPEOF = {"相手ID": "口座ID"}`). `csdfbmc.values.record(field=domain, …)`
+and `partial_map(keys, values, max_size)` enumerate a type of records or
+partial functions from the types of the fields and a bound on the number of
+keys. A module that defines `DOMAINS`, which an earlier `csdfbmc` read, is
+refused: declare the values as `TYPES`. A sent field
 (`c!y`) has no domain: it sends the value `y` has at the step, and a name the
 step does not bind is an error. A `tau` chooses from the domains too: a name
 a `tau`'s clauses read that is neither a state variable nor a field, as

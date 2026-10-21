@@ -1,5 +1,5 @@
 """The checks module of examples/bmc/wallet_formal.puml, and the constants its
-Python labels name: csdfbmc reads DOMAINS, GHOSTS and INVARIANTS from it, and
+Python labels name: csdfbmc reads TYPES, GHOSTS and INVARIANTS from it, and
 the reference glue, given it as an argument, lets every label use the rest.
 
 The fairness assumption of the diagram becomes the bound RESENDS on the resend
@@ -19,7 +19,7 @@ def fee(再送回数):
     return BASE_FEE + 再送回数
 
 
-DOMAINS = {
+TYPES = {
     "数量": range(1, 4),
     "額": [1, 2],
 }

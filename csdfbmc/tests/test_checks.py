@@ -38,11 +38,11 @@ class LoadChecksTest(unittest.TestCase):
             f.write(textwrap.dedent(source))
         return path
 
-    def test_loads_the_domains_ghosts_and_invariants_of_a_module(self):
+    def test_loads_the_types_ghosts_and_invariants_of_a_module(self):
         # Setup
         path = self.write('''
             UNIT = 2
-            DOMAINS = {"n": range(0, 4), "額": [2, 4]}
+            TYPES = {"n": range(0, 4), "額": [2, 4]}
             INVARIANTS = {"額 は最小単位の倍数": lambda 額: 額 % UNIT == 0}
         ''')
 
@@ -64,16 +64,45 @@ class LoadChecksTest(unittest.TestCase):
         }.items():
             with self.subTest(name):
                 with self.assertRaises(PurityError):
-                    load_checks(self.write("DOMAINS = {}\n" + body))
+                    load_checks(self.write("TYPES = {}\n" + body))
 
-    def test_refuses_a_module_without_domains(self):
-        with self.assertRaises(PurityError):
+    def test_loads_the_types_and_typeof_of_a_module(self):
+        # Setup
+        path = self.write('''
+            TYPES = {"口座ID": ["a1", "a2"]}
+            TYPEOF = {"相手ID": "口座ID"}
+        ''')
+
+        # Execute
+        checks = load_checks(path)
+
+        # Assert
+        self.assertEqual(["a1", "a2"], checks.domain("相手ID"))
+
+    def test_refuses_a_module_without_types(self):
+        with self.assertRaisesRegex(PurityError, "TYPES"):
             load_checks(self.write("INVARIANTS = {}\n"))
+
+    def test_refuses_the_domains_an_earlier_csdfbmc_read(self):
+        # Setup: DOMAINS would otherwise be silently ignored.
+        path = self.write('DOMAINS = {"額": [1]}\n')
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PurityError, "TYPES"):
+            load_checks(path)
+
+    def test_refuses_a_typeof_naming_no_type(self):
+        # Setup
+        path = self.write('TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n')
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PurityError, "口座ID"):
+            load_checks(path)
 
     def test_refuses_the_clauses_an_earlier_csdfbmc_read(self):
         # Setup: the clauses are read through a glue now, so CLAUSES would
         # otherwise be silently ignored.
-        path = self.write("DOMAINS = {}\nCLAUSES = {}\n")
+        path = self.write("TYPES = {}\nCLAUSES = {}\n")
 
         # Execute, Assert
         with self.assertRaisesRegex(PurityError, "glue"):

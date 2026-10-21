@@ -9,7 +9,7 @@ from csdfbmc.values import record
 
 IDS = ["t1", "t2", "t3"]
 
-DOMAINS = {
+TYPES = {
     "試行ID": IDS,
     # A transaction to send carries its fee; a replacement also names the
     # attempt it replaces.

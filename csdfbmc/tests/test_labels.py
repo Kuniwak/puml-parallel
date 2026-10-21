@@ -101,7 +101,7 @@ class SymmetryThroughAGlueTest(unittest.TestCase):
 
     def setUp(self):
         from csdfbmc.tests.test_promoted import GLOBAL_CHECKS
-        self.checks = Checks(types=GLOBAL_CHECKS.types, symmetric=("口座ID",), sources=[("checks.py", "DOMAINS = {}")])
+        self.checks = Checks(types=GLOBAL_CHECKS.types, symmetric=("口座ID",), sources=[("checks.py", "TYPES = {}")])
 
     def test_symmetry_is_refused_with_a_glue_that_does_not_answer_it(self):
         # Setup
@@ -171,7 +171,7 @@ class LabelsCommandTest(unittest.TestCase):
         with open(self.diagram, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(COUNTER), f)
         with open(self.checks, "w", encoding="utf-8") as f:
-            f.write("DOMAINS = {}\n")
+            f.write("TYPES = {}\n")
 
     def run_main(self, main, *args):
         out, err = io.StringIO(), io.StringIO()
