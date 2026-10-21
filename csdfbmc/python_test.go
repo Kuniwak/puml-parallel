@@ -27,26 +27,11 @@ func TestPythonUnitTestsPass(t *testing.T) {
 	}
 }
 
-// The first worked example reaches a state with no way out, and the report
-// names it with its trace.
-func TestTheWithdrawExampleReportsADeadlock(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/withdraw.json", "examples/bmc/withdraw_twins.py")
-	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
-		t.Fatalf("want exit status 1 (a deadlock found), got %v\n%s", err, out)
-	}
-	for _, want := range []string{"deadlock ×3 at sending after 出庫", "'出庫(数量=3)'"} {
-		if !strings.Contains(string(out), want) {
-			t.Errorf("want %q in the report, got:\n%s", want, out)
-		}
-	}
-}
-
 // The toy ledger checks six properties at once; as written it reports a
 // deadlock after the retries and nothing else.
 func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/wallet.json", "examples/bmc/wallet_twins.py", "--avoid", "確定", "--within", "sending")
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/wallet_formal.json", "examples/bmc/wallet_formal_checks.py",
+		"--evaluator-module", "csdfbmc.python_glue examples/bmc/wallet_formal_checks.py", "--avoid", "確定", "--within", "sending")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
@@ -65,9 +50,10 @@ func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 	}
 }
 
-// The first example with every clause written in Python is read through the
-// reference glue, as a command or in-process, and finds the same deadlock.
-func TestTheFormalWithdrawExampleReportsTheSameDeadlockThroughTheGlue(t *testing.T) {
+// The first worked example reaches a state with no way out, read through the
+// reference glue as a command or in-process, and the report names it with
+// its trace.
+func TestTheWithdrawExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 	py := python(t)
 	for _, glue := range [][]string{
 		{"--evaluator", py + " -E -s -B -m csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
@@ -81,32 +67,33 @@ func TestTheFormalWithdrawExampleReportsTheSameDeadlockThroughTheGlue(t *testing
 				t.Fatalf("want exit status 1 (a deadlock found), got %v\n%s", err, out)
 			}
 			if want := "states: 22\ndeadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']\n"; string(out) != want {
-				t.Errorf("want the report of the prose example, got:\n%s", out)
+				t.Errorf("want the deadlock and its trace, got:\n%s", out)
 			}
 		})
 	}
 }
 
-// The expansion of a promoted diagram is walked with the global twins and the
-// twins of each family; the fee-bumping example comes out clean.
+// The expansion of a promoted diagram is walked through the reference glue,
+// local clauses and all; the fee-bumping example comes out clean.
 func TestThePromotedExampleWalksClean(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts.json", "examples/bmc/attempts_twins.py",
-		"--local", "local/ATTEMPT.puml=examples/bmc/attempt_local_twins.py", "--avoid", "CONFIRMED")
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
+		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "CONFIRMED")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("want exit status 0 (nothing found), got %v\n%s", err, out)
 	}
-	if !strings.HasPrefix(string(out), "states: ") || strings.Count(string(out), "\n") != 1 {
+	if string(out) != "states: 496\n" {
 		t.Errorf("want only the state count, got:\n%s", out)
 	}
 }
 
-// The attempts are declared SYMMETRIC, so --symmetry walks one state per
-// renaming of their IDs and still comes out clean.
+// The attempts are declared SYMMETRIC, and the glue says no clause tells
+// their IDs apart, so --symmetry walks one state per renaming of their IDs
+// and still comes out clean.
 func TestThePromotedExampleWalksCleanUnderSymmetry(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts.json", "examples/bmc/attempts_twins.py",
-		"--local", "local/ATTEMPT.puml=examples/bmc/attempt_local_twins.py", "--avoid", "CONFIRMED", "--symmetry", "--por")
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
+		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "CONFIRMED", "--symmetry", "--por")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if err != nil {

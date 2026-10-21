@@ -1,0 +1,33 @@
+@startuml WALLET
+' wallet.puml with every clause written in Python, read through the
+' reference glue. 残高 is the total held in the wallets being checked; the gas
+' wallet that pays the chain fee is a separate party's and outside it, which
+' is why a fee return raises 残高 again. wallet_formal_checks.py names the
+' constants the labels use and holds the domains, ghosts and invariants.
+' 入庫回数 bounds the scenario, as the resend bound does: without it the
+' running totals grow without end and the walk only stops at --max-states.
+state "待機中" as idle
+idle : 残高
+idle : 未戻しfee
+idle : 入庫回数
+state "出庫送信中" as sending
+sending : 残高
+sending : 未戻しfee
+sending : 入庫回数
+sending : 数量
+sending : 再送回数
+
+[*] --> idle : [{'残高': INITIAL}] ∧ [{'未戻しfee': 0}] ∧ [{'入庫回数': 0}]
+
+idle --> idle : 入庫?額 ; 入庫回数 < DEPOSITS ; [{'残高': 残高 + 額}] ∧ [{'未戻しfee': 未戻しfee}] ∧ [{'入庫回数': 入庫回数 + 1}]
+idle --> sending : 出庫?数量 ; 数量 <= LIMIT ∧ 数量 + BASE_FEE <= 残高 ; [{'残高': 残高}] ∧ [{'未戻しfee': 未戻しfee}] ∧ [{'入庫回数': 入庫回数}] ∧ [{'数量': 数量}] ∧ [{'再送回数': 0}]
+sending --> sending : 再送 ; 再送回数 < RESENDS ; [{'残高': 残高}] ∧ [{'未戻しfee': 未戻しfee}] ∧ [{'入庫回数': 入庫回数}] ∧ [{'数量': 数量}] ∧ [{'再送回数': 再送回数 + 1}]
+sending --> idle : 確定 ; 残高 - 数量 >= fee(再送回数) ; [{'残高': 残高 - 数量 - fee(再送回数)}] ∧ [{'未戻しfee': 未戻しfee + fee(再送回数)}] ∧ [{'入庫回数': 入庫回数}]
+idle --> idle : fee戻し ; 未戻しfee > 0 ; [{'残高': 残高 + 未戻しfee}] ∧ [{'未戻しfee': 0}] ∧ [{'入庫回数': 入庫回数}]
+' Resting with nothing in flight is a fine place to end the scenario.
+idle --> [*] : 未戻しfee == 0
+
+note as fair
+  assume 手数料を上げて再送を続ければ、いつか確定する
+end note
+@enduml

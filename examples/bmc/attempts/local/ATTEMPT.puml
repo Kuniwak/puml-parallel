@@ -1,0 +1,19 @@
+@startuml ATTEMPT
+' One transaction attempt, its clauses written in Python. A local clause reads
+' the event's fields and the instance's own variables, and a local post gives
+' the instance's variables after the step.
+state "未登録" as attNone
+state "送信済み" as attSent
+attSent : 手数料
+state "滞留" as attStuck
+attStuck : 手数料
+state "確定" as attConfirmed
+attConfirmed : 手数料
+
+[*] --> attNone
+attNone --> attSent : SEND?未署名Tx ; ; [{'手数料': 未署名Tx.手数料}]
+attNone --> attSent : RESEND?置換Tx ; ; [{'手数料': 置換Tx.手数料}]
+attSent --> attStuck : PENDING ; ; [{'手数料': 手数料}]
+attSent --> attConfirmed : CONFIRMED ; ; [{'手数料': 手数料}]
+attStuck --> attConfirmed : CONFIRMED ; ; [{'手数料': 手数料}]
+@enduml
