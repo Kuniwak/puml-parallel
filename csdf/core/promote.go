@@ -158,8 +158,36 @@ func promoteAlone(p Promotion, m move) (Edge, error) {
 		}
 		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
 	}
-	fields := append([]Field{{Name: f.ID}}, e.Event.Fields...)
-	return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: guard, Post: post}, nil
+	fields, pins, err := carried(m)
+	if err != nil {
+		return Edge{}, err
+	}
+	fields = append([]Field{{Name: f.ID}}, fields...)
+	return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: post}, nil
+}
+
+// carried are the fields of m's local event on the global event, and the
+// guard that fixes those it sends. The global diagram holds maps, not the
+// instance's variables, so every field is received there; a field m sends
+// of its instance's variable v is fixed to m[x].v (@eq).
+func carried(m move) ([]Field, clause.And, error) {
+	vars := map[string]bool{}
+	for _, v := range m.f.Local.Vars[m.e.Src] {
+		vars[v] = true
+	}
+	var fields []Field
+	var pins []clause.Formula
+	for _, fl := range m.e.Event.Fields {
+		fields = append(fields, Field{Name: fl.Name})
+		switch {
+		case fl.Send && vars[fl.Name]:
+			instance := clause.Index{Map: clause.Free{Name: m.f.Map}, Key: clause.Free{Name: m.id}}
+			pins = append(pins, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: fl.Name}, clause.Field{Of: instance, Name: fl.Name}}})
+		case !fl.Send && vars[fl.Name]:
+			return nil, clause.And{}, fmt.Errorf("%s receives %s, which its instance holds", m.e.Event.Channel, fl.Name)
+		}
+	}
+	return fields, clause.And{Conjuncts: pins}, nil
 }
 
 func promoteSync(p Promotion, s Sync) ([]Edge, error) {
@@ -213,13 +241,21 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 	}
 	var out []Edge
 	for _, c := range combos {
+		// The fields are merged by name (docs/CLAUSE_DESIGN.md): one name
+		// is one field, which every move naming it agrees on.
 		merged := slices.Clone(fields)
+		var pins []clause.And
 		for _, m := range c {
-			for _, fl := range m.e.Event.Fields {
+			fs, pin, err := carried(m)
+			if err != nil {
+				return nil, err
+			}
+			pins = append(pins, pin)
+			for _, fl := range fs {
 				if ids[fl.Name] {
 					return nil, fmt.Errorf("%s has a field named like the ID %s", m.e.Event.Channel, fl.Name)
 				}
-				if !slices.ContainsFunc(merged, func(g Field) bool { return g.Name == fl.Name }) {
+				if !slices.Contains(merged, fl) {
 					merged = append(merged, fl)
 				}
 			}
@@ -231,7 +267,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 		out = append(out, Edge{
 			Src: p.State, Dst: p.State,
 			Event: Event{Channel: s.Event, Fields: merged},
-			Guard: Conj(clause.And{Conjuncts: distinct}, guard),
+			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, guard}, pins...)...),
 			Post:  post,
 		})
 	}

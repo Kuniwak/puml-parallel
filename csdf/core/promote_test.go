@@ -316,3 +316,127 @@ func TestMapTypeIsEveryPartialMap(t *testing.T) {
 		}
 	}
 }
+
+// tank: NEW creates it empty; FILL fills it; LOOK and SHOW send its level.
+func tank(t *testing.T) *Diagram {
+	return &Diagram{
+		States:   []string{"t"},
+		Vars:     map[string][]string{"t": {"level"}},
+		Init:     "t",
+		InitPost: mustParse(t, "$level' = 0"),
+		Edges: []Edge{
+			{Src: "t", Dst: "t", Event: ev("FILL"), Post: mustParse(t, "$level' = 1")},
+			{Src: "t", Dst: "t", Event: ev("LOOK", send("level")), Post: mustParse(t, "$level' = $level")},
+			{Src: "t", Dst: "t", Event: ev("SHOW", send("level")), Post: mustParse(t, "$level' = $level")},
+		},
+	}
+}
+
+// gauge: MAKE creates it; it receives a level on SHOW.
+func gauge() *Diagram {
+	return &Diagram{
+		States: []string{"g"},
+		Init:   "g",
+		Edges:  []Edge{{Src: "g", Dst: "g", Event: ev("SHOW", recv("level"))}},
+	}
+}
+
+func TestPromoteMergesTheFieldsOfASyncByName(t *testing.T) {
+	tanks := Family{Map: "tanks", ID: "k", Local: tank(t), Create: "NEW"}
+	gauges := Family{Map: "gauges", ID: "g", Local: gauge(), Create: "MAKE"}
+	show := func(first, second Target) Sync { return Sync{Event: "SHOW", Targets: []Target{first, second}} }
+	tankTarget, gaugeTarget := Target{Map: "tanks", ID: "k", Event: "SHOW"}, Target{Map: "gauges", ID: "g", Event: "SHOW"}
+	// The tank t1 by hand: 1 holds level 0, 2 level 1; show(ids) is the
+	// label of SHOW with the IDs in the sync's order.
+	tankInstance := func(show func(level string) string) *lts.LTS {
+		return handLTS(tr{0, "NEW.t1", 1}, tr{1, "FILL.t1", 2}, tr{2, "FILL.t1", 2},
+			tr{1, "LOOK.t1.0", 1}, tr{2, "LOOK.t1.1", 2}, tr{1, show("0"), 1}, tr{2, show("1"), 2})
+	}
+	gaugeInstance := func(show func(level string) string) *lts.LTS {
+		return handLTS(tr{0, "MAKE.g1", 1}, tr{1, show("0"), 1}, tr{1, show("1"), 1})
+	}
+	tankFirst := func(level string) string { return "SHOW.t1.g1." + level }
+	gaugeFirst := func(level string) string { return "SHOW.g1.t1." + level }
+	cases := []struct {
+		name string
+		sync Sync
+		want *lts.LTS
+	}{
+		{"a send before a receive fixes the value", show(tankTarget, gaugeTarget),
+			lts.Parallel([]*lts.LTS{tankInstance(tankFirst), gaugeInstance(tankFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})},
+		{"a receive before a send reads it", show(gaugeTarget, tankTarget),
+			lts.Parallel([]*lts.LTS{tankInstance(gaugeFirst), gaugeInstance(gaugeFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			p := Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{c.sync}}
+			env := Env{Types: map[string][]Value{"k": {"t1"}, "g": {"g1"}, "level": {0, 1}},
+				Atoms: map[string]func([]Value) bool{
+					"#0 = 0":  func(a []Value) bool { return a[0] == 0 },
+					"#0 = 1":  func(a []Value) bool { return a[0] == 1 },
+					"#0 = #1": func(a []Value) bool { return a[0] == a[1] },
+				}}
+			for _, f := range p.Families {
+				m, err := MapType(f, env.Types[f.ID], env)
+				if err != nil {
+					t.Fatal(err)
+				}
+				env.Types[f.Map] = m
+			}
+
+			// Execute
+			promoted, err := Promote(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := Expand(promoted, env)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !lts.StableFailuresEqual(got, c.want) {
+				t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(c.want.Trans))
+			}
+		})
+	}
+}
+
+func TestPromoteGivesTwoReceivesOfOneNameOneValue(t *testing.T) {
+	// Setup: one gauge peeks while another glances, both receiving level:
+	// one field.
+	gauges := Family{Map: "gauges", ID: "g", Local: &Diagram{States: []string{"g"}, Init: "g", Edges: []Edge{
+		{Src: "g", Dst: "g", Event: ev("PEEK", recv("level"))},
+		{Src: "g", Dst: "g", Event: ev("GLANCE", recv("level"))},
+	}}, Create: "MAKE"}
+	p := Promotion{State: "G", Families: []Family{gauges}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
+		{Map: "gauges", ID: "g", Event: "PEEK"}, {Map: "gauges", ID: "h", Event: "GLANCE"}}}}}
+	env := Env{Types: map[string][]Value{"g": {"g1", "g2"}, "h": {"g1", "g2"}, "level": {0, 1}}}
+	m, err := MapType(gauges, env.Types["g"], env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Types["gauges"] = m
+	instance := func(x, y string) *lts.LTS {
+		return handLTS(tr{0, "MAKE." + x, 1},
+			tr{1, "PEEK." + x + "." + y + ".0", 1}, tr{1, "PEEK." + x + "." + y + ".1", 1},
+			tr{1, "PEEK." + y + "." + x + ".0", 1}, tr{1, "PEEK." + y + "." + x + ".1", 1})
+	}
+	want := lts.Parallel([]*lts.LTS{instance("g1", "g2"), instance("g2", "g1")}, []func(string) bool{mentions("g1"), mentions("g2")})
+
+	// Execute
+	promoted, err := Promote(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Expand(promoted, env)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lts.StableFailuresEqual(got, want) {
+		t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
+	}
+}
