@@ -32,8 +32,8 @@ func TestWriteJSON(t *testing.T) {
 			},
 			Want: `{"columns":[{"kind":"event","event":"a"},{"kind":"termination"}],` +
 				`"rows":[{"state":"s0","name":"S0","cells":[` +
-				`[{"result":"goto","state":"s1","condition":{"op":"atom","name":"g","quoted":true,"args":["c","x"]}},` +
-				`{"result":"refuse","condition":{"op":"not","operands":[{"op":"atom","name":"g","quoted":true,"args":["c","x"]}]}}],` +
+				`[{"result":"goto","state":"s1","condition":{"op":"atom","name":"g","quoted":true,"terms":[{"op":"var","name":"c"},{"op":"var","name":"x"}]}},` +
+				`{"result":"refuse","condition":{"op":"not","operands":[{"op":"atom","name":"g","quoted":true,"terms":[{"op":"var","name":"c"},{"op":"var","name":"x"}]}]}}],` +
 				`[{"result":"terminate","condition":{"op":"true"}}]]}],` +
 				`"unreachable":["z"]}` + "\n",
 		},

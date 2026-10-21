@@ -181,19 +181,6 @@ func termTrees(ts []Term) []TermTree {
 	return out
 }
 
-// allVars returns ts as variables, and whether every one of them is one.
-func allVars(ts []Term) ([]Var, bool) {
-	vs := make([]Var, len(ts))
-	for i, t := range ts {
-		v, ok := t.(Var)
-		if !ok {
-			return nil, false
-		}
-		vs[i] = v
-	}
-	return vs, true
-}
-
 // equality says that two terms are the same value.
 type equality struct{ left, right Term }
 

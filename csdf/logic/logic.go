@@ -461,9 +461,8 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 // notation. Op is one of
 //
 //	true, false            a constant
-//	atom                   Name applied to Args, or to Terms when one of
-//	                       them is no variable; Quoted when Name is natural
-//	                       language, which Quoted or Pred made
+//	atom                   Name applied to Terms; Quoted when Name is
+//	                       natural language, which Quoted or Pred made
 //	eq                     the two Terms are the same value
 //	not                    the negation of the one operand
 //	and, or                the conjunction or disjunction of the operands
@@ -476,7 +475,6 @@ type Tree struct {
 	Op       Op         `json:"op"`
 	Name     string     `json:"name,omitempty"`
 	Quoted   bool       `json:"quoted,omitempty"`
-	Args     []Var      `json:"args,omitempty"`
 	Terms    []TermTree `json:"terms,omitempty"`
 	Vars     []Var      `json:"vars,omitempty"`
 	Types    []string   `json:"types,omitempty"`
@@ -511,9 +509,6 @@ func (c constant) tree() Tree {
 }
 
 func (a atom) tree() Tree {
-	if vs, ok := allVars(a.args); ok {
-		return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Args: vs}
-	}
 	return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Terms: termTrees(a.args)}
 }
 
