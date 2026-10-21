@@ -8,9 +8,7 @@ import json
 import os
 import shlex
 import sys
-import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
 from csdfbmc.tests import fixture
 
 from csdfbmc.cone import Cone
@@ -164,20 +162,8 @@ class Lying(Counting):
 class LabelsCommandTest(unittest.TestCase):
     """csdfbmc and csdfbmc next take the glue as a command or as a module."""
 
-    def setUp(self):
-        d = tempfile.TemporaryDirectory()
-        self.addCleanup(d.cleanup)
-        self.diagram, self.checks = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
-        with open(self.diagram, "w", encoding="utf-8") as f:
-            json.dump(fixture.parsed(COUNTER), f)
-        with open(self.checks, "w", encoding="utf-8") as f:
-            f.write("TYPES = {}\n")
-
     def run_main(self, main, *args):
-        out, err = io.StringIO(), io.StringIO()
-        with redirect_stdout(out), redirect_stderr(err):
-            code = main([self.diagram, self.checks, *args])
-        return code, out.getvalue(), err.getvalue()
+        return fixture.run_main(self, main, COUNTER, *args)
 
     def test_the_checker_reads_the_clauses_through_either_form_of_the_glue(self):
         from csdfbmc.__main__ import main

@@ -1,12 +1,8 @@
 """The variables outside the cone of influence are left out of the walk:
 nothing that decides whether a step can be taken, and no property, reads
 them, so the walk finds the same without them."""
-import io
 import json
-import os
-import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
 from csdfbmc.tests import fixture
 
 from csdfbmc import cone
@@ -154,17 +150,7 @@ class FramedAndWrittenTest(unittest.TestCase):
 class ConeCommandTest(unittest.TestCase):
     def run_main(self, diagram: dict, *args) -> str:
         from csdfbmc.__main__ import main
-        d = tempfile.TemporaryDirectory()
-        self.addCleanup(d.cleanup)
-        path, checks = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(fixture.parsed(diagram), f)
-        with open(checks, "w", encoding="utf-8") as f:
-            f.write("TYPES = {}\n")
-        out = io.StringIO()
-        with redirect_stdout(out), redirect_stderr(io.StringIO()):
-            main([path, checks, *args])
-        return out.getvalue()
+        return fixture.run_main(self, main, diagram, *args)[1]
 
     def test_the_report_says_what_was_left_out(self):
         out = self.run_main(AUDITED, "--evaluator-module", "csdfbmc.python_glue", "--cone")

@@ -1,11 +1,7 @@
 """csdfbmc takes the environment from the checks module, --env and --seed,
 and reports what reproduces the run."""
-import io
 import json
-import os
-import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
 
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_explore import COUNTER
@@ -17,17 +13,7 @@ UNKNOWN_GUARD = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="@opaque"),
 class EnvironmentCommandTest(unittest.TestCase):
     def run_main(self, *args, checks="TYPES = {}\n") -> tuple[int, str, str]:
         from csdfbmc.__main__ import main
-        d = tempfile.TemporaryDirectory()
-        self.addCleanup(d.cleanup)
-        path, checks_path = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(fixture.parsed(UNKNOWN_GUARD), f)
-        with open(checks_path, "w", encoding="utf-8") as f:
-            f.write(checks)
-        out, err = io.StringIO(), io.StringIO()
-        with redirect_stdout(out), redirect_stderr(err):
-            code = main([path, checks_path, "--evaluator-module", "csdfbmc.python_glue", "--max-states", "10", *args])
-        return code, out.getvalue(), err.getvalue()
+        return fixture.run_main(self, main, UNKNOWN_GUARD, "--evaluator-module", "csdfbmc.python_glue", "--max-states", "10", *args, checks=checks)
 
     def test_a_seed_is_reported_and_walks_the_same_states_again(self):
         # Execute
