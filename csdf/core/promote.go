@@ -108,14 +108,17 @@ func promoteAlone(p Promotion, f Family, e Edge) (Edge, error) {
 	}
 	if e.Event.Channel == Tau {
 		// An internal event has no argument: the instance is any that can
-		// take it (docs/PROMOTION.md).
-		if guard, err = Bind(guard, f.ID, f.ID); err != nil {
+		// take it (docs/PROMOTION.md). The post binds its own instance, one
+		// the guard holds of: ∃id. (g ∧ p), as Hide does.
+		g, err := Bind(guard, f.ID, f.ID)
+		if err != nil {
 			return Edge{}, err
 		}
-		if post, err = Bind(Conj(guard, post), f.ID, f.ID); err != nil {
+		q, err := Bind(Conj(guard, post), f.ID, f.ID)
+		if err != nil {
 			return Edge{}, err
 		}
-		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: guard, Post: post}, nil
+		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
 	}
 	fields := append([]Field{{Name: f.ID}}, e.Event.Fields...)
 	return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: guard, Post: post}, nil

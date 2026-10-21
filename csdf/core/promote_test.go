@@ -338,3 +338,82 @@ func TestPromoteRefuses(t *testing.T) {
 		})
 	}
 }
+
+// lamp: absent at l0, created at a by NEW; from a it may go to c on GO or
+// move to b internally, where DONE shows it.
+func lamp() *Diagram {
+	return &Diagram{
+		States: []string{"l0", "a", "b", "c"},
+		Init:   "l0",
+		Edges: []Edge{
+			{Src: "l0", Dst: "a", Event: ev("NEW")},
+			{Src: "a", Dst: "b", Event: ev(Tau)},
+			{Src: "a", Dst: "c", Event: ev("GO")},
+			{Src: "b", Dst: "b", Event: ev("DONE")},
+		},
+	}
+}
+
+// lampInstance is one lamp, x, written by hand.
+func lampInstance(x string) *lts.LTS {
+	return handLTS(
+		tr{0, "NEW." + x, 1},
+		tr{1, lts.Tau, 2},
+		tr{1, "GO." + x, 3},
+		tr{2, "DONE." + x, 2},
+	)
+}
+
+func ownLabels(x string) func(string) bool {
+	return func(label string) bool { return strings.HasSuffix(label, "."+x) }
+}
+
+func TestPromoteMovesByAnInternalEventOnlyAnInstanceThatCanTakeIt(t *testing.T) {
+	// Setup: with x at c and y at a, only y may move to b.
+	p := Promotion{State: "G", Families: []Family{{Map: "lamps", ID: "l", Local: lamp()}}}
+	ids := []Value{"x", "y"}
+	env := Env{Types: map[string][]Value{"l": ids, "lamps": totalMaps(ids, []Value{
+		Rec{State: "l0", Fields: map[string]Value{}}, Rec{State: "a", Fields: map[string]Value{}},
+		Rec{State: "b", Fields: map[string]Value{}}, Rec{State: "c", Fields: map[string]Value{}},
+	})}}
+	want := lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{ownLabels("x"), ownLabels("y")})
+
+	// Execute
+	promoted, err := Promote(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Expand(promoted, env)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lts.StableFailuresEqual(got, want) {
+		t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
+	}
+}
+
+// totalMaps are the maps from every ID of ids to one of recs.
+func totalMaps(ids []Value, recs []Value) []Value {
+	out := []Map{{}}
+	for _, id := range ids {
+		var grown []Map
+		for _, m := range out {
+			for _, r := range recs {
+				g := Map{}
+				for k, v := range m {
+					g[k] = v
+				}
+				g[Key(id)] = r
+				grown = append(grown, g)
+			}
+		}
+		out = grown
+	}
+	vs := make([]Value, len(out))
+	for i, m := range out {
+		vs[i] = m
+	}
+	return vs
+}
