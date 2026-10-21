@@ -98,16 +98,17 @@ func TestParseOfPrintIsTheFormula(t *testing.T) {
 }
 
 func TestPrintIsPrintOfTheNormalForm(t *testing.T) {
-	// Setup
+	// Setup: nested ∧, an empty text and adjacent texts, which the normal
+	// form flattens, drops and merges.
 	f := and(and(atom(Text("a"), Text(""), Text("b"))), atom(hole(pre("x"))))
+	want := "ab ∧ $x"
 
 	// Execute
 	got, err := Print(f)
 
 	// Assert
-	want, werr := Print(Normalize(f))
-	if err != nil || werr != nil || got != want {
-		t.Errorf("Print(f) = %q, %v; Print(Normalize(f)) = %q, %v", got, err, want, werr)
+	if err != nil || got != want {
+		t.Errorf("Print(f) = %q, %v, want %q", got, err, want)
 	}
 }
 
