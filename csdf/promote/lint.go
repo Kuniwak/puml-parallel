@@ -234,7 +234,9 @@ func (e *expander) warnAboutLocals() {
 func (e *expander) warnAboutSharedEvents() {
 	synced := map[string]bool{}
 	for _, s := range e.global.Syncs {
-		synced[s.Event] = true
+		for _, t := range s.Targets {
+			synced[t.LocalEvent(s.Event)] = true
+		}
 	}
 
 	seen := map[string]Promote{}

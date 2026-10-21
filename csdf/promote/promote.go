@@ -55,6 +55,12 @@ type MapRef struct {
 	Param string   `json:"param"`
 }
 
+// LocalEvent is the local event the instance takes when the sync of event
+// happens.
+func (r MapRef) LocalEvent(event string) string {
+	return event
+}
+
 // Constrain is one constrain directive: a guard conjoined onto every expanded
 // edge that matches the event in channel and field directions.
 type Constrain struct {

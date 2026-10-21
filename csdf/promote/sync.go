@@ -50,9 +50,9 @@ func (e *expander) planSyncs() {
 				ok = false
 				continue
 			}
-			edges := edgesOn(e.locals[t.Map], s.Event)
+			edges := edgesOn(e.locals[t.Map], t.LocalEvent(s.Event))
 			if len(edges) == 0 {
-				e.errorf(s.Line, "%s has no edge on %q", e.paths[t.Map], s.Event)
+				e.errorf(s.Line, "%s has no edge on %q", e.paths[t.Map], t.LocalEvent(s.Event))
 				ok = false
 				continue
 			}
@@ -93,7 +93,7 @@ func (e *expander) planSyncs() {
 		// their own in the states the merged edges land on.
 		for _, t := range s.Targets {
 			for _, g := range states {
-				e.owned[ownership{g, t.Map, s.Event}] = true
+				e.owned[ownership{g, t.Map, t.LocalEvent(s.Event)}] = true
 			}
 		}
 	}
@@ -117,7 +117,7 @@ func (e *expander) mergeSyncs(edges []ExpandedEdge) []ExpandedEdge {
 
 			choices := make([][]csdf.Edge, len(blocks))
 			for i, b := range blocks {
-				choices[i] = edgesOn(e.locals[b.Map], plan.sync.Event)
+				choices[i] = edgesOn(e.locals[b.Map], plan.sync.Targets[i].LocalEvent(plan.sync.Event))
 			}
 
 			for _, combination := range product(choices) {
@@ -127,7 +127,8 @@ func (e *expander) mergeSyncs(edges []ExpandedEdge) []ExpandedEdge {
 					parts[i] = e.parts(blocks[i], edge, plan.sync.Targets[i].Param)
 					moved[i] = blocks[i].Map
 				}
-				merged := e.compose(g, parts, moved...)
+				// The merged event is the sync's, whatever local event each side took.
+				merged := e.compose(g, plan.sync.Event, parts, moved...)
 				merged.Origin = e.syncOrigin(plan, blocks, parts)
 				edges = append(edges, merged)
 			}

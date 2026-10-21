@@ -333,14 +333,15 @@ func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) 
 // promoteEdge lifts one local edge onto the state its block was written in.
 func (e *expander) promoteEdge(p Promote, edge csdf.Edge) ExpandedEdge {
 	parts := e.parts(p, edge, p.IDParam)
-	out := e.compose(p.In, []edgeParts{parts}, p.Map)
+	out := e.compose(p.In, parts.name, []edgeParts{parts}, p.Map)
 	out.Origin = fmt.Sprintf("promote: %s 〈%s〉 → 〈%s〉", e.paths[p.Map], parts.src, parts.dst)
 	return out
 }
 
 // compose joins the parts of one or more local edges into one global self-loop
-// on state g, framing every state variable of g but the maps the parts moved.
-func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var) ExpandedEdge {
+// on state g named name, framing every state variable of g but the maps the
+// parts moved.
+func (e *expander) compose(g csdf.StateID, name string, parts []edgeParts, moved ...csdf.Var) ExpandedEdge {
 	var guard, post []ExpandedClause
 	var ids []string
 	var args []csdf.Field
@@ -363,7 +364,7 @@ func (e *expander) compose(g csdf.StateID, parts []edgeParts, moved ...csdf.Var)
 		for _, id := range ids {
 			fields = append(fields, csdf.Field{Dir: csdf.Received, Name: id})
 		}
-		event = csdf.NewEvent(parts[0].name, append(fields, args...)...)
+		event = csdf.NewEvent(name, append(fields, args...)...)
 	}
 
 	return ExpandedEdge{
