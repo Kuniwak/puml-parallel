@@ -60,7 +60,8 @@ func Enabled(d core.Diagram, e core.Edge) (logic.Formula, error) {
 // guard the values of its source state and the fields of its event, never a
 // value after the step; a post those, and the values after the step its
 // destination holds. A received field named like a state variable would be
-// bound over it, and is refused.
+// bound over it, and is refused; a sent field is a state variable of the
+// source or a field the event receives, or it would be free.
 func declared(d core.Diagram, e core.Edge) error {
 	for _, s := range []string{e.Src, e.Dst} {
 		if !slices.Contains(d.States, s) {
@@ -75,7 +76,14 @@ func declared(d core.Diagram, e core.Edge) error {
 		if !f.Send && (slices.Contains(d.Vars[e.Src], f.Name) || slices.Contains(d.Vars[e.Dst], f.Name)) {
 			return fmt.Errorf("the edge %s -> %s receives %s, which names a state variable", e.Src, e.Dst, f.Name)
 		}
-		before[f.Name] = true
+		if !f.Send {
+			before[f.Name] = true
+		}
+	}
+	for _, f := range e.Event.Fields {
+		if f.Send && !before[f.Name] {
+			return fmt.Errorf("the edge %s -> %s sends %s, which neither %s holds nor the event receives", e.Src, e.Dst, f.Name, e.Src)
+		}
 	}
 	for _, v := range clause.FreeVars(e.Guard) {
 		if v.Primed {

@@ -159,6 +159,12 @@ func TestAnEdgeThatReadsWhatItDoesNotBindIsRefused(t *testing.T) {
 			},
 			Want: "在庫'",
 		},
+		"a sent field nothing binds": {
+			Edge: func(t *testing.T) core.Edge {
+				return core.Edge{Src: "s", Dst: "s", Event: core.Event{Channel: "OUT", Fields: []core.Field{{Send: true, Name: "額"}}}}
+			},
+			Want: "sends 額",
+		},
 		"a received field named like a state variable": {
 			Edge: func(t *testing.T) core.Edge {
 				return core.Edge{Src: "s", Dst: "s", Event: core.Event{Channel: "IN", Fields: []core.Field{{Name: "在庫"}}}}
