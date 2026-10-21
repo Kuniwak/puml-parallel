@@ -112,20 +112,21 @@ func TestPrintIsPrintOfTheNormalForm(t *testing.T) {
 }
 
 func TestPrintRefusesAFormulaThatIsNotWellFormed(t *testing.T) {
-	tests := map[string]Formula{
-		"a dangling index":             and(eq(Bound{0}, pre("x"))),
-		"a name that is no identifier": and(atom(hole(pre("a b")))),
-		"a hint that is no name":       Exists{Body: and(eq(Bound{0}, pre("x")))},
+	tests := map[string]struct {
+		f    Formula
+		want string
+	}{
+		"a dangling index":             {f: and(eq(Bound{0}, pre("x"))), want: "clause.Print: clause.LocallyClosed: the index 0 is under 0 binders"},
+		"a name that is no identifier": {f: and(atom(hole(pre("a b")))), want: `clause.Print: clause.WellFormed: the variable "a b" is no identifier`},
+		"a hint that is no name":       {f: Exists{Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint "" of an ∃ is no identifier`},
 	}
-	for name, f := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got, err := Print(f)
+			_, err := Print(tt.f)
 
 			// Assert
-			if err == nil {
-				t.Errorf("Print() = %q, want an error", got)
-			}
+			assertErrorContains(t, err, tt.want)
 		})
 	}
 }

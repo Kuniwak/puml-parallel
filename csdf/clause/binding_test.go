@@ -139,23 +139,24 @@ func TestSubstitute(t *testing.T) {
 
 func TestBindingRefusesWhatBreaksItsPreconditions(t *testing.T) {
 	dangling := and(eq(Bound{0}, pre("x")))
-	tests := map[string]func() error{
-		"Close of a formula with a dangling index": func() error { _, err := Close(dangling, pre("v")); return err },
-		"Close of a primed variable":               func() error { _, err := Close(and(eq(post("v"), pre("x"))), post("v")); return err },
-		"Open of an ∃ with a dangling index":       func() error { _, err := Open(Exists{Body: and(eq(Bound{1}, pre("x")))}, pre("y")); return err },
-		"Open with a term that has an index":       func() error { _, err := Open(Exists{Body: and(eq(Bound{0}, pre("x")))}, Bound{0}); return err },
-		"Substitute into a dangling index":         func() error { _, err := Substitute(dangling, pre("x"), pre("y")); return err },
-		"Substitute a term that has an index":      func() error { _, err := Substitute(and(eq(pre("x"), pre("y"))), pre("x"), Bound{0}); return err },
+	tests := map[string]struct {
+		call func() error
+		want string
+	}{
+		"Close of a formula with a dangling index": {call: func() error { _, err := Close(dangling, pre("v")); return err }, want: "clause.Close: clause.LocallyClosed: the index 0 is under 0 binders"},
+		"Close of a primed variable":               {call: func() error { _, err := Close(and(eq(post("v"), pre("x"))), post("v")); return err }, want: "clause.Close: v' is the value after the step"},
+		"Open of an ∃ with a dangling index":       {call: func() error { _, err := Open(Exists{Body: and(eq(Bound{1}, pre("x")))}, pre("y")); return err }, want: "clause.Open: clause.LocallyClosed: the index 1 is under 1 binders"},
+		"Open with a term that has an index":       {call: func() error { _, err := Open(Exists{Body: and(eq(Bound{0}, pre("x")))}, Bound{0}); return err }, want: "clause.Open: the term: clause.LocallyClosed"},
+		"Substitute into a dangling index":         {call: func() error { _, err := Substitute(dangling, pre("x"), pre("y")); return err }, want: "clause.Substitute: clause.LocallyClosed"},
+		"Substitute a term that has an index":      {call: func() error { _, err := Substitute(and(eq(pre("x"), pre("y"))), pre("x"), Bound{0}); return err }, want: "clause.Substitute: the term: clause.LocallyClosed"},
 	}
-	for name, call := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			err := call()
+			err := tt.call()
 
 			// Assert
-			if err == nil {
-				t.Error("error = nil, want one")
-			}
+			assertErrorContains(t, err, tt.want)
 		})
 	}
 }

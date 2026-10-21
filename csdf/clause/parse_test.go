@@ -166,44 +166,43 @@ func TestParseAuthoredRefusesExists(t *testing.T) {
 	text := "$x > 0 ∧ @exists(v) (@eq(v, x))"
 
 	// Execute
-	got, err := ParseAuthored(text)
+	_, err := ParseAuthored(text)
 
 	// Assert
-	if err == nil {
-		t.Errorf("ParseAuthored(%q) = %#v, want an error", text, got)
-	}
+	assertErrorContains(t, err, "@exists is written by tools only")
 }
 
 func TestParseRefuses(t *testing.T) {
-	tests := map[string]string{
-		"an unclosed term hole":          "${x",
-		"an empty term hole":             "${}",
-		"a path primed twice":            "${m'[k]'}",
-		"a function primed":              "${f(x)'}",
-		"an unclosed index":              "${m[k}",
-		"a field without a name":         "${m.}",
-		"an empty conjunct":              "$x ∧  ∧ $y",
-		"a trailing ∧":                   "$x ∧ ",
-		"@at without a state":            "@at(m)",
-		"@at with a term for a state":    "@at(m, s[k])",
-		"@eq with one term":              "@eq(x)",
-		"@update with three terms":       "@update(m', m, k)",
-		"@frame with one map":            "@frame(m')",
-		"an unknown tool word":           "@foo(x)",
-		"a tool word with text after it": "@eq(x, y) z",
-		"a bound variable primed":        "@exists(v) ($v' > 0)",
-		"an unclosed body":               "@exists(v) ($v > 0",
-		"an empty body":                  "@exists(v) ()",
+	tests := map[string]struct {
+		text string
+		want string
+	}{
+		"an unclosed term hole":          {text: "${x", want: `expected "}" at 3`},
+		"an empty term hole":             {text: "${}", want: "expected a term at 2"},
+		"a path primed twice":            {text: "${m'[k]'}", want: "the term at 2 is primed twice"},
+		"a function primed":              {text: "${f(x)'}", want: "an environment function at 6 has no value after the step"},
+		"an unclosed index":              {text: "${m[k}", want: `expected "]" at 5`},
+		"a field without a name":         {text: "${m.}", want: "expected a field at 4"},
+		"an empty conjunct":              {text: "$x ∧  ∧ $y", want: "empty conjunct at 5"},
+		"a trailing ∧":                   {text: "$x ∧ ", want: "empty conjunct at 5"},
+		"@at without a state":            {text: "@at(m)", want: "@at at 0 takes a state"},
+		"@at with a term for a state":    {text: "@at(m, s[k])", want: `@at at 0: expected ")" at 8`},
+		"@eq with one term":              {text: "@eq(x)", want: "@eq at 0 takes 2 terms"},
+		"@update with three terms":       {text: "@update(m', m, k)", want: "@update at 0 takes 4 terms"},
+		"@frame with one map":            {text: "@frame(m')", want: "@frame at 0 takes 2 terms"},
+		"an unknown tool word":           {text: "@foo(x)", want: "unknown tool word @foo at 0"},
+		"a tool word with text after it": {text: "@eq(x, y) z", want: `@eq at 0: expected " ∧ " or the end at 9`},
+		"a bound variable primed":        {text: "@exists(v) ($v' > 0)", want: "v is bound by @exists and has no value after the step"},
+		"an unclosed body":               {text: "@exists(v) ($v > 0", want: `expected ")"`},
+		"an empty body":                  {text: "@exists(v) ()", want: "@exists at 0: an empty body"},
 	}
-	for name, text := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got, err := Parse(text)
+			_, err := Parse(tt.text)
 
 			// Assert
-			if err == nil {
-				t.Errorf("Parse(%q) = %#v, want an error", text, got)
-			}
+			assertErrorContains(t, err, tt.want)
 		})
 	}
 }
