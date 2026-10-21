@@ -89,3 +89,24 @@ func FreeVars(f Formula) []Free {
 	})
 	return vs
 }
+
+// EachTerm calls visit on each term f's conjuncts read, outermost first: an
+// atom's holes and a builtin's arguments, under any ∃.
+func EachTerm(f Formula, visit func(Term)) {
+	switch f := f.(type) {
+	case And:
+		for _, c := range f.Conjuncts {
+			EachTerm(c, visit)
+		}
+	case Exists:
+		EachTerm(f.Body, visit)
+	case Atom:
+		for _, a := range f.Args() {
+			visit(a)
+		}
+	case Builtin:
+		for _, a := range f.Args {
+			visit(a)
+		}
+	}
+}

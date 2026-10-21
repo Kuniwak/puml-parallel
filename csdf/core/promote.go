@@ -494,7 +494,7 @@ func readsBound(p Promotion, s Sync) error {
 			}
 		}
 	}
-	eachTerm(s.Guard, walk)
+	clause.EachTerm(s.Guard, walk)
 	if err != nil {
 		return err
 	}
@@ -511,24 +511,4 @@ func keyName(t clause.Term) string {
 		return f.Name
 	}
 	return fmt.Sprintf("%v", t)
-}
-
-// eachTerm visits every term f's conjuncts read, outermost first.
-func eachTerm(f clause.Formula, visit func(clause.Term)) {
-	switch f := f.(type) {
-	case clause.And:
-		for _, c := range f.Conjuncts {
-			eachTerm(c, visit)
-		}
-	case clause.Exists:
-		eachTerm(f.Body, visit)
-	case clause.Atom:
-		for _, a := range f.Args() {
-			visit(a)
-		}
-	case clause.Builtin:
-		for _, a := range f.Args {
-			visit(a)
-		}
-	}
 }

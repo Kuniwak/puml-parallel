@@ -60,3 +60,25 @@ func TestFreeVars(t *testing.T) {
 		})
 	}
 }
+
+func TestEachTermVisitsTheTermsOfEveryConjunct(t *testing.T) {
+	// Setup
+	f, err := Parse("${m[k].f} = $x ∧ @eq(y, z) ∧ @exists(v : T) (@at(v[k], s))")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []Term
+
+	// Execute
+	EachTerm(f, func(t Term) { got = append(got, t) })
+
+	// Assert
+	want := []Term{
+		Field{Of: Index{Map: pre("m"), Key: pre("k")}, Name: "f"}, pre("x"),
+		pre("y"), pre("z"),
+		Index{Map: Bound{Index: 0}, Key: pre("k")},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("EachTerm mismatch (-want +got):\n%s", diff)
+	}
+}
