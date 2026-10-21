@@ -40,7 +40,7 @@ type constant struct{ value bool }
 type atom struct {
 	name   string
 	quoted bool
-	args   []Var
+	args   []Term
 }
 
 type not struct{ operand Formula }
@@ -73,13 +73,13 @@ func Atom(name string, args ...Var) Formula {
 	if name == "" {
 		panic("logic.Atom: a predicate needs a name")
 	}
-	return atom{name: name, args: slices.Clone(args)}
+	return atom{name: name, args: varTerms(args)}
 }
 
 // Quoted applies a predicate written in natural language to args. The text
 // is spelled as a JSON string, so that nothing it holds reads as a connective.
 func Quoted(text string, args ...Var) Formula {
-	return atom{name: text, quoted: true, args: slices.Clone(args)}
+	return atom{name: text, quoted: true, args: varTerms(args)}
 }
 
 // Not negates f.
@@ -185,16 +185,18 @@ func (c constant) equal(g Formula) bool {
 }
 
 func (a atom) freeVars(bound map[Var]bool, add func(Var)) {
-	for _, v := range a.args {
-		if !bound[v] {
-			add(v)
-		}
+	for _, t := range a.args {
+		t.vars(func(v Var) {
+			if !bound[v] {
+				add(v)
+			}
+		})
 	}
 }
 func (a atom) simplify() Formula { return a }
 func (a atom) equal(g Formula) bool {
 	b, ok := g.(atom)
-	return ok && a.name == b.name && a.quoted == b.quoted && slices.Equal(a.args, b.args)
+	return ok && a.name == b.name && a.quoted == b.quoted && slices.EqualFunc(a.args, b.args, Term.equalTerm)
 }
 
 func (n not) freeVars(bound map[Var]bool, add func(Var)) { n.operand.freeVars(bound, add) }
@@ -356,14 +358,7 @@ func (a atom) spell(_ Notation, sb *strings.Builder, _ bool) {
 	} else {
 		sb.WriteString(a.name)
 	}
-	if len(a.args) == 0 {
-		return
-	}
-	args := make([]string, len(a.args))
-	for i, v := range a.args {
-		args[i] = string(v)
-	}
-	sb.WriteString("(" + strings.Join(args, ", ") + ")")
+	spellArgs(sb, a.args)
 }
 
 func (x not) spell(n Notation, sb *strings.Builder, rightmost bool) {
@@ -446,8 +441,9 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 // notation. Op is one of
 //
 //	true, false            a constant
-//	atom                   Name applied to Args; Quoted when Name is natural
-//	                       language, which Quoted made
+//	atom                   Name applied to Args, or to Terms when one of
+//	                       them is no variable; Quoted when Name is natural
+//	                       language, which Quoted or Pred made
 //	not                    the negation of the one operand
 //	and, or                the conjunction or disjunction of the operands
 //	implies                the implication from the first operand to the second
@@ -455,12 +451,13 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 //
 // and the fields another Op has no use for are left empty.
 type Tree struct {
-	Op       Op     `json:"op"`
-	Name     string `json:"name,omitempty"`
-	Quoted   bool   `json:"quoted,omitempty"`
-	Args     []Var  `json:"args,omitempty"`
-	Vars     []Var  `json:"vars,omitempty"`
-	Operands []Tree `json:"operands,omitempty"`
+	Op       Op         `json:"op"`
+	Name     string     `json:"name,omitempty"`
+	Quoted   bool       `json:"quoted,omitempty"`
+	Args     []Var      `json:"args,omitempty"`
+	Terms    []TermTree `json:"terms,omitempty"`
+	Vars     []Var      `json:"vars,omitempty"`
+	Operands []Tree     `json:"operands,omitempty"`
 }
 
 // Op is what a Tree is.
@@ -490,7 +487,10 @@ func (c constant) tree() Tree {
 }
 
 func (a atom) tree() Tree {
-	return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Args: slices.Clone(a.args)}
+	if vs, ok := allVars(a.args); ok {
+		return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Args: vs}
+	}
+	return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Terms: termTrees(a.args)}
 }
 
 func (n not) tree() Tree { return Tree{Op: OpNot, Operands: []Tree{n.operand.tree()}} }
