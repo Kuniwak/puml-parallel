@@ -50,6 +50,14 @@ func TestFormulaOfAClause(t *testing.T) {
 			Clause: "${m[k]} = ${m[k]}",
 			Want:   `csdf_in(k, m) ∧ "$_0 = $_0"(m[k])`,
 		},
+		"an entry of a map after the step is read where it is after the step": {
+			Clause: "${m'[k]} > 0",
+			Want:   `csdf_in(k, m') ∧ "$_0 > 0"(m'[k])`,
+		},
+		"an entry read under an existential is required inside it": {
+			Clause: "@exists(n : M) (@eq(n[k], v))",
+			Want:   "∃n. csdf_in(k, n) ∧ n[k] = v",
+		},
 		"@eq and @ne are equalities": {
 			Clause: "@eq(a, b) ∧ @ne(from, to)",
 			Want:   "a = b ∧ ¬(from = to)",
