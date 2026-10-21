@@ -23,7 +23,7 @@ class EnvironmentCommandTest(unittest.TestCase):
         # Assert
         self.assertEqual(first, again)
         self.assertIn("environment: seed 7\n", first)
-        self.assertIn("decided by the environment: $_ が 正\n", first)
+        self.assertIn("decided by the environment: $_0 が 正\n", first)
 
     def test_env_gives_a_function_its_value_over_the_checks_module(self):
         # Setup
@@ -38,14 +38,14 @@ class EnvironmentCommandTest(unittest.TestCase):
 
                 # Assert
                 self.assertIn("states: 1\n", out)
-                self.assertIn("environment: given $_ が 正\n", out)
+                self.assertIn("environment: given $_0 が 正\n", out)
 
     def test_what_the_environment_cannot_decide_is_a_usage_error(self):
         # Setup
         cases = [
             ("a malformed --env", ("--env", "$n が 正=maybe"), "TYPES = {}\n", "--env expects NAME=true or NAME=false"),
-            ("a function nothing decides", (), "TYPES = {}\n", "nothing decides the environment's functions '$_ が 正'"),
-            ("a given name of no function", ("--env", "$n が 零=true", "--seed", "1"), "TYPES = {}\n", "names no function of the diagram: '$_ が 零'"),
+            ("a function nothing decides", (), "TYPES = {}\n", "nothing decides the environment's functions '$_0 が 正'"),
+            ("a given name of no function", ("--env", "$n が 零=true", "--seed", "1"), "TYPES = {}\n", "names no function of the diagram: '$_0 が 零'"),
             ("a function of other arguments", (), 'TYPES = {}\nENVIRONMENT = {"$n が 正": lambda: True}\n', "has 1 hole"),
             ("a function giving other than a truth value", (), 'TYPES = {}\nENVIRONMENT = {"$n が 正": lambda n: n}\n', "it gives True or False"),
         ]
@@ -69,7 +69,7 @@ class EnvironmentCommandTest(unittest.TestCase):
         _, out, _ = self.run_main("--seed", "3", "--json")
 
         # Assert
-        self.assertEqual({"seed": 3, "given": [], "decided": ["$_ が 正"]}, json.loads(out)["environment"])
+        self.assertEqual({"seed": 3, "given": [], "decided": ["$_0 が 正"]}, json.loads(out)["environment"])
 
 
 if __name__ == "__main__":

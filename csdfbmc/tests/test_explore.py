@@ -86,7 +86,7 @@ class ExplorerTest(unittest.TestCase):
     def test_an_atom_is_the_function_its_text_names_whatever_its_holes_are_called(self):
         # Setup
         cases = [
-            ("given by its name", {"$_ が 正": lambda n: n > 0}),
+            ("given by its name", {"$_0 が 正": lambda n: n > 0}),
             ("given as the atom", {"$n が 正": lambda n: n > 0}),
             ("given under another hole name", {"$m が 正": lambda m: m > 0}),
         ]
@@ -99,7 +99,7 @@ class ExplorerTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
-                self.assertEqual(["$_ が 正"], result.to_json()["environment"]["decided"])
+                self.assertEqual(["$_0 が 正"], result.to_json()["environment"]["decided"])
 
     def test_a_seed_reads_only_the_atoms_holes(self):
         # Setup
@@ -115,7 +115,7 @@ class ExplorerTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(plain, with_x)
-        self.assertEqual({("$_ が 正", (2,))}, set(plain[:1]))
+        self.assertEqual({("$_0 が 正", (2,))}, set(plain[:1]))
 
     def with_two_atoms(self):
         """COUNTER with both guards not formalised yet."""
@@ -125,13 +125,13 @@ class ExplorerTest(unittest.TestCase):
         # Setup
         cases = [
             ("a function nothing decides, each listed", self.with_two_atoms(), environments.NONE,
-             "nothing decides the environment's functions '$_ が 正', '$_ が 零'"),
+             "nothing decides the environment's functions '$_0 が 正', '$_0 が 零'"),
             ("a given name that names no function", self.without_its_guard(), environments.over({}, {"$n が 零": True, "$n が 正": True}, None),
-             "names no function of the diagram: '$_ が 零'"),
+             "names no function of the diagram: '$_0 が 零'"),
             ("a post not formalised", dict(COUNTER, edges=[dict(COUNTER["edges"][0], post="$n が 減る"), COUNTER["edges"][1]]),
              environments.over({}, {}, 7), "the post clause '$n が 減る' is not formalised"),
             ("a given function taking other than the atom's holes", self.without_its_guard(),
-             environments.over({}, {"$n が 正": lambda n, m: True}, None), "'$_ が 正' has 1 hole, but the function given takes"),
+             environments.over({}, {"$n が 正": lambda n, m: True}, None), "'$_0 が 正' has 1 hole, but the function given takes"),
             ("a hole the step does not bind", dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$k が 正"), COUNTER["edges"][1]]),
              environments.over({}, {}, 7), "the atom '$k が 正' reads k, which the step does not bind"),
         ]
@@ -146,7 +146,7 @@ class ExplorerTest(unittest.TestCase):
         env = environments.Environment(decide=environments.nothing, seed=7, given={})
 
         # Execute, Assert
-        with self.assertRaisesRegex(ValueError, r"decided nothing for '\$_ が 正'"):
+        with self.assertRaisesRegex(ValueError, r"decided nothing for '\$_0 が 正'"):
             fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
 
     def test_a_given_function_giving_other_than_a_truth_value_is_refused(self):
@@ -162,7 +162,7 @@ class ExplorerTest(unittest.TestCase):
         result = fixture.explorer(self.with_two_atoms(), environment=environments.over({}, {}, 7), max_states=10).run()
 
         # Assert
-        self.assertEqual(["$_ が 正", "$_ が 零"], sorted(result.to_json()["environment"]["decided"]))
+        self.assertEqual(["$_0 が 正", "$_0 が 零"], sorted(result.to_json()["environment"]["decided"]))
 
     def test_the_environment_decides_a_clause_not_formalised(self):
         # Setup
@@ -190,7 +190,7 @@ class ExplorerTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(first.states, again.states)
-        self.assertEqual({"seed": 7, "given": [], "decided": ["$_ が 正"]}, first.to_json()["environment"])
+        self.assertEqual({"seed": 7, "given": [], "decided": ["$_0 が 正"]}, first.to_json()["environment"])
 
     def test_the_bound_on_states_stops_the_walk(self):
         result = fixture.explorer(COUNTER, max_states=2).run()

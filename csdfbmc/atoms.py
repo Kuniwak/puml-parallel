@@ -1,12 +1,13 @@
 """The environment function an atom denotes (docs/CLAUSE_DESIGN.md): its name
-is the atom's text without its holes, and its arguments are the holes, each
-distinct one once, in the order they first appear. Atoms with the same text
+is the atom's text with each hole marked by the position of the argument it
+reads, and its arguments are the distinct terms the holes read, in the order
+they first appear. Atoms with the same text
 denote the same function, whatever their holes are called.
 
 Holes follow docs/SYNTAX.md: `$name`, with the space after it when the next
 character could continue the name, and `${name}`; `$` before anything else is
 text, and `\\$`, `\\(` and `\\)` are those characters. The name writes each
-hole as `$_`, a space after it where the text goes on with a character that
+hole as `$_N`, N its argument's position, a space after it where the text goes on with a character that
 could continue a name, and escapes a `$` of the text.
 
 Until the walk reads atoms in their wire form (#76, step 6), csdfbmc reads
@@ -89,13 +90,14 @@ def function_of(text: str) -> Function:
             current.append(c)
             i += 1
     pieces.append("".join(current))
-    return Function(name=_name(pieces), args=tuple(dict.fromkeys(holes)))
+    args = tuple(dict.fromkeys(holes))
+    return Function(name=_name(pieces, [args.index(h) for h in holes]), args=args)
 
 
-def _name(pieces: list[str]) -> str:
+def _name(pieces: list[str], positions: list[int]) -> str:
     out = [_escaped(pieces[0])]
-    for piece in pieces[1:]:
-        out.append(HOLE)
+    for piece, position in zip(pieces[1:], positions):
+        out.append(f"{HOLE}{position}")
         if piece and continues_name(piece[0]):
             out.append(" ")
         out.append(_escaped(piece))

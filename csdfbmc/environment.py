@@ -7,7 +7,7 @@ read, fixed for the whole run. The tool word @opaque is no longer read.
 A function is named by its atom: the atom's text without its holes, its
 arguments the values of the holes, in order (csdfbmc.atoms); atoms with the
 same text are the same function. A name given may be written as any atom of
-the function, `$在庫 が 十分` as well as `$_ が 十分`.
+the function, `$在庫 が 十分` as well as `$_0 が 十分`.
 
 A function is given by the checks module (ENVIRONMENT) or the command line
 (--env NAME=true|false), or chosen from a seed (--seed N): a seed picks one

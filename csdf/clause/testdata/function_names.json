@@ -1,0 +1,21 @@
+{
+  "doc": "The environment function an atom denotes (docs/CLAUSE_DESIGN.md): its name marks each hole with the position of the argument it reads, and its arguments are the distinct terms the holes read, in order of first appearance. Read by the Python tests (csdfbmc/tests/test_atoms.py) and meant for the Go ones.",
+  "named": [
+    {"case": "a $name hole and the space that ends it", "text": "$在庫 が 十分", "name": "$_0 が 十分", "args": ["在庫"]},
+    {"case": "two holes, the first read again", "text": "$a と $b と $a が 等しい", "name": "$_0 と $_1 と $_0 が 等しい", "args": ["a", "b"]},
+    {"case": "two holes, the second read again", "text": "$a と $b と $b が 等しい", "name": "$_0 と $_1 と $_1 が 等しい", "args": ["a", "b"]},
+    {"case": "one hole read twice", "text": "$a と $a", "name": "$_0 と $_0", "args": ["a"]},
+    {"case": "two holes read once each", "text": "$a と $b", "name": "$_0 と $_1", "args": ["a", "b"]},
+    {"case": "a hole before text that cannot continue a name", "text": "$n>0", "name": "$_0>0", "args": ["n"]},
+    {"case": "a hole before a digit", "text": "${n}1", "name": "$_0 1", "args": ["n"]},
+    {"case": "a ${name} hole is the same hole", "text": "${在庫} が 十分", "name": "$_0 が 十分", "args": ["在庫"]},
+    {"case": "$ before a digit is text", "text": "$100 を 超える $額", "name": "$100 を 超える $_0", "args": ["額"]},
+    {"case": "an escaped $ is text", "text": "\\$x と $y", "name": "\\$x と $_0", "args": ["y"]},
+    {"case": "no hole", "text": "晴れている", "name": "晴れている", "args": []}
+  ],
+  "refused": [
+    {"case": "a value after the step", "text": "$在庫' が 十分", "message": "after the step"},
+    {"case": "a term with a path", "text": "${locations[from].在庫} が 十分", "message": "a name"},
+    {"case": "an unclosed brace", "text": "${在庫 が 十分", "message": "closing"}
+  ]
+}

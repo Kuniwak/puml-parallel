@@ -12,10 +12,10 @@ class GivenTest(unittest.TestCase):
     def test_a_given_function_decides_its_name(self):
         # Setup
         cases = [
-            ("a value is the function that is always it", {"$在庫 が 十分": False}, "$_ が 十分", [(n,) for n in range(3)], [False, False, False]),
-            ("a function takes the arguments in order", {"$在庫 が $額 以上": lambda 在庫, 額: 在庫 >= 額}, "$_ が $_ 以上",
+            ("a value is the function that is always it", {"$在庫 が 十分": False}, "$_0 が 十分", [(n,) for n in range(3)], [False, False, False]),
+            ("a function takes the arguments in order", {"$在庫 が $額 以上": lambda 在庫, 額: 在庫 >= 額}, "$_0 が $_1 以上",
              [(n, 1) for n in range(3)], [False, True, True]),
-            ("a given value wins over the seed", {"$在庫 が 十分": True}, "$_ が 十分", [(n,) for n in range(16)], [True] * 16),
+            ("a given value wins over the seed", {"$在庫 が 十分": True}, "$_0 が 十分", [(n,) for n in range(16)], [True] * 16),
             ("any atom of the function names it", {"$残り が 十分": False}, function_of("$在庫 が 十分").name, [(1,)], [False]),
         ]
         for name, given, asked, args, want in cases:
@@ -38,7 +38,7 @@ class GivenTest(unittest.TestCase):
 
     def test_nothing_decides_no_name(self):
         # Execute
-        value = given_over({}, nothing)("$_ が 十分", ())
+        value = given_over({}, nothing)("$_0 が 十分", ())
 
         # Assert
         self.assertIsNone(value)

@@ -810,7 +810,7 @@ as an atom whose holes are what it reads, such as `$口座 が凍結されてい
 is a pure function, which the environment gives (docs/CLAUSE_DESIGN.md, P15
 and P16). The function is named by the atom's text without its holes, and
 its arguments are the holes, in order: `$口座 が凍結されていない` is the
-function `$_ が凍結されていない` of the value of `口座`, and every atom with
+function `$_0 が凍結されていない` of the value of `口座`, and every atom with
 that text, on any edge, is the same function. The tool word `@opaque` is
 refused: write the clause as such an atom. The checks module's
 `ENVIRONMENT` maps a function, written as its name or as any of its atoms,
