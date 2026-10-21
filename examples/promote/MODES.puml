@@ -36,6 +36,6 @@ running --> degraded : DEGRADE ; ; accounts' = accounts ∧ audits' = audits
 degraded --> running : RECOVER ; ; accounts' = accounts ∧ audits' = audits
 
 note bottom of runningAudits
-  constrain AUDIT-BEGIN?監査ID?口座ID ; 口座ID は accounts の定義域にある
+  constrain AUDIT_BEGIN?監査ID?口座ID ; 口座ID は accounts の定義域にある
 end note
 @enduml

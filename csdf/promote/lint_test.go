@@ -230,7 +230,7 @@ state "稼働中" as running {
 state "未着手" as accNone
 state "調査中" as audOpen
 [*] --> accNone
-accNone --> audOpen : AUDIT-BEGIN
+accNone --> audOpen : AUDIT_BEGIN
 @enduml
 `,
 			},

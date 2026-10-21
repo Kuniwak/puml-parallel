@@ -614,7 +614,7 @@ as undischarged. Everything named after a source location is side-qualified —
 two files.
 
 CSDF names are not prover identifiers — an event has `?` and `!` in it, an id may be
-hyphenated — so events, state ids and variable names are encoded into a
+written in any script — so events, state ids and variable names are encoded into a
 letters-digits-underscore identifier; the theory opens with a table giving the originals
 of every name that had to be encoded.
 

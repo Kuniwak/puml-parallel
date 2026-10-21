@@ -16,7 +16,7 @@ func TestParseEvent(t *testing.T) {
 		"a channel alone":            {text: "reset", want: "reset"},
 		"received and chosen fields": {text: "c?x!y", want: "c?x!y", wantFields: []Field{{Received, "x"}, {Sent, "y"}}},
 		"whitespace around ? and !":  {text: " c ? x ! y ", want: "c?x!y", wantFields: []Field{{Received, "x"}, {Sent, "y"}}},
-		"unicode and kebab case":     {text: "AUDIT-BEGIN?監査ID", want: "AUDIT-BEGIN?監査ID", wantFields: []Field{{Received, "監査ID"}}},
+		"unicode and snake case":     {text: "AUDIT_BEGIN?監査ID", want: "AUDIT_BEGIN?監査ID", wantFields: []Field{{Received, "監査ID"}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -35,7 +35,7 @@ func TestParseEvent(t *testing.T) {
 }
 
 func TestParseEventRefusesTextOutsideTheGrammar(t *testing.T) {
-	for _, text := range []string{"", "?x", "c?", "c?x?", "c!!y", "c x", "c?x y", "f(x)", "a.b"} {
+	for _, text := range []string{"", "?x", "c?", "c?x?", "c!!y", "c x", "c?x y", "f(x)", "a.b", "a-b", "c?x-1"} {
 		t.Run(text, func(t *testing.T) {
 			if got, err := ParseEvent(text); err == nil {
 				t.Errorf("ParseEvent(%q) = %q, want an error", text, got)

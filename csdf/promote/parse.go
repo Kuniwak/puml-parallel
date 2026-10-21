@@ -13,7 +13,7 @@ import (
 // idPattern matches an identifier the way csdf.Parser does: Unicode letters and
 // digits, "_" and "-". \w is ASCII-only in RE2, which would reject an id
 // written in Japanese.
-const idPattern = `[\p{L}\p{N}_-]+`
+const idPattern = `[\p{L}\p{N}_]+`
 
 // The directives are all line-shaped, and so is PlantUML's own syntax for them,
 // so they are lifted out line by line. Every line that is lifted is replaced by

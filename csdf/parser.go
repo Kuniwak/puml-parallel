@@ -482,7 +482,7 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 // digits are accepted so that identifiers can be written in any language;
 // PlantUML accepts them too, which keeps CSDF a subset of PlantUML.
 func isIDRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-'
+	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'
 }
 
 func (p *Parser) peekRune() rune {

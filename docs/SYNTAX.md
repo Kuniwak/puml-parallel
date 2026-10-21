@@ -28,7 +28,7 @@ field = id
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
-id = 1*(unicode_letter / unicode_digit / "_" / "-")
+id = 1*(unicode_letter / unicode_digit / "_")
 trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
 inlineSeparator = 1*(HTAB / SP / block_comment)
@@ -71,9 +71,11 @@ are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and
 channels: a hidden field is a value the `tau` chooses, which the clauses still
 read by its name.
 
-Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
+Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, with `_`, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
+`-` is not part of an identifier, so that a name followed by `-` in a clause
+reads as the name and then the text (`$x-1`).
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as
