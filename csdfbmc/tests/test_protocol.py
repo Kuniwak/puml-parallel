@@ -187,6 +187,19 @@ class ServeTest(unittest.TestCase):
             raise KeyError("boom")
         self.assertIn("boom", self.serve([json.dumps({"op": "hello"})], handle)[0]["error"])
 
+    def test_the_values_of_an_atom_post_are_encoded_both_ways(self):
+        # Setup
+        def handle(request):
+            return {"results": [[[frozenset(vs)]] for vs in request["values"]]}
+        request = {"op": "post", "atom": {"text": ["", " == ", ""], "holes": [0, 1], "primed": [True, False]},
+                   "values": [[{"set": [1]}]]}
+
+        # Execute
+        answers = self.serve([json.dumps(request)], handle)
+
+        # Assert
+        self.assertEqual([{"results": [[[{"set": [{"set": [1]}]}]]]}], answers)
+
 
 # The repository root, from which "python -m csdfbmc.python_glue" finds the package.
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

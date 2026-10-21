@@ -135,13 +135,15 @@ def request_from_wire(request: dict) -> dict:
 
 def answer_to_wire(request: dict, answer: dict) -> dict:
     if request.get("op") == "post" and "results" in answer:
-        return dict(answer, results=[_bindings_to_wire(r) for r in answer["results"]])
+        encode = _values_to_wire if "atom" in request else _bindings_to_wire
+        return dict(answer, results=[encode(r) for r in answer["results"]])
     return answer
 
 
 def answer_from_wire(request: dict, answer: dict) -> dict:
     if request.get("op") == "post" and "results" in answer:
-        return dict(answer, results=[_bindings_from_wire(r) for r in answer["results"]])
+        decode = _values_from_wire if "atom" in request else _bindings_from_wire
+        return dict(answer, results=[decode(r) for r in answer["results"]])
     return answer
 
 
