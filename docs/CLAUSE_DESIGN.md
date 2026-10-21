@@ -75,7 +75,19 @@ For promotion, op_sem is a CSP term built from the local diagram P:
 - all instances are interleaved over the set of IDs, ||| i ∈ ID;
 - a sync renames the local events it takes to the global event and
   synchronises on it (for `MOVE`, `DEPART.from` and `ARRIVE.to` become
-  `MOVE`).
+  `MOVE`);
+- what a clause of the global diagram reads of a bound instance is carried
+  by the event: the instance offers the global event with the values read
+  as its outputs (`MOVE.from!v`), and the global side receives them. CSP has
+  no other way for one process to depend on another's state, so a clause
+  reading two instances is this communication, written implicitly.
+
+The communication changes three things, and every constructor that relies
+on it must say so: the alphabet (the event carries the values read, unless
+a projection hides them); the meaning of the instance's diagram as a part,
+since it now offers the event; and divergence under hiding, since hiding
+the event at the part turns an offer that leaves the instance unchanged
+into a τ self-loop.
 
 The map of a promoted diagram is then the tuple of the instances' local
 states, domain membership is "not absent", and an instance's control state
