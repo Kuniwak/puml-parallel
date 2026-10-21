@@ -130,11 +130,15 @@ func TestAnEdgeThatReadsWhatItDoesNotBindIsRefused(t *testing.T) {
 
 	testCases := map[string]testCase{
 		"an undeclared source": {
-			Edge: func(t *testing.T) core.Edge { return core.Edge{Src: "nowhere", Dst: "s", Event: core.Event{Channel: "GO"}} },
+			Edge: func(t *testing.T) core.Edge {
+				return core.Edge{Src: "nowhere", Dst: "s", Event: core.Event{Channel: "GO"}}
+			},
 			Want: "no state nowhere",
 		},
 		"an undeclared destination": {
-			Edge: func(t *testing.T) core.Edge { return core.Edge{Src: "s", Dst: "nowhere", Event: core.Event{Channel: "GO"}} },
+			Edge: func(t *testing.T) core.Edge {
+				return core.Edge{Src: "s", Dst: "nowhere", Event: core.Event{Channel: "GO"}}
+			},
 			Want: "no state nowhere",
 		},
 		"a guard reading a name nothing binds": {
