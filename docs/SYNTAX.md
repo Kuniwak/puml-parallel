@@ -28,7 +28,7 @@ field = id
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
-id = 1*(unicode_letter / unicode_digit / "_" / "-")
+id = 1*(unicode_letter / unicode_digit / "_")
 trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
 inlineSeparator = 1*(HTAB / SP / block_comment)
@@ -71,9 +71,11 @@ are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and
 channels: a hidden field is a value the `tau` chooses, which the clauses still
 read by its name.
 
-Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, so a
+Identifiers are not restricted to ASCII: any Unicode letter or digit is accepted, with `_`, so a
 state ID or a state variable may be written in Japanese (`承認記録' の承認者 = 操作者`).
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
+`-` is not part of an identifier, so that a name followed by `-` in a clause
+reads as the name and then the text (`$x-1`).
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as
@@ -214,6 +216,59 @@ Semantics
 | `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. It is not retained in the AST.                                                                                         |
 | `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
+
+
+Clauses (draft)
+---------------
+**Draft for v3.0.0 (#76); no tool reads this syntax yet.** It is the surface
+syntax of the clause representation in `csdf/clause`, which follows
+`docs/CLAUSE_DESIGN.md`. It will replace the clause syntax of guards and
+posts described above.
+
+```abnf
+clause   = [conjunct *(" ∧ " conjunct)]
+conjunct = builtin / exists / atom
+builtin  = "@eq(" term ", " term ")"        ; equal
+         / "@ne(" term ", " term ")"        ; differ
+         / "@in(" term ", " term ")"        ; key in the domain of a map
+         / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
+         / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
+         / "@at(" term ", " id ")"          ; instance at a state of its local diagram
+exists   = "@exists(" id ") (" clause ")" ; written by tools only
+atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
+term     = id ["'"] *("[" term "]" / "." id) ["'"]
+         / id "(" [term *(", " term)] ")" ; an environment function
+holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
+```
+
+- A `$name` hole ends where its name ends (`id`): whatever follows, `[`,
+  `.`, `-` or anything else, is the atom's language. When the next character
+  could continue the name, one space separates them and belongs to the hole,
+  so `$在庫 が` reads the hole `在庫` and the text `が`.
+- `${term}` holds any term, for indexing, fields, environment functions
+  and names that start with a digit (`${1st}`). A trailing `'` primes the
+  variable the path starts from: `${m[k].f'}` is the entry at `k` of `m`
+  after the step. An environment function has no value after the step.
+- `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
+- A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
+- `@exists(v) (…)` binds `v` in its body; the innermost binder of a name
+  wins, and a bound variable has no value after the step. Authors do not
+  write it (`docs/CLAUSE_DESIGN.md`); tools do. Inside a body, parentheses
+  in text nest unless escaped.
+- In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
+  anything else is itself.
+- A variable bound by `@exists` is a de Bruijn index inside the tools. The
+  tools print it with the name the tool that made it gave (its hint), unless
+  that name is free in the clause or bound by an enclosing `@exists`; then
+  with the least `name2`, `name3`, … that is neither (`name_2` after a name
+  ending in a digit). A hint that is no identifier is an error, never
+  replaced.
+- Printing and parsing back gives the same clause: the tools write
+  `${name}` where `$name` would read differently (before a space and a
+  character that could continue a name, or before a `'` that is text), one
+  space between `$name` and a character that could continue a name (a
+  letter, a digit or `_`), and a backslash before what would otherwise be
+  syntax.
 
 
 Global Diagram Format

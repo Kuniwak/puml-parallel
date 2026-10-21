@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 // Rename says that a clause's name From stands for the name To of the
@@ -36,7 +38,7 @@ func splitRenaming(clause Predicate) ([]Rename, Predicate, error) {
 	var renames []Rename
 	for _, part := range strings.Split(text[len(renamingOpen):end], ", ") {
 		from, to, ok := strings.Cut(part, renamingBind)
-		if !ok || !isID(from) || !isID(to) {
+		if !ok || !ident.Is(from) || !ident.Is(to) {
 			return nil, "", fmt.Errorf("csdf.splitRenaming: %q: expected @[name := name, ...]", clause)
 		}
 		if from == to || slices.ContainsFunc(renames, func(r Rename) bool { return r.From == from }) {
@@ -113,7 +115,7 @@ func splitEquality(clause Predicate) (a, b string, ok bool, err error) {
 	}
 	inner, closed := strings.CutSuffix(text[len(equalityOpen):], equalityClose)
 	a, b, cut := strings.Cut(inner, equalitySep)
-	if !closed || !cut || !isID(a) || !isID(b) || a == b {
+	if !closed || !cut || !ident.Is(a) || !ident.Is(b) || a == b {
 		return "", "", false, fmt.Errorf("csdf.splitEquality: %q: expected @eq(name, name), two names apart", clause)
 	}
 	return a, b, true, nil

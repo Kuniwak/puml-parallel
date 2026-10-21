@@ -17,13 +17,13 @@ func TestParseExprReadsProcessExpressions(t *testing.T) {
 			Expected: &ReferExpr{Path: "path/to/A.puml"},
 		},
 		"hide (wrapping a nested expression)": {
-			Source:   `{"op": "HIDE", "channels": ["EVT-A"], "proc": {"op": "REFER", "path": "A.puml"}}`,
-			Expected: &HideExpr{Channels: []string{"EVT-A"}, Proc: &ReferExpr{Path: "A.puml"}},
+			Source:   `{"op": "HIDE", "channels": ["EVT_A"], "proc": {"op": "REFER", "path": "A.puml"}}`,
+			Expected: &HideExpr{Channels: []string{"EVT_A"}, Proc: &ReferExpr{Path: "A.puml"}},
 		},
 		"interface parallel (holding a list of nested expressions)": {
-			Source: `{"op": "INTERFACE_PARALLEL", "sync": ["EVT-A"], "procs": [{"op": "REFER", "path": "A.puml"}, {"op": "REFER", "path": "B.puml"}]}`,
+			Source: `{"op": "INTERFACE_PARALLEL", "sync": ["EVT_A"], "procs": [{"op": "REFER", "path": "A.puml"}, {"op": "REFER", "path": "B.puml"}]}`,
 			Expected: &InterfaceParallelExpr{
-				Sync:  []string{"EVT-A"},
+				Sync:  []string{"EVT_A"},
 				Procs: []Expr{&ReferExpr{Path: "A.puml"}, &ReferExpr{Path: "B.puml"}},
 			},
 		},

@@ -361,21 +361,21 @@ t0 --> t0 : a ; holds ; holds
 // no checkable obligation.
 func TestWriteRefinementManglesNonIdentifierNames(t *testing.T) {
 	diagram := `@startuml
-state "vm-idle" as vm-idle
-vm-idle: 1st
-vm-idle: end
-[*] --> vm-idle
-vm-idle --> vm-idle : choose?a-product
+state "vm_idle" as vm_idle
+vm_idle: 1st
+vm_idle: end
+[*] --> vm_idle
+vm_idle --> vm_idle : choose?a_product
 @enduml
 `
 	got := compileRefinement(t, obligationir.IRRefinementModeTrace, diagram, diagram)
 
 	for _, want := range []string{
-		"| Ev_choose_u3fua_u2duproduct",
-		"| S_vm_u2duidle (v_1st : Val) (v_end : Val)",
-		"PN.S_vm_u2duidle v_1st v_end =>",
-		`--   choose_u3fua_u2duproduct = "choose?a-product"`,
-		`--   vm_u2duidle = "vm-idle"`,
+		"| Ev_choose_u3fua__product",
+		"| S_vm__idle (v_1st : Val) (v_end : Val)",
+		"PN.S_vm__idle v_1st v_end =>",
+		`--   choose_u3fua__product = "choose?a_product"`,
+		`--   vm__idle = "vm_idle"`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("WriteRefinement() does not contain %q; got:\n%s", want, got)
