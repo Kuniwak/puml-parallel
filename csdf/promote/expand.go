@@ -119,17 +119,13 @@ type ExpandedClause struct {
 	Rename map[string]string `json:"rename,omitempty"`
 	// Eq names the two values the tool word @eq(a, b) says are equal; such a
 	// clause has no text.
-	Eq []string `json:"eq,omitempty"`
-	// Formal is the clause's formal twin when the author wrote one next to it
-	// (a constrain's "formal:" line); a local clause's twin lives with the
-	// local diagram and is looked up by Text.
-	Formal string `json:"formal,omitempty"`
-	Map    string `json:"map,omitempty"`
-	ID     string `json:"id,omitempty"`
-	State  string `json:"state,omitempty"`
-	Var    string `json:"var,omitempty"`
-	Path   string `json:"path,omitempty"`
-	Line   int    `json:"line,omitempty"`
+	Eq    []string `json:"eq,omitempty"`
+	Map   string   `json:"map,omitempty"`
+	ID    string   `json:"id,omitempty"`
+	State string   `json:"state,omitempty"`
+	Var   string   `json:"var,omitempty"`
+	Path  string   `json:"path,omitempty"`
+	Line  int      `json:"line,omitempty"`
 	// Maps are the left-out maps a dropped clause read.
 	Maps []string `json:"maps,omitempty"`
 }

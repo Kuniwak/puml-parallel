@@ -92,56 +92,9 @@ func TestRestrictKeepsTheKeptSideOfASyncAndListsTheDroppedGuard(t *testing.T) {
 	}
 }
 
-// A constrain whose formal twin reads a dropped map is listed as dropped; one
-// whose twin reads only what is kept stays.
-func TestRestrictDropsAConstrainWhoseFormalReadsADroppedMap(t *testing.T) {
-	global := strings.Replace(syncGlobal, "@enduml", `note bottom of runningBuys
-  constrain BUY?約定ID?数量 ; 基準日の集計が開いている
-  formal: exists(cycles, lambda i, r: r["state"] == "集計中")
-end note
-
-note bottom of runningBuys
-  constrain SETTLE?約定ID ; 決済できる
-  formal: 約定ID in buys
-end note
-@enduml`, 1)
-	x, diags := restrict(t, global, syncLocals, "buys")
-
-	seen := 0
-	for _, e := range x.Edges {
-		name := e.Edge.Event.Channel()
-		for _, c := range e.Guard {
-			switch {
-			case name == "BUY" && c.Text == "基準日の集計が開いている":
-				seen++
-				if c.Kind != promote.ClauseDropped || len(c.Maps) != 1 || c.Maps[0] != "cycles" {
-					t.Errorf("BUY's constrain = %+v, want dropped reading [cycles]", c)
-				}
-			case name == "SETTLE" && c.Text == "決済できる":
-				seen++
-				if c.Kind != promote.ClauseConstrain {
-					t.Errorf("SETTLE's constrain = %+v, want it kept", c)
-				}
-			}
-		}
-		if name == "BUY" && strings.Contains(string(e.Edge.Guard), "基準日の集計が開いている") {
-			t.Errorf("BUY's guard still holds the dropped clause: %s", e.Edge.Guard)
-		}
-	}
-	if seen == 0 {
-		t.Errorf("no BUY or SETTLE edge carries its constrain:\n%s", x)
-	}
-	found := false
-	for _, d := range diags {
-		found = found || strings.Contains(d.Message, "基準日の集計が開いている")
-	}
-	if !found {
-		t.Errorf("want the dropped constrain on stderr, got %v", diags)
-	}
-}
-
-// A constrain without a formal twin cannot be told to read a dropped map or
-// not, so it stays, and the author is told so once.
+// A constrain is written in a glue's language, which no tool here reads, so it
+// cannot be told to read a dropped map or not: it stays, and the author is
+// told so once.
 func TestRestrictSaysWhenItCannotTellWhatAConstrainReads(t *testing.T) {
 	global := strings.Replace(syncGlobal, "@enduml", `note bottom of runningBuys
   constrain BUY?約定ID?数量 ; 基準日の集計が開いている
@@ -182,7 +135,7 @@ end note
 		t.Errorf("BUY lost its opaque constrain:\n%s", x)
 	}
 	for _, d := range diags {
-		if strings.Contains(d.Message, "no formal twin") {
+		if strings.Contains(d.Message, "cannot tell") {
 			t.Errorf("want no warning about the opaque constrain, got %v", d)
 		}
 	}

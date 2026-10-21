@@ -252,8 +252,6 @@ noteID          = id
 
 syncBody        = "sync" inlineSeparator eventName inlineTrivia ":" inlineTrivia mapRef *(inlineTrivia "," inlineTrivia mapRef)
 constrainBody   = "constrain" inlineSeparator event inlineTrivia ";" inlineTrivia guard
-formalLine      = inlineTrivia "formal:" inlineTrivia expression
-expression      = 1*unicode_char_except_LF
 mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")"
 
 preprocessorLine = "!" *unicode_char_except_LF LF

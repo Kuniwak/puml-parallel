@@ -63,12 +63,7 @@ type Constrain struct {
 	// of its fields pick the edges; its field names are what the guard reads.
 	Event csdf.Event     `json:"event"`
 	Guard csdf.Predicate `json:"guard"`
-	// Formal is the guard's formal twin, written on the note's next line as
-	// "formal: <expression>": the same condition in a language a program can
-	// evaluate, which the expansion hands on with the clause. Empty when the
-	// author gave none.
-	Formal string `json:"formal,omitempty"`
-	Line   int    `json:"line"` // 1-based source line of the directive.
+	Line  int            `json:"line"` // 1-based source line of the directive.
 }
 
 // Anchor is how a note was written. A floating "note as <id>" leaves State
