@@ -9,7 +9,7 @@ from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import EvaluatorError
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 
 
 COUNTER = {
@@ -26,7 +26,7 @@ COUNTER = {
     "assumptions": [],
 }
 
-NO_CHECKS = Twins(domains={})
+NO_CHECKS = Checks(domains={})
 
 
 class ExplorerTest(unittest.TestCase):
@@ -58,7 +58,7 @@ class ExplorerTest(unittest.TestCase):
         diagram = dict(COUNTER, edges=[
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6},
         ])
-        result = fixture.explorer(diagram, Twins(domains={"k": [1, 2]})).run()
+        result = fixture.explorer(diagram, Checks(domains={"k": [1, 2]})).run()
         self.assertEqual({("a", (2,), ()), ("a", (3,), ())}, set(result.states))
         self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,), ())))
 

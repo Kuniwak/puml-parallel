@@ -55,7 +55,7 @@ func TestEverythingAfterTheLaunchersOptionsGoesToTheChecker(t *testing.T) {
 
 func TestTheCheckersUsageErrorIsItsExitStatus(t *testing.T) {
 	needPython(t)
-	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()}, "no-such-diagram.json", "no-such-twins.py")
+	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()}, "no-such-diagram.json", "no-such-checks.py")
 	if status != 2 || !strings.Contains(spy.Stderr.String(), "csdfbmc:") {
 		t.Errorf("status = %d, stderr %q; want 2 and the checker's own message", status, spy.Stderr.String())
 	}

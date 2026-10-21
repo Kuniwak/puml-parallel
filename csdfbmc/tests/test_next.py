@@ -8,7 +8,7 @@ from csdfbmc.tests import fixture
 
 from csdfbmc.next import main as next_main
 from csdfbmc.tests.test_explore import COUNTER
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 
 
 class CandidatesTest(unittest.TestCase):
@@ -20,7 +20,7 @@ class CandidatesTest(unittest.TestCase):
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6},
             {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 7},
         ])
-        ex = fixture.explorer(diagram, Twins(domains={"k": [1, 2]}))
+        ex = fixture.explorer(diagram, Checks(domains={"k": [1, 2]}))
         self.assertEqual([{"params": {"k": 1}, "values": [3]}], ex.candidates("a", [2], 0))
         self.assertEqual([], ex.candidates("a", [2], 1))  # stop needs n = 0
 
@@ -34,14 +34,14 @@ class NextCommandTest(unittest.TestCase):
         import os, tempfile
         d = tempfile.mkdtemp()
         diagram = os.path.join(d, "d.json")
-        twins = os.path.join(d, "t.py")
+        checks = os.path.join(d, "t.py")
         with open(diagram, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(COUNTER), f)
-        with open(twins, "w", encoding="utf-8") as f:
+        with open(checks, "w", encoding="utf-8") as f:
             f.write("DOMAINS = {}\n")
         out = io.StringIO()
         with redirect_stdout(out):
-            code = next_main([diagram, twins, "--evaluator-module", "csdfbmc.python_glue", *args])
+            code = next_main([diagram, checks, "--evaluator-module", "csdfbmc.python_glue", *args])
         return code, out.getvalue()
 
     def test_initial_prints_the_initial_values(self):

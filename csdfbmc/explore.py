@@ -10,7 +10,7 @@ from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.meaning import OPAQUE, Meaning
 from csdfbmc.reduce import PartialOrder, Symmetry
-from csdfbmc.twins import Twins, apply
+from csdfbmc.checks import Checks, apply
 from csdfbmc.values import FrozenMap, encode, freeze
 
 # (state id, values of its variables in declaration order, values of the ghosts)
@@ -178,8 +178,8 @@ class Explorer:
     symmetry is refused when the meaning cannot say whether a clause tells
     the IDs apart.
 
-    twins is the checks module: the domains, ghosts, invariants and the
-    symmetric parameters.
+    checks is the checks module (csdfbmc.checks): the domains, ghosts,
+    invariants and the symmetric parameters.
 
     por and symmetry turn on the reductions of csdfbmc.reduce: the walk then
     meets fewer states and reports the same deadlocks, broken invariants and
@@ -187,13 +187,13 @@ class Explorer:
     the walk still meets.
     """
 
-    def __init__(self, diagram: Diagram, twins: Twins, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
+    def __init__(self, diagram: Diagram, checks: Checks, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
                  por: bool = False, symmetry: bool = False, cone: Cone):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
-        self.twins = twins
+        self.checks = checks
         self.opaque = opaque
         self._tau_choices: dict[tuple, tuple[str, ...]] = {}
         self._check_sent()
@@ -205,7 +205,7 @@ class Explorer:
         self.first = first
         self.opaque_seen: dict[str, None] = {}
         self.dropped_seen: dict[tuple[str, tuple[str, ...]], None] = {}
-        self.ghost_names = tuple(twins.ghosts)
+        self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
         self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
         # meaning: what the hand-written and constrain clauses mean.
@@ -215,7 +215,7 @@ class Explorer:
         self.por = PartialOrder(self) if por else None
         if symmetry and not self.meaning.readable:
             raise ValueError("symmetry is checked by asking of every clause whether it tells the IDs apart, which this glue does not answer (its hello supports no \"symmetric\")")
-        self.symmetry = Symmetry(diagram, twins, self.meaning) if symmetry else None
+        self.symmetry = Symmetry(diagram, checks, self.meaning) if symmetry else None
 
     # -- environments -----------------------------------------------------------
 
@@ -374,7 +374,7 @@ class Explorer:
     def _ghosts_after(self, state: State, name: str, params: dict) -> tuple:
         env = self._env(state, params)
         out = []
-        for ghost, (_, updates) in self.twins.ghosts.items():
+        for ghost, (_, updates) in self.checks.ghosts.items():
             if name in updates:
                 out.append(apply(updates[name], env, what=f"the update of ghost {ghost!r} on {name}"))
             else:
@@ -384,15 +384,15 @@ class Explorer:
     def _check_invariants(self, state: State) -> list[str]:
         env = self._env(state)
         broken = []
-        for name, fn in self.twins.invariants.items():
-            if self.twins.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}"):
+        for name, fn in self.checks.invariants.items():
+            if self.checks.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}"):
                 broken.append(name)
         return broken
 
     # -- transitions ------------------------------------------------------------
 
     def initial(self) -> list[State]:
-        ghosts = tuple(init for init, _ in self.twins.ghosts.values())
+        ghosts = tuple(init for init, _ in self.checks.ghosts.values())
         env = dict(zip(self.ghost_names, ghosts))
         vals, missing = self._successor_values(self.d.start_post, env, self.d.start)
         if missing:
@@ -463,7 +463,7 @@ class Explorer:
                         # A family's clause reads the instance's own variables.
                         own = {v for vs in self.d.local_of(c).vars.values() for v in vs}
                     for n in sorted(self.meaning.names(c, role) or ()):
-                        if n not in bound and n not in own and n in self.twins.domains:
+                        if n not in bound and n not in own and n in self.checks.domains:
                             chosen.setdefault(n)
             self._tau_choices[key] = tuple(chosen)
         return self._tau_choices[key]
@@ -473,13 +473,13 @@ class Explorer:
         only the ones every name renamed onto it can also take. A composition
         renames a side's field onto the other's, and the two synchronise only
         on a value both sides can take."""
-        values = self.twins.domain(name)
+        values = self.checks.domain(name)
         for c in e.guard + e.post:
             for f, t in c.rename:
                 if t != name:
                     continue
                 try:
-                    held = self.twins.domain(f)
+                    held = self.checks.domain(f)
                 except KeyError:
                     continue  # a name with no domain of its own takes any value
                 values = [v for v in values if v in held]
@@ -526,7 +526,7 @@ class Explorer:
             raise IndexError(f"state {state_id!r} has {len(edges)} outgoing edge(s); no edge {edge_index}")
         if len(values) != len(self.d.vars[state_id]):
             raise ValueError(f"state {state_id!r} has {len(self.d.vars[state_id])} variable(s), got {len(values)} value(s)")
-        ghosts = tuple(init for init, _ in self.twins.ghosts.values())
+        ghosts = tuple(init for init, _ in self.checks.ghosts.values())
         state: State = (state_id, tuple(freeze(v) for v in values), ghosts)
         out = []
         for params, _, nexts in self._edge_successors(state, edges[edge_index], record=False):

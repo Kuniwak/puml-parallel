@@ -9,7 +9,7 @@ control states and valuations, checking for deadlocks and tau cycles within
 the bound.
 """
 from csdfbmc.model import Diagram
-from csdfbmc.twins import Twins, load_twins, PurityError
+from csdfbmc.checks import Checks, load_checks, PurityError
 from csdfbmc.explore import Explorer, Result
 
-__all__ = ["Diagram", "Twins", "load_twins", "PurityError", "Explorer", "Result"]
+__all__ = ["Diagram", "Checks", "load_checks", "PurityError", "Explorer", "Result"]

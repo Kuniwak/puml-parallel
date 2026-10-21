@@ -65,7 +65,7 @@ def check_pure(source: str, path: str = "<checks>") -> None:
 
 
 @dataclass
-class Twins:
+class Checks:
     domains: dict[str, Iterable]
     # invariants: name -> predicate over the state variables and ghosts it
     # reads, checked at every reachable state that binds all of them.
@@ -110,11 +110,11 @@ def apply(fn: Callable, env: dict, *, what: str):
     return fn(**{p: env[p] for p in params})
 
 
-def load_twins(path: str) -> Twins:
+def load_checks(path: str) -> Checks:
     with open(path, encoding="utf-8") as f:
         source = f.read()
     check_pure(source, path)
-    spec = importlib.util.spec_from_file_location("csdf_twins", path)
+    spec = importlib.util.spec_from_file_location("csdf_checks", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     if not isinstance(getattr(module, "DOMAINS", None), dict):
@@ -127,7 +127,7 @@ def load_twins(path: str) -> Twins:
     for table in ("INVARIANTS", "GHOSTS"):
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
-    return Twins(
+    return Checks(
         domains=dict(module.DOMAINS),
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],

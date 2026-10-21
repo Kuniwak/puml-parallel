@@ -4,7 +4,7 @@ import unittest
 from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 from csdfbmc.explore import Explorer
 from csdfbmc.tests.test_promoted import GLOBAL_CHECKS, GLUE_EXPANSION
 
@@ -29,7 +29,7 @@ WITHOUT_CLOSE = without_close(GLUE_EXPANSION)
 
 def walk(expansion=GLUE_EXPANSION, *, invariants=None, symmetric=(), domains=None, **kw):
     """The expansion walked through the reference Python glue."""
-    checks = Twins(domains=domains or GLOBAL_CHECKS.domains, invariants=invariants or {},
+    checks = Checks(domains=domains or GLOBAL_CHECKS.domains, invariants=invariants or {},
                    symmetric=tuple(symmetric), sources=[("checks.py", CHECKS_SOURCE)])
     return fixture.explorer(expansion, checks, **kw)
 
@@ -56,7 +56,7 @@ class PartialOrderTest(unittest.TestCase):
         from csdfbmc.cone import Cone
         from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue
         d = fixture.diagram(WITHOUT_CLOSE)
-        checks = Twins(domains=GLOBAL_CHECKS.domains)
+        checks = Checks(domains=GLOBAL_CHECKS.domains)
 
         # Execute
         full = walk(WITHOUT_CLOSE).run()

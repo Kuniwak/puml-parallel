@@ -1,5 +1,5 @@
 """The reference glue of the evaluator protocol, for clauses written in the
-pure subset of Python that csdfbmc.twins.check_pure enforces.
+pure subset of Python that csdfbmc.checks.check_pure enforces.
 
 evaluator(args) returns the handler of the protocol's requests, which
 csdfbmc loads in-process with --evaluator-module; run as a command
@@ -14,7 +14,7 @@ from typing import Callable
 
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
 from csdfbmc.protocol import Analysis, handler
-from csdfbmc.twins import check_pure
+from csdfbmc.checks import check_pure
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"

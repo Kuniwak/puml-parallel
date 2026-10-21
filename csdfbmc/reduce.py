@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, Callable
 
 from csdfbmc import formal
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 from csdfbmc.values import FrozenMap
 
 if TYPE_CHECKING:
@@ -72,10 +72,10 @@ class PartialOrder:
     def __init__(self, explorer):
         self.ex = explorer
         d: Diagram = explorer.d
-        twins: Twins = explorer.twins
-        self.names = {v for vs in d.vars.values() for v in vs} | set(twins.ghosts)
-        self.invariant_reads = set().union(*(_signature(fn) for fn in twins.invariants.values()))
-        self.ghost_events = {event for _, updates in twins.ghosts.values() for event in updates}
+        checks: Checks = explorer.checks
+        self.names = {v for vs in d.vars.values() for v in vs} | set(checks.ghosts)
+        self.invariant_reads = set().union(*(_signature(fn) for fn in checks.invariants.values()))
+        self.ghost_events = {event for _, updates in checks.ghosts.values() for event in updates}
         self._independent: dict[str, set[str]] = {}
 
     def _clause_reads(self, c: Clause, role: str) -> set[str]:
@@ -88,12 +88,12 @@ class PartialOrder:
             return {c.map} if c.map else set()
         if c.kind == "local" and c.map:
             # A local clause reads the instance's own variables, by their local names.
-            return {c.map} | (names & set(self.ex.twins.ghosts))
+            return {c.map} | (names & set(self.ex.checks.ghosts))
         return names & self.names
 
     def _edge_reads(self, e: Edge) -> set[str]:
         reads = set().union(*(self._clause_reads(c, role) for c, role in _with_roles(e)))
-        for _, updates in self.ex.twins.ghosts.values():
+        for _, updates in self.ex.checks.ghosts.values():
             if e.name in updates:
                 reads |= _signature(updates[e.name]) & self.names
         return reads
@@ -161,17 +161,17 @@ class PartialOrder:
 
 
 class Symmetry:
-    def __init__(self, diagram: Diagram, twins: Twins, meaning: "Meaning"):
-        if not twins.symmetric:
+    def __init__(self, diagram: Diagram, checks: Checks, meaning: "Meaning"):
+        if not checks.symmetric:
             raise ValueError("--symmetry needs the checks module to declare SYMMETRIC, the instance-ID parameters whose values are interchangeable")
         ids = {p.id_param for p in diagram.promotes.values()}
-        self.params = set(twins.symmetric)
+        self.params = set(checks.symmetric)
         self.maps = {p.map for p in diagram.promotes.values() if p.id_param in self.params}
         groups: list[frozenset] = []
-        for p in twins.symmetric:
+        for p in checks.symmetric:
             if p not in ids:
                 raise ValueError(f"SYMMETRIC names {p!r}, which is not the instance-ID parameter of any promoted map")
-            values = frozenset(twins.domain(p))
+            values = frozenset(checks.domain(p))
             if not all(isinstance(v, str) for v in values):
                 raise ValueError(f"SYMMETRIC names {p!r}, whose values are not all strings; an ID that is a number cannot be told from a count")
             for g in groups:
@@ -183,15 +183,15 @@ class Symmetry:
         self.values = frozenset().union(*groups)
         self.perms = [dict(itertools.chain.from_iterable(zip(sorted(g), perm) for g, perm in zip(groups, combo)))
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
-        self._check_domains(diagram, twins)
-        self._check_sources(diagram, twins)
+        self._check_domains(diagram, checks)
+        self._check_sources(diagram, checks)
         self._check_clauses(diagram, meaning)
 
-    def _check_domains(self, diagram: Diagram, twins: Twins) -> None:
+    def _check_domains(self, diagram: Diagram, checks: Checks) -> None:
         """A domain that holds symmetric IDs (a record naming another
         instance) must hold every renaming of each of its values, or the
         renaming would tell the IDs apart."""
-        for p, domain in twins.domains.items():
+        for p, domain in checks.domains.items():
             if p in self.params:
                 continue
             values = set(domain)
@@ -203,12 +203,12 @@ class Symmetry:
             if shared:
                 raise ValueError(f"{local.path} has local states named {sorted(shared)}, which are also symmetric IDs")
 
-    def _check_sources(self, diagram: Diagram, twins: Twins) -> None:
+    def _check_sources(self, diagram: Diagram, checks: Checks) -> None:
         """Reads the checks module, whose ghost updates and invariants are
         Python the checker loads."""
-        if not twins.sources:
+        if not checks.sources:
             raise ValueError("--symmetry reads the checks module to check SYMMETRIC, and none was given as source")
-        for path, source in twins.sources:
+        for path, source in checks.sources:
             self._check(ast.parse(source, filename=path), path)
 
     def _check_clauses(self, diagram: Diagram, meaning: "Meaning") -> None:

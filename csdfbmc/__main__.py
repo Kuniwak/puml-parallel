@@ -90,10 +90,10 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     try:
-        with opened(a) as (diagram, twins, meaning, writes):
-            result = Explorer(diagram, twins, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
+        with opened(a) as (diagram, checks, meaning, writes):
+            result = Explorer(diagram, checks, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
                               por=a.por, symmetry=a.symmetry, meaning=meaning,
-                              cone=compute_cone(diagram, twins, meaning, writes=writes) if a.cone else Cone.keep_all()).run()
+                              cone=compute_cone(diagram, checks, meaning, writes=writes) if a.cone else Cone.keep_all()).run()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

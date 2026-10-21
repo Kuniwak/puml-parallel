@@ -15,7 +15,7 @@ from csdfbmc.explore import Explorer
 from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import checked, start_module
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 
 # A counter with an audit log nobody reads; the log may record either bit.
 AUDITED = {
@@ -33,7 +33,7 @@ AUDITED = {
     "assumptions": [],
 }
 
-NO_TWINS = Twins(domains={})
+NO_CHECKS = Checks(domains={})
 
 
 def memoed():
@@ -71,13 +71,13 @@ def edit(diagram: dict, which: str, **fields) -> dict:
 
 
 class ConeTest(unittest.TestCase):
-    def walk(self, diagram: dict, *, reduce: bool, twins: Twins = NO_TWINS, **options):
+    def walk(self, diagram: dict, *, reduce: bool, checks: Checks = NO_CHECKS, **options):
         client = start_module("csdfbmc.python_glue", [])
         self.addCleanup(client.close)
         d = fixture.diagram(diagram)
         meaning = standard(GlueMeaning(checked(client)))
-        c = cone.compute(d, twins, meaning, writes=GlueMeaning(checked(client)).writes) if reduce else Cone.keep_all()
-        return Explorer(d, twins, meaning, cone=c, **options).run()
+        c = cone.compute(d, checks, meaning, writes=GlueMeaning(checked(client)).writes) if reduce else Cone.keep_all()
+        return Explorer(d, checks, meaning, cone=c, **options).run()
 
     def test_a_variable_nothing_reads_is_left_out_of_the_states(self):
         reduced = self.walk(AUDITED, reduce=True)
@@ -97,10 +97,10 @@ class ConeTest(unittest.TestCase):
             ("an expansion that frames a memo", memoed()),
             ("a family nothing reads, missing a local value", UNREAD_FAMILY),
         ]:
-            twins = Twins(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2], "i": ["a1"]})
+            checks = Checks(domains={"口座ID": ["a1", "a2"], "額": [0, 1, 2], "i": ["a1"]})
             with self.subTest(name):
-                full = self.walk(diagram, reduce=False, twins=twins).groups()
-                reduced = self.walk(diagram, reduce=True, twins=twins).groups()
+                full = self.walk(diagram, reduce=False, checks=checks).groups()
+                reduced = self.walk(diagram, reduce=True, checks=checks).groups()
                 self.assertEqual(self.shapes(full), self.shapes(reduced))
 
     @staticmethod
@@ -113,21 +113,21 @@ class ConeTest(unittest.TestCase):
         self.assertEqual(("n", "log"), self.walk(appended, reduce=True).relevant)
 
     def test_a_variable_an_invariant_or_a_ghost_reads_is_kept(self):
-        for name, twins in [
-            ("an invariant", Twins(domains={}, invariants={"log is a bit": lambda log: log in (0, 1)})),
-            ("a ghost", Twins(domains={}, ghosts={"seen": (0, {"dec": lambda seen, log: seen + log})})),
+        for name, checks in [
+            ("an invariant", Checks(domains={}, invariants={"log is a bit": lambda log: log in (0, 1)})),
+            ("a ghost", Checks(domains={}, ghosts={"seen": (0, {"dec": lambda seen, log: seen + log})})),
         ]:
             with self.subTest(name):
-                self.assertEqual(("n", "log"), self.walk(AUDITED, reduce=True, twins=twins, max_states=50).relevant)
+                self.assertEqual(("n", "log"), self.walk(AUDITED, reduce=True, checks=checks, max_states=50).relevant)
 
     def test_what_may_read_anything_keeps_the_cone_from_being_computed(self):
-        for name, diagram, twins, blocked in [
-            ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque"), NO_TWINS, "@opaque"),
+        for name, diagram, checks, blocked in [
+            ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque"), NO_CHECKS, "@opaque"),
             ("an invariant taking any keyword", AUDITED,
-             Twins(domains={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
+             Checks(domains={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
         ]:
             with self.subTest(name):
-                reduced = self.walk(diagram, reduce=True, twins=twins, opaque="true", max_states=50)
+                reduced = self.walk(diagram, reduce=True, checks=checks, opaque="true", max_states=50)
                 self.assertIsNone(reduced.relevant)
                 self.assertEqual((blocked,), reduced.cone_blocked_by)
 
@@ -143,7 +143,7 @@ class FramedAndWrittenTest(unittest.TestCase):
             d = fixture.diagram(x)
             meaning = standard(GlueMeaning(checked(self.client())))
             with self.subTest(name):
-                self.assertIn("log", cone.compute(d, NO_TWINS, meaning, writes=writes).relevant)
+                self.assertIn("log", cone.compute(d, NO_CHECKS, meaning, writes=writes).relevant)
 
     def client(self):
         client = start_module("csdfbmc.python_glue", [])
@@ -156,14 +156,14 @@ class ConeCommandTest(unittest.TestCase):
         from csdfbmc.__main__ import main
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
-        path, twins = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
+        path, checks = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
         with open(path, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(diagram), f)
-        with open(twins, "w", encoding="utf-8") as f:
+        with open(checks, "w", encoding="utf-8") as f:
             f.write("DOMAINS = {}\n")
         out = io.StringIO()
         with redirect_stdout(out), redirect_stderr(io.StringIO()):
-            main([path, twins, *args])
+            main([path, checks, *args])
         return out.getvalue()
 
     def test_the_report_says_what_was_left_out(self):

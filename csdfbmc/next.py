@@ -29,8 +29,8 @@ def main(argv=None) -> int:
         ap.error("give --initial, or both --state and --edge")
 
     try:
-        with opened(a) as (diagram, twins, meaning, _):
-            candidates = _candidates(Explorer(diagram, twins, meaning, cone=Cone.keep_all()), a)
+        with opened(a) as (diagram, checks, meaning, _):
+            candidates = _candidates(Explorer(diagram, checks, meaning, cone=Cone.keep_all()), a)
     except (*LOADING_ERRORS, IndexError, TypeError) as e:
         print(f"csdfbmc next: {e}", file=sys.stderr)
         return 2

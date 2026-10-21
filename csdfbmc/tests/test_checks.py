@@ -3,13 +3,13 @@ import tempfile
 import textwrap
 import unittest
 
-from csdfbmc.twins import Twins, load_twins, PurityError
+from csdfbmc.checks import Checks, load_checks, PurityError
 
 
-class LoadTwinsTest(unittest.TestCase):
+class LoadChecksTest(unittest.TestCase):
     def write(self, source):
         d = tempfile.mkdtemp()
-        path = os.path.join(d, "twins.py")
+        path = os.path.join(d, "checks.py")
         with open(path, "w", encoding="utf-8") as f:
             f.write(textwrap.dedent(source))
         return path
@@ -23,10 +23,10 @@ class LoadTwinsTest(unittest.TestCase):
         ''')
 
         # Execute
-        checks = load_twins(path)
+        checks = load_checks(path)
 
         # Assert
-        self.assertIsInstance(checks, Twins)
+        self.assertIsInstance(checks, Checks)
         self.assertEqual([2, 4], list(checks.domains["額"]))
         self.assertTrue(checks.invariants["額 は最小単位の倍数"](額=4))
 
@@ -40,11 +40,11 @@ class LoadTwinsTest(unittest.TestCase):
         }.items():
             with self.subTest(name):
                 with self.assertRaises(PurityError):
-                    load_twins(self.write("DOMAINS = {}\n" + body))
+                    load_checks(self.write("DOMAINS = {}\n" + body))
 
     def test_refuses_a_module_without_domains(self):
         with self.assertRaises(PurityError):
-            load_twins(self.write("INVARIANTS = {}\n"))
+            load_checks(self.write("INVARIANTS = {}\n"))
 
     def test_refuses_the_twins_of_prose_clauses(self):
         # Setup: CLAUSES were the twins of an earlier csdfbmc; the clauses are
@@ -53,7 +53,7 @@ class LoadTwinsTest(unittest.TestCase):
 
         # Execute, Assert
         with self.assertRaisesRegex(PurityError, "glue"):
-            load_twins(path)
+            load_checks(path)
 
 
 if __name__ == "__main__":

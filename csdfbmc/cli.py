@@ -10,7 +10,7 @@ from typing import Iterator
 from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
-from csdfbmc.twins import PurityError, Twins, load_twins
+from csdfbmc.checks import PurityError, Checks, load_checks
 
 # What reading the inputs may raise; each command reports it and exits 2.
 LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError)
@@ -18,7 +18,7 @@ LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError)
 
 def add_inputs(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output)")
-    ap.add_argument("twins", metavar="checks", help="the Python module holding DOMAINS and, when wanted, GHOSTS, INVARIANTS and SYMMETRIC")
+    ap.add_argument("checks", help="the Python module holding DOMAINS and, when wanted, GHOSTS, INVARIANTS and SYMMETRIC")
     glue = ap.add_mutually_exclusive_group()
     glue.add_argument("--evaluator", metavar="CMD", help="read every clause through the glue this command line starts (the evaluator protocol)")
     glue.add_argument("--evaluator-module", metavar="MODULE", help="read every clause through the glue this Python module and its arguments load in-process")
@@ -29,7 +29,7 @@ def add_inputs(ap: argparse.ArgumentParser) -> None:
 
 
 @contextmanager
-def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object, object]]:
+def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Checks, object, object]]:
     """The diagram, the checks, the meaning of the clauses and what tells the
     writes of a post clause (csdfbmc.cone), as the parsed arguments name
     them; the glue started for them is closed on leaving."""
@@ -48,8 +48,8 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Twins, object, obje
         client = start_module(words[0], words[1:])
     try:
         diagram = Diagram.load(a.diagram)
-        twins = load_twins(a.twins)
+        checks = load_checks(a.checks)
         meaning = standard(GlueMeaning(checked(client)))
-        yield diagram, twins, meaning, meaning.writes
+        yield diagram, checks, meaning, meaning.writes
     finally:
         client.close()

@@ -3,7 +3,7 @@ and cycles that avoid a given event (livelock under a fairness bound)."""
 import unittest
 from csdfbmc.tests import fixture
 
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 
 from csdfbmc.tests.test_explore import COUNTER
 
@@ -22,7 +22,7 @@ LEDGER = {
 
 
 def ledger_checks(**extra):
-    return Twins(domains={"額": [1, 2, 3]}, **extra)
+    return Checks(domains={"額": [1, 2, 3]}, **extra)
 
 
 # COUNTER with a bump that goes back up at n = 0, so the walk can avoid stop
