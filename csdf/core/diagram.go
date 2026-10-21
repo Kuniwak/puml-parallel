@@ -33,15 +33,23 @@ type Edge struct {
 	Guard, Post clause.And
 }
 
+// End is an end edge: Src --> [*] : Guard.
+type End struct {
+	Src   string
+	Guard clause.And
+}
+
 // Diagram is a diagram whose clauses are formulas. States are its states;
 // Vars gives the state variables of those that hold any; Init is the state
-// the start edge leads to and InitPost the post of that edge.
+// the start edge leads to and InitPost the post of that edge; Ends are its
+// end edges, which only promotion reads, as deletions.
 type Diagram struct {
 	States   []string
 	Vars     map[string][]string
 	Init     string
 	InitPost clause.And
 	Edges    []Edge
+	Ends     []End
 }
 
 // declared reports, as an error, a state d names but does not declare.
@@ -53,6 +61,11 @@ func (d *Diagram) declared() error {
 	for s := range d.Vars {
 		if !has(s) {
 			return fmt.Errorf("no state %s, which holds variables", s)
+		}
+	}
+	for _, e := range d.Ends {
+		if !has(e.Src) {
+			return fmt.Errorf("no state %s, which an end edge leaves", e.Src)
 		}
 	}
 	for _, e := range d.Edges {

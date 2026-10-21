@@ -1,296 +1,190 @@
 package core
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
 
-// The denotation of promotion, built independently of Promote
-// (docs/CLAUSE_DESIGN.md): each instance i of a family runs its local
-// diagram from its start state, its own events renamed e to e.i; a sync
-// renames each local event it takes to every global event the instance can
-// play its role in; and the instances run in alphabetised parallel.
+// The denotation of a promotion is written by hand below, independently of
+// Promote and Expand (docs/CLAUSE_DESIGN.md): each instance is an LTS of its
+// own, absent at 0, its events renamed e to e.i and a sync's local events to
+// the sync's labels, and the instances run in alphabetised parallel
+// (lts.Parallel). The labels are written as Expand writes them: the channel,
+// then the IDs, then the fields, joined by ".".
 
-type role struct {
-	target int
-	local  string
-}
-
-func denotation(t *testing.T, p Promotion, env Env) *lts.LTS {
-	t.Helper()
-	var procs []*lts.LTS
-	var alphabets []func(string) bool
-	for _, f := range p.Families {
-		local, err := Expand(f.Local, env)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, id := range env.Types[f.ID] {
-			images := map[string][]string{}
-			for label := range labels(local) {
-				images[label] = renamedLabels(p, f, id, label, env)
-			}
-			alpha := map[string]bool{}
-			for _, ims := range images {
-				for _, im := range ims {
-					alpha[im] = true
-				}
-			}
-			renamed, err := lts.Rename(local, func(l string) []string { return images[l] })
-			if err != nil {
-				t.Fatal(err)
-			}
-			procs = append(procs, renamed)
-			alphabets = append(alphabets, func(l string) bool { return alpha[l] })
-		}
-	}
-	return lts.Parallel(procs, alphabets)
-}
-
-func labels(l *lts.LTS) map[string]bool {
-	out := map[string]bool{}
-	for _, byLabel := range l.Trans {
-		for label := range byLabel {
-			if label != lts.Tau {
-				out[label] = true
-			}
-		}
-	}
-	return out
-}
-
-func renamedLabels(p Promotion, f Family, id Value, label string, env Env) []string {
-	ch, rest, _ := strings.Cut(label, ".")
-	var vals []string
-	if rest != "" {
-		vals = strings.Split(rest, ".")
-	}
-	var out []string
-	synced := false
-	for _, s := range p.Syncs {
-		for k, tg := range s.Targets {
-			if tg.Map != f.Map || tg.Event != ch {
-				continue
-			}
-			synced = true
-			out = append(out, syncLabels(p, s, k, id, localFields(f, ch), vals, env)...)
-		}
-	}
-	if synced {
-		return out
-	}
-	return []string{strings.Join(append([]string{ch, Key(id)}, vals...), ".")}
-}
-
-func localFields(f Family, channel string) []string {
-	for _, e := range f.Local.Edges {
-		if e.Event.Channel == channel {
-			var names []string
-			for _, fl := range e.Event.Fields {
-				names = append(names, fl.Name)
-			}
-			return names
-		}
-	}
-	return nil
-}
-
-// syncLabels are the labels of the sync s in which target k is played by
-// id with its fields at vals.
-func syncLabels(p Promotion, s Sync, k int, id Value, fields, vals []string, env Env) []string {
-	given := map[string]string{}
-	for i, n := range fields {
-		given[n] = vals[i]
-	}
-	merged := syncFields(p, s)
-	var out []string
-	var walk func(i int, ids []Value)
-	walk = func(i int, ids []Value) {
-		if i == len(s.Targets) {
-			for a := range ids {
-				for b := range ids {
-					if a < b && s.Targets[a].Map == s.Targets[b].Map && Key(ids[a]) == Key(ids[b]) {
-						return
-					}
-				}
-			}
-			parts := []string{s.Event}
-			for _, v := range ids {
-				parts = append(parts, Key(v))
-			}
-			var fill func(j int, parts []string)
-			fill = func(j int, parts []string) {
-				if j == len(merged) {
-					out = append(out, strings.Join(parts, "."))
-					return
-				}
-				if v, ok := given[merged[j]]; ok {
-					fill(j+1, append(slices.Clone(parts), v))
-					return
-				}
-				for _, v := range env.Types[merged[j]] {
-					fill(j+1, append(slices.Clone(parts), Key(v)))
-				}
-			}
-			fill(0, parts)
-			return
-		}
-		if i == k {
-			walk(i+1, append(slices.Clone(ids), id))
-			return
-		}
-		fam := family(p, s.Targets[i].Map)
-		for _, v := range env.Types[fam.ID] {
-			walk(i+1, append(slices.Clone(ids), v))
-		}
-	}
-	walk(0, nil)
-	return out
-}
-
-func syncFields(p Promotion, s Sync) []string {
-	var out []string
-	for _, tg := range s.Targets {
-		for _, n := range localFields(family(p, tg.Map), tg.Event) {
-			if !slices.Contains(out, n) {
-				out = append(out, n)
-			}
-		}
-	}
-	return out
-}
-
-func family(p Promotion, m string) Family {
-	for _, f := range p.Families {
-		if f.Map == m {
-			return f
-		}
-	}
-	panic("no family " + m)
-}
-
-// location: absent at l0, opened with one item in stock of room for two;
-// DEPART takes an item away and ARRIVE brings one.
+// location: OPEN creates it with one item in stock of room for two; DEPART
+// takes q away, ARRIVE brings q, and CLOSE deletes it once it is empty.
 func location(t *testing.T) *Diagram {
 	return &Diagram{
-		States: []string{"l0", "open"},
-		Vars:   map[string][]string{"open": {"stock"}},
-		Init:   "l0",
+		States:   []string{"open"},
+		Vars:     map[string][]string{"open": {"stock"}},
+		Init:     "open",
+		InitPost: mustParse(t, "$stock' = 1"),
 		Edges: []Edge{
-			{Src: "l0", Dst: "open", Event: ev("OPEN"), Post: mustParse(t, "$stock' = 1")},
 			{Src: "open", Dst: "open", Event: ev("DEPART", recv("q")), Guard: mustParse(t, "$stock >= $q"), Post: mustParse(t, "$stock' = $stock - $q")},
 			{Src: "open", Dst: "open", Event: ev("ARRIVE", recv("q")), Guard: mustParse(t, "$stock + $q <= 2"), Post: mustParse(t, "$stock' = $stock + $q")},
 		},
+		Ends: []End{{Src: "open", Guard: mustParse(t, "$stock = 0")}},
 	}
 }
 
-// shipment: absent at s0, created waiting, and moved once.
+// shipment: NEW creates it waiting; it is moved, and BACK returns it to
+// waiting, the state it started in, where it still exists.
 func shipment(t *testing.T) *Diagram {
 	return &Diagram{
-		States: []string{"s0", "waiting", "moved"},
-		Init:   "s0",
+		States: []string{"waiting", "moved"},
+		Init:   "waiting",
 		Edges: []Edge{
-			{Src: "s0", Dst: "waiting", Event: ev("NEW")},
 			{Src: "waiting", Dst: "moved", Event: ev("MOVE", recv("q"))},
+			{Src: "moved", Dst: "waiting", Event: ev("BACK")},
 		},
 	}
 }
 
-func stock() Env {
-	recs := func(states map[string][]string, types map[string][]Value) []Value {
-		var out []Value
-		for s, vars := range states {
-			fields := []map[string]Value{{}}
-			for _, v := range vars {
-				var grown []map[string]Value
-				for _, f := range fields {
-					for _, val := range types[v] {
-						g := map[string]Value{}
-						for k, w := range f {
-							g[k] = w
-						}
-						g[v] = val
-						grown = append(grown, g)
-					}
-				}
-				fields = grown
-			}
-			for _, f := range fields {
-				out = append(out, Rec{State: s, Fields: f})
-			}
-		}
-		return out
+// door: NEW creates it shut; it opens and shuts, coming back to the state
+// it started in, and GONE deletes it while shut.
+func door() *Diagram {
+	return &Diagram{
+		States: []string{"shut", "wide"},
+		Init:   "shut",
+		Edges: []Edge{
+			{Src: "shut", Dst: "wide", Event: ev("OPENS")},
+			{Src: "wide", Dst: "shut", Event: ev("SHUTS")},
+		},
+		Ends: []End{{Src: "shut"}},
 	}
-	maps := func(ids []Value, recs []Value) []Value {
-		out := []Map{{}}
-		for _, id := range ids {
-			var grown []Map
-			for _, m := range out {
-				for _, r := range recs {
-					g := Map{}
-					for k, v := range m {
-						g[k] = v
-					}
-					g[Key(id)] = r
-					grown = append(grown, g)
+}
+
+// doorInstance is the door x by hand: 0 is absent, 1 shut, 2 wide.
+func doorInstance(x string) *lts.LTS {
+	return handLTS(tr{0, "NEW." + x, 1}, tr{1, "OPENS." + x, 2}, tr{2, "SHUTS." + x, 1}, tr{1, "GONE." + x, 0})
+}
+
+var (
+	locIDs  = []string{"a", "b"}
+	shipIDs = []string{"s1"}
+)
+
+// locationInstance is the location x by hand: 0 is absent, 1+k open with k
+// in stock.
+func locationInstance(x string) *lts.LTS {
+	l := handLTS(tr{0, "OPEN." + x, 2}, tr{1, "CLOSE." + x, 0})
+	for _, s := range shipIDs {
+		for _, other := range locIDs {
+			if other == x {
+				continue
+			}
+			for k := 0; k <= 2; k++ {
+				if k >= 1 {
+					l.Add(1+k, "MOVE."+s+"."+x+"."+other+".1", k)
+				}
+				if k+1 <= 2 {
+					l.Add(1+k, "MOVE."+s+"."+other+"."+x+".1", 2+k)
 				}
 			}
-			out = grown
 		}
-		vs := make([]Value, len(out))
-		for i, m := range out {
-			vs[i] = m
-		}
-		return vs
 	}
+	return l
+}
+
+// shipmentInstance is the shipment s by hand: 0 is absent, 1 waiting, 2
+// moved.
+func shipmentInstance(s string) *lts.LTS {
+	l := handLTS(tr{0, "NEW." + s, 1}, tr{2, "BACK." + s, 1})
+	for _, from := range locIDs {
+		for _, to := range locIDs {
+			if from != to {
+				l.Add(1, "MOVE."+s+"."+from+"."+to+".1", 2)
+			}
+		}
+	}
+	return l
+}
+
+// mentions says a label names the ID x among its values.
+func mentions(x string) func(string) bool {
+	return func(label string) bool {
+		parts := strings.Split(label, ".")
+		for _, p := range parts[1:] {
+			if p == x {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func stock(t *testing.T, families ...Family) Env {
+	t.Helper()
 	types := map[string][]Value{"stock": {0, 1, 2}, "q": {1}}
-	locIDs := []Value{"a", "b"}
-	shipIDs := []Value{"s1"}
-	types["loc"], types["from"], types["to"] = locIDs, locIDs, locIDs
-	types["s"] = shipIDs
-	types["locations"] = maps(locIDs, recs(map[string][]string{"l0": nil, "open": {"stock"}}, types))
-	types["shipments"] = maps(shipIDs, recs(map[string][]string{"s0": nil, "waiting": nil, "moved": nil}, types))
-	return Env{
+	for _, id := range locIDs {
+		types["loc"] = append(types["loc"], id)
+	}
+	types["from"], types["to"] = types["loc"], types["loc"]
+	for _, id := range shipIDs {
+		types["s"] = append(types["s"], id)
+	}
+	env := Env{
 		Types: types,
 		Atoms: map[string]func([]Value) bool{
 			"#0 = 1":       func(a []Value) bool { return a[0] == 1 },
+			"#0 = 0":       func(a []Value) bool { return a[0] == 0 },
 			"#0 >= #1":     func(a []Value) bool { return a[0].(int) >= a[1].(int) },
 			"#0 = #1 - #2": func(a []Value) bool { return a[0] == a[1].(int)-a[2].(int) },
 			"#0 + #1 <= 2": func(a []Value) bool { return a[0].(int)+a[1].(int) <= 2 },
 			"#0 = #1 + #2": func(a []Value) bool { return a[0] == a[1].(int)+a[2].(int) },
 		},
 	}
+	for _, f := range families {
+		m, err := MapType(f, env.Types[f.ID], env)
+		if err != nil {
+			t.Fatal(err)
+		}
+		types[f.Map] = m
+	}
+	return env
 }
 
 func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
-	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
-	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
+	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
+	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t), Create: "NEW"}
+	doors := Family{Map: "doors", ID: "loc", Local: door(), Create: "NEW", Delete: "GONE"}
 	cases := []struct {
-		name string
-		p    Promotion
+		name     string
+		p        Promotion
+		families []Family
+		want     *lts.LTS
 	}{
-		{"instances of one family interleave", Promotion{State: "G", Families: []Family{
-			{Map: "shipments", ID: "s", Local: &Diagram{
-				States: []string{"s0", "waiting", "moved"}, Init: "s0",
-				Edges: []Edge{{Src: "s0", Dst: "waiting", Event: ev("NEW")}, {Src: "waiting", Dst: "moved", Event: ev("SHIP")}}}},
-		}}},
-		{"a sync moves two instances of one family (#65)", Promotion{State: "G",
-			Families: []Family{locations, shipments},
-			Syncs: []Sync{{Event: "MOVE", Targets: []Target{
-				{Map: "shipments", ID: "s", Event: "MOVE"},
-				{Map: "locations", ID: "from", Event: "DEPART"},
-				{Map: "locations", ID: "to", Event: "ARRIVE"},
-			}}},
-		}},
+		{
+			name:     "instances are created, return to their start state while they exist, and are deleted",
+			p:        Promotion{State: "G", Families: []Family{doors}},
+			families: []Family{doors},
+			want: lts.Parallel(
+				[]*lts.LTS{doorInstance("a"), doorInstance("b")},
+				[]func(string) bool{mentions("a"), mentions("b")}),
+		},
+		{
+			name: "a sync moves two instances of one family (#65)",
+			p: Promotion{State: "G",
+				Families: []Family{locations, shipments},
+				Syncs: []Sync{{Event: "MOVE", Targets: []Target{
+					{Map: "shipments", ID: "s", Event: "MOVE"},
+					{Map: "locations", ID: "from", Event: "DEPART"},
+					{Map: "locations", ID: "to", Event: "ARRIVE"},
+				}}},
+			},
+			families: []Family{locations, shipments},
+			want: lts.Parallel(
+				[]*lts.LTS{locationInstance("a"), locationInstance("b"), shipmentInstance("s1")},
+				[]func(string) bool{mentions("a"), mentions("b"), mentions("s1")}),
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			env := stock()
-			want := denotation(t, c.p, env)
+			env := stock(t, c.families...)
 
 			// Execute
 			promoted, err := Promote(c.p)
@@ -303,51 +197,52 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !lts.StableFailuresEqual(got, want) {
-				t.Errorf("not stable-failures equivalent:\ngot  %d states\nwant %d states", len(got.Trans), len(want.Trans))
+			if !lts.StableFailuresEqual(got, c.want) {
+				t.Errorf("not stable-failures equivalent:\ngot  %d states\nwant %d states", len(got.Trans), len(c.want.Trans))
 			}
 		})
 	}
 }
 
 func TestPromoteRefuses(t *testing.T) {
-	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
+	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
 	cases := []struct {
 		name string
-		sync Sync
+		p    Promotion
 		want string
 	}{
-		{"one instance in two roles", Sync{Event: "MOVE", Targets: []Target{
-			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "from", Event: "ARRIVE"}}}, "twice"},
-		{"one local event taken twice", Sync{Event: "MOVE", Targets: []Target{
-			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "DEPART"}}}, "DEPART"},
-		{"a sync on tau", Sync{Event: Tau, Targets: []Target{{Map: "locations", ID: "loc", Event: "DEPART"}}}, "tau"},
-		{"a target without its local event", Sync{Event: "MOVE", Targets: []Target{{Map: "locations", ID: "loc"}}}, "names no local event"},
+		{"one instance in two roles", promotion(locations, Sync{Event: "MOVE", Targets: []Target{
+			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "from", Event: "ARRIVE"}}}), "twice"},
+		{"one local event taken twice", promotion(locations, Sync{Event: "MOVE", Targets: []Target{
+			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "DEPART"}}}), "DEPART"},
+		{"a sync on tau", promotion(locations, Sync{Event: Tau, Targets: []Target{{Map: "locations", ID: "loc", Event: "DEPART"}}}), "tau"},
+		{"a target without its local event", promotion(locations, Sync{Event: "MOVE", Targets: []Target{{Map: "locations", ID: "loc"}}}), "names no local event"},
+		{"a family without its creation event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Delete: "CLOSE"}), "no creation event"},
+		{"end edges without a deletion event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN"}), "no deletion event"},
+		{"a creation event named like a local one", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "DEPART", Delete: "CLOSE"}), "DEPART"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// Setup
-			p := Promotion{State: "G", Families: []Family{locations}, Syncs: []Sync{c.sync}}
-
 			// Execute
-			_, err := Promote(p)
+			_, err := Promote(c.p)
 
 			// Assert
-			if err == nil || !strings.Contains(err.Error(), c.want) {
-				t.Errorf("err = %v, want one naming %q", err, c.want)
-			}
+			assertErrorContains(t, err, c.want)
 		})
 	}
 }
 
-// lamp: absent at l0, created at a by NEW; from a it may go to c on GO or
-// move to b internally, where DONE shows it.
+func promotion(f Family, syncs ...Sync) Promotion {
+	return Promotion{State: "G", Families: []Family{f}, Syncs: syncs}
+}
+
+// lamp: NEW creates it at a; from a it may go to c on GO or move to b
+// internally, where DONE shows it.
 func lamp() *Diagram {
 	return &Diagram{
-		States: []string{"l0", "a", "b", "c"},
-		Init:   "l0",
+		States: []string{"a", "b", "c"},
+		Init:   "a",
 		Edges: []Edge{
-			{Src: "l0", Dst: "a", Event: ev("NEW")},
 			{Src: "a", Dst: "b", Event: ev(Tau)},
 			{Src: "a", Dst: "c", Event: ev("GO")},
 			{Src: "b", Dst: "b", Event: ev("DONE")},
@@ -365,19 +260,17 @@ func lampInstance(x string) *lts.LTS {
 	)
 }
 
-func ownLabels(x string) func(string) bool {
-	return func(label string) bool { return strings.HasSuffix(label, "."+x) }
-}
-
 func TestPromoteMovesByAnInternalEventOnlyAnInstanceThatCanTakeIt(t *testing.T) {
 	// Setup: with x at c and y at a, only y may move to b.
-	p := Promotion{State: "G", Families: []Family{{Map: "lamps", ID: "l", Local: lamp()}}}
-	ids := []Value{"x", "y"}
-	env := Env{Types: map[string][]Value{"l": ids, "lamps": totalMaps(ids, []Value{
-		Rec{State: "l0", Fields: map[string]Value{}}, Rec{State: "a", Fields: map[string]Value{}},
-		Rec{State: "b", Fields: map[string]Value{}}, Rec{State: "c", Fields: map[string]Value{}},
-	})}}
-	want := lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{ownLabels("x"), ownLabels("y")})
+	lamps := Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}
+	p := Promotion{State: "G", Families: []Family{lamps}}
+	env := Env{Types: map[string][]Value{"l": {"x", "y"}}}
+	m, err := MapType(lamps, env.Types["l"], env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Types["lamps"] = m
+	want := lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{mentions("x"), mentions("y")})
 
 	// Execute
 	promoted, err := Promote(p)
@@ -395,26 +288,31 @@ func TestPromoteMovesByAnInternalEventOnlyAnInstanceThatCanTakeIt(t *testing.T) 
 	}
 }
 
-// totalMaps are the maps from every ID of ids to one of recs.
-func totalMaps(ids []Value, recs []Value) []Value {
-	out := []Map{{}}
-	for _, id := range ids {
-		var grown []Map
-		for _, m := range out {
-			for _, r := range recs {
-				g := Map{}
-				for k, v := range m {
-					g[k] = v
-				}
-				g[Key(id)] = r
-				grown = append(grown, g)
-			}
+func TestMapTypeIsEveryPartialMap(t *testing.T) {
+	// Setup: one ID, absent or at one of two states, one holding a bit.
+	f := Family{Map: "m", ID: "i", Local: &Diagram{
+		States: []string{"p", "q"}, Vars: map[string][]string{"q": {"bit"}}, Init: "p",
+	}}
+	env := Env{Types: map[string][]Value{"bit": {0, 1}}}
+
+	// Execute
+	got, err := MapType(f, []Value{"x"}, env)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := map[string]bool{}
+	for _, v := range got {
+		keys[Key(v)] = true
+	}
+	want := []string{"{}", "{x↦⟨p|⟩}", "{x↦⟨q|bit=0⟩}", "{x↦⟨q|bit=1⟩}"}
+	if len(keys) != len(want) {
+		t.Errorf("MapType = %v, want %v", keys, want)
+	}
+	for _, k := range want {
+		if !keys[k] {
+			t.Errorf("MapType lacks %s: %v", k, keys)
 		}
-		out = grown
 	}
-	vs := make([]Value, len(out))
-	for i, m := range out {
-		vs[i] = m
-	}
-	return vs
 }

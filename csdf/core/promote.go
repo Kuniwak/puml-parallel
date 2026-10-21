@@ -8,11 +8,15 @@ import (
 )
 
 // Family is a promoted family: its instances live in the map Map, an
-// instance ID is written ID, and an instance runs Local, whose start state
-// means the instance does not exist.
+// instance ID is written ID, and an instance runs Local. The event Create
+// creates an instance, taking Local's start edge; Delete deletes one, taking
+// one of Local's end edges, and is required when Local has any. An instance
+// that does not exist has no entry in the map; Local's start state is an
+// ordinary state.
 type Family struct {
-	Map, ID string
-	Local   *Diagram
+	Map, ID        string
+	Local          *Diagram
+	Create, Delete string
 }
 
 // Target is one occurrence in a sync: an instance of the family of Map,
@@ -38,7 +42,8 @@ type Promotion struct {
 // Promote is the global diagram of p (docs/CLAUSE_DESIGN.md, a constructor):
 // ⟦Promote(p)⟧ is the instances of every family interleaved, each running
 // its local diagram with its own events renamed e to e.i, synchronised on
-// the syncs. A local variable v of an instance bound to x is the term
+// the syncs, each instance absent until created and after it is deleted. A
+// local variable v of an instance bound to x is the term
 // m[x].v: promotion substitutes it into the holes of the local clauses (O3),
 // so that two instances of one family in one sync are told apart, and the
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
@@ -48,11 +53,11 @@ func Promote(p Promotion) (*Diagram, error) {
 	var maps []string
 	var start []clause.Formula
 	for _, f := range p.Families {
-		if len(f.Local.Vars[f.Local.Init]) > 0 {
-			return nil, fmt.Errorf("core.Promote: %s: the start state %s holds variables, but it means the instance does not exist", f.Map, f.Local.Init)
+		if err := lifecycle(f); err != nil {
+			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
 		maps = append(maps, f.Map)
-		start = append(start, clause.Builtin{Op: clause.OpAll, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}, State: f.Local.Init})
+		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
 	out.Vars[p.State] = maps
 	out.InitPost = clause.And{Conjuncts: start}
@@ -68,11 +73,19 @@ func Promote(p Promotion) (*Diagram, error) {
 		}
 	}
 	for _, f := range p.Families {
+		alone := []move{{f: f, id: f.ID, kind: creation,
+			e: Edge{Dst: f.Local.Init, Event: Event{Channel: f.Create}, Post: f.Local.InitPost}}}
+		for _, end := range f.Local.Ends {
+			alone = append(alone, move{f: f, id: f.ID, kind: deletion,
+				e: Edge{Src: end.Src, Event: Event{Channel: f.Delete}, Guard: end.Guard}})
+		}
 		for _, e := range f.Local.Edges {
-			if taken[f.Map+"."+e.Event.Channel] {
-				continue
+			if !taken[f.Map+"."+e.Event.Channel] {
+				alone = append(alone, move{f: f, id: f.ID, e: e})
 			}
-			edge, err := promoteAlone(p, f, e)
+		}
+		for _, m := range alone {
+			edge, err := promoteAlone(p, m)
 			if err != nil {
 				return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 			}
@@ -82,19 +95,52 @@ func Promote(p Promotion) (*Diagram, error) {
 	return out, nil
 }
 
-// move is one instance's part in a step: the local edge e of the family f,
-// taken by the instance bound to id.
-type move struct {
-	f  Family
-	id string
-	e  Edge
+// lifecycle reports, as an error, a family whose creation or deletion
+// event is missing or named like one of its local events.
+func lifecycle(f Family) error {
+	if f.Create == "" {
+		return fmt.Errorf("no creation event")
+	}
+	if len(f.Local.Ends) > 0 && f.Delete == "" {
+		return fmt.Errorf("end edges, but no deletion event")
+	}
+	for _, e := range f.Local.Edges {
+		if e.Event.Channel == f.Create || e.Event.Channel == f.Delete {
+			return fmt.Errorf("the creation or deletion event %s is named like a local event", e.Event.Channel)
+		}
+	}
+	return nil
 }
 
-func promoteAlone(p Promotion, f Family, e Edge) (Edge, error) {
+// kind says what a move does to its instance.
+type kind int
+
+const (
+	// local takes a local edge of an instance that exists.
+	local kind = iota
+	// creation creates an instance that does not exist, taking the start
+	// edge: e has only Dst and Post.
+	creation
+	// deletion deletes an instance, taking an end edge: e has only Src and
+	// Guard.
+	deletion
+)
+
+// move is one instance's part in a step: the edge e of the family f, taken
+// by the instance bound to id, as kind says.
+type move struct {
+	f    Family
+	id   string
+	e    Edge
+	kind kind
+}
+
+func promoteAlone(p Promotion, m move) (Edge, error) {
+	f, e := m.f, m.e
 	if slices.ContainsFunc(e.Event.Fields, func(fl Field) bool { return fl.Name == f.ID }) {
 		return Edge{}, fmt.Errorf("%s has a field named like the ID %s", e.Event.Channel, f.ID)
 	}
-	guard, post, err := step(p, []move{{f: f, id: f.ID, e: e}}, map[string]bool{f.ID: true})
+	guard, post, err := step(p, []move{m}, map[string]bool{f.ID: true})
 	if err != nil {
 		return Edge{}, err
 	}
@@ -152,7 +198,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 				continue
 			}
 			for _, c := range combos {
-				grown = append(grown, append(slices.Clone(c), move{f: f, id: tg.ID, e: e}))
+				grown = append(grown, append(slices.Clone(c), move{f: f, id: tg.ID, e: e, kind: local}))
 			}
 		}
 		combos = grown
@@ -241,7 +287,7 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 				bound, boundMap = append(bound, v), append(boundMap, f.Map)
 				after = v
 			}
-			g, q, err := local(f, m, before, after)
+			g, q, err := moved(f, m, before, after)
 			if err != nil {
 				return clause.And{}, clause.And{}, err
 			}
@@ -262,11 +308,11 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 	return clause.Normalize(clause.And{Conjuncts: guards}), post, nil
 }
 
-// local is the guard and post of one move, with the instance's local
+// moved is the guard and post of one move, with the instance's local
 // variables substituted: v is m[x].v in the map before the step (the moves
 // of one step are of different instances, so every intermediate map agrees
 // with m at x), v' is after[x].v.
-func local(f Family, m move, before, after clause.Term) (clause.And, clause.And, error) {
+func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And, error) {
 	x := clause.Free{Name: m.id}
 	vars := map[string]bool{}
 	for _, v := range f.Local.Vars[m.e.Src] {
@@ -288,12 +334,73 @@ func local(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 			return clause.Field{Of: clause.Index{Map: now, Key: x}, Name: v.Name}
 		}))
 	}
-	guard := Conj(clause.And{Conjuncts: []clause.Formula{
-		clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: now, Key: x}}, State: m.e.Src},
-	}}, sub(m.e.Guard))
-	post := Conj(clause.And{Conjuncts: []clause.Formula{
-		clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{after, before, x}},
-		clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: after, Key: x}}, State: m.e.Dst},
-	}}, sub(m.e.Post))
-	return guard, post, nil
+	facts := func(fs ...clause.Formula) clause.And { return clause.And{Conjuncts: fs} }
+	frame := clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{after, before, x}}
+	at := func(m clause.Term, state string) clause.Formula {
+		return clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: m, Key: x}}, State: state}
+	}
+	switch m.kind {
+	case creation:
+		return facts(clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, now}}),
+			Conj(facts(frame, at(after, m.e.Dst)), sub(m.e.Post)), nil
+	case deletion:
+		return Conj(facts(at(now, m.e.Src)), sub(m.e.Guard)),
+			facts(frame, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, after}}), nil
+	}
+	return Conj(facts(at(now, m.e.Src)), sub(m.e.Guard)),
+		Conj(facts(frame, at(after, m.e.Dst)), sub(m.e.Post)), nil
+}
+
+// MapType is the type of the map of f over the IDs ids: every partial map
+// from them to an instance at a state of f's local diagram, its variables
+// at values of their types in env.
+func MapType(f Family, ids []Value, env Env) ([]Value, error) {
+	var recs []Value
+	for _, state := range f.Local.States {
+		fields := []map[string]Value{{}}
+		for _, v := range f.Local.Vars[state] {
+			vals, err := env.values(v)
+			if err != nil {
+				return nil, fmt.Errorf("core.MapType: %s: %w", f.Map, err)
+			}
+			var grown []map[string]Value
+			for _, fs := range fields {
+				for _, val := range vals {
+					g := map[string]Value{v: val}
+					for k, w := range fs {
+						g[k] = w
+					}
+					grown = append(grown, g)
+				}
+			}
+			fields = grown
+		}
+		for _, fs := range fields {
+			recs = append(recs, Rec{State: state, Fields: fs})
+		}
+	}
+	maps := []Map{{}}
+	for _, id := range ids {
+		var grown []Map
+		for _, m := range maps {
+			absent := Map{}
+			for k, v := range m {
+				absent[k] = v
+			}
+			grown = append(grown, absent)
+			for _, r := range recs {
+				g := Map{Key(id): r}
+				for k, v := range m {
+					g[k] = v
+				}
+				grown = append(grown, g)
+			}
+		}
+		maps = grown
+	}
+	out := make([]Value, len(maps))
+	for i, m := range maps {
+		out[i] = m
+	}
+	return out, nil
 }

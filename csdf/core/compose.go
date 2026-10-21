@@ -16,6 +16,9 @@ import (
 // would capture a name of that side is refused, as is a state variable both
 // sides hold.
 func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
+	if len(l.Ends) > 0 || len(r.Ends) > 0 {
+		return nil, fmt.Errorf("core.Compose: a diagram with end edges is not composed yet")
+	}
 	out := &Diagram{
 		Vars:     map[string][]string{},
 		Init:     pair(l.Init, r.Init),
