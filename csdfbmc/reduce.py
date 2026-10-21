@@ -40,13 +40,16 @@ import ast
 import inspect
 import itertools
 from collections.abc import Mapping
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from csdfbmc import formal
 from csdfbmc.formal import free_names
 from csdfbmc.model import Clause, Diagram, Edge
 from csdfbmc.twins import Twins
 from csdfbmc.values import FrozenMap
+
+if TYPE_CHECKING:
+    from csdfbmc.meaning import Meaning
 
 _MOVES = ("update", "create", "delete")
 _INSTANCE_KINDS = ("in_dom", "not_in_dom", "at_state") + _MOVES
@@ -113,7 +116,7 @@ class PartialOrder:
         for c, role in _with_roles(e):
             if c.kind in _INSTANCE_KINDS or (c.kind == "local" and c.map):
                 continue
-            beyond = self.ex.meaning.names_beyond(c, own_id)
+            beyond = self.ex.meaning.names_beyond(c, role, own_id)
             if beyond is not None:
                 reads |= beyond & self.names
             else:
@@ -166,7 +169,7 @@ class PartialOrder:
 
 
 class Symmetry:
-    def __init__(self, diagram: Diagram, twins: Twins, meaning=None):
+    def __init__(self, diagram: Diagram, twins: Twins, meaning: "Meaning"):
         if not twins.symmetric:
             raise ValueError("--symmetry needs the twins module to declare SYMMETRIC, the instance-ID parameters whose values are interchangeable")
         ids = {p.id_param for p in diagram.promotes.values()}
@@ -190,8 +193,7 @@ class Symmetry:
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self._check_domains(diagram, twins)
         self._check_sources(diagram, twins)
-        if meaning is not None:
-            self._check_clauses(diagram, meaning)
+        self._check_clauses(diagram, meaning)
 
     def _check_domains(self, diagram: Diagram, twins: Twins) -> None:
         """A domain that holds symmetric IDs (a record naming another
@@ -221,7 +223,7 @@ class Symmetry:
                 if c.formal:
                     self._check(ast.parse(c.formal, mode="eval"), f"<formal line {c.line}>")
 
-    def _check_clauses(self, diagram: Diagram, meaning) -> None:
+    def _check_clauses(self, diagram: Diagram, meaning: "Meaning") -> None:
         """Asks the meaning of each clause the author wrote whether it tells
         two IDs apart: a glue answers it for the clauses it reads."""
         for e in diagram.edges:

@@ -58,11 +58,10 @@ class PartialOrderTest(unittest.TestCase):
         # glue says when asked beyond; a glue that does not answer it leaves
         # the constrain reading every instance.
         from csdfbmc.cone import Cone
-        from csdfbmc.tests.test_labels import Counting, glue, python_glue, relabel
+        from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue, relabel
         d = fixture.diagram(relabel(WITHOUT_CLOSE))
         checks = Twins(domains=GLOBAL_TWINS.domains, clauses={})
-        silent = Counting(python_glue())
-        silent.supports = frozenset()
+        silent = NotAnswering(python_glue())
 
         # Execute
         full = Explorer(d, checks, meaning=glue(python_glue()), cone=Cone.keep_all()).run()

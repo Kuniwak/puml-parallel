@@ -2,7 +2,7 @@
 import unittest
 from csdfbmc.tests import fixture
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, TwinsMeaning, standard
+from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, Renaming, TwinsMeaning, standard
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
@@ -57,7 +57,7 @@ class ReservedOpaqueTest(unittest.TestCase):
         for name, clause, ask, want, want_asked in [
             ("opaque has no value", OPAQUE_CLAUSE, lambda m, c: m.evaluate(c, "guard", {"n": 1}), OPAQUE, []),
             ("opaque reads nothing known", OPAQUE_CLAUSE, lambda m, c: m.names(c, "guard"), None, []),
-            ("opaque reads nothing beyond", OPAQUE_CLAUSE, lambda m, c: m.names_beyond(c, None), None, []),
+            ("opaque reads nothing beyond", OPAQUE_CLAUSE, lambda m, c: m.names_beyond(c, "guard", None), None, []),
             ("opaque is not prefetched", OPAQUE_CLAUSE, lambda m, c: m.prefetch(c, "guard", [{"n": 1}]), None, []),
             ("another clause is evaluated by the inner meaning", FORMAL_CLAUSE, lambda m, c: m.evaluate(c, "guard", {"n": 1}), True, [[{"n": 1}]]),
             ("another clause reads what the inner meaning says", FORMAL_CLAUSE, lambda m, c: m.names(c, "guard"), {"n"}, []),
@@ -152,6 +152,66 @@ class EqualityTest(unittest.TestCase):
     def test_a_name_the_step_does_not_bind_is_refused(self):
         with self.assertRaisesRegex(KeyError, "'z'"):
             self.meaning.evaluate(EQUAL, "guard", {"y": 1})
+
+
+
+class Beyond:
+    """A meaning that says, for any clause, it reads everything but a map
+    read at own_id, and how a clause tells IDs apart: by naming one of the
+    params it is asked about."""
+    readable = by_prose = True
+
+    def names_beyond(self, clause, role, own_id):
+        return {"x", "y"} - {own_id}
+
+    def tells_apart(self, clause, role, params, maps, groups):
+        return "named" if "y" in params else None
+
+
+class RenamingReductionTest(unittest.TestCase):
+    """What the reductions ask of a renamed clause is asked in the clause's
+    own names."""
+
+    def test_names_beyond_asks_with_the_clause_s_name_for_the_own_id(self):
+        for name, rename, own_id, want in [
+            ("a name renamed onto the own ID", (("y", "x"),), "x", {"x"}),
+            ("the own ID, not renamed", (), "x", {"y"}),
+            ("the own ID's name renamed away: no name in the clause is it", (("x", "z"),), "x", {"z", "y"}),
+            ("two names renamed onto the own ID", (("x", "w"), ("y", "w")), "w", {"w"}),
+        ]:
+            with self.subTest(name):
+                # Setup
+                clause = Clause("local", "c", rename=rename)
+
+                # Execute
+                got = Renaming(Beyond()).names_beyond(clause, "guard", own_id)
+
+                # Assert
+                self.assertEqual(want, got)
+
+    def test_tells_apart_asks_with_the_clause_s_names_for_the_params(self):
+        for name, rename, params, want in [
+            ("a name renamed onto a param is one", (("y", "x"),), {"x"}, "named"),
+            ("a param's name renamed away is not", (("y", "z"),), {"y"}, None),
+        ]:
+            with self.subTest(name):
+                # Setup
+                clause = Clause("local", "c", rename=rename)
+
+                # Execute
+                got = Renaming(Beyond()).tells_apart(clause, "guard", params, set(), [])
+
+                # Assert
+                self.assertEqual(want, got)
+
+    def test_the_tool_words_tell_no_ids_apart(self):
+        for name, clause in [("@opaque", OPAQUE_CLAUSE), ("@eq", EQUAL)]:
+            with self.subTest(name):
+                # Execute
+                got = standard(Beyond()).tells_apart(clause, "guard", {"y"}, set(), [])
+
+                # Assert
+                self.assertIsNone(got)
 
 
 if __name__ == "__main__":

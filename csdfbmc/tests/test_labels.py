@@ -154,8 +154,7 @@ class FormalExpansionTest(unittest.TestCase):
     def test_symmetry_is_refused_with_a_glue_that_does_not_answer_it(self):
         # Setup
         twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
-        silent = Counting(python_glue())
-        silent.supports = frozenset()
+        silent = NotAnswering(python_glue())
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, "does not answer"):
@@ -194,6 +193,14 @@ class Counting:
 
     def close(self):
         self.inner.close()
+
+
+class NotAnswering(Counting):
+    """A Client of a glue that answers none of the optional requests."""
+
+    def __init__(self, inner: Client):
+        super().__init__(inner)
+        self.supports = frozenset()
 
 
 class Lying(Counting):

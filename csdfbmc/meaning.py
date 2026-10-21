@@ -13,7 +13,7 @@ from typing import Protocol
 
 from csdfbmc.formal import FORMAL_GLOBALS
 from csdfbmc.model import Clause, Diagram
-from csdfbmc.protocol import ClientLike
+from csdfbmc.protocol import ClientLike, answers
 from csdfbmc.reduce import formal_names, names_beyond
 from csdfbmc.twins import Twins, apply, check_pure, reads
 
@@ -31,7 +31,7 @@ class Meaning(Protocol):
     by_prose: bool
 
     def names(self, clause: Clause, role: str) -> set[str] | None: ...
-    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None: ...
+    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None: ...
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None: ...
     def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None: ...
     def evaluate(self, clause: Clause, role: str, env: dict): ...
@@ -76,7 +76,7 @@ class TwinsMeaning:
             return None
         return formal_names(clause.formal) if getattr(fn, "formal", False) else reads(fn)
 
-    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
+    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
         """The names a clause reads but a map read only as m[own_id], when
         that can be told (a formal expression); None otherwise."""
         fn = self._twin(clause)
@@ -115,7 +115,7 @@ class GlueMeaning:
 
     def __init__(self, client: ClientLike):
         self.client = client
-        self.readable = "symmetric" in client.supports
+        self.readable = answers(client, "symmetric")
 
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
         return self.client.symmetric(clause.text, role, sorted(params), sorted(maps), [sorted(g) for g in groups])
@@ -130,10 +130,10 @@ class GlueMeaning:
         analysis = self.client.analyse(clause.text, role)
         return None if analysis.opaque else set(analysis.reads)
 
-    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        if "beyond" not in self.client.supports:
+    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
+        if not answers(self.client, "beyond"):
             return None
-        return set(self.client.beyond(clause.text, "guard", own_id))
+        return set(self.client.beyond(clause.text, role, own_id))
 
     def writes(self, clause: Clause) -> set[str] | None:
         """The variables a post clause gives a value to, as the glue says."""
@@ -172,8 +172,8 @@ class OpaqueWord:
     def names(self, clause: Clause, role: str) -> set[str] | None:
         return None if clause.opaque else self.inner.names(clause, role)
 
-    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        return None if clause.opaque else self.inner.names_beyond(clause, own_id)
+    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
+        return None if clause.opaque else self.inner.names_beyond(clause, role, own_id)
 
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
         return None if clause.opaque else self.inner.tells_apart(clause, role, params, maps, groups)
@@ -222,9 +222,19 @@ class Renaming:
     def names(self, clause: Clause, role: str) -> set[str] | None:
         return self._outer(clause, self.inner.names(clause, role))
 
-    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        inner_id = next((f for f, t in clause.rename if t == own_id), own_id)
-        return self._outer(clause, self.inner.names_beyond(clause, inner_id))
+    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
+        # The clause's own name for own_id: the one name renamed onto it, or
+        # own_id itself unless the clause renames that name away; else no
+        # name in the clause is the instance's own ID, and nothing is left out.
+        onto = [f for f, t in clause.rename if t == own_id]
+        renamed_away = {f for f, _ in clause.rename}
+        if len(onto) == 1:
+            inner_id = onto[0]
+        elif onto or own_id in renamed_away:
+            inner_id = None
+        else:
+            inner_id = own_id
+        return self._outer(clause, self.inner.names_beyond(clause, role, inner_id))
 
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
         """Asked in the clause's own names: a name renamed onto a symmetric
@@ -277,8 +287,8 @@ class EqualityWord:
     def names(self, clause: Clause, role: str) -> set[str] | None:
         return set(clause.eq) if clause.eq else self.inner.names(clause, role)
 
-    def names_beyond(self, clause: Clause, own_id: str | None) -> set[str] | None:
-        return set(clause.eq) if clause.eq else self.inner.names_beyond(clause, own_id)
+    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
+        return set(clause.eq) if clause.eq else self.inner.names_beyond(clause, role, own_id)
 
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
         # An equality of two names names no ID and orders none.

@@ -21,14 +21,19 @@ Two requests are optional, for what the walk's reductions need to know of a
 clause and only the clause's language can tell; the checker sends them only
 to a glue whose hello supports them, and does without the reduction else:
 
-- {"op": "beyond", "clause": TEXT, "role": ROLE, "own_id": NAME}
+- {"op": "beyond", "clause": TEXT, "role": ROLE, "own_id": NAME | null}
   -> {"reads": [NAME, ...]}: the names the clause reads, leaving out a map it
-  reads only at the key own_id (partial-order reduction).
+  reads only at the key own_id (partial-order reduction); a subset of what
+  analyse says it reads. own_id is null when no name in the clause is the
+  instance's own ID.
 - {"op": "symmetric", "clause": TEXT, "role": ROLE, "params": [NAME, ...],
   "maps": [NAME, ...], "groups": [[ID, ...], ...]} -> {"symmetric": true}, or
   {"symmetric": false, "why": MESSAGE}: whether the clause tells apart two IDs
   of a group, which params range over and maps are keyed by (symmetry
-  reduction).
+  reduction). An ID is a string.
+
+The names of beyond and symmetric are the clause's own, as the clause reads
+them: under a renaming, the checker asks in the names the clause uses.
 
 A binding and an assignment are JSON objects from names to values. Any
 request may be answered with {"error": MESSAGE}. A clause must be pure and
@@ -255,6 +260,12 @@ class ClientLike(Protocol):
     def close(self) -> None: ...
 
 
+def answers(client: "ClientLike", op: str) -> bool:
+    """Whether the glue behind client answers the optional request op, as
+    its hello said."""
+    return op in client.supports
+
+
 def NO_CLOSE() -> None:
     """The close of a glue that holds nothing to release, such as one
     loaded in-process."""
@@ -392,7 +403,13 @@ class Validating:
         return self.inner.analyse(clause, role)
 
     def beyond(self, clause: str, role: str, own_id: str | None) -> tuple[str, ...]:
-        return self.inner.beyond(clause, role, own_id)
+        """The glue's answer, refused unless it is among what the clause
+        reads: a name read beyond the instance is a name read."""
+        names = self.inner.beyond(clause, role, own_id)
+        reads = set(self.analyse(clause, role).reads)
+        if not set(names) <= reads:
+            raise EvaluatorError(f"the {self.language} glue says {clause!r} reads {sorted(set(names) - reads)} beyond its instance, which it does not say the clause reads at all")
+        return names
 
     def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None:
         return self.inner.symmetric(clause, role, params, maps, groups)
@@ -433,6 +450,7 @@ class Memoising:
         return self._beyond[key]
 
     def symmetric(self, clause: str, role: str, params: list[str], maps: list[str], groups: list[list[str]]) -> str | None:
+        # Not kept: the symmetry check asks of each clause once, before a walk.
         return self.inner.symmetric(clause, role, params, maps, groups)
 
     def analyse(self, clause: str, role: str) -> Analysis:
