@@ -133,14 +133,14 @@ def request_from_wire(request: dict) -> dict:
     return request
 
 
-def answer_to_wire(op: str, answer: dict) -> dict:
-    if op == "post" and "results" in answer:
+def answer_to_wire(request: dict, answer: dict) -> dict:
+    if request.get("op") == "post" and "results" in answer:
         return dict(answer, results=[_bindings_to_wire(r) for r in answer["results"]])
     return answer
 
 
-def answer_from_wire(op: str, answer: dict) -> dict:
-    if op == "post" and "results" in answer:
+def answer_from_wire(request: dict, answer: dict) -> dict:
+    if request.get("op") == "post" and "results" in answer:
         return dict(answer, results=[_bindings_from_wire(r) for r in answer["results"]])
     return answer
 
@@ -205,7 +205,7 @@ def serve(handle: Handle, stdin, stdout) -> None:
             request = json.loads(line)
             if not isinstance(request, dict):
                 raise ValueError(f"a request is a JSON object, not {request!r}")
-            answer = answer_to_wire(request.get("op"), handle(request_from_wire(request)))
+            answer = answer_to_wire(request, handle(request_from_wire(request)))
         except Exception as e:  # every line gets an answer, so the checker is never left waiting
             answer = {"error": f"{type(e).__name__}: {e}"}
         stdout.write(json.dumps(answer, ensure_ascii=False) + "\n")
@@ -235,7 +235,7 @@ class CommandTransport:
         if not line:
             raise EvaluatorError(f"the glue {self._argv!r} stopped without answering {op}")
         try:
-            return answer_from_wire(op, json.loads(line))
+            return answer_from_wire(request, json.loads(line))
         except ValueError as e:
             raise EvaluatorError(f"the glue {self._argv!r} answered {op} with {line.strip()!r}: {e}") from e
 
