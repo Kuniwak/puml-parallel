@@ -85,13 +85,6 @@ func TestTransformationsKeepTheAssumptions(t *testing.T) {
 	if len(sorted) != 1 || sorted[0].Line != 0 || sorted[0].ID != "fair" {
 		t.Errorf("Sort() assumptions = %v, want the assumption with its line dropped", sorted)
 	}
-	n, err := Normalize(d)
-	if err != nil {
-		t.Fatalf("Normalize() error = %v", err)
-	}
-	if !cmp.Equal(want, n.Assumptions) {
-		t.Errorf("Normalize() assumptions = %v, want %v", n.Assumptions, want)
-	}
 }
 
 func TestComposeParallelConcatenatesTheAssumptions(t *testing.T) {

@@ -91,7 +91,7 @@ func TestNewMainFuncSelection(t *testing.T) {
 		"two tool names (representative value)": {
 			Args:            []string{"csdfparse", "csdfevents"},
 			WantContains:    []string{"# csdfparse\n", "# csdfevents\n"},
-			WantNotContains: []string{"# csdfnorm\n"},
+			WantNotContains: []string{"# csdfsort\n"},
 		},
 		"the hidden csdfhelp is documented when named (representative value)": {
 			Args:         []string{"csdfhelp"},

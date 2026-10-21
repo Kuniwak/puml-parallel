@@ -8,7 +8,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/tools/csdfhide/csdfhidecmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdflint/csdflintcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdflivelockfree/csdflivelockfreecmd"
-	"github.com/Kuniwak/puml-parallel/tools/csdfnorm/csdfnormcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparallel/csdfparallelcmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfparse/csdfparsecmd"
 	"github.com/Kuniwak/puml-parallel/tools/csdfpromote/csdfpromotecmd"
@@ -59,11 +58,6 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfcomp",
 			Summary: "Composes the Composable State Diagrams referred to by a composition tree.",
 			Run:     tools.NewCommandFunc(csdfcompcmd.NewParseOptionsFunc(), csdfcompcmd.NewMainFunc()),
-		},
-		{
-			Name:    "csdfnorm",
-			Summary: "Normalizes a Composable State Diagram via subset construction with tau-closure.",
-			Run:     tools.NewCommandFunc(csdfnormcmd.NewParseOptionsFunc(), csdfnormcmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfsort",
