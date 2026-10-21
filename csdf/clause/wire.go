@@ -13,9 +13,11 @@ import (
 // on. Holes[i] indexes the atom's arguments, the distinct terms its holes
 // read in order of first appearance; Primed says which of them are values
 // after the step. A glue never sees a name: a value comes with the index of
-// its argument. Text after a hole that starts with a character that could
-// continue a name starts with a space, the one that ended the hole: the glue
-// reads a hole as something of its own, which would run into the text.
+// its argument. Text after a hole of a name, `$x`, that starts with a
+// character that could continue a name starts with a space, the one that
+// ended the hole: the glue reads a hole as something of its own, which would
+// run into the text. A hole of any other term, `${…}`, ends at its brace and
+// gives back no space.
 type AtomWire struct {
 	Text   []string `json:"text"`
 	Holes  []int    `json:"holes"`
@@ -25,6 +27,9 @@ type AtomWire struct {
 // Wire is a as a glue receives it, with the terms its arguments stand for,
 // in the order of their indices.
 func Wire(a Atom) (AtomWire, []Term, error) {
+	if err := WellFormed(a); err != nil {
+		return AtomWire{}, nil, fmt.Errorf("clause.Wire: %w", err)
+	}
 	for _, p := range a.Parts {
 		if h, ok := p.(Hole); ok && primedBelowRoot(h.Term) {
 			return AtomWire{}, nil, fmt.Errorf("clause.Wire: %#v: only the variable a term starts from may be primed", h.Term)
@@ -32,15 +37,17 @@ func Wire(a Atom) (AtomWire, []Term, error) {
 	}
 	w := AtomWire{Text: []string{""}, Holes: []int{}, Primed: []bool{}}
 	var terms []Term
+	afterName := false
 	for _, p := range normalAtom(a).Parts {
 		switch p := p.(type) {
 		case Text:
-			last := len(w.Text) - 1
-			if last > 0 && w.Text[last] == "" && ident.IsRune(firstRune(string(p))) {
+			if afterName && ident.IsRune(firstRune(string(p))) {
 				p = " " + p
 			}
-			w.Text[last] += string(p)
+			w.Text[len(w.Text)-1] += string(p)
+			afterName = false
 		case Hole:
+			_, afterName = p.Term.(Free)
 			i := indexOf(terms, p.Term)
 			if i < 0 {
 				i = len(terms)

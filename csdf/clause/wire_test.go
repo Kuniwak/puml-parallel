@@ -28,6 +28,11 @@ func TestWireOfAnAtom(t *testing.T) {
 			wantWire:  AtomWire{Text: []string{"", " in ", ""}, Holes: []int{0, 1}, Primed: []bool{true, false}},
 			wantTerms: []Term{post("x"), pre("xs")},
 		},
+		"no space is given back after a hole of a term that is no name": {
+			text:      "${m[k]}foo",
+			wantWire:  AtomWire{Text: []string{"", "foo"}, Holes: []int{0}, Primed: []bool{false}},
+			wantTerms: []Term{Index{Map: pre("m"), Key: pre("k")}},
+		},
 		"no holes": {
 			text:      "it rains",
 			wantWire:  AtomWire{Text: []string{"it rains"}, Holes: []int{}, Primed: []bool{}},
@@ -94,6 +99,14 @@ func TestWireRefuses(t *testing.T) {
 		"a prime on a field's record below an index": {
 			atom: Atom{Parts: []Part{Hole{Term: Field{Of: Index{Map: post("m"), Key: post("k")}, Name: "f"}}}},
 			want: "only the variable a term starts from may be primed",
+		},
+		"a part that is neither text nor a hole": {
+			atom: Atom{Parts: []Part{nil}},
+			want: "clause.Wire",
+		},
+		"a dangling index": {
+			atom: Atom{Parts: []Part{Hole{Term: Bound{Index: 0}}}},
+			want: "clause.Wire",
 		},
 		"a prime inside an argument of a function": {
 			atom: Atom{Parts: []Part{Hole{Term: App{Fn: "f", Args: []Term{post("x")}}}}},

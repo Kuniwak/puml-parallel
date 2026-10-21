@@ -253,6 +253,10 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   argument of an environment function, `f(x')`, read after the step is
   refused when the atom is given to a glue: an argument is a value before
   the step or after it, never a mix.
+- A glue receives the space that ended a `$name` hole back in the text after
+  it, so that its own reading of the hole does not run into the text; a
+  hole of any other term ends at its brace and gives back none. `${x}` and
+  `$x` are the same hole.
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
 - A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
 - `@exists(v) (…)` binds `v` in its body; the innermost binder of a name
