@@ -164,6 +164,13 @@ func TestComposeParallelSynchronisesOnChannels(t *testing.T) {
 			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send!x"}},
 		},
 		{
+			name:  "a sent field names the value, and the receiving side reads it through a renaming",
+			left:  Edge{Event: "send?x", Guard: "x > 0"},
+			right: Edge{Event: "send!y"},
+			sync:  []string{"send"},
+			want:  []Edge{{Src: "l0_r0", Dst: "l1_r1", Event: "send!y", Guard: "@[x := y] x > 0"}},
+		},
+		{
 			name:  "a channel not synchronised interleaves",
 			left:  Edge{Event: "send?x"},
 			right: Edge{Event: "send?y"},
@@ -372,5 +379,20 @@ func TestComposeParallelComposesThreeDiagramsFromTheLeft(t *testing.T) {
 	want := []Edge{{Src: "a_b_c", Dst: "a_b_c", Event: "send?x", Guard: "x > 0 ∧ @[y := x] y < 5 ∧ @[z := x] z ≠ 2"}}
 	if diff := cmp.Diff(want, composite.Edges); diff != "" {
 		t.Errorf("ComposeParallel() edges mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestComposeParallelRefusesTwoSidesSendingOneField(t *testing.T) {
+	// Setup: c!y ‖ c!z synchronises only where y = z, which needs an equality
+	// the tools cannot write without clause text.
+	left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send!y"}}}
+	right := &Diagram{States: map[StateID]State{"r0": {}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "send!z"}}}
+
+	// Execute
+	_, err := ComposeParallel2(left, right, []string{"send"})
+
+	// Assert
+	if err == nil {
+		t.Error("ComposeParallel2() error = nil, want send!y and send!z refused")
 	}
 }

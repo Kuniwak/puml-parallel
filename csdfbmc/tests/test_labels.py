@@ -290,5 +290,42 @@ class SynchronisedDomainTest(unittest.TestCase):
         self.assertEqual({("a", (0,), ()), ("a", (1,), ())}, set(result.states))
 
 
+
+# A counter that reports its value: report!n sends n, which the state holds.
+REPORTING = {
+    "states": {"a": {"name": "a", "vars": [{"name": "n"}], "line": 2}},
+    "start_edge": {"dst": "a", "post": "[{'n': 0}]", "line": 3},
+    "edges": [
+        {"src": "a", "dst": "a", "event": "inc", "guard": "n < 2", "post": "[{'n': n + 1}]", "line": 4},
+        {"src": "a", "dst": "a", "event": "report!n", "guard": "", "post": "[{'n': n}]", "line": 5},
+    ],
+    "end_edge": None, "assumptions": [],
+}
+
+
+class SentFieldTest(unittest.TestCase):
+    """A sent field is the value its name has at the step, not a value
+    chosen from a domain: c!y sends y."""
+
+    def test_a_sent_field_sends_the_value_the_step_binds_without_a_domain(self):
+        # Setup
+        explorer = Explorer(fixture.diagram(REPORTING), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute
+        labels = [label for _, label, _, _ in explorer.successors(("a", (1,), ()))]
+
+        # Assert
+        self.assertEqual(["inc", "report(n=1)"], sorted(labels))
+
+    def test_a_sent_field_whose_name_the_step_does_not_bind_is_refused(self):
+        # Setup
+        diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!m")])
+        explorer = Explorer(fixture.diagram(diagram), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+
+        # Execute, Assert
+        with self.assertRaisesRegex(KeyError, "sends 'm'"):
+            explorer.run()
+
+
 if __name__ == "__main__":
     unittest.main()

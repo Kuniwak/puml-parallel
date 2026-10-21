@@ -13,7 +13,7 @@ vmDropping: availableProducts
 vmDropping: product
 
 [*] --> vmIdle : availableProducts' are products initially in the vending machine
-vmIdle --> vmIdle : showAvailable?availableProducts ; ; availableProducts' remains the same
+vmIdle --> vmIdle : showAvailable!availableProducts ; ; availableProducts' remains the same
 vmIdle --> vmCoinsInserted : insert?coin ; ; coins' is {coin}, availableProducts' remains the same
 vmCoinsInserted --> vmWaitingChoosing : showPurchasable?purchasableProducts ; ; availableProducts' and coins' remain the same
 vmWaitingChoosing --> vmCoinsInserted : insert?coin ; ; coins' is coins with coin added, availableProducts' remains the same

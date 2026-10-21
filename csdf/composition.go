@@ -70,7 +70,7 @@ func ComposeParallel2(dL, dR *Diagram, syncChannels []string) (*Diagram, error) 
 	for _, eL := range dL.Edges {
 		for _, eR := range dR.Edges {
 			if _, ok := ss[eL.Event.Channel()]; ok && eL.Event.Channel() == eR.Event.Channel() {
-				if _, err := synchronise(eL, eR, rightVars(dR, eR)); err != nil {
+				if _, err := synchronise(eL, eR, edgeVars(dL, eL), edgeVars(dR, eR)); err != nil {
 					return nil, err
 				}
 			}
@@ -152,7 +152,7 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 			if eR.Src != currentPair.Right.ID || eR.Event.Channel() != eL.Event.Channel() {
 				continue
 			}
-			e, err := synchronise(eL, eR, rightVars(dR, eR))
+			e, err := synchronise(eL, eR, edgeVars(dL, eL), edgeVars(dR, eR))
 			if err != nil {
 				return err
 			}
@@ -169,46 +169,57 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 	return nil
 }
 
-// synchronise is the edge both sides take together on one channel. Its event
-// names each field as the left does; a right clause reads its own name for a
-// field through a renaming, so no clause text is rewritten. A field chosen
-// internally on either side is chosen on the composite.
+// synchronise is the edge both sides take together on one channel. Each field
+// is one value, named once on the composite: by the side that sends it (c!y
+// sends y, which that side's state or event binds), or by the left when both
+// receive. The other side reads its own name for the field through a
+// renaming, so no clause text is rewritten. Two sides sending one field
+// agree only where the two values are equal, which no renaming says, so that
+// is refused.
 //
-// A renaming must not capture a name: a left field name that a right clause
-// reads as a state variable of its own is refused, since the renamed clause
-// would read the field instead. The tools do not read clauses, so a name a
-// right clause reads otherwise (a ghost of a checker, or a value a tau
-// chooses) cannot be told, and naming those apart is the author's. Renamings are simultaneous, so two fields
-// swapped (ch?a?b with ch?b?a) are two renamings, not a capture.
-func synchronise(eL, eR Edge, rightVars map[Var]struct{}) (Edge, error) {
+// A renaming must not capture a name: a field name a side's clauses would be
+// renamed onto must not be one of that side's own state variables, since the
+// renamed clause would read the field instead. The tools do not read
+// clauses, so a name a clause reads otherwise (a ghost of a checker, or a
+// value a tau chooses) cannot be told, and naming those apart is the
+// author's. Renamings are simultaneous, so two fields swapped (ch?a?b with
+// ch?b?a) are two renamings, not a capture.
+func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 	fL, fR := eL.Event.Fields(), eR.Event.Fields()
 	fields := make([]Field, len(fL))
-	var renames []Rename
+	var renamesL, renamesR []Rename
 	for i := range fL {
-		fields[i] = fL[i]
-		if fR[i].Dir == Chosen {
-			fields[i].Dir = Chosen
+		if fL[i].Dir == Chosen && fR[i].Dir == Chosen {
+			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s (line %d) and %s (line %d) both send field %d of %s, and would agree only where %s and %s are equal", eL.Event, eL.Line, eR.Event, eR.Line, i+1, eL.Event.Channel(), fL[i].Name, fR[i].Name)
 		}
-		if fR[i].Name == fL[i].Name {
+		named, other, renames, vars, otherEdge := fL[i], fR[i], &renamesR, varsR, eR
+		if fR[i].Dir == Chosen {
+			named, other, renames, vars, otherEdge = fR[i], fL[i], &renamesL, varsL, eL
+		}
+		fields[i] = named
+		if other.Name == named.Name {
 			continue
 		}
-		if _, ok := rightVars[Var(fL[i].Name)]; ok {
-			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s synchronises with %s (line %d), whose state variable %s its field %s would be renamed onto; name them apart", eL.Event, eR.Event, eR.Line, fL[i].Name, fR[i].Name)
+		if _, ok := vars[Var(named.Name)]; ok {
+			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s (line %d) has a state variable %s, which its field %s would be renamed onto; name them apart", otherEdge.Event, otherEdge.Line, named.Name, other.Name)
 		}
-		renames = append(renames, Rename{From: fR[i].Name, To: fL[i].Name})
+		*renames = append(*renames, Rename{From: other.Name, To: named.Name})
 	}
-	guard, err := renamed(eR.Guard, renames)
-	if err != nil {
-		return Edge{}, err
-	}
-	post, err := renamed(eR.Post, renames)
-	if err != nil {
-		return Edge{}, err
+	var parts [4]Predicate
+	for i, p := range []struct {
+		pred    Predicate
+		renames []Rename
+	}{{eL.Guard, renamesL}, {eR.Guard, renamesR}, {eL.Post, renamesL}, {eR.Post, renamesR}} {
+		r, err := renamed(p.pred, p.renames)
+		if err != nil {
+			return Edge{}, err
+		}
+		parts[i] = r
 	}
 	return Edge{
 		Event: NewEvent(eL.Event.Channel(), fields...),
-		Guard: Conjunction(eL.Guard, guard),
-		Post:  Conjunction(eL.Post, post),
+		Guard: Conjunction(parts[0], parts[1]),
+		Post:  Conjunction(parts[2], parts[3]),
 	}, nil
 }
 
@@ -225,9 +236,9 @@ func renamed(p Predicate, renames []Rename) (Predicate, error) {
 	return ConjoinClauses(clauses), nil
 }
 
-// rightVars are the state variables a right edge's clauses read: those of the
+// edgeVars are the state variables an edge's clauses read: those of the
 // states it leaves and enters.
-func rightVars(d *Diagram, e Edge) map[Var]struct{} {
+func edgeVars(d *Diagram, e Edge) map[Var]struct{} {
 	vars := map[Var]struct{}{}
 	for _, id := range []StateID{e.Src, e.Dst} {
 		for _, v := range d.States[id].Vars {

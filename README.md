@@ -36,10 +36,12 @@ $ csdfparallel [--sync channel1;channel2;...] <file1.puml> [file2.puml] ...
 
 - `--sync`: Semicolon-separated list of the channels to synchronise on (interface
   parallel). An edge on one of them is taken by both sides together, with the same
-  number of fields; the composite event names the fields as the left side does,
-  and a field chosen (`!`) on either side is chosen. Where the right side names a
-  field otherwise, each of its clauses is read through a renaming, `@[y := x] …`,
-  so no clause is rewritten (see [SYNTAX.md](./docs/SYNTAX.md)).
+  number of fields. A field sent (`!y`) on one side is named by that side, and the
+  receiving side reads it: `c!y ‖ c?x` is `c!y`. A field both sides receive is
+  named as the left side does. Where a side names a field otherwise, each of its
+  clauses is read through a renaming, `@[x := y] …`, so no clause is rewritten
+  (see [SYNTAX.md](./docs/SYNTAX.md)). Two sides sending one field are refused,
+  since they would agree only where the two values are equal.
 
 ### Examples
 ```console
@@ -689,7 +691,8 @@ deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
 ```
 
 A twins module defines two tables. `DOMAINS` maps an event parameter to the
-finite set of its values. A `tau` chooses from it too: a name a `tau`'s clauses
+finite set of its values. A sent field (`c!y`) has no domain: it sends the value `y` has at the step, and
+a name the step does not bind is an error. A `tau` chooses from it too: a name a `tau`'s clauses
 read that is neither a state variable nor a field, as hiding `c?x` leaves `x`,
 is chosen nondeterministically from its domain, and a name with no domain is an
 error. A `tau` the author wrote is read by the same rule, and names what it

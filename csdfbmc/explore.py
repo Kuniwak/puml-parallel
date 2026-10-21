@@ -412,7 +412,8 @@ class Explorer:
         names = e.params + e.implicit_ids() + self._chosen_by_tau(e)
         out = []
         for params in self._enabled(state, e, names):
-            label = e.name if not names else e.name + "(" + ", ".join(f"{p}={v}" for p, v in params.items()) + ")"
+            shown = dict(params, **self._sent(state, e, params))
+            label = e.name if not shown else e.name + "(" + ", ".join(f"{p}={v}" for p, v in shown.items()) + ")"
             ghosts = self._ghosts_after(state, e.name, params)
             vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
             if missing:
@@ -425,6 +426,16 @@ class Explorer:
                 continue
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
+
+    def _sent(self, state: State, e: Edge, params: dict) -> dict:
+        """The values e's sent fields send: c!y sends the value y has at the
+        step, a state variable before it or a field received, and ranges over
+        nothing."""
+        env = self._env(state, params)
+        missing = [n for n in e.sent if n not in env]
+        if missing:
+            raise KeyError(f"{e.event} at line {e.line} sends {missing[0]!r}, which the step does not bind; it may send {sorted(env)}")
+        return {n: env[n] for n in e.sent}
 
     def _chosen_by_tau(self, e: Edge) -> tuple[str, ...]:
         """The values a tau chooses: the names its clauses read that are not
