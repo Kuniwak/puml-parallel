@@ -227,7 +227,13 @@ posts described above.
 
 ```abnf
 clause   = [conjunct *(" ∧ " conjunct)]
-conjunct = atom
+conjunct = builtin / atom
+builtin  = "@eq(" term ", " term ")"        ; equal
+         / "@ne(" term ", " term ")"        ; differ
+         / "@in(" term ", " term ")"        ; key in the domain of a map
+         / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
+         / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
+         / "@at(" term ", " id ")"          ; instance at a state of its local diagram
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = id ["'"] *("[" term "]" / "." id) ["'"]
          / id "(" [term *(", " term)] ")" ; an environment function
@@ -243,6 +249,7 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   variable the path starts from: `${m[k].f'}` is the entry at `k` of `m`
   after the step. An environment function has no value after the step.
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
+- A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
 - In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
   anything else is itself.
 

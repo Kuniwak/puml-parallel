@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	holeSigil = '$'
-	escape    = '\\'
-	conjSep   = " ∧ "
+	toolPrefix = '@'
+	holeSigil  = '$'
+	escape     = '\\'
+	conjSep    = " ∧ "
 	// escapable are the characters a backslash makes text; before anything
 	// else a backslash is itself.
 	escapable = `$∧;@\()`
@@ -62,7 +63,7 @@ func (p *parser) clause() (And, error) {
 	}
 	var cs []Formula
 	for {
-		c, err := p.atom()
+		c, err := p.conjunct()
 		if err != nil {
 			return And{}, err
 		}
@@ -72,6 +73,55 @@ func (p *parser) clause() (And, error) {
 		}
 		p.pos += len([]rune(conjSep))
 	}
+}
+
+func (p *parser) conjunct() (Formula, error) {
+	if p.peek() == toolPrefix {
+		return p.builtin()
+	}
+	return p.atom()
+}
+
+// builtin reads @word(term, …), by the table of builtins.
+func (p *parser) builtin() (Formula, error) {
+	start := p.pos
+	p.pos++ // @
+	op := Op(p.name())
+	spec, ok := builtins[op]
+	if !ok {
+		return nil, fmt.Errorf("unknown tool word @%s at %d", op, start)
+	}
+	if err := p.expect("("); err != nil {
+		return nil, err
+	}
+	b := Builtin{Op: op, Args: []Term{}}
+	for i := 0; i < spec.terms || (spec.variadic && !p.hasPrefix(")")); i++ {
+		if i > 0 {
+			if err := p.expect(", "); err != nil {
+				return nil, fmt.Errorf("@%s at %d takes %d terms: %w", op, start, spec.terms, err)
+			}
+		}
+		t, err := p.term()
+		if err != nil {
+			return nil, fmt.Errorf("@%s at %d: %w", op, start, err)
+		}
+		b.Args = append(b.Args, t)
+	}
+	if spec.state {
+		if err := p.expect(", "); err != nil {
+			return nil, fmt.Errorf("@%s at %d takes a state: %w", op, start, err)
+		}
+		if b.State = p.name(); b.State == "" {
+			return nil, fmt.Errorf("@%s at %d: expected a state at %d", op, start, p.pos)
+		}
+	}
+	if err := p.expect(")"); err != nil {
+		return nil, fmt.Errorf("@%s at %d: %w", op, start, err)
+	}
+	if !p.atEnd() && !p.hasPrefix(conjSep) {
+		return nil, fmt.Errorf("@%s at %d: expected %q or the end at %d", op, start, conjSep, p.pos)
+	}
+	return b, nil
 }
 
 // atom reads text and holes up to an unescaped " ∧ " or the end.
