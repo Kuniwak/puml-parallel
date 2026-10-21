@@ -235,6 +235,7 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
          / "@at(" term ", " id ")"          ; instance at a state of its local diagram
+         / "@all(" term ", " id ")"         ; every instance of a map at a state
 exists   = "@exists(" id ") (" clause ")" ; written by tools only
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = id ["'"] *("[" term "]" / "." id) ["'"]

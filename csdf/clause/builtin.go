@@ -19,6 +19,10 @@ const (
 	// OpAt says the instance Args[0] is at State of its local diagram. A
 	// state is a position, not a value, so it is a name and never a term.
 	OpAt Op = "at"
+	// OpAll says every instance of the map Args[0] is at State: the start of
+	// a promoted diagram, where every instance is at the start state of its
+	// local diagram, which means it does not exist.
+	OpAll Op = "all"
 )
 
 // Builtin is a fact a tool states without any clause language
@@ -26,7 +30,7 @@ const (
 type Builtin struct {
 	Op    Op
 	Args  []Term
-	State string // OpAt only
+	State string // OpAt and OpAll only
 }
 
 func (Builtin) isFormula() {}
@@ -46,6 +50,7 @@ var builtins = map[Op]BuiltinSpec{
 	OpUpdate: {Terms: 4},
 	OpFrame:  {Terms: 2, Variadic: true},
 	OpAt:     {Terms: 1, State: true},
+	OpAll:    {Terms: 1, State: true},
 }
 
 // Spec is the shape of the builtin o; ok is false for a word that names no

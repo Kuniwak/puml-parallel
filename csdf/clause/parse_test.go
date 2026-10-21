@@ -106,6 +106,7 @@ func TestParseReadsBuiltins(t *testing.T) {
 		"frame":              {text: "@frame(m', m, a, b)", want: Builtin{Op: OpFrame, Args: []Term{post("m"), pre("m"), pre("a"), pre("b")}}},
 		"frame without keys": {text: "@frame(m', m)", want: Builtin{Op: OpFrame, Args: []Term{post("m"), pre("m")}}},
 		"at":                 {text: "@at(locations[from], 倉庫待ち)", want: Builtin{Op: OpAt, Args: []Term{Index{Map: pre("locations"), Key: pre("from")}}, State: "倉庫待ち"}},
+		"all":                {text: "@all(locations', 未開設)", want: Builtin{Op: OpAll, Args: []Term{Free{Name: "locations", Primed: true}}, State: "未開設"}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
