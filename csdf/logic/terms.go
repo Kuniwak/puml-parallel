@@ -193,3 +193,36 @@ func allVars(ts []Term) ([]Var, bool) {
 	}
 	return vs, true
 }
+
+// equality says that two terms are the same value.
+type equality struct{ left, right Term }
+
+// Eq is the formula that left and right are the same value.
+func Eq(left, right Term) Formula {
+	mustBeTerm("logic.Eq", left)
+	mustBeTerm("logic.Eq", right)
+	return equality{left: left, right: right}
+}
+
+func (e equality) freeVars(bound map[Var]bool, add func(Var)) {
+	read := func(v Var) {
+		if !bound[v] {
+			add(v)
+		}
+	}
+	e.left.vars(read)
+	e.right.vars(read)
+}
+func (e equality) simplify() Formula { return e }
+func (e equality) equal(g Formula) bool {
+	f, ok := g.(equality)
+	return ok && e.left.equalTerm(f.left) && e.right.equalTerm(f.right)
+}
+func (e equality) spell(_ Notation, sb *strings.Builder, _ bool) {
+	e.left.spellTerm(sb)
+	sb.WriteString(" = ")
+	e.right.spellTerm(sb)
+}
+func (e equality) tree() Tree {
+	return Tree{Op: OpEq, Terms: []TermTree{e.left.termTree(), e.right.termTree()}}
+}

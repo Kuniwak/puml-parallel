@@ -75,3 +75,66 @@ func TestAPredicateOverVariablesIsAnAtom(t *testing.T) {
 		t.Errorf("want %#v, got %#v", want, got)
 	}
 }
+
+func TestAnEquality(t *testing.T) {
+	type testCase struct {
+		Formula  logic.Formula
+		Spelled  string
+		FreeVars []logic.Var
+		Tree     logic.Tree
+	}
+
+	testCases := map[string]testCase{
+		"two terms are equal": {
+			Formula:  logic.Eq(logic.Field(logic.Var("r"), "v"), logic.Var("x")),
+			Spelled:  "r.v = x",
+			FreeVars: vs("r", "x"),
+			Tree: logic.Tree{Op: logic.OpEq, Terms: []logic.TermTree{
+				{Op: logic.TermField, Name: "v", Args: []logic.TermTree{{Op: logic.TermVar, Name: "r"}}},
+				{Op: logic.TermVar, Name: "x"},
+			}},
+		},
+		"a negated equality is parenthesised": {
+			Formula:  logic.Not(logic.Eq(logic.Var("a"), logic.Var("b"))),
+			Spelled:  "¬(a = b)",
+			FreeVars: vs("a", "b"),
+			Tree: logic.Tree{Op: logic.OpNot, Operands: []logic.Tree{{Op: logic.OpEq, Terms: []logic.TermTree{
+				{Op: logic.TermVar, Name: "a"}, {Op: logic.TermVar, Name: "b"},
+			}}}},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			n := mustNotation(t, symbols)
+
+			// Execute
+			spelled, free, tree := n.Spell(tc.Formula), logic.FreeVars(tc.Formula), logic.TreeOf(tc.Formula)
+
+			// Assert
+			if spelled != tc.Spelled {
+				t.Errorf("want %q, got %q", tc.Spelled, spelled)
+			}
+			if diff := cmp.Diff(tc.FreeVars, free); diff != "" {
+				t.Errorf("free vars mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.Tree, tree); diff != "" {
+				t.Errorf("tree mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestEqualitiesAreEqualWhenTheirTermsAre(t *testing.T) {
+	// Setup
+	a := logic.Eq(logic.Var("x"), logic.Apply("S"))
+
+	// Execute
+	same, other := logic.Equal(a, logic.Eq(logic.Var("x"), logic.Apply("S"))), logic.Equal(a, logic.Eq(logic.Apply("S"), logic.Var("x")))
+
+	// Assert
+	if !same || other {
+		t.Errorf("want true and false, got %v and %v", same, other)
+	}
+}

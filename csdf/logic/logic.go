@@ -364,7 +364,7 @@ func (a atom) spell(_ Notation, sb *strings.Builder, _ bool) {
 func (x not) spell(n Notation, sb *strings.Builder, rightmost bool) {
 	sb.WriteString(n.c.Not)
 	switch x.operand.(type) {
-	case junction, implies:
+	case junction, implies, equality:
 		parenthesised(n, sb, x.operand)
 	default:
 		operand(n, sb, x.operand, rightmost)
@@ -444,6 +444,7 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 //	atom                   Name applied to Args, or to Terms when one of
 //	                       them is no variable; Quoted when Name is natural
 //	                       language, which Quoted or Pred made
+//	eq                     the two Terms are the same value
 //	not                    the negation of the one operand
 //	and, or                the conjunction or disjunction of the operands
 //	implies                the implication from the first operand to the second
@@ -468,6 +469,7 @@ const (
 	OpTrue    Op = "true"
 	OpFalse   Op = "false"
 	OpAtom    Op = "atom"
+	OpEq      Op = "eq"
 	OpNot     Op = "not"
 	OpAnd     Op = "and"
 	OpOr      Op = "or"
