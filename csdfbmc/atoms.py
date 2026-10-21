@@ -37,6 +37,21 @@ def _starts_hole_name(c: str) -> bool:
     return continues_name(c) and unicodedata.category(c) != "Nd"
 
 
+def has_hole(text: str) -> bool:
+    """Whether text holds a hole, so that it is an atom and not a clause of a
+    glue's own language."""
+    i = 0
+    while i < len(text):
+        nxt = text[i + 1] if i + 1 < len(text) else ""
+        if text[i] == "\\" and nxt in _ESCAPED and nxt:
+            i += 2
+            continue
+        if text[i] == "$" and nxt and (nxt == "{" or _starts_hole_name(nxt)):
+            return True
+        i += 1
+    return False
+
+
 def function_of(text: str) -> Function:
     """The function the atom text denotes."""
     pieces, holes, current, i = [], [], [], 0

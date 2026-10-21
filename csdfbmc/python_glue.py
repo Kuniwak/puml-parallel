@@ -17,6 +17,7 @@ from typing import Callable
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
 from csdfbmc.protocol import PROTOCOL, PROTOCOL_ATOMS, Analysis, atom_handler, atom_text, handler, speaking
 from csdfbmc.checks import check_pure
+from csdfbmc.atoms import has_hole
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"
@@ -74,6 +75,10 @@ class Glue:
         return eval(code, self.globals, dict(binding))
 
     def analyse(self, clause: str, role: str) -> Analysis:
+        if has_hole(clause):
+            # An atom with holes is not Python: until the walk reads atoms in
+            # their wire form (#76), it is a function of the environment.
+            return Analysis(opaque=True)
         _, reads, writes = self._compile(clause, role)
         return Analysis(opaque=False, reads=tuple(reads), writes=tuple(writes))
 
