@@ -198,6 +198,9 @@ name.
 - The builtins are what tools state (P7). Two updates of one map in one step
   bind the intermediate map with ∃ (P5, P6).
 
+Only tools write ∃; authors write atoms, builtins and ∧. Letting authors
+write ∃ later is an addition that breaks no diagram.
+
 Negation and disjunction are left undefined until an operator needs them;
 see the open questions.
 
@@ -214,7 +217,6 @@ so that they capture nothing.
 
 ## Open questions
 
-- Whether authors may write ∃, or only tools.
 - How an instance's control state (the state of its local diagram) is a
   term, and whether a clause may read another instance's control state:
   encoding control as data preserves the expanded graph as long as only
