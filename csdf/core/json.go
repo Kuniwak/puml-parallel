@@ -1,0 +1,62 @@
+package core
+
+import "github.com/Kuniwak/puml-parallel/csdf/clause"
+
+// FormulaJSON is f as a list of its conjuncts in JSON: an atom in the shape
+// a glue receives it (clause.AtomWire) with the terms its arguments stand
+// for, a builtin by its op, and ∃ by its hint and body. It is never nil; an
+// atom that is not well formed is an error.
+func FormulaJSON(f clause.And) ([]any, error) {
+	out := []any{}
+	for _, c := range clause.Normalize(f).Conjuncts {
+		switch c := c.(type) {
+		case clause.Atom:
+			w, terms, err := clause.Wire(c)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, map[string]any{"atom": w, "args": termsJSON(terms)})
+		case clause.Builtin:
+			b := map[string]any{"builtin": string(c.Op), "args": termsJSON(c.Args)}
+			if c.State != "" {
+				b["state"] = c.State
+			}
+			out = append(out, b)
+		case clause.Exists:
+			body, err := FormulaJSON(c.Body)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, map[string]any{"exists": c.Hint, "body": body})
+		}
+	}
+	return out, nil
+}
+
+func termsJSON(ts []clause.Term) []any {
+	out := make([]any, len(ts))
+	for i, t := range ts {
+		out[i] = termJSON(t)
+	}
+	return out
+}
+
+func termJSON(t clause.Term) any {
+	switch t := t.(type) {
+	case clause.Free:
+		j := map[string]any{"free": t.Name}
+		if t.Primed {
+			j["primed"] = true
+		}
+		return j
+	case clause.Bound:
+		return map[string]any{"bound": t.Index}
+	case clause.Index:
+		return map[string]any{"index": map[string]any{"map": termJSON(t.Map), "key": termJSON(t.Key)}}
+	case clause.Field:
+		return map[string]any{"field": map[string]any{"of": termJSON(t.Of), "name": t.Name}}
+	case clause.App:
+		return map[string]any{"app": map[string]any{"fn": t.Fn, "args": termsJSON(t.Args)}}
+	}
+	return nil
+}
