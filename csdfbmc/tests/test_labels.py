@@ -101,60 +101,30 @@ class LabelsTest(unittest.TestCase):
 from csdfbmc.tests.test_promoted import relabel  # noqa: E402
 
 
-class FormalExpansionTest(unittest.TestCase):
+class SymmetryThroughAGlueTest(unittest.TestCase):
+    """Symmetry asks the glue of each clause whether it tells the IDs apart."""
+
     def setUp(self):
-        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        self.prose = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run()
-        self.diagram = fixture.diagram(relabel(EXPANSION))
-        self.twins = Twins(domains=GLOBAL_TWINS.domains, clauses={})
-
-    def test_a_formal_expansion_needs_no_twins_and_finds_the_same(self):
-        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
-        self.assertEqual(set(self.prose.states), set(result.states))
-        self.assertEqual(self.prose.deadlocks, result.deadlocks)
-
-    def test_partial_order_reduction_reads_what_the_glue_says_a_clause_reads(self):
-        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        prose = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS, por=True).run()
-        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all(), por=True).run()
-        self.assertEqual(set(prose.states), set(result.states))
-        self.assertEqual(prose.deadlocks, result.deadlocks)
-
-    def test_symmetry_asks_the_glue_whether_a_clause_tells_the_ids_apart(self):
-        # Setup
-        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        symmetric = dict(symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
-        prose = Explorer.of_twins(fixture.diagram(EXPANSION), Twins(domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, locals=GLOBAL_TWINS.locals, **symmetric), symmetry=True).run()
-        twins = Twins(domains=self.twins.domains, clauses={}, **symmetric)
-
-        # Execute
-        result = Explorer(self.diagram, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True).run()
-
-        # Assert
-        self.assertEqual(len(prose.states), len(result.states))
-        self.assertEqual(prose.deadlocks, result.deadlocks)
+        from csdfbmc.tests.test_promoted import GLOBAL_CHECKS
+        self.checks = Twins(domains=GLOBAL_CHECKS.domains, clauses={}, symmetric=("口座ID",), sources=[("checks.py", "DOMAINS = {}")])
 
     def test_symmetry_is_refused_with_a_glue_that_does_not_answer_it(self):
         # Setup
-        twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
+        from csdfbmc.tests.test_promoted import GLUE_EXPANSION
         silent = NotAnswering(python_glue())
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, "does not answer"):
-            Explorer(self.diagram, twins, meaning=glue(silent), cone=Cone.keep_all(), symmetry=True)
+            Explorer(fixture.diagram(GLUE_EXPANSION), self.checks, meaning=glue(silent), cone=Cone.keep_all(), symmetry=True)
 
     def test_symmetry_refuses_a_clause_the_glue_says_tells_the_ids_apart(self):
         # Setup
-        from csdfbmc.tests.test_promoted import EXPANSION
-        twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
-        # A constrain written in the glue's language, with no formal twin.
-        named = json.loads(json.dumps(relabel(EXPANSION), ensure_ascii=False).replace(
-            '"formal": "accounts[口座ID].残高 + 額 <= 3", ', "").replace("accounts[口座ID].残高 + 額 <= 3", "口座ID != 'a1'"))
-        d = fixture.diagram(named)
+        from csdfbmc.tests.test_reduce import with_constrain
+        d = fixture.diagram(with_constrain("口座ID != 'a1'"))
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, "tells the IDs apart"):
-            Explorer(d, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
+            Explorer(d, self.checks, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
 
 
 class Counting:

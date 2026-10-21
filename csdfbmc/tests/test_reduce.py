@@ -6,32 +6,14 @@ from csdfbmc.tests import fixture
 from csdfbmc.model import Diagram
 from csdfbmc.twins import Twins
 from csdfbmc.explore import Explorer
-from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_CHECKS, GLOBAL_TWINS, GLUE_EXPANSION
+from csdfbmc.tests.test_promoted import GLOBAL_CHECKS, GLUE_EXPANSION
 
-# The twins of GLOBAL_TWINS as a module would spell them, for the symmetry
-# check, which reads the source.
-GLOBAL_SOURCE = '''
+# The checks module as a module would spell it, for the symmetry check,
+# which reads the source of the checks (ghosts and invariants) itself.
+CHECKS_SOURCE = '''
 DOMAINS = {"口座ID": ["a1", "a2"], "額": [0, 1, 2]}
-CLAUSES = {"accounts は空": lambda: [{"accounts": FrozenMap()}]}
 SYMMETRIC = ["口座ID"]
 '''
-LOCAL_SOURCE = '''
-CLAUSES = {
-    "残高' = 額": lambda 額: [{"残高": 額}],
-    "0 < 額": lambda 額: 0 < 額,
-    "残高' = 残高 + 額": lambda 残高, 額: [{"残高": 残高 + 額}],
-    "残高 = 0": lambda 残高: 残高 == 0,
-}
-'''
-
-
-def twins(*, invariants=None, global_source=GLOBAL_SOURCE, symmetric=("口座ID",)) -> Twins:
-    local = GLOBAL_TWINS.locals["local/ACCOUNT.puml"]
-    return Twins(
-        domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, invariants=invariants or {},
-        locals={"local/ACCOUNT.puml": Twins(domains={}, clauses=local.clauses, sources=[("local.py", LOCAL_SOURCE)])},
-        symmetric=tuple(symmetric), sources=[("global.py", global_source)],
-    )
 
 
 def without_close(expansion):
@@ -45,105 +27,97 @@ def without_close(expansion):
 WITHOUT_CLOSE = without_close(GLUE_EXPANSION)
 
 
-def walk(expansion=GLUE_EXPANSION, *, invariants=None, **kw):
+def walk(expansion=GLUE_EXPANSION, *, invariants=None, symmetric=(), domains=None, **kw):
     """The expansion walked through the reference Python glue."""
-    checks = Twins(domains=GLOBAL_CHECKS.domains, clauses={}, invariants=invariants or {})
-    return fixture.explorer(expansion, checks, **kw).run()
+    checks = Twins(domains=domains or GLOBAL_CHECKS.domains, clauses={}, invariants=invariants or {},
+                   symmetric=tuple(symmetric), sources=[("checks.py", CHECKS_SOURCE)])
+    return fixture.explorer(expansion, checks, **kw)
 
 
-def walk_twins(expansion=EXPANSION, **kw):
-    """The prose expansion walked through its twins, which symmetry reads."""
-    return Explorer.of_twins(fixture.diagram(expansion), twins(**{k: kw.pop(k) for k in ("invariants", "global_source") if k in kw}), **kw).run()
+def with_constrain(text: str) -> dict:
+    """GLUE_EXPANSION with a constrain of text on OPEN."""
+    exp = {**GLUE_EXPANSION, "edges": [dict(e) for e in GLUE_EXPANSION["edges"]]}
+    exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "form": "text", "text": text, "line": 30}]
+    return exp
 
 
 class PartialOrderTest(unittest.TestCase):
     def test_walks_fewer_states_and_finds_the_same_deadlocks(self):
-        # Through twins: the constrain's formal twin reads accounts only as
-        # accounts[口座ID] (names_beyond), which a glue cannot say, so through
-        # a glue the constrain ties the instances and nothing is reduced.
-        full, reduced = walk_twins(without_close(EXPANSION)), walk_twins(without_close(EXPANSION), por=True)
+        # The constrain reads accounts only as accounts[口座ID], which the
+        # glue says when asked beyond, so the instances move independently.
+        full, reduced = walk(WITHOUT_CLOSE).run(), walk(WITHOUT_CLOSE, por=True).run()
         self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))
         for s in reduced.deadlocks:
             self.assertEqual(full.trace_to(s) != [], reduced.trace_to(s) != [])
 
-    def test_through_a_glue_it_reads_what_the_glue_says_a_clause_reads_beyond_its_instance(self):
-        # Setup: the constrain reads accounts only at its own ID, which the
-        # glue says when asked beyond; a glue that does not answer it leaves
-        # the constrain reading every instance.
+    def test_a_glue_that_does_not_answer_beyond_ties_the_instances(self):
+        # Setup
         from csdfbmc.cone import Cone
-        from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue, relabel
-        d = fixture.diagram(relabel(WITHOUT_CLOSE))
-        checks = Twins(domains=GLOBAL_TWINS.domains, clauses={})
-        silent = NotAnswering(python_glue())
+        from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue
+        d = fixture.diagram(WITHOUT_CLOSE)
+        checks = Twins(domains=GLOBAL_CHECKS.domains, clauses={})
 
         # Execute
-        full = Explorer(d, checks, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
-        reduced = Explorer(d, checks, meaning=glue(python_glue()), cone=Cone.keep_all(), por=True).run()
-        unasked = Explorer(d, checks, meaning=glue(silent), cone=Cone.keep_all(), por=True).run()
+        full = walk(WITHOUT_CLOSE).run()
+        unasked = Explorer(d, checks, meaning=glue(NotAnswering(python_glue())), cone=Cone.keep_all(), por=True).run()
 
         # Assert
-        self.assertEqual(len(walk(WITHOUT_CLOSE, por=True).states), len(reduced.states))
-        self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(len(full.states), len(unasked.states))
-        self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))
 
     def test_a_constrain_that_reads_the_whole_map_ties_the_instances(self):
-        # len(accounts) < 2 on OPEN: opening a1 can disable opening a2, so
+        # len(accounts) < 1 on OPEN: opening a1 can disable opening a2, so
         # the instances are not independent.
-        exp = {**WITHOUT_CLOSE, "edges": [dict(e) for e in WITHOUT_CLOSE["edges"]]}
-        exp["edges"][0]["guard"] = exp["edges"][0]["guard"] + [{"kind": "constrain", "form": "text", "text": "len(accounts) < 1", "line": 30}]
-        self.assertEqual(len(walk(exp).states), len(walk(exp, por=True).states))
+        exp = without_close(with_constrain("len(accounts) < 1"))
+        self.assertEqual(len(walk(exp).run().states), len(walk(exp, por=True).run().states))
 
     def test_an_invariant_that_reads_the_map_keeps_its_moves_visible(self):
         inv = {"残高は上限以下": lambda accounts: all(r.残高 <= 3 for r in accounts.values() if "残高" in r)}
-        self.assertEqual(len(walk(WITHOUT_CLOSE, invariants=inv).states), len(walk(WITHOUT_CLOSE, invariants=inv, por=True).states))
+        self.assertEqual(len(walk(WITHOUT_CLOSE, invariants=inv).run().states), len(walk(WITHOUT_CLOSE, invariants=inv, por=True).run().states))
 
     def test_an_avoided_event_is_never_reduced_away(self):
-        full, reduced = walk(avoid="DEPOSIT"), walk(avoid="DEPOSIT", por=True)
+        full, reduced = walk(avoid="DEPOSIT").run(), walk(avoid="DEPOSIT", por=True).run()
         self.assertTrue(full.avoiding_cycles)
         self.assertEqual(bool(full.avoiding_cycles), bool(reduced.avoiding_cycles))
 
 
 class SymmetryTest(unittest.TestCase):
-    """Symmetry reads the twins' source to check SYMMETRIC, which a glue's
-    clauses are not."""
+    """Symmetry asks the glue whether a clause tells the IDs apart, and reads
+    the checks module's source for the ghosts and invariants."""
+
     def test_states_that_differ_by_a_renaming_of_the_ids_are_one(self):
-        full, reduced = walk_twins(), walk_twins(symmetry=True)
+        full, reduced = walk().run(), walk(symmetric=("口座ID",), symmetry=True).run()
         self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(len(full.deadlocks), len(reduced.deadlocks))
 
     def test_the_trace_is_a_run_of_the_diagram(self):
-        reduced = walk_twins(symmetry=True)
-        full = walk_twins()
+        reduced = walk(symmetric=("口座ID",), symmetry=True).run()
+        explorer = walk()
+        full = explorer.run()
         for s in reduced.states:
             self.assertIn(s, full.parents)
             if reduced.parents[s] is not None:
                 prev, label, _ = reduced.parents[s]
-                self.assertIn(s, [t for _, l, t, _ in Explorer.of_twins(fixture.diagram(EXPANSION), twins()).successors(prev) if l == label])
+                self.assertIn(s, [t for _, l, t, _ in explorer.successors(prev) if l == label])
 
-    def test_a_twin_that_compares_an_id_with_a_constant_is_refused(self):
-        source = GLOBAL_SOURCE + 'CLAUSES["特別"] = lambda 口座ID: 口座ID == "a1"\n'
+    def test_a_clause_that_compares_an_id_with_a_constant_is_refused(self):
         with self.assertRaisesRegex(ValueError, "a1"):
-            walk_twins(global_source=source, symmetry=True)
+            walk(with_constrain("口座ID == 'a1'"), symmetric=("口座ID",), symmetry=True)
 
-    def test_a_twin_that_orders_ids_is_refused(self):
-        source = GLOBAL_SOURCE + 'CLAUSES["先"] = lambda 口座ID, 相手ID: 口座ID < 相手ID\n'
+    def test_a_clause_that_orders_ids_is_refused(self):
         with self.assertRaisesRegex(ValueError, "口座ID"):
-            walk_twins(global_source=source, symmetry=True)
+            walk(with_constrain("all(口座ID < j for j in accounts)"), symmetric=("口座ID",), symmetry=True)
 
     def test_a_domain_naming_some_ids_only_is_refused(self):
-        tw = twins()
-        tw.domains = dict(tw.domains, 相手ID=["a1"])
         with self.assertRaisesRegex(ValueError, "相手ID"):
-            Explorer.of_twins(fixture.diagram(EXPANSION), tw, symmetry=True)
+            walk(symmetric=("口座ID",), domains=dict(GLOBAL_CHECKS.domains, 相手ID=["a1"]), symmetry=True)
 
     def test_symmetry_without_a_declaration_is_refused(self):
         with self.assertRaisesRegex(ValueError, "SYMMETRIC"):
-            Explorer.of_twins(fixture.diagram(EXPANSION), twins(symmetric=()), symmetry=True)
+            walk(symmetry=True)
 
     def test_both_reductions_together_find_the_same_deadlocks(self):
-        full, reduced = walk_twins(without_close(EXPANSION)), walk_twins(without_close(EXPANSION), por=True, symmetry=True)
+        full, reduced = walk(WITHOUT_CLOSE).run(), walk(WITHOUT_CLOSE, symmetric=("口座ID",), por=True, symmetry=True).run()
         self.assertLess(len(reduced.states), len(full.states))
         self.assertEqual(len(full.deadlocks), len(reduced.deadlocks))
 
