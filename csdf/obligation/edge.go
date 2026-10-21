@@ -50,10 +50,41 @@ func Enabled(d core.Diagram, e core.Edge) (logic.Formula, error) {
 	return logic.Simplify(logic.Exists(chosen, step)), nil
 }
 
+// declared checks that e names states of d and reads only what it binds: a
+// guard the values of its source state and the fields of its event, never a
+// value after the step; a post those, and the values after the step its
+// destination holds. A received field named like a state variable would be
+// bound over it, and is refused.
 func declared(d core.Diagram, e core.Edge) error {
 	for _, s := range []string{e.Src, e.Dst} {
 		if !slices.Contains(d.States, s) {
 			return fmt.Errorf("no state %s, which the edge %s -> %s names", s, e.Src, e.Dst)
+		}
+	}
+	before := map[string]bool{}
+	for _, v := range d.Vars[e.Src] {
+		before[v] = true
+	}
+	for _, f := range e.Event.Fields {
+		if !f.Send && (slices.Contains(d.Vars[e.Src], f.Name) || slices.Contains(d.Vars[e.Dst], f.Name)) {
+			return fmt.Errorf("the edge %s -> %s receives %s, which names a state variable", e.Src, e.Dst, f.Name)
+		}
+		before[f.Name] = true
+	}
+	for _, v := range clause.FreeVars(e.Guard) {
+		if v.Primed {
+			return fmt.Errorf("the guard of %s -> %s reads %s', a value after the step", e.Src, e.Dst, v.Name)
+		}
+		if !before[v.Name] {
+			return fmt.Errorf("the guard of %s -> %s reads %s, which neither %s holds nor the event gives", e.Src, e.Dst, v.Name, e.Src)
+		}
+	}
+	for _, v := range clause.FreeVars(e.Post) {
+		if v.Primed && !slices.Contains(d.Vars[e.Dst], v.Name) {
+			return fmt.Errorf("the post of %s -> %s gives %s', which %s does not hold", e.Src, e.Dst, v.Name, e.Dst)
+		}
+		if !v.Primed && !before[v.Name] {
+			return fmt.Errorf("the post of %s -> %s reads %s, which neither %s holds nor the event gives", e.Src, e.Dst, v.Name, e.Src)
 		}
 	}
 	return nil
