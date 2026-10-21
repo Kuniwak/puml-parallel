@@ -394,7 +394,7 @@ names cut to `…`):
 
 | state | name | insert?coin | showAvailable!… | showPurchasable?… | choose?product | drop?product |
 |---|---|---|---|---|---|---|
-| vmIdle | vmIdle | ["coins' is {coin}, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | ["availableProducts' remains the same"(c, x, x')] → vmIdle | × | × | × |
+| vmIdle | vmIdle | ["coins' is {coin}, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | ["availableProducts' remains the same"(x, x')] → vmIdle | × | × | × |
 | vmCoinsInserted | vmCoinsInserted | × | × | ["availableProducts' and coins' remain the same"(c, x, x')] → vmWaitingChoosing | × | × |
 | vmWaitingChoosing | vmWaitingChoosing | ["coins' is coins with coin added, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | × | × | ["availableProducts contains product"(c, x) and "product' is product"(c, x, x')] → vmDropping<br>[not "availableProducts contains product"(c, x)] × | × |
 | vmDropping | vmDropping | × | × | × | × | ["availableProducts' is availableProducts minus product"(c, x, x')] → vmIdle |
@@ -424,7 +424,7 @@ an end edge has no event and reads the values only. The variables are
 | variable | stands for |
 |---|---|
 | `x` | the values of the row's state |
-| `c` | the parameters of the column's event, as the environment offers them |
+| `c` | the fields the column's event receives, as the environment offers them; an event that receives nothing has none |
 | `x'` | the values of the state an accepted event leads to |
 | `ci` | the parameters of the event of the `i`-th `tau` step |
 | `xi` | the values after the `i`-th `tau` step |
@@ -442,7 +442,7 @@ order, binding with `exists` the values in between and the parameters of the
 hidden events, which the diagram chooses. A refusal happens where the diagram
 is stable and cannot perform the event: no `tau` edge is enabled, and no edge
 for the event is. With `A --> B : tau ; h1 ; p1`, `B --> C : tau ; h2 ; p2`
-and `C --> D : a ; g ; q`, the cell of `A` under `a` is
+and `C --> D : a?v ; g ; q`, the cell of `A` under `a?v` is
 
 ```
 [not exists c1. "h1"(c1, x)] ×

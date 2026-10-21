@@ -100,8 +100,8 @@ s0 --> s1 : a ; g
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						goTo(q("g", c, x), "s1"),
-						refuse(not(q("g", c, x))),
+						goTo(q("g", x), "s1"),
+						refuse(not(q("g", x))),
 					}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 				},
@@ -121,9 +121,9 @@ s0 --> s2 : a ; g2
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						goTo(q("g1", c, x), "s1"),
-						goTo(q("g2", c, x), "s2"),
-						refuse(and(not(q("g1", c, x)), not(q("g2", c, x)))),
+						goTo(q("g1", x), "s1"),
+						goTo(q("g2", x), "s2"),
+						refuse(and(not(q("g1", x)), not(q("g2", x)))),
 					}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 					{State: "s2", Name: "S2", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
@@ -144,7 +144,7 @@ s0 --> s2 : a
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{
-						goTo(q("g", c, x), "s1"),
+						goTo(q("g", x), "s1"),
 						goTo(logic.True, "s2"),
 					}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
@@ -163,7 +163,7 @@ s0 --> s1 : a ; ; p
 			Want: &transtable.Table{
 				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
 				Rows: []transtable.Row{
-					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{goTo(q("p", c, x, xn), "s1")}}},
+					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{goTo(q("p", x, xn), "s1")}}},
 					{State: "s1", Name: "S1", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
 				},
 			},
@@ -326,8 +326,8 @@ C --> D : a ; g
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h1", c1, x)))),
 				refuse(ex(vs(c1, x1), and(q("h1", c1, x), not(ex(vs(c2), q("h2", c2, x1)))))),
-				goTo(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), q("g", c, x2))), "D"),
-				refuse(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), not(q("g", c, x2))))),
+				goTo(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), q("g", x2))), "D"),
+				refuse(ex(vs(c1, x1, c2, x2), and(q("h1", c1, x), q("h2", c2, x1), not(q("g", x2))))),
 			},
 		},
 		"a postcondition along a tau path is applied to the values before and after its step": {
@@ -343,8 +343,8 @@ B --> C : a ; g ; y' = x
 			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h", c1, x)))),
-				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1), q("y' = x", c, x1, xn))), "C"),
-				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", c, x1))))),
+				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", x1), q("y' = x", x1, xn))), "C"),
+				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", x1))))),
 			},
 		},
 		// A true postcondition leaves the values after it free, so a later
@@ -362,7 +362,7 @@ C --> A : b
 `,
 			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
-				goTo(ex(vs(x1), q("y' = 0", c, x1, xn)), "C"),
+				goTo(ex(vs(x1), q("y' = 0", x1, xn)), "C"),
 			},
 		},
 		// Hiding interleaved events makes tau diamonds, and a walk that took
@@ -423,8 +423,8 @@ A --> C : tau ; h
 `,
 			Conditions: transtable.ConditionsFull,
 			Want: []transtable.Outcome{
-				goTo(q("g", c, x), "B"),
-				refuse(and(not(ex(vs(c1), q("h", c1, x))), not(q("g", c, x)))),
+				goTo(q("g", x), "B"),
+				refuse(and(not(ex(vs(c1), q("h", c1, x))), not(q("g", x)))),
 				refuse(ex(vs(c1), q("h", c1, x))),
 			},
 		},
@@ -548,8 +548,8 @@ A --> B : a ; g ; y' = x
 `,
 			Conditions: transtable.ConditionsEnabling,
 			Want: []transtable.Outcome{
-				goTo(q("g", c, x), "B"),
-				refuse(not(q("g", c, x))),
+				goTo(q("g", x), "B"),
+				refuse(not(q("g", x))),
 			},
 		},
 		"a postcondition along a tau path whose values a later guard reads stays": {
@@ -565,8 +565,8 @@ B --> C : a ; g ; y' = x
 			Conditions: transtable.ConditionsEnabling,
 			Want: []transtable.Outcome{
 				refuse(not(ex(vs(c1), q("h", c1, x)))),
-				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", c, x1))), "C"),
-				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", c, x1))))),
+				goTo(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), q("g", x1))), "C"),
+				refuse(ex(vs(c1, x1), and(q("h", c1, x), q("x' = x + 1", c1, x, x1), not(q("g", x1))))),
 			},
 		},
 		// Nothing after the first step reads its values but the second
@@ -606,8 +606,8 @@ B --> C : a ; g ; q
 `,
 			Conditions: transtable.ConditionsEnabling,
 			Want: []transtable.Outcome{
-				goTo(ex(vs(c1, x1), and(q("p", c1, x, x1), q("g", c, x1))), "C"),
-				refuse(ex(vs(c1, x1), and(q("p", c1, x, x1), not(q("g", c, x1))))),
+				goTo(ex(vs(c1, x1), and(q("p", c1, x, x1), q("g", x1))), "C"),
+				refuse(ex(vs(c1, x1), and(q("p", c1, x, x1), not(q("g", x1))))),
 			},
 		},
 		// An end edge has no postcondition, so there is nothing to leave out.
@@ -775,6 +775,35 @@ func TestBuildRefusesConditionsItDoesNotKnow(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "unknown conditions") {
 				t.Errorf("want %q in the message, got %q", "unknown conditions", err.Error())
+			}
+		})
+	}
+}
+
+func TestBuildAppliesAPredicateToParametersOnlyWhereItsEventReceivesSome(t *testing.T) {
+	tests := map[string]struct {
+		event string
+		want  logic.Formula
+	}{
+		"a received field":  {event: "a?v", want: q("g", c, x)},
+		"a sent field only": {event: "a!n", want: q("g", x)},
+		"no field":          {event: "a", want: q("g", x)},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			d := csdf.MustParse("@startuml\nstate \"S0\" as s0\ns0: n\nstate \"S1\" as s1\n[*] --> s0\ns0 --> s1 : " + tt.event + " ; g\n@enduml\n")
+
+			// Execute
+			table, err := transtable.Build(d, transtable.ConditionsFull)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := table.Rows[0].Cells[0][0].Cond
+			if !logic.Equal(tt.want, got) {
+				t.Errorf("condition = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -200,33 +200,47 @@ a --> c : x ; g
 // path, since it occurs only in the premise, and existentially for the next
 // event, which a trace names without a value. A sent value is the state's.
 func TestWriteMarkdownBindsTheParametersOfEachStep(t *testing.T) {
-	// Arrange
-	d := csdf.MustParse(`@startuml
-state "a" as a
-a: n
-state "b" as b
-b: n
-[*] --> a
-a --> b : insert?coin ; coin > 0 ; n' = coin
-b --> a : report!n
-@enduml
-`)
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: []csdf.Event{"insert?coin", "report!n"}})
-	var sb strings.Builder
-
-	// Act
-	err := tracechk.WriteMarkdown(&sb, d, result)
-
-	// Assert
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
+	tests := map[string]struct {
+		diagram string
+		trace   []csdf.Event
+		want    []string
+	}{
+		"a received field": {
+			diagram: "[*] --> a\na --> b : insert?coin ; coin > 0 ; n' = coin\nb --> a : report!n\n",
+			trace:   []csdf.Event{"insert?coin", "report!n"},
+			want: []string{
+				"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0) ∧ ∃ x'. post_L7(c, x0, x')\n",
+				"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) ∧ post_1(c1, x0, x1) → true\n",
+			},
+		},
+		"a received and a sent field, then a bare tau out": {
+			diagram: "[*] --> a\na --> b : e?v!n ; v > n\nb --> b : tau\nb --> a : f\n",
+			trace:   []csdf.Event{"e?v!n", "f"},
+			want: []string{
+				"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0)\n",
+				"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) → true ∨ true\n",
+			},
+		},
 	}
-	for _, want := range []string{
-		"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0) ∧ ∃ x'. post_L7(c, x0, x')\n",
-		"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) ∧ post_1(c1, x0, x1) → true\n",
-	} {
-		if !strings.Contains(sb.String(), want) {
-			t.Errorf("want %q in the report, got\n%s", want, sb.String())
-		}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			d := csdf.MustParse("@startuml\nstate \"a\" as a\na: n\nstate \"b\" as b\nb: n\n" + tt.diagram + "@enduml\n")
+			result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: tt.trace})
+			var sb strings.Builder
+
+			// Act
+			err := tracechk.WriteMarkdown(&sb, d, result)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(sb.String(), want) {
+					t.Errorf("want %q in the report, got\n%s", want, sb.String())
+				}
+			}
+		})
 	}
 }

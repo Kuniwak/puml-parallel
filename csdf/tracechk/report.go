@@ -163,6 +163,9 @@ func enabled(e csdf.Edge, n int) logic.Formula {
 	if !csdf.IsTrue(e.Post) {
 		parts = append(parts, logic.Exists([]logic.Var{"x'"}, atom(fmt.Sprintf("post_L%d", e.Line), params, valuation(n), "x'")))
 	}
+	if len(parts) == 0 {
+		return logic.True // nothing to say of the values, so none is bound
+	}
 	return logic.Exists(params, logic.And(parts...))
 }
 
