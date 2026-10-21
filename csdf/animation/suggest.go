@@ -49,7 +49,7 @@ func (s *Session) Suggest(sg Suggester) ([]Suggestion, error) {
 // user can enter "#N" instead of the values.
 func RenderSuggestions(w io.Writer, suggestions []Suggestion) {
 	if len(suggestions) == 0 {
-		_, _ = fmt.Fprintln(w, "Suggested by csdfbmc: nothing; no values satisfy this transition under the twins.")
+		_, _ = fmt.Fprintln(w, "Suggested by csdfbmc: nothing; no values satisfy this transition.")
 		_, _ = fmt.Fprintln(w)
 		return
 	}

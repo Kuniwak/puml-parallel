@@ -96,7 +96,7 @@ func Registry() []toolsdoc.Entry {
 		},
 		{
 			Name:    "csdfbmc",
-			Summary: "Runs the bounded model checker over the formal twins of a diagram's clauses, within finite domains (Python, carried by the binary).",
+			Summary: "Runs the bounded model checker over a diagram whose clauses a glue reads, within finite domains (Python, carried by the binary).",
 			Run:     tools.NewCommandFunc(csdfbmccmd.NewParseOptionsFunc(), csdfbmccmd.NewMainFunc()),
 		},
 		{

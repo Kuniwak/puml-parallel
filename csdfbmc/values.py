@@ -4,7 +4,7 @@ A state is compared and hashed, so every value in it must be hashable. Scalars
 and tuples are; a record or a finite partial function is written as a
 FrozenMap, an immutable mapping that hashes by content. freeze turns the
 containers Python makes by default (dict, list, set) into their hashable forms,
-so a twin may return them as it finds natural.
+so a clause may give them as it finds natural.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Iterable
 
 class FrozenMap(Mapping):
     """An immutable mapping, equal and hashable by content. Fields may also be
-    read as attributes (m.残高), which keeps a twin readable."""
+    read as attributes (m.残高), which keeps a clause readable."""
 
     __slots__ = ("_d", "_hash")
 

@@ -195,14 +195,10 @@ where a condition on another map goes; the local diagram cannot see one.
 Hand-written edges are left alone: they already say everything they were meant
 to.
 
-A constrain's note may carry the guard's *formal twin* on its next line,
-`formal: <expression>`: the same condition in a language a program can
-evaluate, where the guard itself is natural language. The expansion keeps the
-twin with the clause it stands for (`formal` on the constrain clause in
-`-format json`); the text of the expansion is unchanged. A `formal:` line
-under anything but a constrain, a second one, or an empty one is refused. A
-local clause's twin is not written here: it lives next to the clause in the
-local diagram and is looked up by the clause's text.
+A constrain's guard is written like any other clause: in natural language,
+or in the language of a `csdfbmc` glue when the diagram is to be checked. A
+`formal:` line under a constrain, which an earlier `csdfpromote` carried, is
+refused with that advice.
 
 A constrain reaches **every** matching generated edge, in every state. The block
 its note points at is a drawing: it tells a reader which family the condition is
@@ -298,15 +294,13 @@ type — and leaves out the others:
   taken as true and listed: as a warning, and in `-format json` as a clause
   of kind `dropped`, outside the predicate, with the `maps` it read. A
   generated clause about a left-out map and a local clause of a left-out
-  family read it by construction; a `constrain` clause reads what its
-  `formal:` twin names. A constrain with no twin cannot be told apart, so it
-  is kept, with a warning saying so. The post clauses and frames of a
-  left-out map go with the map.
+  family read it by construction. A `constrain` clause is written in a
+  language no tool here reads, so whether it reads a left-out map cannot be
+  told: it is kept, with a warning saying so. The post clauses and frames of
+  a left-out map go with the map.
 - Hand-written edges are kept as they were written. Their predicates are
   opaque text, so one on a state that held a left-out map is reported as a
   warning: it may still name the map.
-- What a `formal:` twin reads is the names it spells. A twin that reaches a
-  map through a helper defeats that, and the clause is kept.
 
 With every listed clause taken as true, each run of the full expansion
 projects onto a run of the restricted one. So a broken invariant and an

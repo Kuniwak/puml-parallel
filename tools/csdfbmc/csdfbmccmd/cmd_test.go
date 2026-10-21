@@ -40,7 +40,8 @@ func TestEverythingAfterTheLaunchersOptionsGoesToTheChecker(t *testing.T) {
 	needPython(t)
 	cache := t.TempDir()
 	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": cache},
-		"../../../examples/bmc/withdraw.json", "../../../examples/bmc/withdraw_twins.py", "--json")
+		"../../../examples/bmc/withdraw_formal.json", "../../../examples/bmc/withdraw_formal_defs.py",
+		"--evaluator-module", "csdfbmc.python_glue ../../../examples/bmc/withdraw_formal_defs.py", "--json")
 	if status != 1 {
 		t.Fatalf("status = %d, want 1 (a deadlock found)\nstderr: %s", status, spy.Stderr.String())
 	}
@@ -54,7 +55,7 @@ func TestEverythingAfterTheLaunchersOptionsGoesToTheChecker(t *testing.T) {
 
 func TestTheCheckersUsageErrorIsItsExitStatus(t *testing.T) {
 	needPython(t)
-	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()}, "no-such-diagram.json", "no-such-twins.py")
+	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()}, "no-such-diagram.json", "no-such-checks.py")
 	if status != 2 || !strings.Contains(spy.Stderr.String(), "csdfbmc:") {
 		t.Errorf("status = %d, stderr %q; want 2 and the checker's own message", status, spy.Stderr.String())
 	}
@@ -70,7 +71,8 @@ func TestAMissingInterpreterIsReported(t *testing.T) {
 func TestNextRunsTheValuePromptModule(t *testing.T) {
 	needPython(t)
 	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()},
-		"next", "../../../examples/bmc/withdraw.json", "../../../examples/bmc/withdraw_twins.py", "--initial")
+		"next", "../../../examples/bmc/withdraw_formal.json", "../../../examples/bmc/withdraw_formal_defs.py",
+		"--evaluator-module", "csdfbmc.python_glue ../../../examples/bmc/withdraw_formal_defs.py", "--initial")
 	if status != 0 {
 		t.Fatalf("status = %d, stderr %s", status, spy.Stderr.String())
 	}

@@ -4,9 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -17,18 +17,11 @@ type Options struct {
 	// prompt, and Finding which of its findings; empty when none.
 	Replay  string
 	Finding int
-	// Twins is the csdfbmc twins module that lets the value prompt suggest
-	// values; Locals the per-family twins of an expansion (PATH=TWINS.py),
-	// and DiagramJSON the JSON csdfbmc reads when the file is an expansion.
-	Twins       string
-	Locals      []string
+	// Checker is what csdfbmc reads to let the value prompt suggest values,
+	// and DiagramJSON the JSON it reads when the file is an expansion.
+	Checker     bmc.Checker
 	DiagramJSON string
 }
-
-type repeated []string
-
-func (r *repeated) String() string     { return strings.Join(*r, ",") }
-func (r *repeated) Set(v string) error { *r = append(*r, v); return nil }
 
 // CommonOptions returns the parsed common options.
 func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
@@ -49,11 +42,12 @@ output lists them: deadlocks, tau cycles, broken invariants, avoiding cycles,
 empty posts, unconstrained posts), and the prompt opens at the state the
 finding is at, with the path in the history.
 
-With -twins, every value prompt also shows the values the csdfbmc twins admit
-for the pending transition, numbered, and "#N" enters the N-th; csdfbmc must
-be on the PATH or beside this binary. -local gives the twins of each family
-of an expansion, and -diagram-json the expansion JSON (csdfpromote -format
-json) the checker reads instead of the file's own parse.
+With -checks and a glue (-evaluator or -evaluator-module), every value prompt
+also shows the values the clauses admit for the pending transition, as
+csdfbmc reads them through the glue, numbered, and "#N" enters the N-th;
+csdfbmc must be on the PATH or beside this binary. -diagram-json names the
+expansion JSON (csdfpromote -format json) the checker reads instead of the
+file's own parse.
 
 Options:
 `)
@@ -61,9 +55,10 @@ Options:
 			fmt.Fprintf(w, `
 Examples:
   $ csdfrepl examples/valid/vending_machine.puml
-  $ csdfbmc diagram.json twins.py --json > findings.json
+  $ csdfbmc diagram.json checks.py --evaluator-module csdfbmc.python_glue --json > findings.json
   $ csdfrepl -replay findings.json -finding 0 diagram.puml
-  $ csdfrepl -twins examples/bmc/withdraw_twins.py examples/bmc/withdraw.puml
+  $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
+      -evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" examples/bmc/withdraw_formal.puml
 `)
 		}
 
@@ -71,10 +66,9 @@ Examples:
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
 		replay := flags.String("replay", "", "csdfbmc --json output whose finding to walk before the first prompt")
 		finding := flags.Int("finding", 0, "with -replay, which finding to walk, numbered from 0")
-		twins := flags.String("twins", "", "csdfbmc twins module; the value prompt then suggests the values it admits")
-		var locals repeated
-		flags.Var(&locals, "local", "with -twins, the twins of a family's local diagram as PATH=TWINS.py (repeatable)")
-		diagramJSON := flags.String("diagram-json", "", "with -twins, the JSON csdfbmc reads (an expansion); default: the file's own parse")
+		var checker bmc.Checker
+		tools.DeclareCheckerOptions(flags, &checker)
+		diagramJSON := flags.String("diagram-json", "", "with -checks, the JSON csdfbmc reads (an expansion); default: the file's own parse")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -91,11 +85,14 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
+		if err := checker.Validate(); err != nil {
+			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: %w", err)
+		}
 		if flags.NArg() != 1 {
 			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
 		return &Options{Common: commonOpts, File: flags.Arg(0), Replay: *replay, Finding: *finding,
-			Twins: *twins, Locals: []string(locals), DiagramJSON: *diagramJSON}, nil
+			Checker: checker, DiagramJSON: *diagramJSON}, nil
 	}
 }

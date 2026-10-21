@@ -39,3 +39,32 @@ def diagram(d):
     """The Diagram of a diagram written by hand."""
     from csdfbmc.model import Diagram
     return Diagram.from_json(parsed(d))
+
+
+_GLUE = None
+
+
+def glue_meaning():
+    """The meaning the reference Python glue gives clauses, one glue for the
+    whole run (it runs in-process and holds no state between requests but its
+    caches)."""
+    global _GLUE
+    from csdfbmc.meaning import GlueMeaning, standard
+    from csdfbmc.protocol import checked, start_module
+    if _GLUE is None:
+        _GLUE = start_module("csdfbmc.python_glue", [])
+    return standard(GlueMeaning(checked(_GLUE)))
+
+
+def explorer(d, checks=None, **options):
+    """An Explorer walking d, a diagram written by hand (or a Diagram), with
+    its clauses read by the reference Python glue. checks holds the domains,
+    ghosts, invariants and symmetric parameters."""
+    from csdfbmc.cone import Cone
+    from csdfbmc.explore import Explorer
+    from csdfbmc.model import Diagram
+    from csdfbmc.checks import Checks
+    if not isinstance(d, Diagram):
+        d = diagram(d)
+    options.setdefault("cone", Cone.keep_all())
+    return Explorer(d, checks if checks is not None else Checks(domains={}), glue_meaning(), **options)

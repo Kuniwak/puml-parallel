@@ -2,7 +2,6 @@ package promote
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -21,12 +20,11 @@ import (
 // or an event-avoiding cycle over the kept families survives it; a deadlock
 // that a left-out family caused by refusing does not.
 //
-// A constrain clause is known to read a map only through its formal twin. One
-// with no twin stays and is reported once, since nothing says whether it reads
-// a left-out map. Hand-written edges are kept as they were, with a warning
-// when they touch a state that held a left-out map. What a formal twin reads
-// is the names it spells; a twin that reaches a map through a helper defeats
-// that. x is not changed.
+// A constrain clause is written in whatever language a glue reads, and
+// csdfpromote cannot tell which maps a clause reads: it stays, and is reported
+// once.
+// Hand-written edges are kept as they were, with a warning when they touch a
+// state that held a left-out map. x is not changed.
 func Restrict(x *Expansion, keep []string) (*Expansion, []Diagnostic) {
 	r := &restriction{}
 	kept, dropped := r.partition(x.Promotes, keep)
@@ -176,14 +174,12 @@ func (r *restriction) guardClause(c ExpandedClause, dropped map[csdf.Var]bool) E
 	switch {
 	case c.Form == csdf.FormOpaque:
 		return c // It says nothing a tool can read, so there is nothing to drop.
-	case c.Kind == ClauseConstrain && c.Formal == "":
+	case c.Kind == ClauseConstrain:
 		r.once(fmt.Sprintf("unknown\x00%d\x00%s", c.Line, c.Text), Diagnostic{
 			Severity: SeverityWarning, Line: c.Line,
-			Message: fmt.Sprintf("the constrain clause %q has no formal twin, so -only cannot tell whether it reads a map it leaves out; it is kept", c.Text),
+			Message: fmt.Sprintf("-only cannot tell whether the constrain clause %q reads a map it leaves out, since csdfpromote cannot tell which maps a clause reads; it is kept", c.Text),
 		})
 		return c
-	case c.Kind == ClauseConstrain:
-		reads = droppedNames(c.Formal, dropped)
 	case dropped[csdf.Var(c.Map)]:
 		reads = []string{c.Map}
 	}
@@ -203,7 +199,7 @@ func (r *restriction) guardClause(c ExpandedClause, dropped map[csdf.Var]bool) E
 		Severity: SeverityWarning, Line: line,
 		Message: fmt.Sprintf("the guard clause %q reads %s, which -only leaves out; it is taken as true", c.Text, strings.Join(reads, ", ")),
 	})
-	return ExpandedClause{Kind: ClauseDropped, Text: c.Text, Formal: c.Formal, Map: c.Map, ID: c.ID, State: c.State, Path: c.Path, Line: c.Line, Maps: reads}
+	return ExpandedClause{Kind: ClauseDropped, Text: c.Text, Map: c.Map, ID: c.ID, State: c.State, Path: c.Path, Line: c.Line, Maps: reads}
 }
 
 func (r *restriction) once(key string, d Diagnostic) {
@@ -215,24 +211,4 @@ func (r *restriction) once(key string, d Diagnostic) {
 	}
 	r.reported[key] = true
 	r.diags = append(r.diags, d)
-}
-
-// A formal twin is a Python expression, so the names it reads are its
-// identifiers outside its string literals: that is grammar, not a guess at
-// prose.
-var (
-	pyStringRe = regexp.MustCompile(`'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"`)
-	pyIdentRe  = regexp.MustCompile(`[\p{L}_][\p{L}\p{N}_]*`)
-)
-
-// droppedNames returns the left-out maps a formal twin reads, in the order
-// it first reads them.
-func droppedNames(formal string, dropped map[csdf.Var]bool) []string {
-	var out []string
-	for _, name := range pyIdentRe.FindAllString(pyStringRe.ReplaceAllString(formal, `""`), -1) {
-		if dropped[csdf.Var(name)] && !slices.Contains(out, name) {
-			out = append(out, name)
-		}
-	}
-	return out
 }

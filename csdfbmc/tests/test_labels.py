@@ -1,7 +1,8 @@
 """A diagram whose clauses are written in a formal language is walked
 through a glue: the checker asks it what a clause reads and gives a value
-to, and what it evaluates to, and needs no twin keyed by prose."""
+to, and what it evaluates to."""
 import io
+from contextlib import redirect_stderr
 from dataclasses import replace
 import json
 import os
@@ -17,7 +18,7 @@ from csdfbmc.explore import Explorer
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.meaning import GlueMeaning, standard
 from csdfbmc.protocol import Client, EvaluatorError, checked, start_module
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 
 COUNTER = {
     "states": {
@@ -33,7 +34,7 @@ COUNTER = {
     "assumptions": [],
 }
 
-NO_TWINS = Twins(domains={}, clauses={})
+NO_CHECKS = Checks(domains={})
 
 
 def python_glue() -> Client:
@@ -51,28 +52,28 @@ def counter(**edits) -> Diagram:
 
 class LabelsTest(unittest.TestCase):
     def test_the_clauses_are_evaluated_through_the_glue(self):
-        result = Explorer(counter(), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
+        result = Explorer(counter(), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
     def test_the_tool_word_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
         counting = Counting(python_glue())
-        result = Explorer(counter(dec={"guard": "@opaque"}), NO_TWINS, meaning=glue(counting), cone=Cone.keep_all(), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "@opaque"}), NO_CHECKS, meaning=glue(counting), cone=Cone.keep_all(), opaque="true", max_states=10).run()
         self.assertEqual(["@opaque"], result.opaque_clauses)
         self.assertNotIn("@opaque", [r["clause"] for r in counting.requests])
 
     def test_an_opaque_clause_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
-            Explorer(counter(dec={"guard": "@opaque"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
+            Explorer(counter(dec={"guard": "@opaque"}), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
         self.assertIn("@opaque", str(cm.exception))
 
     def test_an_opaque_clause_may_be_taken_as_true(self):
-        result = Explorer(counter(dec={"guard": "@opaque"}), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all(), opaque="true", max_states=10).run()
+        result = Explorer(counter(dec={"guard": "@opaque"}), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all(), opaque="true", max_states=10).run()
         self.assertIn(("a", (-1,), ()), set(result.states))
 
     def test_a_clause_is_evaluated_once_per_value_of_what_it_reads(self):
         counting = Counting(python_glue())
-        Explorer(counter(), NO_TWINS, meaning=glue(counting), cone=Cone.keep_all()).run()
+        Explorer(counter(), NO_CHECKS, meaning=glue(counting), cone=Cone.keep_all()).run()
         guards = [r for r in counting.requests if r["op"] == "guard" and r["clause"] == "n > 0"]
         self.assertEqual(3, sum(len(r["bindings"]) for r in guards))
 
@@ -80,98 +81,45 @@ class LabelsTest(unittest.TestCase):
         diagram = fixture.diagram(dict(COUNTER, edges=[
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6}]))
         counting = Counting(python_glue())
-        result = Explorer(diagram, Twins(domains={"k": [1, 2, 3]}, clauses={}), meaning=glue(counting), cone=Cone.keep_all()).run()
+        result = Explorer(diagram, Checks(domains={"k": [1, 2, 3]}), meaning=glue(counting), cone=Cone.keep_all()).run()
         guards = [r for r in counting.requests if r["op"] == "guard"]
         self.assertEqual(len(result.states), len(guards))
         self.assertEqual([3, 3], [len(r["bindings"]) for r in guards[:2]])
 
-    def test_twins_keyed_by_prose_are_refused_with_a_glue(self):
-        twins = Twins(domains={}, clauses={"n > 0": lambda n: n > 0})
-        with self.assertRaises(ValueError) as cm:
-            Explorer(counter(), twins, meaning=glue(python_glue()), cone=Cone.keep_all())
-        self.assertIn("CLAUSES", str(cm.exception))
-
     def test_an_assignment_must_give_a_value_to_exactly_the_writes(self):
         lying = Lying(python_glue())
         with self.assertRaises(EvaluatorError) as cm:
-            Explorer(counter(), NO_TWINS, meaning=glue(lying), cone=Cone.keep_all()).run()
+            Explorer(counter(), NO_CHECKS, meaning=glue(lying), cone=Cone.keep_all()).run()
         self.assertIn("[{'n': n - 1}]", str(cm.exception))
 
 
-# The expansion of test_promoted with every clause written in Python, as a
-# front end renders the formal labels in place of the prose.
-FORMAL = {
-    "accounts は空": "[{'accounts': FrozenMap()}]",
-    "残高' = 額": "[{'残高': 額}]",
-    "0 < 額": "0 < 額",
-    "残高' = 残高 + 額": "[{'残高': 残高 + 額}]",
-    "残高 = 0": "残高 == 0",
-    "残高 + 額 ≤ 上限": "accounts[口座ID].残高 + 額 <= 3",
-}
+from csdfbmc.tests.test_promoted import relabel  # noqa: E402
 
 
-def relabel(value):
-    if isinstance(value, dict):
-        return {k: (FORMAL.get(v, v) if k in ("text", "post", "guard") and isinstance(v, str) else relabel(v)) for k, v in value.items()}
-    if isinstance(value, list):
-        return [relabel(v) for v in value]
-    return value
+class SymmetryThroughAGlueTest(unittest.TestCase):
+    """Symmetry asks the glue of each clause whether it tells the IDs apart."""
 
-
-class FormalExpansionTest(unittest.TestCase):
     def setUp(self):
-        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        self.prose = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS).run()
-        self.diagram = fixture.diagram(relabel(EXPANSION))
-        self.twins = Twins(domains=GLOBAL_TWINS.domains, clauses={})
-
-    def test_a_formal_expansion_needs_no_twins_and_finds_the_same(self):
-        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all()).run()
-        self.assertEqual(set(self.prose.states), set(result.states))
-        self.assertEqual(self.prose.deadlocks, result.deadlocks)
-
-    def test_partial_order_reduction_reads_what_the_glue_says_a_clause_reads(self):
-        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        prose = Explorer.of_twins(fixture.diagram(EXPANSION), GLOBAL_TWINS, por=True).run()
-        result = Explorer(self.diagram, self.twins, meaning=glue(python_glue()), cone=Cone.keep_all(), por=True).run()
-        self.assertEqual(set(prose.states), set(result.states))
-        self.assertEqual(prose.deadlocks, result.deadlocks)
-
-    def test_symmetry_asks_the_glue_whether_a_clause_tells_the_ids_apart(self):
-        # Setup
-        from csdfbmc.tests.test_promoted import EXPANSION, GLOBAL_TWINS
-        symmetric = dict(symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
-        prose = Explorer.of_twins(fixture.diagram(EXPANSION), Twins(domains=GLOBAL_TWINS.domains, clauses=GLOBAL_TWINS.clauses, locals=GLOBAL_TWINS.locals, **symmetric), symmetry=True).run()
-        twins = Twins(domains=self.twins.domains, clauses={}, **symmetric)
-
-        # Execute
-        result = Explorer(self.diagram, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True).run()
-
-        # Assert
-        self.assertEqual(len(prose.states), len(result.states))
-        self.assertEqual(prose.deadlocks, result.deadlocks)
+        from csdfbmc.tests.test_promoted import GLOBAL_CHECKS
+        self.checks = Checks(domains=GLOBAL_CHECKS.domains, symmetric=("口座ID",), sources=[("checks.py", "DOMAINS = {}")])
 
     def test_symmetry_is_refused_with_a_glue_that_does_not_answer_it(self):
         # Setup
-        twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
+        from csdfbmc.tests.test_promoted import GLUE_EXPANSION
         silent = NotAnswering(python_glue())
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, "does not answer"):
-            Explorer(self.diagram, twins, meaning=glue(silent), cone=Cone.keep_all(), symmetry=True)
+            Explorer(fixture.diagram(GLUE_EXPANSION), self.checks, meaning=glue(silent), cone=Cone.keep_all(), symmetry=True)
 
     def test_symmetry_refuses_a_clause_the_glue_says_tells_the_ids_apart(self):
         # Setup
-        from csdfbmc.tests.test_promoted import EXPANSION
-        twins = Twins(domains=self.twins.domains, clauses={}, symmetric=("口座ID",), sources=[("twins.py", "DOMAINS = {}")])
-        # A constrain written in the glue's language, with no formal twin.
-        named = json.loads(json.dumps(relabel(EXPANSION), ensure_ascii=False).replace(
-            '"formal": "accounts[口座ID].残高 + 額 <= 3", ', "").replace("accounts[口座ID].残高 + 額 <= 3", "口座ID != 'a1'"))
-        d = fixture.diagram(named)
+        from csdfbmc.tests.test_reduce import with_constrain
+        d = fixture.diagram(with_constrain("口座ID != 'a1'"))
 
         # Execute, Assert
         with self.assertRaisesRegex(ValueError, "tells the IDs apart"):
-            Explorer(d, twins, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
+            Explorer(d, self.checks, meaning=glue(python_glue()), cone=Cone.keep_all(), symmetry=True)
 
 
 class Counting:
@@ -219,16 +167,16 @@ class LabelsCommandTest(unittest.TestCase):
     def setUp(self):
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
-        self.diagram, self.twins = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
+        self.diagram, self.checks = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
         with open(self.diagram, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(COUNTER), f)
-        with open(self.twins, "w", encoding="utf-8") as f:
+        with open(self.checks, "w", encoding="utf-8") as f:
             f.write("DOMAINS = {}\n")
 
     def run_main(self, main, *args):
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
-            code = main([self.diagram, self.twins, *args])
+            code = main([self.diagram, self.checks, *args])
         return code, out.getvalue(), err.getvalue()
 
     def test_the_checker_reads_the_clauses_through_either_form_of_the_glue(self):
@@ -246,6 +194,28 @@ class LabelsCommandTest(unittest.TestCase):
         code, out, err = self.run_main(main, "--evaluator-module", "csdfbmc.python_glue", "--initial")
         self.assertEqual(0, code, err)
         self.assertEqual({"candidates": [{"params": {}, "values": [2]}]}, json.loads(out))
+
+    def test_a_walk_without_a_glue_is_refused(self):
+        from csdfbmc.__main__ import main
+
+        # Execute
+        code, _, err = self.run_main(main)
+
+        # Assert
+        self.assertEqual(2, code)
+        self.assertIn("csdfbmc reads every clause through one", err)
+
+    def test_the_command_line_refuses_two_glues_and_local(self):
+        from csdfbmc.__main__ import main
+        for name, args in [
+            ("both forms", ("--evaluator", "glue", "--evaluator-module", "csdfbmc.python_glue")),
+            ("--local", ("--evaluator-module", "csdfbmc.python_glue", "--local", "local/A.puml=a.py")),
+        ]:
+            with self.subTest(name):
+                # Execute, Assert
+                with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+                    self.run_main(main, *args)
+                self.assertEqual(2, raised.exception.code)
 
     def test_a_glue_that_cannot_start_is_a_loading_error(self):
         from csdfbmc.__main__ import main
@@ -283,7 +253,7 @@ class HiddenFieldTest(unittest.TestCase):
 
     def test_a_tau_chooses_a_value_it_reads_from_its_domain(self):
         # Setup
-        explorer = Explorer(fixture.diagram(HIDDEN), Twins(domains={"x": [0, 1, 2]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(fixture.diagram(HIDDEN), Checks(domains={"x": [0, 1, 2]}), meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         result = explorer.run()
@@ -294,7 +264,7 @@ class HiddenFieldTest(unittest.TestCase):
 
     def test_a_name_with_no_domain_is_not_chosen_but_refused(self):
         # Setup
-        explorer = Explorer(fixture.diagram(HIDDEN), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(fixture.diagram(HIDDEN), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute, Assert
         with self.assertRaisesRegex(KeyError, "'x'"):
@@ -319,7 +289,7 @@ class SynchronisedDomainTest(unittest.TestCase):
         # Setup
         d = fixture.diagram(SYNCED)
         d.edges[0] = replace(d.edges[0], guard=(Clause("local", "y >= 0", rename=(("y", "x"),)),))
-        explorer = Explorer(d, Twins(domains={"x": [0, 1, 2], "y": [0, 1]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(d, Checks(domains={"x": [0, 1, 2], "y": [0, 1]}), meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         result = explorer.run()
@@ -347,7 +317,7 @@ class SentFieldTest(unittest.TestCase):
 
     def test_a_sent_field_sends_the_value_the_step_binds_without_a_domain(self):
         # Setup
-        explorer = Explorer(fixture.diagram(REPORTING), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(fixture.diagram(REPORTING), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         labels = [label for _, label, _, _ in explorer.successors(("a", (1,), ()))]
@@ -358,7 +328,7 @@ class SentFieldTest(unittest.TestCase):
     def test_the_label_follows_the_order_of_the_fields(self):
         # Setup
         diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!n?k")])
-        explorer = Explorer(fixture.diagram(diagram), Twins(domains={"k": [7]}, clauses={}), meaning=glue(python_glue()), cone=Cone.keep_all())
+        explorer = Explorer(fixture.diagram(diagram), Checks(domains={"k": [7]}), meaning=glue(python_glue()), cone=Cone.keep_all())
 
         # Execute
         labels = [label for _, label, _, _ in explorer.successors(("a", (1,), ()))]
@@ -369,18 +339,18 @@ class SentFieldTest(unittest.TestCase):
     def test_a_ghost_is_not_a_name_an_event_sends(self):
         # Setup
         diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!g")])
-        twins = Twins(domains={}, clauses={}, ghosts={"g": (0, {})})
+        checks = Checks(domains={}, ghosts={"g": (0, {})})
 
         # Execute, Assert
         with self.assertRaisesRegex(KeyError, "sends 'g'"):
-            Explorer(fixture.diagram(diagram), twins, meaning=glue(python_glue()), cone=Cone.keep_all())
+            Explorer(fixture.diagram(diagram), checks, meaning=glue(python_glue()), cone=Cone.keep_all())
 
     def test_a_sent_field_whose_name_the_step_does_not_bind_is_refused(self):
         # Setup
         diagram = dict(REPORTING, edges=[dict(REPORTING["edges"][1], event="report!m")])
         # Execute, Assert: refused before a walk, whether or not it is enabled.
         with self.assertRaisesRegex(KeyError, "sends 'm'"):
-            Explorer(fixture.diagram(diagram), NO_TWINS, meaning=glue(python_glue()), cone=Cone.keep_all())
+            Explorer(fixture.diagram(diagram), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all())
 
 
 if __name__ == "__main__":

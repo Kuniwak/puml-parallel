@@ -1,37 +1,32 @@
-"""What a REPL asks the checker at a value prompt: the values the twins admit
-for the initial state, or for one outgoing edge of a given state."""
+"""What a REPL asks the checker at a value prompt: the values the clauses
+admit for the initial state, or for one outgoing edge of a given state."""
 import io
 import json
 import unittest
 from contextlib import redirect_stdout
 from csdfbmc.tests import fixture
 
-from csdfbmc.model import Diagram
-from csdfbmc.explore import Explorer
 from csdfbmc.next import main as next_main
-from csdfbmc.tests.test_explore import COUNTER, COUNTER_TWINS
+from csdfbmc.tests.test_explore import COUNTER
+from csdfbmc.checks import Checks
 
 
 class CandidatesTest(unittest.TestCase):
     def test_initial_candidates_are_the_start_posts_successors(self):
-        self.assertEqual([[2]], Explorer.of_twins(fixture.diagram(COUNTER), COUNTER_TWINS).initial_candidates())
+        self.assertEqual([[2]], fixture.explorer(COUNTER).initial_candidates())
 
     def test_candidates_of_an_edge_come_per_parameter_valuation(self):
         diagram = dict(COUNTER, edges=[
-            {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k ≤ 3", "post": "n' = n + k", "line": 6},
-            {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n = 0", "post": "", "line": 7},
+            {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6},
+            {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 7},
         ])
-        from csdfbmc.twins import Twins
-        twins = Twins(domains={"k": [1, 2]}, clauses={
-            "n = 2": lambda: [{"n": 2}], "n + k ≤ 3": lambda n, k: n + k <= 3,
-            "n' = n + k": lambda n, k: [{"n": n + k}], "n = 0": lambda n: n == 0})
-        ex = Explorer.of_twins(fixture.diagram(diagram), twins)
+        ex = fixture.explorer(diagram, Checks(domains={"k": [1, 2]}))
         self.assertEqual([{"params": {"k": 1}, "values": [3]}], ex.candidates("a", [2], 0))
         self.assertEqual([], ex.candidates("a", [2], 1))  # stop needs n = 0
 
     def test_a_bad_edge_index_is_refused(self):
         with self.assertRaises(IndexError):
-            Explorer.of_twins(fixture.diagram(COUNTER), COUNTER_TWINS).candidates("a", [2], 5)
+            fixture.explorer(COUNTER).candidates("a", [2], 5)
 
 
 class NextCommandTest(unittest.TestCase):
@@ -39,15 +34,14 @@ class NextCommandTest(unittest.TestCase):
         import os, tempfile
         d = tempfile.mkdtemp()
         diagram = os.path.join(d, "d.json")
-        twins = os.path.join(d, "t.py")
+        checks = os.path.join(d, "t.py")
         with open(diagram, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(COUNTER), f)
-        with open(twins, "w", encoding="utf-8") as f:
-            f.write('DOMAINS = {}\nCLAUSES = {"n = 2": lambda: [{"n": 2}], "n > 0": lambda n: n > 0, '
-                    '"n\' = n - 1": lambda n: [{"n": n - 1}], "n = 0": lambda n: n == 0}\n')
+        with open(checks, "w", encoding="utf-8") as f:
+            f.write("DOMAINS = {}\n")
         out = io.StringIO()
         with redirect_stdout(out):
-            code = next_main([diagram, twins, *args])
+            code = next_main([diagram, checks, "--evaluator-module", "csdfbmc.python_glue", *args])
         return code, out.getvalue()
 
     def test_initial_prints_the_initial_values(self):

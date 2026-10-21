@@ -2,9 +2,11 @@ package csdfreplcmd
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
 )
@@ -27,6 +29,11 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		"single file (representative value)": {
 			Args:     []string{"a.puml"},
 			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml"},
+		},
+		"a checks module and the glue csdfbmc reads the clauses through": {
+			Args: []string{"-checks", "c.py", "-evaluator-module", "csdfbmc.python_glue", "a.puml"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml",
+				Checker: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
 		},
 	}
 
@@ -63,6 +70,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"too many arguments (representative value)": {
 			Args: []string{"a.puml", "b.puml"},
 		},
+		"a checks module without a glue": {
+			Args: []string{"-checks", "c.py", "a.puml"},
+		},
+		"a flag csdfrepl does not declare": {
+			Args: []string{"-twins", "t.py", "a.puml"},
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -80,5 +93,19 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 				t.Error("want not nil, got nil")
 			}
 		})
+	}
+}
+
+func TestNewParseOptionsFuncRefusesTheCheckerBeforeTheFiles(t *testing.T) {
+	// Arrange
+	parseOptions := NewParseOptionsFunc()
+	spy := cli.SpyProcInout()
+
+	// Act
+	_, err := parseOptions([]string{"-checks", "c.py"}, spy.New())
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "-checks needs") {
+		t.Errorf("want the checker's error, as csdfrepld reports it, got %v", err)
 	}
 }

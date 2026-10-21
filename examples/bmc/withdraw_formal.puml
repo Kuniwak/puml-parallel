@@ -1,7 +1,7 @@
 @startuml WITHDRAW
-' withdraw.puml with every clause written in Python, as a front end renders
-' the formal labels in place of the prose. No twin is keyed by prose: the
-' glue reads the labels, and withdraw_formal_defs.py names the constants.
+' A two-state ledger with every clause written in Python, as a front end
+' renders the formal labels in place of the prose: the reference glue reads
+' them, and withdraw_formal_defs.py names the constants and the domains.
 state "待機中" as idle
 idle : 残高
 state "送信中" as sending

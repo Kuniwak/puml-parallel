@@ -19,20 +19,22 @@ and none can enable or disable it. The transitions of one instance are taken
 alone when none of them is the --avoid event and none leads to a state
 already met; otherwise the state is expanded in full (the cycle proviso,
 which in a breadth-first walk puts a fully expanded state on every cycle).
-What a clause reads is what its twin's signature asks for, the names of its
-formal expression, or what the glue says it reads; an opaque clause, taken as true, reads nothing. A twin
-is taken to read only what it names: one that reaches a map through a helper
-defeats the analysis.
+What a clause reads is what the glue says it reads, and what it reads beyond
+its own instance what the glue answers when asked beyond (a glue that does
+not answer it has the clause read every instance of a map it reads); an
+opaque clause, taken as true, reads nothing. A ghost update and an invariant
+read what their signatures ask for.
 
 Symmetry stores a state by one representative of its renamings of the
-instance IDs the twins module declares SYMMETRIC. The walk still expands the
+instance IDs the checks module declares SYMMETRIC. The walk still expands the
 representative it first met, not a renamed copy, so every trace it reports
-is a run of the diagram. The declaration is refused when the twins could tell
-two IDs apart: an ID written as a constant (a literal listing every ID of its
-group, as a domain does, names none), an ID ordered by <, <=, >, >=, sorted,
-min or max, or a domain holding IDs that is not closed under renaming them.
-The check is syntactic: it reads the twins modules and the formal
-expressions, and it does not follow a value through a helper.
+is a run of the diagram. The declaration is refused when a clause, a ghost
+update or an invariant could tell two IDs apart: an ID written as a constant
+(a literal listing every ID of its group, as a domain does, names none), an
+ID ordered by <, <=, >, >=, sorted, min or max, or a domain holding IDs that
+is not closed under renaming them. The glue answers it for the clauses; the
+checks module's source is read for the rest. The check is syntactic, and it
+does not follow a value through a helper.
 """
 from __future__ import annotations
 
@@ -43,9 +45,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Callable
 
 from csdfbmc import formal
-from csdfbmc.formal import free_names
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.twins import Twins
+from csdfbmc.checks import Checks
 from csdfbmc.values import FrozenMap
 
 if TYPE_CHECKING:
@@ -57,15 +58,6 @@ _INSTANCE_KINDS = ("in_dom", "not_in_dom", "at_state") + _MOVES
 
 def _signature(fn: Callable) -> set[str]:
     return set(inspect.signature(fn).parameters)
-
-
-def formal_names(expr: str) -> set[str]:
-    return free_names(ast.parse(expr, mode="eval"))
-
-
-def names_beyond(expr: str, own_id: str | None) -> set[str]:
-    """The names expr reads, but a map read only as m[own_id]."""
-    return formal.names_beyond(ast.parse(expr, mode="eval"), own_id)
 
 
 def _with_roles(e: Edge) -> list[tuple[Clause, str]]:
@@ -80,10 +72,10 @@ class PartialOrder:
     def __init__(self, explorer):
         self.ex = explorer
         d: Diagram = explorer.d
-        twins: Twins = explorer.twins
-        self.names = {v for vs in d.vars.values() for v in vs} | set(twins.ghosts)
-        self.invariant_reads = set().union(*(_signature(fn) for fn in twins.invariants.values()))
-        self.ghost_events = {event for _, updates in twins.ghosts.values() for event in updates}
+        checks: Checks = explorer.checks
+        self.names = {v for vs in d.vars.values() for v in vs} | set(checks.ghosts)
+        self.invariant_reads = set().union(*(_signature(fn) for fn in checks.invariants.values()))
+        self.ghost_events = {event for _, updates in checks.ghosts.values() for event in updates}
         self._independent: dict[str, set[str]] = {}
 
     def _clause_reads(self, c: Clause, role: str) -> set[str]:
@@ -95,13 +87,13 @@ class PartialOrder:
         if names is None:
             return {c.map} if c.map else set()
         if c.kind == "local" and c.map:
-            # A local twin reads the instance's own variables, by their local names.
-            return {c.map} | (names & set(self.ex.twins.ghosts))
+            # A local clause reads the instance's own variables, by their local names.
+            return {c.map} | (names & set(self.ex.checks.ghosts))
         return names & self.names
 
     def _edge_reads(self, e: Edge) -> set[str]:
         reads = set().union(*(self._clause_reads(c, role) for c, role in _with_roles(e)))
-        for _, updates in self.ex.twins.ghosts.values():
+        for _, updates in self.ex.checks.ghosts.values():
             if e.name in updates:
                 reads |= _signature(updates[e.name]) & self.names
         return reads
@@ -109,8 +101,8 @@ class PartialOrder:
     def _shared_reads(self, e: Edge) -> set[str]:
         """What e's clauses read beyond the one instance they are about: a
         constrain or hand-written clause reading a map reads every instance
-        of it, so it ties the instances together - unless it is a formal
-        expression that reads the map only as m[id], at the edge's own ID."""
+        of it, so it ties the instances together - unless the glue says it
+        reads the map only as m[id], at the edge's own ID."""
         own_id = next((c.id or self.ex.d.promotes[c.map].id_param for c in e.post if c.kind in _MOVES), None)
         reads: set[str] = set()
         for c, role in _with_roles(e):
@@ -169,17 +161,17 @@ class PartialOrder:
 
 
 class Symmetry:
-    def __init__(self, diagram: Diagram, twins: Twins, meaning: "Meaning"):
-        if not twins.symmetric:
-            raise ValueError("--symmetry needs the twins module to declare SYMMETRIC, the instance-ID parameters whose values are interchangeable")
+    def __init__(self, diagram: Diagram, checks: Checks, meaning: "Meaning"):
+        if not checks.symmetric:
+            raise ValueError("--symmetry needs the checks module to declare SYMMETRIC, the instance-ID parameters whose values are interchangeable")
         ids = {p.id_param for p in diagram.promotes.values()}
-        self.params = set(twins.symmetric)
+        self.params = set(checks.symmetric)
         self.maps = {p.map for p in diagram.promotes.values() if p.id_param in self.params}
         groups: list[frozenset] = []
-        for p in twins.symmetric:
+        for p in checks.symmetric:
             if p not in ids:
                 raise ValueError(f"SYMMETRIC names {p!r}, which is not the instance-ID parameter of any promoted map")
-            values = frozenset(twins.domain(p))
+            values = frozenset(checks.domain(p))
             if not all(isinstance(v, str) for v in values):
                 raise ValueError(f"SYMMETRIC names {p!r}, whose values are not all strings; an ID that is a number cannot be told from a count")
             for g in groups:
@@ -191,37 +183,33 @@ class Symmetry:
         self.values = frozenset().union(*groups)
         self.perms = [dict(itertools.chain.from_iterable(zip(sorted(g), perm) for g, perm in zip(groups, combo)))
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
-        self._check_domains(diagram, twins)
-        self._check_sources(diagram, twins)
+        self._check_domains(diagram, checks)
+        self._check_sources(diagram, checks)
         self._check_clauses(diagram, meaning)
 
-    def _check_domains(self, diagram: Diagram, twins: Twins) -> None:
+    def _check_domains(self, diagram: Diagram, checks: Checks) -> None:
         """A domain that holds symmetric IDs (a record naming another
         instance) must hold every renaming of each of its values, or the
         renaming would tell the IDs apart."""
-        for t in [twins, *twins.locals.values()]:
-            for p, domain in t.domains.items():
-                if p in self.params:
-                    continue
-                values = set(domain)
-                for perm in self.perms:
-                    if {_rename(v, perm) for v in values} != values:
-                        raise ValueError(f"the domain of {p!r} is not closed under renaming the symmetric IDs, so they are not interchangeable")
+        for p, domain in checks.domains.items():
+            if p in self.params:
+                continue
+            values = set(domain)
+            for perm in self.perms:
+                if {_rename(v, perm) for v in values} != values:
+                    raise ValueError(f"the domain of {p!r} is not closed under renaming the symmetric IDs, so they are not interchangeable")
         for local in diagram.locals.values():
             shared = self.values & set(local.vars)
             if shared:
                 raise ValueError(f"{local.path} has local states named {sorted(shared)}, which are also symmetric IDs")
 
-    def _check_sources(self, diagram: Diagram, twins: Twins) -> None:
-        sources = [*twins.sources, *(s for t in twins.locals.values() for s in t.sources)]
-        if not sources:
-            raise ValueError("--symmetry reads the twins modules to check SYMMETRIC, and none was given as source")
-        for path, source in sources:
+    def _check_sources(self, diagram: Diagram, checks: Checks) -> None:
+        """Reads the checks module, whose ghost updates and invariants are
+        Python the checker loads."""
+        if not checks.sources:
+            raise ValueError("--symmetry reads the checks module to check SYMMETRIC, and none was given as source")
+        for path, source in checks.sources:
             self._check(ast.parse(source, filename=path), path)
-        for e in diagram.edges:
-            for c in e.guard + e.post:
-                if c.formal:
-                    self._check(ast.parse(c.formal, mode="eval"), f"<formal line {c.line}>")
 
     def _check_clauses(self, diagram: Diagram, meaning: "Meaning") -> None:
         """Asks the meaning of each clause the author wrote whether it tells
@@ -239,7 +227,7 @@ class Symmetry:
         found = formal.tells_apart(tree, self.params, self.maps, self.groups)
         if found is not None:
             line, how = found
-            raise ValueError(f"{path}:{line}: {how}, so the IDs are not interchangeable; drop it from SYMMETRIC or from the twin")
+            raise ValueError(f"{path}:{line}: {how}, so the IDs are not interchangeable; drop it from SYMMETRIC or from the checks module")
 
     def canonical(self, state):
         """The representative of state's renamings: the least under a fixed

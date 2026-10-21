@@ -34,7 +34,7 @@ type Service struct {
 	solver   csdf.PostSolver
 	debug    bool
 	// suggesters builds, per new session, what its value prompts ask; nil
-	// when the daemon has no twins.
+	// when the daemon has no checker.
 	suggesters SuggesterFactory
 }
 
@@ -43,7 +43,7 @@ type Service struct {
 // session is removed.
 type SuggesterFactory func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error)
 
-// SetSuggesters gives the daemon twins: every session created afterwards
+// SetSuggesters gives the daemon a checker: every session created afterwards
 // suggests values at its prompts and accepts statevar picks.
 func (s *Service) SetSuggesters(f SuggesterFactory) { s.suggesters = f }
 
@@ -173,7 +173,7 @@ func (s *Service) handleStatevar(req Request) Response {
 	values := req.Values
 	if req.Pick != nil {
 		if e.suggester == nil {
-			return errorResponse("the daemon has no twins to pick a suggestion from; start csdfrepld with -twins")
+			return errorResponse("the daemon has no checker to pick a suggestion from; start csdfrepld with -checks and -evaluator or -evaluator-module")
 		}
 		suggestions, err := e.session.Suggest(e.suggester)
 		if err != nil {

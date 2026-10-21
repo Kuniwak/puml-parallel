@@ -29,7 +29,7 @@ from typing import Callable
 
 from csdfbmc.meaning import Meaning
 from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.twins import Twins, reads
+from csdfbmc.checks import Checks, reads
 
 _BUILT_IN_POSTS = ("frame", "update", "create", "delete", "empty")
 _INSTANCE_GUARDS = ("in_dom", "not_in_dom", "at_state")
@@ -42,7 +42,7 @@ class Cone:
     # blocked_by: what kept R from being computed, when it could not be.
     blocked_by: tuple[str, ...] = ()
     # dropped: each variable left out, with the edges whose posts set it as
-    # far as writes tells (a twin says what it sets only when it runs).
+    # far as writes tells (a glue may not say what a post sets).
     dropped: dict[str, list[str]] = field(default_factory=dict)
 
     @classmethod
@@ -79,7 +79,7 @@ Writes = Callable[[Clause], "set[str] | None"]
 
 
 def NO_WRITES(clause: Clause) -> None:
-    """The writes of a meaning that cannot tell them, such as twins."""
+    """The writes of a meaning that cannot tell them."""
     return None
 
 
@@ -111,7 +111,7 @@ def _framed_and_written(writes: Writes, post: tuple[Clause, ...]) -> set[str]:
     return out
 
 
-def compute(d: Diagram, twins: Twins, meaning: Meaning, *, writes: Writes) -> Cone:
+def compute(d: Diagram, checks: Checks, meaning: Meaning, *, writes: Writes) -> Cone:
     variables = {v for vs in d.vars.values() for v in vs}
     relevant: set[str] = set()
     blocked: list[str] = []
@@ -132,9 +132,9 @@ def compute(d: Diagram, twins: Twins, meaning: Meaning, *, writes: Writes) -> Co
             read(_decides(meaning, c, "post"), c.text)
     for _, post in posts:
         read(_framed_and_written(writes, post), "a post")
-    for name, fn in twins.invariants.items():
+    for name, fn in checks.invariants.items():
         read(reads(fn), f"the invariant {name!r}")
-    for ghost, (_, updates) in twins.ghosts.items():
+    for ghost, (_, updates) in checks.ghosts.items():
         for event, fn in updates.items():
             read(reads(fn), f"the update of ghost {ghost!r} on {event}")
     if blocked:
