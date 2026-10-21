@@ -179,8 +179,12 @@ separate tool word for a clause not formalised: it is written as an atom
 whose holes are what it reads, such as `$口座 が凍結されていない`.
 
 An environment function is named by its atom, nothing else (P12): its name
-is the atom's text without its holes, and its arguments are the holes, in
-order. Atoms with the same text denote the same function, on every edge
+is the atom's text with each hole replaced by the position of the argument
+it reads, `$_0`, `$_1` and so on, and its arguments are the distinct terms
+the holes read, in the order they first appear (the `holes` indices of the
+evaluator protocol). So `$a と $b と $a` is `$_0 と $_1 と $_0` of (a, b),
+and `$a と $b と $b` is the other function `$_0 と $_1 と $_1`; one name has
+one arity. Atoms with the same such text denote the same function, on every edge
 and in every component, whatever their holes are called; no position,
 numbering or table outside the diagram names one. A function is given, by
 the checks module or the command line, or chosen from a seed; one that is
