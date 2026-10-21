@@ -136,6 +136,15 @@ func ExistsTyped(vars []Var, types []string, body Formula) Formula {
 	return newTypedQuantifier("logic.ExistsTyped", false, vars, types, body)
 }
 
+// ForallTyped binds vars universally in body, each of the type of the same
+// position in types, as ExistsTyped does existentially.
+func ForallTyped(vars []Var, types []string, body Formula) Formula {
+	if len(types) != len(vars) {
+		panic(fmt.Sprintf("logic.ForallTyped: %d variables but %d types", len(vars), len(types)))
+	}
+	return newTypedQuantifier("logic.ForallTyped", true, vars, types, body)
+}
+
 func newQuantifier(caller string, forall bool, vars []Var, body Formula) Formula {
 	return newTypedQuantifier(caller, forall, vars, nil, body)
 }

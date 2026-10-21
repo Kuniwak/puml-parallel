@@ -151,6 +151,11 @@ func TestATypedExistential(t *testing.T) {
 			Tree: logic.Tree{Op: logic.OpExists, Vars: vs("m1"), Types: []string{"locations"},
 				Operands: []logic.Tree{{Op: logic.OpAtom, Name: "p", Terms: []logic.TermTree{{Op: logic.TermVar, Name: "m1"}}}}},
 		},
+		"a universal carries its types in the tree as well": {
+			Formula: logic.ForallTyped(vs("k"), []string{"'key"}, p("k")),
+			Tree: logic.Tree{Op: logic.OpForall, Vars: vs("k"), Types: []string{"'key"},
+				Operands: []logic.Tree{{Op: logic.OpAtom, Name: "p", Terms: []logic.TermTree{{Op: logic.TermVar, Name: "k"}}}}},
+		},
 		"simplifying it drops the type of a variable it unbinds": {
 			Formula: logic.Simplify(logic.ExistsTyped(vs("a", "b"), []string{"A", "B"}, p("b"))),
 			Tree: logic.Tree{Op: logic.OpExists, Vars: vs("b"), Types: []string{"B"},
