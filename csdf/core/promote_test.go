@@ -189,6 +189,8 @@ func TestPromoteRefuses(t *testing.T) {
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "locations[loc]"},
 		{"a sync clause reading a name that is no map, target or field", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "$z = 0"), Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "z"},
+		{"a target taking a local internal event", promotion(Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}, Sync{Event: "SEE", Targets: []Target{
+			{Map: "lamps", ID: "l", Event: Tau}}}), "internal"},
 		{"a family without its creation event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Delete: "CLOSE"}), "no creation event"},
 		{"end edges without a deletion event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN"}), "no deletion event"},
 		{"a creation event named like a local one", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "DEPART", Delete: "CLOSE"}), "DEPART"},

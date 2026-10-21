@@ -203,6 +203,9 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 		if a.Event == "" {
 			return nil, fmt.Errorf("%s(%s) names no local event", a.Map, a.ID)
 		}
+		if a.Event == Tau {
+			return nil, fmt.Errorf("%s(%s) takes tau, which is internal and cannot be synchronised", a.Map, a.ID)
+		}
 		ids[a.ID] = true
 		for _, b := range s.Targets[:i] {
 			if a.Map == b.Map && a.ID == b.ID {
