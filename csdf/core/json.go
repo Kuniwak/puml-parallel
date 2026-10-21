@@ -1,13 +1,24 @@
 package core
 
-import "github.com/Kuniwak/puml-parallel/csdf/clause"
+import (
+	"fmt"
+
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+)
 
 // FormulaJSON is f as a list of its conjuncts in JSON: an atom in the shape
 // a glue receives it (clause.AtomWire) with the terms its arguments stand
 // for, a builtin by its op, and ∃ by the type it ranges over and its body;
-// a hint carries no meaning and is not written. It is never nil; an atom
-// that is not well formed is an error.
+// a hint carries no meaning and is not written. It is never nil; a formula
+// that is not well formed (clause.WellFormed) is an error.
 func FormulaJSON(f clause.And) ([]any, error) {
+	if err := clause.WellFormed(f); err != nil {
+		return nil, fmt.Errorf("core.FormulaJSON: %w", err)
+	}
+	return formulaJSON(f)
+}
+
+func formulaJSON(f clause.And) ([]any, error) {
 	out := []any{}
 	for _, c := range clause.Normalize(f).Conjuncts {
 		switch c := c.(type) {
@@ -24,7 +35,7 @@ func FormulaJSON(f clause.And) ([]any, error) {
 			}
 			out = append(out, b)
 		case clause.Exists:
-			body, err := FormulaJSON(c.Body)
+			body, err := formulaJSON(c.Body)
 			if err != nil {
 				return nil, err
 			}
