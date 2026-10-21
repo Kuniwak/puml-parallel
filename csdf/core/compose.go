@@ -19,7 +19,7 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 	out := &Diagram{
 		Vars:     map[string][]string{},
 		Init:     pair(l.Init, r.Init),
-		InitPost: and(l.InitPost, r.InitPost),
+		InitPost: Conj(l.InitPost, r.InitPost),
 	}
 	for ls, lv := range l.Vars {
 		for rs, rv := range r.Vars {
@@ -68,7 +68,8 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 
 func pair(l, r string) string { return "(" + l + ", " + r + ")" }
 
-func and(fs ...clause.And) clause.And {
+// Conj is the conjunction of fs, normalised.
+func Conj(fs ...clause.And) clause.And {
 	var cs []clause.Formula
 	for _, f := range fs {
 		cs = append(cs, f)
@@ -78,11 +79,11 @@ func and(fs ...clause.And) clause.And {
 
 // alone is e taken by its side while the other side, holding vars, stays.
 func alone(e Edge, src, dst string, vars []string) Edge {
-	return Edge{Src: src, Dst: dst, Event: e.Event, Guard: e.Guard, Post: and(e.Post, frame(vars))}
+	return Edge{Src: src, Dst: dst, Event: e.Event, Guard: e.Guard, Post: Conj(e.Post, Unchanged(vars))}
 }
 
-// frame says the variables vars are unchanged by the step.
-func frame(vars []string) clause.And {
+// Unchanged says the variables vars are unchanged by the step.
+func Unchanged(vars []string) clause.And {
 	var cs []clause.Formula
 	for _, v := range vars {
 		cs = append(cs, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: v, Primed: true}, clause.Free{Name: v}}})
@@ -127,8 +128,8 @@ func together(el, er Edge, l, r *Diagram) (Edge, error) {
 		Src:   pair(el.Src, er.Src),
 		Dst:   pair(el.Dst, er.Dst),
 		Event: Event{Channel: el.Event.Channel, Fields: fields},
-		Guard: and(gl, gr, clause.And{Conjuncts: eqs}),
-		Post:  and(pl, pr),
+		Guard: Conj(gl, gr, clause.And{Conjuncts: eqs}),
+		Post:  Conj(pl, pr),
 	}, nil
 }
 

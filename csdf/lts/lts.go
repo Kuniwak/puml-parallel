@@ -42,10 +42,11 @@ func (l *LTS) Add(src State, label string, dst State) {
 	l.Trans[src][label] = append(l.Trans[src][label], dst)
 }
 
-// set is a set of states, written canonically so that it can be a key.
-type set map[State]bool
+// Set is a set of states.
+type Set map[State]bool
 
-func (s set) key() string {
+// key writes s canonically so that it can be a map key.
+func (s Set) key() string {
 	ids := make([]int, 0, len(s))
 	for id := range s {
 		ids = append(ids, id)
@@ -59,8 +60,9 @@ func (s set) key() string {
 	return b.String()
 }
 
-func (l *LTS) tauClosure(s set) set {
-	out := set{}
+// TauClosure is s with every state τ steps reach from it.
+func (l *LTS) TauClosure(s Set) Set {
+	out := Set{}
 	stack := []State{}
 	for id := range s {
 		out[id] = true
@@ -79,17 +81,20 @@ func (l *LTS) tauClosure(s set) set {
 	return out
 }
 
-func (l *LTS) after(s set, label string) set {
-	next := set{}
+// After is the states l can be in after label from s, τ steps included:
+// the τ closure of label's successors.
+func (l *LTS) After(s Set, label string) Set {
+	next := Set{}
 	for id := range s {
 		for _, d := range l.Trans[id][label] {
 			next[d] = true
 		}
 	}
-	return l.tauClosure(next)
+	return l.TauClosure(next)
 }
 
-func (l *LTS) visible(s set) map[string]bool {
+// Initials are the visible labels some state of s can take.
+func (l *LTS) Initials(s Set) map[string]bool {
 	out := map[string]bool{}
 	for id := range s {
 		for label, ds := range l.Trans[id] {
@@ -101,15 +106,15 @@ func (l *LTS) visible(s set) map[string]bool {
 	return out
 }
 
-// acceptances are the initials of the stable states of s: a stable state
+// Acceptances are the initials of the stable states of s: a stable state
 // refuses exactly what it cannot do.
-func (l *LTS) acceptances(s set) []map[string]bool {
+func (l *LTS) Acceptances(s Set) []map[string]bool {
 	var out []map[string]bool
 	for id := range s {
 		if len(l.Trans[id][Tau]) > 0 {
 			continue
 		}
-		out = append(out, l.visible(set{id: true}))
+		out = append(out, l.Initials(Set{id: true}))
 	}
 	return out
 }
@@ -144,8 +149,8 @@ func coveredBy(as, bs []map[string]bool) bool {
 // StableFailuresEqual says a and b have the same traces and the same stable
 // failures.
 func StableFailuresEqual(a, b *LTS) bool {
-	type pair struct{ a, b set }
-	start := pair{a.tauClosure(set{a.Init: true}), b.tauClosure(set{b.Init: true})}
+	type pair struct{ a, b Set }
+	start := pair{a.TauClosure(Set{a.Init: true}), b.TauClosure(Set{b.Init: true})}
 	seen := map[string]bool{}
 	queue := []pair{start}
 	for len(queue) > 0 {
@@ -156,16 +161,16 @@ func StableFailuresEqual(a, b *LTS) bool {
 			continue
 		}
 		seen[k] = true
-		va, vb := a.visible(p.a), b.visible(p.b)
+		va, vb := a.Initials(p.a), b.Initials(p.b)
 		if !subset(va, vb) || !subset(vb, va) {
 			return false
 		}
-		aa, ab := a.acceptances(p.a), b.acceptances(p.b)
+		aa, ab := a.Acceptances(p.a), b.Acceptances(p.b)
 		if !coveredBy(aa, ab) || !coveredBy(ab, aa) {
 			return false
 		}
 		for label := range va {
-			queue = append(queue, pair{a.after(p.a, label), b.after(p.b, label)})
+			queue = append(queue, pair{a.After(p.a, label), b.After(p.b, label)})
 		}
 	}
 	return true

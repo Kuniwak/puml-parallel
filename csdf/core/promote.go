@@ -109,10 +109,10 @@ func promoteAlone(p Promotion, f Family, e Edge) (Edge, error) {
 	if e.Event.Channel == Tau {
 		// An internal event has no argument: the instance is any that can
 		// take it (docs/PROMOTION.md).
-		if guard, err = bind(guard, f.ID, f.ID); err != nil {
+		if guard, err = Bind(guard, f.ID, f.ID); err != nil {
 			return Edge{}, err
 		}
-		if post, err = bind(and(guard, post), f.ID, f.ID); err != nil {
+		if post, err = Bind(Conj(guard, post), f.ID, f.ID); err != nil {
 			return Edge{}, err
 		}
 		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: guard, Post: post}, nil
@@ -187,7 +187,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 		out = append(out, Edge{
 			Src: p.State, Dst: p.State,
 			Event: Event{Channel: s.Event, Fields: merged},
-			Guard: and(clause.And{Conjuncts: distinct}, guard),
+			Guard: Conj(clause.And{Conjuncts: distinct}, guard),
 			Post:  post,
 		})
 	}
@@ -231,7 +231,7 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 			}
 		}
 		if len(mine) == 0 {
-			posts = append(posts, frame([]string{f.Map}))
+			posts = append(posts, Unchanged([]string{f.Map}))
 			continue
 		}
 		before := clause.Term(clause.Free{Name: f.Map})
@@ -290,10 +290,10 @@ func local(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 			return clause.Field{Of: clause.Index{Map: now, Key: x}, Name: v.Name}
 		}))
 	}
-	guard := and(clause.And{Conjuncts: []clause.Formula{
+	guard := Conj(clause.And{Conjuncts: []clause.Formula{
 		clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: now, Key: x}}, State: m.e.Src},
 	}}, sub(m.e.Guard))
-	post := and(clause.And{Conjuncts: []clause.Formula{
+	post := Conj(clause.And{Conjuncts: []clause.Formula{
 		clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{after, before, x}},
 		clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: after, Key: x}}, State: m.e.Dst},
 	}}, sub(m.e.Post))

@@ -38,6 +38,12 @@ type valuation struct {
 	before, after map[string]Value
 }
 
+// Holds says whether f holds when its free variables have the values before
+// the step in before and, primed, the values after it in after.
+func Holds(f clause.Formula, env Env, before, after map[string]Value) (bool, error) {
+	return evaluator{env: env, val: valuation{before: before, after: after}}.holds(f, nil)
+}
+
 type evaluator struct {
 	env Env
 	val valuation
