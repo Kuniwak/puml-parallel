@@ -64,6 +64,11 @@ after the step. A glue never sees a name; values come by argument index:
 There is no analyse and no beyond: what an atom reads is its holes, which the
 tools know themselves.
 
+hello comes first and agrees on one protocol for the rest of the session: a
+glue refuses a request before it, a hello asking a protocol it does not
+speak, and a request of the other protocol (an atom under protocol 1, a
+clause, analyse or beyond under protocol 2).
+
 A glue written in Python may also be loaded in-process: a module whose
 evaluator(args) returns a function from a request to its answer, with the
 checker's values in place of their encoding. csdfbmc.python_glue is both.
@@ -155,16 +160,18 @@ def request_from_wire(request: dict) -> dict:
     return request
 
 
-def answer_to_wire(request: dict, answer: dict) -> dict:
+def answer_to_wire(request: dict, answer: dict, protocol: int) -> dict:
+    """answer to request in the tagged encoding; the results of a post are
+    lists of values in the protocol of atoms, and assignments in protocol 1."""
     if request.get("op") == "post" and "results" in answer:
-        encode = _values_to_wire if "atom" in request else _bindings_to_wire
+        encode = _values_to_wire if protocol == PROTOCOL_ATOMS else _bindings_to_wire
         return dict(answer, results=[encode(r) for r in answer["results"]])
     return answer
 
 
-def answer_from_wire(request: dict, answer: dict) -> dict:
+def answer_from_wire(request: dict, answer: dict, protocol: int) -> dict:
     if request.get("op") == "post" and "results" in answer:
-        decode = _values_from_wire if "atom" in request else _bindings_from_wire
+        decode = _values_from_wire if protocol == PROTOCOL_ATOMS else _bindings_from_wire
         return dict(answer, results=[decode(r) for r in answer["results"]])
     return answer
 
@@ -177,41 +184,32 @@ Handle = Callable[[dict], dict]
 def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: Callable[[str, dict], bool],
             post: Callable[[str, dict], list[dict]],
             beyond: Callable[[str, str, str | None], list[str]] | None = None,
-            symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None,
-            atom_guard: Callable[[dict, list], bool] | None = None,
-            atom_post: Callable[[dict, list], list[list]] | None = None,
-            atom_symmetric: Callable[[dict, list[int], list[int], list[list[str]]], str | None] | None = None) -> Handle:
-    """The Handle of a glue, from what is particular to its language:
-    analyse(text, role) says what a clause reads and writes, guard(text,
-    binding) and post(text, binding) evaluate a clause under one binding.
-    beyond(text, role, own_id) and symmetric(text, role, params, maps,
-    groups), when given, answer what the walk's reductions ask (None from
-    symmetric: the clause tells no two IDs apart; a message: how it does).
-    hello, the batches and the error answers are the protocol's and are the
-    same for every glue."""
+            symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None) -> Handle:
+    """The Handle of a glue speaking protocol 1, from what is particular to
+    its language: analyse(text, role) says what a clause reads and writes,
+    guard(text, binding) and post(text, binding) evaluate a clause under one
+    binding. beyond(text, role, own_id) and symmetric(text, role, params,
+    maps, groups), when given, answer what the walk's reductions ask (None
+    from symmetric: the clause tells no two IDs apart; a message: how it
+    does). hello, the batches and the error answers are the protocol's and
+    are the same for every glue. A request of protocol 2 is refused."""
     supports = [op for op, fn in (("beyond", beyond), ("symmetric", symmetric)) if fn is not None]
 
     def handle(request: dict) -> dict:
         op = request.get("op")
         try:
-            if op == "hello" and request.get("protocol") == PROTOCOL_ATOMS and atom_guard and atom_post:
-                hello = {"language": language, "protocol": PROTOCOL_ATOMS}
-                return dict(hello, supports=["symmetric"]) if atom_symmetric else hello
             if op == "hello":
+                if request.get("protocol", PROTOCOL) != PROTOCOL:
+                    return {"error": f"this glue speaks protocol {PROTOCOL}, not {request.get('protocol')!r}"}
                 hello = {"language": language, "protocol": PROTOCOL}
                 return dict(hello, supports=supports) if supports else hello
+            if "atom" in request:
+                return {"error": f"a request of protocol {PROTOCOL} carries a clause, not an atom"}
             if op == "beyond" and beyond is not None:
                 return {"reads": beyond(request["clause"], request["role"], request["own_id"])}
-            if "atom" in request and op == "symmetric" and atom_symmetric is not None:
-                why = atom_symmetric(request["atom"], request["params"], request["maps"], request["groups"])
-                return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
             if op == "symmetric" and symmetric is not None:
                 why = symmetric(request["clause"], request["role"], request["params"], request["maps"], request["groups"])
                 return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
-            if "atom" in request and op == "guard" and atom_guard is not None:
-                return {"results": [atom_guard(request["atom"], vs) for vs in request["values"]]}
-            if "atom" in request and op == "post" and atom_post is not None:
-                return {"results": [atom_post(request["atom"], vs) for vs in request["values"]]}
             if op == "analyse":
                 a = analyse(request["clause"], request["role"])
                 return {"opaque": True} if a.opaque else {"reads": list(a.reads), "writes": list(a.writes)}
@@ -225,10 +223,81 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
     return handle
 
 
+AtomSymmetric = Callable[[dict, list[int], list[int], list[list[str]]], "str | None"]
+
+
+def NO_SYMMETRIC(atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
+    """The symmetric of a glue that does not answer it: atom_handler leaves it
+    out of hello's supports and refuses the request."""
+    raise EvaluatorError("this glue does not answer symmetric")
+
+
+def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Callable[[dict, list], list[list]],
+                 symmetric: AtomSymmetric) -> Handle:
+    """The Handle of a glue speaking protocol 2, the protocol of atoms:
+    guard(atom, values) and post(atom, values) evaluate an atom under one
+    list of values of its arguments, symmetric(atom, params, maps, groups)
+    answers what symmetry reduction asks, or is NO_SYMMETRIC. A request of
+    protocol 1, which names a clause, is refused."""
+
+    def handle(request: dict) -> dict:
+        op = request.get("op")
+        try:
+            if op == "hello":
+                if request.get("protocol") != PROTOCOL_ATOMS:
+                    return {"error": f"this glue speaks protocol {PROTOCOL_ATOMS}, not {request.get('protocol', PROTOCOL)!r}"}
+                hello = {"language": language, "protocol": PROTOCOL_ATOMS}
+                return hello if symmetric is NO_SYMMETRIC else dict(hello, supports=["symmetric"])
+            if "atom" not in request:
+                return {"error": f"a request of protocol {PROTOCOL_ATOMS} carries an atom; {op!r} names none"}
+            if op == "guard":
+                return {"results": [guard(request["atom"], vs) for vs in request["values"]]}
+            if op == "post":
+                return {"results": [post(request["atom"], vs) for vs in request["values"]]}
+            if op == "symmetric":
+                why = symmetric(request["atom"], request["params"], request["maps"], request["groups"])
+                return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
+        except Exception as e:  # what the atom raised is the answer, reported with it
+            return {"error": f"{type(e).__name__}: {e}"}
+        return {"error": f"protocol {PROTOCOL_ATOMS} has no request {op!r}"}
+    return handle
+
+
+def speaking(handles: dict[int, Handle]) -> Handle:
+    """The Handle of a glue that speaks each protocol of handles, by its
+    number: hello picks the one it asks for, protocol 1 when it names none,
+    and every later request goes to that one. A request before hello is
+    refused, and so is a hello asking a protocol not among them."""
+    agreed: list[Handle] = []
+
+    def handle(request: dict) -> dict:
+        if request.get("op") == "hello":
+            asked = request.get("protocol", PROTOCOL)
+            if asked not in handles:
+                spoken = ", ".join(str(p) for p in sorted(handles))
+                return {"error": f"this glue speaks protocol {spoken}, not {asked!r}"}
+            agreed[:] = [handles[asked]]
+            return agreed[0](request)
+        if not agreed:
+            return {"error": "say hello first: the protocol is agreed on by hello"}
+        return agreed[0](request)
+    return handle
+
+
+def agreed_protocol(request: dict, answer: dict, protocol: int) -> int:
+    """The protocol in force after answer to request, protocol before it:
+    the one a hello answer names."""
+    if request.get("op") == "hello" and isinstance(answer, dict) and isinstance(answer.get("protocol"), int):
+        return answer["protocol"]
+    return protocol
+
+
 def serve(handle: Handle, stdin, stdout) -> None:
     """Answers the requests read from stdin, one JSON line each, with
-    handle, and writes each answer as one JSON line to stdout. A glue
-    written in Python runs this as its main loop."""
+    handle, and writes each answer as one JSON line to stdout, encoded in
+    the protocol hello agreed on. A glue written in Python runs this as its
+    main loop."""
+    protocol = PROTOCOL
     for line in stdin:
         if not line.strip():
             continue
@@ -236,7 +305,9 @@ def serve(handle: Handle, stdin, stdout) -> None:
             request = json.loads(line)
             if not isinstance(request, dict):
                 raise ValueError(f"a request is a JSON object, not {request!r}")
-            answer = answer_to_wire(request, handle(request_from_wire(request)))
+            answer = handle(request_from_wire(request))
+            protocol = agreed_protocol(request, answer, protocol)
+            answer = answer_to_wire(request, answer, protocol)
         except Exception as e:  # every line gets an answer, so the checker is never left waiting
             answer = {"error": f"{type(e).__name__}: {e}"}
         stdout.write(json.dumps(answer, ensure_ascii=False) + "\n")
@@ -254,6 +325,7 @@ class CommandTransport:
         except OSError as e:
             raise EvaluatorError(f"cannot start the glue {argv!r}: {e}") from e
         self._argv = argv
+        self._protocol = PROTOCOL
 
     def __call__(self, request: dict) -> dict:
         op = request.get("op")
@@ -266,7 +338,9 @@ class CommandTransport:
         if not line:
             raise EvaluatorError(f"the glue {self._argv!r} stopped without answering {op}")
         try:
-            return answer_from_wire(request, json.loads(line))
+            answer = json.loads(line)
+            self._protocol = agreed_protocol(request, answer, self._protocol)
+            return answer_from_wire(request, answer, self._protocol)
         except ValueError as e:
             raise EvaluatorError(f"the glue {self._argv!r} answered {op} with {line.strip()!r}: {e}") from e
 

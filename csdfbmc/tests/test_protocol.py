@@ -201,15 +201,17 @@ class ServeTest(unittest.TestCase):
     def test_the_values_of_an_atom_post_are_encoded_both_ways(self):
         # Setup
         def handle(request):
+            if request["op"] == "hello":
+                return {"language": "fake", "protocol": 2}
             return {"results": [[[frozenset(vs)]] for vs in request["values"]]}
         request = {"op": "post", "atom": {"text": ["", " == ", ""], "holes": [0, 1], "primed": [True, False]},
                    "values": [[{"set": [1]}]]}
 
         # Execute
-        answers = self.serve([json.dumps(request)], handle)
+        answers = self.serve([json.dumps({"op": "hello", "protocol": 2}), json.dumps(request)], handle)
 
         # Assert
-        self.assertEqual([{"results": [[[{"set": [{"set": [1]}]}]]]}], answers)
+        self.assertEqual({"results": [[[{"set": [{"set": [1]}]}]]]}, answers[1])
 
 
 # The repository root, from which "python -m csdfbmc.python_glue" finds the package.

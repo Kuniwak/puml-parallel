@@ -12,6 +12,7 @@ def atom(text: list[str], holes: list[int], primed: list[bool]) -> dict:
 class PythonGlueAtomTest(unittest.TestCase):
     def setUp(self):
         self.handle = evaluator([])
+        self.handle({"op": "hello", "protocol": 2})
 
     def test_a_guard_is_evaluated_per_list_of_values(self):
         tests = {

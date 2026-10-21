@@ -738,7 +738,10 @@ name: `guard` and `post` take a list of values per evaluation (a post only
 those before the step, and answers lists of values after it, one per primed
 argument), and the optional `symmetric` takes the indices of the arguments
 that range over IDs and of the maps keyed by them. There is no `analyse` and
-no `beyond`: what an atom reads is its holes, which the tools know. The
+no `beyond`: what an atom reads is its holes, which the tools know. hello
+agrees on one protocol for the session: a glue refuses a request before it,
+a hello asking a protocol it does not speak, and a request of the other
+protocol. The
 reference glue reads each hole as a name of its own; a post atom is
 `$x' == e`, `$x' in e`, or a tuple of every value after the step on the left.
 

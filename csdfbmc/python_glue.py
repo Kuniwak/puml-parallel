@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
-from csdfbmc.protocol import Analysis, atom_text, handler
+from csdfbmc.protocol import PROTOCOL, PROTOCOL_ATOMS, Analysis, atom_handler, atom_text, handler, speaking
 from csdfbmc.checks import check_pure
 from csdfbmc.values import freeze
 
@@ -182,9 +182,11 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     """The handler of the protocol's requests; args are the paths of the
     modules of shared definitions."""
     glue = Glue(args)
-    return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post,
-                   beyond=glue.beyond, symmetric=glue.symmetric, atom_guard=glue.atom_guard,
-                   atom_post=glue.atom_post, atom_symmetric=glue.atom_symmetric)
+    return speaking({
+        PROTOCOL: handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post,
+                          beyond=glue.beyond, symmetric=glue.symmetric),
+        PROTOCOL_ATOMS: atom_handler(LANGUAGE, guard=glue.atom_guard, post=glue.atom_post, symmetric=glue.atom_symmetric),
+    })
 
 
 if __name__ == "__main__":
