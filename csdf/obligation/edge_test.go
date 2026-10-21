@@ -69,21 +69,39 @@ func TestAnEdgeIsEnabledWhenSomeValuesPassItsGuardAndPost(t *testing.T) {
 }
 
 func TestAStepRelatesTheValuesBeforeTheFieldsAndTheValuesAfter(t *testing.T) {
-	// Setup
-	d := core.Diagram{States: []string{"s"}, Vars: map[string][]string{"s": {"在庫"}}, Init: "s"}
-	e := core.Edge{Src: "s", Dst: "s",
-		Event: core.Event{Channel: "IN", Fields: []core.Field{{Name: "数量"}}},
-		Guard: mustParse(t, "$数量 > 0"), Post: mustParse(t, "$在庫' = $在庫 + $数量")}
-
-	// Execute
-	got, err := obligation.Step(d, e)
-
-	// Assert
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
+	type testCase struct {
+		Edge func(t *testing.T) core.Edge
+		Want string
 	}
-	if s, want := symbols.Spell(got), `"$_0 > 0"(数量) ∧ "$_0 = $_1 + $_2"(在庫', 在庫, 数量)`; s != want {
-		t.Errorf("want %q, got %q", want, s)
+
+	testCases := map[string]testCase{
+		"its guard and its post, over the fields it receives": {
+			Edge: func(t *testing.T) core.Edge {
+				return core.Edge{Src: "s", Dst: "s",
+					Event: core.Event{Channel: "IN", Fields: []core.Field{{Name: "数量"}}},
+					Guard: mustParse(t, "$数量 > 0"), Post: mustParse(t, "$在庫' = $在庫 + $数量")}
+			},
+			Want: `"$_0 > 0"(数量) ∧ "$_0 = $_1 + $_2"(在庫', 在庫, 数量)`,
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			d := core.Diagram{States: []string{"s", "t"}, Vars: map[string][]string{"s": {"在庫"}}, Init: "s"}
+			e := tc.Edge(t)
+
+			// Execute
+			got, err := obligation.Step(d, e)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("want nil, got %v", err)
+			}
+			if s := symbols.Spell(got); s != tc.Want {
+				t.Errorf("want %q, got %q", tc.Want, s)
+			}
+		})
 	}
 }
 
