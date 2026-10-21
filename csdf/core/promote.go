@@ -25,9 +25,13 @@ type Target struct {
 	Map, ID, Event string
 }
 
-// Sync is a global event Event taken by its Targets together.
+// Sync is a global event Event taken by its Targets together. Guard is a
+// clause of the global diagram on it, over the maps and the IDs of the
+// targets: what it reads of a bound instance is carried by the event
+// (docs/CLAUSE_DESIGN.md).
 type Sync struct {
 	Event   string
+	Guard   clause.And
 	Targets []Target
 }
 
@@ -209,6 +213,9 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 			}
 		}
 	}
+	if err := readsBound(p, s); err != nil {
+		return nil, err
+	}
 	var fields []Field
 	for _, tg := range s.Targets {
 		fields = append(fields, Field{Name: tg.ID})
@@ -267,7 +274,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 		out = append(out, Edge{
 			Src: p.State, Dst: p.State,
 			Event: Event{Channel: s.Event, Fields: merged},
-			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, guard}, pins...)...),
+			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, s.Guard, guard}, pins...)...),
 			Post:  post,
 		})
 	}
@@ -439,4 +446,89 @@ func MapType(f Family, ids []Value, env Env) ([]Value, error) {
 		out[i] = m
 	}
 	return out, nil
+}
+
+// readsBound reports, as an error, a clause of the sync s that reads what s
+// does not give it: a name that is no map, no target's ID and no field of a
+// target's local event, or an entry of a map keyed by anything but the ID
+// of one of that map's targets (docs/CLAUSE_DESIGN.md, Control state).
+func readsBound(p Promotion, s Sync) error {
+	allowed := map[string]bool{}
+	keys := map[string]map[string]bool{}
+	for _, f := range p.Families {
+		allowed[f.Map] = true
+		keys[f.Map] = map[string]bool{}
+	}
+	for _, tg := range s.Targets {
+		allowed[tg.ID] = true
+		if keys[tg.Map] != nil {
+			keys[tg.Map][tg.ID] = true
+		}
+		if f, err := familyOf(p, tg.Map); err == nil {
+			for _, e := range f.Local.Edges {
+				if e.Event.Channel == tg.Event {
+					for _, fl := range e.Event.Fields {
+						allowed[fl.Name] = true
+					}
+				}
+			}
+		}
+	}
+	var err error
+	var walk func(t clause.Term)
+	walk = func(t clause.Term) {
+		switch t := t.(type) {
+		case clause.Index:
+			m, okm := t.Map.(clause.Free)
+			k, okk := t.Key.(clause.Free)
+			if okm && keys[m.Name] != nil && (!okk || !keys[m.Name][k.Name]) && err == nil {
+				err = fmt.Errorf("its clause reads %s[%s], an instance it does not bind", m.Name, keyName(t.Key))
+			}
+			walk(t.Map)
+			walk(t.Key)
+		case clause.Field:
+			walk(t.Of)
+		case clause.App:
+			for _, a := range t.Args {
+				walk(a)
+			}
+		}
+	}
+	eachTerm(s.Guard, walk)
+	if err != nil {
+		return err
+	}
+	for _, v := range clause.FreeVars(s.Guard) {
+		if !allowed[v.Name] {
+			return fmt.Errorf("its clause reads %s, which is no map, no target and no field", v.Name)
+		}
+	}
+	return nil
+}
+
+func keyName(t clause.Term) string {
+	if f, ok := t.(clause.Free); ok {
+		return f.Name
+	}
+	return fmt.Sprintf("%v", t)
+}
+
+// eachTerm visits every term f's conjuncts read, outermost first.
+func eachTerm(f clause.Formula, visit func(clause.Term)) {
+	switch f := f.(type) {
+	case clause.And:
+		for _, c := range f.Conjuncts {
+			eachTerm(c, visit)
+		}
+	case clause.Exists:
+		eachTerm(f.Body, visit)
+	case clause.Atom:
+		for _, a := range f.Args() {
+			visit(a)
+		}
+	case clause.Builtin:
+		for _, a := range f.Args {
+			visit(a)
+		}
+	}
 }

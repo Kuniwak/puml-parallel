@@ -69,7 +69,16 @@ var (
 
 // locationInstance is the location x by hand: 0 is absent, 1+k open with k
 // in stock.
-func locationInstance(x string) *lts.LTS {
+func locationInstance(x string) *lts.LTS { return readingLocation(x, noReads) }
+
+// reads are the suffixes a label of MOVE carries for what a global clause
+// reads of the instances (docs/CLAUSE_DESIGN.md): given the role the
+// instance plays and its stock, the suffixes it offers.
+type reads func(role string, stock int) []string
+
+func noReads(string, int) []string { return []string{""} }
+
+func readingLocation(x string, r reads) *lts.LTS {
 	l := handLTS(tr{0, "OPEN." + x, 2}, tr{1, "CLOSE." + x, 0})
 	for _, s := range shipIDs {
 		for _, other := range locIDs {
@@ -77,11 +86,15 @@ func locationInstance(x string) *lts.LTS {
 				continue
 			}
 			for k := 0; k <= 2; k++ {
-				if k >= 1 {
-					l.Add(1+k, "MOVE."+s+"."+x+"."+other+".1", k)
+				for _, suffix := range r("from", k) {
+					if k >= 1 {
+						l.Add(1+k, "MOVE."+s+"."+x+"."+other+".1"+suffix, k)
+					}
 				}
-				if k+1 <= 2 {
-					l.Add(1+k, "MOVE."+s+"."+other+"."+x+".1", 2+k)
+				for _, suffix := range r("to", k) {
+					if k+1 <= 2 {
+						l.Add(1+k, "MOVE."+s+"."+other+"."+x+".1"+suffix, 2+k)
+					}
 				}
 			}
 		}
@@ -91,12 +104,17 @@ func locationInstance(x string) *lts.LTS {
 
 // shipmentInstance is the shipment s by hand: 0 is absent, 1 waiting, 2
 // moved.
-func shipmentInstance(s string) *lts.LTS {
+func shipmentInstance(s string) *lts.LTS { return readingShipment(s, []string{""}) }
+
+func readingShipment(s string, suffixes []string) *lts.LTS {
 	l := handLTS(tr{0, "NEW." + s, 1}, tr{2, "BACK." + s, 1})
 	for _, from := range locIDs {
 		for _, to := range locIDs {
-			if from != to {
-				l.Add(1, "MOVE."+s+"."+from+"."+to+".1", 2)
+			if from == to {
+				continue
+			}
+			for _, suffix := range suffixes {
+				l.Add(1, "MOVE."+s+"."+from+"."+to+".1"+suffix, 2)
 			}
 		}
 	}
@@ -217,6 +235,10 @@ func TestPromoteRefuses(t *testing.T) {
 			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "DEPART"}}}), "DEPART"},
 		{"a sync on tau", promotion(locations, Sync{Event: Tau, Targets: []Target{{Map: "locations", ID: "loc", Event: "DEPART"}}}), "tau"},
 		{"a target without its local event", promotion(locations, Sync{Event: "MOVE", Targets: []Target{{Map: "locations", ID: "loc"}}}), "names no local event"},
+		{"a sync clause reading an instance the sync does not bind", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "${locations[loc].stock} = 0"), Targets: []Target{
+			{Map: "locations", ID: "from", Event: "DEPART"}}}), "locations[loc]"},
+		{"a sync clause reading a name that is no map, target or field", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "$z = 0"), Targets: []Target{
+			{Map: "locations", ID: "from", Event: "DEPART"}}}), "z"},
 		{"a family without its creation event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Delete: "CLOSE"}), "no creation event"},
 		{"end edges without a deletion event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN"}), "no deletion event"},
 		{"a creation event named like a local one", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "DEPART", Delete: "CLOSE"}), "DEPART"},
@@ -424,6 +446,65 @@ func TestPromoteGivesTwoReceivesOfOneNameOneValue(t *testing.T) {
 			tr{1, "PEEK." + y + "." + x + ".0", 1}, tr{1, "PEEK." + y + "." + x + ".1", 1})
 	}
 	want := lts.Parallel([]*lts.LTS{instance("g1", "g2"), instance("g2", "g1")}, []func(string) bool{mentions("g1"), mentions("g2")})
+
+	// Execute
+	promoted, err := Promote(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := Expand(promoted, env)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lts.StableFailuresEqual(got, want) {
+		t.Errorf("not stable-failures equivalent: got %d states, want %d", len(got.Trans), len(want.Trans))
+	}
+}
+
+func TestPromoteCarriesWhatASyncClauseReadsByTheEvent(t *testing.T) {
+	// Setup: MOVE is taken only into an empty location, a clause of the
+	// global diagram reading the instance bound to to (#79).
+	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
+	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t), Create: "NEW"}
+	p := Promotion{State: "G", Families: []Family{locations, shipments},
+		Syncs: []Sync{{Event: "MOVE", Guard: mustParse(t, "${locations[to].stock} = 0"), Targets: []Target{
+			{Map: "shipments", ID: "s", Event: "MOVE"},
+			{Map: "locations", ID: "from", Event: "DEPART"},
+			{Map: "locations", ID: "to", Event: "ARRIVE"},
+		}}}}
+	env := stock(t, locations, shipments)
+	// By hand: the instance bound to to offers MOVE carrying its stock, the
+	// others offer every value; the global clause takes only 0; and a
+	// many-to-one renaming forgets what was carried.
+	carry := func(k int) string { return "|to.stock=" + string(rune('0'+k)) }
+	any := []string{carry(0), carry(1), carry(2)}
+	r := func(role string, k int) []string {
+		if role == "to" {
+			return []string{carry(k)}
+		}
+		return any
+	}
+	global := lts.New(0)
+	for _, from := range locIDs {
+		for _, to := range locIDs {
+			if from != to {
+				global.Add(0, "MOVE.s1."+from+"."+to+".1"+carry(0), 0)
+			}
+		}
+	}
+	carried := func(label string) bool { return strings.Contains(label, "|") }
+	joint := lts.Parallel(
+		[]*lts.LTS{readingLocation("a", r), readingLocation("b", r), readingShipment("s1", any), global},
+		[]func(string) bool{mentions("a"), mentions("b"), mentions("s1"), carried})
+	want, err := lts.Rename(joint, func(label string) []string {
+		forgotten, _, _ := strings.Cut(label, "|")
+		return []string{forgotten}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Execute
 	promoted, err := Promote(p)
