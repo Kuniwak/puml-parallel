@@ -10,6 +10,7 @@ from csdfbmc.tests import fixture
 from csdfbmc.model import Diagram
 from csdfbmc.protocol import EvaluatorError
 from csdfbmc.checks import Checks
+from csdfbmc.environment import Environment
 
 
 COUNTER = {
@@ -76,6 +77,45 @@ class ExplorerTest(unittest.TestCase):
         # dec fires at n = 0 too and counts down past zero, until the bound.
         self.assertIn(("a", (-1,), ()), set(result.states))
         self.assertEqual(["@opaque"], result.opaque_clauses)
+
+    def test_the_environment_decides_a_clause_not_formalised(self):
+        # Setup
+        cases = {
+            "the function that is always false": (False, {("a", (2,), ())}),
+            "a function of the names it reads": (lambda n: n > 0, {("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}),
+        }
+        for name, (given, want) in cases.items():
+            with self.subTest(name):
+                environment = Environment(given={"@opaque#1": given})
+
+                # Execute
+                result = fixture.explorer(self.without_its_guard(), environment=environment, max_states=10).run()
+
+                # Assert
+                self.assertEqual(want, set(result.states))
+                self.assertEqual([], result.opaque_clauses)
+
+    def test_a_seed_walks_the_same_states_again_and_is_reported(self):
+        # Setup
+        def walk():
+            return fixture.explorer(self.without_its_guard(), environment=Environment(seed=7), max_states=10).run()
+
+        # Execute
+        first, again = walk(), walk()
+
+        # Assert
+        self.assertEqual(first.states, again.states)
+        self.assertEqual({"seed": 7, "given": [], "decided": ["@opaque#1"]}, first.to_json()["environment"])
+
+    def test_the_checks_module_gives_the_environment_by_default(self):
+        # Setup
+        checks = Checks(types={}, environment={"@opaque#1": False})
+
+        # Execute
+        result = fixture.explorer(self.without_its_guard(), checks, max_states=10).run()
+
+        # Assert
+        self.assertEqual({("a", (2,), ())}, set(result.states))
 
     def test_the_bound_on_states_stops_the_walk(self):
         result = fixture.explorer(COUNTER, max_states=2).run()

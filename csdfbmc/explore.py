@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from csdfbmc.cone import Cone
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
+from csdfbmc.environment import Environment
 from csdfbmc.meaning import OPAQUE, Meaning
 from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.checks import Checks, apply
@@ -36,6 +37,10 @@ class Result:
     # clauses admitted no successor: a clause that cannot be satisfied from
     # this state, or post clauses that disagree.
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
+    # environment: the seed and the given functions of the environment, and
+    # the functions it decided a clause by (csdfbmc.environment); what a run
+    # needs to be reproduced.
+    environment: dict = field(default_factory=lambda: {"seed": None, "given": [], "decided": []})
     # unconstrained: (state, event as taken, variables) where the post clauses
     # left variables of the next state without a value: a post clause is
     # missing, or one constrains fewer variables than it should.
@@ -94,6 +99,7 @@ class Result:
             "empty_posts": [{"event": label, **at(s)} for s, label in self.empty_posts],
             "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
             "opaque_clauses": self.opaque_clauses,
+            "environment": self.environment,
             "dropped_clauses": [{"text": text, "maps": list(maps)} for text, maps in self.dropped_clauses],
             "relevant": list(self.relevant) if self.relevant is not None else None,
             "dropped_variables": self.dropped,
@@ -161,9 +167,18 @@ class Explorer:
     instance's variables and the event's parameters, a constrain clause over
     the maps.
 
-    opaque says what a clause not formalised yet means: "error" refuses it, "true"
-    takes it as satisfied (an over-approximation, so a deadlock it reports may
-    be spurious while a deadlock it misses cannot be hidden by it).
+    environment decides a guard clause not formalised yet (the tool word
+    @opaque, or a clause the glue cannot read) as the pure function it denotes
+    (csdfbmc.environment), applied to the names the step binds: a clause the
+    glue cannot read is the function named by its text, and the n-th @opaque
+    of the diagram, counting the start edge, then the edges in order, guard
+    before post, then the end edge, is the function @opaque#n. It defaults to
+    the functions the checks module gives (ENVIRONMENT).
+
+    opaque says what such a clause means when the environment does not decide
+    it: "error" refuses it, "true" takes it as satisfied (an
+    over-approximation, so a deadlock it reports may be spurious while a
+    deadlock it misses cannot be hidden by it).
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -189,12 +204,15 @@ class Explorer:
 
     def __init__(self, diagram: Diagram, checks: Checks, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
-                 por: bool = False, symmetry: bool = False, cone: Cone):
+                 por: bool = False, symmetry: bool = False, cone: Cone, environment: Environment | None = None):
         if opaque not in ("error", "true"):
             raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
         self.checks = checks
         self.opaque = opaque
+        self.environment = environment if environment is not None else Environment(given=checks.environment)
+        self._function_names = self._name_the_opaque_clauses()
+        self.decided_seen: dict[str, None] = {}
         self._tau_choices: dict[tuple, tuple[str, ...]] = {}
         self._check_sent()
         self.max_states = max_states
@@ -242,6 +260,28 @@ class Explorer:
             local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
         return local_env
 
+    def _name_the_opaque_clauses(self) -> dict[int, str]:
+        """The name of the function each @opaque of the diagram denotes, by
+        the identity of its clause: @opaque#n for the n-th."""
+        predicates = [self.d.start_post] + [p for e in self.d.edges for p in (e.guard, e.post)]
+        if self.d.end is not None:
+            predicates.append(self.d.end.guard)
+        opaque = [c for p in predicates for c in p if c.opaque]
+        return {id(c): f"@opaque#{n}" for n, c in enumerate(opaque, 1)}
+
+    def _function_name(self, clause: Clause) -> str:
+        return self._function_names.get(id(clause), clause.text)
+
+    def _decided(self, clause: Clause, env: dict) -> bool:
+        """What the environment, or else the opaque rule, says a guard clause
+        not formalised means at env."""
+        name = self._function_name(clause)
+        value = self.environment.decide(name, env)
+        if value is None:
+            return self._not_formalised(clause)
+        self.decided_seen.setdefault(name)
+        return value
+
     def _not_formalised(self, clause: Clause) -> bool:
         """Records an opaque clause, or refuses it; True when it is to be taken as true."""
         if self.opaque == "error":
@@ -272,7 +312,7 @@ class Explorer:
         scope = self._instance_env(c, env) if c.map and c.kind == "local" else env
         value = self.meaning.evaluate(c, "guard", scope)
         if value is OPAQUE:
-            return self._not_formalised(c)
+            return self._decided(c, scope)
         return bool(value)
 
     # -- posts ------------------------------------------------------------------
@@ -604,6 +644,7 @@ class Explorer:
             states=order, parents=parents, deadlocks=deadlocks,
             tau_cycles=_cycles(order, tau_next) if not stopped else [],
             opaque_clauses=list(self.opaque_seen), truncated=truncated, bound=self.max_states,
+            environment={**self.environment.to_json(), "decided": list(self.decided_seen)},
             violations=violations,
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
