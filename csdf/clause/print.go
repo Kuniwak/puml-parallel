@@ -99,6 +99,7 @@ func (pr *printer) builtin(b Builtin) (string, error) {
 // is written depends on what follows it; after is the rune after the atom.
 func (pr *printer) atom(a Atom, after rune) (string, error) {
 	pieces := make([]string, len(a.Parts))
+	unmatched := pr.unmatchedParens(a)
 	next := string(after)
 	if after == 0 {
 		next = ""
@@ -107,7 +108,7 @@ func (pr *printer) atom(a Atom, after rune) (string, error) {
 		var s string
 		switch p := a.Parts[i].(type) {
 		case Text:
-			s = pr.text(string(p), firstRune(next), i == 0)
+			s = pr.text(string(p), firstRune(next), i == 0, unmatched[i])
 		case Hole:
 			var err error
 			if s, err = pr.hole(p.Term, next); err != nil {
@@ -120,10 +121,45 @@ func (pr *printer) atom(a Atom, after rune) (string, error) {
 	return strings.Join(pieces, ""), nil
 }
 
+// unmatchedParens marks, for each text part of a, the parentheses that have
+// no partner in the atom. Inside an ∃ body Parse nests parentheses in text,
+// so only those need escaping; outside one, none do.
+func (pr *printer) unmatchedParens(a Atom) map[int]map[int]bool {
+	marks := map[int]map[int]bool{}
+	if pr.body == 0 {
+		return marks
+	}
+	type pos struct{ part, r int }
+	var open []pos
+	for i, p := range a.Parts {
+		t, ok := p.(Text)
+		if !ok {
+			continue
+		}
+		marks[i] = map[int]bool{}
+		for j, r := range []rune(string(t)) {
+			switch r {
+			case '(':
+				open = append(open, pos{i, j})
+			case ')':
+				if len(open) == 0 {
+					marks[i][j] = true
+				} else {
+					open = open[:len(open)-1]
+				}
+			}
+		}
+	}
+	for _, o := range open {
+		marks[o.part][o.r] = true
+	}
+	return marks
+}
+
 // text escapes what Parse would otherwise read as syntax: a backslash
 // before a character it escapes, a $ that would start a hole, ∧ and ;, an
-// @ that starts a conjunct, and parentheses inside an ∃ body.
-func (pr *printer) text(s string, after rune, startsConjunct bool) string {
+// @ that starts a conjunct, and the parentheses unmatched marks.
+func (pr *printer) text(s string, after rune, startsConjunct bool, unmatched map[int]bool) string {
 	rs := []rune(s)
 	var b strings.Builder
 	for i, r := range rs {
@@ -142,7 +178,7 @@ func (pr *printer) text(s string, after rune, startsConjunct bool) string {
 		case toolPrefix:
 			esc = i == 0 && startsConjunct
 		case '(', ')':
-			esc = pr.body > 0
+			esc = unmatched[i]
 		}
 		if esc {
 			b.WriteRune(escape)

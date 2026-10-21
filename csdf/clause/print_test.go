@@ -129,3 +129,30 @@ func TestPrintRefusesAFormulaThatIsNotWellFormed(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintOfParseIsTheTextAuthorsWrite(t *testing.T) {
+	for _, text := range []string{
+		"$在庫' = $在庫 - $数量",
+		"$在庫 が $数量 以上ある",
+		"${locations[from].在庫} > 0 ∧ @ne(from, to)",
+		"costs $100",
+		"@exists(v) (f($v) > 0) ∧ $y",
+		"@update(m', m, k, v) ∧ @frame(m', m, k)",
+	} {
+		t.Run(text, func(t *testing.T) {
+			// Setup
+			f, err := Parse(text)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			got, err := Print(f)
+
+			// Assert
+			if err != nil || got != text {
+				t.Errorf("Print(Parse(%q)) = %q, %v", text, got, err)
+			}
+		})
+	}
+}
