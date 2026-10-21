@@ -25,32 +25,25 @@ class EnvironmentCommandTest(unittest.TestCase):
         self.assertIn("environment: seed 7\n", first)
         self.assertIn("decided by the environment: $_ が 正\n", first)
 
-    def test_env_gives_a_function_its_value(self):
-        # Execute
-        _, out, _ = self.run_main("--env", "$n が 正=false")
+    def test_env_gives_a_function_its_value_over_the_checks_module(self):
+        # Setup
+        cases = [
+            ("--env gives it", (), "TYPES = {}\n"),
+            ("--env wins over the checks module", (), 'TYPES = {}\nENVIRONMENT = {"$n が 正": True}\n'),
+        ]
+        for name, args, checks in cases:
+            with self.subTest(name):
+                # Execute
+                _, out, _ = self.run_main("--env", "$n が 正=false", *args, checks=checks)
 
-        # Assert
-        self.assertIn("states: 1\n", out)
-        self.assertIn("environment: given $_ が 正\n", out)
-
-    def test_env_wins_over_the_checks_module(self):
-        # Execute
-        _, out, _ = self.run_main("--env", "$n が 正=false", checks='TYPES = {}\nENVIRONMENT = {"$n が 正": True}\n')
-
-        # Assert
-        self.assertIn("states: 1\n", out)
-
-    def test_a_malformed_env_is_a_usage_error(self):
-        # Execute
-        code, _, err = self.run_main("--env", "$n が 正=maybe")
-
-        # Assert
-        self.assertEqual(2, code)
-        self.assertIn("--env expects NAME=true or NAME=false", err)
+                # Assert
+                self.assertIn("states: 1\n", out)
+                self.assertIn("environment: given $_ が 正\n", out)
 
     def test_what_the_environment_cannot_decide_is_a_usage_error(self):
         # Setup
         cases = [
+            ("a malformed --env", ("--env", "$n が 正=maybe"), "TYPES = {}\n", "--env expects NAME=true or NAME=false"),
             ("a function nothing decides", (), "TYPES = {}\n", "nothing decides the environment's functions '$_ が 正'"),
             ("a given name of no function", ("--env", "$n が 零=true", "--seed", "1"), "TYPES = {}\n", "names no function of the diagram: '$_ が 零'"),
         ]

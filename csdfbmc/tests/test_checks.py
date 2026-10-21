@@ -93,43 +93,22 @@ class LoadChecksTest(unittest.TestCase):
         self.assertEqual({"在庫 が 十分", "$n が 正"}, set(checks.environment))
         self.assertTrue(checks.environment["在庫 が 十分"](在庫=2))
 
-    def test_refuses_an_environment_value_that_is_neither_a_truth_value_nor_a_function(self):
+    def test_refuses_a_module_that_would_otherwise_be_misread(self):
         # Setup
-        path = self.write('TYPES = {}\nENVIRONMENT = {"p": 1}\n')
+        cases = [
+            ("an environment value neither a truth value nor a function", 'TYPES = {}\nENVIRONMENT = {"p": 1}\n', "'p'"),
+            ("a module without types", "INVARIANTS = {}\n", "TYPES"),
+            ("the DOMAINS an earlier csdfbmc read, which would be ignored", 'DOMAINS = {"額": [1]}\n', "TYPES"),
+            ("a TYPEOF naming no type", 'TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n', "口座ID"),
+            ("the CLAUSES an earlier csdfbmc read, which a glue reads now", "TYPES = {}\nCLAUSES = {}\n", "glue"),
+        ]
+        for name, source, message in cases:
+            with self.subTest(name):
+                path = self.write(source)
 
-        # Execute, Assert
-        with self.assertRaisesRegex(PurityError, "'p'"):
-            load_checks(path)
-
-    def test_refuses_a_module_without_types(self):
-        with self.assertRaisesRegex(PurityError, "TYPES"):
-            load_checks(self.write("INVARIANTS = {}\n"))
-
-    def test_refuses_the_domains_an_earlier_csdfbmc_read(self):
-        # Setup: DOMAINS would otherwise be silently ignored.
-        path = self.write('DOMAINS = {"額": [1]}\n')
-
-        # Execute, Assert
-        with self.assertRaisesRegex(PurityError, "TYPES"):
-            load_checks(path)
-
-    def test_refuses_a_typeof_naming_no_type(self):
-        # Setup
-        path = self.write('TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n')
-
-        # Execute, Assert
-        with self.assertRaisesRegex(PurityError, "口座ID"):
-            load_checks(path)
-
-    def test_refuses_the_clauses_an_earlier_csdfbmc_read(self):
-        # Setup: the clauses are read through a glue now, so CLAUSES would
-        # otherwise be silently ignored.
-        path = self.write("TYPES = {}\nCLAUSES = {}\n")
-
-        # Execute, Assert
-        with self.assertRaisesRegex(PurityError, "glue"):
-            load_checks(path)
-
+                # Execute, Assert
+                with self.assertRaisesRegex(PurityError, message):
+                    load_checks(path)
 
 if __name__ == "__main__":
     unittest.main()
