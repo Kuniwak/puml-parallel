@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -44,6 +45,11 @@ func Holds(f clause.Formula, env Env, before, after map[string]Value) (bool, err
 	return evaluator{env: env, val: valuation{before: before, after: after}}.holds(f, nil)
 }
 
+// errMissing is a term that reads an entry its map does not have: an
+// instance that does not exist. A clause reading one is false
+// (docs/CLAUSE_DESIGN.md).
+var errMissing = errors.New("an entry the map does not have")
+
 type evaluator struct {
 	env Env
 	val valuation
@@ -77,12 +83,18 @@ func (ev evaluator) holds(f clause.Formula, bound []Value) (bool, error) {
 			return false, fmt.Errorf("core: no meaning for the atom %q", AtomKey(w))
 		}
 		args, err := ev.terms(terms, bound)
+		if errors.Is(err, errMissing) {
+			return false, nil
+		}
 		if err != nil {
 			return false, err
 		}
 		return fn(args), nil
 	case clause.Builtin:
 		args, err := ev.terms(f.Args, bound)
+		if errors.Is(err, errMissing) {
+			return false, nil
+		}
 		if err != nil {
 			return false, err
 		}
@@ -212,7 +224,7 @@ func (ev evaluator) term(t clause.Term, bound []Value) (Value, error) {
 		}
 		v, ok := mm[Key(k)]
 		if !ok {
-			return nil, fmt.Errorf("core: %s is not in %s", Key(k), Key(m))
+			return nil, fmt.Errorf("core: %s is not in %s: %w", Key(k), Key(m), errMissing)
 		}
 		return v, nil
 	case clause.Field:
