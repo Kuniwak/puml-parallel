@@ -707,7 +707,7 @@ input and output, one JSON request and one JSON answer per line. A glue
 answers `hello` (its language and protocol version); `analyse`, the names a
 clause reads and, for a post, the variables it gives a value to, without
 evaluating it, or `{"opaque": true}` for a clause not yet formalised, which
-follows `--opaque`; and `guard` and `post`, the clause's value under each of
+the environment decides; and `guard` and `post`, the clause's value under each of
 a batch of bindings. Two more requests are optional, and a glue lists the
 ones it answers in its `hello`: `beyond`, the names a clause reads except a
 map it reads only at its own instance's ID, and `symmetric`, whether a clause
@@ -820,13 +820,12 @@ function nothing gives, deterministically, by hashing the seed, the name and
 the values of the arguments, and nothing else, so that one seed walks the same states again and several
 seeds widen what the bound covers. The report names the seed, the given
 functions and the ones a clause was decided by (`environment` in `--json`),
-which is what reproduces a run. A clause the environment does not decide is
-refused; `--opaque true` takes it as satisfied instead, which
-over-approximates the behaviour (a deadlock it then reports may be spurious;
-a deadlock it misses cannot be hidden by it) and lists the clauses so taken.
-A post clause not formalised is not decided by the environment yet: which
-values it writes is known only once its atom's holes are (a later step of
-#76). Findings of one shape are reported once, with their count and the
+which is what reproduces a run. Before the walk, csdfbmc refuses a function
+that nothing gives and no seed chooses, listing every such function, and a
+given name that names no function of the diagram; nothing is approximated.
+A post clause not formalised is not decided by the environment yet, and is
+refused: which values it writes is known only once the walk reads atoms
+(a later step of #76). Findings of one shape are reported once, with their count and the
 shortest trace: deadlocks by control state and the event that led there,
 broken invariants by invariant and control state, cycles by the control
 states they run through, empty and unconstrained posts by event. `--all`

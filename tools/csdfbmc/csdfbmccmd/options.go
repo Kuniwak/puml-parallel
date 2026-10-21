@@ -47,12 +47,12 @@ Checker options (the checker's --help lists them in full):
                        clauses written in Python. One of the two is needed.
   --max-states N       stop after this many states (default 100000)
   --seed N             choose the functions a clause not formalised denotes
-                       from this seed, where nothing gives them
+                       from this seed, where nothing gives them; without it,
+                       a function nothing gives is refused (a post clause not
+                       formalised is refused either way, until #76's step 6)
   --env NAME=true|false
                        give the function NAME the value true or false, over
                        the checks module's ENVIRONMENT (repeatable)
-  --opaque error|true  what a clause not formalised yet means when the
-                       environment does not decide it (default: refuse)
   --avoid EVENT        also report the cycles that never perform EVENT
   --within STATE       with --avoid, look among these control states only
   --first              stop at the first deadlock, broken invariant or unconstrained post

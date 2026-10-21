@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
 json prints it, with every clause read through a glue of the evaluator
@@ -89,7 +89,6 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
-    ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause not formalised yet means when the environment does not decide it (default: refuse)")
     ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
     ap.add_argument("--within", metavar="STATE", action="append", help="with --avoid, look for the cycles among these control states only (repeatable)")
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock, broken invariant or unconstrained post (cycles are then not looked for)")
@@ -102,7 +101,7 @@ def main(argv=None) -> int:
 
     try:
         with opened(a) as (diagram, checks, meaning, writes, environment):
-            result = Explorer(diagram, checks, opaque=a.opaque, environment=environment, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
+            result = Explorer(diagram, checks, environment=environment, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
                               por=a.por, symmetry=a.symmetry, meaning=meaning,
                               cone=compute_cone(diagram, checks, meaning, writes=writes) if a.cone else Cone.keep_all()).run()
     except LOADING_ERRORS as e:
@@ -123,8 +122,6 @@ def main(argv=None) -> int:
             print_every(result)
         else:
             print_groups(result)
-        for c in result.opaque_clauses:
-            print(f"taken as true (not formalised): {c}")
         print_environment(result.environment)
         if a.cone:
             print_cone(result)

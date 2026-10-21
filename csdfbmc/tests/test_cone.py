@@ -4,7 +4,7 @@ them, so the walk finds the same without them."""
 import json
 import unittest
 
-from csdfbmc.environment import NONE
+from csdfbmc.environment import NONE, over
 from csdfbmc.tests import fixture
 
 from csdfbmc import cone
@@ -75,7 +75,8 @@ class ConeTest(unittest.TestCase):
         d = fixture.diagram(diagram)
         meaning = standard(GlueMeaning(checked(client)))
         c = cone.compute(d, checks, meaning, writes=GlueMeaning(checked(client)).writes) if reduce else Cone.keep_all()
-        return Explorer(d, checks, meaning, cone=c, environment=NONE, **options).run()
+        options.setdefault("environment", NONE)
+        return Explorer(d, checks, meaning, cone=c, **options).run()
 
     def test_a_variable_nothing_reads_is_left_out_of_the_states(self):
         reduced = self.walk(AUDITED, reduce=True)
@@ -120,12 +121,12 @@ class ConeTest(unittest.TestCase):
 
     def test_what_may_read_anything_keeps_the_cone_from_being_computed(self):
         for name, diagram, checks, blocked in [
-            ("a post the glue cannot read", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ $log が 記録される"), NO_CHECKS, "$log が 記録される"),
+            ("a guard the glue cannot read", edit(AUDITED, "dec", guard="$n が 正"), NO_CHECKS, "$n が 正"),
             ("an invariant taking any keyword", AUDITED,
              Checks(types={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
         ]:
             with self.subTest(name):
-                reduced = self.walk(diagram, reduce=True, checks=checks, opaque="true", max_states=50)
+                reduced = self.walk(diagram, reduce=True, checks=checks, environment=over({}, {}, 7), max_states=50)
                 self.assertIsNone(reduced.relevant)
                 self.assertEqual((blocked,), reduced.cone_blocked_by)
 
@@ -161,9 +162,9 @@ class ConeCommandTest(unittest.TestCase):
         self.assertIn("left out (nothing that decides a step or a property reads it): log, set by start; a -dec-> a (line 5)\n", out)
 
     def test_the_report_says_why_the_cone_was_not_computed(self):
-        diagram = edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ $log が 記録される")
-        out = self.run_main(diagram, "--evaluator-module", "csdfbmc.python_glue", "--cone", "--opaque", "true")
-        self.assertIn("cone of influence not computed: what $log が 記録される reads is unknown\n", out)
+        diagram = edit(AUDITED, "dec", guard="$n が 正")
+        out = self.run_main(diagram, "--evaluator-module", "csdfbmc.python_glue", "--cone", "--seed", "7")
+        self.assertIn("cone of influence not computed: what $n が 正 reads is unknown\n", out)
 
 
 if __name__ == "__main__":

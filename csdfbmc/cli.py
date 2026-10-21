@@ -21,7 +21,7 @@ LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError)
 def add_inputs(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output)")
     ap.add_argument("checks", help="the Python module holding TYPES and, when wanted, TYPEOF, GHOSTS, INVARIANTS and SYMMETRIC")
-    ap.add_argument("--seed", type=int, metavar="N", help="choose the functions a clause not formalised denotes from this seed, where nothing gives them (csdfbmc.environment)")
+    ap.add_argument("--seed", type=int, metavar="N", help="choose the functions a guard clause not formalised denotes from this seed, where nothing gives them; without it such a function is refused, and a post clause not formalised is refused either way (csdfbmc.environment)")
     ap.add_argument("--env", action="append", default=[], metavar="NAME=true|false",
                     help="give the function NAME a clause not formalised denotes the value true or false, over the checks module's ENVIRONMENT (repeatable)")
     glue = ap.add_mutually_exclusive_group()

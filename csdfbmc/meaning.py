@@ -81,7 +81,7 @@ class GlueMeaning:
         return OPAQUE if results is None else results[0]
 
     def opaque_message(self, clause: Clause) -> str:
-        return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or run with opaque='true'"
+        return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or, in a guard, give the function its atom names in the environment"
 
 
 class Renaming:

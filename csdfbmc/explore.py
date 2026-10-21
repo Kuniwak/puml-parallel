@@ -27,7 +27,6 @@ class Result:
     parents: dict[State, tuple[State, str, "Edge"] | None]
     deadlocks: list[State]
     tau_cycles: list[list[State]]
-    opaque_clauses: list[str]
     truncated: bool
     bound: int
     violations: list[tuple[str, State]] = field(default_factory=list)
@@ -99,7 +98,6 @@ class Result:
             "avoiding_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.avoiding_cycles],
             "empty_posts": [{"event": label, **at(s)} for s, label in self.empty_posts],
             "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
-            "opaque_clauses": self.opaque_clauses,
             "environment": self.environment,
             "dropped_clauses": [{"text": text, "maps": list(maps)} for text, maps in self.dropped_clauses],
             "relevant": list(self.relevant) if self.relevant is not None else None,
@@ -175,10 +173,9 @@ class Explorer:
     builds it, with the checks module's ENVIRONMENT in it when wanted
     (csdfbmc.environment.over); csdfbmc.environment.NONE decides nothing.
 
-    opaque says what such a clause means when the environment does not decide
-    it: "error" refuses it, "true" takes it as satisfied (an
-    over-approximation, so a deadlock it reports may be spurious while a
-    deadlock it misses cannot be hidden by it).
+    A function nothing decides, a given name that names no function, and a
+    post clause not formalised (which the environment does not decide yet)
+    are refused before the walk.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -189,7 +186,8 @@ class Explorer:
     meaning says what the hand-written and constrain clauses mean
     (csdfbmc.meaning): a glue of the evaluator protocol (GlueMeaning), which
     reads every clause by its text, as meaning.standard makes it, with the
-    tool words. A clause the meaning has nothing for follows the opaque rule.
+    tool words. A guard clause the meaning has nothing for is the
+    environment's.
     symmetry is refused when the meaning cannot say whether a clause tells
     the IDs apart.
 
@@ -202,14 +200,11 @@ class Explorer:
     the walk still meets.
     """
 
-    def __init__(self, diagram: Diagram, checks: Checks, meaning: Meaning, *, opaque: str = "error", max_states: int = 100_000,
+    def __init__(self, diagram: Diagram, checks: Checks, meaning: Meaning, *, max_states: int = 100_000,
                  avoid: str | None = None, within: list[str] | None = None, first: bool = False,
                  por: bool = False, symmetry: bool = False, cone: Cone, environment: Environment):
-        if opaque not in ("error", "true"):
-            raise ValueError(f"opaque must be 'error' or 'true', not {opaque!r}")
         self.d = diagram
         self.checks = checks
-        self.opaque = opaque
         self.environment = environment
         self.decided_seen: dict[str, None] = {}
         self._decide = recording(environment.decide, self.decided_seen)
@@ -221,7 +216,6 @@ class Explorer:
         # first stops the walk at the first deadlock, broken invariant or
         # unconstrained post; cycles need the whole space and are not checked then.
         self.first = first
-        self.opaque_seen: dict[str, None] = {}
         self.dropped_seen: dict[tuple[str, tuple[str, ...]], None] = {}
         self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
@@ -234,6 +228,7 @@ class Explorer:
         if symmetry and not self.meaning.readable:
             raise ValueError("symmetry is checked by asking of every clause whether it tells the IDs apart, which this glue does not answer (its hello supports no \"symmetric\")")
         self.symmetry = Symmetry(diagram, checks, self.meaning) if symmetry else None
+        self._check_environment()
 
     # -- environments -----------------------------------------------------------
 
@@ -260,25 +255,38 @@ class Explorer:
             local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
         return local_env
 
+    def _check_environment(self) -> None:
+        """Refuses, before the walk, what the environment cannot decide: a
+        post clause not formalised, which it does not decide yet (#76, step
+        6); a function of a guard not formalised that nothing gives and no
+        seed chooses, listing every one; and a given name that names no
+        function of the diagram."""
+        def authored(c: Clause) -> bool:
+            return c.kind in ("local", "constrain")
+        posts = list(self.d.start_post) + [c for e in self.d.edges for c in e.post]
+        for c in posts:
+            if authored(c) and self.meaning.names(c, "post") is None:
+                raise ValueError(f"the post clause {c.text!r} is not formalised; the environment does not decide a post clause "
+                                 "yet, so formalise it in the glue's language")
+        guards = [c for e in self.d.edges for c in e.guard] + (list(self.d.end.guard) if self.d.end is not None else [])
+        functions = dict.fromkeys(function_of(c.text).name for c in guards if authored(c) and self.meaning.names(c, "guard") is None)
+        unknown = [g for g in self.environment.given if g not in functions]
+        if unknown:
+            raise ValueError(f"the environment names no function of the diagram: {', '.join(map(repr, unknown))}")
+        undecided = [f for f in functions if f not in self.environment.given]
+        if undecided and self.environment.seed is None:
+            raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
+                             "give each in ENVIRONMENT or with --env NAME=true|false, or choose them with --seed N")
+
     def _decided(self, clause: Clause, env: dict) -> bool:
-        """What the environment, or else the opaque rule, says a guard clause
-        not formalised means at env: the function its atom names, of the
-        values of its holes (csdfbmc.atoms)."""
+        """What the environment says a guard clause not formalised means at
+        env: the function its atom names, of the values of its holes
+        (csdfbmc.atoms). _check_environment saw to it that it decides."""
         f = function_of(clause.text)
         missing = [a for a in f.args if a not in env]
         if missing:
             raise KeyError(f"the atom {clause.text!r} reads {', '.join(missing)}, which the step does not bind")
-        value = self._decide(f.name, tuple(env[a] for a in f.args))
-        if value is None:
-            return self._not_formalised(clause)
-        return value
-
-    def _not_formalised(self, clause: Clause) -> bool:
-        """Records an opaque clause, or refuses it; True when it is to be taken as true."""
-        if self.opaque == "error":
-            raise KeyError(self.meaning.opaque_message(clause))
-        self.opaque_seen.setdefault(clause.text)
-        return True
+        return self._decide(f.name, tuple(env[a] for a in f.args))
 
     # -- guards -----------------------------------------------------------------
 
@@ -308,12 +316,11 @@ class Explorer:
 
     # -- posts ------------------------------------------------------------------
 
-    def _assignments(self, c: Clause, env: dict) -> list[dict] | None:
-        """What a post clause admits, as frozen assignments; None when opaque."""
+    def _assignments(self, c: Clause, env: dict) -> list[dict]:
+        """What a post clause admits, as frozen assignments."""
         returned = self.meaning.evaluate(c, "post", env)
         if returned is OPAQUE:
-            self._not_formalised(c)
-            return None
+            raise KeyError(self.meaning.opaque_message(c))
         if isinstance(returned, (bool, int, str)) or returned is None:
             raise TypeError(f"the post clause {c.text!r} gave {returned!r}; a post gives a collection of assignments such as [{{'x': x + 1}}]")
         out = []
@@ -345,9 +352,7 @@ class Explorer:
             elif c.kind == "local" and c.map:
                 local_posts.setdefault(c.map, []).append(c)
             elif c.kind in ("local", "constrain"):
-                a = self._assignments(c, env)
-                if a is not None:
-                    joined = self._join(joined, a)
+                joined = self._join(joined, self._assignments(c, env))
             else:
                 raise ValueError(f"unknown clause kind {c.kind!r} in a post")
             if not joined:
@@ -374,9 +379,7 @@ class Explorer:
             scope = self._instance_env(move, env)
             records: list[dict] = [{}]
             for c in local_posts.get(m, []):
-                a = self._assignments(c, scope)
-                if a is not None:
-                    records = self._join(records, a)
+                records = self._join(records, self._assignments(c, scope))
                 if not records:
                     return [], ()
             missing = tuple(f"{m}[{idv}].{n}" for n in names if n not in records[0])
@@ -634,7 +637,7 @@ class Explorer:
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,
             tau_cycles=_cycles(order, tau_next) if not stopped else [],
-            opaque_clauses=list(self.opaque_seen), truncated=truncated, bound=self.max_states,
+            truncated=truncated, bound=self.max_states,
             environment={**self.environment.to_json(), "decided": list(self.decided_seen)},
             violations=violations,
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],

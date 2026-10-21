@@ -104,8 +104,9 @@ what they must read:
   operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
   `a and b`). `∨` and every other symbol belong to the clause.
 - **Tool words** start with `@`, and there are three:
-  - `@opaque` is a clause not formalised yet, which says nothing a tool can read,
-    and which a checker takes by its own rule (`csdfbmc --opaque`).
+  - `@opaque` is a clause not formalised yet, which says nothing a tool can read.
+    csdfbmc refuses it: write such a clause as an atom whose holes are what it
+    reads, which the environment decides (README, bounded model checking).
   - A renaming `@[y := x, …] clause` before a clause says that the name `y` the
     clause reads stands for the value the predicate names `x`. Composition writes it
     when two synchronised events name a field differently, so that no clause is

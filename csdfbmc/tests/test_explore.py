@@ -117,16 +117,32 @@ class ExplorerTest(unittest.TestCase):
         self.assertEqual(plain, with_x)
         self.assertEqual({("$_ が 正", (2,))}, set(plain[:1]))
 
-    def test_a_clause_not_formalised_is_refused_by_default(self):
-        with self.assertRaises(KeyError) as cm:
-            fixture.explorer(self.without_its_guard()).run()
-        self.assertIn("$n が 正", str(cm.exception))
+    def with_two_atoms(self):
+        """COUNTER with both guards not formalised yet."""
+        return dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$n が 正"), dict(COUNTER["edges"][1], guard="$n が 零")])
 
-    def test_a_clause_not_formalised_may_be_taken_as_true(self):
-        result = fixture.explorer(self.without_its_guard(), opaque="true", max_states=10).run()
-        # dec fires at n = 0 too and counts down past zero, until the bound.
-        self.assertIn(("a", (-1,), ()), set(result.states))
-        self.assertEqual(["$n が 正"], result.opaque_clauses)
+    def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
+        # Setup
+        cases = [
+            ("a function nothing decides, each listed", self.with_two_atoms(), environments.NONE,
+             "nothing decides the environment's functions '$_ が 正', '$_ が 零'"),
+            ("a given name that names no function", self.without_its_guard(), environments.over({}, {"$n が 零": True, "$n が 正": True}, None),
+             "names no function of the diagram: '$_ が 零'"),
+            ("a post not formalised", dict(COUNTER, edges=[dict(COUNTER["edges"][0], post="$n が 減る"), COUNTER["edges"][1]]),
+             environments.over({}, {}, 7), "the post clause '$n が 減る' is not formalised"),
+        ]
+        for name, diagram, env, message in cases:
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, message.replace("$", r"\$")):
+                    fixture.explorer(diagram, environment=env)
+
+    def test_a_seed_decides_every_function(self):
+        # Execute
+        result = fixture.explorer(self.with_two_atoms(), environment=environments.over({}, {}, 7), max_states=10).run()
+
+        # Assert
+        self.assertEqual(["$_ が 正", "$_ が 零"], sorted(result.to_json()["environment"]["decided"]))
 
     def test_the_environment_decides_a_clause_not_formalised(self):
         # Setup
@@ -143,7 +159,6 @@ class ExplorerTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(want, set(result.states))
-                self.assertEqual([], result.opaque_clauses)
 
     def test_a_seed_walks_the_same_states_again_and_is_reported(self):
         # Setup

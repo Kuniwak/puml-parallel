@@ -48,6 +48,27 @@ class EnvironmentCommandTest(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("--env expects NAME=true or NAME=false", err)
 
+    def test_what_the_environment_cannot_decide_is_a_usage_error(self):
+        # Setup
+        cases = [
+            ("a function nothing decides", (), "TYPES = {}\n", "nothing decides the environment's functions '$_ が 正'"),
+            ("a given name of no function", ("--env", "$n が 零=true", "--seed", "1"), "TYPES = {}\n", "names no function of the diagram: '$_ が 零'"),
+        ]
+        for name, args, checks, message in cases:
+            with self.subTest(name):
+                # Execute
+                code, _, err = self.run_main(*args, checks=checks)
+
+                # Assert
+                self.assertEqual(2, code)
+                self.assertIn(message, err)
+
+    def test_opaque_is_no_option_any_more(self):
+        # Execute, Assert
+        with self.assertRaises(SystemExit) as raised:
+            self.run_main("--opaque", "true")
+        self.assertEqual(2, raised.exception.code)
+
     def test_the_json_report_carries_the_environment(self):
         # Execute
         _, out, _ = self.run_main("--seed", "3", "--json")
