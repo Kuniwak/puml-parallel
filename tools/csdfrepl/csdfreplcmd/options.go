@@ -85,11 +85,11 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if flags.NArg() != 1 {
-			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: exactly one CSDF file is required")
-		}
 		if err := checker.Validate(); err != nil {
 			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: %w", err)
+		}
+		if flags.NArg() != 1 {
+			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
 		return &Options{Common: commonOpts, File: flags.Arg(0), Replay: *replay, Finding: *finding,

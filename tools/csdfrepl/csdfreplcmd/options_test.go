@@ -2,6 +2,7 @@ package csdfreplcmd
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -72,7 +73,7 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"a checks module without a glue": {
 			Args: []string{"-checks", "c.py", "a.puml"},
 		},
-		"the twins of an earlier csdfbmc": {
+		"a flag csdfrepl does not declare": {
 			Args: []string{"-twins", "t.py", "a.puml"},
 		},
 	}
@@ -92,5 +93,19 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 				t.Error("want not nil, got nil")
 			}
 		})
+	}
+}
+
+func TestNewParseOptionsFuncRefusesTheCheckerBeforeTheFiles(t *testing.T) {
+	// Arrange
+	parseOptions := NewParseOptionsFunc()
+	spy := cli.SpyProcInout()
+
+	// Act
+	_, err := parseOptions([]string{"-checks", "c.py"}, spy.New())
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "-checks needs") {
+		t.Errorf("want the checker's error, as csdfrepld reports it, got %v", err)
 	}
 }
