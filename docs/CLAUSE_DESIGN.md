@@ -19,7 +19,9 @@ syntax.
   (carrier sets, such as the IDs or the amounts) and typed constants, among
   them the pure functions that atoms without a glue denote (see P15, P16).
   An environment function is written `envfn` below. The environment
-  replaces the separate `DOMAINS` of today.
+  replaced the separate `DOMAINS` csdfbmc read: its checks module declares
+  `TYPES`, `TYPEOF` and `ENVIRONMENT`, and `--env` and `--seed` give the
+  rest (README, bounded model checking).
 
 ## Semantic ground
 
