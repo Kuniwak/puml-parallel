@@ -1,6 +1,6 @@
 @startuml WALLET
-' wallet.puml with every clause written in Python, read through the
-' reference glue. 残高 is the total held in the wallets being checked; the gas
+' A wallet in miniature, one withdrawal at a time, with every clause written in
+' Python and read through the reference glue. 残高 is the total held in the wallets being checked; the gas
 ' wallet that pays the chain fee is a separate party's and outside it, which
 ' is why a fee return raises 残高 again. wallet_formal_checks.py names the
 ' constants the labels use and holds the domains, ghosts and invariants.
