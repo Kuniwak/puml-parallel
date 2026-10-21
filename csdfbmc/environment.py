@@ -4,13 +4,19 @@ functions that a clause not formalised denotes - an atom the glue says it
 cannot read: a truth value for each valuation of the names the clause may
 read, fixed for the whole run. The tool word @opaque is no longer read.
 
+A function is named by its atom: the atom's text without its holes, its
+arguments the values of the holes, in order (csdfbmc.atoms); atoms with the
+same text are the same function. A name given may be written as any atom of
+the function, `$在庫 が 十分` as well as `$_ が 十分`.
+
 A function is given by the checks module (ENVIRONMENT) or the command line
 (--env NAME=true|false), or chosen from a seed (--seed N): a seed picks one
-function deterministically, by hashing the seed, the function's name and its
-arguments, so that the same seed walks the same states again and different
-seeds widen what bounded checking covers. A given function wins over the
-seed. The report names the seed and the given functions, which is all a run
-needs to be reproduced.
+function deterministically, by hashing the seed, the function's name and the
+values of its arguments, and nothing else, so that the same seed walks the
+same states again and different seeds widen what bounded checking covers. A
+given function wins over the seed; a function given as Python takes the
+arguments in order. The report names the seed and the given functions,
+which is all a run needs to be reproduced.
 
 What decides is a function (Decide) built from combinators - nothing,
 seeded, given_over - and an Environment is that function together with what
@@ -23,16 +29,16 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Callable
 
-from csdfbmc.checks import apply
+from csdfbmc.atoms import function_of
 
 Given = bool | Callable[..., bool]
 
-# Decide is the value of the function named name for the arguments args, or
-# None when it decides nothing for that name.
-Decide = Callable[[str, Mapping], "bool | None"]
+# Decide is the value of the function named name for the values of its
+# arguments, in order, or None when it decides nothing for that name.
+Decide = Callable[[str, tuple], "bool | None"]
 
 
-def nothing(name: str, args: Mapping) -> bool | None:
+def nothing(name: str, args: tuple) -> bool | None:
     """Decides no function."""
     return None
 
@@ -40,24 +46,25 @@ def nothing(name: str, args: Mapping) -> bool | None:
 def seeded(seed: int) -> Decide:
     """Every function, chosen from seed by hashing it with the function's
     name and its arguments."""
-    def decide(name: str, args: Mapping) -> bool | None:
-        key = "\0".join((str(seed), name, canonical(dict(args))))
+    def decide(name: str, args: tuple) -> bool | None:
+        key = "\0".join((str(seed), name, canonical(tuple(args))))
         return hashlib.sha256(key.encode("utf-8")).digest()[0] & 1 == 1
     return decide
 
 
 def given_over(given: Mapping[str, Given], inner: Decide) -> Decide:
-    """The functions given, a truth value or a pure function of the names it
-    reads, and inner for the rest."""
-    given = dict(given)
+    """The functions given, a truth value or a pure function of the
+    arguments in order, each under the name of its function, and inner for
+    the rest."""
+    given = {function_of(n).name: g for n, g in given.items()}
 
-    def decide(name: str, args: Mapping) -> bool | None:
+    def decide(name: str, args: tuple) -> bool | None:
         if name not in given:
             return inner(name, args)
         g = given[name]
         if isinstance(g, bool):
             return g
-        value = apply(g, dict(args), what=f"the environment's {name!r}")
+        value = g(*args)
         if not isinstance(value, bool):
             raise TypeError(f"the environment's {name!r} gave {value!r}; it gives True or False")
         return value
@@ -66,7 +73,7 @@ def given_over(given: Mapping[str, Given], inner: Decide) -> Decide:
 
 def recording(decide: Decide, seen: dict[str, None]) -> Decide:
     """decide, noting in seen, in order, each name it decided."""
-    def recorded(name: str, args: Mapping) -> bool | None:
+    def recorded(name: str, args: tuple) -> bool | None:
         value = decide(name, args)
         if value is not None:
             seen.setdefault(name)
@@ -93,7 +100,8 @@ NONE = Environment(decide=nothing, seed=None, given=())
 def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | None) -> Environment:
     """The environment of a run: given over the checks module's ENVIRONMENT
     (module), and the seed, when there is one, for the rest."""
-    merged = {**module, **given}
+    merged = {function_of(n).name: g for n, g in module.items()}
+    merged.update((function_of(n).name, g) for n, g in given.items())
     return Environment(decide=given_over(merged, seeded(seed) if seed is not None else nothing),
                        seed=seed, given=tuple(merged))
 

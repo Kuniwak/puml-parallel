@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from csdfbmc.cone import Cone
 from csdfbmc.formal import RECORD_STATE
 from csdfbmc.model import Clause, Diagram, Edge
+from csdfbmc.atoms import function_of
 from csdfbmc.environment import Environment, recording
 from csdfbmc.meaning import OPAQUE, Meaning
 from csdfbmc.reduce import PartialOrder, Symmetry
@@ -169,7 +170,8 @@ class Explorer:
 
     environment decides a guard clause not formalised yet (a clause the glue
     cannot read) as the pure function it denotes (csdfbmc.environment),
-    applied to the names the step binds: the function named by its text. The caller
+    applied to the values of its holes: the function its atom names
+    (csdfbmc.atoms). The caller
     builds it, with the checks module's ENVIRONMENT in it when wanted
     (csdfbmc.environment.over); csdfbmc.environment.NONE decides nothing.
 
@@ -260,9 +262,13 @@ class Explorer:
 
     def _decided(self, clause: Clause, env: dict) -> bool:
         """What the environment, or else the opaque rule, says a guard clause
-        not formalised means at env."""
-        name = clause.text
-        value = self._decide(name, env)
+        not formalised means at env: the function its atom names, of the
+        values of its holes (csdfbmc.atoms)."""
+        f = function_of(clause.text)
+        missing = [a for a in f.args if a not in env]
+        if missing:
+            raise KeyError(f"the atom {clause.text!r} reads {', '.join(missing)}, which the step does not bind")
+        value = self._decide(f.name, tuple(env[a] for a in f.args))
         if value is None:
             return self._not_formalised(clause)
         return value

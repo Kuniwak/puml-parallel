@@ -3,6 +3,7 @@ by the checks module or the command line, or chosen from a seed."""
 import unittest
 
 from csdfbmc import environment
+from csdfbmc.atoms import function_of
 from csdfbmc.environment import given_over, nothing, over, recording, seeded
 from csdfbmc.values import FrozenMap
 
@@ -11,17 +12,18 @@ class GivenTest(unittest.TestCase):
     def test_a_given_function_decides_its_name(self):
         # Setup
         cases = [
-            ("a value is the function that is always it", {"在庫 が 十分": False}, [{"在庫": n} for n in range(3)], [False, False, False]),
-            ("a function reads the names its signature asks for", {"在庫 が 十分": lambda 在庫: 在庫 > 1},
-             [{"在庫": n, "額": 9} for n in range(3)], [False, False, True]),
-            ("a given value wins over the seed", {"在庫 が 十分": True}, [{"n": n} for n in range(16)], [True] * 16),
+            ("a value is the function that is always it", {"$在庫 が 十分": False}, "$_ が 十分", [(n,) for n in range(3)], [False, False, False]),
+            ("a function takes the arguments in order", {"$在庫 が $額 以上": lambda 在庫, 額: 在庫 >= 額}, "$_ が $_ 以上",
+             [(n, 1) for n in range(3)], [False, True, True]),
+            ("a given value wins over the seed", {"$在庫 が 十分": True}, "$_ が 十分", [(n,) for n in range(16)], [True] * 16),
+            ("any atom of the function names it", {"$残り が 十分": False}, function_of("$在庫 が 十分").name, [(1,)], [False]),
         ]
-        for name, given, args, want in cases:
+        for name, given, asked, args, want in cases:
             with self.subTest(name):
                 decide = given_over(given, seeded(3))
 
                 # Execute
-                got = [decide("在庫 が 十分", a) for a in args]
+                got = [decide(asked, a) for a in args]
 
                 # Assert
                 self.assertEqual(want, got)
@@ -32,11 +34,11 @@ class GivenTest(unittest.TestCase):
 
         # Execute, Assert
         with self.assertRaisesRegex(TypeError, "'p'"):
-            decide("p", {"n": 1})
+            decide("p", (1,))
 
     def test_nothing_decides_no_name(self):
         # Execute
-        value = given_over({}, nothing)("在庫 が 十分", {})
+        value = given_over({}, nothing)("$_ が 十分", ())
 
         # Assert
         self.assertIsNone(value)
@@ -45,7 +47,7 @@ class GivenTest(unittest.TestCase):
 class SeededTest(unittest.TestCase):
     def test_a_seed_chooses_a_pure_function_of_the_arguments(self):
         # Setup
-        args = [{"n": n, "m": FrozenMap({"k": frozenset({n, "x"})})} for n in range(32)]
+        args = [(n, FrozenMap({"k": frozenset({n, "x"})})) for n in range(32)]
 
         # Execute
         first = [seeded(7)("p", x) for x in args]
@@ -57,7 +59,7 @@ class SeededTest(unittest.TestCase):
 
     def test_different_seeds_or_names_choose_different_functions(self):
         # Setup
-        args = [{"n": n} for n in range(32)]
+        args = [(n,) for n in range(32)]
         cases = [("seeds", [(1, "p"), (2, "p")]), ("names", [(1, "p"), (1, "q")])]
         for name, pairs in cases:
             with self.subTest(name):
@@ -90,10 +92,10 @@ class CanonicalTest(unittest.TestCase):
 
     def test_a_seed_chooses_what_it_always_chose(self):
         # Execute
-        got = [seeded(7)("p", {"n": n}) for n in range(8)]
+        got = [seeded(7)("p", (n,)) for n in range(8)]
 
         # Assert
-        self.assertEqual([False, False, True, False, True, True, False, False], got)
+        self.assertEqual([False, False, True, True, True, True, True, True], got)
 
 
 class RecordingTest(unittest.TestCase):
@@ -104,7 +106,7 @@ class RecordingTest(unittest.TestCase):
 
         # Execute
         for name in ("q", "r", "p", "q"):
-            decide(name, {})
+            decide(name, ())
 
         # Assert
         self.assertEqual(["q", "p"], list(seen))
@@ -116,16 +118,16 @@ class OverTest(unittest.TestCase):
         env = over({"p": True, "q": True}, {"q": False}, 5)
 
         # Execute
-        got = [env.decide(n, {}) for n in ("p", "q")]
-        rest = env.decide("r", {})
+        got = [env.decide(n, ()) for n in ("p", "q")]
+        rest = env.decide("r", ())
 
         # Assert
         self.assertEqual([True, False], got)
-        self.assertEqual(seeded(5)("r", {}), rest)
+        self.assertEqual(seeded(5)("r", ()), rest)
 
     def test_without_a_seed_the_rest_is_undecided(self):
         # Execute
-        value = over({}, {}, None).decide("r", {})
+        value = over({}, {}, None).decide("r", ())
 
         # Assert
         self.assertIsNone(value)
@@ -142,7 +144,7 @@ class OverTest(unittest.TestCase):
 
     def test_none_decides_nothing_and_reports_nothing(self):
         # Execute
-        value, report = environment.NONE.decide("p", {}), environment.NONE.to_json()
+        value, report = environment.NONE.decide("p", ()), environment.NONE.to_json()
 
         # Assert
         self.assertIsNone(value)

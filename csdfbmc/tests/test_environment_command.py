@@ -23,7 +23,7 @@ class EnvironmentCommandTest(unittest.TestCase):
         # Assert
         self.assertEqual(first, again)
         self.assertIn("environment: seed 7\n", first)
-        self.assertIn("decided by the environment: $n が 正\n", first)
+        self.assertIn("decided by the environment: $_ が 正\n", first)
 
     def test_env_gives_a_function_its_value(self):
         # Execute
@@ -31,7 +31,7 @@ class EnvironmentCommandTest(unittest.TestCase):
 
         # Assert
         self.assertIn("states: 1\n", out)
-        self.assertIn("environment: given $n が 正\n", out)
+        self.assertIn("environment: given $_ が 正\n", out)
 
     def test_env_wins_over_the_checks_module(self):
         # Execute
@@ -53,7 +53,7 @@ class EnvironmentCommandTest(unittest.TestCase):
         _, out, _ = self.run_main("--seed", "3", "--json")
 
         # Assert
-        self.assertEqual({"seed": 3, "given": [], "decided": ["$n が 正"]}, json.loads(out)["environment"])
+        self.assertEqual({"seed": 3, "given": [], "decided": ["$_ が 正"]}, json.loads(out)["environment"])
 
 
 if __name__ == "__main__":

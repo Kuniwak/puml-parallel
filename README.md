@@ -807,13 +807,17 @@ the event, which is the livelock the `assume` note was about.
 
 A guard clause not formalised yet — a clause the glue cannot read, written
 as an atom whose holes are what it reads, such as `$口座 が凍結されていない` —
-is a pure function of the names the step binds, which the environment gives
-(docs/CLAUSE_DESIGN.md, P15 and P16), named by its text. The tool word
-`@opaque` is refused: write the clause as such an atom. The checks module's `ENVIRONMENT` maps such
-a name to `True`, `False` or a pure function of the names it reads;
+is a pure function, which the environment gives (docs/CLAUSE_DESIGN.md, P15
+and P16). The function is named by the atom's text without its holes, and
+its arguments are the holes, in order: `$口座 が凍結されていない` is the
+function `$_ が凍結されていない` of the value of `口座`, and every atom with
+that text, on any edge, is the same function. The tool word `@opaque` is
+refused: write the clause as such an atom. The checks module's
+`ENVIRONMENT` maps a function, written as its name or as any of its atoms,
+to `True`, `False` or a pure function taking the arguments in order;
 `--env NAME=true|false` gives a value over it, and `--seed N` chooses every
 function nothing gives, deterministically, by hashing the seed, the name and
-the arguments, so that one seed walks the same states again and several
+the values of the arguments, and nothing else, so that one seed walks the same states again and several
 seeds widen what the bound covers. The report names the seed, the given
 functions and the ones a clause was decided by (`environment` in `--json`),
 which is what reproduces a run. A clause the environment does not decide is

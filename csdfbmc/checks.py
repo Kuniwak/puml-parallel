@@ -91,9 +91,9 @@ class Checks:
     # typeof: a name -> its type; a name it does not list has the type of
     # its own name.
     typeof: dict[str, str] = field(default_factory=dict)
-    # environment: the name of a function a clause not formalised denotes ->
-    # its value, True or False, or a pure function of the names it reads
-    # (csdfbmc.environment).
+    # environment: the name of a function a clause not formalised denotes, or
+    # an atom of it -> its value, True or False, or a pure function of its
+    # arguments in order (csdfbmc.environment).
     environment: dict[str, Given] = field(default_factory=dict)
 
     def type_of(self, name: str) -> str:

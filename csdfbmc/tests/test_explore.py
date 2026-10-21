@@ -75,6 +75,48 @@ class ExplorerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "write the clause as an atom"):
             fixture.diagram(diagram)
 
+    def with_an_unread_variable(self):
+        """without_its_guard, with a variable x that nothing reads."""
+        d = self.without_its_guard()
+        a = dict(d["states"]["a"], vars=d["states"]["a"]["vars"] + [{"name": "x"}])
+        start = dict(d["start_edge"], post="[{'n': 2, 'x': 0}]")
+        dec = dict(d["edges"][0], post="[{'n': n - 1, 'x': x}]")
+        return dict(d, states=dict(d["states"], a=a), start_edge=start, edges=[dec, d["edges"][1]])
+
+    def test_an_atom_is_the_function_its_text_names_whatever_its_holes_are_called(self):
+        # Setup
+        cases = [
+            ("given by its name", {"$_ が 正": lambda n: n > 0}),
+            ("given as the atom", {"$n が 正": lambda n: n > 0}),
+            ("given under another hole name", {"$m が 正": lambda m: m > 0}),
+        ]
+        for name, given in cases:
+            with self.subTest(name):
+                env = environments.over({}, given, None)
+
+                # Execute
+                result = fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
+
+                # Assert
+                self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
+                self.assertEqual(["$_ が 正"], result.to_json()["environment"]["decided"])
+
+    def test_a_seed_reads_only_the_atoms_holes(self):
+        # Setup
+        def asked(diagram):
+            seen, seeded = [], environments.over({}, {}, 7)
+            env = environments.Environment(decide=lambda name, args: seen.append((name, tuple(args))) or seeded.decide(name, args),
+                                           seed=7, given=())
+            fixture.explorer(diagram, environment=env, max_states=10).run()
+            return seen
+
+        # Execute
+        plain, with_x = asked(self.without_its_guard()), asked(self.with_an_unread_variable())
+
+        # Assert
+        self.assertEqual(plain, with_x)
+        self.assertEqual({("$_ が 正", (2,))}, set(plain[:1]))
+
     def test_a_clause_not_formalised_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
             fixture.explorer(self.without_its_guard()).run()
@@ -113,7 +155,7 @@ class ExplorerTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(first.states, again.states)
-        self.assertEqual({"seed": 7, "given": [], "decided": ["$n が 正"]}, first.to_json()["environment"])
+        self.assertEqual({"seed": 7, "given": [], "decided": ["$_ が 正"]}, first.to_json()["environment"])
 
     def test_the_bound_on_states_stops_the_walk(self):
         result = fixture.explorer(COUNTER, max_states=2).run()

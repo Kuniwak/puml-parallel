@@ -67,8 +67,9 @@ Checker options (the checker's --help lists them in full):
 
 The checks module defines TYPES (a type -> its finite values) and, when
 wanted, TYPEOF (a name -> its type), ENVIRONMENT (the function a clause not
-formalised denotes -> True, False or a pure function of the names it
-reads; @opaque is refused: write the clause as an atom), GHOSTS, INVARIANTS
+formalised denotes, named by its atom's text without its holes or by any
+of its atoms -> True, False or a pure function of its holes' values in
+order; @opaque is refused: write the clause as an atom), GHOSTS, INVARIANTS
 and SYMMETRIC. A run reports its seed and the given functions, which
 reproduce it.
 
