@@ -72,7 +72,7 @@ func renamedLabels(p Promotion, f Family, id Value, label string, env Env) []str
 	synced := false
 	for _, s := range p.Syncs {
 		for k, tg := range s.Targets {
-			if tg.Map != f.Map || tg.event(s) != ch {
+			if tg.Map != f.Map || tg.Event != ch {
 				continue
 			}
 			synced = true
@@ -154,7 +154,7 @@ func syncLabels(p Promotion, s Sync, k int, id Value, fields, vals []string, env
 func syncFields(p Promotion, s Sync) []string {
 	var out []string
 	for _, tg := range s.Targets {
-		for _, n := range localFields(family(p, tg.Map), tg.event(s)) {
+		for _, n := range localFields(family(p, tg.Map), tg.Event) {
 			if !slices.Contains(out, n) {
 				out = append(out, n)
 			}
@@ -280,7 +280,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		{"a sync moves two instances of one family (#65)", Promotion{State: "G",
 			Families: []Family{locations, shipments},
 			Syncs: []Sync{{Event: "MOVE", Targets: []Target{
-				{Map: "shipments", ID: "s"},
+				{Map: "shipments", ID: "s", Event: "MOVE"},
 				{Map: "locations", ID: "from", Event: "DEPART"},
 				{Map: "locations", ID: "to", Event: "ARRIVE"},
 			}}},
@@ -321,7 +321,8 @@ func TestPromoteRefuses(t *testing.T) {
 			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "from", Event: "ARRIVE"}}}, "twice"},
 		{"one local event taken twice", Sync{Event: "MOVE", Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "DEPART"}}}, "DEPART"},
-		{"a sync on tau", Sync{Event: Tau, Targets: []Target{{Map: "locations", ID: "loc"}}}, "tau"},
+		{"a sync on tau", Sync{Event: Tau, Targets: []Target{{Map: "locations", ID: "loc", Event: "DEPART"}}}, "tau"},
+		{"a target without its local event", Sync{Event: "MOVE", Targets: []Target{{Map: "locations", ID: "loc"}}}, "names no local event"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

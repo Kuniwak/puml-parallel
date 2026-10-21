@@ -16,17 +16,9 @@ type Family struct {
 }
 
 // Target is one occurrence in a sync: an instance of the family of Map,
-// bound to the ID variable ID, taking the local event Event, or the sync's
-// own event when Event is empty.
+// bound to the ID variable ID, taking the local event Event.
 type Target struct {
 	Map, ID, Event string
-}
-
-func (t Target) event(s Sync) string {
-	if t.Event == "" {
-		return s.Event
-	}
-	return t.Event
 }
 
 // Sync is a global event Event taken by its Targets together.
@@ -72,7 +64,7 @@ func Promote(p Promotion) (*Diagram, error) {
 		}
 		out.Edges = append(out.Edges, edges...)
 		for _, tg := range s.Targets {
-			taken[tg.Map+"."+tg.event(s)] = true
+			taken[tg.Map+"."+tg.Event] = true
 		}
 	}
 	for _, f := range p.Families {
@@ -130,13 +122,16 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 	}
 	ids := map[string]bool{}
 	for i, a := range s.Targets {
+		if a.Event == "" {
+			return nil, fmt.Errorf("%s(%s) names no local event", a.Map, a.ID)
+		}
 		ids[a.ID] = true
 		for _, b := range s.Targets[:i] {
 			if a.Map == b.Map && a.ID == b.ID {
 				return nil, fmt.Errorf("%s(%s) is named twice: one instance plays one role", a.Map, a.ID)
 			}
-			if a.Map == b.Map && a.event(s) == b.event(s) {
-				return nil, fmt.Errorf("%s takes its local event %s twice", a.Map, a.event(s))
+			if a.Map == b.Map && a.Event == b.Event {
+				return nil, fmt.Errorf("%s takes its local event %s twice", a.Map, a.Event)
 			}
 		}
 	}
@@ -153,7 +148,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 		}
 		var grown [][]move
 		for _, e := range f.Local.Edges {
-			if e.Event.Channel != tg.event(s) {
+			if e.Event.Channel != tg.Event {
 				continue
 			}
 			for _, c := range combos {
