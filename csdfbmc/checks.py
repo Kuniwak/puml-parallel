@@ -3,7 +3,8 @@ checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
 TYPES (a type -> iterable of its values) and, when wanted, TYPEOF (a name ->
-its type; a name it does not list has the type of its own name),
+its type; a name it does not list has the type of its own name), ENVIRONMENT
+(the functions clauses not formalised denote; see csdfbmc.environment),
 GHOSTS, INVARIANTS and SYMMETRIC. An earlier csdfbmc read DOMAINS; a module
 defining it is refused. The clauses themselves are read through a glue of
 the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
@@ -87,6 +88,10 @@ class Checks:
     # typeof: a name -> its type; a name it does not list has the type of
     # its own name.
     typeof: dict[str, str] = field(default_factory=dict)
+    # environment: the name of a function a clause not formalised denotes ->
+    # its value, True or False, or a pure function of the names it reads
+    # (csdfbmc.environment).
+    environment: dict[str, object] = field(default_factory=dict)
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
@@ -153,11 +158,15 @@ def load_checks(path: str) -> Checks:
     if hasattr(module, "CLAUSES"):
         raise PurityError(f"{path}: CLAUSES is no longer read; write the clauses in the "
                           "language of a glue (csdfbmc.python_glue reads Python) and read them with --evaluator-module")
-    for table in ("INVARIANTS", "GHOSTS"):
+    for table in ("INVARIANTS", "GHOSTS", "ENVIRONMENT"):
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
+    environment = dict(getattr(module, "ENVIRONMENT", {}))
+    for name, value in environment.items():
+        if not isinstance(value, bool) and not callable(value):
+            raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False or a function of the names it reads")
     return Checks(
-        types=dict(module.TYPES), typeof=dict(typeof),
+        types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
     )

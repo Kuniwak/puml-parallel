@@ -79,6 +79,28 @@ class LoadChecksTest(unittest.TestCase):
         # Assert
         self.assertEqual(["a1", "a2"], checks.domain("相手ID"))
 
+    def test_loads_the_environment_of_a_module(self):
+        # Setup
+        path = self.write('''
+            TYPES = {}
+            ENVIRONMENT = {"在庫 が 十分": lambda 在庫: 在庫 > 1, "@opaque#1": True}
+        ''')
+
+        # Execute
+        checks = load_checks(path)
+
+        # Assert
+        self.assertEqual({"在庫 が 十分", "@opaque#1"}, set(checks.environment))
+        self.assertTrue(checks.environment["在庫 が 十分"](在庫=2))
+
+    def test_refuses_an_environment_value_that_is_neither_a_truth_value_nor_a_function(self):
+        # Setup
+        path = self.write('TYPES = {}\nENVIRONMENT = {"p": 1}\n')
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PurityError, "'p'"):
+            load_checks(path)
+
     def test_refuses_a_module_without_types(self):
         with self.assertRaisesRegex(PurityError, "TYPES"):
             load_checks(self.write("INVARIANTS = {}\n"))
