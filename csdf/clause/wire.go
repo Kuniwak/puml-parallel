@@ -1,6 +1,10 @@
 package clause
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
+)
 
 // AtomWire is an atom as a glue receives it (docs/CLAUSE_DESIGN.md, P8): the
 // text without its holes, and for each hole the argument it reads. Text has
@@ -8,7 +12,9 @@ import "reflect"
 // on. Holes[i] indexes the atom's arguments, the distinct terms its holes
 // read in order of first appearance; Primed says which of them are values
 // after the step. A glue never sees a name: a value comes with the index of
-// its argument.
+// its argument. Text after a hole that starts with a character that could
+// continue a name starts with a space, the one that ended the hole: the glue
+// reads a hole as something of its own, which would run into the text.
 type AtomWire struct {
 	Text   []string `json:"text"`
 	Holes  []int    `json:"holes"`
@@ -23,7 +29,11 @@ func Wire(a Atom) (AtomWire, []Term) {
 	for _, p := range Normalize(a).Conjuncts[0].(Atom).Parts {
 		switch p := p.(type) {
 		case Text:
-			w.Text[len(w.Text)-1] += string(p)
+			last := len(w.Text) - 1
+			if last > 0 && w.Text[last] == "" && ident.IsRune(firstRune(string(p))) {
+				p = " " + p
+			}
+			w.Text[last] += string(p)
 		case Hole:
 			i := indexOf(terms, p.Term)
 			if i < 0 {
