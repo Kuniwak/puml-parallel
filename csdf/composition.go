@@ -189,11 +189,11 @@ func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 	fields := make([]Field, len(fL))
 	var renamesL, renamesR []Rename
 	for i := range fL {
-		if fL[i].Dir == Chosen && fR[i].Dir == Chosen {
+		if fL[i].Dir == Sent && fR[i].Dir == Sent {
 			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s (line %d) and %s (line %d) both send field %d of %s, and would agree only where %s and %s are equal", eL.Event, eL.Line, eR.Event, eR.Line, i+1, eL.Event.Channel(), fL[i].Name, fR[i].Name)
 		}
 		named, other, renames, vars, otherEdge := fL[i], fR[i], &renamesR, varsR, eR
-		if fR[i].Dir == Chosen {
+		if fR[i].Dir == Sent {
 			named, other, renames, vars, otherEdge = fR[i], fL[i], &renamesL, varsL, eL
 		}
 		fields[i] = named
