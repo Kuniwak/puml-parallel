@@ -2,7 +2,7 @@
 import unittest
 from csdfbmc.tests import fixture
 
-from csdfbmc.meaning import OPAQUE, GlueMeaning, OpaqueWord, Renaming, standard
+from csdfbmc.meaning import OPAQUE, GlueMeaning, Renaming, standard
 from csdfbmc.model import Clause, Diagram
 from csdfbmc.protocol import Analysis
 from csdfbmc.tests.test_protocol import Recording
@@ -32,34 +32,6 @@ class GlueMeaningTest(unittest.TestCase):
         self.assertEqual([[{"n": 1}, {"n": 2}]], self.client.asked)
 
 
-OPAQUE_CLAUSE = Clause("constrain", "@opaque", opaque=True)
-FORMAL_CLAUSE = Clause("constrain", "n > 0")
-
-
-class ReservedOpaqueTest(unittest.TestCase):
-    """The tool word @opaque has no meaning to ask anyone about; any
-    other clause is the inner meaning's."""
-
-    def test_each_question_about_a_clause(self):
-        for name, clause, ask, want, want_asked in [
-            ("opaque has no value", OPAQUE_CLAUSE, lambda m, c: m.evaluate(c, "guard", {"n": 1}), OPAQUE, []),
-            ("opaque reads nothing known", OPAQUE_CLAUSE, lambda m, c: m.names(c, "guard"), None, []),
-            ("opaque reads nothing beyond", OPAQUE_CLAUSE, lambda m, c: m.names_beyond(c, "guard", None), None, []),
-            ("opaque is not prefetched", OPAQUE_CLAUSE, lambda m, c: m.prefetch(c, "guard", [{"n": 1}]), None, []),
-            ("another clause is evaluated by the inner meaning", FORMAL_CLAUSE, lambda m, c: m.evaluate(c, "guard", {"n": 1}), True, [[{"n": 1}]]),
-            ("another clause reads what the inner meaning says", FORMAL_CLAUSE, lambda m, c: m.names(c, "guard"), {"n"}, []),
-            ("another clause is prefetched by the inner meaning", FORMAL_CLAUSE, lambda m, c: m.prefetch(c, "guard", [{"n": 1}]), None, [[{"n": 1}]]),
-        ]:
-            with self.subTest(name):
-                client = Recording({"n > 0": Analysis(opaque=False, reads=("n",))}, lambda b: b["n"] > 0)
-                meaning = OpaqueWord(GlueMeaning(client))
-                got = ask(meaning, clause)
-                self.assertEqual(want, got)
-                self.assertEqual(want_asked, client.asked)
-
-    def test_the_message_names_the_tool_word(self):
-        meaning = OpaqueWord(GlueMeaning(Recording({}, lambda b: True)))
-        self.assertIn("'@opaque' is not formalised yet", meaning.opaque_message(OPAQUE_CLAUSE))
 
 
 RENAMED = Clause("local", "y > 0", rename=(("y", "x"),))
@@ -188,7 +160,7 @@ class RenamingReductionTest(unittest.TestCase):
                 self.assertEqual(want, got)
 
     def test_the_tool_words_tell_no_ids_apart(self):
-        for name, clause in [("@opaque", OPAQUE_CLAUSE), ("@eq", EQUAL)]:
+        for name, clause in [("@eq", EQUAL)]:
             with self.subTest(name):
                 # Execute
                 got = standard(Beyond()).tells_apart(clause, "guard", {"y"}, set(), [])

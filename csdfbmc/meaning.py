@@ -13,7 +13,7 @@ from csdfbmc.model import Clause
 from csdfbmc.protocol import ClientLike, answers
 
 # What a clause with no meaning to evaluate stands for: a glue that says the
-# clause is not formalised yet, or the tool word @opaque.
+# clause is not formalised yet.
 OPAQUE = object()
 
 
@@ -82,41 +82,6 @@ class GlueMeaning:
 
     def opaque_message(self, clause: Clause) -> str:
         return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or run with opaque='true'"
-
-
-class OpaqueWord:
-    """inner, but the tool word @opaque means nothing whatever inner
-    would say: it is not formalised, and nobody is asked about it."""
-
-    def __init__(self, inner: Meaning):
-        self.inner = inner
-        self.readable = inner.readable
-
-    def names(self, clause: Clause, role: str) -> set[str] | None:
-        return None if clause.opaque else self.inner.names(clause, role)
-
-    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
-        return None if clause.opaque else self.inner.names_beyond(clause, role, own_id)
-
-    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
-        return None if clause.opaque else self.inner.tells_apart(clause, role, params, maps, groups)
-
-    def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
-        if not clause.opaque:
-            self.inner.prefetch(clause, role, envs)
-
-    def evaluate(self, clause: Clause, role: str, env: dict):
-        return OPAQUE if clause.opaque else self.inner.evaluate(clause, role, env)
-
-    def writes(self, clause: Clause) -> set[str] | None:
-        """What inner says a post clause gives a value to; for a meaning that
-        can say it (GlueMeaning)."""
-        return None if clause.opaque else self.inner.writes(clause)
-
-    def opaque_message(self, clause: Clause) -> str:
-        if clause.opaque:
-            return f"the clause {clause.text!r} is not formalised yet; formalise it, or run with opaque='true'"
-        return self.inner.opaque_message(clause)
 
 
 class Renaming:
@@ -236,6 +201,6 @@ class EqualityWord:
 
 
 def standard(inner: Meaning) -> Meaning:
-    """inner as every walk takes it: with the tool words @opaque and @eq, and
-    each renamed clause read in the names of its predicate."""
-    return OpaqueWord(EqualityWord(Renaming(inner)))
+    """inner as every walk takes it: with the tool word @eq, and each renamed
+    clause read in the names of its predicate."""
+    return EqualityWord(Renaming(inner))

@@ -38,8 +38,7 @@ class Clause:
     "constrain" for a constrain directive's, and one of the generated kinds of
     csdfpromote - in_dom, not_in_dom, at_state, update, create, delete, frame,
     and empty on the start edge - whose meaning is built in. text is the
-    clause as its language reads it; opaque marks the tool word @opaque, whose
-    text is the word itself."""
+    clause as its language reads it."""
     kind: str
     text: str
     map: str | None = None
@@ -49,7 +48,6 @@ class Clause:
     path: str | None = None    # the local diagram, for a local clause of a family
     line: int = 0
     maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
-    opaque: bool = False
     # rename: (from, to) pairs, sorted: the clause reads the name from for the
     # value the predicate it is in names to (a composition writes them).
     rename: tuple[tuple[str, str], ...] = ()
@@ -77,7 +75,7 @@ class Clause:
             text = c["text"]
         else:
             raise ValueError(f"the clause {c!r} has the form {form!r}, which is none of text, opaque and eq")
-        return cls(kind=c["kind"], text=text, opaque=form == FORM_OPAQUE, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
+        return cls(kind=c["kind"], text=text, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0),
                    maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 
