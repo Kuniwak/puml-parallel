@@ -39,6 +39,11 @@ func TestOperatorsAgreeWithTheirCSPLaws(t *testing.T) {
 			seq("a", "b"),
 		},
 		{
+			"one-to-many renaming offers every image",
+			Rename(seq("a"), func(string) []string { return []string{"c", "d"} }),
+			fork("c", "d"),
+		},
+		{
 			"a → STOP [|{a, b}|] b → STOP deadlocks",
 			Parallel([]*LTS{seq("a"), seq("b")}, []func(string) bool{
 				func(l string) bool { return l == "a" || l == "b" },
@@ -60,17 +65,11 @@ func TestOperatorsAgreeWithTheirCSPLaws(t *testing.T) {
 	}
 }
 
-func TestOneToManyRenamingOffersEveryImage(t *testing.T) {
-	// Setup
-	want := New(0)
-	want.Add(0, "c", 1)
-	want.Add(0, "d", 1)
-
-	// Execute
-	got := Rename(seq("a"), func(string) []string { return []string{"c", "d"} })
-
-	// Assert
-	if !StableFailuresEqual(got, want) {
-		t.Errorf("not stable-failures equivalent: %#v", got.Trans)
+// fork offers each of labels once, then stops.
+func fork(labels ...string) *LTS {
+	l := New(0)
+	for _, a := range labels {
+		l.Add(0, a, 1)
 	}
+	return l
 }
