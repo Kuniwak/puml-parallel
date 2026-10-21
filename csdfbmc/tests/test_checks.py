@@ -83,14 +83,14 @@ class LoadChecksTest(unittest.TestCase):
         # Setup
         path = self.write('''
             TYPES = {}
-            ENVIRONMENT = {"在庫 が 十分": lambda 在庫: 在庫 > 1, "@opaque#1": True}
+            ENVIRONMENT = {"在庫 が 十分": lambda 在庫: 在庫 > 1, "$n が 正": True}
         ''')
 
         # Execute
         checks = load_checks(path)
 
         # Assert
-        self.assertEqual({"在庫 が 十分", "@opaque#1"}, set(checks.environment))
+        self.assertEqual({"在庫 が 十分", "$n が 正"}, set(checks.environment))
         self.assertTrue(checks.environment["在庫 が 十分"](在庫=2))
 
     def test_refuses_an_environment_value_that_is_neither_a_truth_value_nor_a_function(self):

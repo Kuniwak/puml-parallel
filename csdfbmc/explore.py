@@ -167,12 +167,9 @@ class Explorer:
     instance's variables and the event's parameters, a constrain clause over
     the maps.
 
-    environment decides a guard clause not formalised yet (the tool word
-    @opaque, or a clause the glue cannot read) as the pure function it denotes
-    (csdfbmc.environment), applied to the names the step binds: a clause the
-    glue cannot read is the function named by its text, and the n-th @opaque
-    of the diagram, counting the start edge, then the edges in order, guard
-    before post, then the end edge, is the function @opaque#n. The caller
+    environment decides a guard clause not formalised yet (a clause the glue
+    cannot read) as the pure function it denotes (csdfbmc.environment),
+    applied to the names the step binds: the function named by its text. The caller
     builds it, with the checks module's ENVIRONMENT in it when wanted
     (csdfbmc.environment.over); csdfbmc.environment.NONE decides nothing.
 
@@ -212,7 +209,6 @@ class Explorer:
         self.checks = checks
         self.opaque = opaque
         self.environment = environment
-        self._function_names = self._name_the_opaque_clauses()
         self.decided_seen: dict[str, None] = {}
         self._decide = recording(environment.decide, self.decided_seen)
         self._tau_choices: dict[tuple, tuple[str, ...]] = {}
@@ -262,22 +258,10 @@ class Explorer:
             local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
         return local_env
 
-    def _name_the_opaque_clauses(self) -> dict[int, str]:
-        """The name of the function each @opaque of the diagram denotes, by
-        the identity of its clause: @opaque#n for the n-th."""
-        predicates = [self.d.start_post] + [p for e in self.d.edges for p in (e.guard, e.post)]
-        if self.d.end is not None:
-            predicates.append(self.d.end.guard)
-        opaque = [c for p in predicates for c in p if c.opaque]
-        return {id(c): f"@opaque#{n}" for n, c in enumerate(opaque, 1)}
-
-    def _function_name(self, clause: Clause) -> str:
-        return self._function_names.get(id(clause), clause.text)
-
     def _decided(self, clause: Clause, env: dict) -> bool:
         """What the environment, or else the opaque rule, says a guard clause
         not formalised means at env."""
-        name = self._function_name(clause)
+        name = clause.text
         value = self._decide(name, env)
         if value is None:
             return self._not_formalised(clause)

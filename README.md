@@ -718,9 +718,9 @@ it reads, and `--symmetry` is refused. Values are tagged JSON (`{"tuple": …}`,
 `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has none of them. Clauses
 must be pure: the checker asks about a clause once per value of the names it
 reads, and about a guard once per edge for every parameter valuation still
-enabled. A clause not formalised yet is written as the tool word `@opaque` in
-any language; the checker takes it by `--opaque` without asking the glue, and
-`csdfpromote` does not warn that such a constrain names none of its fields.
+enabled. A clause not formalised yet is written as an atom whose holes are
+what it reads; the Python glue answers that it cannot read a clause with a
+hole, and the environment decides it (below).
 `csdfbmc/protocol.py` states the protocol in full. Anyone may add a language
 by writing a glue; `--evaluator CMD` starts it, and `--evaluator-module
 MODULE` loads a glue written in Python in-process, with no round trip. One of
@@ -761,7 +761,7 @@ gives is frozen (`csdfbmc.values.freeze`) into a `FrozenMap`, tuple or
 frozenset, and a record or a finite partial function is a `FrozenMap`. The
 glue's arguments are modules whose public names every clause may use, checked
 against the same pure subset. A clause written `OPAQUE` or `opaque`, as before
-`@opaque`, is refused with a pointer to `@opaque`.
+atoms, is refused with a pointer to writing it as an atom.
 
 The checks module is Python too, checked against the same subset before it is
 imported. `TYPES` maps a type to the finite set of its values (its carrier
@@ -805,12 +805,11 @@ never performs that event: under a fairness assumption written as a finite
 bound (a resend count in the domains), such a cycle is a run that never gets to
 the event, which is the livelock the `assume` note was about.
 
-A guard clause not formalised yet — the tool word `@opaque`, or a clause the
-glue cannot read — is a pure function of the names the step binds, which the
-environment gives (docs/CLAUSE_DESIGN.md, P15 and P16). A clause the glue
-cannot read is the function named by its text; the n-th `@opaque` of the
-diagram (the start edge first, then the edges in order, guard before post,
-then the end edge) is `@opaque#n`. The checks module's `ENVIRONMENT` maps such
+A guard clause not formalised yet — a clause the glue cannot read, written
+as an atom whose holes are what it reads, such as `$口座 が凍結されていない` —
+is a pure function of the names the step binds, which the environment gives
+(docs/CLAUSE_DESIGN.md, P15 and P16), named by its text. The tool word
+`@opaque` is refused: write the clause as such an atom. The checks module's `ENVIRONMENT` maps such
 a name to `True`, `False` or a pure function of the names it reads;
 `--env NAME=true|false` gives a value over it, and `--seed N` chooses every
 function nothing gives, deterministically, by hashing the seed, the name and
@@ -932,7 +931,7 @@ one, and finds the same deadlocks, cycles, broken invariants, empty posts
 and variables left without a value. Every post clause is still evaluated;
 a left-out variable just has no value in the state (null in `--json`). The
 report lists the kept variables and each left-out one with the edges that
-set it. A clause whose reads are unknown (`@opaque`), or an invariant or
+set it. A clause whose reads are unknown (one the glue cannot read), or an invariant or
 ghost update that takes any keyword, keeps the cone from being computed,
 and the report says so. A replay from such a walk carries nulls, so walk
 without `--cone` to replay a finding in the REPL.

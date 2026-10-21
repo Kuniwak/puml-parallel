@@ -7,7 +7,7 @@ from csdfbmc.tests import fixture
 from csdfbmc.tests.test_explore import COUNTER
 
 # COUNTER with dec's guard not formalised yet.
-UNKNOWN_GUARD = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="@opaque"), COUNTER["edges"][1]])
+UNKNOWN_GUARD = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$n が 正"), COUNTER["edges"][1]])
 
 
 class EnvironmentCommandTest(unittest.TestCase):
@@ -23,26 +23,26 @@ class EnvironmentCommandTest(unittest.TestCase):
         # Assert
         self.assertEqual(first, again)
         self.assertIn("environment: seed 7\n", first)
-        self.assertIn("decided by the environment: @opaque#1\n", first)
+        self.assertIn("decided by the environment: $n が 正\n", first)
 
     def test_env_gives_a_function_its_value(self):
         # Execute
-        _, out, _ = self.run_main("--env", "@opaque#1=false")
+        _, out, _ = self.run_main("--env", "$n が 正=false")
 
         # Assert
         self.assertIn("states: 1\n", out)
-        self.assertIn("environment: given @opaque#1\n", out)
+        self.assertIn("environment: given $n が 正\n", out)
 
     def test_env_wins_over_the_checks_module(self):
         # Execute
-        _, out, _ = self.run_main("--env", "@opaque#1=false", checks='TYPES = {}\nENVIRONMENT = {"@opaque#1": True}\n')
+        _, out, _ = self.run_main("--env", "$n が 正=false", checks='TYPES = {}\nENVIRONMENT = {"$n が 正": True}\n')
 
         # Assert
         self.assertIn("states: 1\n", out)
 
     def test_a_malformed_env_is_a_usage_error(self):
         # Execute
-        code, _, err = self.run_main("--env", "@opaque#1=maybe")
+        code, _, err = self.run_main("--env", "$n が 正=maybe")
 
         # Assert
         self.assertEqual(2, code)
@@ -53,7 +53,7 @@ class EnvironmentCommandTest(unittest.TestCase):
         _, out, _ = self.run_main("--seed", "3", "--json")
 
         # Assert
-        self.assertEqual({"seed": 3, "given": [], "decided": ["@opaque#1"]}, json.loads(out)["environment"])
+        self.assertEqual({"seed": 3, "given": [], "decided": ["$n が 正"]}, json.loads(out)["environment"])
 
 
 if __name__ == "__main__":

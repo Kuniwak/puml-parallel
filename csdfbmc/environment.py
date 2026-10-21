@@ -1,8 +1,8 @@
 """The environment: what a diagram takes from outside (docs/CLAUSE_DESIGN.md,
 P15 and P16). Besides the types of the checks module, it holds the pure
-functions that a clause not formalised denotes - the tool word @opaque, or a
-clause the glue says it cannot read: a truth value for each valuation of the
-names the clause may read, fixed for the whole run.
+functions that a clause not formalised denotes - an atom the glue says it
+cannot read: a truth value for each valuation of the names the clause may
+read, fixed for the whole run. The tool word @opaque is no longer read.
 
 A function is given by the checks module (ENVIRONMENT) or the command line
 (--env NAME=true|false), or chosen from a seed (--seed N): a seed picks one

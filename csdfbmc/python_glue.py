@@ -21,8 +21,8 @@ from csdfbmc.atoms import has_hole
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"
-# What a clause not formalised yet was written as before the tool word
-# @opaque, which the checker takes without asking a glue.
+# What a clause not formalised yet was written as before it was an atom of
+# the environment.
 _FORMER_OPAQUE = ("OPAQUE", "opaque")
 
 
@@ -62,7 +62,7 @@ class Glue:
         key = (clause, role)
         if key not in self._compiled:
             if clause.strip() in _FORMER_OPAQUE:
-                raise ValueError(f"{clause.strip()!r} is not a clause of this glue; for a clause not formalised yet, write the tool word @opaque")
+                raise ValueError(f"{clause.strip()!r} is not a clause of this glue; for a clause not formalised yet, write it as an atom whose holes are what it reads, such as $口座 が凍結されていない")
             check_pure(clause, f"<clause {clause!r}>")
             tree = ast.parse(clause, mode="eval")
             writes = _post_writes(tree) if role == "post" else []

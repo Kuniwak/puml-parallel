@@ -64,19 +64,27 @@ class ExplorerTest(unittest.TestCase):
         self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,), ())))
 
     def without_its_guard(self):
-        """COUNTER with dec's guard not formalised yet."""
-        return dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="@opaque"), COUNTER["edges"][1]])
+        """COUNTER with dec's guard not formalised yet: an atom of its holes."""
+        return dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$n が 正"), COUNTER["edges"][1]])
+
+    def test_the_tool_word_opaque_is_refused(self):
+        # Setup
+        diagram = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="@opaque"), COUNTER["edges"][1]])
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "write the clause as an atom"):
+            fixture.diagram(diagram)
 
     def test_a_clause_not_formalised_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
             fixture.explorer(self.without_its_guard()).run()
-        self.assertIn("@opaque", str(cm.exception))
+        self.assertIn("$n が 正", str(cm.exception))
 
     def test_a_clause_not_formalised_may_be_taken_as_true(self):
         result = fixture.explorer(self.without_its_guard(), opaque="true", max_states=10).run()
         # dec fires at n = 0 too and counts down past zero, until the bound.
         self.assertIn(("a", (-1,), ()), set(result.states))
-        self.assertEqual(["@opaque"], result.opaque_clauses)
+        self.assertEqual(["$n が 正"], result.opaque_clauses)
 
     def test_the_environment_decides_a_clause_not_formalised(self):
         # Setup
@@ -86,7 +94,7 @@ class ExplorerTest(unittest.TestCase):
         }
         for name, (given, want) in cases.items():
             with self.subTest(name):
-                environment = environments.over({}, {"@opaque#1": given}, None)
+                environment = environments.over({}, {"$n が 正": given}, None)
 
                 # Execute
                 result = fixture.explorer(self.without_its_guard(), environment=environment, max_states=10).run()
@@ -105,7 +113,7 @@ class ExplorerTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(first.states, again.states)
-        self.assertEqual({"seed": 7, "given": [], "decided": ["@opaque#1"]}, first.to_json()["environment"])
+        self.assertEqual({"seed": 7, "given": [], "decided": ["$n が 正"]}, first.to_json()["environment"])
 
     def test_the_bound_on_states_stops_the_walk(self):
         result = fixture.explorer(COUNTER, max_states=2).run()

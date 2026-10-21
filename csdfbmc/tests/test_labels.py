@@ -56,19 +56,13 @@ class LabelsTest(unittest.TestCase):
         self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
         self.assertEqual([("b", (), ())], result.deadlocks)
 
-    def test_the_tool_word_opaque_follows_the_opaque_rule_without_asking_the_glue(self):
-        counting = Counting(python_glue())
-        result = Explorer(counter(dec={"guard": "@opaque"}), NO_CHECKS, meaning=glue(counting), cone=Cone.keep_all(), environment=NONE, opaque="true", max_states=10).run()
-        self.assertEqual(["@opaque"], result.opaque_clauses)
-        self.assertNotIn("@opaque", [r["clause"] for r in counting.requests])
-
-    def test_an_opaque_clause_is_refused_by_default(self):
+    def test_an_atom_the_glue_cannot_read_is_refused_by_default(self):
         with self.assertRaises(KeyError) as cm:
-            Explorer(counter(dec={"guard": "@opaque"}), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all(), environment=NONE).run()
-        self.assertIn("@opaque", str(cm.exception))
+            Explorer(counter(dec={"guard": "$n が 正"}), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all(), environment=NONE).run()
+        self.assertIn("$n が 正", str(cm.exception))
 
-    def test_an_opaque_clause_may_be_taken_as_true(self):
-        result = Explorer(counter(dec={"guard": "@opaque"}), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all(), environment=NONE, opaque="true", max_states=10).run()
+    def test_an_atom_the_glue_cannot_read_may_be_taken_as_true(self):
+        result = Explorer(counter(dec={"guard": "$n が 正"}), NO_CHECKS, meaning=glue(python_glue()), cone=Cone.keep_all(), environment=NONE, opaque="true", max_states=10).run()
         self.assertIn(("a", (-1,), ()), set(result.states))
 
     def test_a_clause_is_evaluated_once_per_value_of_what_it_reads(self):

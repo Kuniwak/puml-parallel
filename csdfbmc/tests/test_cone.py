@@ -120,7 +120,7 @@ class ConeTest(unittest.TestCase):
 
     def test_what_may_read_anything_keeps_the_cone_from_being_computed(self):
         for name, diagram, checks, blocked in [
-            ("an opaque post", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque"), NO_CHECKS, "@opaque"),
+            ("a post the glue cannot read", edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ $log が 記録される"), NO_CHECKS, "$log が 記録される"),
             ("an invariant taking any keyword", AUDITED,
              Checks(types={}, invariants={"anything": lambda **env: True}), "the invariant 'anything'"),
         ]:
@@ -161,9 +161,9 @@ class ConeCommandTest(unittest.TestCase):
         self.assertIn("left out (nothing that decides a step or a property reads it): log, set by start; a -dec-> a (line 5)\n", out)
 
     def test_the_report_says_why_the_cone_was_not_computed(self):
-        diagram = edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ @opaque")
+        diagram = edit(AUDITED, "dec", post="[{'n': n - 1}] ∧ $log が 記録される")
         out = self.run_main(diagram, "--evaluator-module", "csdfbmc.python_glue", "--cone", "--opaque", "true")
-        self.assertIn("cone of influence not computed: what @opaque reads is unknown\n", out)
+        self.assertIn("cone of influence not computed: what $log が 記録される reads is unknown\n", out)
 
 
 if __name__ == "__main__":

@@ -68,8 +68,9 @@ class Clause:
         form = form or FORM_TEXT
         eq: tuple[str, ...] = ()
         if form == FORM_OPAQUE:
-            text = OPAQUE_WORD
-        elif form == FORM_EQ:
+            raise ValueError(f"{OPAQUE_WORD} is no longer read: write the clause as an atom whose holes are what it reads, "
+                             "such as `$口座 が凍結されていない`, and give its function in the environment (ENVIRONMENT, --env or --seed)")
+        if form == FORM_EQ:
             eq = tuple(c["eq"])
             text = f"@eq({eq[0]}, {eq[1]})"  # how a report names it
         elif form == FORM_TEXT:

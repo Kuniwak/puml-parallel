@@ -73,8 +73,8 @@ class PythonGlueTest(unittest.TestCase):
             (analyse("open('f') and 1.5", "guard"), "not allowed"),
             ({"op": "guard", "clause": "m['k'] > 0", "bindings": [{"m": {}}]}, "'k'"),
             ({"op": "frobnicate"}, "unknown request"),
-            (analyse("OPAQUE", "guard"), "write the tool word @opaque"),
-            (analyse("opaque", "post"), "write the tool word @opaque"),
+            (analyse("OPAQUE", "guard"), "write it as an atom"),
+            (analyse("opaque", "post"), "write it as an atom"),
         ]:
             with self.subTest(request=request):
                 self.assertIn(said, self.handle(request)["error"])

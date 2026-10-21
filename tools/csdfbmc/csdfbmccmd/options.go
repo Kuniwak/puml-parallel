@@ -68,7 +68,7 @@ Checker options (the checker's --help lists them in full):
 The checks module defines TYPES (a type -> its finite values) and, when
 wanted, TYPEOF (a name -> its type), ENVIRONMENT (the function a clause not
 formalised denotes -> True, False or a pure function of the names it
-reads; the n-th @opaque of the diagram is @opaque#n), GHOSTS, INVARIANTS
+reads; @opaque is refused: write the clause as an atom), GHOSTS, INVARIANTS
 and SYMMETRIC. A run reports its seed and the given functions, which
 reproduce it.
 
