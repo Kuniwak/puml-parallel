@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+from dataclasses import dataclass
 from typing import Callable
 
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
@@ -89,6 +90,18 @@ class Glue:
         source, names = _atom_source(atom)
         return bool(self._eval(source, "guard", dict(zip(names, values))))
 
+    def atom_post(self, atom: dict, values: list) -> list[list]:
+        """The values after the step, of the primed arguments in order, that
+        the atom allows from values, those of the others in order."""
+        source, names = _atom_source(atom)
+        primed = [n for n, p in zip(names, atom["primed"]) if p]
+        before = [n for n, p in zip(names, atom["primed"]) if not p]
+        targets, chosen = _post_shape(source, primed)
+        options = self._eval(chosen, "guard", dict(zip(before, values)))
+        if targets.is_tuple:
+            return [[freeze(v) for v in _ordered(targets.names, primed, o)] for o in options]
+        return [[freeze(o)] for o in options]
+
     def guard(self, clause: str, binding: dict) -> bool:
         return bool(self._eval(clause, "guard", binding))
 
@@ -111,6 +124,41 @@ def _atom_source(atom: dict) -> tuple[str, list[str]]:
     return source, names
 
 
+_POST_SHAPE = ("a post atom of this glue is $x' == expression, $x' in expression, or a tuple of every "
+               "value after the step, ($x', $y') == expression or in one, where expression reads none of them")
+
+
+@dataclass(frozen=True)
+class _Targets:
+    names: tuple[str, ...]
+    is_tuple: bool
+
+
+def _post_shape(source: str, primed: list[str]) -> tuple[_Targets, str]:
+    """What a post atom gives a value to, and the source of the collection
+    of what it may choose for them."""
+    body = ast.parse(source, mode="eval").body
+    if not (isinstance(body, ast.Compare) and len(body.ops) == 1 and isinstance(body.ops[0], (ast.Eq, ast.In))):
+        raise ValueError(_POST_SHAPE)
+    left, right = body.left, body.comparators[0]
+    if isinstance(left, ast.Name):
+        targets = _Targets((left.id,), False)
+    elif isinstance(left, ast.Tuple) and all(isinstance(e, ast.Name) for e in left.elts):
+        targets = _Targets(tuple(e.id for e in left.elts), True)
+    else:
+        raise ValueError(_POST_SHAPE)
+    if sorted(targets.names) != sorted(primed) or free_names(right) & set(primed):
+        raise ValueError(_POST_SHAPE)
+    right_source = ast.unparse(right)
+    return targets, (f"[{right_source}]" if isinstance(body.ops[0], ast.Eq) else right_source)
+
+
+def _ordered(names: tuple[str, ...], primed: list[str], option) -> list:
+    """option, a tuple of values for names, reordered as primed."""
+    by_name = dict(zip(names, option))
+    return [by_name[n] for n in primed]
+
+
 def _load_defs(path: str) -> dict:
     with open(path, encoding="utf-8") as f:
         check_pure(f.read(), path)
@@ -125,7 +173,8 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     modules of shared definitions."""
     glue = Glue(args)
     return handler(LANGUAGE, analyse=glue.analyse, guard=glue.guard, post=glue.post,
-                   beyond=glue.beyond, symmetric=glue.symmetric, atom_guard=glue.atom_guard)
+                   beyond=glue.beyond, symmetric=glue.symmetric, atom_guard=glue.atom_guard,
+                   atom_post=glue.atom_post)
 
 
 if __name__ == "__main__":

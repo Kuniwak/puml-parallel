@@ -154,7 +154,8 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
             post: Callable[[str, dict], list[dict]],
             beyond: Callable[[str, str, str | None], list[str]] | None = None,
             symmetric: Callable[[str, str, list[str], list[str], list[list[str]]], str | None] | None = None,
-            atom_guard: Callable[[dict, list], bool] | None = None) -> Handle:
+            atom_guard: Callable[[dict, list], bool] | None = None,
+            atom_post: Callable[[dict, list], list[list]] | None = None) -> Handle:
     """The Handle of a glue, from what is particular to its language:
     analyse(text, role) says what a clause reads and writes, guard(text,
     binding) and post(text, binding) evaluate a clause under one binding.
@@ -178,6 +179,8 @@ def handler(language: str, *, analyse: Callable[[str, str], "Analysis"], guard: 
                 return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
             if "atom" in request and op == "guard" and atom_guard is not None:
                 return {"results": [atom_guard(request["atom"], vs) for vs in request["values"]]}
+            if "atom" in request and op == "post" and atom_post is not None:
+                return {"results": [atom_post(request["atom"], vs) for vs in request["values"]]}
             if op == "analyse":
                 a = analyse(request["clause"], request["role"])
                 return {"opaque": True} if a.opaque else {"reads": list(a.reads), "writes": list(a.writes)}
