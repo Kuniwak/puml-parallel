@@ -1,0 +1,61 @@
+package core
+
+import (
+	"testing"
+
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/lts"
+)
+
+func mustParse(t *testing.T, text string) clause.And {
+	t.Helper()
+	f, err := clause.Parse(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// counter counts x from 0 up to 1 on inc!x and back to 0 on reset.
+func counter(t *testing.T) (*Diagram, Env) {
+	d := &Diagram{
+		Vars:     map[string][]string{"s": {"x"}},
+		Init:     "s",
+		InitPost: mustParse(t, "$x' = 0"),
+		Edges: []Edge{
+			{Src: "s", Dst: "s", Event: Event{Channel: "inc", Fields: []Field{{Send: true, Name: "x"}}},
+				Guard: mustParse(t, "$x < 1"), Post: mustParse(t, "$x' = $x + 1")},
+			{Src: "s", Dst: "s", Event: Event{Channel: "reset"},
+				Post: mustParse(t, "$x' = 0")},
+		},
+	}
+	env := Env{
+		Types: map[string][]Value{"x": {0, 1}},
+		Atoms: map[string]func([]Value) bool{
+			"#0 = 0":      func(a []Value) bool { return a[0] == 0 },
+			"#0 < 1":      func(a []Value) bool { return a[0].(int) < 1 },
+			"#0 = #1 + 1": func(a []Value) bool { return a[0] == a[1].(int)+1 },
+		},
+	}
+	return d, env
+}
+
+func TestExpandWalksTheValues(t *testing.T) {
+	// Setup
+	d, env := counter(t)
+	want := lts.New(0)
+	want.Add(0, "inc.0", 1)
+	want.Add(0, "reset", 0)
+	want.Add(1, "reset", 0)
+
+	// Execute
+	got, err := Expand(d, env)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !lts.StableFailuresEqual(got, want) {
+		t.Errorf("not stable-failures equivalent: %#v", got.Trans)
+	}
+}
