@@ -30,7 +30,7 @@ var (
 	promoteTitleRe  = regexp.MustCompile(`^(\S+)\s*:\s*(.+?)\s*(?:⇸|->>)\s*(\S+)$`)
 	syncBodyRe      = regexp.MustCompile(`^sync\s+([^(;:]+?)\s*:\s*(.+)$`)
 	constrainBodyRe = regexp.MustCompile(`^constrain\s+([^;]+?)\s*;\s*(.+)$`)
-	mapRefRe        = regexp.MustCompile(`^([^\s()]+)\s*\(([^()]*)\)$`)
+	mapRefRe        = regexp.MustCompile(`^([^\s()]+)\s*\(([^()]*)\)(?:\.(` + idPattern + `))?$`)
 )
 
 // ParseGlobal reads a global diagram written in the upper-compatible grammar.
@@ -336,7 +336,7 @@ func (s *scanner) readDirective(line string, anchor Anchor, at int) error {
 	case strings.HasPrefix(line, "sync "):
 		m := syncBodyRe.FindStringSubmatch(line)
 		if m == nil {
-			return fmt.Errorf("line %d: expected \"sync <event> : <map>(<param>), ...\", got %q", at, line)
+			return fmt.Errorf("line %d: expected \"sync <event> : <map>(<param>)[.<event>], ...\", got %q", at, line)
 		}
 		targets, err := parseMapRefs(m[2], at)
 		if err != nil {
@@ -390,9 +390,9 @@ func parseMapRefs(s string, at int) ([]MapRef, error) {
 	for _, part := range splitTrimmed(s) {
 		m := mapRefRe.FindStringSubmatch(part)
 		if m == nil {
-			return nil, fmt.Errorf("line %d: expected \"<map>(<param>)\", got %q", at, part)
+			return nil, fmt.Errorf("line %d: expected \"<map>(<param>)\" or \"<map>(<param>).<event>\", got %q", at, part)
 		}
-		refs = append(refs, MapRef{Map: csdf.Var(m[1]), Param: strings.TrimSpace(m[2])})
+		refs = append(refs, MapRef{Map: csdf.Var(m[1]), Param: strings.TrimSpace(m[2]), Event: m[3]})
 	}
 	return refs, nil
 }

@@ -129,9 +129,9 @@ func TestExpandRefusesADirectiveThatCannotMeanAnything(t *testing.T) {
 			global: strings.Replace(syncGlobal, "sync BOOK : buys(約定ID), cycles(基準日)", "sync tau : buys(約定ID), cycles(基準日)", 1),
 			want:   `error: line 17: tau cannot be synced; an internal event two families take together is an observable one`,
 		},
-		"a sync that names one map twice": {
+		"a sync that takes one local event of one map twice": {
 			global: strings.Replace(syncGlobal, "sync BOOK : buys(約定ID), cycles(基準日)", "sync BOOK : buys(約定ID), buys(約定ID2)", 1),
-			want:   `error: line 17: this sync names "buys" twice; one event cannot move two instances of one map at once`,
+			want:   `error: line 17: this sync takes "BOOK" of "buys" twice; give each occurrence of one map its own local event`,
 		},
 		"a constrain that matches no edge": {
 			global: strings.Replace(syncGlobal, "@enduml", `note as c1

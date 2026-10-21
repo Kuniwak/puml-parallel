@@ -49,15 +49,22 @@ type Sync struct {
 	Line    int      `json:"line"` // 1-based source line of the directive.
 }
 
-// MapRef names a map and the parameter the instance ID is written as.
+// MapRef names a map, the parameter the instance ID is written as, and in a
+// sync the local event the instance takes: Event, written m(p).EVENT, or the
+// sync's own event when it is left out. Two occurrences of one map in a sync
+// are two instances, each taking its own local event.
 type MapRef struct {
 	Map   csdf.Var `json:"map"`
 	Param string   `json:"param"`
+	Event string   `json:"event,omitempty"`
 }
 
 // LocalEvent is the local event the instance takes when the sync of event
 // happens.
 func (r MapRef) LocalEvent(event string) string {
+	if r.Event != "" {
+		return r.Event
+	}
 	return event
 }
 

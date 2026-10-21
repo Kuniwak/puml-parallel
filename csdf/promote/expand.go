@@ -92,6 +92,7 @@ const (
 	ClauseCreate    ClauseKind = "create"     // the instance is created in local state State
 	ClauseDelete    ClauseKind = "delete"     // the instance is removed from Map
 	ClauseFrame     ClauseKind = "frame"      // state variable Var is unchanged
+	ClauseDistinct  ClauseKind = "distinct"   // the two IDs of IDs, two instances of Map, differ
 	ClauseEmpty     ClauseKind = "empty"      // map Map starts empty, on the start edge
 	ClauseLocal     ClauseKind = "local"      // a clause of the local edge, verbatim
 	ClauseConstrain ClauseKind = "constrain"  // a clause of a constrain directive, verbatim
@@ -126,6 +127,8 @@ type ExpandedClause struct {
 	Var   string   `json:"var,omitempty"`
 	Path  string   `json:"path,omitempty"`
 	Line  int      `json:"line,omitempty"`
+	// IDs are the two parameters a distinct clause says differ.
+	IDs []string `json:"ids,omitempty"`
 	// Maps are the left-out maps a dropped clause read.
 	Maps []string `json:"maps,omitempty"`
 }
@@ -311,21 +314,22 @@ func (e *expander) parts(p Promote, edge csdf.Edge, id string, l link) edgeParts
 		parts.post = append(parts.post, about(ClauseUpdate, clauseUpdate, dst.Name))
 	}
 
-	parts.guard = append(parts.guard, e.localClauses(p, edge, edge.Guard)...)
+	parts.guard = append(parts.guard, e.localClauses(p, edge, id, edge.Guard)...)
 	// The post of a deletion says something about an instance that is gone, so
 	// it is dropped rather than carried into the expansion.
 	if edge.Dst != absent {
-		parts.post = append(parts.post, e.localClauses(p, edge, edge.Post)...)
+		parts.post = append(parts.post, e.localClauses(p, edge, id, edge.Post)...)
 	}
 	return parts
 }
 
 // localClauses copies the clauses of a local predicate verbatim, each saying
-// which local edge it came from.
-func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) []ExpandedClause {
+// which local edge it came from and which instance, by its ID parameter, it is
+// about.
+func (e *expander) localClauses(p Promote, edge csdf.Edge, id string, pred csdf.Predicate) []ExpandedClause {
 	var clauses []ExpandedClause
 	for _, c := range pred.Clauses() {
-		clauses = append(clauses, e.authored(ClauseLocal, c, ExpandedClause{Map: string(p.Map), Path: e.paths[p.Map], Line: edge.Line}))
+		clauses = append(clauses, e.authored(ClauseLocal, c, ExpandedClause{Map: string(p.Map), ID: id, Path: e.paths[p.Map], Line: edge.Line}))
 	}
 	return clauses
 }
@@ -333,21 +337,21 @@ func (e *expander) localClauses(p Promote, edge csdf.Edge, pred csdf.Predicate) 
 // promoteEdge lifts one local edge onto the state its block was written in.
 func (e *expander) promoteEdge(p Promote, edge csdf.Edge) ExpandedEdge {
 	parts := e.parts(p, edge, p.IDParam, moveOnce(p.Map))
-	out := e.compose(p.In, parts.name, []edgeParts{parts}, p.Map)
+	out := e.compose(p.In, parts.name, []edgeParts{parts}, nil, p.Map)
 	out.Origin = fmt.Sprintf("promote: %s 〈%s〉 → 〈%s〉", e.paths[p.Map], parts.src, parts.dst)
 	return out
 }
 
-// link is how a move clause names the map before and after it.
+// link is how a move clause names the map before and after it (chain).
 type link struct{ before, after string }
 
 // moveOnce is the link of a map one edge moves once: from m to m'.
 func moveOnce(m csdf.Var) link { return link{before: string(m), after: string(m) + "'"} }
 
 // compose joins the parts of one or more local edges into one global self-loop
-// on state g named name, framing every state variable of g but the maps the
-// parts moved.
-func (e *expander) compose(g csdf.StateID, name string, parts []edgeParts, moved ...csdf.Var) ExpandedEdge {
+// on state g named name, guarded also by shared, the clauses about the edge as a
+// whole, and framing every state variable of g but the maps the parts moved.
+func (e *expander) compose(g csdf.StateID, name string, parts []edgeParts, shared []ExpandedClause, moved ...csdf.Var) ExpandedEdge {
 	var guard, post []ExpandedClause
 	var ids []string
 	var args []csdf.Field
@@ -362,6 +366,7 @@ func (e *expander) compose(g csdf.StateID, name string, parts []edgeParts, moved
 			args = appendUnique(args, part.args...)
 		}
 	}
+	guard = append(guard, shared...)
 	post = append(post, e.frame(g, moved)...)
 
 	event := csdf.Tau

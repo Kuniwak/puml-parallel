@@ -105,7 +105,10 @@ what the checkers want and no reader wants. So the author writes the diagram of
 
 The directives are spelled in PlantUML's own syntax — a `<<promote>>` composite
 state per map, a note per `sync` or `constrain` — so the hand-written global
-diagram still renders, and the picture shows the promotion.
+diagram still renders, and the picture shows the promotion. A `sync` may move
+two instances of one family at once, each naming the local event it takes:
+`sync MOVE : locations(from).DEPART, locations(to).ARRIVE` (see
+[PROMOTION.md](./docs/PROMOTION.md)).
 
 ```console
 $ csdfpromote examples/promote/TRADES.puml

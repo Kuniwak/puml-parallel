@@ -32,17 +32,27 @@ func (e *expander) planSyncs() {
 
 		ok := true
 		var states []csdf.StateID
-		named := map[csdf.Var]bool{}
+		type role struct {
+			m    csdf.Var
+			name string
+		}
+		named, taken := map[role]bool{}, map[role]bool{}
 		for i, t := range s.Targets {
-			// One edge updates one key of one map. Two targets on one map would
-			// put two assignments to that map in one post, which no state can
-			// satisfy unless the two IDs are equal.
-			if named[t.Map] {
-				e.errorf(s.Line, "this sync names %q twice; one event cannot move two instances of one map at once", t.Map)
+			// Two occurrences of one map are two instances: one instance cannot
+			// take two edges at once, and which edge each takes is the local
+			// event it names, so neither the ID nor the event may repeat.
+			if named[role{t.Map, t.Param}] {
+				e.errorf(s.Line, "this sync names %s(%s) twice; two occurrences of one map are two instances, so give them two IDs", t.Map, t.Param)
 				ok = false
 				continue
 			}
-			named[t.Map] = true
+			named[role{t.Map, t.Param}] = true
+			if taken[role{t.Map, t.LocalEvent(s.Event)}] {
+				e.errorf(s.Line, "this sync takes %q of %q twice; give each occurrence of one map its own local event", t.LocalEvent(s.Event), t.Map)
+				ok = false
+				continue
+			}
+			taken[role{t.Map, t.LocalEvent(s.Event)}] = true
 
 			in := e.statesOf(t.Map)
 			if len(in) == 0 {
@@ -123,18 +133,73 @@ func (e *expander) mergeSyncs(edges []ExpandedEdge) []ExpandedEdge {
 			for _, combination := range product(choices) {
 				parts := make([]edgeParts, len(blocks))
 				moved := make([]csdf.Var, len(blocks))
+				links := chain(plan.sync.Targets)
 				for i, edge := range combination {
-					parts[i] = e.parts(blocks[i], edge, plan.sync.Targets[i].Param, moveOnce(blocks[i].Map))
+					parts[i] = e.parts(blocks[i], edge, plan.sync.Targets[i].Param, links[i])
 					moved[i] = blocks[i].Map
 				}
-				// The merged event is the sync's, whatever local event each side took.
-				merged := e.compose(g, plan.sync.Event, parts, moved...)
+				// The merged event is the sync's, whatever local event each side
+				// took, and its guard says that the instances of one map differ.
+				merged := e.compose(g, plan.sync.Event, parts, e.distinct(plan.sync.Targets), moved...)
 				merged.Origin = e.syncOrigin(plan, blocks, parts)
 				edges = append(edges, merged)
 			}
 		}
 	}
 	return edges
+}
+
+// chain is the link of each target's move, in the order of the targets. A map
+// one edge moves once goes from m to m'; one it moves k times goes through
+// m₁ … m₍ₖ₋₁₎, so that the clauses chain the moves instead of saying m' twice.
+func chain(targets []MapRef) []link {
+	total := map[csdf.Var]int{}
+	for _, t := range targets {
+		total[t.Map]++
+	}
+	seen := map[csdf.Var]int{}
+	links := make([]link, len(targets))
+	for i, t := range targets {
+		k := seen[t.Map]
+		seen[t.Map]++
+		links[i] = link{before: stage(t.Map, k, total[t.Map]), after: stage(t.Map, k+1, total[t.Map])}
+	}
+	return links
+}
+
+// stage names map m after k of its n moves.
+func stage(m csdf.Var, k, n int) string {
+	switch k {
+	case 0:
+		return string(m)
+	case n:
+		return string(m) + "'"
+	}
+	return string(m) + subscript(k)
+}
+
+func subscript(k int) string {
+	var sb strings.Builder
+	for _, d := range fmt.Sprint(k) {
+		sb.WriteRune('₀' + (d - '0'))
+	}
+	return sb.String()
+}
+
+// distinct is a guard clause for every two occurrences of one map: their IDs
+// differ, since they are two instances.
+func (e *expander) distinct(targets []MapRef) []ExpandedClause {
+	var clauses []ExpandedClause
+	for i, a := range targets {
+		for _, b := range targets[i+1:] {
+			if a.Map != b.Map {
+				continue
+			}
+			c := Clause{Map: string(a.Map), ID: a.Param, Other: b.Param}
+			clauses = append(clauses, ExpandedClause{Kind: ClauseDistinct, Text: e.templates.clause(clauseDistinct, c), Map: string(a.Map), IDs: []string{a.Param, b.Param}})
+		}
+	}
+	return clauses
 }
 
 func (e *expander) syncOrigin(plan syncPlan, blocks []Promote, parts []edgeParts) string {

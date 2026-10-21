@@ -12,7 +12,9 @@ import (
 // Clause is what a clause template is rendered with. Src and Dst are the names
 // of the local states the edge runs between, and Var is the state variable a
 // frame clause is about; each template uses the fields its own clause needs.
-// Before and After name the map before and after a move.
+// Before and After name the map before and after a move: Map and Map' unless
+// one edge moves two instances of it, when the moves chain through Map₁, ….
+// Other is the second ID of a distinct clause.
 type Clause struct {
 	Map    string
 	ID     string
@@ -21,6 +23,7 @@ type Clause struct {
 	Var    string
 	Before string
 	After  string
+	Other  string
 }
 
 // The clauses the expansion generates, each replaceable on its own. What joins
@@ -36,6 +39,7 @@ const (
 	clauseDelete   = "delete"
 	clauseFrame    = "frame"
 	clauseEmpty    = "empty"
+	clauseDistinct = "distinct"
 )
 
 // connectiveTemplate is the name an older template file gave the connective,
@@ -54,6 +58,7 @@ const defaultTemplates = `
 {{define "delete"}}{{.After}} = { {{- .ID -}} } ⩤ {{.Before}}{{end}}
 {{define "frame"}}{{.Var}}' = {{.Var}}{{end}}
 {{define "empty"}}{{.Map}} = ∅{{end}}
+{{define "distinct"}}{{.ID}} ≠ {{.Other}}{{end}}
 `
 
 // Templates is the wording of the generated clauses.
@@ -87,8 +92,8 @@ func LoadTemplates(path string) (*Templates, error) {
 	}
 
 	ts := &Templates{t: t}
-	probe := Clause{Map: "m", ID: "id", Src: "S", Dst: "T", Var: "v", Before: "m", After: "m'"}
-	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame, clauseEmpty} {
+	probe := Clause{Map: "m", ID: "id", Src: "S", Dst: "T", Var: "v", Before: "m", After: "m'", Other: "id2"}
+	for _, name := range []string{clauseInDom, clauseNotInDom, clauseAtState, clauseUpdate, clauseCreate, clauseDelete, clauseFrame, clauseEmpty, clauseDistinct} {
 		if _, err := ts.render(name, probe); err != nil {
 			return nil, fmt.Errorf("promote.LoadTemplates: %q: %w", path, err)
 		}

@@ -252,7 +252,7 @@ noteID          = id
 
 syncBody        = "sync" inlineSeparator eventName inlineTrivia ":" inlineTrivia mapRef *(inlineTrivia "," inlineTrivia mapRef)
 constrainBody   = "constrain" inlineSeparator event inlineTrivia ";" inlineTrivia guard
-mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")"
+mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")" [ "." eventName ]
 
 preprocessorLine = "!" *unicode_char_except_LF LF
 path            = 1*(unicode_char_except_space) / DQUOTE 1*(unicode_char_except_dquote) DQUOTE

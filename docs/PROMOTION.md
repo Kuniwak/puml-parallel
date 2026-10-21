@@ -189,6 +189,23 @@ arguments that happen to share a name and mean different things would be merged
 wrongly, so name them apart. In the states where the sync applies, the maps do
 not expand the event on their own.
 
+A target may name the local event its instance takes, `m(p).E`; one written
+without `.E` takes `e`. One sync can then move two instances of one family, each
+in its own role:
+
+```
+sync MOVE : shipments(出荷ID), locations(from).DEPART, locations(to).ARRIVE
+```
+
+The local diagram of `locations` has edges on `DEPART` and on `ARRIVE`, and the
+merged edge takes one of each: the instance `from` the `DEPART` edge, the
+instance `to` the `ARRIVE` edge. Which edge plays which role is structure the
+tools read, so no clause compares IDs to tell the roles apart. Two occurrences
+of one map are two instances, so the expansion adds the guard clause
+`distinct`, `from ≠ to`, and the moves chain through the map rather than say
+`m'` twice: `locations₁ = locations ⊕ {from ↦ 〈…〉} ∧ locations' = locations₁ ⊕
+{to ↦ 〈…〉}`. Each local clause says, by its `id`, which instance it is about.
+
 `constrain e?q… ; c` conjoins `c` onto the guard of every generated edge that
 matches `e` in channel and the directions of its fields, creations and merged edges included. This is
 where a condition on another map goes; the local diagram cannot see one.
@@ -237,8 +254,11 @@ file:
 | `delete`   | `Map`, `ID`, `Before`, `After`        | `m' = {id} ⩤ m`            |
 | `frame`    | `Var`               | `v' = v`                   |
 | `empty`    | `Map`               | `m = ∅`                    |
+| `distinct` | `Map`, `ID`, `Other` | `id ≠ id₂`                |
 
-`Before` and `After` name the map before and after a move: `m` and `m'`.
+`Before` and `After` name the map before and after a move: `m` and `m'`, unless
+a sync moves two instances of one map, when the moves chain through `m₁`, ….
+A template that writes `m'` for a move instead says it twice on such an edge.
 
 A clause the file does not define keeps its default. Every clause is rendered
 once when the file is read, so a template that cannot render is refused rather
@@ -268,11 +288,12 @@ expansion written before `start` existed reads the start edge's text.
 The clauses are also kept apart in the expansion's own structure: every edge
 that `Expand` generates carries them one by one (`ExpandedEdge.Guard` and
 `.Post`), each with its kind — `in_dom`, `not_in_dom`, `at_state`, `update`,
-`create`, `delete`, `frame` for the generated clauses, whose meaning a tool
-can act on without reading the wording, and `local` or `constrain` for the
-author's clauses, which stay opaque text — together with the map, instance ID
-and local state the generated clause is about, or the file and line the
-author's clause was written on. `csdfpromote -format json` prints them, with
+`create`, `delete`, `frame` and `distinct` (with the two IDs, `ids`) for the
+generated clauses, whose meaning a tool can act on without reading the
+wording, and `local` or `constrain` for the author's clauses, which stay opaque
+text — together with the map, instance ID and local state the generated clause
+is about, or the file and line the author's clause was written on; a local
+clause also carries the ID of the instance it is about. `csdfpromote -format json` prints them, with
 the `<<promote>>` blocks (`promotes`) and the local diagrams they include
 (`locals`, by path), since a generated clause names a local state and a local
 clause reads local variables that the expansion's text never spells out.
@@ -355,7 +376,8 @@ Errors:
 | A local creation edge on `tau`                                           | Its instance is only existentially quantified, so instances would appear freely. |
 | One state ID declared by two local diagrams                              | `!include` drops them into one namespace.                                       |
 | A `sync` of `tau`                                                        | An internal event two families take together is an observable one.              |
-| A `sync` naming one map twice                                            | One edge moves one key of one map.                                              |
+| A `sync` naming one instance twice, `m(p), m(p).E`                       | Two occurrences of one map are two instances; give them two IDs.                |
+| A `sync` taking one local event of one map twice                         | Each occurrence of one map takes its own local event, which says its role.       |
 | A `sync` of a map that is not promoted, or of an event a side lacks      | There is nothing to merge.                                                      |
 | A `sync` whose maps never move in the same state                         | The event they take together can never happen.                                  |
 | A `constrain` no generated edge matches in channel and field directions | It constrains nothing.                                                          |

@@ -268,7 +268,7 @@ note as n1
 end note
 @enduml
 `,
-			want: `line 7: expected "sync <event> : <map>(<param>), ...", got "sync BOOK buys(約定ID)"`,
+			want: `line 7: expected "sync <event> : <map>(<param>)[.<event>], ...", got "sync BOOK buys(約定ID)"`,
 		},
 		"a constrain body that does not parse": {
 			source: `@startuml A
