@@ -9,6 +9,8 @@ type ClauseJSON struct {
 	Text   string            `json:"text,omitempty"`
 	Opaque bool              `json:"opaque,omitempty"`
 	Rename map[string]string `json:"rename,omitempty"`
+	// Eq names the two values the tool word @eq(a, b) says are equal.
+	Eq []string `json:"eq,omitempty"`
 }
 
 // ClausesJSON takes a predicate apart into its clauses, so a reader in another
@@ -19,6 +21,12 @@ func (p Predicate) ClausesJSON() ([]ClauseJSON, error) {
 	for _, c := range p.Clauses() {
 		if IsOpaque(c) {
 			out = append(out, ClauseJSON{Opaque: true})
+			continue
+		}
+		if a, b, ok, err := SplitEquality(c); err != nil {
+			return nil, err
+		} else if ok {
+			out = append(out, ClauseJSON{Eq: []string{a, b}})
 			continue
 		}
 		renames, body, err := SplitRenaming(c)

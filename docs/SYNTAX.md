@@ -101,7 +101,7 @@ what they must read:
   separates clauses. ` ∧ ` is not an
   operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
   `a and b`). `∨` and every other symbol belong to the clause.
-- **Tool words** start with `@`, and there are two:
+- **Tool words** start with `@`, and there are three:
   - `@opaque` is a clause not formalised yet, which says nothing a tool can read,
     and which a checker takes by its own rule (`csdfbmc --opaque`).
   - A renaming `@[y := x, …] clause` before a clause says that the name `y` the
@@ -110,6 +110,10 @@ what they must read:
     rewritten; csdfparse writes it as the clause's `rename` (`{"y": "x"}`). It is
     written exactly `@[from := to, …] ` (one space after `]`), its names sorted, and
     the renamings in it are simultaneous: `@[a := b, b := a]` swaps two names.
+  - `@eq(a, b)` is a clause of its own: the values named `a` and `b` are equal.
+    Composition writes it when both sides send one field (`c!y ‖ c!z`), which they
+    do only where the two values are equal; csdfparse writes it as `{"eq": ["a",
+    "b"]}`. A tool renames the names in it, since it is the tools' word.
 
   Any other word starting with an unescaped `@` is refused.
 - **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.

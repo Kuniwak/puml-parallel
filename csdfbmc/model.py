@@ -49,11 +49,16 @@ class Clause:
     # rename: (from, to) pairs, sorted: the clause reads the name from for the
     # value the predicate it is in names to (a composition writes them).
     rename: tuple[tuple[str, str], ...] = ()
+    # eq: the two names the tool word @eq(a, b) says are equal; its text is
+    # the word itself.
+    eq: tuple[str, ...] = ()
 
     @classmethod
     def from_json(cls, c: dict) -> "Clause":
         opaque = c.get("opaque") is True
-        return cls(kind=c["kind"], text=OPAQUE_WORD if opaque else c["text"], opaque=opaque, map=c.get("map"), id=c.get("id"), state=c.get("state"),
+        eq = tuple(c.get("eq", ()))
+        text = OPAQUE_WORD if opaque else f"@eq({eq[0]}, {eq[1]})" if eq else c["text"]
+        return cls(kind=c["kind"], text=text, opaque=opaque, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
                    var=c.get("var"), path=c.get("path"), line=c.get("line", 0), formal=c.get("formal"),
                    maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
 

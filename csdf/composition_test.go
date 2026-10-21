@@ -383,17 +383,20 @@ func TestComposeParallelComposesThreeDiagramsFromTheLeft(t *testing.T) {
 	}
 }
 
-func TestComposeParallelRefusesTwoSidesSendingOneField(t *testing.T) {
-	// Setup: c!y ‖ c!z synchronises only where y = z, which needs an equality
-	// the tools cannot write without clause text.
-	left := &Diagram{States: map[StateID]State{"l0": {}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send!y"}}}
-	right := &Diagram{States: map[StateID]State{"r0": {}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "send!z"}}}
+func TestComposeParallelSynchronisesTwoSidesSendingOneFieldOnAnEqualValue(t *testing.T) {
+	// Setup: c!y ‖ c!z synchronises only where the two values are equal.
+	left := &Diagram{States: map[StateID]State{"l0": {Vars: []StateVar{{Name: "y"}}}}, StartEdge: StartEdge{Dst: "l0"}, Edges: []Edge{{Src: "l0", Dst: "l0", Event: "send!y", Guard: "y > 0"}}}
+	right := &Diagram{States: map[StateID]State{"r0": {Vars: []StateVar{{Name: "z"}}}}, StartEdge: StartEdge{Dst: "r0"}, Edges: []Edge{{Src: "r0", Dst: "r0", Event: "send!z"}}}
 
 	// Execute
-	_, err := ComposeParallel2(left, right, []string{"send"})
+	composite, err := ComposeParallel2(left, right, []string{"send"})
 
 	// Assert
-	if err == nil {
-		t.Error("ComposeParallel2() error = nil, want send!y and send!z refused")
+	if err != nil {
+		t.Fatalf("ComposeParallel2() error = %v", err)
+	}
+	want := []Edge{{Src: "l0_r0", Dst: "l0_r0", Event: "send!y", Guard: "y > 0 ∧ @eq(y, z)"}}
+	if diff := cmp.Diff(want, composite.Edges); diff != "" {
+		t.Errorf("ComposeParallel2() edges mismatch (-want +got):\n%s", diff)
 	}
 }

@@ -96,3 +96,60 @@ func TestAnEscapedClauseHoldsNoRenaming(t *testing.T) {
 		t.Errorf("SplitRenaming(EscapeClause(...)) = %v, %q, %v, want no renaming", renames, body, err)
 	}
 }
+
+func TestSplitEquality(t *testing.T) {
+	tests := map[Predicate]struct {
+		a, b string
+		ok   bool
+	}{
+		"@eq(y, z)":     {a: "y", b: "z", ok: true},
+		"@eq(監査ID, id)": {a: "監査ID", b: "id", ok: true},
+		"y = z":         {},
+	}
+	for clause, tt := range tests {
+		t.Run(string(clause), func(t *testing.T) {
+			// Execute
+			a, b, ok, err := SplitEquality(clause)
+
+			// Assert
+			if err != nil || ok != tt.ok || a != tt.a || b != tt.b {
+				t.Errorf("SplitEquality(%q) = %q, %q, %v, %v, want %q, %q, %v", clause, a, b, ok, err, tt.a, tt.b, tt.ok)
+			}
+		})
+	}
+}
+
+func TestSplitEqualityRefusesAMalformedEquality(t *testing.T) {
+	for _, clause := range []Predicate{"@eq(y)", "@eq(y, z", "@eq(y,z)", "@eq(y, y)", "@eq(y, z) ∧"} {
+		t.Run(string(clause), func(t *testing.T) {
+			// Execute
+			_, _, _, err := SplitEquality(clause)
+
+			// Assert
+			if err == nil {
+				t.Errorf("SplitEquality(%q) error = nil, want one", clause)
+			}
+		})
+	}
+}
+
+func TestAnEqualityIsCheckedRenamedAndWrittenAsJSON(t *testing.T) {
+	// Setup
+	p := Predicate("x > 0 ∧ @eq(y, z)")
+
+	// Execute
+	err := CheckClauses(p)
+	renamed, renameErr := RenameClause("@eq(y, z)", []Rename{{"z", "w"}})
+	got, jsonErr := p.ClausesJSON()
+
+	// Assert
+	if err != nil || renameErr != nil || jsonErr != nil {
+		t.Fatalf("errors = %v, %v, %v", err, renameErr, jsonErr)
+	}
+	if renamed != "@eq(y, w)" {
+		t.Errorf("RenameClause() = %q, want @eq(y, w): a tool word is the tools' to rename", renamed)
+	}
+	if diff := cmp.Diff([]ClauseJSON{{Text: "x > 0"}, {Eq: []string{"y", "z"}}}, got); diff != "" {
+		t.Errorf("ClausesJSON() mismatch (-want +got):\n%s", diff)
+	}
+}

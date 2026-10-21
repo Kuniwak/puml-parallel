@@ -60,6 +60,19 @@ func RenameClause(clause Predicate, renames []Rename) (Predicate, error) {
 	if len(renames) == 0 || IsOpaque(clause) {
 		return clause, nil
 	}
+	if a, b, ok, err := SplitEquality(clause); err != nil {
+		return "", fmt.Errorf("csdf.RenameClause: %w", err)
+	} else if ok {
+		// A tool word is the tools' to rename: its names are rewritten.
+		to := RenamesMap(renames)
+		if r, ok := to[a]; ok {
+			a = r
+		}
+		if r, ok := to[b]; ok {
+			b = r
+		}
+		return NewEquality(a, b), nil
+	}
 	inner, body, err := SplitRenaming(clause)
 	if err != nil {
 		return "", fmt.Errorf("csdf.RenameClause: %w", err)
@@ -117,4 +130,32 @@ func RenamesFromMap(m map[string]string) []Rename {
 
 func sortRenames(renames []Rename) {
 	slices.SortFunc(renames, func(a, b Rename) int { return strings.Compare(a.From, b.From) })
+}
+
+const (
+	equalityOpen  = ToolWordPrefix + "eq("
+	equalityClose = ")"
+	equalitySep   = ", "
+)
+
+// SplitEquality reads the tool word @eq(a, b): the clause that the values
+// named a and b are equal. Composition writes it when two synchronised events
+// both send one field, so that the two agree on its value without a clause in
+// any glue's language. ok is false for a clause that is not one.
+func SplitEquality(clause Predicate) (a, b string, ok bool, err error) {
+	text := string(clause)
+	if !strings.HasPrefix(text, equalityOpen) {
+		return "", "", false, nil
+	}
+	inner, closed := strings.CutSuffix(text[len(equalityOpen):], equalityClose)
+	a, b, cut := strings.Cut(inner, equalitySep)
+	if !closed || !cut || !isID(a) || !isID(b) || a == b {
+		return "", "", false, fmt.Errorf("csdf.SplitEquality: %q: expected @eq(name, name), two names apart", clause)
+	}
+	return a, b, true, nil
+}
+
+// NewEquality writes the clause @eq(a, b).
+func NewEquality(a, b string) Predicate {
+	return Predicate(equalityOpen + a + equalitySep + b + equalityClose)
 }

@@ -114,6 +114,12 @@ func EscapeClause(text string) Predicate {
 // are the ones there are.
 func CheckClauses(p Predicate) error {
 	for _, c := range p.Clauses() {
+		if _, _, ok, err := SplitEquality(c); err != nil || ok {
+			if err != nil {
+				return err
+			}
+			continue
+		}
 		_, body, err := SplitRenaming(c)
 		if err != nil {
 			return err
@@ -124,7 +130,7 @@ func CheckClauses(p Predicate) error {
 		case c == "":
 			return fmt.Errorf("csdf.CheckClauses: %q has an empty clause, with nothing between two connectives or after one", p)
 		case unescapedIndex(string(c), '@') >= 0:
-			return fmt.Errorf("csdf.CheckClauses: %q: %s starts a word of the tools, and %s and a renaming are the only ones; write \\@ for the character", c, ToolWordPrefix, PredicateOpaque)
+			return fmt.Errorf("csdf.CheckClauses: %q: %s starts a word of the tools, and %s, @eq(a, b) and a renaming are the only ones; write \\@ for the character", c, ToolWordPrefix, PredicateOpaque)
 		}
 	}
 	return nil

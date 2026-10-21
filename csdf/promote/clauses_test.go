@@ -226,3 +226,40 @@ accNone --> accOpen : OPEN?額 ; @[y := 額] y > 0
 		t.Errorf("guard = %q, want %q", open.Edge.Guard, want)
 	}
 }
+
+// An equality is a tool word, so it reaches the expansion as its two names
+// rather than as text for a glue.
+func TestExpandRecordsAnEqualityAsItsNames(t *testing.T) {
+	// Execute
+	got, diags := expand(t, `@startuml ACCOUNTS
+state "稼働中" as running {
+  running : accounts ; 口座ID ⇸ Account
+  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+    !include local/ACCOUNT.puml
+  }
+}
+
+[*] --> running : accounts は空
+@enduml
+`, map[string]string{
+		"local/ACCOUNT.puml": `@startuml ACCOUNT
+state "未開設" as accNone
+state "開設済み" as accOpen
+[*] --> accNone
+accNone --> accOpen : OPEN?a?b ; @eq(a, b)
+@enduml
+`,
+	})
+
+	// Assert
+	if len(diags) != 0 {
+		t.Fatalf("promote.Expand() diagnostics = %v, want none", diags)
+	}
+	open := got.Edges[0]
+	if c := open.Guard[1]; c.Text != "" || len(c.Eq) != 2 || c.Eq[0] != "a" || c.Eq[1] != "b" {
+		t.Errorf("guard clause = %+v, want @eq(a, b) as its names", c)
+	}
+	if want := `口座ID ∉ dom accounts ∧ @eq(a, b)`; string(open.Edge.Guard) != want {
+		t.Errorf("guard = %q, want %q", open.Edge.Guard, want)
+	}
+}

@@ -40,8 +40,9 @@ $ csdfparallel [--sync channel1;channel2;...] <file1.puml> [file2.puml] ...
   receiving side reads it: `c!y ‖ c?x` is `c!y`. A field both sides receive is
   named as the left side does. Where a side names a field otherwise, each of its
   clauses is read through a renaming, `@[x := y] …`, so no clause is rewritten
-  (see [SYNTAX.md](./docs/SYNTAX.md)). Two sides sending one field are refused,
-  since they would agree only where the two values are equal.
+  (see [SYNTAX.md](./docs/SYNTAX.md)). Two sides sending one field
+  synchronise only where the two values are equal: `c!y ‖ c!z` is `c!y` with the
+  guard `@eq(y, z)`.
 
 ### Examples
 ```console

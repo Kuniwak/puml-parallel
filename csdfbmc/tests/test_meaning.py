@@ -118,5 +118,28 @@ class RenamedOntoNothingTest(unittest.TestCase):
             meaning.evaluate(RENAMED, "guard", {"y": 1})
 
 
+
+EQUAL = Clause("local", "@eq(y, z)", eq=("y", "z"))
+
+
+class EqualityTest(unittest.TestCase):
+    """@eq(y, z) is the tools' own clause: the values named y and z are equal.
+    No glue is asked about it."""
+
+    def setUp(self):
+        self.client = Recording({}, lambda b: True)
+        self.meaning = standard(GlueMeaning(self.client))
+
+    def test_it_reads_its_two_names(self):
+        self.assertEqual({"y", "z"}, self.meaning.names(EQUAL, "guard"))
+
+    def test_it_holds_where_the_two_values_are_equal(self):
+        self.assertEqual([True, False], [self.meaning.evaluate(EQUAL, "guard", {"y": 1, "z": z}) for z in (1, 2)])
+        self.assertEqual([], self.client.asked)
+
+    def test_it_is_read_from_json(self):
+        self.assertEqual(EQUAL, Clause.from_json({"kind": "local", "eq": ["y", "z"]}))
+
+
 if __name__ == "__main__":
     unittest.main()

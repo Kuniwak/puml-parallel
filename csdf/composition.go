@@ -173,9 +173,9 @@ func composeParallel2(dL, dR *Diagram, tsL, tsR []Edge, queue *[]StatePair, mark
 // is one value, named once on the composite: by the side that sends it (c!y
 // sends y, which that side's state or event binds), or by the left when both
 // receive. The other side reads its own name for the field through a
-// renaming, so no clause text is rewritten. Two sides sending one field
-// agree only where the two values are equal, which no renaming says, so that
-// is refused.
+// renaming, so no clause text is rewritten. Two sides sending one field each
+// send a value of their own, so neither is renamed: the composite is named by
+// the left and agrees only where the two are equal, @eq(y, z).
 //
 // A renaming must not capture a name: a field name a side's clauses would be
 // renamed onto must not be one of that side's own state variables, since the
@@ -188,9 +188,14 @@ func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 	fL, fR := eL.Event.Fields(), eR.Event.Fields()
 	fields := make([]Field, len(fL))
 	var renamesL, renamesR []Rename
+	var equalities []Predicate
 	for i := range fL {
 		if fL[i].Dir == Sent && fR[i].Dir == Sent {
-			return Edge{}, fmt.Errorf("csdf.ComposeParallel2: %s (line %d) and %s (line %d) both send field %d of %s, and would agree only where %s and %s are equal", eL.Event, eL.Line, eR.Event, eR.Line, i+1, eL.Event.Channel(), fL[i].Name, fR[i].Name)
+			fields[i] = fL[i]
+			if fL[i].Name != fR[i].Name {
+				equalities = append(equalities, NewEquality(fL[i].Name, fR[i].Name))
+			}
+			continue
 		}
 		named, other, renames, vars, otherEdge := fL[i], fR[i], &renamesR, varsR, eR
 		if fR[i].Dir == Sent {
@@ -227,7 +232,7 @@ func synchronise(eL, eR Edge, varsL, varsR map[Var]struct{}) (Edge, error) {
 	}
 	return Edge{
 		Event: NewEvent(eL.Event.Channel(), fields...),
-		Guard: Conjunction(parts[0], parts[1]),
+		Guard: Conjunction(Conjunction(parts[0], parts[1]), ConjoinClauses(equalities)),
 		Post:  Conjunction(parts[2], parts[3]),
 	}, nil
 }
