@@ -15,8 +15,11 @@ syntax.
 - A **glue** is a program that gives the atoms of one clause language their
   meaning, through the evaluator protocol; `csdfbmc/python_glue.py` is the
   reference glue for Python.
-- The **environment** is the set of functions that atoms without a glue
-  denote (see P15, P16). An environment function, `envfn` below, is pure.
+- The **environment** is everything a diagram takes from outside: types
+  (carrier sets, such as the IDs or the amounts) and typed constants, among
+  them the pure functions that atoms without a glue denote (see P15, P16).
+  An environment function is written `envfn` below. The environment
+  replaces the separate `DOMAINS` of today.
 
 ## Semantic ground
 
@@ -132,7 +135,7 @@ Each property names the operators that need it.
 | P13 | Reserved words are told apart from the author's words, with escapes | O12, O13 |
 | P14 | Identifiers may use Unicode | O12 |
 | P15 | Every operator is defined on a diagram whose atoms are not all formalised; such an atom is an uninterpreted function of its arguments | O7, O8, O11 |
-| P16 | The environment is a set of pure functions given from outside; a counterexample is reported with its environment so that it can be reproduced | O7 |
+| P16 | The environment consists of types and typed constants, given from outside through one channel; a counterexample is reported with its environment so that it can be reproduced | O7 |
 
 Optimisations need information but not meaning; they must never change a
 result:
@@ -142,23 +145,30 @@ result:
 | Q1 | The variables a clause reads and writes | partial-order reduction, cone of influence (O9) |
 | Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
-| Q4 | Narrowed domains for values | approximating the environment and bounded checking (O7) |
+| Q4 | Narrowed types for values | approximating the environment and bounded checking (O7) |
 | Q5 | The fields an equality builtin determines: `f = t` where f is a field of the event and t a term over the state and other determined fields | computing f instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
 
 Q5 is read only from builtins, never from atoms, whose text the tools do not
 interpret. It is more than speed: a field computed from its equality does
-not depend on DOMAINS, so bounded checking no longer misses a step because
-the value the state requires lies outside the declared domain (an error of
+not depend on its type, so bounded checking no longer misses a step because
+the value the state requires lies outside the declared type (an error of
 the Q4 approximation, not of the meaning).
 
 Natural language and formal languages fit the same frame (P15): an atom
 without a glue is an uninterpreted predicate of its arguments, and the
-opaque clause becomes such a predicate too. An environment function is pure;
-its values may be given from the command line or generated from a seed, so
-running with different seeds widens what bounded checking covers, and the
-seed reproduces a counterexample (P16).
+opaque clause becomes such a predicate too.
+
+Types and constants differ in how long a value lives, and that difference
+is semantic: a field of an event ranges over its type anew at every event
+(the x of `c?x → P`), while a constant is fixed for the whole run, a free
+parameter of the process; that is why an environment function is pure.
+What they share is how they are declared and supplied: one environment,
+given from the checks module, the command line or a seed. Narrowing a type
+(Q4) narrows every field and every function space over it at once; running
+with different seeds widens what bounded checking covers, and the seed
+reproduces a counterexample (P16).
 
 ## Sketch of the syntax
 
@@ -209,7 +219,7 @@ name.
 ### Control state
 
 `t at S` says that the instance t is at the state S of its local diagram.
-A state is a position, not a value: it is never a hole, never in DOMAINS
+A state is a position, not a value: it is never a hole, never of an environment type
 and never permuted by symmetry.
 
 A clause of a local diagram reads only its own instance, because the
