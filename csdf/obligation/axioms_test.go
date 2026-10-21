@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligation"
 	"github.com/google/go-cmp/cmp"
 )
@@ -66,4 +67,61 @@ func TestTheAxiomsOfTheSymbolsClausesUse(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEveryVariableOfAnAxiomHasAType(t *testing.T) {
+	type testCase struct {
+		Clause string
+		Want   [][]string
+	}
+
+	testCases := map[string]testCase{
+		"an empty map ranges over maps and keys": {
+			Clause: "@empty(m)",
+			Want:   [][]string{{"'map", "'key"}},
+		},
+		"an update ranges over maps, keys and values": {
+			Clause: "@update(m', m, k, v)",
+			Want:   [][]string{{"'map", "'map", "'key", "'value"}, {"'key"}},
+		},
+		"a frame ranges over maps and its keys": {
+			Clause: "@frame(m', m, a)",
+			Want:   [][]string{{"'map", "'map", "'key"}, {"'key"}},
+		},
+		"an instance is a value of its map": {
+			Clause: "@at(m[x], A) ∧ @at(m[y], B)",
+			Want:   [][]string{{"'value"}},
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			c := mustParse(t, tc.Clause)
+
+			// Execute
+			got := obligation.Axioms(c)
+
+			// Assert
+			var types [][]string
+			for _, a := range got {
+				types = append(types, quantifiedTypes(logic.TreeOf(a))...)
+			}
+			if diff := cmp.Diff(tc.Want, types); diff != "" {
+				t.Errorf("types mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// quantifiedTypes are the types of every quantifier in tree, outermost first.
+func quantifiedTypes(tree logic.Tree) [][]string {
+	var out [][]string
+	if tree.Op == logic.OpForall || tree.Op == logic.OpExists {
+		out = append(out, tree.Types)
+	}
+	for _, o := range tree.Operands {
+		out = append(out, quantifiedTypes(o)...)
+	}
+	return out
 }

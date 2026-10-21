@@ -15,6 +15,11 @@ import (
 // keys, one axiom for each number of keys; an instance is at one state at a
 // time, for each two states csdf_at names of one family (StateConstant). csdf_in itself needs none.
 //
+// Every variable of an axiom has a type, one of TypeMap, TypeKey and
+// TypeValue. The axioms cover only what fs use: a caller passes every clause
+// the claim assumes, or the axioms relating them, such as two states of one
+// family under csdf_at, are missing.
+//
 // An obligation is stated without them, and a target assumes them. A claim
 // that a formula is valid stays sound without them, though some valid claims
 // are then unprovable; a claim that a formula can be satisfied, such as that
@@ -79,6 +84,15 @@ func eachBuiltin(f clause.Formula, visit func(clause.Builtin)) {
 	}
 }
 
+// The types the variables of an axiom range over. They are type variables:
+// an axiom is a schema over every map, and a target states it for each type
+// of map the claim reads, or as one polymorphic statement.
+const (
+	TypeMap   = "'map"
+	TypeKey   = "'key"
+	TypeValue = "'value"
+)
+
 var (
 	axN = logic.Var("n")
 	axM = logic.Var("m")
@@ -91,7 +105,7 @@ var (
 func in(k, m logic.Term) logic.Formula { return logic.Pred(PredIn, false, k, m) }
 
 func emptyAxiom() logic.Formula {
-	return logic.Forall([]logic.Var{axM, axK},
+	return logic.ForallTyped([]logic.Var{axM, axK}, []string{TypeMap, TypeKey},
 		logic.Implies(logic.Pred(PredEmpty, false, axM), logic.Not(in(axK, axM))))
 }
 
@@ -109,31 +123,33 @@ func keptBut(keys ...logic.Term) logic.Formula {
 	for i, k := range keys {
 		apart[i] = logic.Not(logic.Eq(axJ, k))
 	}
-	return logic.Forall([]logic.Var{axJ}, logic.Implies(logic.And(apart...), kept()))
+	return logic.ForallTyped([]logic.Var{axJ}, []string{TypeKey}, logic.Implies(logic.And(apart...), kept()))
 }
 
 func updateAxiom() logic.Formula {
-	return logic.Forall([]logic.Var{axN, axM, axK, axV},
+	return logic.ForallTyped([]logic.Var{axN, axM, axK, axV}, []string{TypeMap, TypeMap, TypeKey, TypeValue},
 		logic.Implies(logic.Pred(PredUpdate, false, axN, axM, axK, axV),
 			logic.And(in(axK, axN), logic.Eq(logic.Index(axN, axK), axV), keptBut(axK))))
 }
 
 func frameAxiom(n int) logic.Formula {
 	vars := []logic.Var{axN, axM}
+	types := []string{TypeMap, TypeMap}
 	args := []logic.Term{axN, axM}
 	keys := make([]logic.Term, n)
 	for i := range n {
 		k := logic.Var(fmt.Sprintf("k%d", i+1))
 		vars = append(vars, k)
+		types = append(types, TypeKey)
 		args = append(args, k)
 		keys[i] = k
 	}
-	return logic.Forall(vars, logic.Implies(logic.Pred(PredFrame, false, args...), keptBut(keys...)))
+	return logic.ForallTyped(vars, types, logic.Implies(logic.Pred(PredFrame, false, args...), keptBut(keys...)))
 }
 
 func atAxiom(s, t string) logic.Formula {
 	at := func(state string) logic.Formula {
 		return logic.Pred(PredAt, false, axT, logic.Apply(state))
 	}
-	return logic.Forall([]logic.Var{axT}, logic.Not(logic.And(at(s), at(t))))
+	return logic.ForallTyped([]logic.Var{axT}, []string{TypeValue}, logic.Not(logic.And(at(s), at(t))))
 }
