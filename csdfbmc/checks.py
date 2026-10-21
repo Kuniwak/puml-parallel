@@ -27,7 +27,10 @@ import ast
 import importlib.util
 import inspect
 from dataclasses import dataclass, field
-from typing import Callable, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable
+
+if TYPE_CHECKING:
+    from csdfbmc.environment import Given
 
 
 class PurityError(Exception):
@@ -91,7 +94,7 @@ class Checks:
     # environment: the name of a function a clause not formalised denotes ->
     # its value, True or False, or a pure function of the names it reads
     # (csdfbmc.environment).
-    environment: dict[str, object] = field(default_factory=dict)
+    environment: dict[str, Given] = field(default_factory=dict)
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
