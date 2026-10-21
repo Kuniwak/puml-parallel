@@ -2,7 +2,6 @@ package csdf
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -157,28 +156,4 @@ func ConjoinClauses(clauses []Predicate) Predicate {
 		parts[i] = string(c)
 	}
 	return Predicate(strings.Join(parts, ClauseConnective))
-}
-
-// DisjunctionAll combines predicates with a logical OR in which the omitted
-// predicate, which holds, is absorbing: if any disjunct is omitted, so is the
-// result. Otherwise
-// the distinct disjuncts are sorted and joined with " | " for stable output.
-func DisjunctionAll(preds []Predicate) Predicate {
-	seen := make(map[Predicate]struct{}, len(preds))
-	disjuncts := make([]string, 0, len(preds))
-	for _, p := range preds {
-		if IsTrue(p) {
-			return ""
-		}
-		if _, ok := seen[p]; ok {
-			continue
-		}
-		seen[p] = struct{}{}
-		disjuncts = append(disjuncts, string(p))
-	}
-	if len(disjuncts) == 0 {
-		return ""
-	}
-	sort.Strings(disjuncts)
-	return Predicate(strings.Join(disjuncts, " ∨ "))
 }

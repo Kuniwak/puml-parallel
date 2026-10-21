@@ -98,8 +98,8 @@ type StateWithID struct {
 }
 
 // CompareStateWithID orders states by source line, falling back to the id. The
-// fallback is what makes SortedStates deterministic: normalize and composition
-// synthesise states that never came from a source line, so every such state has
+// fallback is what makes SortedStates deterministic: composition synthesises
+// states that never came from a source line, so every such state has
 // line 0 and comparing lines alone leaves them all tied.
 func CompareStateWithID(a, b StateWithID) int {
 	if c := CompareState(a.State, b.State); c != 0 {

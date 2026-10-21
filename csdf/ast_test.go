@@ -34,7 +34,7 @@ state "Third" as s2
 }
 
 func TestCompareStateWithIDBreaksTiesByID(t *testing.T) {
-	// Derived states — those normalize and composition synthesise rather than
+	// Derived states — those composition synthesises rather than
 	// parse — carry no source line, so line order alone leaves them tied and the
 	// sort is free to return them in any order. The id has to settle it.
 	a := StateWithID{ID: "s0", State: State{Name: "{s0}"}}
