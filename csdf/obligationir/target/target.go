@@ -53,14 +53,12 @@ func CompileRefinement(w io.Writer, ir obligationir.IRRefinement, name Name) err
 }
 
 // Compile writes ir to w in the format named by name.
-func Compile(w io.Writer, ir obligationir.IRLivelockFree, name Name) error {
+func Compile(w io.Writer, ir obligationir.LivelockFree, name Name) error {
 	switch name {
 	case NameIsabelle:
-		isabelle.WriteLivelockFree(w, ir)
-		return nil
+		return isabelle.WriteFormulaLivelockFree(w, ir)
 	case NameLean:
-		lean.WriteLivelockFree(w, ir)
-		return nil
+		return lean.WriteFormulaLivelockFree(w, ir)
 	case NameIRJSON:
 		return irjson.WriteLivelockFree(w, ir)
 	default:

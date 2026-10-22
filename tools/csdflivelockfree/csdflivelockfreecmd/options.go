@@ -34,30 +34,31 @@ the target selected by -target and exits 0:
   isabelle  an Isabelle/HOL proof-obligation skeleton
   lean      a Lean 4 proof-obligation skeleton
 
-Whether the diagram is livelock free depends on the natural-language Guard/Post
-predicates, which this tool leaves opaque. For isabelle and lean each distinct
-predicate becomes an uninterpreted declaration named pred_<id> after its hash -
-"opaque" in Lean, "consts" in Isabelle - preceded by a TODO(csdf) marker and a
-comment carrying its original text; init and every transition then get
-guard_L<line>/post_L<line> aliases of those declarations. An omitted predicate is
-the exception: it has no clause, so it is True and stays a definition. Nothing is
-ever defined as True on the diagram's behalf, because that is not a placeholder
-but a different diagram, in which every guard fires. The theorem states
-well-foundedness of the tau relation restricted to the states reachable from init
-via the step relation, so that valuations the diagram can never enter cannot
-falsify it. Replacing the declarations by real predicate bodies and discharging
-the theorem is left to a human or LLM; treat an artifact that still carries a
-TODO(csdf) marker as undischarged. CSDF names are not prover identifiers, so
-events, state ids and variable names are encoded, and the output opens with a
-table giving the originals of the names that had to be encoded. The IR sets
-structurally=true when no reachable "tau" cycle exists,
-in which case no obligation is emitted at all.
+The clauses are read as formulas (docs/SYNTAX.md) and spelled in the target,
+not left opaque: a builtin is an equality or a csdf_* predicate, an ∃ a
+quantifier relativized to its type, an entry of a map csdf_index and a field
+field_<name>. What stays uninterpreted is the environment: each atom becomes a
+predicate atom_<text> applied to its holes, each function fn_<name> and each type
+type_<name>, declared - "opaque" in Lean, "consts" in Isabelle - under a
+TODO(csdf) marker and a comment carrying the text it was named by. A state
+variable and a received field are of the type named like them, the convention
+until they carry types of their own. Nothing is ever defined as True on the
+diagram's behalf, because that is not a placeholder but a different diagram.
+What the csdf_* predicates mean is stated as csdf_axiom_<i>, hypotheses of the
+theorem. The theorem states well-foundedness of the tau relation restricted to
+the states reachable from init via the step relation, so that valuations the
+diagram can never enter cannot falsify it. Formalising the environment and
+discharging the theorem is left to a human or LLM; treat an artifact that still
+carries a TODO(csdf) marker as undischarged. CSDF names are not prover
+identifiers, so every name is encoded behind a prefix of its kind. The IR sets
+structurally=true when no reachable "tau" cycle exists, in which case no
+obligation is emitted at all.
 
 An assume note of the diagram ("note as <id>" holding "assume <text>", see
 docs/SYNTAX.md) is what the diagram assumes of its runs as a whole, such as a
 fairness assumption no guard can state. The IR lists them under "assumptions";
 for isabelle and lean each becomes an uninterpreted proposition named
-assume_<id>, declared like a predicate under a TODO(csdf) marker, and the
+assume_<id>, declared like an atom under a TODO(csdf) marker, and the
 theorem is stated under those hypotheses. A file argument, a "-" argument,
 and standard input are all equivalent.
 

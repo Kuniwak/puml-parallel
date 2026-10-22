@@ -34,17 +34,12 @@ csdflivelockfree) to the target selected by -target and exits 0:
   isabelle  an Isabelle/HOL proof-obligation skeleton
   lean      a Lean 4 proof-obligation skeleton
 
-For isabelle and lean, each distinct opaque predicate becomes an uninterpreted
-declaration named pred_<id> after its hash - "opaque" in Lean, "consts" in
-Isabelle - preceded by a TODO(csdf) marker and a comment carrying its original
-natural-language text; init and every transition then get
-guard_L<line>/post_L<line> aliases of those declarations. An omitted predicate is
-the exception: it has no clause, so it is True and stays a definition. The theorem states
-well-foundedness of the tau relation restricted to the states reachable from init
-via the step relation, so that valuations the diagram can never enter cannot
-falsify it. Replacing the declarations by real predicate bodies and discharging
-the theorem is left to a human or LLM; treat an artifact that still carries a
-TODO(csdf) marker as undischarged. A file argument, a "-" argument, and standard input are all
+For isabelle and lean the output is what csdflivelockfree -target writes for the
+same diagram: the clauses spelled as formulas, the environment (atoms, functions,
+types) declared under TODO(csdf) markers, and the theorem stated under the axioms
+of the csdf_* predicates and the diagram's assumptions. Formalising the
+environment and discharging the theorem is left to a human or LLM; treat an
+artifact that still carries a TODO(csdf) marker as undischarged. A file argument, a "-" argument, and standard input are all
 equivalent.
 
 Options:

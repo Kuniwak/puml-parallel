@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/lean"
@@ -70,15 +71,25 @@ type obligation struct {
 // livelockObligation builds the livelock-freedom obligation for one diagram.
 func livelockObligation(t *testing.T, name, path string) obligation {
 	t.Helper()
-	d := parse(t, path)
-	ir := obligationir.BuildLivelockFree(d)
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	d, err := coreio.Read(string(src))
+	if err != nil {
+		t.Fatalf("coreio.Read(%q) error = %v", path, err)
+	}
+	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	if err != nil {
+		t.Fatalf("BuildFormulaLivelockFree(%s) error = %v", name, err)
+	}
 
 	var leanBuf, isaBuf strings.Builder
-	if err := lean.WriteLivelockFree(&leanBuf, ir); err != nil {
-		t.Fatalf("lean.WriteLivelockFree(%s) error = %v", name, err)
+	if err := lean.WriteFormulaLivelockFree(&leanBuf, ir); err != nil {
+		t.Fatalf("lean.WriteFormulaLivelockFree(%s) error = %v", name, err)
 	}
-	if err := isabelle.WriteLivelockFree(&isaBuf, ir); err != nil {
-		t.Fatalf("isabelle.WriteLivelockFree(%s) error = %v", name, err)
+	if err := isabelle.WriteFormulaLivelockFree(&isaBuf, ir); err != nil {
+		t.Fatalf("isabelle.WriteFormulaLivelockFree(%s) error = %v", name, err)
 	}
 	return obligation{
 		name:    name,
@@ -142,10 +153,12 @@ func obligations(t *testing.T) []obligation {
 		hostileImpl = "testdata/hostile_impl.puml"
 		groundSpec  = "../../../examples/refinement_spec.puml"
 		groundImpl  = "../../../examples/refinement_impl.puml"
-		livelock    = "../../../examples/livelock.puml"
+		countdown   = "../testdata/formula/countdown.puml"
+		maps        = "../testdata/formula/map.puml"
 	)
 	return []obligation{
-		livelockObligation(t, "livelock_example", livelock),
+		livelockObligation(t, "livelock_countdown", countdown),
+		livelockObligation(t, "livelock_maps_and_axioms", maps),
 		livelockObligation(t, "livelock_hostile_names", hostileSpec),
 		refinementObligation(t, "refinement_ground_f", obligationir.IRRefinementModeStableFailure, groundSpec, groundImpl),
 		refinementObligation(t, "refinement_hostile_t", obligationir.IRRefinementModeTrace, hostileSpec, hostileImpl),

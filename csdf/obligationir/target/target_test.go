@@ -7,23 +7,27 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-func mustBuildIR(t *testing.T) obligationir.IRLivelockFree {
+func mustBuildIR(t *testing.T) obligationir.LivelockFree {
 	t.Helper()
-	d, err := csdf.ParseBytes([]byte(`@startuml
+	d, err := coreio.Read(`@startuml
 state "a" as a
-a: n ; Nat
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
+a : n
+[*] --> a : $n' = 10
+a --> a : tau ; $n > 0 ; $n' = $n - 1
 @enduml
-`))
+`)
 	if err != nil {
-		t.Fatalf("ParseBytes() error = %v", err)
+		t.Fatalf("coreio.Read() error = %v", err)
 	}
-	return obligationir.BuildLivelockFree(d)
+	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	if err != nil {
+		t.Fatalf("BuildFormulaLivelockFree() error = %v", err)
+	}
+	return ir
 }
 
 func TestValidate(t *testing.T) {
@@ -59,7 +63,7 @@ func TestCompileRoutesToBackend(t *testing.T) {
 	if err := Compile(&buf, ir, NameIRJSON); err != nil {
 		t.Fatalf("Compile(%q) error = %v", NameIRJSON, err)
 	}
-	var got obligationir.IRLivelockFree
+	var got obligationir.LivelockFree
 	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
 		t.Errorf("Compile(%q) output is not ObligationIR JSON: %v", NameIRJSON, err)
 	}

@@ -69,7 +69,7 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		if err != nil {
 			return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
 		}
-		var received []string
+		received := []string{}
 		for _, f := range e.Event.Fields {
 			if !f.Send {
 				received = append(received, f.Name)

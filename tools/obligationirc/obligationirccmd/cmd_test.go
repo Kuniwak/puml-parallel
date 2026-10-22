@@ -6,32 +6,39 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
-// canonicalIRJSON builds the obligation IR for a guarded tau self-loop and encodes it
-// as JSON, the kind of input obligationirc consumes from csdflivelockfree.
-func canonicalIRJSON(t *testing.T) string {
-	t.Helper()
-	d, err := csdf.ParseBytes([]byte(`@startuml
+const countdown = `@startuml
 state "a" as a
-a: n ; Nat
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
+a : n
+[*] --> a : $n' = 10
+a --> a : tau ; $n > 0 ; $n' = $n - 1
 @enduml
-`))
+`
+
+// canonicalIR builds the obligation IR for a guarded tau self-loop, the kind
+// of input obligationirc consumes from csdflivelockfree, and its JSON.
+func canonicalIR(t *testing.T) (obligationir.LivelockFree, string) {
+	t.Helper()
+	d, err := coreio.Read(countdown)
 	if err != nil {
-		t.Fatalf("ParseBytes() error = %v", err)
+		t.Fatalf("coreio.Read() error = %v", err)
 	}
-	bs, err := json.Marshal(obligationir.BuildLivelockFree(d))
+	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	if err != nil {
+		t.Fatalf("BuildFormulaLivelockFree() error = %v", err)
+	}
+	bs, err := json.Marshal(ir)
 	if err != nil {
 		t.Fatalf("Marshal() error = %v", err)
 	}
-	return string(bs)
+	return ir, string(bs)
 }
 
 func run(t *testing.T, stdin string, args []string) (int, *cli.ProcInoutSpy) {
@@ -42,56 +49,30 @@ func run(t *testing.T, stdin string, args []string) (int, *cli.ProcInoutSpy) {
 	return exitStatus, spy
 }
 
-func TestNewMainFuncDefaultTargetReemitsIR(t *testing.T) {
-	// The default target re-emits valid obligation IR JSON.
-	exitStatus, spy := run(t, canonicalIRJSON(t), []string{})
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	var ir obligationir.IRLivelockFree
-	if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
-		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, spy.Stdout.String())
-	}
-	if len(ir.Edges) != 1 {
-		t.Errorf("edges = %d, want 1", len(ir.Edges))
-	}
-}
+// TestNewMainFuncCompilesAsTheTargetDoes holds obligationirc to what the
+// target compiles the IR to directly, so csdflivelockfree | obligationirc is
+// csdflivelockfree -target.
+func TestNewMainFuncCompilesAsTheTargetDoes(t *testing.T) {
+	for _, name := range []target.Name{target.NameIRJSON, target.NameIsabelle, target.NameLean} {
+		t.Run(string(name), func(t *testing.T) {
+			// Setup
+			ir, input := canonicalIR(t)
+			var want strings.Builder
+			if err := target.Compile(&want, ir, name); err != nil {
+				t.Fatal(err)
+			}
 
-func TestNewMainFuncLeanTarget(t *testing.T) {
-	// The lean target emits the theorem, the placeholder def, and the NL comment.
-	exitStatus, spy := run(t, canonicalIRJSON(t), []string{"-target", "lean"})
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"inductive St where",
-		`-- n > 0`,
-		"def guard_L5 : Val → Prop := pred_",
-		"WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("lean output missing %q\n%s", want, out)
-		}
-	}
-}
+			// Execute
+			exitStatus, spy := run(t, input, []string{"-target", string(name)})
 
-func TestNewMainFuncIsabelleTarget(t *testing.T) {
-	// The isabelle target emits the theory, the placeholder definition, and the NL comment.
-	exitStatus, spy := run(t, canonicalIRJSON(t), []string{"-target", "isabelle"})
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"theory Livelock_Obligation",
-		`(* n > 0 *)`,
-		`definition guard_L5 :: "val \<Rightarrow> bool"`,
-		`theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("isabelle output missing %q\n%s", want, out)
-		}
+			// Assert
+			if exitStatus != 0 {
+				t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+			}
+			if diff := cmp.Diff(want.String(), spy.Stdout.String()); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 

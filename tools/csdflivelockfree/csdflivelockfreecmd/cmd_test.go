@@ -7,16 +7,27 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
-// runAndDecode runs the command and decodes stdout as the obligation IR,
-// asserting a zero exit status and empty stderr.
-func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) obligationir.IRLivelockFree {
+const countdown = `@startuml
+state "a" as a
+a : n
+[*] --> a : $n' = 10
+a --> a : tau ; $n > 0 ; $n' = $n - 1
+@enduml
+`
+
+// run runs the command, asserting a zero exit status and empty stderr.
+func run(t *testing.T, stdin string, args []string) string {
 	t.Helper()
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(stdin))
 	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
 	if exitStatus != 0 {
 		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
@@ -24,156 +35,78 @@ func runAndDecode(t *testing.T, spy *cli.ProcInoutSpy, args []string) obligation
 	if spy.Stderr.String() != "" {
 		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
 	}
-	var ir obligationir.IRLivelockFree
-	if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
-		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, spy.Stdout.String())
-	}
-	return ir
+	return spy.Stdout.String()
 }
 
-func TestNewMainFuncEmitsIRForStructurallyFreeDiagram(t *testing.T) {
-	// Arrange: a diagram with a tau edge but no tau cycle is structurally free.
-	spy := cli.SpyProcInout()
-
-	// Act
-	ir := runAndDecode(t, spy, []string{filepath.Join("testdata", "free.puml")})
-
-	// Assert
-	if !ir.Structurally {
-		t.Error("want structurally true for a tau-cycle-free diagram")
+func TestNewMainFuncTellsAStructuralCandidate(t *testing.T) {
+	type testCase struct {
+		Args  []string
+		Stdin string
+		Want  bool
 	}
-}
 
-func TestNewMainFuncEmitsIRForLivelockCandidate(t *testing.T) {
-	// Arrange: user.puml has a tau self-loop on userIdle (a structural candidate).
-	spy := cli.SpyProcInout()
-
-	// Act: exits 0 and emits the obligation IR instead of signalling via exit status.
-	ir := runAndDecode(t, spy, []string{"../../../examples/valid/user.puml"})
-
-	// Assert
-	if ir.Structurally {
-		t.Error("want structurally false when a reachable tau cycle exists")
+	testCases := map[string]testCase{
+		"a tau edge on no cycle is structurally free": {
+			Args: []string{filepath.Join("testdata", "free.puml")},
+			Want: true,
+		},
+		"a reachable tau self-loop is a candidate": {
+			Args: []string{"../../../examples/valid/user.puml"},
+			Want: false,
+		},
+		"a tau self-loop whose guard is false is still a candidate, and exits 0": {
+			Stdin: "@startuml\nstate \"a\" as a\n[*] --> a\na --> a : tau ; 偽 ; \n@enduml\n",
+			Want:  false,
+		},
+		"standard input is a file": {
+			Stdin: "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\n[*] --> s0\ns0 --> s1 : a\n@enduml\n",
+			Want:  true,
+		},
 	}
-}
 
-func TestNewMainFuncGuardedTauLoopExitsZero(t *testing.T) {
-	// Arrange: the regression case. A tau self-loop guarded by False can never fire,
-	// so it must not be reported as a definite livelock via a non-zero exit status.
-	// Line 4 holds the transition, so its guard becomes guard_L4 carrying "False".
-	input := `@startuml
-state "a" as a
-[*] --> a
-a --> a : tau ; False ; True
-@enduml
-`
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(input))
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			out := run(t, tc.Stdin, tc.Args)
 
-	// Act
-	ir := runAndDecode(t, spy, []string{})
-
-	// Assert
-	if ir.Structurally {
-		t.Error("want structurally false (the tau self-loop is a candidate)")
-	}
-	var edge *obligationir.IREdge
-	for i := range ir.Edges {
-		if ir.Edges[i].Line == 4 {
-			edge = &ir.Edges[i]
-		}
-	}
-	if edge == nil {
-		t.Fatalf("want an edge on line 4, got %#v", ir.Edges)
-	}
-	if guard := ir.Predicates[edge.Guard].Text; guard != "False" {
-		t.Errorf("guard_L4 text = %q, want False", guard)
+			// Assert
+			var ir obligationir.LivelockFree
+			if err := json.Unmarshal([]byte(out), &ir); err != nil {
+				t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, out)
+			}
+			if ir.Structurally != tc.Want {
+				t.Errorf("structurally = %v, want %v", ir.Structurally, tc.Want)
+			}
+		})
 	}
 }
 
-func TestNewMainFuncReadsStdin(t *testing.T) {
-	// Arrange: reading from stdin must be equivalent to a file argument.
-	input := `@startuml
-state "s0" as s0
-state "s1" as s1
-[*] --> s0
-s0 --> s1 : a
-@enduml
-`
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(input))
+// TestNewMainFuncCompilesToTheTarget holds -target to the back end it names.
+func TestNewMainFuncCompilesToTheTarget(t *testing.T) {
+	for _, name := range []target.Name{target.NameIRJSON, target.NameIsabelle, target.NameLean} {
+		t.Run(string(name), func(t *testing.T) {
+			// Setup
+			d, err := coreio.Read(countdown)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ir, err := obligationir.BuildFormulaLivelockFree(d)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want strings.Builder
+			if err := target.Compile(&want, ir, name); err != nil {
+				t.Fatal(err)
+			}
 
-	// Act
-	ir := runAndDecode(t, spy, []string{})
+			// Execute
+			got := run(t, countdown, []string{"-target", string(name)})
 
-	// Assert
-	if !ir.Structurally {
-		t.Error("want structurally true for a visible-only chain")
-	}
-}
-
-func TestNewMainFuncLeanTarget(t *testing.T) {
-	// -target lean compiles the obligation straight to a Lean skeleton, the same
-	// output as piping the default IR through obligationirc -target lean.
-	input := `@startuml
-state "a" as a
-a: n ; Nat
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
-@enduml
-`
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(input))
-
-	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())([]string{"-target", "lean"}, spy.New())
-
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	if spy.Stderr.String() != "" {
-		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"inductive St where",
-		`-- n > 0`,
-		"WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("lean output missing %q\n%s", want, out)
-		}
-	}
-}
-
-func TestNewMainFuncIsabelleTarget(t *testing.T) {
-	// -target isabelle compiles the obligation straight to an Isabelle skeleton.
-	input := `@startuml
-state "a" as a
-a: n ; Nat
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
-@enduml
-`
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(input))
-
-	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())([]string{"-target", "isabelle"}, spy.New())
-
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	if spy.Stderr.String() != "" {
-		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"theory Livelock_Obligation",
-		`(* n > 0 *)`,
-		`theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("isabelle output missing %q\n%s", want, out)
-		}
+			// Assert
+			if diff := cmp.Diff(want.String(), got); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 

@@ -126,9 +126,9 @@ generated edge's clauses one by one and each clause's kind; it is the
 expansion of the tools before `csdf/core`, which `csdfbmc` reads until it
 moves onto the clause syntax.
 
-The PUML expansion is not yet read by `csdflivelockfree`, `csdftracechk`,
-`csdftranstable` or `csdfrefinement`, which read the clauses of the tools
-before `csdf/core` (#76).
+The PUML expansion is read by `csdflivelockfree`. It is not yet read by
+`csdftracechk`, `csdftranstable` or `csdfrefinement`, which read the clauses of
+the tools before `csdf/core` (#76).
 
 ```console
 $ csdfpromote -format json examples/promote/TRADES.puml
@@ -244,10 +244,11 @@ construction, so linting the output of `csdfpromote` says only that.
 
 `csdflivelockfree` compiles a livelock-freedom proof obligation for a single CSDF
 diagram and exits 0. Livelock freedom — no divergence: no reachable cycle of internal
-`tau` transitions that can actually run forever — depends on the natural-language guards
-and postconditions, which this tool does not interpret. So rather than decide the verdict
-via exit status, it emits a proof obligation that leaves each predicate opaque, to be
-discharged downstream.
+`tau` transitions that can actually run forever — depends on the environment the clauses
+name (atoms, functions and types; see [CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)), which
+this tool does not interpret. So rather than decide the verdict via exit status, it emits
+a proof obligation, to be discharged downstream. It reads the clause syntax of
+[SYNTAX.md](./docs/SYNTAX.md), so the expansion of `csdfpromote` can be piped into it.
 
 The output format is chosen with `-target`:
 
@@ -257,48 +258,67 @@ The output format is chosen with `-target`:
 
 ```console
 $ csdflivelockfree examples/valid/vending_machine.puml
-{"structurally":true,"predicates":{...},"states":{...},"constants":[],"edges":[...],"init":{...}}
+{"structurally":true,"states":[...],"init":"vmIdle","init_post":{...},"edges":[...],"axioms":[],"assumptions":[]}
 $ csdflivelockfree -target lean examples/valid/vending_machine.puml
 $ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
 $ csdfparallel a.puml b.puml | csdflivelockfree -
+$ csdfpromote examples/promote/TRADES.puml | csdflivelockfree -target lean -
 ```
 
-The JSON IR describes the state space as an ADT (one constructor per state, fields from
-its variables), the transitions, the initial predicate, and the opaque predicates with
-their argument signatures. Predicates are deduplicated: `predicates` is keyed by a hash of
-the text and the argument types, and an edge names its guard and post by that id, so two
-transitions carrying the same condition share one entry. `structurally` is `true` when no
-reachable `tau` cycle exists, in which case the obligation holds regardless of the
-predicates. Options precede the file; a file argument, a `-` argument, and stdin are all
+The JSON IR lists the states with their variables, the start state and the post of the
+start edge, and each edge with the fields its event receives and its guard and post as
+one formula: the syntax tree of the formula of logic the clauses state (`step`), whose
+atoms, builtins and quantifiers are those of the clauses. `axioms` are what the `csdf_*`
+predicates the builtins become mean, for those the clauses use. `structurally` is `true`
+when no reachable `tau` cycle exists, in which case the obligation holds whatever the
+clauses say. Options precede the file; a file argument, a `-` argument, and stdin are all
 equivalent.
 
 For the `isabelle` and `lean` targets, the skeleton declares the state space as an ADT, an
-`init` predicate over the start state's variables, a `step` relation over every transition,
-an inductive `reachable`/`Reachable` predicate (the start state under `init`, closed under
+`init` predicate on the start state, a `step` relation over every transition, an
+inductive `reachable`/`Reachable` predicate (the states `init` holds of, closed under
 `step`), and a `tau_step`/`tauStep` relation over the `tau` transitions only. It then
 states the livelock-freedom theorem — well-foundedness of the `tau` relation **restricted
 to the reachable states** — left as `oops`/`sorry`. The restriction matters: the state ADT
 also holds valuations the diagram can never enter, and a `tau` cycle among those would make
 the unrestricted theorem false even for a diagram that is livelock free. Isabelle uses
 `wf_on {s. reachable s} …`; Lean folds `Reachable s` into the relation instead, which is
-equivalent because `Reachable` is closed under `step`, and keeps the skeleton free of
-imports. When the diagram is structurally livelock free the obligation is already
-discharged, so only a note is emitted instead. Each distinct opaque predicate becomes an
-uninterpreted declaration named `pred_<id>` after its hash — `opaque` in Lean, `consts` in
-Isabelle — preceded by a `TODO(csdf)` marker and a comment carrying its original
-natural-language text; every `tau` transition then gets `guard_L<line>` and `post_L<line>`
-aliases of those declarations, so a human or LLM can replace the declaration by the real
-predicate body and discharge the proof. An omitted guard or postcondition is the one
-exception: it has no clause, so it is True and stays a definition. A guard written `true` is a clause like any other. Both targets name predicates identically, so the two skeletons can be
-read side by side. An assume note of the diagram (see [SYNTAX.md](./docs/SYNTAX.md)) —
-what it assumes of its runs as a whole, such as "a transaction whose fee keeps being
-raised is eventually confirmed", which no guard can state — is listed under `assumptions`
-in the IR and becomes an uninterpreted proposition `assume_<id>` in the skeletons, under
-which the theorem is stated: `theorem livelock_free (h_assume_fair : assume_fair) : …` in
-Lean, `assumes "assume_fair" shows …` in Isabelle. That is where a fairness assumption
-belongs: a `constrain` would refuse the step, which is a different system. State-variable values are arbitrary JSON, so each variable is typed
-with a generated `val`/`Val` datatype (floats folded into the integer case for now); any
-declared `; Type` annotation is preserved as a comment on the state constructor.
+equivalent because `Reachable` is closed under `step`. When the diagram is structurally
+livelock free the obligation is already discharged, so only a note is emitted instead.
+
+The clauses are spelled, not left opaque. Every value is of one datatype `val`/`Val`, and
+names are encoded behind a prefix of their kind, so that no CSDF name meets a keyword or a
+name the skeleton declares:
+
+| Clause | Spelled as |
+| --- | --- |
+| an atom, `$n > 0` | `atom_<text> v_n`, an uninterpreted predicate named by its text with `$_i` marks, applied to its holes |
+| a function of the environment, `${f($x)}` | `fn_<name> v_x` |
+| an entry of a map, `m[k]`, and a field, `r.f` | `csdf_index v_m v_k`, `field_<f> v_r`; a clause reading an entry is conjoined with `csdf_in v_k v_m` |
+| `@eq`, `@ne` | `=` and its negation |
+| `@in`, `@notin`, `@empty`, `@update`, `@frame`, `@at` | `csdf_in`, its negation, `csdf_empty`, `csdf_update`, `csdf_frame<n>` (n keys), `csdf_at` |
+| `@exists(k : T) (…)` | `∃k. type_<T> k ∧ …` |
+| a state variable `x`, a value after the step `x'` | `v_x`, `v_x_u27u` |
+
+A state variable and a received field are of the type named like them, the convention
+until they carry types of their own, so the `step` relation chooses each of their values
+from its type. The atoms, functions and types are the environment: each is declared —
+`opaque` in Lean, `consts` in Isabelle — under a `TODO(csdf)` marker and a comment carrying
+the text it was named by, for a human or LLM to define and then discharge the proof.
+Nothing is defined as True on the diagram's behalf, because that is not a placeholder but a
+different diagram, one where every guard holds. What the `csdf_*` predicates mean is stated
+as definitions `csdf_axiom_<i>`, and the theorem is stated under them. An assume note of the
+diagram (see [SYNTAX.md](./docs/SYNTAX.md)) — what it assumes of its runs as a whole, such as
+"a transaction whose fee keeps being raised is eventually confirmed", which no guard can
+state — is listed under `assumptions` in the IR and becomes an uninterpreted proposition
+`assume_<id>` in the skeletons, under which the theorem is stated too: `theorem
+livelock_free (h_csdf_axiom_1 : csdf_axiom_1) (h_assume_fair : assume_fair) : …` in Lean,
+`assumes "csdf_axiom_1" and "assume_fair" shows …` in Isabelle. That is where a fairness
+assumption belongs: a `constrain` would refuse the step, which is a different system.
+
+The obligations checked in as `examples/Livelock_Obligation.{lean,thy}` were filled in by
+hand from the encoding of an earlier release, in which every clause was an opaque
+predicate.
 
 ## Trace checking
 
