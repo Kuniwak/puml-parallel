@@ -32,6 +32,9 @@ var (
 // The type in a title is not read yet. The clauses of the local diagrams and
 // of the syncs are read as authored.
 func ReadPromotion(source string, include Include) (core.Promotion, error) {
+	if err := csdf.CheckIgnoreRegions(source); err != nil {
+		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
+	}
 	r := &promotionReader{include: include}
 	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)

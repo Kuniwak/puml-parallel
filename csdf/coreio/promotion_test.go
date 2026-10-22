@@ -204,6 +204,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			strings.Replace(promoting("[*] --> running\n"), "!include S.puml", "!include_many S.puml", 1), "!include_many"},
 		{"!includesub",
 			strings.Replace(promoting("[*] --> running\n"), "!include S.puml", "!includesub S.puml!x", 1), "!includesub"},
+		{"an unterminated CSDF-IGNORE region",
+			promoting("[*] --> running\n' CSDF-IGNORE-BEGIN\nskinparam x y\n"), "unterminated CSDF-IGNORE region"},
 		{"a sync of an unknown map",
 			promoting("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
 		{"a block title without the instance's type",

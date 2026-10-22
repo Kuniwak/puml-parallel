@@ -136,6 +136,27 @@ func BlankIgnoreRegions(source string) string {
 	return strings.Join(kept, "\n")
 }
 
+// CheckIgnoreRegions reports a CSDF-IGNORE region that is never closed, an
+// error by docs/SYNTAX.md, for readers that blank the regions themselves
+// with BlankIgnoreRegions instead of parsing.
+func CheckIgnoreRegions(source string) error {
+	open := 0
+	for i, line := range strings.Split(source, "\n") {
+		switch strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "'")) {
+		case ignoreBeginMarker:
+			if open == 0 {
+				open = i + 1
+			}
+		case ignoreEndMarker:
+			open = 0
+		}
+	}
+	if open > 0 {
+		return fmt.Errorf("csdf.CheckIgnoreRegions: unterminated CSDF-IGNORE region at line %d", open)
+	}
+	return nil
+}
+
 func MustParse(content string) *Diagram {
 	d, err := Parse(content)
 	if err != nil {

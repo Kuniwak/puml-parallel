@@ -146,3 +146,25 @@ func TestBlankIgnoreRegionsKeepsLineNumbers(t *testing.T) {
 		t.Errorf("BlankIgnoreRegions = %q, want %q", got, want)
 	}
 }
+
+func TestCheckIgnoreRegions(t *testing.T) {
+	cases := []struct {
+		name, source string
+		wantErr      bool
+	}{
+		{"no region", "a\nb", false},
+		{"a closed region", "' CSDF-IGNORE-BEGIN\nx\n' CSDF-IGNORE-END\n", false},
+		{"an unterminated region", "a\n' CSDF-IGNORE-BEGIN\nx\n", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			err := CheckIgnoreRegions(c.source)
+
+			// Assert
+			if (err != nil) != c.wantErr {
+				t.Errorf("CheckIgnoreRegions: err = %v, want an error: %v", err, c.wantErr)
+			}
+		})
+	}
+}
