@@ -30,6 +30,27 @@ func fitting(door *Diagram) Promotion {
 		}}
 }
 
+// safety is the safety specification of the traces of l: l with a τ from
+// every state to STOP, so that it allows every refusal after each trace.
+func safety(l *lts.LTS) *lts.LTS {
+	out := lts.New(l.Init)
+	stop := len(l.Trans)
+	for src, byLabel := range l.Trans {
+		if src >= stop {
+			stop = src + 1
+		}
+		for label, dsts := range byLabel {
+			for _, d := range dsts {
+				out.Add(src, label, d)
+			}
+		}
+	}
+	for src := range l.Trans {
+		out.Add(src, lts.Tau, stop)
+	}
+	return out
+}
+
 func TestRestrictKeepsTheKeptFamiliesWithTheOthersAsTheEnvironment(t *testing.T) {
 	cases := []struct {
 		name string
@@ -88,14 +109,14 @@ func TestRestrictKeepsTheKeptFamiliesWithTheOthersAsTheEnvironment(t *testing.T)
 				t.Errorf("the restriction is not the key alone, the doors offering anything")
 			}
 			hidden := lts.Hide(fullLTS, c.hidden)
-			if !lts.TracesRefines(got, hidden) {
-				t.Errorf("the restriction is not refined in traces by the full promotion with the doors' own events hidden")
+			if spec := safety(got); !lts.StableFailuresRefines(spec, got) || !lts.StableFailuresRefines(spec, hidden) {
+				t.Errorf("a safety specification the restriction refines is not refined by the full promotion with the doors' own events hidden")
 			}
 			if lts.StableFailuresRefines(got, hidden) != c.sf {
 				t.Errorf("StableFailuresRefines = %v, want %v", !c.sf, c.sf)
 			}
-			if len(warnings) == 0 || !strings.Contains(warnings[0].Text, "doors") {
-				t.Errorf("warnings = %v, want the dropped clauses that read doors listed", warnings)
+			if len(warnings) < 2 || !strings.Contains(warnings[0].Text, "spurious") || !strings.Contains(warnings[1].Text, "doors") {
+				t.Errorf("warnings = %v, want what a restriction does not carry over, then the dropped clauses that read doors", warnings)
 			}
 		})
 	}

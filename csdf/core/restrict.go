@@ -9,7 +9,7 @@ import (
 
 // Restrict is the promoted diagram d kept to the families of the maps keep,
 // maps being every map d's promotion holds (docs/CLAUSE_DESIGN.md: an
-// abstraction in the traces model). The left-out maps go from every state;
+// approximation kept for safety specifications). The left-out maps go from every state;
 // an edge that moves only left-out maps goes; every clause that reads a
 // left-out map is taken as true, and each guard clause dropped so is
 // reported. An edge the kept families take with a left-out one keeps every
@@ -17,7 +17,8 @@ import (
 // clause is dropped whole: a post that chains two moves of a left-out map
 // through an intermediate bound by ∃ is one clause with the kept maps'
 // moves inside it, so they go too, and the kept maps are left free there,
-// which the traces obligation allows.
+// which a safety specification allows. The first warning says what a
+// result about the restriction does not say about d.
 func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 	if len(keep) == 0 {
 		return nil, nil, fmt.Errorf("core.Restrict: it keeps no family")
@@ -36,7 +37,7 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 	reads := func(c clause.Formula) bool {
 		return slices.ContainsFunc(clause.FreeVars(clause.And{Conjuncts: []clause.Formula{c}}), func(v clause.Free) bool { return gone[v.Name] })
 	}
-	var warnings []Warning
+	warnings := []Warning{{Text: Approximation}}
 	keepOf := func(f clause.And, event string, report bool) clause.And {
 		var out []clause.Formula
 		for _, c := range clause.Normalize(f).Conjuncts {
@@ -74,6 +75,11 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 	}
 	return out, warnings, nil
 }
+
+// Approximation is what a result about a restricted promotion does not
+// say about the full one (docs/CLAUSE_DESIGN.md): a tool that checks a
+// restriction says it with its result.
+const Approximation = "a restriction keeps only safety: a deadlock or another refusal it shows is no conclusion about the full promotion, and a counterexample may be spurious"
 
 // moves says whether post changes a kept map, and a left-out one: whether
 // it primes the map other than in its frame m' = m.
