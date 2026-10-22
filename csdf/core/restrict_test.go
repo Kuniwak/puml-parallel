@@ -137,24 +137,54 @@ func TestRestrictKeepsTheKeptFamiliesWithTheOthersAsTheEnvironment(t *testing.T)
 }
 
 func TestRestrictRefuses(t *testing.T) {
+	promoted := func(t *testing.T, p Promotion) *Diagram {
+		d, _, err := Promote(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	// pinging is doors and keys that each take PING alone: a channel both
+	// a kept and a left-out family take.
+	pinging := func(t *testing.T) *Diagram {
+		ping := Edge{Src: "shut", Dst: "shut", Event: ev("PING")}
+		d := plainDoor()
+		d.Edges = append(d.Edges, ping)
+		k := key()
+		k.Edges = append(k.Edges, Edge{Src: "held", Dst: "held", Event: ev("PING")})
+		return promoted(t, Promotion{Modes: []string{"G"}, Init: "G",
+			Families: []Family{{Map: "doors", ID: "loc", Local: d}, {Map: "keys", ID: "s", Local: k}}})
+	}
+	// handWritten is a diagram of the modes G and H whose one edge moves
+	// only doors, as post says, from G to dst.
+	handWritten := func(t *testing.T, dst, post string) *Diagram {
+		return &Diagram{States: []string{"G", "H"}, Init: "G",
+			Vars:  map[string][]string{"G": {"doors", "keys", "halted"}, "H": {"doors", "keys", "halted"}},
+			Edges: []Edge{{Src: "G", Dst: dst, Event: ev("NEW", recv("loc")), Post: mustParse(t, post)}}}
+	}
 	cases := []struct {
 		name string
+		d    func(t *testing.T) *Diagram
 		keep []string
 		want string
 	}{
-		{"keeping nothing", nil, "keeps no family"},
-		{"keeping a map that is not promoted", []string{"locks"}, "locks"},
+		{"keeping nothing", func(t *testing.T) *Diagram { return promoted(t, fitting(plainDoor())) }, nil, "keeps no family"},
+		{"keeping a map that is not promoted", func(t *testing.T) *Diagram { return promoted(t, fitting(plainDoor())) }, []string{"locks"}, "locks"},
+		{"a channel a kept and a left-out family both take", pinging, []string{"keys"}, "PING"},
+		{"an edge moving only left-out maps between two modes", func(t *testing.T) *Diagram {
+			return handWritten(t, "H", "@notin(loc, doors') ∧ @eq(keys', keys) ∧ @eq(halted', halted)")
+		}, []string{"keys"}, "self-loop"},
+		{"an edge moving only left-out maps that leaves a controller variable free", func(t *testing.T) *Diagram {
+			return handWritten(t, "G", "@notin(loc, doors') ∧ @eq(keys', keys)")
+		}, []string{"keys"}, "halted"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			full, _, err := Promote(fitting(plainDoor()))
-			if err != nil {
-				t.Fatal(err)
-			}
+			d := c.d(t)
 
 			// Execute
-			_, _, err = Restrict(full, []string{"doors", "keys"}, c.keep)
+			_, _, err := Restrict(d, []string{"doors", "keys"}, c.keep)
 
 			// Assert
 			assertErrorContains(t, err, c.want)

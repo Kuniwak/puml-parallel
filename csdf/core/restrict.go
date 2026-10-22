@@ -66,9 +66,17 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 		return nil, nil, err
 	}
 	out.InitPost = init
+	hidden := map[string]bool{}
 	for _, e := range d.Edges {
 		movesKept, movesGone := moves(e.Post, maps, keep)
 		if movesGone && !movesKept {
+			if err := onlyLeftOut(e, d, maps); err != nil {
+				return nil, nil, fmt.Errorf("core.Restrict: %w", err)
+			}
+			if e.Event.Channel != Tau {
+				// τ is no event to hide: a kept family's τ is its own.
+				hidden[e.Event.Channel] = true
+			}
 			continue
 		}
 		if e.Guard, err = keepOf(e.Guard, e.Event.Channel); err != nil {
@@ -79,7 +87,37 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 		}
 		out.Edges = append(out.Edges, e)
 	}
+	for _, e := range out.Edges {
+		if hidden[e.Event.Channel] {
+			return nil, nil, fmt.Errorf("core.Restrict: %s is taken by a kept family and by a left-out one alone, so it is not an event only the left-out families take", e.Event.Channel)
+		}
+	}
 	return out, warnings, nil
+}
+
+// onlyLeftOut reports, as an error, an edge e of d moving only left-out
+// maps that is not a step of the left-out instances alone: a self-loop of
+// one mode leaving that mode's controller variables unchanged, which is
+// what Promote generates. Only then is its event one the restriction may
+// hide.
+func onlyLeftOut(e Edge, d *Diagram, maps []string) error {
+	name := fmt.Sprintf("%s --> %s : %s", e.Src, e.Dst, e.Event.Channel)
+	if e.Src != e.Dst {
+		return fmt.Errorf("%s moves only left-out maps but is no self-loop", name)
+	}
+	post := clause.Normalize(e.Post).Conjuncts
+	for _, v := range d.Vars[e.Src] {
+		if slices.Contains(maps, v) {
+			continue
+		}
+		frame := clause.Normalize(Unchanged([]string{v})).Conjuncts[0]
+		if !slices.ContainsFunc(post, func(c clause.Formula) bool {
+			return clause.AlphaEqual(clause.And{Conjuncts: []clause.Formula{c}}, clause.And{Conjuncts: []clause.Formula{frame}})
+		}) {
+			return fmt.Errorf("%s moves only left-out maps but does not leave the controller variable %s unchanged", name, v)
+		}
+	}
+	return nil
 }
 
 // Approximation is what a result about a restricted promotion does not
