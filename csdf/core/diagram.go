@@ -7,9 +7,9 @@ package core
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 // Tau is the channel of an internal event.
@@ -181,31 +181,19 @@ func ReceivesOver(field string, vars ...[]string) bool {
 	return false
 }
 
-// ParseEvent reads an event written as a label is (Label): a channel, then
-// ?x for each field received and !x for each sent, in order, where x is the
-// field's name or the value it carries. A channel or an x that is empty is
-// refused; neither may hold ? or !.
+// ParseEvent reads an event written as a label is (Label), as
+// ident.SplitEvent takes it apart: a channel, then ?x for each field
+// received and !x for each sent, in order, where x is the field's name or
+// the value it carries. An x that is empty is refused; neither it nor the
+// channel may hold ? or !.
 func ParseEvent(text string) (Event, error) {
-	i := strings.IndexAny(text, "?!")
-	if i < 0 {
-		i = len(text)
+	channel, parts, err := ident.SplitEvent(text, func(x string) bool { return x != "" })
+	if err != nil {
+		return Event{}, fmt.Errorf("core.ParseEvent: %w", err)
 	}
-	e := Event{Channel: text[:i]}
-	if e.Channel == "" {
-		return Event{}, fmt.Errorf("core.ParseEvent: %q has no channel", text)
-	}
-	for rest := text[i:]; rest != ""; {
-		send := rest[0] == '!'
-		rest = rest[1:]
-		j := strings.IndexAny(rest, "?!")
-		if j < 0 {
-			j = len(rest)
-		}
-		if j == 0 {
-			return Event{}, fmt.Errorf("core.ParseEvent: %q has a field with no name or value", text)
-		}
-		e.Fields = append(e.Fields, Field{Send: send, Name: rest[:j]})
-		rest = rest[j:]
+	e := Event{Channel: channel}
+	for _, p := range parts {
+		e.Fields = append(e.Fields, Field{Send: p.Send, Name: p.Name})
 	}
 	return e, nil
 }
