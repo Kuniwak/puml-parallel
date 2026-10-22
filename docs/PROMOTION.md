@@ -344,7 +344,8 @@ is refined, in traces only, by the full expansion with the events only
 left-out families take hidden. In the formula promotion every clause is a
 formula, so whether a `constrain` clause or a hand-written edge's guard
 reads a left-out map is told by its free names: such a conjunct is dropped
-and reported, like any other, rather than kept with a warning. The
+and reported, like any other, rather than kept with a warning. There a family
+is named by its map alone, the type of an instance not being read yet. The
 listed clauses are exactly what was assumed; restate the ones that matter as
 `assume` notes, or let a checker take them as true and say so (`csdfbmc`
 reports them as `dropped_clauses`).
