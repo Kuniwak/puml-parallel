@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
 	"github.com/google/go-cmp/cmp"
 )
@@ -14,21 +13,21 @@ func TestReadTSV(t *testing.T) {
 	type testCase struct {
 		Input string
 		// Want is the events; nil when an error is wanted.
-		Want []csdf.Event
+		Want []string
 	}
 
 	testCases := map[string]testCase{
 		"one event per row under an event header": {
 			Input: "event\ninsert?coin\nshowPurchasable?purchasableProducts\n",
-			Want:  []csdf.Event{"insert?coin", "showPurchasable?purchasableProducts"},
+			Want:  []string{"insert?coin", "showPurchasable?purchasableProducts"},
 		},
 		"quoted fields follow CSV with a tab delimiter, CRLF and a missing last newline are accepted, blank lines are skipped": {
 			Input: "event\r\n\"a\tb\"\r\n\n\"say \"\"hi\"\"\"\nplain (x)",
-			Want:  []csdf.Event{"a\tb", "say \"hi\"", "plain (x)"},
+			Want:  []string{"a\tb", "say \"hi\"", "plain (x)"},
 		},
 		"header only (lower boundary value)": {
 			Input: "event\n",
-			Want:  []csdf.Event{},
+			Want:  []string{},
 		},
 		"missing header":           {Input: "insert?coin\n"},
 		"empty input":              {Input: ""},

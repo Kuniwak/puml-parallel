@@ -49,14 +49,15 @@ states, and along which paths that state is reached, together with the
 condition under which the refusal is not real after all (every such path is
 infeasible), and the exit status is 1. Otherwise the report lists, for every
 event and every path performing the prefix before it (tau steps included), the
-guards and postconditions along the path and the obligation
+guards and posts along the path and the obligation
 
-  ∀ x0 ... xi. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ ... → unstable(xi) ∨ enabled(xi)
+  ∀ v@0 k#1 v@1 ... . start(v@0) ∧ step_1(v@0, k#1, v@1) ∧ ... → unstable(v@i) ∨ enabled(v@i)
 
-that the state reached is unstable (some tau edge is enabled) or can perform
+over the clauses (docs/SYNTAX.md), where v@i is the variable v after step i and
+k#i the field k step i receives, that the state reached is unstable (some tau edge is enabled) or can perform
 the event (some edge for it has its guard true and its post satisfiable),
 followed by a prompt asking a reader (a person or an LLM) to decide them. The
-predicates are natural language, so this tool never decides that itself; the
+atoms are not evaluated, so this tool never decides that itself; the
 exit status is 0 when every trace passed the all-guards-true check. A path
 never revisits a state within one run of tau edges, so a tau cycle yields
 finitely many paths and the ones going round it are not listed; divergence is

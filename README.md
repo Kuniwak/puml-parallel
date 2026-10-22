@@ -126,9 +126,9 @@ generated edge's clauses one by one and each clause's kind; it is the
 expansion of the tools before `csdf/core`, which `csdfbmc` reads until it
 moves onto the clause syntax.
 
-The PUML expansion is read by `csdflivelockfree` and `csdfrefinement`. It is not
-yet read by `csdftracechk` or `csdftranstable`, which read the clauses of the
-tools before `csdf/core` (#76).
+The PUML expansion is read by `csdflivelockfree`, `csdfrefinement` and
+`csdftracechk`. It is not yet read by `csdftranstable`, which reads the clauses of
+the tools before `csdf/core` (#76).
 
 ```console
 $ csdfpromote -format json examples/promote/TRADES.puml
@@ -354,31 +354,31 @@ reachable after a prefix has no edge for the next event, the Markdown report
 says which prefix, which states, and along which paths the refusing state is
 reached, and the tool exits 1. Since a path may be blocked by a guard the tool
 cannot read, it also states the condition under which the refusal is not real:
-every such path is infeasible, i.e. the predicates along it cannot all hold.
+every such path is infeasible, i.e. the clauses along it cannot all hold.
 
 Otherwise, for every event of the trace and every path performing the prefix
-before it (`tau` steps included), the report tabulates the guards and
-postconditions along the path and states the obligation
+before it (`tau` steps included), the report tabulates the guards and posts
+along the path and states the obligation over the clauses themselves, spelled
+as formulas (see [SYNTAX.md](./docs/SYNTAX.md)):
 
 ```
-∀ x0 c1 x1 ... ci xi. post_0(x0) ∧ guard_1(c1, x0) ∧ post_1(c1, x0, x1) ∧ ... → unstable(xi) ∨ enabled(xi)
+∀ v@0 k#1 v@1 … . start(v@0) ∧ step_1(v@0, k#1, v@1) ∧ … → unstable(v@i) ∨ enabled(v@i)
 ```
 
-where `x0` is the valuation the start edge admits, `xi` the valuation after
-step `i`, and `ci` the parameters of step `i`'s event: the fields it receives,
-or the values a `tau` chooses. A step whose event receives nothing has no `ci`;
-a sent field is not a parameter, since it is a value the state holds. The
-parameters occur only in the premise, so binding them universally makes the
-obligation hold for every value the environment offered and every value a
-`tau` chose on the way. `unstable(xi)` says some `tau` edge out of the state
-reached is enabled for some values it chooses, `∃ c'. guard(c', xi) ∧ ∃ x'.
-post(c', xi, x')`, and `enabled(xi)` says some edge for the event is, for some
-value offered: `∃ c. guard(c, xi) ∧ ∃ x'. post(c, xi, x')`. A trace names no
+where `v@i` is the value of the state variable `v` after step `i` (the start
+edge's being step 0) and `k#i` the field `k` step `i` receives. A sent field is
+no variable of its own, since it is a value the step has bound. The fields
+occur only in the premise, so binding them universally makes the obligation
+hold for every value the environment offered and every value a hidden field
+took on the way. `unstable(v@i)` says some `tau` edge out of the state reached
+is enabled — its guard holds and its post admits values after it — and
+`enabled(v@i)` says some edge for the event is, for some values of the fields it
+receives. A trace names no
 value, so its event is performed when some value is accepted; that the post
 admits a successor for every accepted value is not asked. The
 report ends with a prompt asking a reader, a person or an LLM, to decide
-whether every obligation holds. As with the other checkers the predicates are
-natural language, so the tool never decides that itself: exit 0 means only that
+whether every obligation holds. As with the other checkers the atoms are not
+evaluated, so the tool never decides that itself: exit 0 means only that
 every trace passed the all-guards-true check. A path never revisits a state
 within one run of `tau` edges, so a `tau` cycle yields finitely many paths and
 the ones going round it are not listed; a FAILS answer to the prompt therefore

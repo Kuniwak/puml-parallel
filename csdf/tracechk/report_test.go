@@ -1,245 +1,91 @@
 package tracechk_test
 
 import (
+	"flag"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestWriteMarkdown(t *testing.T) {
-	type testCase struct {
-		Diagram string
-		Trace   []csdf.Event
-		Want    string
-	}
+var update = flag.Bool("update", false, "rewrite the expected reports")
 
-	testCases := map[string]testCase{
+// TestWriteMarkdown holds the report of each trace to the expected one in
+// testdata, which names the values at each step of a path apart: v@i is the
+// variable v after step i, and k#i the field k step i receives.
+func TestWriteMarkdown(t *testing.T) {
+	testCases := map[string]struct {
+		Diagram string
+		Trace   []string
+		Golden  string
+	}{
 		"a refusing branch says where and along which path": {
 			Diagram: `@startuml
 state "A" as A
-A: n
+A : n
 state "B" as B
 state "C" as C
 state "D" as D
-[*] --> A : n' = 0
-A --> B : 1 ; n = 0
+[*] --> A : $n' = 0
+A --> B : 1 ; $n = 0
 A --> C : 1
 C --> D : 2
 @enduml
 `,
-			Trace: []csdf.Event{"1", "2"},
-			Want: "# trace.tsv: REJECTED\n" +
-				"\n" +
-				"After `1` (1 of 2 events) the diagram may be in B, C.\n" +
-				"B is stable and has no edge for `2`, so the diagram may refuse `2` there even\n" +
-				"when every guard is true: this is not a trace of the diagram.\n" +
-				"\n" +
-				"- visible events enabled at the refusing states: (none)\n" +
-				"\n" +
-				"The refusal is real unless every path below is infeasible, that is, unless\n" +
-				"the predicates along it cannot all hold.\n" +
-				"\n" +
-				"## Path 1: reaches B\n" +
-				"\n" +
-				"| step | event | transition | guard | post |\n" +
-				"|-----:|-------|------------|-------|------|\n" +
-				"| 0 | (start) | `[*] --> A` (L7) |  | n' = 0 |\n" +
-				"| 1 | `1` | `A --> B` (L8) | n = 0 | true |\n" +
-				"\n" +
-				"- x0: A (n)\n" +
-				"- x1: B (no variables)\n" +
-				"\n" +
-				"Infeasible iff: ¬∃ x0 x1. post_0(x0) ∧ guard_1(x0)\n" +
-				"\n",
+			Trace:  []string{"1", "2"},
+			Golden: "refusing.md",
 		},
-		"an accepted trace states one obligation per prefix path": {
+		"an accepted trace states one obligation per prefix path, each received field bound per step": {
 			Diagram: `@startuml
 state "a" as a
-a: n ; Nat
+a : n
 state "b" as b
-b: n ; Nat
-b: m
-[*] --> a : n' = 0
-a --> b : x ; n < 3 ; n' = n + 1 ∧ m' = 0
-b --> a : tau ; m = 0 ; n' = n
-b --> b : y ; m > 0
-a --> a : y ; n > 0
+b : n
+b : m
+[*] --> a : $n' = 0
+a --> b : x?k ; $n < $k ; $n' = $n + $k ∧ $m' = 0
+b --> a : tau ; $m = 0 ; @eq(n', n)
+b --> b : y ; $m > 0 ; @eq(n', n) ∧ @eq(m', m)
+a --> a : y ; $n > 0 ; @eq(n', n)
 @enduml
 `,
-			Trace: []csdf.Event{"x", "y"},
-			Want: "# trace.tsv: ACCEPTED when every guard is true\n" +
-				"\n" +
-				"After every prefix of the trace, every stable state the diagram may be in can\n" +
-				"perform the next event when every guard is taken as true. Whether it can in\n" +
-				"fact depends on the natural-language predicates below, which this tool does not\n" +
-				"evaluate. A path never revisits a state within one run of `tau` edges, so\n" +
-				"paths going round a `tau` cycle, and their obligations, are not listed.\n" +
-				"\n" +
-				"- trace: `x`, `y`\n" +
-				"- the start edge `[*] --> a` (L7) must admit a valuation: ∃ x0. post_0(x0), where post_0 is `n' = 0`\n" +
-				"\n" +
-				"## Event 1: `x` after the empty prefix\n" +
-				"\n" +
-				"### Path 1.1: reaches a\n" +
-				"\n" +
-				"| step | event | transition | guard | post |\n" +
-				"|-----:|-------|------------|-------|------|\n" +
-				"| 0 | (start) | `[*] --> a` (L7) |  | n' = 0 |\n" +
-				"\n" +
-				"- x0: a (n)\n" +
-				"\n" +
-				"| edge out of the reached state | transition | guard | post |\n" +
-				"|-------------------------------|------------|-------|------|\n" +
-				"| next | `a --> b` (L8) | n < 3 | n' = n + 1 ∧ m' = 0 |\n" +
-				"\n" +
-				"Obligation: ∀ x0. post_0(x0) → guard_L8(x0) ∧ ∃ x'. post_L8(x0, x')\n" +
-				"\n" +
-				"## Event 2: `y` after `x`\n" +
-				"\n" +
-				"### Path 2.1: reaches b\n" +
-				"\n" +
-				"| step | event | transition | guard | post |\n" +
-				"|-----:|-------|------------|-------|------|\n" +
-				"| 0 | (start) | `[*] --> a` (L7) |  | n' = 0 |\n" +
-				"| 1 | `x` | `a --> b` (L8) | n < 3 | n' = n + 1 ∧ m' = 0 |\n" +
-				"\n" +
-				"- x0: a (n)\n" +
-				"- x1: b (n, m)\n" +
-				"\n" +
-				"| edge out of the reached state | transition | guard | post |\n" +
-				"|-------------------------------|------------|-------|------|\n" +
-				"| tau | `b --> a` (L9) | m = 0 | n' = n |\n" +
-				"| next | `b --> b` (L10) | m > 0 | true |\n" +
-				"\n" +
-				"Obligation: ∀ x0 x1. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) → (∃ c'. guard_L9(c', x1) ∧ ∃ x'. post_L9(c', x1, x')) ∨ guard_L10(x1)\n" +
-				"\n" +
-				"### Path 2.2: reaches a\n" +
-				"\n" +
-				"| step | event | transition | guard | post |\n" +
-				"|-----:|-------|------------|-------|------|\n" +
-				"| 0 | (start) | `[*] --> a` (L7) |  | n' = 0 |\n" +
-				"| 1 | `x` | `a --> b` (L8) | n < 3 | n' = n + 1 ∧ m' = 0 |\n" +
-				"| 2 | `tau` | `b --> a` (L9) | m = 0 | n' = n |\n" +
-				"\n" +
-				"- x0: a (n)\n" +
-				"- x1: b (n, m)\n" +
-				"- x2: a (n)\n" +
-				"\n" +
-				"| edge out of the reached state | transition | guard | post |\n" +
-				"|-------------------------------|------------|-------|------|\n" +
-				"| next | `a --> a` (L11) | n > 0 | true |\n" +
-				"\n" +
-				"Obligation: ∀ x0 x1 c2 x2. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ guard_2(c2, x1) ∧ post_2(c2, x1, x2) → guard_L11(x2)\n" +
-				"\n" +
-				"## Prompt\n" +
-				"\n" +
-				"Decide whether every obligation above holds, reading each predicate as the\n" +
-				"natural-language statement in its table. Answer HOLDS, or FAILS naming the\n" +
-				"first obligation that does not hold and valuations that satisfy its premise\n" +
-				"but not its conclusion. A guard is not true because it is written down: the\n" +
-				"trace is a trace of the diagram only if the predicates make every obligation\n" +
-				"hold. FAILS settles that it is not; HOLDS settles it only for the listed\n" +
-				"paths, since paths going round a `tau` cycle are not listed.\n" +
-				"\n",
+			Trace:  []string{"x?k", "y"},
+			Golden: "received.md",
 		},
 	}
 
-	for name, testCase := range testCases {
+	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Arrange
-			d := parse(t, testCase.Diagram)
-			result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: testCase.Trace})
-
-			// Act
+			// Setup
+			d := read(t, tc.Diagram)
+			golden := filepath.Join("testdata", tc.Golden)
 			var sb strings.Builder
-			if err := tracechk.WriteMarkdown(&sb, d, result); err != nil {
+
+			// Execute
+			err := tracechk.WriteMarkdown(&sb, d, tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: tc.Trace}))
+			if err != nil {
 				t.Fatal(err)
 			}
-
-			// Assert
-			if diff := cmp.Diff(testCase.Want, sb.String()); diff != "" {
-				t.Error(diff)
-			}
-		})
-	}
-}
-
-// A quantifier reaches to the end of what it is in, so an enabledness ending
-// in one is parenthesised when another disjunct follows it; otherwise the
-// disjunct after it would read as inside it.
-func TestWriteMarkdownParenthesisesAQuantifierThatADisjunctFollows(t *testing.T) {
-	// Arrange
-	d := parse(t, `@startuml
-state "a" as a
-state "b" as b
-state "c" as c
-[*] --> a
-a --> b : x ; ; p
-a --> c : x ; g
-@enduml
-`)
-	result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: []csdf.Event{"x"}})
-	var sb strings.Builder
-
-	// Act
-	err := tracechk.WriteMarkdown(&sb, d, result)
-
-	// Assert
-	if err != nil {
-		t.Fatalf("want nil, got %v", err)
-	}
-	if want := "Obligation: ∀ x0. true → (∃ x'. post_L6(x0, x')) ∨ guard_L7(x0)\n"; !strings.Contains(sb.String(), want) {
-		t.Errorf("want %q in the report, got\n%s", want, sb.String())
-	}
-}
-
-// A received value is a parameter of its step: bound universally along the
-// path, since it occurs only in the premise, and existentially for the next
-// event, which a trace names without a value. A sent value is the state's.
-func TestWriteMarkdownBindsTheParametersOfEachStep(t *testing.T) {
-	tests := map[string]struct {
-		diagram string
-		trace   []csdf.Event
-		want    []string
-	}{
-		"a received field": {
-			diagram: "[*] --> a\na --> b : insert?coin ; coin > 0 ; n' = coin\nb --> a : report!n\n",
-			trace:   []csdf.Event{"insert?coin", "report!n"},
-			want: []string{
-				"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0) ∧ ∃ x'. post_L7(c, x0, x')\n",
-				"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) ∧ post_1(c1, x0, x1) → true\n",
-			},
-		},
-		"a received and a sent field, then a bare tau out": {
-			diagram: "[*] --> a\na --> b : e?v!n ; v > n\nb --> b : tau\nb --> a : f\n",
-			trace:   []csdf.Event{"e?v!n", "f"},
-			want: []string{
-				"Obligation: ∀ x0. true → ∃ c. guard_L7(c, x0)\n",
-				"Obligation: ∀ x0 c1 x1. guard_1(c1, x0) → true ∨ true\n",
-			},
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Arrange
-			d := csdf.MustParse("@startuml\nstate \"a\" as a\na: n\nstate \"b\" as b\nb: n\n" + tt.diagram + "@enduml\n")
-			result := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: tt.trace})
-			var sb strings.Builder
-
-			// Act
-			err := tracechk.WriteMarkdown(&sb, d, result)
-
-			// Assert
-			if err != nil {
-				t.Fatalf("want nil, got %v", err)
-			}
-			for _, want := range tt.want {
-				if !strings.Contains(sb.String(), want) {
-					t.Errorf("want %q in the report, got\n%s", want, sb.String())
+			if *update {
+				if err := os.MkdirAll("testdata", 0o755); err != nil {
+					t.Fatal(err)
 				}
+				if err := os.WriteFile(golden, []byte(sb.String()), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+
+			// Assert
+			want, err := os.ReadFile(golden)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(string(want), sb.String()); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
