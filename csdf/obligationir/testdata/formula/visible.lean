@@ -1,0 +1,1 @@
+-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.

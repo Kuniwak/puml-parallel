@@ -1,0 +1,12 @@
+@startuml
+' A map the start empties, a visible edge that receives a key, and a tau
+' edge whose guard an ∃ of a type reads, under an assumption.
+state "s" as s
+s : m
+[*] --> s : @empty(m')
+s --> s : PUT?k ; @notin(k, m) ; @frame(m', m, k) ∧ @in(k, m')
+s --> s : tau ; @exists(k : 鍵) (@in(k, m) ∧ $k は古い) ; @eq(m', m)
+note as fair
+  assume PUT は無限に起きない
+end note
+@enduml
