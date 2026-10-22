@@ -161,3 +161,29 @@ func TestRestrictRefuses(t *testing.T) {
 		})
 	}
 }
+
+func TestRestrictReportsEveryClauseItDrops(t *testing.T) {
+	// Setup
+	full, _, err := Promote(fitting(plainDoor()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	_, warnings, err := Restrict(full, []string{"doors", "keys"}, []string{"keys"})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	var texts []string
+	for _, w := range warnings {
+		texts = append(texts, w.Event+": "+w.Text)
+	}
+	all := strings.Join(texts, "\n")
+	for _, want := range []string{"[*]: dropped, as it reads a left-out map: @empty(doors')", "INSTALL: dropped, as it reads a left-out map: @at(doors'[loc], shut)"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("warnings lack %q:\n%s", want, all)
+		}
+	}
+}

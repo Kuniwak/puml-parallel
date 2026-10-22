@@ -11,8 +11,8 @@ import (
 // maps being every map d's promotion holds (docs/CLAUSE_DESIGN.md: an
 // approximation kept for safety specifications). The left-out maps go from every state;
 // an edge that moves only left-out maps goes; every clause that reads a
-// left-out map is taken as true, and each guard clause dropped so is
-// reported. An edge the kept families take with a left-out one keeps every
+// left-out map is taken as true, and each clause dropped so, guard or
+// post, is reported. An edge the kept families take with a left-out one keeps every
 // field: the left-out side is the environment, offering any value. A
 // clause is dropped whole: a post that chains two moves of a left-out map
 // through an intermediate bound by ∃ is one clause with the kept maps'
@@ -38,22 +38,20 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 		return slices.ContainsFunc(clause.FreeVars(clause.And{Conjuncts: []clause.Formula{c}}), func(v clause.Free) bool { return gone[v.Name] })
 	}
 	warnings := []Warning{{Text: Approximation}}
-	keepOf := func(f clause.And, event string, report bool) clause.And {
+	keepOf := func(f clause.And, event string) (clause.And, error) {
 		var out []clause.Formula
 		for _, c := range clause.Normalize(f).Conjuncts {
 			if !reads(c) {
 				out = append(out, c)
 				continue
 			}
-			if report {
-				text, err := clause.Print(clause.And{Conjuncts: []clause.Formula{c}})
-				if err != nil {
-					text = fmt.Sprintf("%v", c)
-				}
-				warnings = append(warnings, Warning{Event: event, Text: "dropped, as it reads a left-out map: " + text})
+			text, err := clause.Print(clause.And{Conjuncts: []clause.Formula{c}})
+			if err != nil {
+				return clause.And{}, fmt.Errorf("core.Restrict: %s: %w", event, err)
 			}
+			warnings = append(warnings, Warning{Event: event, Text: "dropped, as it reads a left-out map: " + text})
 		}
-		return clause.And{Conjuncts: out}
+		return clause.And{Conjuncts: out}, nil
 	}
 	out := &Diagram{States: slices.Clone(d.States), Init: d.Init, Vars: map[string][]string{}, Assumes: slices.Clone(d.Assumes), Ends: slices.Clone(d.Ends)}
 	for s, vars := range d.Vars {
@@ -63,14 +61,22 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 			}
 		}
 	}
-	out.InitPost = keepOf(d.InitPost, "[*]", false)
+	init, err := keepOf(d.InitPost, "[*]")
+	if err != nil {
+		return nil, nil, err
+	}
+	out.InitPost = init
 	for _, e := range d.Edges {
 		movesKept, movesGone := moves(e.Post, maps, keep)
 		if movesGone && !movesKept {
 			continue
 		}
-		e.Guard = keepOf(e.Guard, e.Event.Channel, true)
-		e.Post = keepOf(e.Post, e.Event.Channel, false)
+		if e.Guard, err = keepOf(e.Guard, e.Event.Channel); err != nil {
+			return nil, nil, err
+		}
+		if e.Post, err = keepOf(e.Post, e.Event.Channel); err != nil {
+			return nil, nil, err
+		}
 		out.Edges = append(out.Edges, e)
 	}
 	return out, warnings, nil
