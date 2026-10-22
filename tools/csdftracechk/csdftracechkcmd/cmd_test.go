@@ -30,8 +30,8 @@ func TestNewMainFunc(t *testing.T) {
 			WantExit: 0,
 			WantStdout: []string{
 				"# " + ok + ": ACCEPTED",
-				"coins' is {coin}",
-				"Obligation: ∀ x0 c1 x1. post_1(c1, x0, x1) → true",
+				"$coins' holds only $coin",
+				`Obligation: ∃ coin coins'. "$_0 holds only $_1"(coins', coin)`,
 				"## Prompt",
 			},
 		},

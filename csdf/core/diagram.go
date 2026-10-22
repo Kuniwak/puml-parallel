@@ -40,11 +40,15 @@ func (e Event) SameShape(o Event) bool {
 	return true
 }
 
-// Edge is a transition: Src --> Dst : Event ; Guard ; Post.
+// Edge is a transition: Src --> Dst : Event ; Guard ; Post. Line is where
+// the reader read it, from 1, for a reader of a report alone; it is outside
+// the meaning of the edge, and 0 for an edge no reader read, such as one a
+// constructor built.
 type Edge struct {
 	Src, Dst    string
 	Event       Event
 	Guard, Post clause.And
+	Line        int
 }
 
 // End is an end edge: Src --> [*] : Guard.
@@ -68,6 +72,8 @@ type Diagram struct {
 	Vars     map[string][]string
 	Init     string
 	InitPost clause.And
+	// InitLine is where the reader read the start edge, as Edge.Line is.
+	InitLine int
 	Edges    []Edge
 	Ends     []End
 	Assumes  []Assumption
@@ -172,4 +178,21 @@ func ReceivesOver(field string, vars ...[]string) bool {
 		}
 	}
 	return false
+}
+
+// ParseEvent reads an event written as a label is (Label), as
+// SplitEvent takes it apart: a channel, then ?x for each field
+// received and !x for each sent, in order, where x is the field's name or
+// the value it carries. An x that is empty is refused; neither it nor the
+// channel may hold ? or !.
+func ParseEvent(text string) (Event, error) {
+	channel, parts, err := SplitEvent(text, FieldNameOrValue)
+	if err != nil {
+		return Event{}, fmt.Errorf("core.ParseEvent: %w", err)
+	}
+	e := Event{Channel: channel}
+	for _, p := range parts {
+		e.Fields = append(e.Fields, Field{Send: p.Send, Name: p.Name})
+	}
+	return e, nil
 }

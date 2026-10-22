@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
@@ -132,7 +133,7 @@ func TestWrite(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(c.want, got); diff != "" {
+			if diff := cmp.Diff(c.want, got, cmpopts.IgnoreFields(core.Edge{}, "Line"), cmpopts.IgnoreFields(core.Diagram{}, "InitLine")); diff != "" {
 				t.Errorf("Write (-want +got):\n%s", diff)
 			}
 		})

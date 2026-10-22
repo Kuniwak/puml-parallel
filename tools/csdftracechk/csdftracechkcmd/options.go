@@ -49,14 +49,15 @@ states, and along which paths that state is reached, together with the
 condition under which the refusal is not real after all (every such path is
 infeasible), and the exit status is 1. Otherwise the report lists, for every
 event and every path performing the prefix before it (tau steps included), the
-guards and postconditions along the path and the obligation
+guards and posts along the path and the obligation
 
-  ∀ x0 ... xi. post_0(x0) ∧ guard_1(x0) ∧ post_1(x0, x1) ∧ ... → unstable(xi) ∨ enabled(xi)
+  ∀ v@0 k#1 v@1 ... . start(v@0) ∧ step_1(v@0, k#1, v@1) ∧ ... → unstable(v@i) ∨ enabled(v@i)
 
-that the state reached is unstable (some tau edge is enabled) or can perform
+over the clauses (docs/SYNTAX.md), where v@i is the variable v after step i and
+k#i the field k step i receives, that the state reached is unstable (some tau edge is enabled) or can perform
 the event (some edge for it has its guard true and its post satisfiable),
 followed by a prompt asking a reader (a person or an LLM) to decide them. The
-predicates are natural language, so this tool never decides that itself; the
+atoms are not evaluated, so this tool never decides that itself; the
 exit status is 0 when every trace passed the all-guards-true check. A path
 never revisits a state within one run of tau edges, so a tau cycle yields
 finitely many paths and the ones going round it are not listed; divergence is
@@ -65,9 +66,14 @@ csdflivelockfree's business.
 Events are free-form text and their notation is not fixed, so the way a trace
 event is looked up in the diagram is one of two simple rules chosen by -match:
 
-  exact   the identical text (default)
-  prefix  the trace event is a prefix of the diagram event, so a trace whose
-          parameters were stripped ("insert") matches the label "insert?coin"
+  exact   the event's channel, and a field of each direction in order, each
+          ?x or !x with x the field's name or its value, which is not read:
+          "insert?coin" and "insert?3" are the event of insert?coin (default)
+  prefix  the channel and the first fields, stopping at their boundaries, so
+          a trace whose fields were stripped ("insert") matches insert?coin
+
+A value in a trace event may not hold ? or !, which mark its fields, and a
+marker needs a value after it: "insert?" matches nothing.
 
 Anything richer is best done to the trace beforehand, e.g. with sed or qhs. The
 diagram may be "-" for standard input; traces must be files. Too many traces

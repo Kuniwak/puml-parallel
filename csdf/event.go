@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
@@ -87,28 +88,17 @@ func (e Event) Fields() []Field {
 }
 
 func splitEvent(text string) (string, []Field, error) {
-	i := strings.IndexAny(text, "?!")
-	if i < 0 {
-		i = len(text)
+	channel, parts, err := core.SplitEvent(text, core.FieldIdentifier)
+	if err != nil {
+		return "", nil, fmt.Errorf("csdf.ParseEvent: %w", err)
 	}
-	channel := strings.TrimSpace(text[:i])
-	if !ident.Is(channel) {
-		return "", nil, fmt.Errorf("csdf.ParseEvent: %q: expected a channel, then ?field or !field, each an identifier", text)
-	}
-	var fields []Field
-	for rest := text[i:]; rest != ""; {
-		dir := Direction(rest[:1])
-		rest = rest[1:]
-		j := strings.IndexAny(rest, "?!")
-		if j < 0 {
-			j = len(rest)
+	fields := make([]Field, len(parts))
+	for i, p := range parts {
+		dir := Received
+		if p.Send {
+			dir = Sent
 		}
-		name := strings.TrimSpace(rest[:j])
-		if !ident.Is(name) {
-			return "", nil, fmt.Errorf("csdf.ParseEvent: %q: expected an identifier after %q", text, dir)
-		}
-		fields = append(fields, Field{Dir: dir, Name: name})
-		rest = rest[j:]
+		fields[i] = Field{Dir: dir, Name: p.Name}
 	}
 	return channel, fields, nil
 }

@@ -1,6 +1,6 @@
 // Package tracechk checks whether an event sequence is a trace of a Composable
 // State Diagram when every guard is taken as true, and states what has to hold
-// of the predicates for it to be a trace in fact.
+// of its clauses for it to be a trace in fact.
 package tracechk
 
 import (
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/usererr"
 )
 
@@ -38,18 +38,18 @@ func ReadTrace(name string, r io.Reader) (Trace, error) {
 
 // ReadTSV reads a trace: a TSV whose header is the single column "event" and
 // whose every other row is one event, read as ReadSingleColumnTSV reads it.
-func ReadTSV(r io.Reader) ([]csdf.Event, error) {
+func ReadTSV(r io.Reader) ([]string, error) {
 	fields, err := ReadSingleColumnTSV(r, TSVHeader)
 	if err != nil {
 		return nil, fmt.Errorf("tracechk.ReadTSV: %w", err)
 	}
 
-	events := make([]csdf.Event, 0, len(fields))
+	events := make([]string, 0, len(fields))
 	for i, field := range fields {
-		event := csdf.Event(field)
+		event := field
 		// A trace is what the environment sees, and it never sees tau.
-		if event == csdf.Tau {
-			return nil, fmt.Errorf("row %d: %q is internal and cannot appear in a trace", i+2, csdf.Tau)
+		if event == core.Tau {
+			return nil, fmt.Errorf("row %d: %q is internal and cannot appear in a trace", i+2, core.Tau)
 		}
 		events = append(events, event)
 	}

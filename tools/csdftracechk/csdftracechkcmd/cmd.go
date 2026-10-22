@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -21,7 +21,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseBytes(opts.Diagram)
+		diagram, err := coreio.ReadBytes(opts.Diagram)
 		if err != nil {
 			return fmt.Errorf("csdftracechkcmd.NewMainFunc: %w", err)
 		}
