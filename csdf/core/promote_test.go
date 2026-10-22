@@ -512,6 +512,23 @@ func TestPromoteCarriesTheAssumptions(t *testing.T) {
 	}
 }
 
+func TestPromoteCarriesTheLabelsOfTheModes(t *testing.T) {
+	// Setup
+	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
+	p.Labels = map[string]string{"G": "稼働中"}
+
+	// Execute
+	got, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(p.Labels, got.Labels); diff != "" {
+		t.Errorf("labels (-want +got):\n%s", diff)
+	}
+}
+
 func promotion(f Family, syncs ...Sync) Promotion {
 	return Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{f}, Syncs: syncs}
 }

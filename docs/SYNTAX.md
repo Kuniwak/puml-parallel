@@ -245,9 +245,10 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 ```
 
 - A `$name` hole ends where its name ends (`id`): whatever follows, `[`,
-  `.`, `-` or anything else, is the atom's language. When the next character
-  could continue the name, one space separates them and belongs to the hole,
-  so `$在庫 が` reads the hole `在庫` and the text `が`.
+  `.`, `-` or anything else, is the atom's language. One space after any
+  hole, `$name` or `${term}`, belongs to the hole when the next character
+  could continue a name or is another space, so `$在庫 が` and `${在庫} が`
+  read the hole `在庫` and the text `が`, and `$x  が` the text ` が`.
 - `${term}` holds any term, for indexing, fields, environment functions
   and names that start with a digit (`${1st}`). A trailing `'` primes the
   variable the path starts from: `${m[k].f'}` is the entry at `k` of `m`
@@ -256,9 +257,9 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   argument of an environment function, `f(x')`, read after the step is
   refused when the atom is given to a glue: an argument is a value before
   the step or after it, never a mix.
-- A glue receives the space that ended a `$name` hole back in the text after
-  it, so that its own reading of the hole does not run into the text; a
-  hole of any other term ends at its brace and gives back none. `${x}` and
+- A glue receives the space that ended a hole back in the text after it,
+  when that text goes on with a character that could continue a name, so
+  that its own reading of the hole does not run into the text. `${x}` and
   `$x` are the same hole.
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
 - A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
@@ -365,7 +366,9 @@ end note
 - A floating `assume` note is carried into the expansion; an anchored one is
   refused.
 
-No tool reads a formula promotion with `-only` or `-template` yet.
+`csdfpromote` reads a global diagram with this reader and prints the
+expansion core.Promote gives, restricted by `-only` and glossed by
+`-template` ([PROMOTION.md](./PROMOTION.md)).
 
 
 Global Diagram Format

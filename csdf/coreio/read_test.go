@@ -40,6 +40,7 @@ s --> s : reset ; ; $x' = 0
 `,
 			want: func(t *testing.T) *core.Diagram {
 				return &core.Diagram{
+					Labels:   map[string]string{"s": "数えている"},
 					States:   []string{"s"},
 					Vars:     map[string][]string{"s": {"x"}},
 					Init:     "s",

@@ -1,7 +1,9 @@
 package csdfpromotecmd
 
 import (
+	"flag"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -13,30 +15,53 @@ import (
 
 const accountsPath = "../../../examples/promote/ACCOUNTS.puml"
 
-func TestNewMainFuncExpandsTheRecordedExample(t *testing.T) {
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
+var update = flag.Bool("update", false, "rewrite the recorded expansions")
 
-	exitStatus := cmdFunc([]string{accountsPath}, spy.New())
-
-	if exitStatus != 0 {
-		t.Log(spy.Stderr.String())
-		t.Fatalf("want 0, got %d", exitStatus)
-	}
-
-	bs, err := os.ReadFile("../../../examples/promote/ACCOUNTS.expanded.puml")
+// TestNewMainFuncExpandsTheRecordedExamples expands every worked example and
+// compares it with the expansion recorded next to it, which makes a change
+// in what csdfpromote prints visible in review. Run with -update to rewrite
+// them.
+func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
+	const dir = "../../../examples/promote"
+	paths, err := filepath.Glob(filepath.Join(dir, "*.puml"))
 	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
+		t.Fatal(err)
 	}
-	// The recorded expansion keeps the diagram's own name; the command replaces
-	// it with the command line that produced the file.
-	want := strings.Replace(
-		string(bs),
-		"@startuml ACCOUNTS\n",
-		"@startuml auto-generated-by: csdfpromote "+accountsPath+"\n",
-		1)
-	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
-		t.Error(diff)
+	for _, path := range paths {
+		if strings.HasSuffix(path, ".expanded.puml") {
+			continue
+		}
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			// Setup
+			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+			spy := cli.SpyProcInout()
+			golden := strings.TrimSuffix(path, ".puml") + ".expanded.puml"
+
+			// Execute
+			exitStatus := cmdFunc([]string{path}, spy.New())
+
+			// Assert
+			if exitStatus != 0 {
+				t.Log(spy.Stderr.String())
+				t.Fatalf("want 0, got %d", exitStatus)
+			}
+			// The recording leaves the title out, which the command fills
+			// with the command line that produced it.
+			got := tools.Untitled(spy.Stdout.String())
+			if *update {
+				if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			bs, err := os.ReadFile(golden)
+			if err != nil {
+				t.Fatalf("%v; run the test with -update to record it", err)
+			}
+			if diff := cmp.Diff(string(bs), got); diff != "" {
+				t.Errorf("mismatch (-recorded +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -79,18 +104,27 @@ func TestNewMainFunc(t *testing.T) {
 			wantStdoutEmpty: true,
 			wantStderr:      "unknown output",
 		},
-		"-template rewords the clauses": {
+		"-template glosses the builtins in a line comment": {
 			args:       []string{"-template", "../../../examples/promote/templates/ja.tmpl", accountsPath},
-			wantStdout: []string{"口座ID は accounts にない"},
+			wantStdout: []string{"' accounts[口座ID] は〈accOpen〉", "@notin(口座ID, accounts')"},
 		},
-		"-only keeps the named families": {
+		"-template is refused with -format json": {
+			args:            []string{"-template", "../../../examples/promote/templates/ja.tmpl", "-format", "json", accountsPath},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "-format json takes none",
+		},
+		"-only keeps the named families, and says what its result means": {
 			args:         []string{"-only", "buys", "../../../examples/promote/TRADES.puml"},
-			wantStdout:   []string{"buys ; 約定ID ⇸ Buy"},
-			wantNoStdout: []string{"REPORT("},
+			wantStdout:   []string{"running : buys"},
+			wantNoStdout: []string{"REPORT", "running : cycles"},
+			wantStderr:   "note: a restriction keeps only safety",
 		},
-		"-only names a family by its type": {
-			args:         []string{"-only", "Buy", "../../../examples/promote/TRADES.puml"},
-			wantNoStdout: []string{"REPORT("},
+		"-only names a family by its map, not its type": {
+			args:            []string{"-only", "Buy", "../../../examples/promote/TRADES.puml"},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "Buy is no promoted map",
 		},
 		"-only lists what it drops on stderr and in the JSON": {
 			args:       []string{"-only", "buys", "-format", "json", "../../../examples/promote/TRADES.puml"},
@@ -101,29 +135,34 @@ func TestNewMainFunc(t *testing.T) {
 			args:            []string{"-only", "sells", "../../../examples/promote/TRADES.puml"},
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      `"sells"`,
+			wantStderr:      "sells is no promoted map",
 		},
 		"-v prints the version": {
 			args:       []string{"-v"},
 			wantStdout: []string{version.Version + "\n"},
 		},
-		// The map is not a state variable of the state its block was written in.
+		// The sync names a map no block promotes.
 		"an unsound promotion is refused, with the reason and no diagram": {
 			args: []string{"-base", "../../../examples/promote"},
 			stdin: `@startuml A
 state "稼働中" as running {
-  running : audits ; 監査ID ⇸ Audit
-
   state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
     !include local/ACCOUNT.puml
   }
 }
 [*] --> running
+note as s
+  sync OPEN : audits(監査ID)
+end note
 @enduml
 `,
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      `holds no state variable named "accounts"`,
+			wantStderr:      "audits",
+		},
+		"a warning is printed at its level": {
+			args:       []string{"../../../examples/promote/MODES.puml"},
+			wantStderr: "info: audits: frozen in degraded",
 		},
 	}
 

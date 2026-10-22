@@ -37,7 +37,7 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 	reads := func(c clause.Formula) bool {
 		return slices.ContainsFunc(clause.FreeVars(clause.And{Conjuncts: []clause.Formula{c}}), func(v clause.Free) bool { return gone[v.Name] })
 	}
-	warnings := []Warning{{Text: Approximation}}
+	warnings := []Warning{{Level: Note, Text: Approximation}}
 	keepOf := func(f clause.And, event string) (clause.And, error) {
 		var out []clause.Formula
 		for _, c := range clause.Normalize(f).Conjuncts {
@@ -53,7 +53,7 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 		}
 		return clause.And{Conjuncts: out}, nil
 	}
-	out := &Diagram{States: slices.Clone(d.States), Init: d.Init, Vars: map[string][]string{}, Assumes: slices.Clone(d.Assumes), Ends: slices.Clone(d.Ends)}
+	out := &Diagram{Name: d.Name, Labels: d.Labels, States: slices.Clone(d.States), Init: d.Init, Vars: map[string][]string{}, Assumes: slices.Clone(d.Assumes), Ends: slices.Clone(d.Ends)}
 	for s, vars := range d.Vars {
 		for _, v := range vars {
 			if !gone[v] {

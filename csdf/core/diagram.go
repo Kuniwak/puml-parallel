@@ -58,8 +58,12 @@ type End struct {
 // the start edge leads to and InitPost the post of that edge; Ends are its
 // end edges, which only promotion reads, as deletions. Assumes are what its
 // runs as a whole are assumed to satisfy, outside its meaning
-// (docs/CLAUSE_DESIGN.md).
+// (docs/CLAUSE_DESIGN.md). Name and Labels are for the reader alone, outside
+// its meaning too: the title of the diagram, and the label of each state
+// labelled apart from its ID.
 type Diagram struct {
+	Name     string
+	Labels   map[string]string
 	States   []string
 	Vars     map[string][]string
 	Init     string
@@ -73,6 +77,14 @@ type Diagram struct {
 // assumes, which no clause can say.
 type Assumption struct {
 	ID, Text string
+}
+
+// label is what s is labelled: its label, or its ID.
+func (d *Diagram) label(s string) string {
+	if l, ok := d.Labels[s]; ok {
+		return l
+	}
+	return s
 }
 
 // declared reports, as an error, a state d names but does not declare.
@@ -123,4 +135,16 @@ func (d *Diagram) wellFormed() error {
 		}
 	}
 	return nil
+}
+
+// clauses are every guard and post of d.
+func (d *Diagram) clauses() []clause.And {
+	fs := []clause.And{d.InitPost}
+	for _, e := range d.Edges {
+		fs = append(fs, e.Guard, e.Post)
+	}
+	for _, e := range d.Ends {
+		fs = append(fs, e.Guard)
+	}
+	return fs
 }

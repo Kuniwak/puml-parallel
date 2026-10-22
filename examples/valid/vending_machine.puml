@@ -10,14 +10,14 @@ vmWaitingChoosing: availableProducts
 vmWaitingChoosing: coins
 state "vmDropping" as vmDropping
 vmDropping: availableProducts
-vmDropping: product
+vmDropping: dispensing
 
-[*] --> vmIdle : availableProducts' are products initially in the vending machine
-vmIdle --> vmIdle : showAvailable!availableProducts ; ; availableProducts' remains the same
-vmIdle --> vmCoinsInserted : insert?coin ; ; coins' is {coin}, availableProducts' remains the same
-vmCoinsInserted --> vmWaitingChoosing : showPurchasable?purchasableProducts ; ; availableProducts' and coins' remain the same
-vmWaitingChoosing --> vmCoinsInserted : insert?coin ; ; coins' is coins with coin added, availableProducts' remains the same
-vmWaitingChoosing --> vmDropping : choose?product ; availableProducts contains product ; product' is product
-vmDropping --> vmIdle : drop?product ; ; availableProducts' is availableProducts minus product
+[*] --> vmIdle : $availableProducts' are products initially in the vending machine
+vmIdle --> vmIdle : showAvailable!availableProducts ; ; $availableProducts' is $availableProducts
+vmIdle --> vmCoinsInserted : insert?coin ; ; $coins' is the set of $coin ∧ $availableProducts' is $availableProducts
+vmCoinsInserted --> vmWaitingChoosing : showPurchasable?purchasableProducts ; ; $availableProducts' is $availableProducts ∧ $coins' is $coins
+vmWaitingChoosing --> vmCoinsInserted : insert?coin ; ; $coins' is $coins with $coin added ∧ $availableProducts' is $availableProducts
+vmWaitingChoosing --> vmDropping : choose?product ; $availableProducts contains $product ; $dispensing' is $product
+vmDropping --> vmIdle : drop?product ; $product is $dispensing ; $availableProducts' is $availableProducts minus $product
 
 @enduml

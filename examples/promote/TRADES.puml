@@ -17,17 +17,17 @@ state "稼働中" as running {
   }
 }
 
-[*] --> running : buys と cycles は空
+[*] --> running
 
 note as sync1
   sync BOOK : buys(約定ID), cycles(基準日)
 end note
 
 note bottom of runningBuys
-  constrain BUY?約定ID?数量 ; 数量 は最小取引単位の倍数である
+  constrain BUY?約定ID?数量 ; $数量 は最小取引単位の倍数である
 end note
 
 note as cons2
-  constrain BOOK?約定ID?基準日?数量 ; 基準日 は 約定ID の約定日である
+  constrain BOOK?約定ID?基準日?数量 ; $基準日 は $約定ID の約定日である
 end note
 @enduml

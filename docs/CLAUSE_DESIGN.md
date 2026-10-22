@@ -72,6 +72,12 @@ its kind:
 
 For composition, op_sem is the CSP parallel operator on the graphs:
 ⟦D₁ ‖A D₂⟧ =SF ⟦D₁⟧ ‖A ⟦D₂⟧; for hiding, ⟦D \ C⟧ =SF ⟦D⟧ \ C.
+The two components of a parallel have separate state, so a state variable
+both name is two variables: composition renames the right side's apart,
+capture-free (P3), to a fresh name made from its own (`x` becomes `x2`),
+before pairing the states. A renamed variable keeps the type of the one it
+was named like, which an environment gives under the new name until
+binders and variables carry their types.
 
 For promotion, op_sem is a CSP term built from the local diagram P:
 
@@ -157,6 +163,12 @@ send, and a primed read in its guard because the controller reads the maps
 before its step, as a monitor does. The controller only follows,
 refuses, and switches modes, so the term stays CSP and adds one control
 state per mode, not per instance.
+
+A global end edge, from a mode to `[*]`, is refused for now. In CSP the
+promoted term terminates only when every process in it terminates, the
+instances among them, and an instance's local diagram has no end edge; so
+what the controller's termination means is not defined yet, and an
+expansion that carried the edge would give it a meaning nobody chose.
 
 A mode may also hold variables that are no family's map: the
 controller's own variables. The controller is a process with state, so

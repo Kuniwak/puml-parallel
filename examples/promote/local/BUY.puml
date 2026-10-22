@@ -13,7 +13,7 @@ buyPosted : qty ; 数量
 
 [*] --> buyNone
 
-buyNone --> buyBooked : BUY?数量 ; ; qty は 数量
-buyBooked --> buyPosted : BOOK?数量
+buyNone --> buyBooked : BUY?数量 ; ; $qty' は $数量
+buyBooked --> buyPosted : BOOK?数量 ; ; $qty' は $qty
 buyPosted --> buyNone : SETTLE
 @enduml

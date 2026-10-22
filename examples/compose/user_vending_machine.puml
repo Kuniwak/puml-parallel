@@ -1,0 +1,32 @@
+@startuml auto-generated-by: csdfparallel -sync 'insert;showAvailable;showPurchasable;choose;drop' examples/valid/user.puml examples/valid/vending_machine.puml
+state "(userChoosing, vmWaitingChoosing)" as userChoosing_vmWaitingChoosing
+userChoosing_vmWaitingChoosing : product
+userChoosing_vmWaitingChoosing : availableProducts
+userChoosing_vmWaitingChoosing : coins
+state "(userGonnaBuy, vmIdle)" as userGonnaBuy_vmIdle
+userGonnaBuy_vmIdle : product
+userGonnaBuy_vmIdle : availableProducts
+state "(userGonnaBuy, vmWaitingChoosing)" as userGonnaBuy_vmWaitingChoosing
+userGonnaBuy_vmWaitingChoosing : product
+userGonnaBuy_vmWaitingChoosing : availableProducts
+userGonnaBuy_vmWaitingChoosing : coins
+state "(userIdle, vmIdle)" as userIdle_vmIdle
+userIdle_vmIdle : wanted
+userIdle_vmIdle : availableProducts
+state "(userPaying, vmCoinsInserted)" as userPaying_vmCoinsInserted
+userPaying_vmCoinsInserted : product
+userPaying_vmCoinsInserted : availableProducts
+userPaying_vmCoinsInserted : coins
+state "(userWaiting, vmDropping)" as userWaiting_vmDropping
+userWaiting_vmDropping : availableProducts
+userWaiting_vmDropping : dispensing
+[*] --> userIdle_vmIdle : $wanted' is empty ∧ $availableProducts' are products initially in the vending machine
+userChoosing_vmWaitingChoosing --> userWaiting_vmDropping : choose!product ; $availableProducts contains $product ; $dispensing' is $product
+userGonnaBuy_vmIdle --> userPaying_vmCoinsInserted : insert?coin ; ; $product' is $product ∧ $coins' is the set of $coin ∧ $availableProducts' is $availableProducts
+userGonnaBuy_vmWaitingChoosing --> userPaying_vmCoinsInserted : insert?coin ; ; $product' is $product ∧ $coins' is $coins with $coin added ∧ $availableProducts' is $availableProducts
+userIdle_vmIdle --> userGonnaBuy_vmIdle : showAvailable!availableProducts ; $availableProducts and $wanted have overlap ; $product' is one of the overlap between $availableProducts and $wanted ∧ $availableProducts' is $availableProducts
+userIdle_vmIdle --> userIdle_vmIdle : tau ; ; $wanted' is non-empty ∧ @eq(availableProducts', availableProducts)
+userPaying_vmCoinsInserted --> userChoosing_vmWaitingChoosing : showPurchasable?products ; $products contains $product ; $product' is $product ∧ $availableProducts' is $availableProducts ∧ $coins' is $coins
+userPaying_vmCoinsInserted --> userGonnaBuy_vmWaitingChoosing : showPurchasable?products ; $products does not contain $product ; $product' is $product ∧ $availableProducts' is $availableProducts ∧ $coins' is $coins
+userWaiting_vmDropping --> userIdle_vmIdle : drop?product ; $product is $dispensing ; $wanted' is empty ∧ $availableProducts' is $availableProducts minus $product
+@enduml

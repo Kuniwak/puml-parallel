@@ -17,7 +17,7 @@ import (
 const id = ident.Pattern
 
 var (
-	stateDeclRe = pumlline.StateDecl
+	stateDeclRe = pumlline.StateDeclLabelled
 	edgeRe      = pumlline.Edge
 	mapDeclRe   = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
 	startRe     = pumlline.Start
@@ -118,7 +118,7 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		if err := r.newMode(m[2]); err != nil {
+		if err := r.newMode(m[2], pumlline.Unquote(m[1])); err != nil {
 			return err
 		}
 		r.depth++
@@ -144,7 +144,7 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if m := stateDeclRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		return r.newMode(m[1])
+		return r.newMode(m[2], pumlline.Unquote(m[1]))
 	}
 	if m := edgeRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
 		return r.edge(l, m[1], m[2])
@@ -286,12 +286,18 @@ func (r *promotionReader) mode() string {
 	return r.p.Modes[len(r.p.Modes)-1]
 }
 
-// newMode starts the mode named alias.
-func (r *promotionReader) newMode(alias string) error {
+// newMode starts the mode named alias, labelled label.
+func (r *promotionReader) newMode(alias, label string) error {
 	if slices.Contains(r.p.Modes, alias) {
 		return fmt.Errorf("a second state %s", alias)
 	}
 	r.p.Modes = append(r.p.Modes, alias)
+	if label != alias {
+		if r.p.Labels == nil {
+			r.p.Labels = map[string]string{}
+		}
+		r.p.Labels[alias] = label
+	}
 	r.holds[alias], r.moves[alias] = map[string]bool{}, map[string]bool{}
 	return nil
 }
@@ -326,11 +332,17 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 	return nil
 }
 
+// notYetEnd says why a global end edge is refused: in CSP the promoted
+// term terminates only when every process of it does, the instances among
+// them, and they do not, so what the controller's termination means is
+// not defined yet (docs/CLAUSE_DESIGN.md).
+const notYetEnd = "is not supported yet by the formula promotion: what the controller's termination means beside instances that never terminate is not defined yet (#76)"
+
 // edge reads a hand-written edge between modes, l, from src to dst.
 func (r *promotionReader) edge(l, src, dst string) error {
 	name := src + " --> " + dst
 	if dst == "[*]" {
-		return fmt.Errorf("%s: a global diagram has no end edge", name)
+		return fmt.Errorf("%s: a global end edge %s", name, notYetEnd)
 	}
 	e, err := readEdge(l, r.lineNo, clause.ParseAuthored)
 	if err != nil {

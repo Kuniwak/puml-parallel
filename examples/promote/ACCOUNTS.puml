@@ -10,5 +10,5 @@ state "稼働中" as running {
   }
 }
 
-[*] --> running : accounts は空
+[*] --> running
 @enduml

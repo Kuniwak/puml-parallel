@@ -256,15 +256,13 @@ func (p *parser) hole() (Term, error) {
 	return p.nameHole()
 }
 
-// nameHole reads $name or $name'. One space after it belongs to the hole
-// when the next character could continue the name.
+// nameHole reads $name or $name', and the space after it that belongs to
+// it.
 func (p *parser) nameHole() (Term, error) {
 	p.pos++ // $
 	name := p.name()
 	primed := p.prime()
-	if p.peek() == ' ' && ident.IsRune(p.peekAt(1)) {
-		p.pos++
-	}
+	p.spaceAfterHole()
 	return p.variable(name, primed)
 }
 
@@ -285,14 +283,27 @@ func (p *parser) variable(name string, primed bool) (Term, error) {
 // identifier character that is not a digit, so that $100 stays text.
 func startsHoleName(r rune) bool { return ident.IsRune(r) && !unicode.IsDigit(r) }
 
-// termHole reads ${term}.
+// termHole reads ${term}, and the space after it that belongs to it.
 func (p *parser) termHole() (Term, error) {
 	p.pos += 2 // ${
 	t, err := p.term()
 	if err != nil {
 		return nil, err
 	}
-	return t, p.expect("}")
+	if err := p.expect("}"); err != nil {
+		return nil, err
+	}
+	p.spaceAfterHole()
+	return t, nil
+}
+
+// spaceAfterHole takes in the one space after a hole that belongs to it:
+// one before a character that could continue a name, or before another
+// space, so that text after a hole may start with a space before either.
+func (p *parser) spaceAfterHole() {
+	if p.peek() == ' ' && (ident.IsRune(p.peekAt(1)) || p.peekAt(1) == ' ') {
+		p.pos++
+	}
 }
 
 // term reads a variable with its path, or an environment function applied

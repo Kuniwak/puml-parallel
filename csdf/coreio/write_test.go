@@ -85,6 +85,24 @@ end note
 `,
 		},
 		{
+			name: "a title and states labelled apart from their IDs",
+			d: &core.Diagram{
+				Name:   "auto-generated-by: csdfparallel a.puml b.puml",
+				States: []string{"s0_s0", "s1_s0"},
+				Labels: map[string]string{"s0_s0": "(s0, s0)", "s1_s0": "(s1, s0)"},
+				Vars:   map[string][]string{},
+				Init:   "s0_s0",
+				Edges:  []core.Edge{{Src: "s0_s0", Dst: "s1_s0", Event: core.Event{Channel: "go"}}},
+			},
+			want: `@startuml auto-generated-by: csdfparallel a.puml b.puml
+state "(s0, s0)" as s0_s0
+state "(s1, s0)" as s1_s0
+[*] --> s0_s0
+s0_s0 --> s1_s0 : go
+@enduml
+`,
+		},
+		{
 			name: "states in an order of their own",
 			d: &core.Diagram{
 				States: []string{"z", "a"},

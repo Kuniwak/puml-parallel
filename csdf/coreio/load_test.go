@@ -17,6 +17,12 @@ state "稼働中" as running {
 [*] --> running
 @enduml
 `
+	tool := `@startuml
+state "a" as a
+[*] --> a
+a --> a : tau ; @exists(y : Y) ($y < 1)
+@enduml
+`
 	cases := []struct {
 		name string
 		path string
@@ -35,6 +41,18 @@ state "稼働中" as running {
 				return fmt.Sprintf("%d edges", len(d.Edges)), nil
 			},
 			want: "2 edges",
+		},
+		{
+			name: "a diagram a tool wrote, which may hold ∃",
+			path: "TOOL.puml",
+			load: func(path string) (string, error) {
+				d, err := Load(path)
+				if err != nil {
+					return "", err
+				}
+				return fmt.Sprintf("%d edges", len(d.Edges)), nil
+			},
+			want: "1 edges",
 		},
 		{
 			name: "a global diagram, its include read relative to it",
@@ -56,7 +74,7 @@ state "稼働中" as running {
 			if err := os.MkdirAll(filepath.Join(dir, "local"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			for path, src := range map[string]string{"G.puml": global, "local/SHIPMENT.puml": shipment} {
+			for path, src := range map[string]string{"G.puml": global, "local/SHIPMENT.puml": shipment, "TOOL.puml": tool} {
 				if err := os.WriteFile(filepath.Join(dir, path), []byte(src), 0o644); err != nil {
 					t.Fatal(err)
 				}

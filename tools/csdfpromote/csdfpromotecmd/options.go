@@ -22,8 +22,8 @@ type Options struct {
 	Werror     bool
 	LintOnly   bool
 	JSON       bool
-	// Only names the families the expansion keeps, by map or by type; empty
-	// keeps them all.
+	// Only names the families the expansion keeps, by map; empty keeps them
+	// all.
 	Only   []string
 	Output promote.Output
 	Args   []string
@@ -48,10 +48,25 @@ result is plain PlantUML, which every other tool reads.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Every predicate of the expansion is its clauses joined by the connective " ∧ ":
-the generated ones (the instance exists, is in a local state, moves, is
-created or removed, a variable is unchanged) and then the author's, copied
-verbatim. With -format json, the expansion is written as JSON instead, for a
-program that must not parse the wording back:
+the generated ones are builtins (@in, @notin, @at, @frame, @update, @empty,
+@eq, @ne, @exists), and the author's are copied with each local variable v of
+the instance x of the map m written into their holes as ${m[x].v}. Warnings
+are printed on stderr at their level (warning, info); a note says what a
+result about an -only restriction does not say about the whole.
+
+With -only, the expansion keeps the named families, each named by its map,
+and leaves out the others' maps and the edges only they move. An event a kept
+family takes together with a left-out one stays, offered by the environment.
+A clause that reads a left-out map is dropped and reported. A restriction
+keeps only safety: a deadlock or another refusal it shows is no conclusion
+about the full promotion, and a counterexample may be spurious.
+
+With -template, the builtins of each edge are glossed in a line comment above
+it, by templates named after the builtin words (see
+examples/promote/templates/ja.tmpl).
+
+-json and -format json print the directives and the expansion of the tools
+before csdf/core, which csdfbmc reads until it moves onto the clause syntax:
 
   {"diagram": <the diagram as csdfparse prints it>,
    "edges": [{"edge": <the edge>, "origin": "promote: ...",
@@ -60,20 +75,8 @@ program that must not parse the wording back:
    "locals": {F: <the local diagram as csdfparse prints it>, ...}}
 
 where a CLAUSE is {"kind": K, "text": T, ...} with K one of in_dom, not_in_dom,
-at_state, update, create, delete, frame (the generated clauses, with "map",
-"id", "state" or "var" saying what they are about), local (a clause of the
-local edge, with the "path" and "line" it was written on) or constrain (a
-clause of a constrain directive, with its "line") or dropped (a guard clause
-that read a map -only left out, with the "maps" it read; it is listed, not in
-the predicate). An edge the author wrote by hand has no origin and no clauses.
-
-With -only, the expansion keeps the named families (a map, or the type of
-one) and leaves out the others' maps and the edges only they move. An event a
-kept family takes together with a left-out one stays, offered by the
-environment. A guard clause that read a left-out map is taken as true and
-listed: as a warning, and as a dropped clause. Every invariant violation and
-event-avoiding cycle over the kept families survives the restriction; a
-deadlock a left-out family caused does not.
+at_state, update, create, delete, frame, local, constrain or dropped. Its -only
+takes a map or a type, and -template is refused with it.
 
 Options:
 `)
@@ -92,12 +95,12 @@ Examples:
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
 		base := flags.String("base", "", "directory to resolve !include paths against (default: the directory of the input file)")
-		templatePath := flags.String("template", "", "file replacing the wording of the generated clauses (default: symbolic)")
-		noComments := flags.Bool("no-comments", false, "omit the line comment that says where each generated edge came from")
+		templatePath := flags.String("template", "", "file of templates glossing the builtins of each edge in a line comment (default: none)")
+		noComments := flags.Bool("no-comments", false, "omit the line comment that says where each generated edge came from (-format json)")
 		werror := flags.Bool("Werror", false, "treat warnings as errors")
 		lintOnly := flags.Bool("lint-only", false, "check the directives without printing the expansion")
 		asJSON := flags.Bool("json", false, "print the parsed directives as JSON instead of expanding them")
-		only := flags.String("only", "", "comma-separated families to keep, each a map or a type (default: all)")
+		only := flags.String("only", "", "comma-separated families to keep, each named by its map (default: all)")
 		var format string
 		flags.StringVar(&format, "format", promote.OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program, with the clauses of every edge)")
 

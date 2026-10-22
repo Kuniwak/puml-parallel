@@ -84,8 +84,12 @@ $ csdfparse < examples/valid/skip.puml
 `csdfhide` hides channels of a single CSDF diagram following CSP hiding semantics
 (`P \ {|c|}`): every edge on a hidden channel becomes an internal `tau`
 transition, whatever its fields. A hidden field is a value the `tau` chooses
-(`c?x` hidden is `⊓ x. τ`): the clauses still read `x`, and `csdfbmc` chooses it
-from its type in the checks module (`TYPES`). The result is printed as PlantUML.
+(`c?x` hidden is `⊓ x. τ`): a field the guard and post read through a hole
+(`$x`) is bound by `@exists` in both, the guard `g` becoming `∃x. g` and the
+post `∃x. (g ∧ p)`, so that the two agree on it
+([CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). Until fields carry their
+types, the bound field ranges over the type named like it, which is why it
+prints as `@exists(x : x) (…)`. The result is printed as PlantUML.
 
 ```console
 $ csdfhide -channels 'sync' examples/valid/in.puml
@@ -110,14 +114,21 @@ diagram still renders, and the picture shows the promotion.
 ```console
 $ csdfpromote examples/promote/TRADES.puml
 $ csdfpromote -lint-only -Werror examples/promote/TRADES.puml
-$ csdfpromote examples/promote/TRADES.puml | csdflivelockfree -
 ```
 
 Every predicate of the expansion is its clauses joined by the connective ` ∧ `
-(see [SYNTAX.md](./docs/SYNTAX.md)): the generated ones first, then the
-author's, copied verbatim. `-format json` writes the expansion as JSON instead,
-with every generated edge's clauses one by one and each clause's kind, so a
-program reading it never has to parse the wording back.
+(see [SYNTAX.md](./docs/SYNTAX.md)): the generated ones are builtins
+(`@in`, `@at`, `@frame`, …), and the author's are copied with a local
+variable `v` of the instance `x` of the map `m` written into their holes as
+`${m[x].v}`. `-template` glosses the builtins in a line comment above each
+edge. `-format json` writes the expansion as JSON instead, with every
+generated edge's clauses one by one and each clause's kind; it is the
+expansion of the tools before `csdf/core`, which `csdfbmc` reads until it
+moves onto the clause syntax.
+
+The PUML expansion is not yet read by `csdflivelockfree`, `csdftracechk`,
+`csdftranstable` or `csdfrefinement`, which read the clauses of the tools
+before `csdf/core` (#76).
 
 ```console
 $ csdfpromote -format json examples/promote/TRADES.puml

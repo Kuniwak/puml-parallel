@@ -58,8 +58,9 @@ type Constrain struct {
 // the global start edge, which may only say that maps are empty, as they
 // start, and give the start mode's controller variables their values.
 // Assumes are the assume notes of the global diagram, which the expansion
-// carries.
+// carries. Labels label the modes, for the reader alone.
 type Promotion struct {
+	Labels     map[string]string
 	Assumes    []Assumption
 	Modes      []string
 	Vars       map[string][]string
@@ -84,7 +85,7 @@ type Promotion struct {
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
-	out := &Diagram{States: slices.Clone(p.Modes), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
+	out := &Diagram{States: slices.Clone(p.Modes), Labels: maps.Clone(p.Labels), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
@@ -408,7 +409,34 @@ const (
 	Warn Level = iota
 	// Info is something that may well be meant.
 	Info
+	// Note says what a result means, and is no mistake.
+	Note
 )
+
+func (l Level) String() string {
+	switch l {
+	case Info:
+		return "info"
+	case Note:
+		return "note"
+	}
+	return "warning"
+}
+
+// String is w as a tool prints it: its level, where, then what.
+func (w Warning) String() string {
+	where := w.Map
+	if w.Event != "" {
+		if where != "" {
+			where += " "
+		}
+		where += w.Event
+	}
+	if where == "" {
+		return w.Level.String() + ": " + w.Text
+	}
+	return w.Level.String() + ": " + where + ": " + w.Text
+}
 
 // Warning is something Promote reports of what the author wrote: Level
 // says how much it matters, Map and Event where, Text what.
