@@ -254,6 +254,9 @@ func (r *promotionReader) constrain(l string) error {
 	if !ok {
 		return fmt.Errorf("constrain %s: expected `constrain EVENT ; guard`", head)
 	}
+	if strings.TrimSpace(guard) == "" {
+		return fmt.Errorf("constrain %s has an empty guard, which constrains nothing", head)
+	}
 	e, err := csdf.ParseEvent(head)
 	if err != nil {
 		return fmt.Errorf("constrain %s: %w", head, err)
