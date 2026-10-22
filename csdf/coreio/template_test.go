@@ -23,29 +23,49 @@ func gated(t *testing.T) *core.Diagram {
 }
 
 func TestWriteGlossedGlossesTheBuiltinsAndReadsBackTheSame(t *testing.T) {
-	// Setup
-	templates, err := LoadTemplates(`{{define "in"}}{{index .Args 0}} がある{{end}}{{define "at"}}{{index .Args 0}} は {{.State}}{{end}}`)
-	if err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		name, templates string
+		// want is the line above the edge, or "" for none.
+		want string
+	}{
+		{"a gloss of the builtins with a template",
+			`{{define "in"}}{{index .Args 0}} がある{{end}}{{define "at"}}{{index .Args 0}} は {{.State}}{{end}}`,
+			"' loc がある ∧ doors[loc] は shut ∧ doors'[loc] は wide\n"},
+		{"a gloss holding a quote",
+			`{{define "empty"}}x{{end}}{{define "frame"}}'{{index .Args 0}}' は保たれる{{end}}`,
+			"' 'doors'' は保たれる\n"},
+		{"no template that applies", `{{define "ne"}}{{index .Args 0}} ≠ {{index .Args 1}}{{end}}`, ""},
 	}
-	d := gated(t)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			templates, err := LoadTemplates(c.templates)
+			if err != nil {
+				t.Fatal(err)
+			}
+			d := gated(t)
 
-	// Execute
-	got, err := WriteGlossed(d, templates)
+			// Execute
+			got, err := WriteGlossed(d, templates)
 
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(got, "' loc がある ∧ doors[loc] は shut ∧ doors'[loc] は wide\nG --> G : OPENS?loc") {
-		t.Errorf("WriteGlossed wrote no gloss above the edge:\n%s", got)
-	}
-	back, err := Read(got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(d, back, sameClauses); diff != "" {
-		t.Errorf("Read(WriteGlossed(d)) (-want +got):\n%s", diff)
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(got, c.want+"G --> G : OPENS?loc") {
+				t.Errorf("WriteGlossed wrote not %q above the edge:\n%s", c.want, got)
+			}
+			if c.want == "" && strings.Contains(got, "\n' ") {
+				t.Errorf("WriteGlossed wrote a gloss where no template applies:\n%s", got)
+			}
+			back, err := Read(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(d, back, sameClauses); diff != "" {
+				t.Errorf("Read(WriteGlossed(d)) (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
