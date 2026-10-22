@@ -375,3 +375,24 @@ func TestTreeOf(t *testing.T) {
 		})
 	}
 }
+
+func TestEqualTrees(t *testing.T) {
+	p := logic.Pred("p", true, logic.Var("x"))
+	testCases := map[string]struct {
+		A, B logic.Formula
+		Want bool
+	}{
+		"the same formula built twice": {logic.And(p, logic.Not(p)), logic.And(p, logic.Not(p)), true},
+		"another argument":             {p, logic.Pred("p", true, logic.Var("y")), false},
+		"another type of a quantifier": {logic.ExistsTyped([]logic.Var{"x"}, []string{"A"}, p), logic.ExistsTyped([]logic.Var{"x"}, []string{"B"}, p), false},
+		"quoted and not":               {p, logic.Pred("p", false, logic.Var("x")), false},
+		"an index and a field":         {logic.Eq(logic.Index(logic.Var("m"), logic.Var("k")), logic.Var("v")), logic.Eq(logic.Field(logic.Var("m"), "k"), logic.Var("v")), false},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			if got := logic.EqualTrees(logic.TreeOf(tc.A), logic.TreeOf(tc.B)); got != tc.Want {
+				t.Errorf("logic.EqualTrees = %v, want %v", got, tc.Want)
+			}
+		})
+	}
+}

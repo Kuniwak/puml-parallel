@@ -567,3 +567,18 @@ func Trees(fs []Formula) []Tree {
 	}
 	return out
 }
+
+// EqualTrees reports whether a and b are the same tree.
+func EqualTrees(a, b Tree) bool {
+	if a.Op != b.Op || a.Name != b.Name || a.Quoted != b.Quoted ||
+		!slices.Equal(a.Vars, b.Vars) || !slices.Equal(a.Types, b.Types) ||
+		!slices.EqualFunc(a.Terms, b.Terms, equalTermTrees) ||
+		!slices.EqualFunc(a.Operands, b.Operands, EqualTrees) {
+		return false
+	}
+	return true
+}
+
+func equalTermTrees(a, b TermTree) bool {
+	return a.Op == b.Op && a.Name == b.Name && slices.EqualFunc(a.Args, b.Args, equalTermTrees)
+}

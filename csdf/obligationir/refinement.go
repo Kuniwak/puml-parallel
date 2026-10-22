@@ -19,6 +19,16 @@ const (
 	IRRefinementModeFailuresDivergence IRRefinementMode = "failures-divergence"
 )
 
+// ParseIRRefinementMode is the model s names: trace, stable-failure or
+// failures-divergence.
+func ParseIRRefinementMode(s string) (IRRefinementMode, error) {
+	switch m := IRRefinementMode(s); m {
+	case IRRefinementModeTrace, IRRefinementModeStableFailure, IRRefinementModeFailuresDivergence:
+		return m, nil
+	}
+	return "", fmt.Errorf("obligationir.ParseIRRefinementMode: no model %q (want trace, stable-failure or failures-divergence)", s)
+}
+
 // Refinement is the obligation that Spec ⊑ Impl in the model Mode, the
 // direction FDR checks, of two diagrams whose clauses are formulas
 // (docs/CLAUSE_DESIGN.md, O8). Each side is stated as its livelock-freedom
@@ -43,15 +53,15 @@ type Channel struct {
 // number of fields in one place and another elsewhere is refused, since its
 // events would be of no one type. An end edge is SKIP when its guard holds.
 func BuildRefinement(mode IRRefinementMode, spec, impl *core.Diagram) (Refinement, error) {
-	sides := make([]LivelockFree, 2)
-	for i, d := range []*core.Diagram{spec, impl} {
-		ir, err := BuildLivelockFree(d)
-		if err != nil {
-			return Refinement{}, fmt.Errorf("obligationir.BuildRefinement: %s: %w", sideName(i), err)
-		}
-		sides[i] = ir
+	specIR, err := BuildLivelockFree(spec)
+	if err != nil {
+		return Refinement{}, fmt.Errorf("obligationir.BuildRefinement: the spec: %w", err)
 	}
-	r := Refinement{Version: IRVersion, Mode: mode, Spec: sides[0], Impl: sides[1]}
+	implIR, err := BuildLivelockFree(impl)
+	if err != nil {
+		return Refinement{}, fmt.Errorf("obligationir.BuildRefinement: the impl: %w", err)
+	}
+	r := Refinement{Version: IRVersion, Mode: mode, Spec: specIR, Impl: implIR}
 	alphabet, err := r.channels()
 	if err != nil {
 		return Refinement{}, fmt.Errorf("obligationir.BuildRefinement: %w", err)
@@ -60,13 +70,21 @@ func BuildRefinement(mode IRRefinementMode, spec, impl *core.Diagram) (Refinemen
 	return r, nil
 }
 
-func sideName(i int) string { return []string{"the spec", "the impl"}[i] }
+// namedSide is a side of a refinement and what an error calls it.
+type namedSide struct {
+	name string
+	ir   LivelockFree
+}
+
+func (r Refinement) sides() []namedSide {
+	return []namedSide{{"the spec", r.Spec}, {"the impl", r.Impl}}
+}
 
 // channels is the sorted union of the visible channels of both sides.
 func (r Refinement) channels() ([]Channel, error) {
 	arity := map[string]int{}
-	for _, side := range []LivelockFree{r.Spec, r.Impl} {
-		for _, e := range side.Edges {
+	for _, side := range r.sides() {
+		for _, e := range side.ir.Edges {
 			if e.Tau() {
 				continue
 			}
@@ -91,14 +109,12 @@ func (r Refinement) Validate() error {
 	if r.Version != IRVersion {
 		return fmt.Errorf("obligationir.Refinement.Validate: version %d, want %d", r.Version, IRVersion)
 	}
-	switch r.Mode {
-	case IRRefinementModeTrace, IRRefinementModeStableFailure, IRRefinementModeFailuresDivergence:
-	default:
-		return fmt.Errorf("obligationir.Refinement.Validate: no model %q", r.Mode)
+	if _, err := ParseIRRefinementMode(string(r.Mode)); err != nil {
+		return fmt.Errorf("obligationir.Refinement.Validate: %w", err)
 	}
-	for i, side := range []LivelockFree{r.Spec, r.Impl} {
-		if err := side.Validate(); err != nil {
-			return fmt.Errorf("obligationir.Refinement.Validate: %s: %w", sideName(i), err)
+	for _, side := range r.sides() {
+		if err := side.ir.Validate(); err != nil {
+			return fmt.Errorf("obligationir.Refinement.Validate: %s: %w", side.name, err)
 		}
 	}
 	want, err := r.channels()
@@ -134,14 +150,12 @@ func (r Refinement) Declarations(todo string) ([]Declaration, error) {
 func (r Refinement) Axioms() []logic.Tree {
 	var out []logic.Tree
 	for _, a := range slices.Concat(r.Spec.Axioms, r.Impl.Axioms) {
-		if !slices.ContainsFunc(out, func(b logic.Tree) bool { return treeEqual(a, b) }) {
+		if !slices.ContainsFunc(out, func(b logic.Tree) bool { return logic.EqualTrees(a, b) }) {
 			out = append(out, a)
 		}
 	}
 	return out
 }
-
-func treeEqual(a, b logic.Tree) bool { return fmt.Sprintf("%#v", a) == fmt.Sprintf("%#v", b) }
 
 // EventArgs are the values an event of e carries, in the order of its
 // fields: a received field is the variable the step chooses, and a sent one

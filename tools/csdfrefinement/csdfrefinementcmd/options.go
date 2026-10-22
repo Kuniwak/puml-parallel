@@ -22,22 +22,28 @@ type Options struct {
 // CommonOptions returns the parsed common options.
 func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
 
+// abbreviations are the short spellings of the models -m takes.
+var abbreviations = map[string]obligationir.IRRefinementMode{
+	"t":  obligationir.IRRefinementModeTrace,
+	"f":  obligationir.IRRefinementModeStableFailure,
+	"fd": obligationir.IRRefinementModeFailuresDivergence,
+}
+
 // ParseMode maps a -m spelling to the model the obligation is stated in. Both the
 // short and the long name are accepted; there is no default, because which model
 // a refinement holds in is a different claim in each case.
 func ParseMode(s string) (obligationir.IRRefinementMode, error) {
-	switch s {
-	case "t", "trace":
-		return obligationir.IRRefinementModeTrace, nil
-	case "f", "stable-failure":
-		return obligationir.IRRefinementModeStableFailure, nil
-	case "fd", "failures-divergence":
-		return obligationir.IRRefinementModeFailuresDivergence, nil
-	case "":
+	if s == "" {
 		return "", errors.New("-m is required (want t|trace, f|stable-failure, or fd|failures-divergence)")
-	default:
+	}
+	if m, ok := abbreviations[s]; ok {
+		return m, nil
+	}
+	m, err := obligationir.ParseIRRefinementMode(s)
+	if err != nil {
 		return "", fmt.Errorf("unknown -m %q (want t|trace, f|stable-failure, or fd|failures-divergence)", s)
 	}
+	return m, nil
 }
 
 func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
