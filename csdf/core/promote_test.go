@@ -4,13 +4,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
 
 // The denotation of a promotion is written by hand below, independently of
 // Promote and Expand (docs/CLAUSE_DESIGN.md): each instance is an LTS of its
-// own, absent at 0, its events renamed e to e.i and a sync's local events to
+// own, at 0 while it does not exist, which is the local start state, its events renamed e to e.i and a sync's local events to
 // the sync's labels, and the instances run in alphabetised parallel
 // (lts.Parallel). The labels are written as Expand writes them: the channel,
 // then the IDs, then the fields, joined by ".".
@@ -19,48 +21,83 @@ import (
 // takes q away, ARRIVE brings q, and CLOSE deletes it once it is empty.
 func location(t *testing.T) *Diagram {
 	return &Diagram{
-		States:   []string{"open"},
-		Vars:     map[string][]string{"open": {"stock"}},
-		Init:     "open",
-		InitPost: mustParse(t, "$stock' = 1"),
+		States: []string{"none", "open"},
+		Vars:   map[string][]string{"open": {"stock"}},
+		Init:   "none",
 		Edges: []Edge{
+			{Src: "none", Dst: "open", Event: ev("OPEN"), Post: mustParse(t, "$stock' = 1")},
 			{Src: "open", Dst: "open", Event: ev("DEPART", recv("q")), Guard: mustParse(t, "$stock >= $q"), Post: mustParse(t, "$stock' = $stock - $q")},
 			{Src: "open", Dst: "open", Event: ev("ARRIVE", recv("q")), Guard: mustParse(t, "$stock + $q <= 2"), Post: mustParse(t, "$stock' = $stock + $q")},
+			{Src: "open", Dst: "none", Event: ev("CLOSE"), Guard: mustParse(t, "$stock = 0")},
 		},
-		Ends: []End{{Src: "open", Guard: mustParse(t, "$stock = 0")}},
 	}
 }
 
 // shipment: NEW creates it waiting; it is moved, and BACK returns it to
-// waiting, the state it started in, where it still exists.
+// waiting.
 func shipment(t *testing.T) *Diagram {
 	return &Diagram{
-		States: []string{"waiting", "moved"},
-		Init:   "waiting",
+		States: []string{"none", "waiting", "moved"},
+		Init:   "none",
 		Edges: []Edge{
+			{Src: "none", Dst: "waiting", Event: ev("NEW")},
 			{Src: "waiting", Dst: "moved", Event: ev("MOVE", recv("q"))},
 			{Src: "moved", Dst: "waiting", Event: ev("BACK")},
 		},
 	}
 }
 
-// door: NEW creates it shut; it opens and shuts, coming back to the state
-// it started in, and GONE deletes it while shut.
+// door: NEW creates it shut; it opens and shuts, coming back to shut, and
+// GONE deletes it while shut, leading back to the start state.
 func door() *Diagram {
 	return &Diagram{
-		States: []string{"shut", "wide"},
-		Init:   "shut",
+		States: []string{"none", "shut", "wide"},
+		Init:   "none",
 		Edges: []Edge{
+			{Src: "none", Dst: "shut", Event: ev("NEW")},
 			{Src: "shut", Dst: "wide", Event: ev("OPENS")},
 			{Src: "wide", Dst: "shut", Event: ev("SHUTS")},
+			{Src: "shut", Dst: "none", Event: ev("GONE")},
 		},
-		Ends: []End{{Src: "shut"}},
 	}
 }
 
 // doorInstance is the door x by hand: 0 is absent, 1 shut, 2 wide.
 func doorInstance(x string) *lts.LTS {
 	return handLTS(tr{0, "NEW." + x, 1}, tr{1, "OPENS." + x, 2}, tr{2, "SHUTS." + x, 1}, tr{1, "GONE." + x, 0})
+}
+
+// key: CUT creates it held, and LOST deletes it.
+func key() *Diagram {
+	return &Diagram{
+		States: []string{"none", "held"},
+		Init:   "none",
+		Edges: []Edge{
+			{Src: "none", Dst: "held", Event: ev("CUT")},
+			{Src: "held", Dst: "none", Event: ev("LOST")},
+		},
+	}
+}
+
+// fittedDoor is the door x by hand when INSTALL creates it together with a
+// key and SCRAP deletes it together with one: 0 is absent, 1 shut, 2 wide.
+func fittedDoor(x string) *lts.LTS {
+	l := handLTS(tr{1, "OPENS." + x, 2}, tr{2, "SHUTS." + x, 1})
+	for _, k := range shipIDs {
+		l.Add(0, "INSTALL."+x+"."+k, 1)
+		l.Add(1, "SCRAP."+x+"."+k, 0)
+	}
+	return l
+}
+
+// fittedKey is the key k by hand: 0 is absent, 1 held.
+func fittedKey(k string) *lts.LTS {
+	l := lts.New(0)
+	for _, x := range locIDs {
+		l.Add(0, "INSTALL."+x+"."+k, 1)
+		l.Add(1, "SCRAP."+x+"."+k, 0)
+	}
+	return l
 }
 
 var (
@@ -173,8 +210,15 @@ func envWith(t *testing.T, env Env, families ...Family) Env {
 	return env
 }
 
+// beacon is a local diagram of one state on besides its start state none,
+// with edges on it.
+func beacon(edges ...Edge) *Diagram {
+	return &Diagram{States: []string{"none", "on"}, Init: "none",
+		Edges: append([]Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, edges...)}
+}
+
 func TestPromoteRefuses(t *testing.T) {
-	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
+	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
 	cases := []struct {
 		name string
 		p    Promotion
@@ -190,31 +234,77 @@ func TestPromoteRefuses(t *testing.T) {
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "locations[loc]"},
 		{"a sync clause reading a name that is no map, target or field", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "$z = 0"), Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "z"},
-		{"a target taking a local internal event", promotion(Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}, Sync{Event: "SEE", Targets: []Target{
+		{"a target taking a local internal event", promotion(Family{Map: "lamps", ID: "l", Local: lamp()}, Sync{Event: "SEE", Targets: []Target{
 			{Map: "lamps", ID: "l", Event: Tau}}}), "internal"},
-		{"a local edge sending what its instance does not hold", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
-			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev("PING", send("code"))}}}}), "code"},
-		{"a local internal edge with fields", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
-			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev(Tau, recv("code"))}}}}), "fields"},
-		{"a local diagram naming a state it does not declare", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
-			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "off", Event: ev("PING")}}}}), "no state off"},
-		{"a local clause that is not well formed", promotion(Family{Map: "beacons", ID: "b", Create: "NEW", Local: &Diagram{
-			States: []string{"on"}, Init: "on", Edges: []Edge{{Src: "on", Dst: "on", Event: ev("PING"),
-				Guard: clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Free{Name: "x"}}}}}}}}}), "clause.WellFormed"},
-		{"a sync clause that is not well formed", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}, Sync{Event: "MOVE",
+		{"a local edge sending what its instance does not hold", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
+			Edge{Src: "on", Dst: "on", Event: ev("PING", send("code"))})}), "code"},
+		{"a local internal edge with fields", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
+			Edge{Src: "on", Dst: "on", Event: ev(Tau, recv("code"))})}), "fields"},
+		{"a local diagram naming a state it does not declare", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
+			Edge{Src: "on", Dst: "off", Event: ev("PING")})}), "no state off"},
+		{"a local clause that is not well formed", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
+			Edge{Src: "on", Dst: "on", Event: ev("PING"),
+				Guard: clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Free{Name: "x"}}}}}})}), "clause.WellFormed"},
+		{"a sync clause that is not well formed", promotion(locations, Sync{Event: "MOVE",
 			Guard:   clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Free{Name: "from"}}}}},
 			Targets: []Target{{Map: "locations", ID: "from", Event: "DEPART"}}}), "clause.WellFormed"},
-		{"a family without its creation event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Delete: "CLOSE"}), "no creation event"},
-		{"end edges without a deletion event", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN"}), "no deletion event"},
-		{"a creation event named like a local one", promotion(Family{Map: "locations", ID: "loc", Local: location(t), Create: "DEPART", Delete: "CLOSE"}), "DEPART"},
+		{"a start state holding variables", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
+			States: []string{"none", "on"}, Vars: map[string][]string{"none": {"code"}}, Init: "none",
+			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}}}), "holds no state variables"},
+		{"a self-loop on the start state", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
+			Edge{Src: "none", Dst: "none", Event: ev("PING")})}), "self-loop"},
+		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
+			States: []string{"none", "on"}, Init: "none",
+			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			_, err := Promote(c.p)
+			_, _, err := Promote(c.p)
 
 			// Assert
 			assertErrorContains(t, err, c.want)
+		})
+	}
+}
+
+func TestPromoteWarnsOfAPostItDrops(t *testing.T) {
+	cases := []struct {
+		name  string
+		local func(t *testing.T) *Diagram
+		want  []Warning
+	}{
+		{"none", func(*testing.T) *Diagram { return door() }, nil},
+		{"the post of the start edge", func(t *testing.T) *Diagram {
+			d := door()
+			d.InitPost = mustParse(t, "nothing is there")
+			return d
+		}, []Warning{{Map: "doors", Event: "[*]", Text: "the post of the start edge says nothing: the start state means that the instance does not exist"}}},
+		{"the post of a deletion", func(t *testing.T) *Diagram {
+			d := door()
+			for i, e := range d.Edges {
+				if e.Event.Channel == "GONE" {
+					d.Edges[i].Post = mustParse(t, "it is gone")
+				}
+			}
+			return d
+		}, []Warning{{Map: "doors", Event: "GONE", Text: "the post of a deletion says nothing: the instance no longer exists"}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			p := promotion(Family{Map: "doors", ID: "d", Local: c.local(t)})
+
+			// Execute
+			_, got, err := Promote(p)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(c.want, got); diff != "" {
+				t.Errorf("warnings (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
@@ -227,9 +317,10 @@ func promotion(f Family, syncs ...Sync) Promotion {
 // internally, where DONE shows it.
 func lamp() *Diagram {
 	return &Diagram{
-		States: []string{"a", "b", "c"},
-		Init:   "a",
+		States: []string{"none", "a", "b", "c"},
+		Init:   "none",
 		Edges: []Edge{
+			{Src: "none", Dst: "a", Event: ev("NEW")},
 			{Src: "a", Dst: "b", Event: ev(Tau)},
 			{Src: "a", Dst: "c", Event: ev("GO")},
 			{Src: "b", Dst: "b", Event: ev("DONE")},
@@ -248,9 +339,10 @@ func lampInstance(x string) *lts.LTS {
 }
 
 func TestMapTypeIsEveryPartialMap(t *testing.T) {
-	// Setup: one ID, absent or at one of two states, one holding a bit.
+	// Setup: one ID, absent (at the start state o) or at one of two states,
+	// one holding a bit.
 	f := Family{Map: "m", ID: "i", Local: &Diagram{
-		States: []string{"p", "q"}, Vars: map[string][]string{"q": {"bit"}}, Init: "p",
+		States: []string{"o", "p", "q"}, Vars: map[string][]string{"q": {"bit"}}, Init: "o",
 	}}
 	env := Env{Types: map[string][]Value{"bit": {0, 1}}}
 
@@ -279,11 +371,11 @@ func TestMapTypeIsEveryPartialMap(t *testing.T) {
 // tank: NEW creates it empty; FILL fills it; LOOK and SHOW send its level.
 func tank(t *testing.T) *Diagram {
 	return &Diagram{
-		States:   []string{"t"},
-		Vars:     map[string][]string{"t": {"level"}},
-		Init:     "t",
-		InitPost: mustParse(t, "$level' = 0"),
+		States: []string{"none", "t"},
+		Vars:   map[string][]string{"t": {"level"}},
+		Init:   "none",
 		Edges: []Edge{
+			{Src: "none", Dst: "t", Event: ev("NEW"), Post: mustParse(t, "$level' = 0")},
 			{Src: "t", Dst: "t", Event: ev("FILL"), Post: mustParse(t, "$level' = 1")},
 			{Src: "t", Dst: "t", Event: ev("LOOK", send("level")), Post: mustParse(t, "$level' = $level")},
 			{Src: "t", Dst: "t", Event: ev("SHOW", send("level")), Post: mustParse(t, "$level' = $level")},
@@ -294,9 +386,10 @@ func tank(t *testing.T) *Diagram {
 // gauge: MAKE creates it; it receives a level on SHOW.
 func gauge() *Diagram {
 	return &Diagram{
-		States: []string{"g"},
-		Init:   "g",
-		Edges:  []Edge{{Src: "g", Dst: "g", Event: ev("SHOW", recv("level"))}},
+		States: []string{"none", "g"},
+		Init:   "none",
+		Edges: []Edge{{Src: "none", Dst: "g", Event: ev("MAKE")},
+			{Src: "g", Dst: "g", Event: ev("SHOW", recv("level"))}},
 	}
 }
 
@@ -324,7 +417,8 @@ func tankEnv(t *testing.T, families ...Family) Env {
 
 // glancer: a gauge receiving a level on PEEK and on GLANCE.
 func glancer() *Diagram {
-	return &Diagram{States: []string{"g"}, Init: "g", Edges: []Edge{
+	return &Diagram{States: []string{"none", "g"}, Init: "none", Edges: []Edge{
+		{Src: "none", Dst: "g", Event: ev("MAKE")},
 		{Src: "g", Dst: "g", Event: ev("PEEK", recv("level"))},
 		{Src: "g", Dst: "g", Event: ev("GLANCE", recv("level"))},
 	}}
@@ -373,13 +467,14 @@ func readingDenotation(t *testing.T) *lts.LTS {
 }
 
 func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
-	locations := Family{Map: "locations", ID: "loc", Local: location(t), Create: "OPEN", Delete: "CLOSE"}
-	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t), Create: "NEW"}
-	doors := Family{Map: "doors", ID: "loc", Local: door(), Create: "NEW", Delete: "GONE"}
-	lamps := Family{Map: "lamps", ID: "l", Local: lamp(), Create: "NEW"}
-	tanks := Family{Map: "tanks", ID: "k", Local: tank(t), Create: "NEW"}
-	gauges := Family{Map: "gauges", ID: "g", Local: gauge(), Create: "MAKE"}
-	glancers := Family{Map: "gauges", ID: "g", Local: glancer(), Create: "MAKE"}
+	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
+	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
+	doors := Family{Map: "doors", ID: "loc", Local: door()}
+	keys := Family{Map: "keys", ID: "s", Local: key()}
+	lamps := Family{Map: "lamps", ID: "l", Local: lamp()}
+	tanks := Family{Map: "tanks", ID: "k", Local: tank(t)}
+	gauges := Family{Map: "gauges", ID: "g", Local: gauge()}
+	glancers := Family{Map: "gauges", ID: "g", Local: glancer()}
 	tankTarget, gaugeTarget := Target{Map: "tanks", ID: "k", Event: "SHOW"}, Target{Map: "gauges", ID: "g", Event: "SHOW"}
 	tankFirst := func(level string) string { return "SHOW.t1.g1." + level }
 	gaugeFirst := func(level string) string { return "SHOW.g1.t1." + level }
@@ -395,11 +490,22 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		want func(t *testing.T) *lts.LTS
 	}{
 		{
-			name: "instances are created, return to their start state while they exist, and are deleted",
+			name: "an edge out of the start state creates an instance, and an edge into it deletes one",
 			p:    Promotion{State: "G", Families: []Family{doors}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b")}, []func(string) bool{mentions("a"), mentions("b")})
+			},
+		},
+		{
+			name: "a sync may take a creation and a deletion",
+			p: Promotion{State: "G", Families: []Family{doors, keys}, Syncs: []Sync{
+				{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}},
+				{Event: "SCRAP", Targets: []Target{{Map: "doors", ID: "loc", Event: "GONE"}, {Map: "keys", ID: "s", Event: "LOST"}}},
+			}},
+			env: func(t *testing.T) Env { return stock(t, doors, keys) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{fittedDoor("a"), fittedDoor("b"), fittedKey("s1")}, []func(string) bool{mentions("a"), mentions("b"), mentions("s1")})
 			},
 		},
 		{
@@ -462,7 +568,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			env, want := c.env(t), c.want(t)
 
 			// Execute
-			promoted, err := Promote(c.p)
+			promoted, _, err := Promote(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}

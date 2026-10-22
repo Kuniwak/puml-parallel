@@ -360,3 +360,44 @@ func iTXt(keyword string, compressed bool, text string) rawChunk {
 func iendChunk() rawChunk {
 	return rawChunk{typ: "IEND", data: nil}
 }
+
+func TestReadFile(t *testing.T) {
+	cases := []struct {
+		name    string
+		content []byte
+		want    string
+	}{
+		{"a .puml file", []byte("@startuml\n@enduml"), "@startuml\n@enduml"},
+		{"a .png file", buildPNG(tEXt("plantuml", "@startuml\nA\n@enduml"), iendChunk()), "@startuml\nA\n@enduml"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			path := t.TempDir() + "/d"
+			if err := os.WriteFile(path, c.content, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			got, err := ReadFile(path)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != c.want {
+				t.Errorf("ReadFile = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestReadFileRefusesAMissingFile(t *testing.T) {
+	// Execute
+	_, err := ReadFile(t.TempDir() + "/none")
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "none") {
+		t.Errorf("ReadFile: got %v, want an error naming the file", err)
+	}
+}

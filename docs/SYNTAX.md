@@ -284,6 +284,76 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   syntax.
 
 
+Diagrams of formulas (draft)
+----------------------------
+**Draft for v3.0.0 (#76); read by `csdf/coreio`, which no tool calls yet.**
+
+A diagram whose clauses are in the syntax above has the structure of the
+grammar at the top of this document: states, their variables, a start edge,
+edges and one end edge. Each guard and post is a clause. A clause written by
+an author holds no `@exists` (`coreio.ReadAuthored`); one written by a tool
+may (`coreio.Read`). A variable's type, written after `;` on its line, is
+not read yet: a variable has the type named like it (`docs/CLAUSE_DESIGN.md`).
+An assume note is refused for now.
+
+A global diagram that promotes families is written as:
+
+```
+@startuml
+state "稼働中" as running {
+  state "locations : l ⇸ Location" as runningLocations <<promote>> {
+    !include local/LOCATION.puml
+  }
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+}
+[*] --> running
+
+note as move
+  sync MOVE : shipments(s).SHIP, locations(from).DEPART, locations(to).ARRIVE ; ${locations[from].在庫} > 1
+end note
+@enduml
+```
+
+- One composite state holds a `<<promote>>` block per family, titled
+  `map : ID ⇸ Type` (or `->>`) as in docs/PROMOTION.md: the map that holds
+  the instances, the name of an instance's ID, and the type of one instance,
+  which is not read yet. The block includes the family's local diagram, read
+  relative to the global file. The composite state may declare the maps it
+  holds, as `running : buys ; 約定ID ⇸ Buy`. The global diagram has no other state and no edge but its
+  start edge, which has no post: every map starts empty.
+- A local diagram keeps the contract of docs/PROMOTION.md: its start state
+  means that the instance does not exist, an edge out of it creates an
+  instance and an edge into it deletes one.
+- A note, floating or anchored to a block, whose first line is a directive
+  holds that one directive; the lines after it are prose. A note whose first
+  line is no directive is for the picture and is skipped. The directive is:
+  - `sync EVENT : target, … [; clause]` — the instances that take EVENT
+    together. A target is `map(id)`, which takes the local event named
+    EVENT, or `map(id).event`, which takes `event`; two targets of one map
+    bind two instances, whose IDs the expansion says differ. The clause after
+    `;` is the sync's guard: it reads the maps and the targets' IDs, and
+    what it reads of a bound instance is carried by the event.
+- `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
+  `!define` are for the picture and are skipped.
+- A second `sync` of one event, a second block of one map, and
+  `!include_many` or `!includesub` are refused.
+
+Not read yet, each refused by name until step 5½b of #76 brings it over
+from docs/PROMOTION.md:
+
+- `constrain`;
+- several global states (modes), and so a bodyless `<<promote>>` block and a
+  family frozen in a state;
+- a hand-written edge of the global diagram;
+- a post on the global start edge;
+- an `assume` note in the global diagram;
+- a variable of the global state that is no family's map;
+- `csdfpromote -only` and `-template`, which no tool reads a formula
+  promotion with yet.
+
+
 Global Diagram Format
 ---------------------
 The grammar above is what every tool reads. `csdfpromote` reads an upper-compatible

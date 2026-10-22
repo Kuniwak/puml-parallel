@@ -132,3 +132,39 @@ state "稼働中" as running {
 		t.Error("PromotionHintError wraps nothing, want the parse error under it")
 	}
 }
+
+func TestBlankIgnoreRegionsKeepsLineNumbers(t *testing.T) {
+	// Setup
+	source := "a\n' CSDF-IGNORE-BEGIN\nb\n' CSDF-IGNORE-END\nc"
+	want := "a\n\n\n\nc"
+
+	// Execute
+	got := BlankIgnoreRegions(source)
+
+	// Assert
+	if got != want {
+		t.Errorf("BlankIgnoreRegions = %q, want %q", got, want)
+	}
+}
+
+func TestCheckIgnoreRegions(t *testing.T) {
+	cases := []struct {
+		name, source string
+		wantErr      bool
+	}{
+		{"no region", "a\nb", false},
+		{"a closed region", "' CSDF-IGNORE-BEGIN\nx\n' CSDF-IGNORE-END\n", false},
+		{"an unterminated region", "a\n' CSDF-IGNORE-BEGIN\nx\n", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			err := CheckIgnoreRegions(c.source)
+
+			// Assert
+			if (err != nil) != c.wantErr {
+				t.Errorf("CheckIgnoreRegions: err = %v, want an error: %v", err, c.wantErr)
+			}
+		})
+	}
+}

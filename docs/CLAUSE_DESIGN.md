@@ -75,8 +75,10 @@ For composition, op_sem is the CSP parallel operator on the graphs:
 
 For promotion, op_sem is a CSP term built from the local diagram P:
 
-- each instance i starts absent; creation leads it into P with every
-  channel c renamed to c.i, and deletion leads it back to absent;
+- each instance i runs P with every channel c renamed to c.i, starting at
+  P's start state S₀, which means that the instance does not exist
+  (docs/PROMOTION.md, the local-diagram contract): an edge out of S₀
+  creates it, an edge into S₀ deletes it;
 - all instances are interleaved over the set of IDs, ||| i ∈ ID;
 - a sync renames the local events it takes to the global event and
   synchronises on it (for `MOVE`, `DEPART.from` and `ARRIVE.to` become
@@ -97,11 +99,15 @@ meaning, and only the instance as it appears in the term offers the event
 so hiding the event there would make a τ self-loop; in the promoted term
 the step is a τ self-loop only if the global side is unchanged as well.
 
-Creation and deletion are events of the family, named by the global
-diagram: creation takes the start edge of P (its post gives the instance's
-first values), deletion takes an end edge of P (its guard says when the
-instance may go). P's start state is an ordinary state an instance may
-return to; only absence means the instance does not exist.
+Absence is P's own start state, not a state added beside it, for two
+reasons. The term is then exactly ||| over the IDs of P itself, so promotion
+is syntax sugar that changes no meaning. And it adds no state: bounded
+checking walks one control state fewer per instance than a separate absent
+state would. So S₀ holds no state variables, has no self-loop, and P has no
+end edge; creation and deletion are ordinary edges of P, so a sync may take
+them like any other. The post of P's start edge and of a deletion say
+nothing, since there is no instance for them to be about, and are dropped
+with a warning (docs/PROMOTION.md).
 
 In a sync, the fields of the local events taken are merged by name: one
 name is one field of the global event, so the moves that name it agree on
@@ -109,7 +115,7 @@ its value. A move that receives it reads that value; a move that sends it
 fixes it, and two moves that send it must send equal values.
 
 The map of a promoted diagram is then the tuple of the instances' local
-states, domain membership is "not absent", and an instance's control state
+states, domain membership is "not at S₀", and an instance's control state
 is its position in P; the obligation is that the expanded graph of the
 promoted diagram is stable-failures equivalent to that term.
 

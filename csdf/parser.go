@@ -18,14 +18,24 @@ type Parser struct {
 	pos   int
 	line  int
 	col   int
+	check func(Predicate) error
 }
 
+// NewParser reads a diagram whose clauses are in the vocabulary CheckClauses
+// accepts.
 func NewParser(input string) *Parser {
+	return NewParserCheckingClauses(input, CheckClauses)
+}
+
+// NewParserCheckingClauses reads a diagram whose predicates check accepts,
+// for a reader of another clause language than CheckClauses's.
+func NewParserCheckingClauses(input string, check func(Predicate) error) *Parser {
 	return &Parser{
 		input: input,
 		pos:   0,
 		line:  1,
 		col:   1,
+		check: check,
 	}
 }
 
@@ -301,7 +311,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 	if !p.expectNewlines() {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected newline after start edge declaration at line %d, col %d", p.line, p.col)
 	}
-	if err := checkClauses(line, "post", Predicate(post)); err != nil {
+	if err := p.checkClauses(line, "post", Predicate(post)); err != nil {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
@@ -383,10 +393,10 @@ func (p *Parser) parseEdge() (Edge, error) {
 	if !p.expectNewlines() {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: expected newline after edge declaration at line %d, col %d", p.line, p.col)
 	}
-	if err := checkClauses(line, "guard", Predicate(guard)); err != nil {
+	if err := p.checkClauses(line, "guard", Predicate(guard)); err != nil {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
-	if err := checkClauses(line, "post", Predicate(post)); err != nil {
+	if err := p.checkClauses(line, "post", Predicate(post)); err != nil {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
@@ -799,7 +809,7 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	if !p.expectNewlines() {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: expected newline after end edge declaration at line %d, col %d", p.line, p.col)
 	}
-	if err := checkClauses(line, "guard", Predicate(guard)); err != nil {
+	if err := p.checkClauses(line, "guard", Predicate(guard)); err != nil {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
 
@@ -810,10 +820,10 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 	}, nil
 }
 
-// checkClauses refuses a predicate whose clauses CheckClauses refuses, saying
-// the line it was written on and which predicate of the line it is.
-func checkClauses(line int, which string, p Predicate) error {
-	if err := CheckClauses(p); err != nil {
+// checkClauses refuses a predicate the parser's check refuses, saying the
+// line it was written on and which predicate of the line it is.
+func (p *Parser) checkClauses(line int, which string, pred Predicate) error {
+	if err := p.check(pred); err != nil {
 		return fmt.Errorf("line %d, the %s: %w", line, which, err)
 	}
 	return nil

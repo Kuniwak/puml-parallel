@@ -8,15 +8,15 @@ import (
 )
 
 // Family is a promoted family: its instances live in the map Map, an
-// instance ID is written ID, and an instance runs Local. The event Create
-// creates an instance, taking Local's start edge; Delete deletes one, taking
-// one of Local's end edges, and is required when Local has any. An instance
-// that does not exist has no entry in the map; Local's start state is an
-// ordinary state.
+// instance ID is written ID, and an instance runs Local. Local's start state
+// means that the instance does not exist (docs/PROMOTION.md, the
+// local-diagram contract): it holds no state variables and has no
+// self-loop, an edge out of it creates an instance, an edge into it deletes
+// one, and Local has no end edge. An instance that does not exist has no
+// entry in the map.
 type Family struct {
-	Map, ID        string
-	Local          *Diagram
-	Create, Delete string
+	Map, ID string
+	Local   *Diagram
 }
 
 // Target is one occurrence in a sync: an instance of the family of Map,
@@ -46,23 +46,28 @@ type Promotion struct {
 // Promote is the global diagram of p (docs/CLAUSE_DESIGN.md, a constructor):
 // ⟦Promote(p)⟧ is the instances of every family interleaved, each running
 // its local diagram with its own events renamed e to e.i, synchronised on
-// the syncs, each instance absent until created and after it is deleted. A
+// the syncs, each instance at its local start state, absent from the map,
+// until created and after it is deleted. The posts of Local's start edge
+// and of a deletion say nothing, there being no instance for them to be
+// about, and are dropped with a warning (docs/PROMOTION.md). A
 // local variable v of an instance bound to x is the term
 // m[x].v: promotion substitutes it into the holes of the local clauses (O3),
 // so that two instances of one family in one sync are told apart, and the
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
-func Promote(p Promotion) (*Diagram, error) {
+func Promote(p Promotion) (*Diagram, []Warning, error) {
 	out := &Diagram{States: []string{p.State}, Init: p.State, Vars: map[string][]string{}}
 	var maps []string
 	var start []clause.Formula
+	var warnings []Warning
 	for _, f := range p.Families {
 		if err := f.Local.wellFormed(); err != nil {
-			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
 		if err := lifecycle(f); err != nil {
-			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
+		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
@@ -71,11 +76,11 @@ func Promote(p Promotion) (*Diagram, error) {
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
-			return nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
 		edges, err := promoteSync(p, s)
 		if err != nil {
-			return nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
 		out.Edges = append(out.Edges, edges...)
 		for _, tg := range s.Targets {
@@ -83,43 +88,77 @@ func Promote(p Promotion) (*Diagram, error) {
 		}
 	}
 	for _, f := range p.Families {
-		alone := []move{{f: f, id: f.ID, kind: creation,
-			e: Edge{Dst: f.Local.Init, Event: Event{Channel: f.Create}, Post: f.Local.InitPost}}}
-		for _, end := range f.Local.Ends {
-			alone = append(alone, move{f: f, id: f.ID, kind: deletion,
-				e: Edge{Src: end.Src, Event: Event{Channel: f.Delete}, Guard: end.Guard}})
-		}
+		var alone []move
 		for _, e := range f.Local.Edges {
 			if !taken[f.Map+"."+e.Event.Channel] {
-				alone = append(alone, move{f: f, id: f.ID, e: e})
+				alone = append(alone, moveOf(f, f.ID, e))
 			}
 		}
 		for _, m := range alone {
 			edge, err := promoteAlone(p, m)
 			if err != nil {
-				return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+				return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 			}
 			out.Edges = append(out.Edges, edge)
 		}
 	}
-	return out, nil
+	return out, warnings, nil
 }
 
-// lifecycle reports, as an error, a family whose creation or deletion
-// event is missing or named like one of its local events.
-func lifecycle(f Family) error {
-	if f.Create == "" {
-		return fmt.Errorf("no creation event")
-	}
-	if len(f.Local.Ends) > 0 && f.Delete == "" {
-		return fmt.Errorf("end edges, but no deletion event")
+// Warning is something Promote dropped that the author wrote: Map and
+// Event say where, Text what (docs/PROMOTION.md, the warnings table).
+type Warning struct {
+	Map   string
+	Event string
+	Text  string
+}
+
+// dropped warns of the posts of f that Promote drops: the post of its
+// local start edge and of a deletion say nothing, there being no instance
+// for them to be about.
+func dropped(f Family) []Warning {
+	var ws []Warning
+	if len(f.Local.InitPost.Conjuncts) > 0 {
+		ws = append(ws, Warning{Map: f.Map, Event: "[*]", Text: "the post of the start edge says nothing: the start state means that the instance does not exist"})
 	}
 	for _, e := range f.Local.Edges {
-		if e.Event.Channel == f.Create || e.Event.Channel == f.Delete {
-			return fmt.Errorf("the creation or deletion event %s is named like a local event", e.Event.Channel)
+		if e.Dst == f.Local.Init && len(e.Post.Conjuncts) > 0 {
+			ws = append(ws, Warning{Map: f.Map, Event: e.Event.Channel, Text: "the post of a deletion says nothing: the instance no longer exists"})
+		}
+	}
+	return ws
+}
+
+// lifecycle reports, as an error, a local diagram that breaks the
+// local-diagram contract (docs/PROMOTION.md): its start state means that
+// the instance does not exist.
+func lifecycle(f Family) error {
+	s0 := f.Local.Init
+	if len(f.Local.Vars[s0]) > 0 {
+		return fmt.Errorf("the start state %s holds no state variables: it means that the instance does not exist", s0)
+	}
+	if len(f.Local.Ends) > 0 {
+		return fmt.Errorf("a local diagram has no end edge: an edge into the start state %s deletes the instance", s0)
+	}
+	for _, e := range f.Local.Edges {
+		if e.Src == s0 && e.Dst == s0 {
+			return fmt.Errorf("%s is a self-loop on the start state %s, an event of an instance that is not there", e.Event.Channel, s0)
 		}
 	}
 	return nil
+}
+
+// moveOf is the move of the instance bound to id taking e: a creation when
+// e leaves f's start state, a deletion when it enters it.
+func moveOf(f Family, id string, e Edge) move {
+	k := local
+	switch {
+	case e.Src == f.Local.Init:
+		k = creation
+	case e.Dst == f.Local.Init:
+		k = deletion
+	}
+	return move{f: f, id: id, e: e, kind: k}
 }
 
 // kind says what a move does to its instance.
@@ -128,11 +167,11 @@ type kind int
 const (
 	// local takes a local edge of an instance that exists.
 	local kind = iota
-	// creation creates an instance that does not exist, taking the start
-	// edge: e has only Dst and Post.
+	// creation creates an instance that does not exist, taking an edge out
+	// of the local start state.
 	creation
-	// deletion deletes an instance, taking an end edge: e has only Src and
-	// Guard.
+	// deletion deletes an instance, taking an edge into the local start
+	// state.
 	deletion
 )
 
@@ -258,7 +297,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 				continue
 			}
 			for _, c := range combos {
-				grown = append(grown, append(slices.Clone(c), move{f: f, id: tg.ID, e: e, kind: local}))
+				grown = append(grown, append(slices.Clone(c), moveOf(f, tg.ID, e)))
 			}
 		}
 		combos = grown
@@ -409,7 +448,7 @@ func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 	}
 	switch m.kind {
 	case creation:
-		return facts(clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, now}}),
+		return Conj(facts(clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, now}}), sub(m.e.Guard)),
 			Conj(facts(frame, at(after, m.e.Dst)), sub(m.e.Post)), nil
 	case deletion:
 		return Conj(facts(at(now, m.e.Src)), sub(m.e.Guard)),
@@ -420,11 +459,15 @@ func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 }
 
 // MapType is the type of the map of f over the IDs ids: every partial map
-// from them to an instance at a state of f's local diagram, its variables
-// at values of their types in env.
+// from them to an instance at a state of f's local diagram other than its
+// start state, which is absence, its variables at values of their types in
+// env.
 func MapType(f Family, ids []Value, env Env) ([]Value, error) {
 	var recs []Value
 	for _, state := range f.Local.States {
+		if state == f.Local.Init {
+			continue
+		}
 		fields := []map[string]Value{{}}
 		for _, v := range f.Local.Vars[state] {
 			vals, err := env.values(v)
