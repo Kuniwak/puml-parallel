@@ -246,7 +246,7 @@ end note
 	}
 
 	// Execute
-	d, err := core.Promote(p)
+	d, _, err := core.Promote(p)
 
 	// Assert
 	if err != nil {

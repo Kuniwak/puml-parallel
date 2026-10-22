@@ -225,7 +225,7 @@ func TestPromoteRefuses(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			_, err := Promote(c.p)
+			_, _, err := Promote(c.p)
 
 			// Assert
 			assertErrorContains(t, err, c.want)
@@ -480,7 +480,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			env, want := c.env(t), c.want(t)
 
 			// Execute
-			promoted, err := Promote(c.p)
+			promoted, _, err := Promote(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}

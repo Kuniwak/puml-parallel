@@ -55,16 +55,16 @@ type Promotion struct {
 // so that two instances of one family in one sync are told apart, and the
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
-func Promote(p Promotion) (*Diagram, error) {
+func Promote(p Promotion) (*Diagram, []Warning, error) {
 	out := &Diagram{States: []string{p.State}, Init: p.State, Vars: map[string][]string{}}
 	var maps []string
 	var start []clause.Formula
 	for _, f := range p.Families {
 		if err := f.Local.wellFormed(); err != nil {
-			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
 		if err := lifecycle(f); err != nil {
-			return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
@@ -74,11 +74,11 @@ func Promote(p Promotion) (*Diagram, error) {
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
-			return nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
 		edges, err := promoteSync(p, s)
 		if err != nil {
-			return nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
 		out.Edges = append(out.Edges, edges...)
 		for _, tg := range s.Targets {
@@ -95,12 +95,20 @@ func Promote(p Promotion) (*Diagram, error) {
 		for _, m := range alone {
 			edge, err := promoteAlone(p, m)
 			if err != nil {
-				return nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+				return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 			}
 			out.Edges = append(out.Edges, edge)
 		}
 	}
-	return out, nil
+	return out, nil, nil
+}
+
+// Warning is something Promote dropped that the author wrote: Map and
+// Event say where, Text what (docs/PROMOTION.md, the warnings table).
+type Warning struct {
+	Map   string
+	Event string
+	Text  string
 }
 
 // lifecycle reports, as an error, a local diagram that breaks the
