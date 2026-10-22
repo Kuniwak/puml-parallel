@@ -16,12 +16,12 @@ const (
 	// ConditionsFull keeps every guard and postcondition along the way.
 	ConditionsFull Conditions = iota + 1
 	// ConditionsEnabling keeps what the outcome is enabled by: it leaves out
-	// every postcondition whose values nothing kept after it reads. Every
-	// postcondition admits some values after its step, so one of a tau step,
-	// whose values are bound, is true, and leaving it out changes nothing.
-	// The postcondition of the accepted event reads x', which the full
-	// condition leaves free; the enabling one holds of c and x exactly where
-	// the full one holds for some x', and no longer says what x' is.
+	// every post whose values nothing kept after it reads. Every post admits
+	// some values after its step, so one of a tau step, whose values are
+	// bound, is true, and leaving it out changes nothing. The post of the
+	// accepted event reads v', which the full condition leaves free; the
+	// enabling one holds of the fields and the values exactly where the full
+	// one holds for some v', and no longer says what v' is.
 	ConditionsEnabling
 )
 
@@ -66,7 +66,7 @@ func (conds Conditions) discharge(cs []conjunct) []conjunct {
 	read := make(map[logic.Var]bool)
 	kept := make([]conjunct, 0, len(cs))
 	for _, c := range slices.Backward(cs) {
-		if c.isPost() && !read[c.binds] {
+		if c.post && !slices.ContainsFunc(c.binds, func(v logic.Var) bool { return read[v] }) {
 			continue
 		}
 		for _, v := range logic.FreeVars(c.formula) {

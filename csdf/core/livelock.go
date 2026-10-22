@@ -1,15 +1,36 @@
 package core
 
+import "slices"
+
 // TauCycleReachable reports whether the graph of the states of d, every edge
 // taken whatever its clauses, reaches a cycle of tau edges from the start.
 // When it does not, d is livelock free whatever its clauses say.
-func (d *Diagram) TauCycleReachable() bool {
+func (d *Diagram) TauCycleReachable() bool { return len(d.TauCycleStates()) > 0 }
+
+// TauCycleStates are the states reachable from the start that lie on a
+// cycle of tau edges, every edge taken whatever its clauses, sorted.
+func (d *Diagram) TauCycleStates() []string {
+	var on []string
 	for s := range d.reachedStates() {
 		if d.onTauCycle(s) {
-			return true
+			on = append(on, s)
 		}
 	}
-	return false
+	slices.Sort(on)
+	return on
+}
+
+// ReachableStates are the states reachable from the start, every edge taken
+// whatever its clauses, in the order of the states of d.
+func (d *Diagram) ReachableStates() []string {
+	reached := d.reachedStates()
+	var out []string
+	for _, s := range d.States {
+		if reached[s] {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func (d *Diagram) reachedStates() map[string]bool {

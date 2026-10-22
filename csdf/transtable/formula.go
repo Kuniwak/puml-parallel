@@ -3,56 +3,57 @@ package transtable
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/csdf/obligation"
 )
 
-// The variables a condition speaks of. The names are fixed:
+// The variables a condition speaks of:
 //
-//	x    the values of the state variables of the row's state
-//	c    the fields the column's event receives, as the environment offers
-//	     them; an event that receives nothing has none (csdf.Edge.HasParams)
-//	x'   the values of the state variables of the state an accepted event
-//	     leads to
-//	ci   the parameters of the event of the i-th tau step, which was hidden and
-//	     so is chosen inside the diagram
-//	xi   the values of the state variables after the i-th tau step
+//	v      the variable v of the row's state
+//	k      the field k the column's event receives, as the environment
+//	       offers it
+//	v'     the variable v of the state an accepted event leads to
+//	v@i    the variable v after the i-th tau step, which was hidden and so
+//	       is taken inside the diagram
 //
-// One variable stands for all the parameters of an event, whatever they are.
-const (
-	// OfferedParams are the parameters of the column's event.
-	OfferedParams = logic.OfferedParams
-	// NextValues are the values after an accepted event.
-	NextValues logic.Var = "x'"
-)
+// A field a tau hides is bound by the ∃ hiding wrote, inside its clauses.
 
-// ValuesAfterStep names the values after the i-th tau step; after none, those
-// of the row's state.
-func ValuesAfterStep(i int) logic.Var {
+// clauseFormula is the formula of logic a clause states (obligation.Formula).
+func clauseFormula(f clause.And) (logic.Formula, error) {
+	g, err := obligation.Formula(f)
+	if err != nil {
+		return nil, fmt.Errorf("transtable: %w", err)
+	}
+	return g, nil
+}
+
+// at names the variable v after the i-th tau step, the row's own when i is
+// 0.
+func at(v string, i int) logic.Var {
 	if i == 0 {
-		return "x"
+		return logic.Var(v)
 	}
-	return logic.Var(fmt.Sprintf("x%d", i))
+	return logic.Var(fmt.Sprintf("%s@%d", v, i))
 }
 
-// ParamsOfStep names the parameters of the event of the i-th tau step.
-func ParamsOfStep(i int) logic.Var { return logic.ParamsOfStep(i) }
+func primed(v string) logic.Var { return obligation.Var(clause.Free{Name: v, Primed: true}) }
 
-// stepVars are the variables k tau steps introduce, in step order: the
-// parameters of a step before the values after it.
-func stepVars(k int) []logic.Var {
-	vars := make([]logic.Var, 0, 2*k)
-	for i := 1; i <= k; i++ {
-		vars = append(vars, ParamsOfStep(i), ValuesAfterStep(i))
+// before maps the variables of s to their values after k tau steps.
+func (ix index) before(s string, k int) map[logic.Var]logic.Var {
+	m := map[logic.Var]logic.Var{}
+	for _, v := range ix.d.Vars[s] {
+		m[logic.Var(v)] = at(v, k)
 	}
-	return vars
+	return m
 }
 
-// pred applies a guard or a postcondition of the diagram to what it reads. A
-// predicate the author left out, or wrote as true, is true.
-func pred(p csdf.Predicate, args ...logic.Var) logic.Formula {
-	if csdf.IsTrue(p) {
-		return logic.True
+// after maps the values after a step into s, v', to the values after the
+// k-th tau step.
+func (ix index) after(s string, k int) map[logic.Var]logic.Var {
+	m := map[logic.Var]logic.Var{}
+	for _, v := range ix.d.Vars[s] {
+		m[primed(v)] = at(v, k)
 	}
-	return logic.Quoted(string(p), args...)
+	return m
 }

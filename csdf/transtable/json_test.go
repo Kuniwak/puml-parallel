@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
@@ -28,7 +27,7 @@ func TestWriteJSON(t *testing.T) {
 					{goTo(q("g", c, x), "s1"), refuse(not(q("g", c, x)))},
 					{{Cond: logic.True, Result: transtable.Terminate{}}},
 				}}},
-				Unreachable: []csdf.StateID{"z"},
+				Unreachable: []string{"z"},
 			},
 			Want: `{"columns":[{"kind":"event","event":"a"},{"kind":"termination"}],` +
 				`"rows":[{"state":"s0","name":"S0","cells":[` +

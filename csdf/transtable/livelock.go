@@ -3,8 +3,6 @@ package transtable
 import (
 	"fmt"
 	"strings"
-
-	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 // LivelockError says that a tau cycle is reachable, so the diagram may diverge.
@@ -13,13 +11,10 @@ import (
 // refusals would show it as never refusing. The guards are not read, so a cycle
 // they would cut short is refused too.
 type LivelockError struct {
-	Livelock *csdf.Livelock
+	// States are the reachable states on a tau cycle, sorted.
+	States []string
 }
 
 func (e *LivelockError) Error() string {
-	var states []string
-	for _, s := range e.Livelock.CycleStates() {
-		states = append(states, string(s))
-	}
-	return fmt.Sprintf("the tau cycle %s is reachable, so the diagram may diverge, which a table of refusals cannot show", strings.Join(states, " -> "))
+	return fmt.Sprintf("the states %s are on a reachable tau cycle, so the diagram may diverge, which a table of refusals cannot show", strings.Join(e.States, ", "))
 }

@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
@@ -127,7 +126,7 @@ func TestWriteTSVRefuses(t *testing.T) {
 
 	eventNamed := func(event string) *transtable.Table {
 		return &transtable.Table{
-			Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.EventColumn{Event: csdf.Event(event)}},
+			Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.EventColumn{Event: event}},
 			Rows:    []transtable.Row{{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{refuse(logic.True)}, {refuse(logic.True)}}}},
 		}
 	}

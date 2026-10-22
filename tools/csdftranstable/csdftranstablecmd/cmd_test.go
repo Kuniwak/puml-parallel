@@ -23,7 +23,7 @@ func TestNewMainFuncOK(t *testing.T) {
 		"a file argument, with the defaults": {
 			Args: []string{filepath.Join("testdata", "a.puml")},
 			WantStdout: "state\tname\tinsert?coin\treset\n" +
-				"a\ta\t\"[\"\"coins' is {coin}\"\"(c, x, x')] → b\"\t×\n" +
+				"a\ta\t\"[\"\"$_0 holds only $_1\"\"(coins', coin)] → b\"\t×\n" +
 				"b\tb\t×\t→ a\n",
 		},
 		"-expr-mode logical": {
@@ -36,7 +36,7 @@ a --> b : insert?coin ; g
 `,
 			Args: []string{"-expr-mode", "logical"},
 			WantStdout: "state\tname\tinsert?coin\n" +
-				"a\ta\t\"[\"\"g\"\"(c, x)] → b\n[¬\"\"g\"\"(c, x)] ×\"\n" +
+				"a\ta\t\"[\"\"g\"\"] → b\n[¬\"\"g\"\"] ×\"\n" +
 				"b\tb\t×\n",
 		},
 		"-conditions enabling leaves out the postconditions nothing reads": {
@@ -49,7 +49,7 @@ a --> b : insert?coin ; g
 			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
 			WantStdout: `{"columns":[{"kind":"event","event":"insert?coin"},{"kind":"event","event":"reset"}],` +
 				`"rows":[` +
-				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"coins' is {coin}","quoted":true,"terms":[{"op":"var","name":"c"},{"op":"var","name":"x"},{"op":"var","name":"x'"}]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
+				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"$_0 holds only $_1","quoted":true,"terms":[{"op":"var","name":"coins'"},{"op":"var","name":"coin"}]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
 				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
 				`"unreachable":[]}` + "\n",
 		},
@@ -120,7 +120,7 @@ A --> B : tau
 B --> A : tau
 @enduml
 `,
-			WantStderr: "the tau cycle A -> B -> A is reachable",
+			WantStderr: "the states A, B are on a reachable tau cycle",
 		},
 		"an undeclared state": {
 			Stdin: `@startuml
