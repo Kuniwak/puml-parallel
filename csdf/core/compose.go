@@ -23,6 +23,7 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 		Vars:     map[string][]string{},
 		Init:     pair(l.Init, r.Init),
 		InitPost: Conj(l.InitPost, r.InitPost),
+		Assumes:  append(slices.Clone(l.Assumes), r.Assumes...),
 	}
 	for _, ls := range l.States {
 		for _, rs := range r.States {

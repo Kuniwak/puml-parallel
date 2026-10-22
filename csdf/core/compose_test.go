@@ -176,3 +176,21 @@ func TestComposeNamesItsStatesAsCsdfparallelDid(t *testing.T) {
 		t.Errorf("Init %s, edge %s --> %s", got.Init, got.Edges[0].Src, got.Edges[0].Dst)
 	}
 }
+
+func TestComposeCarriesTheAssumeNotesOfBoth(t *testing.T) {
+	// Setup
+	l := &Diagram{States: []string{"a"}, Init: "a", Assumes: []Assumption{{ID: "p", Text: "P"}}}
+	r := &Diagram{States: []string{"b"}, Init: "b", Assumes: []Assumption{{ID: "q", Text: "Q"}}}
+	want := []Assumption{{ID: "p", Text: "P"}, {ID: "q", Text: "Q"}}
+
+	// Execute
+	got, err := Compose(l, r, nil)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, got.Assumes); diff != "" {
+		t.Errorf("Assumes (-want +got):\n%s", diff)
+	}
+}
