@@ -254,7 +254,15 @@ func TestPromoteRefuses(t *testing.T) {
 		{"a self-loop on the start state", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
 			Edge{Src: "none", Dst: "none", Event: ev("PING")})}), "self-loop"},
 		{"a constrain matching no generated edge", Promotion{State: "G", Families: []Family{locations},
-			Constrains: []Constrain{{Event: ev("OPEN", send("loc")), Guard: mustParse(t, "$loc is a")}}}, "no generated edge"},
+			Constrains: []Constrain{{Event: ev("NOPE", recv("loc")), Guard: mustParse(t, "$loc is a")}}}, "no generated edge"},
+		{"a constrain with a sent field", Promotion{State: "G", Families: []Family{locations},
+			Constrains: []Constrain{{Event: ev("DEPART", recv("loc"), send("q")), Guard: mustParse(t, "$q = 1")}}}, "every field of a global event is ?"},
+		{"a constrain reading a primed name", Promotion{State: "G", Families: []Family{locations},
+			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "${locations'} = 0")}}}, "primed"},
+		{"a constrain with an empty guard", Promotion{State: "G", Families: []Family{locations},
+			Constrains: []Constrain{{Event: ev("OPEN", recv("loc"))}}}, "empty guard"},
+		{"a constrain whose channel has edges of another shape", Promotion{State: "G", Families: []Family{locations},
+			Constrains: []Constrain{{Event: ev("DEPART", recv("loc")), Guard: mustParse(t, "$loc = 0")}}}, "another shape"},
 		{"a constrain reading a name that is no map and no field", Promotion{State: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "$z = 0")}}}, "z"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{

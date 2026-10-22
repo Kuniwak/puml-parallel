@@ -148,19 +148,31 @@ func constrain(p Promotion, edges []Edge) error {
 		if err := clause.WellFormed(c.Guard); err != nil {
 			return fmt.Errorf("constrain %s: %w", c.Event.Channel, err)
 		}
+		if len(c.Guard.Conjuncts) == 0 {
+			return fmt.Errorf("constrain %s has an empty guard, which constrains nothing", c.Event.Channel)
+		}
 		allowed := maps.Clone(mapNames)
 		for _, fl := range c.Event.Fields {
+			if fl.Send {
+				return fmt.Errorf("constrain %s sends %s: every field of a global event is ?", c.Event.Channel, fl.Name)
+			}
 			allowed[fl.Name] = true
 		}
 		for _, v := range clause.FreeVars(c.Guard) {
+			if v.Primed {
+				return fmt.Errorf("constrain %s reads %s', a primed name: it reads the maps as they are", c.Event.Channel, v.Name)
+			}
 			if !allowed[v.Name] {
 				return fmt.Errorf("constrain %s reads %s, which is no map and no field of its event", c.Event.Channel, v.Name)
 			}
 		}
 		matched := 0
 		for i, e := range edges {
-			if !e.Event.SameShape(c.Event) {
+			if e.Event.Channel != c.Event.Channel {
 				continue
+			}
+			if !e.Event.SameShape(c.Event) {
+				return fmt.Errorf("constrain %s: a generated edge on %s has fields of another shape, which it would leave unconstrained", c.Event.Channel, c.Event.Channel)
 			}
 			matched++
 			edges[i].Guard = Conj(e.Guard, renamedTo(c, e.Event))
