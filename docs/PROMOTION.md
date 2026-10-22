@@ -26,9 +26,12 @@ without somewhere to write them, promotion produces the direct product of
 independent maps, which says almost nothing.
 
 
-`csdfpromote` reads this syntax with clauses in natural language or a glue's
-language. A promotion whose clauses are formulas (docs/CLAUSE_DESIGN.md) is
-read by `csdf/coreio` in the same syntax, and keeps the local-diagram
+`csdfpromote` reads this syntax with clauses that are formulas
+(docs/CLAUSE_DESIGN.md), through `csdf/coreio`, and prints the expansion
+`csdf/core` gives. Its `-json` and `-format json` outputs still come from the
+reader before it, which reads clauses as text and which this document
+describes where the two differ; `csdfbmc` reads that JSON until it moves onto
+the clause syntax (#76). The formula promotion keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
 families and hand-written global edges, variables of the global state that
 are no family's map, a post on the global start edge, global `assume`
@@ -244,9 +247,13 @@ printed above the edge.
 Wording
 -------
 
-The generated clauses are symbolic by default, which belongs to no natural
-language. `-template` replaces them clause by clause with a Go `text/template`
-file:
+The generated clauses are builtins, which belong to no natural language.
+With the formula promotion, `-template` glosses them in a line comment above
+each edge, by Go `text/template` templates named after the builtin words
+(`in`, `notin`, `at`, `frame`, `update`, `empty`, `eq`, `ne`), each given the
+builtin's terms as `.Args` and, for `at`, its state as `.State`; the
+Japanese ones are in `examples/promote/templates/ja.tmpl`. The reader before
+it replaced the clauses themselves, with these templates:
 
 | Template   | Fields              | Default                    |
 |:-----------|:--------------------|:---------------------------|
@@ -313,8 +320,9 @@ Keeping some families
 A global diagram with many families expands into a state whose maps hold
 every family's instances, and a bounded walk of all of it blows up even when
 the question is about a few families that touch the rest lightly.
-`-only MAP[,MAP…]` keeps the named families — each written as its map or its
-type — and leaves out the others:
+`-only MAP[,MAP…]` keeps the named families — each written as its map (the
+reader before the formula promotion also took its type) — and leaves out the
+others:
 
 - The maps of the left-out families go from every state, and so do the edges
   that only they move.

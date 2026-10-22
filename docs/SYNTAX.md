@@ -368,7 +368,9 @@ end note
 - A floating `assume` note is carried into the expansion; an anchored one is
   refused.
 
-No tool reads a formula promotion with `-only` or `-template` yet.
+`csdfpromote` reads a global diagram with this reader and prints the
+expansion core.Promote gives, restricted by `-only` and glossed by
+`-template` ([PROMOTION.md](./PROMOTION.md)).
 
 
 Global Diagram Format
