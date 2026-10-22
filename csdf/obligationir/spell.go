@@ -12,12 +12,13 @@ import (
 )
 
 // The identifiers a formula's symbols become in a prover. Each category has a
-// prefix of its own, so no two categories meet and none meets the vocabulary
-// a back end declares itself (step, init, reachable); the name after it is
-// Mangled, which is injective.
+// prefix of its own, no prefix begins another, and none meets the vocabulary
+// a back end declares itself (step, init, reachable, St_, assume_); the name
+// after it is Mangled, which is injective, so no two symbols meet.
 //
 //	atom_<text>   the predicate an atom is, named by its text with $_i marks
-//	fn_<name>     a function of the environment, or a state constant of csdf_at
+//	fn_<name>     a function of the environment
+//	state_<name>  a state of a local diagram, as csdf_at names it
 //	field_<name>  the field name of a record
 //	type_<name>   that a value is of the type name
 //	v_<name>      a variable, primed or not (Mangle spells the prime)
@@ -28,6 +29,7 @@ import (
 const (
 	AtomPrefix  = "atom_"
 	FnPrefix    = "fn_"
+	StatePrefix = "state_"
 	FieldPrefix = "field_"
 	TypePrefix  = "type_"
 	IndexSymbol = "csdf_index"
@@ -39,6 +41,26 @@ func AtomName(text string) string { return AtomPrefix + Mangle(text) }
 
 // TypeName is the predicate that a value is of the type typ.
 func TypeName(typ string) string { return TypePrefix + Mangle(typ) }
+
+// FieldName is the function the field name of a record is.
+func FieldName(name string) string { return FieldPrefix + Mangle(name) }
+
+// FunctionName is the constant a function of the logic is: a state of a
+// local diagram when csdf/obligation named it so (isState), and otherwise a
+// function of the environment.
+func FunctionName(fn string) string {
+	if isState(fn) {
+		return StatePrefix + Mangle(strings.TrimPrefix(fn, obligation.StatePrefix))
+	}
+	return FnPrefix + Mangle(fn)
+}
+
+// isState reports whether fn is a constant obligation.StateConstant names: it
+// begins with obligation.StatePrefix and holds a dot, which no function of
+// the environment does, since its name is an identifier.
+func isState(fn string) bool {
+	return strings.HasPrefix(fn, obligation.StatePrefix) && strings.Contains(fn, ".")
+}
 
 // AxiomName is the proposition the i-th axiom of an obligation is, from 1.
 func AxiomName(i int) string { return fmt.Sprintf("%s%d", AxiomPrefix, i) }
@@ -83,10 +105,18 @@ const (
 )
 
 // Symbols are the constants fs read, and the types their quantifiers and
-// types range over, sorted by kind and then by name.
-func Symbols(types []string, fs ...logic.Tree) []Symbol {
+// types range over, sorted by kind and then by name. One name read as two
+// constants, of two arities or kinds, is refused: a prover's constant has
+// one.
+func Symbols(types []string, fs ...logic.Tree) ([]Symbol, error) {
 	found := map[string]Symbol{}
-	add := func(s Symbol) { found[s.Name] = s }
+	var conflict error
+	add := func(s Symbol) {
+		if t, ok := found[s.Name]; ok && (t.Arity != s.Arity || t.Kind != s.Kind || t.Pred != s.Pred) && conflict == nil {
+			conflict = fmt.Errorf("obligationir.Symbols: %s is read with %d and with %d arguments", s.Name, t.Arity, s.Arity)
+		}
+		found[s.Name] = s
+	}
 	for _, typ := range types {
 		if relativized(typ) {
 			add(Symbol{Name: TypeName(typ), Text: typ, Arity: 1, Pred: true, Kind: KindType})
@@ -98,13 +128,13 @@ func Symbols(types []string, fs ...logic.Tree) []Symbol {
 		case logic.TermIndex:
 			add(Symbol{Name: IndexSymbol, Arity: 2, Kind: KindIndex})
 		case logic.TermField:
-			add(Symbol{Name: FieldPrefix + Mangle(t.Name), Text: t.Name, Arity: 1, Kind: KindField})
+			add(Symbol{Name: FieldName(t.Name), Text: t.Name, Arity: 1, Kind: KindField})
 		case logic.TermApply:
 			kind := KindFunction
-			if strings.HasPrefix(t.Name, obligation.StatePrefix) {
+			if isState(t.Name) {
 				kind = KindState
 			}
-			add(Symbol{Name: FnPrefix + Mangle(t.Name), Text: t.Name, Arity: len(t.Args), Kind: kind})
+			add(Symbol{Name: FunctionName(t.Name), Text: t.Name, Arity: len(t.Args), Kind: kind})
 		}
 		for _, a := range t.Args {
 			term(a)
@@ -136,6 +166,9 @@ func Symbols(types []string, fs ...logic.Tree) []Symbol {
 	for _, f := range fs {
 		formula(f)
 	}
+	if conflict != nil {
+		return nil, conflict
+	}
 	out := slices.Collect(maps.Values(found))
 	slices.SortFunc(out, func(a, b Symbol) int {
 		if a.Kind != b.Kind {
@@ -143,13 +176,13 @@ func Symbols(types []string, fs ...logic.Tree) []Symbol {
 		}
 		return strings.Compare(a.Name, b.Name)
 	})
-	return out
+	return out, nil
 }
 
 // relativized reports whether a quantifier over typ is restricted to the
 // values of typ. A type variable of an axiom ('map, 'key, 'value) is every
 // value, and so restricts nothing.
-func relativized(typ string) bool { return typ != "" && !strings.HasPrefix(typ, "'") }
+func relativized(typ string) bool { return !strings.HasPrefix(typ, "'") }
 
 // Notation is how a prover spells the connectives and the binders. Every
 // value is of one type, ValType; a quantifier over a type is relativized to
@@ -164,113 +197,192 @@ type Notation struct {
 
 // SpellFormula writes f in the notation n. Every operand that is no atom, no
 // equality and no constant is parenthesised, so the spelling does not rest
-// on the precedences of a prover.
-func (n Notation) SpellFormula(f logic.Tree) string { return n.formula(f) }
+// on the precedences of a prover. A tree that is no formula is refused.
+func (n Notation) SpellFormula(f logic.Tree) (string, error) { return n.formula(f) }
 
 // SpellVar is the identifier a variable of the logic is.
 func SpellVar(v logic.Var) string { return VarName(string(v)) }
 
 // Relativize is that each of vars is of the type at its position, conjoined
 // with body for ∃ and assumed of it for ∀: the formula a quantifier over
-// typed variables reads as when every value is of one type.
-func (n Notation) Relativize(forall bool, vars []string, types []string, body string) string {
+// typed variables reads as when every value is of one type. Each variable
+// needs a type: a quantifier left unrestricted would range over values the
+// clauses never take, and so would state another obligation.
+func (n Notation) Relativize(forall bool, vars []string, types []string, body string) (string, error) {
+	if len(types) != len(vars) {
+		return "", fmt.Errorf("obligationir.Relativize: %d variables with %d types", len(vars), len(types))
+	}
 	var guards []string
 	for i, v := range vars {
-		if i < len(types) && relativized(types[i]) {
+		if types[i] == "" {
+			return "", fmt.Errorf("obligationir.Relativize: %s has no type", v)
+		}
+		if relativized(types[i]) {
 			guards = append(guards, TypeName(types[i])+" "+v)
 		}
 	}
 	if len(guards) == 0 {
-		return body
+		return body, nil
 	}
 	if forall {
-		return "(" + strings.Join(guards, n.And) + ")" + n.Implies + "(" + body + ")"
+		return "(" + strings.Join(guards, n.And) + ")" + n.Implies + "(" + body + ")", nil
 	}
-	return strings.Join(guards, n.And) + n.And + "(" + body + ")"
+	return strings.Join(guards, n.And) + n.And + "(" + body + ")", nil
 }
 
-func (n Notation) formula(t logic.Tree) string {
+func (n Notation) formula(t logic.Tree) (string, error) {
+	operands := func(want int) error {
+		if want >= 0 && len(t.Operands) != want || want < 0 && len(t.Operands) < 2 {
+			return fmt.Errorf("obligationir.Notation: %s with %d operands", t.Op, len(t.Operands))
+		}
+		return nil
+	}
 	switch t.Op {
 	case logic.OpTrue:
-		return n.True
+		return n.True, nil
 	case logic.OpFalse:
-		return n.False
+		return n.False, nil
 	case logic.OpAtom:
-		name := t.Name
-		if t.Quoted {
-			name = AtomName(t.Name)
-		} else {
+		if t.Name == "" {
+			return "", fmt.Errorf("obligationir.Notation: an atom with no name")
+		}
+		name := AtomName(t.Name)
+		if !t.Quoted {
 			name = PredName(t.Name, len(t.Terms))
 		}
 		return applied(name, t.Terms)
 	case logic.OpEq:
-		return spellTerm(t.Terms[0]) + " = " + spellTerm(t.Terms[1])
+		if len(t.Terms) != 2 {
+			return "", fmt.Errorf("obligationir.Notation: an equality of %d terms", len(t.Terms))
+		}
+		l, err := spellTerm(t.Terms[0])
+		if err != nil {
+			return "", err
+		}
+		r, err := spellTerm(t.Terms[1])
+		if err != nil {
+			return "", err
+		}
+		return l + " = " + r, nil
 	case logic.OpNot:
-		return n.Not + n.operand(t.Operands[0], true)
+		if err := operands(1); err != nil {
+			return "", err
+		}
+		o, err := n.operand(t.Operands[0], true)
+		return n.Not + o, err
 	case logic.OpAnd, logic.OpOr, logic.OpImplies:
+		want := -1
+		if t.Op == logic.OpImplies {
+			want = 2
+		}
+		if err := operands(want); err != nil {
+			return "", err
+		}
 		sep := map[logic.Op]string{logic.OpAnd: n.And, logic.OpOr: n.Or, logic.OpImplies: n.Implies}[t.Op]
 		parts := make([]string, len(t.Operands))
 		for i, o := range t.Operands {
-			parts[i] = n.operand(o, false)
+			p, err := n.operand(o, false)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = p
 		}
-		return strings.Join(parts, sep)
+		return strings.Join(parts, sep), nil
 	case logic.OpExists, logic.OpForall:
+		if err := operands(1); err != nil {
+			return "", err
+		}
+		if len(t.Vars) == 0 {
+			return "", fmt.Errorf("obligationir.Notation: %s binding nothing", t.Op)
+		}
 		vars := make([]string, len(t.Vars))
 		for i, v := range t.Vars {
 			vars[i] = SpellVar(v)
 		}
 		forall := t.Op == logic.OpForall
-		body := n.Relativize(forall, vars, t.Types, n.formula(t.Operands[0]))
-		if forall {
-			return n.Forall(vars, body)
+		inner, err := n.formula(t.Operands[0])
+		if err != nil {
+			return "", err
 		}
-		return n.Exists(vars, body)
+		body, err := n.Relativize(forall, vars, t.Types, inner)
+		if err != nil {
+			return "", err
+		}
+		if forall {
+			return n.Forall(vars, body), nil
+		}
+		return n.Exists(vars, body), nil
 	}
-	panic(fmt.Sprintf("obligationir.Notation: no formula %q", t.Op))
+	return "", fmt.Errorf("obligationir.Notation: no formula %q", t.Op)
 }
 
 // operand is t as an operand: parenthesised unless it is atomic. Under a
 // negation an equality is parenthesised too.
-func (n Notation) operand(t logic.Tree, negated bool) string {
+func (n Notation) operand(t logic.Tree, negated bool) (string, error) {
+	s, err := n.formula(t)
+	if err != nil {
+		return "", err
+	}
 	switch t.Op {
 	case logic.OpTrue, logic.OpFalse, logic.OpAtom:
-		return n.formula(t)
+		return s, nil
 	case logic.OpEq:
 		if !negated {
-			return n.formula(t)
+			return s, nil
 		}
 	}
-	return "(" + n.formula(t) + ")"
+	return "(" + s + ")", nil
 }
 
-func spellTerm(t logic.TermTree) string {
+func spellTerm(t logic.TermTree) (string, error) {
+	args := func(want int) error {
+		if len(t.Args) != want {
+			return fmt.Errorf("obligationir.Notation: %s of %d terms", t.Op, len(t.Args))
+		}
+		return nil
+	}
 	switch t.Op {
 	case logic.TermVar:
-		return SpellVar(logic.Var(t.Name))
+		if t.Name == "" || len(t.Args) > 0 {
+			return "", fmt.Errorf("obligationir.Notation: a variable %q of %d terms", t.Name, len(t.Args))
+		}
+		return SpellVar(logic.Var(t.Name)), nil
 	case logic.TermIndex:
+		if err := args(2); err != nil {
+			return "", err
+		}
 		return applied(IndexSymbol, t.Args)
 	case logic.TermField:
-		return applied(FieldPrefix+Mangle(t.Name), t.Args)
+		if err := args(1); err != nil {
+			return "", err
+		}
+		return applied(FieldName(t.Name), t.Args)
 	case logic.TermApply:
-		return applied(FnPrefix+Mangle(t.Name), t.Args)
+		if t.Name == "" {
+			return "", fmt.Errorf("obligationir.Notation: a function with no name")
+		}
+		return applied(FunctionName(t.Name), t.Args)
 	}
-	panic(fmt.Sprintf("obligationir.spellTerm: no term %q", t.Op))
+	return "", fmt.Errorf("obligationir.Notation: no term %q", t.Op)
 }
 
 // applied is name applied to args, curried as both provers apply: an
 // argument that is itself applied to something is parenthesised.
-func applied(name string, args []logic.TermTree) string {
+func applied(name string, args []logic.TermTree) (string, error) {
 	var sb strings.Builder
 	sb.WriteString(name)
 	for _, a := range args {
 		sb.WriteString(" ")
-		s := spellTerm(a)
+		s, err := spellTerm(a)
+		if err != nil {
+			return "", err
+		}
 		if a.Op != logic.TermVar && len(a.Args) > 0 {
 			s = "(" + s + ")"
 		}
 		sb.WriteString(s)
 	}
-	return sb.String()
+	return sb.String(), nil
 }
 
 // Formulas are every formula ir states: the start post, the step of each
@@ -286,7 +398,7 @@ func (ir LivelockFree) Formulas() []logic.Tree {
 // Symbols are the constants ir reads, the types of its state variables and
 // received fields among them: each is of the type named like it, the
 // convention until they carry types of their own.
-func (ir LivelockFree) Symbols() []Symbol {
+func (ir LivelockFree) Symbols() ([]Symbol, error) {
 	var types []string
 	for _, s := range ir.States {
 		types = append(types, s.Vars...)
@@ -327,13 +439,21 @@ func stateTerm(side Side, s State, after bool, ref func(string) string) (string,
 
 // InitDisjunct is that the state s' is the start state s, holding values
 // after the start of their types that post admits.
-func InitDisjunct(n Notation, side Side, s State, post logic.Tree, ref func(string) string) string {
+func InitDisjunct(n Notation, side Side, s State, post logic.Tree, ref func(string) string) (string, error) {
 	term, vars := stateTerm(side, s, true, ref)
-	body := "s' = " + term + n.And + n.Relativize(false, vars, s.Vars, n.SpellFormula(post))
-	if len(vars) == 0 {
-		return body
+	spelled, err := n.SpellFormula(post)
+	if err != nil {
+		return "", fmt.Errorf("obligationir.InitDisjunct: %w", err)
 	}
-	return n.Exists(vars, body)
+	typed, err := n.Relativize(false, vars, s.Vars, spelled)
+	if err != nil {
+		return "", fmt.Errorf("obligationir.InitDisjunct: %w", err)
+	}
+	body := "s' = " + term + n.And + typed
+	if len(vars) == 0 {
+		return body, nil
+	}
+	return n.Exists(vars, body), nil
 }
 
 // StepDisjuncts is that some edge of edges steps from the state s to s': the
@@ -341,29 +461,56 @@ func InitDisjunct(n Notation, side Side, s State, post logic.Tree, ref func(stri
 // that s is its source and s' its destination, holding values of their
 // types, and that some values of the fields its event receives, of their
 // types, pass its guard and post.
-func StepDisjuncts(n Notation, side Side, states map[string]State, edges []Edge, ref func(string) string) string {
+func StepDisjuncts(n Notation, side Side, states map[string]State, edges []Edge, ref func(string) string) (string, error) {
 	if len(edges) == 0 {
-		return n.False
+		return n.False, nil
 	}
 	ds := make([]string, len(edges))
 	for i, e := range edges {
-		src, before := stateTerm(side, states[e.Src], false, ref)
-		dst, after := stateTerm(side, states[e.Dst], true, ref)
-		step := n.SpellFormula(e.Step)
-		if len(e.Received) > 0 {
-			received := make([]string, len(e.Received))
-			for j, f := range e.Received {
-				received[j] = SpellVar(logic.Var(f))
-			}
-			step = n.Exists(received, n.Relativize(false, received, e.Received, step))
+		d, err := stepDisjunct(n, side, states, e, ref)
+		if err != nil {
+			return "", fmt.Errorf("obligationir.StepDisjuncts: the edge %s -> %s: %w", e.Src, e.Dst, err)
 		}
-		body := "s = " + src + n.And + "s' = " + dst + n.And + n.Relativize(false, after, states[e.Dst].Vars, step)
-		if vars := append(before, after...); len(vars) > 0 {
-			body = n.Exists(vars, body)
-		}
-		ds[i] = "(" + body + ")"
+		ds[i] = "(" + d + ")"
 	}
-	return strings.Join(ds, n.Or)
+	return strings.Join(ds, n.Or), nil
+}
+
+func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref func(string) string) (string, error) {
+	srcState, ok := states[e.Src]
+	if !ok {
+		return "", fmt.Errorf("no state %s", e.Src)
+	}
+	dstState, ok := states[e.Dst]
+	if !ok {
+		return "", fmt.Errorf("no state %s", e.Dst)
+	}
+	src, before := stateTerm(side, srcState, false, ref)
+	dst, after := stateTerm(side, dstState, true, ref)
+	step, err := n.SpellFormula(e.Step)
+	if err != nil {
+		return "", err
+	}
+	if len(e.Received) > 0 {
+		received := make([]string, len(e.Received))
+		for j, f := range e.Received {
+			received[j] = SpellVar(logic.Var(f))
+		}
+		typed, err := n.Relativize(false, received, e.Received, step)
+		if err != nil {
+			return "", err
+		}
+		step = n.Exists(received, typed)
+	}
+	typed, err := n.Relativize(false, after, dstState.Vars, step)
+	if err != nil {
+		return "", err
+	}
+	body := "s = " + src + n.And + "s' = " + dst + n.And + typed
+	if vars := slices.Concat(before, after); len(vars) > 0 {
+		body = n.Exists(vars, body)
+	}
+	return body, nil
 }
 
 // TauEdges are the tau edges of ir.
@@ -405,8 +552,11 @@ type Declaration struct {
 
 // Declarations are the constants ir reads, as a back end declares them, todo
 // marking those of the environment.
-func (ir LivelockFree) Declarations(todo string) []Declaration {
-	syms := ir.Symbols()
+func (ir LivelockFree) Declarations(todo string) ([]Declaration, error) {
+	syms, err := ir.Symbols()
+	if err != nil {
+		return nil, err
+	}
 	ds := make([]Declaration, len(syms))
 	for i, s := range syms {
 		var comments []string
@@ -418,5 +568,5 @@ func (ir LivelockFree) Declarations(todo string) []Declaration {
 		}
 		ds[i] = Declaration{Comments: comments, Symbol: s}
 	}
-	return ds
+	return ds, nil
 }

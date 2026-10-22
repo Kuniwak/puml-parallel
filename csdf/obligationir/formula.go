@@ -19,6 +19,9 @@ import (
 // holes, a builtin an equality or a csdf_* predicate whose meaning Axioms
 // states, and an ∃ a quantifier of its type.
 type LivelockFree struct {
+	// Version is the version of this encoding, IRVersion; a reader refuses
+	// another.
+	Version int `json:"version"`
 	// Structurally is true when no tau cycle is reachable in the graph of
 	// the states, so the obligation holds whatever the clauses say.
 	Structurally bool `json:"structurally"`
@@ -36,6 +39,59 @@ type LivelockFree struct {
 	// Assumptions are the diagram's assume notes, hypotheses of the theorem
 	// like the axioms. Never null, only empty.
 	Assumptions []IRAssumption `json:"assumptions"`
+}
+
+// IRVersion is the version of the encoding of LivelockFree. It changes
+// whenever a field changes meaning, so that an IR stored by another release
+// is refused rather than misread.
+const IRVersion = 1
+
+// Validate reports, as an error, what makes ir no obligation of a diagram: an
+// encoding of another version, a state named twice or by no name, a start
+// state or an edge naming a state that is not there, or a field received
+// twice, a tree that is no formula, a quantifier without types, or one name
+// read as two constants.
+func (ir LivelockFree) Validate() error {
+	if ir.Version != IRVersion {
+		return fmt.Errorf("obligationir.Validate: version %d, want %d", ir.Version, IRVersion)
+	}
+	states := map[string]bool{}
+	for _, s := range ir.States {
+		if s.Name == "" || states[s.Name] {
+			return fmt.Errorf("obligationir.Validate: the state %q is named twice or by nothing", s.Name)
+		}
+		states[s.Name] = true
+	}
+	if !states[ir.Init] {
+		return fmt.Errorf("obligationir.Validate: no start state %q", ir.Init)
+	}
+	for _, e := range ir.Edges {
+		if !states[e.Src] || !states[e.Dst] {
+			return fmt.Errorf("obligationir.Validate: the edge %s -> %s names a state that is not there", e.Src, e.Dst)
+		}
+		seen := map[string]bool{}
+		for _, f := range e.Received {
+			if f == "" || seen[f] {
+				return fmt.Errorf("obligationir.Validate: the edge %s -> %s receives %q twice or by no name", e.Src, e.Dst, f)
+			}
+			seen[f] = true
+		}
+	}
+	for _, f := range ir.Formulas() {
+		if _, err := checking.SpellFormula(f); err != nil {
+			return fmt.Errorf("obligationir.Validate: %w", err)
+		}
+	}
+	if _, err := ir.Symbols(); err != nil {
+		return fmt.Errorf("obligationir.Validate: %w", err)
+	}
+	return nil
+}
+
+// checking is a notation that only checks what it spells.
+var checking = Notation{
+	Exists: func([]string, string) string { return "" },
+	Forall: func([]string, string) string { return "" },
 }
 
 // State is a state and the state variables it holds.
@@ -74,13 +130,14 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 	}
 	states := make([]State, len(d.States))
 	for i, s := range d.States {
-		states[i] = State{Name: s, Vars: slices.Clone(d.Vars[s])}
+		states[i] = State{Name: s, Vars: append([]string{}, d.Vars[s]...)}
 	}
 	assumptions := make([]IRAssumption, 0, len(d.Assumes))
 	for _, a := range d.Assumes {
 		assumptions = append(assumptions, IRAssumption{ID: a.ID, Text: csdf.Predicate(a.Text)})
 	}
 	return LivelockFree{
+		Version:      IRVersion,
 		Structurally: !d.TauCycleReachable(),
 		States:       states,
 		Init:         d.Init,

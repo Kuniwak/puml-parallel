@@ -31,7 +31,7 @@ func TestWriteLivelockFreePinsTheWireForm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `{"structurally":false,"states":[{"name":"a","vars":["n"]}],"init":"a","init_post":{"op":"atom","name":"$_0 = 10","quoted":true,"terms":[{"op":"var","name":"n'"}]},"edges":[{"src":"a","dst":"a","tau":true,"received":[],"step":{"op":"and","operands":[{"op":"atom","name":"$_0 > 0","quoted":true,"terms":[{"op":"var","name":"n"}]},{"op":"atom","name":"$_0 = $_1 - 1","quoted":true,"terms":[{"op":"var","name":"n'"},{"op":"var","name":"n"}]}]}}],"axioms":[],"assumptions":[]}
+	want := `{"version":1,"structurally":false,"states":[{"name":"a","vars":["n"]}],"init":"a","init_post":{"op":"atom","name":"$_0 = 10","quoted":true,"terms":[{"op":"var","name":"n'"}]},"edges":[{"src":"a","dst":"a","tau":true,"received":[],"step":{"op":"and","operands":[{"op":"atom","name":"$_0 > 0","quoted":true,"terms":[{"op":"var","name":"n"}]},{"op":"atom","name":"$_0 = $_1 - 1","quoted":true,"terms":[{"op":"var","name":"n'"},{"op":"var","name":"n"}]}]}}],"axioms":[],"assumptions":[]}
 `
 	if diff := cmp.Diff(want, buf.String()); diff != "" {
 		t.Error(diff)

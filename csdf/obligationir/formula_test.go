@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/google/go-cmp/cmp"
 )
@@ -98,5 +99,43 @@ func TestFormulaLivelockFreeReadsBackFromJSON(t *testing.T) {
 	}
 	if diff := cmp.Diff(ir, got); diff != "" {
 		t.Error(diff)
+	}
+}
+
+func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
+	valid := func() obligationir.LivelockFree {
+		return obligationir.LivelockFree{
+			Version:  obligationir.IRVersion,
+			States:   []obligationir.State{{Name: "a", Vars: []string{}}},
+			Init:     "a",
+			InitPost: logic.Tree{Op: logic.OpTrue},
+			Edges:    []obligationir.Edge{{Src: "a", Dst: "a", Tau: true, Received: []string{}, Step: logic.Tree{Op: logic.OpTrue}}},
+		}
+	}
+	testCases := map[string]func(ir *obligationir.LivelockFree){
+		"another version":             func(ir *obligationir.LivelockFree) { ir.Version = 0 },
+		"a state named twice":         func(ir *obligationir.LivelockFree) { ir.States = append(ir.States, ir.States[0]) },
+		"an unknown start state":      func(ir *obligationir.LivelockFree) { ir.Init = "b" },
+		"an edge to an unknown state": func(ir *obligationir.LivelockFree) { ir.Edges[0].Dst = "b" },
+		"a field received twice":      func(ir *obligationir.LivelockFree) { ir.Edges[0].Received = []string{"k", "k"} },
+	}
+
+	if err := valid().Validate(); err != nil {
+		t.Fatalf("the valid IR is refused: %v", err)
+	}
+	for name, broken := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			ir := valid()
+			broken(&ir)
+
+			// Execute
+			err := ir.Validate()
+
+			// Assert
+			if err == nil {
+				t.Error("err = nil, want the IR refused")
+			}
+		})
 	}
 }

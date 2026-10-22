@@ -49,13 +49,12 @@ const StatePrefix = "csdf_state_"
 // StatePrefix, then the family the instance belongs to and a dot, then S. The
 // family is the map the instance is an entry of, m for m[x], so that one state
 // name in the local diagrams of two families is two constants; an instance
-// that is no entry of a map names the state alone. The dot is in no name, so
-// no two qualified states meet.
+// that is no entry of a map has no family, and names the state after the
+// dot alone. The dot is in no name, so no two qualified states meet, and no
+// state meets a function of the environment, whose name is an identifier.
 func StateConstant(b clause.Builtin) string {
-	if family, ok := familyOf(b.Args[0]); ok {
-		return StatePrefix + family + "." + b.State
-	}
-	return StatePrefix + b.State
+	family, _ := familyOf(b.Args[0])
+	return StatePrefix + family + "." + b.State
 }
 
 func familyOf(t clause.Term) (string, bool) {

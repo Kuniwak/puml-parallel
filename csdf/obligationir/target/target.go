@@ -55,6 +55,9 @@ func CompileRefinement(w io.Writer, ir obligationir.IRRefinement, name Name) err
 
 // Compile writes ir to w in the format named by name.
 func Compile(w io.Writer, ir obligationir.LivelockFree, name Name) error {
+	if err := ir.Validate(); err != nil {
+		return fmt.Errorf("target.Compile: %w", err)
+	}
 	switch name {
 	case NameIsabelle:
 		return isabelle.WriteFormulaLivelockFree(w, ir)

@@ -33,32 +33,59 @@ const InhabitedVal = `instance : Inhabited Val := ⟨.ValBool false⟩`
 // diagram whose clauses are formulas, as the Isabelle back end does
 // (isabelle.WriteFormulaLivelockFree).
 func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
+	text, err := formulaLivelockFree(ir)
+	if err != nil {
+		return fmt.Errorf("lean.WriteFormulaLivelockFree: %w", err)
+	}
+	_, err = io.WriteString(w, text)
+	return err
+}
+
+// formulaLivelockFree is the file WriteFormulaLivelockFree writes, made whole
+// before any of it is written, so that an IR refused halfway writes nothing.
+func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
+	if err := ir.Validate(); err != nil {
+		return "", err
+	}
+	var w strings.Builder
 	if ir.Structurally {
-		io.WriteString(w, "-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.\n")
-		return nil
+		return "-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.\n", nil
 	}
 	side := obligationir.SideSingle
-	io.WriteString(w, ValPrelude+"\n\n"+InhabitedVal+"\n\n")
-	writeStates(w, side, ir.States)
-	writeSymbols(w, ir)
-	hypotheses := writeAxioms(w, ir)
-	if err := WriteAssumptions(w, side, ir.Assumptions); err != nil {
-		return fmt.Errorf("lean.WriteFormulaLivelockFree: %w", err)
+	io.WriteString(&w, ValPrelude+"\n\n"+InhabitedVal+"\n\n")
+	writeStates(&w, side, ir.States)
+	if err := writeSymbols(&w, ir); err != nil {
+		return "", err
+	}
+	hypotheses, err := writeAxioms(&w, ir)
+	if err != nil {
+		return "", err
+	}
+	if err := WriteAssumptions(&w, side, ir.Assumptions); err != nil {
+		return "", err
 	}
 	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
 
 	states := ir.StateMap()
-	fmt.Fprintf(w, "def init (s' : St) : Prop :=\n  %s\n\n", obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, dotted))
-	writeRelation(w, side, "step", states, ir.Edges)
-	io.WriteString(w, `inductive Reachable : St → Prop where
+	init, err := obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, dotted)
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintf(&w, "def init (s' : St) : Prop :=\n  %s\n\n", init)
+	if err := writeRelation(&w, side, "step", states, ir.Edges); err != nil {
+		return "", err
+	}
+	io.WriteString(&w, `inductive Reachable : St → Prop where
   | base (s : St) : init s → Reachable s
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 `)
-	writeRelation(w, side, "tauStep", states, ir.TauEdges())
-	WriteLivelockTheorem(w, side, "livelock_free", hypotheses)
-	io.WriteString(w, "\n")
-	return nil
+	if err := writeRelation(&w, side, "tauStep", states, ir.TauEdges()); err != nil {
+		return "", err
+	}
+	WriteLivelockTheorem(&w, side, "livelock_free", hypotheses)
+	io.WriteString(&w, "\n")
+	return w.String(), nil
 }
 
 func dotted(ctor string) string { return "." + ctor }
@@ -78,8 +105,12 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "\n")
 }
 
-func writeSymbols(w io.Writer, ir obligationir.LivelockFree) {
-	for _, d := range ir.Declarations(PredicateTODO) {
+func writeSymbols(w io.Writer, ir obligationir.LivelockFree) error {
+	ds, err := ir.Declarations(PredicateTODO)
+	if err != nil {
+		return err
+	}
+	for _, d := range ds {
 		for _, c := range d.Comments {
 			io.WriteString(w, "-- "+SanitizeComment(c)+"\n")
 		}
@@ -89,16 +120,26 @@ func writeSymbols(w io.Writer, ir obligationir.LivelockFree) {
 		}
 		io.WriteString(w, "opaque "+d.Name+" : "+strings.Repeat("Val → ", d.Arity)+result+"\n\n")
 	}
+	return nil
 }
 
-func writeAxioms(w io.Writer, ir obligationir.LivelockFree) []string {
+func writeAxioms(w io.Writer, ir obligationir.LivelockFree) ([]string, error) {
 	names := ir.AxiomNames()
 	for i, a := range ir.Axioms {
-		fmt.Fprintf(w, "def %s : Prop :=\n  %s\n\n", names[i], Notation.SpellFormula(a))
+		f, err := Notation.SpellFormula(a)
+		if err != nil {
+			return nil, fmt.Errorf("the axiom %s: %w", names[i], err)
+		}
+		fmt.Fprintf(w, "def %s : Prop :=\n  %s\n\n", names[i], f)
 	}
-	return names
+	return names, nil
 }
 
-func writeRelation(w io.Writer, side obligationir.Side, name string, states map[string]obligationir.State, edges []obligationir.Edge) {
-	fmt.Fprintf(w, "def %s (s s' : St) : Prop :=\n  %s\n\n", name, obligationir.StepDisjuncts(Notation, side, states, edges, dotted))
+func writeRelation(w io.Writer, side obligationir.Side, name string, states map[string]obligationir.State, edges []obligationir.Edge) error {
+	d, err := obligationir.StepDisjuncts(Notation, side, states, edges, dotted)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "def %s (s s' : St) : Prop :=\n  %s\n\n", name, d)
+	return nil
 }

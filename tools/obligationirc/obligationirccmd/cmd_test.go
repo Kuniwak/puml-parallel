@@ -51,6 +51,27 @@ func TestNewMainFuncCompilesTheIR(t *testing.T) {
 	}
 }
 
+func TestNewMainFuncRefusesAnIRItDoesNotRead(t *testing.T) {
+	testCases := map[string]string{
+		"an unknown field": `{"version":1,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[],"predicates":{}}`,
+		"another version":  `{"version":0,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[]}`,
+		"an unknown state": `{"version":1,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"b","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[]}`,
+		"an unknown op":    `{"version":1,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"xor"},"edges":[],"axioms":[],"assumptions":[]}`,
+	}
+
+	for name, input := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			exitStatus, spy := run(input, []string{"-target", "ir-json"})
+
+			// Assert
+			if exitStatus == 0 {
+				t.Errorf("want non-zero exit, got 0\nstdout: %s", spy.Stdout.String())
+			}
+		})
+	}
+}
+
 func TestNewMainFuncInvalidJSONFails(t *testing.T) {
 	// Non-JSON input is a hard error (exit 1), unlike opaque-predicate verdicts.
 	exitStatus, spy := run("not json\n", []string{"-target", "lean"})

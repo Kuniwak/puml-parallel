@@ -70,9 +70,9 @@ func TestFormulaOfAClause(t *testing.T) {
 			Clause: "@at(locations[from], 倉庫待ち)",
 			Want:   "csdf_in(from, locations) ∧ csdf_at(locations[from], csdf_state_locations.倉庫待ち)",
 		},
-		"@at of an instance that is no entry of a map names the state alone": {
+		"@at of an instance that is no entry of a map names the state after the dot alone": {
 			Clause: "@at(t, 倉庫待ち)",
-			Want:   "csdf_at(t, csdf_state_倉庫待ち)",
+			Want:   "csdf_at(t, csdf_state_.倉庫待ち)",
 		},
 		"an existential binds a fresh name of its hint": {
 			Clause: "@exists(m : M) (@update(m, n, k, v) ∧ @update(n', m, j, w))",
