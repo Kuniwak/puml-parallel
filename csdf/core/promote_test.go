@@ -271,6 +271,7 @@ func TestPromoteRefuses(t *testing.T) {
 		{"a hand-written edge sending a field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT", send("why"))}), "holds nothing to send"},
 		{"a hand-written edge reading a primed name", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "@empty(locations')")}), "primed"},
 		{"a hand-written edge reading a name that is no map and no field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "$z = 0")}), "z"},
+		{"a family frozen in no mode", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{{Map: "locations", ID: "loc", Local: location(t), Frozen: []string{"Z"}}}}, "frozen in Z"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
@@ -692,6 +693,17 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 				}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS { return doorsControlled(func(int) bool { return false }) },
+		},
+		{
+			name: "a frozen family takes no event in its mode",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run",
+				Families: []Family{{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}}},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "@empty(doors)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsControlled(func(mode int) bool { return mode == 1 }) },
 		},
 		{
 			name: "what a sync clause reads is carried by the event (#79)",

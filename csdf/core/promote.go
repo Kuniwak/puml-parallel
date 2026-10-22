@@ -14,11 +14,16 @@ import (
 // local-diagram contract): it holds no state variables and has no
 // self-loop, an edge out of it creates an instance, an edge into it deletes
 // one, and Local has no end edge. An instance that does not exist has no
-// entry in the map.
+// entry in the map. Frozen are the modes in which the family holds its map
+// but takes no event (docs/CLAUSE_DESIGN.md).
 type Family struct {
 	Map, ID string
 	Local   *Diagram
+	Frozen  []string
 }
+
+// movesIn says whether f takes its events in mode.
+func (f Family) movesIn(mode string) bool { return !slices.Contains(f.Frozen, mode) }
 
 // Target is one occurrence in a sync: an instance of the family of Map,
 // bound to the ID variable ID, taking the local event Event.
@@ -81,6 +86,11 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		if err := lifecycle(f); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
+		for _, mode := range f.Frozen {
+			if !slices.Contains(p.Modes, mode) {
+				return nil, nil, fmt.Errorf("core.Promote: %s is frozen in %s, which is no mode", f.Map, mode)
+			}
+		}
 		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
@@ -95,6 +105,9 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
 		for _, mode := range p.Modes {
+			if !syncMovesIn(p, s, mode) {
+				continue
+			}
 			edges, err := promoteSync(p, s, mode)
 			if err != nil {
 				return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
@@ -113,6 +126,9 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			}
 		}
 		for _, mode := range p.Modes {
+			if !f.movesIn(mode) {
+				continue
+			}
 			for _, m := range alone {
 				edge, err := promoteAlone(p, m, mode)
 				if err != nil {
@@ -491,6 +507,16 @@ func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 		})
 	}
 	return out, nil
+}
+
+// syncMovesIn says whether every family s takes part of moves in mode.
+func syncMovesIn(p Promotion, s Sync, mode string) bool {
+	for _, tg := range s.Targets {
+		if f, err := familyOf(p, tg.Map); err == nil && !f.movesIn(mode) {
+			return false
+		}
+	}
+	return true
 }
 
 func familyOf(p Promotion, m string) (Family, error) {
