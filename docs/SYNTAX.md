@@ -316,13 +316,14 @@ end note
 @enduml
 ```
 
-- One composite state holds a `<<promote>>` block per family, titled
+- A composite state holds a `<<promote>>` block per family, titled
   `map : ID ⇸ Type` (or `->>`) as in docs/PROMOTION.md: the map that holds
   the instances, the name of an instance's ID, and the type of one instance,
   which is not read yet. The block includes the family's local diagram, read
   relative to the global file. The composite state may declare the maps it
-  holds, as `running : buys ; 約定ID ⇸ Buy`. The global diagram has no other state and no edge but its
-  start edge, which has no post: every map starts empty.
+  holds, as `running : buys ; 約定ID ⇸ Buy`. Its states are the modes
+  below, and its edges are the start edge and the hand-written edges between
+  modes.
 - A local diagram keeps the contract of docs/PROMOTION.md: its start state
   means that the instance does not exist, an edge out of it creates an
   instance and an edge into it deletes one.
@@ -349,12 +350,14 @@ end note
   every family's map. Exactly one block of a map includes its local diagram;
   the others are bodyless. A mode holding a map without a block for it has
   the family frozen there.
-- A hand-written edge between modes, `src --> dst : EVENT?f… ; guard`, reads
-  the maps as they are and its own received fields; it has no post, a `!`
-  field, or a primed read, and it is not on a channel the instances use.
-  There is no end edge.
-- The post of the global start edge is read and dropped with a warning:
-  every map starts empty.
+- A hand-written edge between modes, `src --> dst : EVENT?f… ; guard [; post]`,
+  reads the maps as they are and its own received fields. Its post is
+  omitted, and promotion writes that every map is unchanged, or is exactly
+  that frame; any other post is refused, and so is a `!` field or a primed
+  read. It is not on a channel that a generated edge of the global diagram
+  carries. There is no end edge.
+- The post of the global start edge may say only `@empty(m')` of maps,
+  agreeing with every map starting empty; any other post is refused.
 - A floating `assume` note is carried into the expansion; an anchored one is
   refused.
 

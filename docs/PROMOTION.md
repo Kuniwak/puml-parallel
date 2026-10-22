@@ -31,10 +31,11 @@ language. A promotion whose clauses are formulas (docs/CLAUSE_DESIGN.md) is
 read by `csdf/coreio` in the same syntax, and keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
 families and hand-written global edges, a post on the global start edge and
-global `assume` notes (docs/CLAUSE_DESIGN.md gives their meaning). Two
-differences from `csdfpromote`: a hand-written global edge has no post,
-since promotion itself says that every map is unchanged across it, and
-every mode holds every family's map. `csdfpromote` skips a global `assume`
+global `assume` notes (docs/CLAUSE_DESIGN.md gives their meaning). Its
+differences from `csdfpromote`: a hand-written global edge's post is omitted
+or exactly the frame that leaves every map unchanged; a hand-written edge is
+on a channel no generated edge carries; the global start post may say only
+`@empty(m')` of maps; and every mode holds every family's map. `csdfpromote` skips a global `assume`
 note as a note for the picture alone; `csdf/coreio` carries it into the
 expansion.
 
