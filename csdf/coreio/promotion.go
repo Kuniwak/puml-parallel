@@ -5,19 +5,18 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/csdf/pumlline"
 )
 
 const id = ident.Pattern
 
 var (
-	globalOpenRe = regexp.MustCompile(`^state\s+"(?:[^"\\]|\\.)*"\s+as\s+(` + id + `)\s*\{$`)
 	familyOpenRe = regexp.MustCompile(`^state\s+"\s*(` + id + `)\s*:\s*(` + id + `)\s*"\s+as\s+` + id + `\s+<<promote>>\s*\{$`)
-	includeRe    = regexp.MustCompile(`^!include\s+(.+)$`)
 	startRe      = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
-	noteOpenRe   = regexp.MustCompile(`^note\s+as\s+` + id + `$`)
 	syncRe       = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
 	targetRe     = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
 )
@@ -27,9 +26,9 @@ var (
 // local diagram, which include reads by the path written; a start edge into
 // that state; and notes holding sync directives. The
 // clauses of the local diagrams and of the syncs are read as authored.
-func ReadPromotion(source string, include func(string) (string, error)) (core.Promotion, error) {
+func ReadPromotion(source string, include Include) (core.Promotion, error) {
 	r := &promotionReader{include: include}
-	if err := r.run(strings.Split(source, "\n")); err != nil {
+	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
 	if err := r.check(); err != nil {
@@ -38,14 +37,16 @@ func ReadPromotion(source string, include func(string) (string, error)) (core.Pr
 	return r.p, nil
 }
 
+// Include is the source of the file an !include names, by the path written.
+type Include func(path string) (string, error)
+
 type promotionReader struct {
-	include func(string) (string, error)
+	include Include
 	p       core.Promotion
 	start   string
 	family  *core.Family // the <<promote>> block being read
 	depth   int          // how many blocks are open
 	note    bool
-	ignore  bool
 }
 
 func (r *promotionReader) run(lines []string) error {
@@ -59,12 +60,6 @@ func (r *promotionReader) run(lines []string) error {
 
 func (r *promotionReader) line(l string) error {
 	switch {
-	case r.ignore:
-		r.ignore = commentBody(l) != "CSDF-IGNORE-END"
-		return nil
-	case commentBody(l) == "CSDF-IGNORE-BEGIN":
-		r.ignore = true
-		return nil
 	case l == "" || strings.HasPrefix(l, "'"), strings.HasPrefix(l, "@startuml"), l == "@enduml":
 		return nil
 	case r.note:
@@ -80,11 +75,11 @@ func (r *promotionReader) line(l string) error {
 		r.depth++
 		return nil
 	}
-	if m := globalOpenRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
+	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
 		if r.p.State != "" {
-			return fmt.Errorf("a second state %s; a promoted diagram has one state", m[1])
+			return fmt.Errorf("a second state %s; a promoted diagram has one state", m[2])
 		}
-		r.p.State = m[1]
+		r.p.State = m[2]
 		r.depth++
 		return nil
 	}
@@ -102,7 +97,7 @@ func (r *promotionReader) line(l string) error {
 		r.start = m[1]
 		return nil
 	}
-	if noteOpenRe.MatchString(l) && r.depth == 0 {
+	if pumlline.NoteFloating.MatchString(l) && r.depth == 0 {
 		r.note = true
 		return nil
 	}
@@ -110,7 +105,7 @@ func (r *promotionReader) line(l string) error {
 }
 
 func (r *promotionReader) includeLine(l string) error {
-	m := includeRe.FindStringSubmatch(l)
+	m := pumlline.Include.FindStringSubmatch(l)
 	if m == nil || r.depth != 2 || r.family.Local != nil {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
@@ -182,12 +177,4 @@ func (r *promotionReader) check() error {
 		return fmt.Errorf("no start edge into %s", r.p.State)
 	}
 	return nil
-}
-
-// commentBody is the text of a ' comment line, trimmed.
-func commentBody(l string) string {
-	if !strings.HasPrefix(l, "'") {
-		return ""
-	}
-	return strings.TrimSpace(strings.TrimPrefix(l, "'"))
 }

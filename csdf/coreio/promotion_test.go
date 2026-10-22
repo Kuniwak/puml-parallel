@@ -36,7 +36,7 @@ waiting --> done : SHIP
 `
 
 // files is an include that reads from a map of paths to sources.
-func files(m map[string]string) func(string) (string, error) {
+func files(m map[string]string) Include {
 	return func(path string) (string, error) {
 		s, ok := m[path]
 		if !ok {
