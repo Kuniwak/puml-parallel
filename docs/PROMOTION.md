@@ -46,7 +46,7 @@ The vocabulary is Z's.
 |:------------|:-----------------------------------------------------------------|:-----------------------------------------------------------------------------------|
 | `promote`   | free promotion: `θLocal = m(id)`, `m' = m ⊕ {id ↦ θLocal'}`      | the symbolic form of `\|\|\| id : dom m @ Local(m(id))[[e ← e(id)]]`               |
 | `sync`      | the conjunction of two framing schemas                            | alphabetised parallel, `[\| {e} \|]`                                               |
-| `constrain` | constrained promotion                                             | nothing: a constraint process reading every instance is the global diagram itself  |
+| `constrain` | constrained promotion                                             | a monitor process in parallel (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
 
 
 How the directives are written
@@ -201,7 +201,9 @@ wrongly, so name them apart. In the states where the sync applies, the maps do
 not expand the event on their own.
 
 `constrain e?q… ; c` conjoins `c` onto the guard of every generated edge that
-matches `e` in channel and the directions of its fields, creations and merged edges included. This is
+matches `e` in channel and the directions of its fields, creations and merged edges included.
+Matching is by position: the constrain's i-th field is the edge's i-th field,
+whatever either calls it. This is
 where a condition on another map goes; the local diagram cannot see one.
 Hand-written edges are left alone: they already say everything they were meant
 to.
