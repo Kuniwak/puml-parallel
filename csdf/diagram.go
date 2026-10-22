@@ -102,7 +102,7 @@ func withHint(err error, source string) error {
 func holdsPromotionDirectives(source string) bool {
 	// What a CSDF-IGNORE region holds is PlantUML's alone - a theme, a skin, a
 	// title - so an !include in there is not a directive.
-	source = withoutIgnoreRegions(source)
+	source = BlankIgnoreRegions(source)
 
 	if promotionBlockRe.MatchString(source) {
 		return true
@@ -110,24 +110,28 @@ func holdsPromotionDirectives(source string) bool {
 	return promotionNoteRe.MatchString(source) && promotionDirectiveRe.MatchString(source)
 }
 
-// withoutIgnoreRegions drops every CSDF-IGNORE region, markers included. An
-// unterminated region runs to the end of the source, which is what the parser
-// will refuse anyway.
-func withoutIgnoreRegions(source string) string {
+// BlankIgnoreRegions is source with every CSDF-IGNORE region, markers
+// included, replaced by empty lines, so that what is left keeps its line
+// numbers. An unterminated region runs to the end of the source, which the
+// parser refuses anyway.
+func BlankIgnoreRegions(source string) string {
 	var kept []string
 	ignoring := false
 	for line := range strings.SplitSeq(source, "\n") {
 		switch strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "'")) {
 		case ignoreBeginMarker:
 			ignoring = true
+			kept = append(kept, "")
 			continue
 		case ignoreEndMarker:
 			ignoring = false
+			kept = append(kept, "")
 			continue
 		}
-		if !ignoring {
-			kept = append(kept, line)
+		if ignoring {
+			line = ""
 		}
+		kept = append(kept, line)
 	}
 	return strings.Join(kept, "\n")
 }

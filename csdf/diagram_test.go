@@ -132,3 +132,17 @@ state "稼働中" as running {
 		t.Error("PromotionHintError wraps nothing, want the parse error under it")
 	}
 }
+
+func TestBlankIgnoreRegionsKeepsLineNumbers(t *testing.T) {
+	// Setup
+	source := "a\n' CSDF-IGNORE-BEGIN\nb\n' CSDF-IGNORE-END\nc"
+	want := "a\n\n\n\nc"
+
+	// Execute
+	got := BlankIgnoreRegions(source)
+
+	// Assert
+	if got != want {
+		t.Errorf("BlankIgnoreRegions = %q, want %q", got, want)
+	}
+}
