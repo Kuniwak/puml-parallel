@@ -98,3 +98,90 @@ func TestFormulaJSONRefuses(t *testing.T) {
 		})
 	}
 }
+
+func TestDiagramJSONCarriesTheDiagramWithItsFormulas(t *testing.T) {
+	// Setup
+	d := &Diagram{
+		Name:     "D",
+		Labels:   map[string]string{"s0": "待機中"},
+		States:   []string{"s0", "s1"},
+		Vars:     map[string][]string{"s1": {"n", "m"}},
+		Init:     "s0",
+		InitPost: clause.And{},
+		InitLine: 3,
+		Edges: []Edge{{
+			Src: "s0", Dst: "s1",
+			Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "y"}}},
+			Guard: mustParse(t, "$x > 0"),
+			Post:  mustParse(t, "@eq(n', x)"),
+			Line:  4,
+		}},
+		Ends:    []End{{Src: "s1"}},
+		Assumes: []Assumption{{ID: "fair", Text: "いつか確定する"}},
+	}
+	want := `{
+"version": 1,
+"name": "D",
+"states": ["s0", "s1"],
+"labels": {"s0": "待機中"},
+"vars": {"s0": [], "s1": ["n", "m"]},
+"init": "s0", "init_post": [], "init_line": 3,
+"edges": [{"src": "s0", "dst": "s1", "channel": "c",
+  "fields": [{"dir": "?", "name": "x"}, {"dir": "!", "name": "y"}], "label": "c?x!y",
+  "guard": [{"atom": {"text": ["", " > 0"], "holes": [0], "primed": [false]}, "function": "$_0 > 0", "args": [{"free": "x"}]}],
+  "post": [{"builtin": "eq", "args": [{"free": "n", "primed": true}, {"free": "x"}]}],
+  "line": 4}],
+"ends": [{"src": "s1", "guard": []}],
+"assumes": [{"id": "fair", "text": "いつか確定する"}]
+}`
+
+	// Execute
+	got, err := DiagramJSON(d)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var g, w any
+	if err := json.Unmarshal(raw, &g); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal([]byte(want), &w); err != nil {
+		t.Fatal(err)
+	}
+	if d := cmp.Diff(w, g); d != "" {
+		t.Errorf("DiagramJSON mismatch (-want +got):\n%s", d)
+	}
+}
+
+func TestDiagramJSONRefusesADiagramThatIsNotWellFormed(t *testing.T) {
+	tests := map[string]struct {
+		d    *Diagram
+		want string
+	}{
+		"an undeclared state": {
+			d:    &Diagram{States: []string{"s0"}, Init: "s9"},
+			want: "s9",
+		},
+		"a clause that is not well formed": {
+			d: &Diagram{States: []string{"s0"}, Init: "s0", Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c"},
+				Guard: clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: "x"}}}}}}}},
+			want: "eq",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := DiagramJSON(tt.d)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("DiagramJSON error = %v, want one mentioning %q", err, tt.want)
+			}
+		})
+	}
+}

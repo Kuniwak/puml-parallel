@@ -77,3 +77,80 @@ func termJSON(t clause.Term) any {
 	}
 	return nil
 }
+
+// DiagramJSONVersion is the version of the shape DiagramJSON writes; a
+// reader refuses another.
+const DiagramJSONVersion = 1
+
+// DiagramJSON is d in JSON, for a program such as csdfbmc: its states in
+// order, with their labels and variables (a state with none has an empty
+// list); the start state, its post and the line of the start edge; each
+// edge with its channel, its fields in order (dir "?" for a field received,
+// "!" for one sent), its label, its guard and post as FormulaJSON writes
+// them, and its line; the end edges; and the assume notes. A diagram that
+// is not well formed is an error.
+func DiagramJSON(d *Diagram) (map[string]any, error) {
+	if err := d.wellFormed(); err != nil {
+		return nil, fmt.Errorf("core.DiagramJSON: %w", err)
+	}
+	labels := map[string]any{}
+	vars := map[string]any{}
+	for _, s := range d.States {
+		if l, ok := d.Labels[s]; ok {
+			labels[s] = l
+		}
+		vs := []any{}
+		for _, v := range d.Vars[s] {
+			vs = append(vs, v)
+		}
+		vars[s] = vs
+	}
+	states := []any{}
+	for _, s := range d.States {
+		states = append(states, s)
+	}
+	initPost, err := FormulaJSON(d.InitPost)
+	if err != nil {
+		return nil, fmt.Errorf("core.DiagramJSON: the start edge: %w", err)
+	}
+	edges := []any{}
+	for _, e := range d.Edges {
+		guard, err := FormulaJSON(e.Guard)
+		if err != nil {
+			return nil, fmt.Errorf("core.DiagramJSON: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Label(), err)
+		}
+		post, err := FormulaJSON(e.Post)
+		if err != nil {
+			return nil, fmt.Errorf("core.DiagramJSON: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Label(), err)
+		}
+		fields := []any{}
+		for _, f := range e.Event.Fields {
+			dir := "?"
+			if f.Send {
+				dir = "!"
+			}
+			fields = append(fields, map[string]any{"dir": dir, "name": f.Name})
+		}
+		edges = append(edges, map[string]any{
+			"src": e.Src, "dst": e.Dst, "channel": e.Event.Channel, "fields": fields,
+			"label": e.Event.Label(), "guard": guard, "post": post, "line": e.Line,
+		})
+	}
+	ends := []any{}
+	for _, e := range d.Ends {
+		guard, err := FormulaJSON(e.Guard)
+		if err != nil {
+			return nil, fmt.Errorf("core.DiagramJSON: the end edge from %s: %w", e.Src, err)
+		}
+		ends = append(ends, map[string]any{"src": e.Src, "guard": guard})
+	}
+	assumes := []any{}
+	for _, a := range d.Assumes {
+		assumes = append(assumes, map[string]any{"id": a.ID, "text": a.Text})
+	}
+	return map[string]any{
+		"version": DiagramJSONVersion, "name": d.Name, "states": states, "labels": labels, "vars": vars,
+		"init": d.Init, "init_post": initPost, "init_line": d.InitLine,
+		"edges": edges, "ends": ends, "assumes": assumes,
+	}, nil
+}
