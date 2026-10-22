@@ -640,12 +640,14 @@ appears in. Defining it as `True` instead would not be a placeholder but a diffe
 diagram, one in which every guard holds, so the theorem could be discharged for diagrams
 that do not refine one another; treat an artifact that still carries a `TODO(csdf)` marker
 as undischarged. The refinement is stated under the axioms of the `csdf_*` predicates
-(`csdf_axiom_<i>`) alone. Each side's assume notes, side-qualified (`assume_<id>_S`,
-`assume_<id>_I`), are hypotheses only of that side's own lemmas: `initialisable_S`/`_I`,
-stated in every model, since a side that cannot start is `DIV` and makes the refinement
-vacuous, and in `-m fd` its livelock-freedom. An assumption of the Impl could make the
-refinement hold vacuously, and one of the Spec is typically about liveness, which traces
-and stable failures cannot state (see [CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). Process names are side-qualified (`S_<state>`, `I_<state>`), because state names
+(`csdf_axiom_<i>`) alone, and so is `initialisable_S`/`_I`, stated in every model: of the
+Impl it is what keeps the refinement from holding vacuously, since an Impl that cannot
+start is `DIV`, and it must not rest on what the Impl assumes; of the Spec it is a sanity
+check. Each side's assume notes, side-qualified (`assume_<id>_S`, `assume_<id>_I`), are
+hypotheses only of that side's livelock-freedom under `-m fd`, so the FD conclusion is
+conditional on the Impl's assumptions. An assumption of the Impl could make the refinement
+hold vacuously, and one of the Spec is typically about liveness, which traces and stable
+failures cannot state (see [CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). Process names are side-qualified (`S_<state>`, `I_<state>`), because state names
 collide between the two files.
 
 CSP-Prover has no failures-divergences model, so `-m fd` emits the standard reduction: for

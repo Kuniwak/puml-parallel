@@ -70,15 +70,15 @@ definition SpecProc :: "(PN, event) proc"
 definition ImplProc :: "(PN, event) proc"
   where "ImplProc \<equiv> (!<(\<lambda>v_n_u27u. Internal [v_n_u27u])> v_n_u27u:{v_n_u27u. type_n v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u)} .. $(I_s v_n_u27u)) -- {Alphabet HTau}"
 
-(* Spec admits an initial valuation, so it does not denote DIV. A side
-   that does makes the refinement vacuous, and diverges on the empty trace,
-   which no tau-step argument can rule out. *)
+(* Spec admits an initial valuation, so it does not denote DIV, which
+   diverges on the empty trace and, as the Impl, would make the refinement
+   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
 theorem initialisable_S: "\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u)"
   oops
 
-(* Impl admits an initial valuation, so it does not denote DIV. A side
-   that does makes the refinement vacuous, and diverges on the empty trace,
-   which no tau-step argument can rule out. *)
+(* Impl admits an initial valuation, so it does not denote DIV, which
+   diverges on the empty trace and, as the Impl, would make the refinement
+   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
 theorem initialisable_I: "\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u)"
   oops
 

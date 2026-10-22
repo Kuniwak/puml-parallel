@@ -88,13 +88,15 @@ perform - its received fields of their types, for which some values after it
 pass its guard and post - followed by an internal choice of those values after
 it; an end edge is SKIP when its guard holds. A channel with one number of
 fields in one place and another elsewhere is refused. The refinement is stated
-under the axioms of the csdf_* predicates, as csdf_axiom_<i>, alone. The assume
-notes of a diagram (see docs/SYNTAX.md), as assume_<id>_S or assume_<id>_I, are
-hypotheses only of that side's own lemmas: initialisable_S/_I, stated in every
-model since a side that cannot start is DIV and makes the refinement vacuous, and
-under -m fd its livelock freedom. An assumption of the Impl could make the
-refinement hold vacuously, and one of the Spec, of liveness, is no claim traces
-or stable failures can state.
+under the axioms of the csdf_* predicates, as csdf_axiom_<i>, alone, and so is
+initialisable_S/_I, stated in every model: of the Impl it is what keeps the
+refinement from holding vacuously, since an Impl that cannot start is DIV, and it
+must not rest on what the Impl assumes; of the Spec it is a sanity check. The
+assume notes of a diagram (see docs/SYNTAX.md), as assume_<id>_S or
+assume_<id>_I, are hypotheses only of that side's livelock freedom under -m fd,
+so the FD conclusion is conditional on the Impl's assumptions. An assumption of
+the Impl could make the refinement hold vacuously, and one of the Spec, of
+liveness, is no claim traces or stable failures can state.
 
 CSP-Prover has no failures-divergences model, so -m fd emits the standard
 reduction instead: a divergence-freedom obligation per side - the csdflivelockfree

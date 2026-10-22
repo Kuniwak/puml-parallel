@@ -103,15 +103,15 @@ def ImplProc : proc PN event :=
         (fun v_n_u27u => proc.Proc_name (PN.I_a v_n_u27u)))
     {event.Alphabet alphabet.HTau}
 
--- Spec admits an initial valuation, so it does not denote DIV. A side that does
--- makes the refinement vacuous, and diverges on the empty trace, which no
--- tau-step argument can rule out.
+-- Spec admits an initial valuation, so it does not denote DIV, which diverges on
+-- the empty trace and, as the Impl, would make the refinement vacuous. Stated
+-- under the axioms alone: it must not rest on an assumption.
 theorem initialisable_S : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u) := by
   sorry
 
--- Impl admits an initial valuation, so it does not denote DIV. A side that does
--- makes the refinement vacuous, and diverges on the empty trace, which no
--- tau-step argument can rule out.
+-- Impl admits an initial valuation, so it does not denote DIV, which diverges on
+-- the empty trace and, as the Impl, would make the refinement vacuous. Stated
+-- under the axioms alone: it must not rest on an assumption.
 theorem initialisable_I : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u) := by
   sorry
 

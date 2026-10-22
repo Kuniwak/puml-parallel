@@ -205,10 +205,12 @@ assumption of either side: an assumption of the impl could make it hold
 vacuously (an impl assumed never to run refines anything), and an
 assumption of the spec is typically a liveness assumption, which no trace
 and no stable failure can state, so it would license a claim the model does
-not make. Each side's assumptions are hypotheses of that side's own lemmas
-only: that it can start, which every model needs since a side that cannot
-is DIV and makes the refinement vacuous, and, for failures-divergences,
-that it is livelock free.
+not make. That a side can start is stated under the axioms alone too: of
+the impl it is what keeps the refinement from holding vacuously, an impl
+that cannot start being DIV, and it must not rest on what the impl assumes
+of its runs; of the spec it is a sanity check. Each side's assumptions are
+hypotheses only of that side's livelock-freedom, in failures-divergences, so
+the FD conclusion is conditional on the impl's assumptions.
 
 Restricting a promotion to some of its families (`-only`) is an
 approximation, not an abstraction in the sense of the table above. The
