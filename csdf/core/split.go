@@ -26,7 +26,7 @@ func SplitEvent(text string, field func(string) bool) (string, []EventField, err
 	}
 	channel := strings.TrimSpace(text[:i])
 	if !ident.Is(channel) {
-		return "", nil, fmt.Errorf("%q: expected a channel, then ?field or !field", text)
+		return "", nil, fmt.Errorf("%q: expected a channel, an identifier, then ?field or !field", text)
 	}
 	var fields []EventField
 	for rest := text[i:]; rest != ""; {
