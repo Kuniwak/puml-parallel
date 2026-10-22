@@ -63,7 +63,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		d.Edges = append(d.Edges, core.Edge{
 			Src:   string(e.Src),
 			Dst:   string(e.Dst),
-			Event: event(e.Event),
+			Event: eventOf(e.Event),
 			Guard: clauses(e.Guard),
 			Post:  clauses(e.Post),
 		})
@@ -74,7 +74,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 	return d, nil
 }
 
-func event(e csdf.Event) core.Event {
+func eventOf(e csdf.Event) core.Event {
 	out := core.Event{Channel: e.Channel()}
 	for _, f := range e.Fields() {
 		out.Fields = append(out.Fields, core.Field{Send: f.Dir == csdf.Sent, Name: f.Name})
