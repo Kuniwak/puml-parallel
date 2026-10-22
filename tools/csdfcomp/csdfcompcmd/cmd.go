@@ -5,6 +5,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -24,13 +25,21 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
 		}
 
-		composite, err := csdf.ComposeTree(expr, csdf.NewFileDiagramLoader(opts.BaseDir))
+		composite, err := coreio.ComposeTree(expr, coreio.FileLoader(opts.BaseDir))
 		if err != nil {
 			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
 		}
 		composite.Name = tools.GeneratedBy("csdfcomp", opts.Args)
 
-		fmt.Fprint(inout.Stdout, composite.String())
+		canonical, err := coreio.Canonical(composite)
+		if err != nil {
+			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
+		}
+		text, err := coreio.Write(canonical)
+		if err != nil {
+			return fmt.Errorf("csdfcompcmd.NewMainFunc: %w", err)
+		}
+		fmt.Fprint(inout.Stdout, text)
 		return nil
 	}
 }
