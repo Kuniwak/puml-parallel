@@ -150,7 +150,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	if err := constrain(p, out.Edges); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
-	switches, err := controlled(p, maps)
+	switches, err := controlled(p, maps, out.Edges)
 	if err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
@@ -227,15 +227,11 @@ func constrain(p Promotion, edges []Edge) error {
 // controlled is the hand-written edges of p, each leaving every map
 // unchanged (docs/CLAUSE_DESIGN.md): the steps of a controller that reads
 // the maps as they are, receives its own fields, and writes no instance.
-func controlled(p Promotion, maps []string) ([]Edge, error) {
+// None is on a channel of the generated edges.
+func controlled(p Promotion, maps []string, generated []Edge) ([]Edge, error) {
 	used := map[string]bool{}
-	for _, f := range p.Families {
-		for _, e := range f.Local.Edges {
-			used[e.Event.Channel] = true
-		}
-	}
-	for _, s := range p.Syncs {
-		used[s.Event] = true
+	for _, e := range generated {
+		used[e.Event.Channel] = true
 	}
 	var out []Edge
 	for _, e := range p.Edges {
@@ -246,7 +242,7 @@ func controlled(p Promotion, maps []string) ([]Edge, error) {
 			}
 		}
 		if e.Event.Channel != Tau && used[e.Event.Channel] {
-			return nil, fmt.Errorf("%s: %s is an event of the instances; a hand-written edge is on a channel of its own", name, e.Event.Channel)
+			return nil, fmt.Errorf("%s: %s is a channel of the generated edges; a hand-written edge is on a channel of its own", name, e.Event.Channel)
 		}
 		if err := clause.WellFormed(e.Guard); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)

@@ -381,6 +381,24 @@ func TestPromoteReportsAFrozenFamilyAsInfo(t *testing.T) {
 	}
 }
 
+func TestPromoteComparesAHandWrittenChannelWithTheGlobalOnes(t *testing.T) {
+	// Setup: DEPART is taken only through the sync MOVE, so the global
+	// diagram has no edge on DEPART.
+	p := Promotion{Modes: []string{"G", "H"}, Init: "G",
+		Families: []Family{{Map: "locations", ID: "loc", Local: location(t)}},
+		Syncs: []Sync{{Event: "MOVE", Targets: []Target{
+			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "ARRIVE"}}}},
+		Edges: []Edge{{Src: "G", Dst: "H", Event: ev("DEPART")}}}
+
+	// Execute
+	_, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Promote: %v, want a hand-written edge on a channel no global edge carries", err)
+	}
+}
+
 func TestPromoteCarriesTheAssumptions(t *testing.T) {
 	// Setup
 	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
