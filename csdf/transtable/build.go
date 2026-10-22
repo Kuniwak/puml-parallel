@@ -314,10 +314,9 @@ func (ix index) closeOver(path []conjunct, then ...conjunct) logic.Formula {
 // after it, so an edge is enabled exactly when its guard holds: of the fields
 // offered for c, and for a tau, which receives nothing, of the values alone.
 //
-// The walk terminates only when no tau cycle is reachable from s. Two ways
-// that reach a state along the same tau edges lead to the same outcomes, so
-// only the first is walked; otherwise the tau diamonds that hiding interleaved
-// events makes would grow the walk exponentially.
+// The walk terminates only when no tau cycle is reachable from s. Each way
+// of tau steps is walked, so a diamond of them is walked once per way round;
+// two ways reach a state along different clauses, so their outcomes differ.
 func (ix index) outcomes(s string, c Column) ([]Outcome, error) {
 	var os []Outcome
 	add := func(o Outcome) {
@@ -325,15 +324,8 @@ func (ix index) outcomes(s string, c Column) ([]Outcome, error) {
 			os = append(os, o)
 		}
 	}
-	walked := map[string]bool{}
 	var visit func(u string, steps []int) error
 	visit = func(u string, steps []int) error {
-		here := fmt.Sprint(u, steps)
-		if walked[here] {
-			return nil
-		}
-		walked[here] = true
-
 		k := len(steps)
 		path, err := ix.conjuncts(steps)
 		if err != nil {
