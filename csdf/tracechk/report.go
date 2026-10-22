@@ -58,7 +58,7 @@ func writeRejection(sb *strings.Builder, d *core.Diagram, r Result) error {
 		if err != nil {
 			return err
 		}
-		infeasible := logic.Not(logic.Exists(logic.FreeVars(along), along))
+		infeasible := logic.Not(some(along))
 		fmt.Fprintf(sb, "Infeasible iff: %s\n\n", notation.Spell(infeasible))
 	}
 	return nil
@@ -78,7 +78,7 @@ round a ` + "`tau`" + ` cycle, and their obligations, are not listed.
 	if err != nil {
 		return err
 	}
-	admits := logic.Exists(logic.FreeVars(start), start)
+	admits := some(start)
 	fmt.Fprintf(sb, "- the start edge `[*] --> %s` must admit a valuation: %s\n\n", d.Init, notation.Spell(admits))
 
 	for _, step := range r.Steps {
@@ -185,9 +185,7 @@ func writeObligation(sb *strings.Builder, d *core.Diagram, p PrefixPath) error {
 		return err
 	}
 	ob := logic.Simplify(logic.Implies(along, logic.Or(conclusion...)))
-	if vars := logic.FreeVars(ob); len(vars) > 0 {
-		ob = logic.Forall(vars, ob)
-	}
+	ob = every(ob)
 	fmt.Fprintf(sb, "Obligation: %s\n\n", notation.Spell(ob))
 	return nil
 }
@@ -308,4 +306,31 @@ func joinEvents(events []string) string {
 
 func joinStates(states []string) string {
 	return strings.Join(states, ", ")
+}
+
+// some binds the free variables of f existentially, and every universally,
+// each of the type named like it: v@i of the type v, k#i of the type k, as
+// obligation.Enabled types what it chooses.
+func some(f logic.Formula) logic.Formula {
+	vars := logic.FreeVars(f)
+	if len(vars) == 0 {
+		return f
+	}
+	return logic.ExistsTyped(vars, typesOf(vars), f)
+}
+
+func every(f logic.Formula) logic.Formula {
+	vars := logic.FreeVars(f)
+	if len(vars) == 0 {
+		return f
+	}
+	return logic.ForallTyped(vars, typesOf(vars), f)
+}
+
+func typesOf(vars []logic.Var) []string {
+	types := make([]string, len(vars))
+	for i, v := range vars {
+		types[i] = strings.FieldsFunc(string(v), func(r rune) bool { return r == '@' || r == '#' })[0]
+	}
+	return types
 }
