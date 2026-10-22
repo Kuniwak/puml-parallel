@@ -14,55 +14,27 @@ import (
 type Match func(diagramEvent core.Event, traceEvent string) bool
 
 // MatchExact accepts an event of the trace as an event of the diagram when
-// it is of its channel and has a field of each direction in its order, each
-// written ?x or !x: x is the field's name or the value it carries, which the
-// check does not read. So insert?coin and insert?3 are both the event of
-// insert?coin.
+// it has its shape (core.Event.SameShape): its channel, and a field of each
+// direction in order, each written ?x or !x, where x is the field's name or
+// the value it carries, which the check does not read (core.ParseEvent). So
+// insert?coin and insert?3 are both the event of insert?coin. A trace event
+// that is no event, such as insert?, matches nothing.
 func MatchExact(diagramEvent core.Event, traceEvent string) bool {
-	channel, dirs := split(traceEvent)
-	return channel == diagramEvent.Channel && sameDirections(dirs, diagramEvent.Fields)
+	e, err := core.ParseEvent(traceEvent)
+	return err == nil && e.SameShape(diagramEvent)
 }
 
 // MatchPrefix accepts an event of the trace as an event of the diagram when
-// it is MatchExact of the channel and of the first fields, so a trace
+// it has the shape of its channel and of its first fields, so a trace
 // stripped of its fields (insert) matches the event of insert?coin. A
 // prefix stops at the boundaries of the channel and of each field: ins is no
 // prefix of insert.
 func MatchPrefix(diagramEvent core.Event, traceEvent string) bool {
-	channel, dirs := split(traceEvent)
-	return channel == diagramEvent.Channel && len(dirs) <= len(diagramEvent.Fields) && sameDirections(dirs, diagramEvent.Fields[:len(dirs)])
-}
-
-// split takes a trace event apart into its channel and, for each field, in
-// order, whether it is sent.
-func split(event string) (string, []bool) {
-	i := strings.IndexAny(event, "?!")
-	if i < 0 {
-		return event, nil
-	}
-	channel := event[:i]
-	var sends []bool
-	for _, r := range event[i:] {
-		switch r {
-		case '?':
-			sends = append(sends, false)
-		case '!':
-			sends = append(sends, true)
-		}
-	}
-	return channel, sends
-}
-
-func sameDirections(sends []bool, fields []core.Field) bool {
-	if len(sends) != len(fields) {
+	e, err := core.ParseEvent(traceEvent)
+	if err != nil || len(e.Fields) > len(diagramEvent.Fields) {
 		return false
 	}
-	for i, f := range fields {
-		if f.Send != sends[i] {
-			return false
-		}
-	}
-	return true
+	return e.SameShape(core.Event{Channel: diagramEvent.Channel, Fields: diagramEvent.Fields[:len(e.Fields)]})
 }
 
 // Label is the event e as a diagram writes it: its channel, then ?name for

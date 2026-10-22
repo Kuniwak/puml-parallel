@@ -24,6 +24,8 @@ func TestMatch(t *testing.T) {
 		"exact: too few fields":                          {tracechk.MatchExact, pay, "pay?5", false},
 		"exact: another channel":                         {tracechk.MatchExact, insert, "inserted?3", false},
 		"exact: an event without fields":                 {tracechk.MatchExact, tick, "tick", true},
+		"exact: a marker with no value":                  {tracechk.MatchExact, insert, "insert?", false},
+		"prefix: a marker with no value":                 {tracechk.MatchPrefix, insert, "insert?", false},
 		"prefix: the channel alone":                      {tracechk.MatchPrefix, insert, "insert", true},
 		"prefix: the first of the fields":                {tracechk.MatchPrefix, pay, "pay?5", true},
 		"prefix: stops at the channel's boundary":        {tracechk.MatchPrefix, insert, "ins", false},

@@ -72,6 +72,9 @@ event is looked up in the diagram is one of two simple rules chosen by -match:
   prefix  the channel and the first fields, stopping at their boundaries, so
           a trace whose fields were stripped ("insert") matches insert?coin
 
+A value in a trace event may not hold ? or !, which mark its fields, and a
+marker needs a value after it: "insert?" matches nothing.
+
 Anything richer is best done to the trace beforehand, e.g. with sed or qhs. The
 diagram may be "-" for standard input; traces must be files. Too many traces
 for the command line can be listed in a TSV given by -traces, whose header is
