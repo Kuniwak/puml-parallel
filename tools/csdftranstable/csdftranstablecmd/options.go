@@ -49,33 +49,27 @@ each when its condition C holds; a line without [C] happens unconditionally.
 Every line holds on its own: a cell is the set of what may happen, and a line
 that comes out the same as one before it is written once.
 
-C is a formula of first-order logic whose atoms are the guards and
-postconditions of the diagram, quoted as JSON strings and applied to what they
-read: a guard to the parameters of its event and the values of the state
-variables before its step, a postcondition to those and the values after (an
-end edge reads the values only). The variables are
+C is a formula of first-order logic: the guards and posts along its way, the
+formulas their clauses are (docs/SYNTAX.md), each atom quoted as a JSON string
+and applied to its holes. The variables are
 
-  x    the values of the row's state
-  c    the fields the column's event receives, as the environment offers
-       them; an event that receives nothing has none
-  x'   the values of the state an accepted event leads to
-  ci   the parameters of the event of the i-th tau step
-  xi   the values after the i-th tau step
+  v      the state variable v of the row's state
+  k      the field k the column's event receives, as the environment offers it
+  v'     the variable v of the state an accepted event leads to
+  v@i    the variable v after the i-th tau step
 
 The diagram may first take tau edges, which the environment cannot see, so C
-conjoins every guard and postcondition along the way, in order, and binds the
-values in between and the parameters of the hidden events. The parameters are
-never parsed out of an event: a variable stands for them all, whatever they
-are. The diagram refuses an event where it is stable and cannot perform it:
-no tau edge is enabled and no edge for the event is. Every postcondition is
-taken to admit some values after its step, so an edge is enabled exactly when
-its guard holds for some parameters of a tau edge, or for those offered.
+conjoins every guard and post along the way, in order, and binds the values in
+between. The diagram refuses an event where it is stable and cannot perform it:
+no tau edge is enabled and no edge for the event is. Every post is taken to
+admit some values after its step, so an edge is enabled exactly when its guard
+holds, of the values and, for the event, of the fields offered.
 
 With -conditions enabling, C leaves out every postcondition whose values
 nothing kept after it reads: the one of the accepted event always, and one of
 a tau step unless a later guard reads the values after that step. Since every
-postcondition admits some values, C holds of c and x exactly where the full
-condition holds for some x'; it says what the outcome is enabled by, and no
+post admits some values, C holds of the fields and the values exactly where
+the full condition holds for some v'; it says what the outcome is enabled by, and no
 longer what the values after are.
 
 Negation binds tightest; a conjunction inside a disjunction, or the other way
@@ -83,7 +77,7 @@ round, is parenthesised; an implication binds loosest; and a quantifier
 reaches to the end of what it is in, so it is parenthesised exactly when
 something follows it.
 
-The guards and postconditions are natural language and are never evaluated,
+The atoms are never evaluated,
 and whether the guards cover every case is left to the reader. A reachable tau
 cycle may make the diagram diverge, which a table of refusals cannot show, so
 such a diagram is refused, and so is one naming a state it never declares.
@@ -102,9 +96,8 @@ with a cell per column in the same order. An OUTCOME is
 without "state", and C is a syntax tree: {"op": OP, ...}, where OP is true,
 false, atom (with "name", "quoted" and "terms", each {"op": "var", "name": V}
 or an index, field or apply term), not, and, or, implies (with
-"operands"), exists or forall (with "vars" and "operands"). A guard is an atom
-applied to (c, xi), or to (xi) for an end edge and an event that receives
-nothing (a sent field is the state's); a postcondition to those and x'. Being no TSV, it has no column to clash with, and -expr-mode does
+"operands"), exists or forall (with "vars" and "operands"), over the variables
+above. Being no TSV, it has no column to clash with, and -expr-mode does
 not apply.
 
 A file argument, a "-" argument, and standard input are all equivalent.

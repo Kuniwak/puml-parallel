@@ -126,9 +126,8 @@ generated edge's clauses one by one and each clause's kind; it is the
 expansion of the tools before `csdf/core`, which `csdfbmc` reads until it
 moves onto the clause syntax.
 
-The PUML expansion is read by `csdflivelockfree`, `csdfrefinement` and
-`csdftracechk`. It is not yet read by `csdftranstable`, which reads the clauses of
-the tools before `csdf/core` (#76).
+The PUML expansion is read by `csdflivelockfree`, `csdfrefinement`,
+`csdftracechk` and `csdftranstable`.
 
 ```console
 $ csdfpromote -format json examples/promote/TRADES.puml
@@ -424,23 +423,26 @@ $ csdfcomp tree.json | csdftranstable -
 ```
 
 For `vending_machine.puml` it writes this table (shown here as Markdown, with
-a line break for each line of a cell, and the parameters of two long event
-names cut to `…`):
+a line break for each line of a cell):
 
-| state | name | insert?coin | showAvailable!… | showPurchasable?… | choose?product | drop?product |
+| state | name | showAvailable!availableProducts2 | insert?coin | showPurchasable?purchasableProducts | choose?product | drop?product |
 |---|---|---|---|---|---|---|
-| vmIdle | vmIdle | ["coins' is {coin}, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | ["availableProducts' remains the same"(x, x')] → vmIdle | × | × | × |
-| vmCoinsInserted | vmCoinsInserted | × | × | ["availableProducts' and coins' remain the same"(c, x, x')] → vmWaitingChoosing | × | × |
-| vmWaitingChoosing | vmWaitingChoosing | ["coins' is coins with coin added, availableProducts' remains the same"(c, x, x')] → vmCoinsInserted | × | × | ["availableProducts contains product"(c, x) and "product' is product"(c, x, x')] → vmDropping<br>[not "availableProducts contains product"(c, x)] × | × |
-| vmDropping | vmDropping | × | × | × | × | ["availableProducts' is availableProducts minus product"(c, x, x')] → vmIdle |
+| vmIdle | vmIdle | [availableProducts2 = availableProducts and "$_0 is $_1"(availableProducts', availableProducts)] → vmIdle<br>[not (availableProducts2 = availableProducts)] × | ["$_0 is the set of $_1"(coins', coin) and "$_0 is $_1"(availableProducts', availableProducts)] → vmCoinsInserted | × | × | × |
+| vmCoinsInserted | vmCoinsInserted | × | × | ["$_0 is $_1"(availableProducts', availableProducts) and "$_0 is $_1"(coins', coins)] → vmWaitingChoosing | × | × |
+| vmWaitingChoosing | vmWaitingChoosing | × | ["$_0 is $_1 with $_2 added"(coins', coins, coin) and "$_0 is $_1"(availableProducts', availableProducts)] → vmCoinsInserted | × | ["$_0 contains $_1"(availableProducts, product) and "$_0 is $_1"(dispensing', product)] → vmDropping<br>[not "$_0 contains $_1"(availableProducts, product)] × | × |
+| vmDropping | vmDropping | × | × | × | × | ["$_0 is $_1"(product, dispensing) and "$_0 is $_1 minus $_2"(availableProducts', availableProducts, product)] → vmIdle<br>[not "$_0 is $_1"(product, dispensing)] × |
 
 The columns are `state` (the ID), `name`, the visible events, and `[*]` when a
-reachable state has an end edge. States and events come in the order a
-breadth-first walk from the start state meets them, following edges in
-canonical order, so the rows read roughly in the order of the lifecycle and
-the same diagram always gives the same bytes. A column is an event as
-`docs/SYNTAX.md` defines one, its whole text, so `insert?coin` and `insert?c`
-are two columns.
+reachable state has an end edge. States come in the canonical order, sorted by
+their IDs, and events in the order the states and their edges come, so the
+same diagram always gives the same bytes. A column is an event: its channel and a
+field of each direction in order (see `docs/SYNTAX.md`), whatever an edge names
+its fields, so `insert?coin` and `insert?c` are one column. The column names
+each of its fields after the first edge's, made fresh where that name is taken
+by a state variable or by another position (`showAvailable!availableProducts2`
+above), and each edge's clauses are read with its received fields renamed to
+the column's and, for each field it sends, the condition that the column's
+value there is the one it sends.
 
 A cell holds one outcome per line, `[C] → s` (the event may be accepted, and
 the diagram be in `s`) or `[C] ×` (the event may be refused), each when its
@@ -449,47 +451,44 @@ holds on its own, so a cell is the set of what may happen, and several edges
 for one event are simply several lines, whether their guards exclude one
 another or not. A multi-line cell is quoted, as CSV quotes it.
 
-`C` is a formula of first-order logic whose atoms are the guards and
-postconditions of the diagram, quoted as JSON strings so that no text they hold
-reads as a connective, and applied to what they read, as in the obligation IR:
-a guard to the parameters of its event and the values of the state variables
-before its step, a postcondition to those and the values after. The guard of
-an end edge has no event and reads the values only. The variables are
+`C` is a formula of first-order logic: the guards and posts along its way,
+spelled as the formulas their clauses are (see `csdflivelockfree`), each atom
+quoted as a JSON string so that no text it holds reads as a connective and
+applied to its holes. The variables are
 
 | variable | stands for |
 |---|---|
-| `x` | the values of the row's state |
-| `c` | the fields the column's event receives, as the environment offers them; an event that receives nothing has none |
-| `x'` | the values of the state an accepted event leads to |
-| `ci` | the parameters of the event of the `i`-th `tau` step |
-| `xi` | the values after the `i`-th `tau` step |
+| `v` | the state variable `v` of the row's state |
+| `k` | the field `k` the column's event receives, as the environment offers it |
+| `v'` | the variable `v` of the state an accepted event leads to |
+| `v@i` | the variable `v` after the `i`-th `tau` step |
 
-The parameters are never parsed out of an event: a variable stands for them
-all, whatever they are, so no syntax of parameters is fixed. A line in the
-column of `insert?coin` speaks of the `coin` offered, so a refusal is one of
-that value, as a stable failure refuses events with their values.
+A line in the column of `insert?coin` speaks of the `coin` offered, so a
+refusal is one of that value, as a stable failure refuses events with their
+values. A field a `tau` hides is bound by the `exists` hiding wrote, inside its
+clauses.
 
 The reading is the stable-failures one that `csdftracechk` and
 `csdfrefinement -m f` use. The environment cannot see `tau`, so `tau` is not a
 column: the diagram may take any number of `tau` edges first, and an outcome
 reached that way conjoins every guard and postcondition along the way, in
-order, binding with `exists` the values in between and the parameters of the
-hidden events, which the diagram chooses. A refusal happens where the diagram
+order, binding with `exists` the values in between, which the diagram
+chooses. A refusal happens where the diagram
 is stable and cannot perform the event: no `tau` edge is enabled, and no edge
-for the event is. With `A --> B : tau ; h1 ; p1`, `B --> C : tau ; h2 ; p2`
-and `C --> D : a?v ; g ; q`, the cell of `A` under `a?v` is
+for the event is. With `A`, `B`, `C` and `D` each holding `n`, and
+`A --> B : tau ; h1 $n ; p1 $n' $n`, `B --> C : tau ; h2 $n ; p2 $n' $n` and
+`C --> D : a?v ; g $v $n ; q $n' $v $n`, the cell of `A` under `a?v` is
 
 ```
-[not exists c1. "h1"(c1, x)] ×
-[exists c1 x1. "h1"(c1, x) and "p1"(c1, x, x1) and not exists c2. "h2"(c2, x1)] ×
-[exists c1 x1 c2 x2. "h1"(c1, x) and "p1"(c1, x, x1) and "h2"(c2, x1) and "p2"(c2, x1, x2) and "g"(c, x2) and "q"(c, x2, x')] → D
-[exists c1 x1 c2 x2. "h1"(c1, x) and "p1"(c1, x, x1) and "h2"(c2, x1) and "p2"(c2, x1, x2) and not "g"(c, x2)] ×
+[not "h1 $_0"(n)] ×
+[exists n@1. "h1 $_0"(n) and "p1 $_0 $_1"(n@1, n) and not "h2 $_0"(n@1)] ×
+[exists n@1 n@2. "h1 $_0"(n) and "p1 $_0 $_1"(n@1, n) and "h2 $_0"(n@1) and "p2 $_0 $_1"(n@2, n@1) and "g $_0 $_1"(v, n@2) and "q $_0 $_1 $_2"(n', v, n@2)] → D
+[exists n@1 n@2. "h1 $_0"(n) and "p1 $_0 $_1"(n@1, n) and "h2 $_0"(n@1) and "p2 $_0 $_1"(n@2, n@1) and not "g $_0 $_1"(v, n@2)] ×
 ```
 
 where the lines come in the order of a depth-first walk along the `tau` edges:
 the diagram may stop and refuse in `A`, in `B` or in `C`, whichever it is
-stable in. A variable is bound in step order, the parameters of a step before
-the values after it. The spelling is that of `csdf/logic`, which
+stable in. A variable is bound in step order. The spelling is that of `csdf/logic`, which
 `csdftracechk` shares: negation binds tightest; a conjunction and a
 disjunction have no precedence over each other, so one inside the other is
 parenthesised; an implication binds loosest; and a quantifier reaches to the

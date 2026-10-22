@@ -32,7 +32,7 @@ func WriteTSV(w io.Writer, t *Table, f Format) error {
 	reserved := append(slices.Clone(fixedColumns), TerminationColumn{}.Header())
 	for _, c := range t.Columns {
 		if ec, ok := c.(EventColumn); ok && slices.Contains(reserved, ec.Header()) {
-			return fmt.Errorf("transtable.WriteTSV: %w", fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", ec.Event))
+			return fmt.Errorf("transtable.WriteTSV: %w", fmt.Errorf("the event %q is spelled like a column of the table, so its column could not be told apart", ec.Header()))
 		}
 		header = append(header, c.Header())
 	}

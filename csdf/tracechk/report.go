@@ -134,7 +134,7 @@ func writePathTable(sb *strings.Builder, d *core.Diagram, path Path) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(sb, "| %d | `%s` | %s |\n", i+1, Label(e.Event), row)
+		fmt.Fprintf(sb, "| %d | `%s` | %s |\n", i+1, e.Event.Label(), row)
 	}
 	sb.WriteString("\n")
 

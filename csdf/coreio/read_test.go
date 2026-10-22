@@ -1,12 +1,15 @@
 package coreio
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
@@ -176,5 +179,40 @@ s --> s : a ; @exists(y : Y) ($y が大きい)
 	}
 	if !clause.AlphaEqual(got.Edges[0].Guard, want) {
 		t.Errorf("Read: the guard is %v, want %v", got.Edges[0].Guard, want)
+	}
+}
+
+func TestReadHintsAtPromotionForAGlobalDiagram(t *testing.T) {
+	// Setup
+	src, err := os.ReadFile("../../examples/promote/TRADES.puml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	_, err = Read(string(src))
+
+	// Assert
+	var hinted *csdf.PromotionHintError
+	if !errors.As(err, &hinted) {
+		t.Errorf("err = %v, want a *csdf.PromotionHintError", err)
+	}
+}
+
+func TestReadRefusesAFieldReceivedOverAStateVariable(t *testing.T) {
+	testCases := map[string]string{
+		"of the source":      "@startuml\nstate \"a\" as a\na : k\nstate \"b\" as b\n[*] --> a\na --> b : in?k\n@enduml\n",
+		"of the destination": "@startuml\nstate \"a\" as a\nstate \"b\" as b\nb : k\n[*] --> a\na --> b : in?k\n@enduml\n",
+	}
+	for name, src := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := Read(src)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), "k") {
+				t.Errorf("err = %v, want the field k refused", err)
+			}
+		})
 	}
 }

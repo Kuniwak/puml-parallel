@@ -5,26 +5,25 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
 // jsonTable is the JSON encoding of a Table. Every list is a list, never null,
 // so that a reader need not tell an empty one from a missing one.
 type jsonTable struct {
-	Columns     []jsonColumn   `json:"columns"`
-	Rows        []jsonRow      `json:"rows"`
-	Unreachable []csdf.StateID `json:"unreachable"`
+	Columns     []jsonColumn `json:"columns"`
+	Rows        []jsonRow    `json:"rows"`
+	Unreachable []string     `json:"unreachable"`
 }
 
 // jsonColumn is a column: Kind is "event", with Event, or "termination".
 type jsonColumn struct {
-	Kind  string     `json:"kind"`
-	Event csdf.Event `json:"event,omitempty"`
+	Kind  string `json:"kind"`
+	Event string `json:"event,omitempty"`
 }
 
 type jsonRow struct {
-	State csdf.StateID    `json:"state"`
+	State string          `json:"state"`
 	Name  string          `json:"name"`
 	Cells [][]jsonOutcome `json:"cells"`
 }
@@ -32,9 +31,9 @@ type jsonRow struct {
 // jsonOutcome is an outcome: Result is "goto", with State, "terminate" or
 // "refuse".
 type jsonOutcome struct {
-	Result    string       `json:"result"`
-	State     csdf.StateID `json:"state,omitempty"`
-	Condition logic.Tree   `json:"condition"`
+	Result    string     `json:"result"`
+	State     string     `json:"state,omitempty"`
+	Condition logic.Tree `json:"condition"`
 }
 
 // WriteJSON writes t as newline-terminated JSON: its columns, each saying
@@ -42,8 +41,7 @@ type jsonOutcome struct {
 // in the same order, and its unreachable states. An outcome gives what it
 // comes to and its condition as a syntax tree, logic.Tree, so that a reader
 // can take a condition apart without parsing a notation. HTML escaping is off:
-// the guards and postconditions are natural language, where <, > and & are
-// common.
+// the texts of atoms are natural language, where <, > and & are common.
 func WriteJSON(w io.Writer, t *Table) error {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
@@ -57,7 +55,7 @@ func jsonOf(t *Table) jsonTable {
 	jt := jsonTable{
 		Columns:     make([]jsonColumn, 0, len(t.Columns)),
 		Rows:        make([]jsonRow, 0, len(t.Rows)),
-		Unreachable: append(make([]csdf.StateID, 0, len(t.Unreachable)), t.Unreachable...),
+		Unreachable: append(make([]string, 0, len(t.Unreachable)), t.Unreachable...),
 	}
 	for _, c := range t.Columns {
 		jt.Columns = append(jt.Columns, jsonColumnOf(c))
@@ -79,7 +77,7 @@ func jsonOf(t *Table) jsonTable {
 func jsonColumnOf(c Column) jsonColumn {
 	switch c := c.(type) {
 	case EventColumn:
-		return jsonColumn{Kind: "event", Event: c.Event}
+		return jsonColumn{Kind: "event", Event: c.Header()}
 	case TerminationColumn:
 		return jsonColumn{Kind: "termination"}
 	}

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -20,7 +20,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseBytes(opts.Bytes)
+		diagram, err := coreio.ReadBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdftranstablecmd.NewMainFunc: %w", err)
 		}
@@ -31,11 +31,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		if len(table.Unreachable) > 0 {
-			ids := make([]string, 0, len(table.Unreachable))
-			for _, id := range table.Unreachable {
-				ids = append(ids, string(id))
-			}
-			fmt.Fprintf(inout.Stderr, "warning: unreachable states have no row: %s\n", strings.Join(ids, ", "))
+			fmt.Fprintf(inout.Stderr, "warning: unreachable states have no row: %s\n", strings.Join(table.Unreachable, ", "))
 		}
 
 		if err := transtable.Write(inout.Stdout, table, opts.Output, opts.Notation); err != nil {

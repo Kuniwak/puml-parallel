@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
@@ -24,7 +24,7 @@ func TestWriteTSV(t *testing.T) {
 	testCases := map[string]testCase{
 		"a state and an event name a row and a column": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "Zero", Cells: [][]transtable.Outcome{{goTo(logic.True, "s1")}}},
 					{State: "s1", Name: "One", Cells: [][]transtable.Outcome{{refuse(logic.True)}}},
@@ -39,7 +39,7 @@ func TestWriteTSV(t *testing.T) {
 		// holding them, as CSV does.
 		"a condition comes first in brackets, and a cell holds a line per outcome": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.TerminationColumn{}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}, transtable.TerminationColumn{}},
 				Rows: []transtable.Row{
 					{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
 						{goTo(q("product is available", c, x), "s1"), refuse(not(q("product is available", c, x)))},
@@ -58,7 +58,7 @@ func TestWriteTSV(t *testing.T) {
 		},
 		"the natural notation spells the connectives as words": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}},
 				Rows:    []transtable.Row{{State: "A", Name: "A", Cells: [][]transtable.Outcome{{refuse(afterTau)}}}},
 			},
 			Format: format(transtable.NotationNatural),
@@ -69,7 +69,7 @@ func TestWriteTSV(t *testing.T) {
 		},
 		"the logical notation spells them as symbols": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}},
 				Rows:    []transtable.Row{{State: "A", Name: "A", Cells: [][]transtable.Outcome{{refuse(afterTau)}}}},
 			},
 			Format: format(transtable.NotationLogical),
@@ -82,7 +82,7 @@ func TestWriteTSV(t *testing.T) {
 		// outcomes may come out the same.
 		"a line already written in a cell is not written again": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}},
 				Rows: []transtable.Row{{State: "A", Name: "A", Cells: [][]transtable.Outcome{{
 					goTo(logic.True, "E"), refuse(q("g", c, x)), goTo(logic.True, "E"),
 				}}}},
@@ -127,7 +127,7 @@ func TestWriteTSVRefuses(t *testing.T) {
 
 	eventNamed := func(event string) *transtable.Table {
 		return &transtable.Table{
-			Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.EventColumn{Event: csdf.Event(event)}},
+			Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}, transtable.EventColumn{Event: core.Event{Channel: event}}},
 			Rows:    []transtable.Row{{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{refuse(logic.True)}, {refuse(logic.True)}}}},
 		}
 	}

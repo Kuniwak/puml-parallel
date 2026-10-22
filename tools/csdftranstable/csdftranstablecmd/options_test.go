@@ -20,7 +20,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 		Expected *Options
 	}
 
-	diagram := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert?coin ; ; coins' is {coin}\nb --> a : reset\n@enduml\n"
+	diagram := "@startuml\nstate \"a\" as a\nstate \"b\" as b\nb : coins\n[*] --> a\na --> b : insert?coin ; ; $coins' holds only $coin\nb --> a : reset\n@enduml\n"
 
 	testCases := map[string]testCase{
 		"-h (representative value)": {

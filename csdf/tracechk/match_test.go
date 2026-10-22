@@ -36,7 +36,7 @@ func TestMatch(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			if got := tc.Match(tc.Event, tc.Trace); got != tc.Want {
-				t.Errorf("match(%s, %q) = %v, want %v", tracechk.Label(tc.Event), tc.Trace, got, tc.Want)
+				t.Errorf("match(%s, %q) = %v, want %v", tc.Event.Label(), tc.Trace, got, tc.Want)
 			}
 		})
 	}

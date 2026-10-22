@@ -1,7 +1,8 @@
 @startuml
 state "a" as a
 state "b" as b
+b : coins
 [*] --> a
-a --> b : insert?coin ; ; coins' is {coin}
+a --> b : insert?coin ; ; $coins' holds only $coin
 b --> a : reset
 @enduml
