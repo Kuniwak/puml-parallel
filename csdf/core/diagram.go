@@ -7,6 +7,7 @@ package core
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
@@ -195,4 +196,20 @@ func ParseEvent(text string) (Event, error) {
 		e.Fields = append(e.Fields, Field{Send: p.Send, Name: p.Name})
 	}
 	return e, nil
+}
+
+// Label is e as a diagram writes it: its channel, then ?name for each field
+// it receives and !name for each it sends, in order.
+func (e Event) Label() string {
+	var sb strings.Builder
+	sb.WriteString(e.Channel)
+	for _, f := range e.Fields {
+		if f.Send {
+			sb.WriteString("!")
+		} else {
+			sb.WriteString("?")
+		}
+		sb.WriteString(f.Name)
+	}
+	return sb.String()
 }

@@ -2,7 +2,6 @@ package tracechk
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
@@ -35,22 +34,6 @@ func MatchPrefix(diagramEvent core.Event, traceEvent string) bool {
 		return false
 	}
 	return e.SameShape(core.Event{Channel: diagramEvent.Channel, Fields: diagramEvent.Fields[:len(e.Fields)]})
-}
-
-// Label is the event e as a diagram writes it: its channel, then ?name for
-// each field it receives and !name for each it sends, in order.
-func Label(e core.Event) string {
-	var sb strings.Builder
-	sb.WriteString(e.Channel)
-	for _, f := range e.Fields {
-		if f.Send {
-			sb.WriteString("!")
-		} else {
-			sb.WriteString("?")
-		}
-		sb.WriteString(f.Name)
-	}
-	return sb.String()
 }
 
 // Trace is one event sequence to check, named after where it came from.
@@ -280,7 +263,7 @@ func enabledEvents(states map[string]bool, g graph) []string {
 	for s := range states {
 		for _, e := range g[s] {
 			if e.Event.Channel != core.Tau {
-				seen[Label(e.Event)] = true
+				seen[e.Event.Label()] = true
 			}
 		}
 	}

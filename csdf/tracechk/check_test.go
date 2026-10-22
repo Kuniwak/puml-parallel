@@ -30,7 +30,7 @@ func TestLabel(t *testing.T) {
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			if got := tracechk.Label(tc.Event); got != tc.Want {
+			if got := tc.Event.Label(); got != tc.Want {
 				t.Errorf("Label = %q, want %q", got, tc.Want)
 			}
 		})
