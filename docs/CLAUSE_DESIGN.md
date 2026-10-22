@@ -164,11 +164,14 @@ they change no meaning: a hand-written edge may read those of its source
 and write those of its target in its post, beside the frame of the maps;
 a primed map in that post is allowed only as the frame `m' = m`, since the
 controller writes no instance. A generated edge is a step of the instances,
-not of the controller, so promotion frames the variables of its mode on
-it. A constrain or a sync clause may read a controller variable that every
-mode its edge is in holds, the monitor and the controller being one
-process's view of the global state; reading one a mode lacks is refused.
-A controller variable is named apart from every map and every instance ID.
+not of the controller: it is a self-loop of one mode, and promotion frames
+that mode's controller variables on it. A constrain or a sync clause on a
+generated edge may read the controller variables of the mode that edge
+loops in, the monitor and the controller being one process's view of the
+global state; on an edge of a mode that lacks one it reads, it is refused.
+A controller variable is named apart from every map, every instance ID and
+every field of a promoted local event, all of which a clause on a
+generated edge may read, and a mode declares it once.
 
 Every map starts empty, the instances being at S₀. So the post of the
 global start edge may only agree with that about the maps: a conjunct of it
