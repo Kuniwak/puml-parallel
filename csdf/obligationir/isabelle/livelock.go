@@ -26,25 +26,25 @@ func binders(vars []string) string {
 	return strings.Join(bs, ` `)
 }
 
-// WriteFormulaLivelockFree writes the livelock-freedom obligation of a
+// WriteLivelockFree writes the livelock-freedom obligation of a
 // diagram whose clauses are formulas. The clauses are spelled, not left
 // opaque: what stays uninterpreted is the environment, each atom, function
 // and type a constant under a TODO(csdf) marker beside the text it was named
 // by, and the theorem is stated under the axioms of the csdf_* predicates and
 // the diagram's assumptions.
-func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
-	text, err := formulaLivelockFree(ir)
+func WriteLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
+	text, err := livelockFree(ir)
 	if err != nil {
-		return fmt.Errorf("isabelle.WriteFormulaLivelockFree: %w", err)
+		return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 	}
 	_, err = io.WriteString(w, text)
 	return err
 }
 
-// formulaLivelockFree is the theory WriteFormulaLivelockFree writes, made
+// livelockFree is the theory WriteLivelockFree writes, made
 // whole before any of it is written, so that an IR refused halfway writes
 // nothing.
-func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
+func livelockFree(ir obligationir.LivelockFree) (string, error) {
 	if err := ir.Validate(); err != nil {
 		return "", err
 	}

@@ -46,9 +46,9 @@ func CompileRefinement(w io.Writer, ir obligationir.Refinement, name Name) error
 	}
 	switch name {
 	case NameIsabelle:
-		return isabelle.WriteFormulaRefinement(w, ir)
+		return isabelle.WriteRefinement(w, ir)
 	case NameLean:
-		return lean.WriteFormulaRefinement(w, ir)
+		return lean.WriteRefinement(w, ir)
 	case NameIRJSON:
 		return irjson.WriteRefinement(w, ir)
 	default:
@@ -63,9 +63,9 @@ func Compile(w io.Writer, ir obligationir.LivelockFree, name Name) error {
 	}
 	switch name {
 	case NameIsabelle:
-		return isabelle.WriteFormulaLivelockFree(w, ir)
+		return isabelle.WriteLivelockFree(w, ir)
 	case NameLean:
-		return lean.WriteFormulaLivelockFree(w, ir)
+		return lean.WriteLivelockFree(w, ir)
 	case NameIRJSON:
 		return irjson.WriteLivelockFree(w, ir)
 	default:
@@ -76,7 +76,7 @@ func Compile(w io.Writer, ir obligationir.LivelockFree, name Name) error {
 // CompileDiagram states the livelock-freedom obligation of d and writes it
 // to w in the format named by name.
 func CompileDiagram(w io.Writer, d *core.Diagram, name Name) error {
-	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	ir, err := obligationir.BuildLivelockFree(d)
 	if err != nil {
 		return fmt.Errorf("target.CompileDiagram: %w", err)
 	}
@@ -89,7 +89,7 @@ func CompileDiagram(w io.Writer, d *core.Diagram, name Name) error {
 // CompileDiagrams states spec ⊑ impl in mode and writes it to w in the
 // format named by name.
 func CompileDiagrams(w io.Writer, mode obligationir.IRRefinementMode, spec, impl *core.Diagram, name Name) error {
-	ir, err := obligationir.BuildFormulaRefinement(mode, spec, impl)
+	ir, err := obligationir.BuildRefinement(mode, spec, impl)
 	if err != nil {
 		return fmt.Errorf("target.CompileDiagrams: %w", err)
 	}

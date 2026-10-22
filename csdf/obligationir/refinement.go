@@ -1,111 +1,231 @@
 package obligationir
 
 import (
+	"fmt"
 	"slices"
+	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
 // IRRefinementMode selects the CSP model the refinement is stated in.
 type IRRefinementMode string
 
+// The models a refinement is stated in.
 const (
 	IRRefinementModeTrace              IRRefinementMode = "trace"
 	IRRefinementModeStableFailure      IRRefinementMode = "stable-failure"
 	IRRefinementModeFailuresDivergence IRRefinementMode = "failures-divergence"
 )
 
-// IRSide is one diagram of a refinement obligation. Its predicates live in the
-// shared IRRefinement.Predicates map, so a predicate occurring in both diagrams
-// is a single placeholder that is filled once.
-type IRSide struct {
-	States map[csdf.StateID]IRState `json:"states"`
-	Edges  []IREdge                 `json:"edges"`
-	Init   IRInit                   `json:"init"`
-	// End is nil when the diagram cannot terminate.
-	End *IREnd `json:"end,omitempty"`
-	// StructurallyLivelockFree is nil outside failures-divergence mode, where
-	// divergence is not observable at all; there it is true when the side has no
-	// reachable tau-cycle and so discharges its divergence-freedom obligation
-	// structurally.
-	StructurallyLivelockFree *bool `json:"structurally_livelock_free,omitempty"`
-	// Assumptions are this side's assume notes, hypotheses of the theorem.
-	// Never null, only empty.
-	Assumptions []IRAssumption `json:"assumptions"`
+// Refinement is the obligation that Spec ⊑ Impl in the model Mode, the
+// direction FDR checks, of two diagrams whose clauses are formulas
+// (docs/CLAUSE_DESIGN.md, O8). Each side is stated as its livelock-freedom
+// obligation is, and its events carry the values of their fields: an event
+// of a channel is the channel applied to the value of each field, in order,
+// so two events that differ in a value are two events.
+type Refinement struct {
+	Version  int              `json:"version"`
+	Mode     IRRefinementMode `json:"mode"`
+	Alphabet []Channel        `json:"alphabet"`
+	Spec     LivelockFree     `json:"spec"`
+	Impl     LivelockFree     `json:"impl"`
 }
 
-// IREnd is the guarded successful termination of a diagram (its EndEdge).
-// GuardArgs is this occurrence's own argument list; see IREdge.
-type IREnd struct {
-	Src       csdf.StateID  `json:"src"`
-	Guard     IRPredicateID `json:"guard"`
-	GuardArgs []IRArg       `json:"guard_args"`
-	Line      int           `json:"line"` // 1-based
+// Channel is a visible channel of either side and the number of its fields.
+type Channel struct {
+	Name  string `json:"name"`
+	Arity int    `json:"arity"`
 }
 
-// IRRefinement is a prover-agnostic intermediate representation of the proof
-// obligation that Spec refines Impl in the selected model, i.e. every behaviour
-// of the Impl diagram is allowed by the Spec diagram (FDR's direction).
-// Natural-language Guard/Post predicates are left opaque exactly as in
-// IRLivelockFree, and under the same pred_<id> spelling, so a diagram formalised
-// for the livelock obligation carries over verbatim.
-type IRRefinement struct {
-	Mode       IRRefinementMode              `json:"mode"`
-	Alphabet   []csdf.Event                  `json:"alphabet"` // union of both sides' visible events, sorted
-	Predicates map[IRPredicateID]IRPredicate `json:"predicates"`
-	Constants  []IRConst                     `json:"constants"`
-	Spec       IRSide                        `json:"spec"`
-	Impl       IRSide                        `json:"impl"`
-}
-
-// BuildRefinement builds the refinement proof obligation IR for spec ⊑ impl in
-// the given model.
-func BuildRefinement(mode IRRefinementMode, spec, impl *csdf.Diagram) IRRefinement {
-	ps := NewPredicateSet((len(spec.Edges)+len(impl.Edges))*2 + 2)
-
-	return IRRefinement{
-		Mode:       mode,
-		Alphabet:   alphabet(spec, impl),
-		Constants:  []IRConst{},
-		Spec:       buildSide(ps, spec, mode),
-		Impl:       buildSide(ps, impl, mode),
-		Predicates: ps.Map(),
+// BuildRefinement states spec ⊑ impl in mode. A channel with one
+// number of fields in one place and another elsewhere is refused, since its
+// events would be of no one type. An end edge is SKIP when its guard holds.
+func BuildRefinement(mode IRRefinementMode, spec, impl *core.Diagram) (Refinement, error) {
+	sides := make([]LivelockFree, 2)
+	for i, d := range []*core.Diagram{spec, impl} {
+		ir, err := BuildLivelockFree(d)
+		if err != nil {
+			return Refinement{}, fmt.Errorf("obligationir.BuildRefinement: %s: %w", sideName(i), err)
+		}
+		sides[i] = ir
 	}
+	r := Refinement{Version: IRVersion, Mode: mode, Spec: sides[0], Impl: sides[1]}
+	alphabet, err := r.channels()
+	if err != nil {
+		return Refinement{}, fmt.Errorf("obligationir.BuildRefinement: %w", err)
+	}
+	r.Alphabet = alphabet
+	return r, nil
 }
 
-func buildSide(ps *PredicateSet, d *csdf.Diagram, mode IRRefinementMode) IRSide {
-	states := BuildStates(d)
-	side := IRSide{
-		States:      states,
-		Init:        BuildInit(ps, d, states),
-		Edges:       BuildEdges(ps, d, states),
-		End:         BuildEnd(ps, d, states),
-		Assumptions: BuildAssumptions(d),
-	}
-	if mode == IRRefinementModeFailuresDivergence {
-		_, free := csdf.CheckLivelockFree(d)
-		side.StructurallyLivelockFree = &free
-	}
-	return side
-}
+func sideName(i int) string { return []string{"the spec", "the impl"}[i] }
 
-// alphabet is the sorted union of both diagrams' visible events. τ is not part of
-// it: it is internal, and the encoding hides it.
-func alphabet(ds ...*csdf.Diagram) []csdf.Event {
-	seen := make(map[csdf.Event]struct{})
-	for _, d := range ds {
-		for _, e := range d.Edges {
-			if e.Event == csdf.Tau {
+// channels is the sorted union of the visible channels of both sides.
+func (r Refinement) channels() ([]Channel, error) {
+	arity := map[string]int{}
+	for _, side := range []LivelockFree{r.Spec, r.Impl} {
+		for _, e := range side.Edges {
+			if e.Tau() {
 				continue
 			}
-			seen[e.Event] = struct{}{}
+			if n, ok := arity[e.Channel]; ok && n != len(e.Fields) {
+				return nil, fmt.Errorf("the channel %s has %d fields in one place and %d in another", e.Channel, n, len(e.Fields))
+			}
+			arity[e.Channel] = len(e.Fields)
 		}
 	}
-
-	res := make([]csdf.Event, 0, len(seen))
-	for ev := range seen {
-		res = append(res, ev)
+	out := make([]Channel, 0, len(arity))
+	for name, n := range arity {
+		out = append(out, Channel{Name: name, Arity: n})
 	}
-	slices.Sort(res)
-	return res
+	slices.SortFunc(out, func(a, b Channel) int { return strings.Compare(a.Name, b.Name) })
+	return out, nil
+}
+
+// Validate reports, as an error, what makes r no refinement obligation: an
+// encoding of another version, an unknown model, a side Validate refuses, or
+// an alphabet that is not the channels of the sides.
+func (r Refinement) Validate() error {
+	if r.Version != IRVersion {
+		return fmt.Errorf("obligationir.Refinement.Validate: version %d, want %d", r.Version, IRVersion)
+	}
+	switch r.Mode {
+	case IRRefinementModeTrace, IRRefinementModeStableFailure, IRRefinementModeFailuresDivergence:
+	default:
+		return fmt.Errorf("obligationir.Refinement.Validate: no model %q", r.Mode)
+	}
+	for i, side := range []LivelockFree{r.Spec, r.Impl} {
+		if err := side.Validate(); err != nil {
+			return fmt.Errorf("obligationir.Refinement.Validate: %s: %w", sideName(i), err)
+		}
+	}
+	want, err := r.channels()
+	if err != nil {
+		return fmt.Errorf("obligationir.Refinement.Validate: %w", err)
+	}
+	if !slices.Equal(want, r.Alphabet) {
+		return fmt.Errorf("obligationir.Refinement.Validate: the alphabet %v is not the channels of the sides, %v", r.Alphabet, want)
+	}
+	if _, err := r.Symbols(); err != nil {
+		return fmt.Errorf("obligationir.Refinement.Validate: %w", err)
+	}
+	return nil
+}
+
+// Symbols are the constants either side reads; the environment is one, so
+// an atom both sides read is one constant.
+func (r Refinement) Symbols() ([]Symbol, error) {
+	spec := r.Spec
+	spec.States = slices.Concat(r.Spec.States, r.Impl.States)
+	spec.Edges = slices.Concat(r.Spec.Edges, r.Impl.Edges)
+	spec.InitPost = logic.Tree{Op: logic.OpAnd, Operands: []logic.Tree{r.Spec.InitPost, r.Impl.InitPost}}
+	spec.Axioms = r.Axioms()
+	return spec.Symbols()
+}
+
+// Declarations are the constants either side reads, as a back end declares
+// them; see LivelockFree.Declarations.
+func (r Refinement) Declarations(todo string) ([]Declaration, error) {
+	syms, err := r.Symbols()
+	if err != nil {
+		return nil, err
+	}
+	return declarations(syms, todo), nil
+}
+
+// Axioms are the axioms of either side, each once.
+func (r Refinement) Axioms() []logic.Tree {
+	var out []logic.Tree
+	for _, a := range slices.Concat(r.Spec.Axioms, r.Impl.Axioms) {
+		if !slices.ContainsFunc(out, func(b logic.Tree) bool { return treeEqual(a, b) }) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func treeEqual(a, b logic.Tree) bool { return fmt.Sprintf("%#v", a) == fmt.Sprintf("%#v", b) }
+
+// EventArgs are the values an event of e carries, in the order of its
+// fields: a received field is the variable the step chooses, and a sent one
+// the variable it names, a value the step has bound already.
+func EventArgs(e Edge) []string {
+	args := make([]string, len(e.Fields))
+	for i, f := range e.Fields {
+		args[i] = SpellVar(logic.Var(f.Name))
+	}
+	return args
+}
+
+// EdgeSets are what an edge of a process term reads, spelled in n: enabled is
+// that the event ev is one the edge performs from the values before it, of
+// some received values of their types for which some values after it pass
+// its guard and post; next is, of the values after it (after), that ev is
+// such an event and they pass its guard and post. event spells the event
+// the edge performs, the channel applied to EventArgs.
+func EdgeSets(n Notation, states map[string]State, e Edge, ev, event string) (enabled, next string, after []string, err error) {
+	dst, ok := states[e.Dst]
+	if !ok {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: no state %s", e.Dst)
+	}
+	after = make([]string, len(dst.Vars))
+	for i, v := range dst.Vars {
+		after[i] = SpellVar(logic.Var(v + "'"))
+	}
+	step, err := n.SpellFormula(e.Step)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	typedAfter, err := n.Relativize(false, after, dst.Vars, step)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	withEvent := func(body string) (string, error) {
+		received := e.Received()
+		vars := make([]string, len(received))
+		for i, f := range received {
+			vars[i] = SpellVar(logic.Var(f))
+		}
+		body = ev + " = " + event + n.And + "(" + body + ")"
+		if len(vars) == 0 {
+			return body, nil
+		}
+		typed, err := n.Relativize(false, vars, received, body)
+		if err != nil {
+			return "", err
+		}
+		return n.Exists(vars, typed), nil
+	}
+	someAfter := typedAfter
+	if len(after) > 0 {
+		someAfter = n.Exists(after, typedAfter)
+	}
+	if enabled, err = withEvent(someAfter); err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	if next, err = withEvent(typedAfter); err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	return enabled, next, after, nil
+}
+
+// InitSet is, of the values of the start state of ir (vars), that they are
+// of their types and pass the start post, spelled in n.
+func InitSet(n Notation, ir LivelockFree) (body string, vars []string, err error) {
+	start := ir.StateMap()[ir.Init]
+	vars = make([]string, len(start.Vars))
+	for i, v := range start.Vars {
+		vars[i] = SpellVar(logic.Var(v + "'"))
+	}
+	post, err := n.SpellFormula(ir.InitPost)
+	if err != nil {
+		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
+	}
+	body, err = n.Relativize(false, vars, start.Vars, post)
+	if err != nil {
+		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
+	}
+	return body, vars, nil
 }

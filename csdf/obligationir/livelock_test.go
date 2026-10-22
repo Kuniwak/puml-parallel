@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestBuildFormulaLivelockFreeTellsAReachableTauCycle(t *testing.T) {
+func TestBuildLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 	type testCase struct {
 		Source string
 		Want   bool
@@ -45,7 +45,7 @@ func TestBuildFormulaLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 			}
 
 			// Execute
-			ir, err := obligationir.BuildFormulaLivelockFree(d)
+			ir, err := obligationir.BuildLivelockFree(d)
 
 			// Assert
 			if err != nil {
@@ -58,7 +58,7 @@ func TestBuildFormulaLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 	}
 }
 
-func TestBuildFormulaLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testing.T) {
+func TestBuildLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testing.T) {
 	// Setup
 	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n = 0\n@enduml\n")
 	if err != nil {
@@ -66,7 +66,7 @@ func TestBuildFormulaLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testi
 	}
 
 	// Execute
-	_, err = obligationir.BuildFormulaLivelockFree(d)
+	_, err = obligationir.BuildLivelockFree(d)
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "the start post reads n") {
@@ -80,7 +80,7 @@ func TestFormulaLivelockFreeReadsBackFromJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	ir, err := obligationir.BuildLivelockFree(d)
 	if err != nil {
 		t.Fatal(err)
 	}

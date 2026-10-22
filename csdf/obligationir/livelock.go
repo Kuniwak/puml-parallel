@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
@@ -42,7 +41,7 @@ type LivelockFree struct {
 	Axioms []logic.Tree `json:"axioms"`
 	// Assumptions are the diagram's assume notes, hypotheses of the theorem
 	// like the axioms. Never null, only empty.
-	Assumptions []IRAssumption `json:"assumptions"`
+	Assumptions []Assumption `json:"assumptions"`
 }
 
 // IRVersion is the version of the encoding of LivelockFree. It changes
@@ -106,6 +105,16 @@ var checking = Notation{
 	Forall: func([]string, string) string { return "" },
 }
 
+// Assumption is one assume note of a diagram: what its runs as a whole are
+// assumed to satisfy, which no clause can say. A back end declares an
+// uninterpreted proposition named after its ID (Side.AssumptionName) and
+// states the theorem under it.
+type Assumption struct {
+	ID   string `json:"id"`
+	Text string `json:"text"`
+	Line int    `json:"line"`
+}
+
 // State is a state and the state variables it holds.
 type State struct {
 	Name string   `json:"name"`
@@ -159,18 +168,18 @@ func fieldsOf(e core.Event) []Field {
 	return fs
 }
 
-// BuildFormulaLivelockFree states the livelock-freedom obligation of d.
-func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
+// BuildLivelockFree states the livelock-freedom obligation of d.
+func BuildLivelockFree(d *core.Diagram) (LivelockFree, error) {
 	post, err := initPost(d)
 	if err != nil {
-		return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
+		return LivelockFree{}, fmt.Errorf("obligationir.BuildLivelockFree: %w", err)
 	}
 	clauses := []clause.Formula{d.InitPost}
 	edges := make([]Edge, 0, len(d.Edges))
 	for _, e := range d.Edges {
 		step, err := obligation.Step(*d, e)
 		if err != nil {
-			return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
+			return LivelockFree{}, fmt.Errorf("obligationir.BuildLivelockFree: %w", err)
 		}
 		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Channel: e.Event.Channel, Fields: fieldsOf(e.Event), Step: logic.TreeOf(step)})
 		clauses = append(clauses, e.Guard, e.Post)
@@ -179,7 +188,7 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 	for _, e := range d.Ends {
 		guard, err := endGuard(d, e)
 		if err != nil {
-			return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
+			return LivelockFree{}, fmt.Errorf("obligationir.BuildLivelockFree: %w", err)
 		}
 		ends = append(ends, End{Src: e.Src, Guard: logic.TreeOf(guard)})
 		clauses = append(clauses, e.Guard)
@@ -188,9 +197,9 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 	for i, s := range d.States {
 		states[i] = State{Name: s, Vars: append([]string{}, d.Vars[s]...)}
 	}
-	assumptions := make([]IRAssumption, 0, len(d.Assumes))
+	assumptions := make([]Assumption, 0, len(d.Assumes))
 	for _, a := range d.Assumes {
-		assumptions = append(assumptions, IRAssumption{ID: a.ID, Text: csdf.Predicate(a.Text)})
+		assumptions = append(assumptions, Assumption{ID: a.ID, Text: a.Text})
 	}
 	return LivelockFree{
 		Version:      IRVersion,

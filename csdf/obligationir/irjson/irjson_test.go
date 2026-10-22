@@ -18,7 +18,7 @@ func TestWriteLivelockFreePinsTheWireForm(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	ir, err := obligationir.BuildLivelockFree(d)
 	if err != nil {
 		t.Fatal(err)
 	}

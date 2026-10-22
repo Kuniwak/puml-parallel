@@ -9,704 +9,275 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// sideIR pairs one diagram of the obligation with the names its declarations get.
-type sideIR struct {
-	Side obligationir.Side
-	IR   obligationir.IRSide
-	// Proc is the name of the top-level process this side denotes.
-	Proc string
-	// Vars is true when either diagram has a state variable, in which case the
-	// event type is layered and process names are parameterised.
-	Vars bool
-	// Tau is true when either diagram has a tau edge, in which case the alphabet
-	// carries HTau and both top-level processes hide it.
-	Tau bool
-	// States names the side's transition-system layer, which exists only in
-	// failures-divergence mode.
-	States obligationir.Side
-	// Label names the side in prose.
-	Label string
+// WriteRefinement writes the refinement obligation of two diagrams
+// whose clauses are formulas, for lean-csp-prover, as the Isabelle back end
+// does (isabelle.WriteRefinement).
+func WriteRefinement(w io.Writer, r obligationir.Refinement) error {
+	text, err := refinement(r)
+	if err != nil {
+		return fmt.Errorf("lean.WriteRefinement: %w", err)
+	}
+	_, err = io.WriteString(w, text)
+	return err
 }
 
-func sides(ir obligationir.IRRefinement) []sideIR {
-	vars, tau := hasVars(ir), hasTau(ir)
-	return []sideIR{
-		{
-			Side: obligationir.SideSpec, States: obligationir.SideSpecStates,
-			IR: ir.Spec, Proc: "SpecProc", Label: "Spec", Vars: vars, Tau: tau,
-		},
-		{
-			Side: obligationir.SideImpl, States: obligationir.SideImplStates,
-			IR: ir.Impl, Proc: "ImplProc", Label: "Impl", Vars: vars, Tau: tau,
-		},
+// side is one diagram of a refinement and how it is named.
+type side struct {
+	ir     obligationir.LivelockFree
+	label  string
+	proc   string
+	names  obligationir.Side // its process names, S_ or I_
+	states obligationir.Side // its states in the livelock layer, St_S_ or St_I_
+}
+
+func sidesOf(r obligationir.Refinement) []side {
+	return []side{
+		{ir: r.Spec, label: "Spec", proc: "SpecProc", names: obligationir.SideSpec, states: obligationir.SideSpecStates},
+		{ir: r.Impl, label: "Impl", proc: "ImplProc", names: obligationir.SideImpl, states: obligationir.SideImplStates},
 	}
 }
 
-// hasVars reports whether any state of either diagram carries a variable. The
-// valuation layer (the Val datatype, the Internal index and the replicated
-// internal choices) exists only then.
-func hasVars(ir obligationir.IRRefinement) bool {
-	return obligationir.HasVars(ir.Spec.States) || obligationir.HasVars(ir.Impl.States)
-}
-
-// hasTau reports whether either diagram has a tau edge.
-func hasTau(ir obligationir.IRRefinement) bool {
-	for _, s := range []obligationir.IRSide{ir.Spec, ir.Impl} {
-		if len(obligationir.TauEdges(s.Edges)) > 0 {
-			return true
-		}
+func refinement(r obligationir.Refinement) (string, error) {
+	if err := r.Validate(); err != nil {
+		return "", err
 	}
-	return false
-}
+	var w strings.Builder
+	fmt.Fprintf(&w, `import %s
 
-// NeedsLivelockObligation reports whether this side has to carry a
-// divergence-freedom obligation: only in failures-divergence mode, and only when
-// the structural tau-cycle check did not already settle it.
-func (s sideIR) NeedsLivelockObligation() bool {
-	return s.IR.StructurallyLivelockFree != nil && !*s.IR.StructurallyLivelockFree
-}
-
-// HasLivelockLayer reports whether the side carries the divergence-freedom
-// reduction at all, discharged structurally or not.
-func (s sideIR) HasLivelockLayer() bool {
-	return s.IR.StructurallyLivelockFree != nil
-}
-
-// EventTerm is the process term for performing e. With valuations in play the
-// event type is layered, so a visible event is wrapped.
-func (s sideIR) EventTerm(e csdf.Event) string {
-	ctor := EventType + "." + obligationir.EventCtor(e)
-	if s.Vars {
-		return EventType + "." + AlphabetCtor + " " + AlphabetType + "." + obligationir.EventCtor(e)
-	}
-	return ctor
-}
-
-// WriteRefinement writes a Lean 4 refinement obligation skeleton for ir to w.
-// Both diagrams are encoded as lean-csp-prover process terms and the obligation
-// is the one-line refinement statement; the metatheory that makes it meaningful
-// is that library's, not ours. It mirrors the isabelle backend declaration for
-// declaration, under the same names.
-func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
-	io.WriteString(w, `import `)
-	io.WriteString(w, refinementImport(ir.Mode))
-	WriteNewLine(w, 2)
-
-	// The declarations below live in a namespace because the library already has
-	// an event type of its own, and so would clash outside one.
-	io.WriteString(w, `-- The guards below are propositions, so the Prop-valued procIte is used rather
+-- The guards below are propositions, so the Prop-valued procIte is used rather
 -- than the Bool-valued proc.IF.
 attribute [local instance] Classical.propDecidable
 
 noncomputable section
 
-namespace `)
-	io.WriteString(w, Namespace)
-	WriteNewLine(w, 2)
+namespace %s
 
-	WriteNameTable(w, obligationir.RefinementNameTable(ir))
+%s
+deriving Inhabited
 
-	if hasVars(ir) {
-		io.WriteString(w, ValPrelude)
-		WriteNewLine(w, 1)
-		io.WriteString(w, `deriving Inhabited`)
-		WriteNewLine(w, 2)
+`, refinementImport(r.Mode), Namespace, ValPrelude)
+	writeAlphabet(&w, r.Alphabet)
+
+	ds, err := r.Declarations(PredicateTODO)
+	if err != nil {
+		return "", err
+	}
+	writeSymbols(&w, ds)
+	hypotheses, err := writeAxioms(&w, r.Axioms())
+	if err != nil {
+		return "", err
+	}
+	sides := sidesOf(r)
+	for _, s := range sides {
+		if err := WriteAssumptions(&w, s.names, s.ir.Assumptions); err != nil {
+			return "", err
+		}
+		hypotheses = append(hypotheses, AssumptionNames(s.names, s.ir.Assumptions)...)
 	}
 
-	if err := WriteEventDatatype(w, ir.Alphabet, hasVars(ir), hasTau(ir)); err != nil {
-		return fmt.Errorf("lean.WriteRefinement: %w", err)
+	writeProcessNames(&w, sides)
+	if err := writeProcFun(&w, sides); err != nil {
+		return "", err
 	}
-	WriteNewLine(w, 2)
-
-	WritePredicates(w, ir.Predicates)
-	for _, s := range sides(ir) {
-		if err := WriteAssumptions(w, s.Side, s.IR.Assumptions); err != nil {
-			return fmt.Errorf("lean.WriteRefinement: %w", err)
+	WriteProcFunInstances(&w)
+	io.WriteString(&w, "\n\n")
+	for _, s := range sides {
+		if err := writeProc(&w, s); err != nil {
+			return "", err
 		}
 	}
-
-	for _, s := range sides(ir) {
-		WriteSideAliases(w, s.Side, s.IR, ir.Predicates)
-	}
-
-	if err := WriteProcessNameDatatype(w, ir); err != nil {
-		return fmt.Errorf("lean.WriteRefinement: %w", err)
-	}
-	WriteNewLine(w, 2)
-
-	if err := WriteProcFun(w, ir); err != nil {
-		return fmt.Errorf("lean.WriteRefinement: %w", err)
-	}
-	WriteNewLine(w, 2)
-
-	WriteProcFunInstances(w)
-	WriteNewLine(w, 2)
-
-	for _, s := range sides(ir) {
-		WriteProcDefinition(w, s)
-		WriteNewLine(w, 2)
-	}
-
-	for _, s := range sides(ir) {
-		if err := WriteLivelockLayer(w, s, ir.Predicates); err != nil {
-			return fmt.Errorf("lean.WriteRefinement: %w", err)
+	if r.Mode == obligationir.IRRefinementModeFailuresDivergence {
+		axioms := hypotheses[:len(r.Axioms())]
+		for _, s := range sides {
+			if err := writeDivergenceFreedom(&w, s, axioms); err != nil {
+				return "", err
+			}
 		}
-		WriteInitialisableTheorem(w, s)
 	}
-
-	var hypotheses []string
-	for _, s := range sides(ir) {
-		hypotheses = append(hypotheses, AssumptionNames(s.Side, s.IR.Assumptions)...)
-	}
-	WriteRefinementTheorem(w, ir.Mode, hypotheses)
-	WriteNewLine(w, 2)
-
-	io.WriteString(w, `end `)
-	io.WriteString(w, Namespace)
-	WriteNewLine(w, 2)
-	io.WriteString(w, `end`)
-	WriteNewLine(w, 1)
-	return nil
+	WriteRefinementTheorem(&w, r.Mode, hypotheses)
+	fmt.Fprintf(&w, "\n\nend %s\n\nend\n", Namespace)
+	return w.String(), nil
 }
 
-// Namespace keeps the generated declarations out of the library's, which already
-// has an event type of its own. It matches the isabelle backend's theory name.
-const Namespace = `Refinement_Obligation`
-
-// refinementImport names the model the obligation is stated in. lean-csp-prover
-// provides T and F only; failures-divergences reduces to F plus a
-// divergence-freedom obligation per side.
-func refinementImport(mode obligationir.IRRefinementMode) string {
-	if mode == obligationir.IRRefinementModeTrace {
-		return `LeanCspProver.CSP_T.CSP_T_Main`
+// writeAlphabet writes the events of both sides: each channel applied to the
+// value of each of its fields, and HTau, which hiding makes internal; then
+// event, whose Internal only indexes the replicated internal choices.
+func writeAlphabet(w io.Writer, alphabet []obligationir.Channel) {
+	io.WriteString(w, "inductive alphabet where\n")
+	for _, c := range alphabet {
+		io.WriteString(w, "  | "+obligationir.EventCtor(csdf.Event(c.Name)))
+		for i := range c.Arity {
+			fmt.Fprintf(w, " (a%d : Val)", i+1)
+		}
+		if obligationir.IsMangled(c.Name) {
+			io.WriteString(w, " -- "+SanitizeComment(c.Name))
+		}
+		io.WriteString(w, "\n")
 	}
-	return `LeanCspProver.CSP_F.CSP_F_Main`
-}
+	io.WriteString(w, "  | "+obligationir.TauCtor+`
+deriving Inhabited
 
-// The event type's parts. With valuations in play the alphabet is layered under
-// the event type, because a replicated internal choice can only be indexed by the
-// event type and Internal is the injection's target.
-const (
-	EventType    = `event`
-	AlphabetType = `alphabet`
-	AlphabetCtor = `Alphabet`
-	InternalCtor = `Internal`
-)
-
-// WriteEventDatatype writes the shared alphabet of both diagrams. Refusal
-// information is relative to this one type, so both processes are typed over it.
-//
-// Inhabited is derived because Rep_int_choice_f, the only way to index a
-// replicated internal choice by anything but an event, requires it of both types.
-func WriteEventDatatype(w io.Writer, alphabet []csdf.Event, vars, tau bool) error {
-	name := EventType
-	if vars {
-		name = AlphabetType
-	}
-
-	ctors := make([]string, 0, len(alphabet)+1)
-	for _, e := range alphabet {
-		ctors = append(ctors, obligationir.EventCtor(e))
-	}
-	if tau {
-		// Not part of the visible alphabet, so it goes last rather than into the
-		// sorted union.
-		ctors = append(ctors, obligationir.TauCtor)
-	}
-	if len(ctors) == 0 {
-		// A datatype needs at least one constructor, and a process over an empty
-		// alphabet can only ever be STOP or SKIP.
-		ctors = append(ctors, `Ev_none -- neither diagram has an event`)
-	}
-
-	io.WriteString(w, `inductive `)
-	io.WriteString(w, name)
-	io.WriteString(w, ` where`)
-	for _, c := range ctors {
-		WriteNewLine(w, 1)
-		io.WriteString(w, `  | `)
-		io.WriteString(w, c)
-	}
-	WriteNewLine(w, 1)
-	io.WriteString(w, `deriving Inhabited`)
-
-	if !vars {
-		return nil
-	}
-
-	WriteNewLine(w, 2)
-	io.WriteString(w, `-- Internal only indexes the replicated internal choices below, via
+-- Internal only indexes the replicated internal choices below, via
 -- Rep_int_choice_f; no process performs it, so it changes no trace and no
 -- refusal. Its injections are of the form fun (x, y) => event.Internal [x, y].
-inductive `)
-	io.WriteString(w, EventType)
-	io.WriteString(w, ` where
-  | `)
-	io.WriteString(w, AlphabetCtor)
-	io.WriteString(w, ` (a : `)
-	io.WriteString(w, AlphabetType)
-	io.WriteString(w, `)
-  | `)
-	io.WriteString(w, InternalCtor)
-	io.WriteString(w, ` (vs : List `)
-	io.WriteString(w, ValType)
-	io.WriteString(w, `)
-deriving Inhabited`)
-	return nil
-}
+inductive event where
+  | Alphabet (a : alphabet)
+  | Internal (vs : List Val)
+deriving Inhabited
 
-// WriteSideAliases writes one side's location-named aliases of the shared
-// predicate placeholders: the init predicate and each edge's guard and post.
-func WriteSideAliases(
-	w io.Writer,
-	side obligationir.Side,
-	s obligationir.IRSide,
-	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
-) {
-	WriteInit(w, side, s.Init, m)
-	WriteNewLine(w, 2)
-
-	for _, e := range s.Edges {
-		WriteEdge(w, side, e, m)
-		WriteNewLine(w, 2)
-	}
-
-	if s.End != nil {
-		WriteEnd(w, side, *s.End, m)
-		WriteNewLine(w, 2)
-	}
-}
-
-// WriteEnd writes the alias of the end edge's guard. It is named after its own
-// source line, like any other edge's.
-func WriteEnd(w io.Writer, side obligationir.Side, end obligationir.IREnd, m map[obligationir.IRPredicateID]obligationir.IRPredicate) {
-	guard := m[end.Guard]
-	WriteLineComment(w, guard.Comment())
-	WriteNewLine(w, 1)
-	WritePredicateAlias(w, side.GuardName(end.Line), len(end.GuardArgs), end.Guard)
-}
-
-// WriteProcessNameDatatype writes the process-name datatype covering both sides:
-// PNfun is resolved per name type, so the two diagrams have to share one datatype
-// under their side-qualified constructors.
-func WriteProcessNameDatatype(w io.Writer, ir obligationir.IRRefinement) error {
-	io.WriteString(w, `inductive `)
-	io.WriteString(w, ProcNameType)
-	io.WriteString(w, ` where`)
-
-	n := 0
-	for _, s := range sides(ir) {
-		for _, st := range obligationir.SortIRStates(s.IR.States) {
-			n++
-			WriteNewLine(w, 1)
-			io.WriteString(w, `  | `)
-			io.WriteString(w, s.Side.Ctor(st.StateID))
-			for _, f := range st.Fields {
-				io.WriteString(w, ` (`)
-				io.WriteString(w, obligationir.VarName(f.Name))
-				io.WriteString(w, ` : `)
-				io.WriteString(w, ValType)
-				io.WriteString(w, `)`)
-			}
-		}
-	}
-	if n == 0 {
-		return fmt.Errorf("lean.WriteProcessNameDatatype: no states")
-	}
-
-	WriteNewLine(w, 1)
-	io.WriteString(w, `deriving Inhabited`)
-	return nil
-}
-
-// ProcNameType is the process-name datatype's name.
-const ProcNameType = `PN`
-
-// WriteProcFun writes the body of every process name: one equation per state,
-// whose body is the external choice over that state's out-edges. Edges carrying
-// the same event collapse to an internal choice by the CSP law
-// (a -> P) [+] (a -> Q) = a -> (P |~| Q), which is exactly the nondeterminism the
-// diagram means; using an internal choice here instead would wrongly let the
-// process refuse events the diagram offers.
-func WriteProcFun(w io.Writer, ir obligationir.IRRefinement) error {
-	io.WriteString(w, `def procfun : `)
-	io.WriteString(w, ProcNameType)
-	io.WriteString(w, ` → proc `)
-	io.WriteString(w, ProcNameType)
-	io.WriteString(w, ` `)
-	io.WriteString(w, EventType)
-
-	for _, s := range sides(ir) {
-		for _, st := range obligationir.SortIRStates(s.IR.States) {
-			WriteNewLine(w, 1)
-			io.WriteString(w, `  | `)
-			io.WriteString(w, ProcNameType)
-			io.WriteString(w, `.`)
-			io.WriteString(w, s.Side.Ctor(st.StateID))
-			for _, f := range st.Fields {
-				io.WriteString(w, ` `)
-				WriteField(w, f, false)
-			}
-			io.WriteString(w, ` =>`)
-			WriteStateBody(w, s, st.StateID, ir.Predicates)
-		}
-	}
-	return nil
-}
-
-// stateBodyIndent indents every line of a process body under its equation, so the
-// branches of a state line up whatever their number.
-const stateBodyIndent = `    `
-
-func writeBodyLine(w io.Writer, s string) {
-	WriteNewLine(w, 1)
-	io.WriteString(w, stateBodyIndent)
-	io.WriteString(w, s)
-}
-
-// WriteStateBody writes the external choice over the out-edges of one state.
-func WriteStateBody(
-	w io.Writer,
-	s sideIR,
-	id csdf.StateID,
-	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
-) {
-	branches := 0
-	for _, e := range s.IR.Edges {
-		if e.Src != id {
-			continue
-		}
-		if branches > 0 {
-			writeBodyLine(w, `[+]`)
-		}
-		branches++
-		WriteEdgeBranch(w, s, e, m)
-	}
-
-	// The end edge is CSP successful termination, offered alongside the state's
-	// other out-edges and guarded like them.
-	if end := s.IR.End; end != nil && end.Src == id {
-		if branches > 0 {
-			writeBodyLine(w, `[+]`)
-		}
-		branches++
-
-		writeBodyLine(w, `procIte (`)
-		io.WriteString(w, application(s.Side.GuardName(end.Line), end.GuardArgs))
-		io.WriteString(w, `)`)
-		writeBodyLine(w, `  proc.SKIP`)
-		writeBodyLine(w, `  proc.STOP`)
-	}
-
-	if branches == 0 {
-		// A state with no out-edges offers nothing and never terminates.
-		writeBodyLine(w, `proc.STOP`)
-	}
-}
-
-// WriteEdgeBranch writes one out-edge as a guarded prefix. The guard is the full
-// enabledness condition of the edge, not just its Guard: an edge whose Post is
-// unsatisfiable cannot fire and must contribute a refusal, so leaving the
-// satisfiability conjunct out would admit phantom transitions.
-func WriteEdgeBranch(
-	w io.Writer,
-	s sideIR,
-	e obligationir.IREdge,
-	m map[obligationir.IRPredicateID]obligationir.IRPredicate,
-) {
-	dst := s.IR.States[e.Dst]
-	postApp := application(s.Side.PostName(e.Line), e.PostArgs)
-
-	writeBodyLine(w, `procIte (`)
-	io.WriteString(w, application(s.Side.GuardName(e.Line), e.GuardArgs))
-	io.WriteString(w, ` ∧ `)
-	if len(dst.Fields) > 0 {
-		WriteExists(w, dst.Fields)
-		io.WriteString(w, postApp)
-	} else {
-		io.WriteString(w, postApp)
-	}
-	io.WriteString(w, `)`)
-
-	writeBodyLine(w, `  (`)
-	io.WriteString(w, s.EventTerm(e.Event))
-	io.WriteString(w, ` ~> `)
-	WriteSuccessor(w, s, e.Dst, dst.Fields, true, postApp)
-	io.WriteString(w, `)`)
-
-	writeBodyLine(w, `  proc.STOP`)
-}
-
-// WriteExists writes the binder quantifying over a state's post-state valuation.
-func WriteExists(w io.Writer, fields []obligationir.IRField) {
-	io.WriteString(w, `∃ `)
-	for i, f := range fields {
-		if i > 0 {
-			io.WriteString(w, ` `)
-		}
-		WriteField(w, f, true)
-	}
-	io.WriteString(w, `, `)
-}
-
-// WriteSuccessor writes the process entered after an edge fires. When the target
-// state carries variables the post predicate generally admits several valuations
-// and the diagram picks one the environment cannot influence, which is a
-// replicated internal choice; when it carries none the successor is determined.
-func WriteSuccessor(w io.Writer, s sideIR, dst csdf.StateID, fields []obligationir.IRField, primed bool, setBody string) {
-	if len(fields) == 0 {
-		io.WriteString(w, `proc.Proc_name `)
-		io.WriteString(w, ProcNameType)
-		io.WriteString(w, `.`)
-		io.WriteString(w, s.Side.Ctor(dst))
-		return
-	}
-
-	pattern := valuationPattern(fields, primed)
-	io.WriteString(w, `Rep_int_choice_f (fun `)
-	io.WriteString(w, pattern)
-	io.WriteString(w, ` => `)
-	io.WriteString(w, EventType)
-	io.WriteString(w, `.`)
-	io.WriteString(w, InternalCtor)
-	io.WriteString(w, ` [`)
-	for i, f := range fields {
-		if i > 0 {
-			io.WriteString(w, `, `)
-		}
-		WriteField(w, f, primed)
-	}
-	io.WriteString(w, `]) {`)
-	io.WriteString(w, pattern)
-	io.WriteString(w, ` | `)
-	io.WriteString(w, setBody)
-	io.WriteString(w, `}`)
-	WriteNewLine(w, 1)
-	io.WriteString(w, stateBodyIndent)
-	io.WriteString(w, `    (fun `)
-	io.WriteString(w, pattern)
-	io.WriteString(w, ` => proc.Proc_name (`)
-	io.WriteString(w, ProcNameType)
-	io.WriteString(w, `.`)
-	io.WriteString(w, s.Side.Ctor(dst))
-	for _, f := range fields {
-		io.WriteString(w, ` `)
-		WriteField(w, f, primed)
-	}
-	io.WriteString(w, `))`)
-}
-
-// valuationPattern is the binder a valuation is bound by: a single variable, or a
-// tuple when the state carries several.
-func valuationPattern(fields []obligationir.IRField, primed bool) string {
-	var b strings.Builder
-	if len(fields) > 1 {
-		b.WriteString("(")
-	}
-	for i, f := range fields {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		WriteField(&b, f, primed)
-	}
-	if len(fields) > 1 {
-		b.WriteString(")")
-	}
-	return b.String()
-}
-
-// fieldArgs views a state's fields as unprimed predicate arguments.
-func fieldArgs(fields []obligationir.IRField) []obligationir.IRArg {
-	args := make([]obligationir.IRArg, 0, len(fields))
-	for _, f := range fields {
-		args = append(args, obligationir.IRArg{Name: f.Name, Type: f.Type})
-	}
-	return args
-}
-
-// application renders `name a1 a2 ...`.
-func application(name string, args []obligationir.IRArg) string {
-	var b strings.Builder
-	b.WriteString(name)
-	for _, arg := range args {
-		b.WriteString(" ")
-		WriteArgName(&b, arg)
-	}
-	return b.String()
-}
-
-// WriteProcFunInstances registers procfun as the library's PNfun for this name
-// type, which is how process-name references resolve, and picks the fixed-point
-// mode. Both are typeclass instances rather than Isabelle's overloading blocks.
-func WriteProcFunInstances(w io.Writer) {
-	io.WriteString(w, `instance Set_procfun : HasPNfun `)
-	io.WriteString(w, ProcNameType)
-	io.WriteString(w, ` `)
-	io.WriteString(w, EventType)
-	io.WriteString(w, ` where
-  PNfun := procfun
-
-instance Set_FPmode : HasFPmode where
-  FPmode := fpmode.CMSmode`)
-}
-
-// WriteProcDefinition writes the top-level process one diagram denotes: its start
-// state, entered only when the start edge's post predicate admits it.
-func WriteProcDefinition(w io.Writer, s sideIR) {
-	io.WriteString(w, `def `)
-	io.WriteString(w, s.Proc)
-	io.WriteString(w, ` : proc `)
-	io.WriteString(w, ProcNameType)
-	io.WriteString(w, ` `)
-	io.WriteString(w, EventType)
-	io.WriteString(w, ` :=`)
-	WriteNewLine(w, 1)
-	io.WriteString(w, `  `)
-
-	if s.Tau {
-		// Hidden once, outermost: hiding is what turns the HTau prefixes into
-		// internal steps, and hiding them per state would not compose.
-		io.WriteString(w, `proc.Hiding`)
-		WriteNewLine(w, 1)
-		io.WriteString(w, `    (`)
-	}
-
-	// The start edge's post denotes a set of initial valuations, and the diagram
-	// picks one internally. An unsatisfiable one leaves the empty set, whose
-	// replicated internal choice is DIV in the F model
-	// (cspF_Rep_int_choice_f_DIV): a diagram that cannot start diverges.
-	//
-	// A variable-free diagram's valuation domain is a one-point set, so an
-	// unsatisfiable init leaves the empty set there too and has to reach the same
-	// DIV. Writing STOP in that branch made an unused state variable observable,
-	// since STOP refuses every event and DIV has no stable failure at all.
-	start := s.IR.States[s.IR.Init.Dst]
-	if len(start.Fields) == 0 {
-		io.WriteString(w, `procIte `)
-		io.WriteString(w, s.Side.Qualify("init"))
-		io.WriteString(w, ` (proc.Proc_name `)
-		io.WriteString(w, ProcNameType)
-		io.WriteString(w, `.`)
-		io.WriteString(w, s.Side.Ctor(s.IR.Init.Dst))
-		io.WriteString(w, `) proc.DIV`)
-	} else {
-		WriteSuccessor(w, s, s.IR.Init.Dst, start.Fields, false,
-			application(s.Side.Qualify("init"), fieldArgs(start.Fields)))
-	}
-
-	if s.Tau {
-		io.WriteString(w, `)`)
-		WriteNewLine(w, 1)
-		io.WriteString(w, `    {`)
-		io.WriteString(w, s.EventTerm(csdf.Tau))
-		io.WriteString(w, `}`)
-	}
-}
-
-// WriteLivelockLayer writes one side's divergence-freedom reduction: the state
-// datatype, the transition relations and the well-foundedness obligation over
-// them. It is the csdflivelockfree obligation inlined, and exists only in
-// failures-divergence mode, where it is what licenses reading the F refinement as
-// FD refinement.
-func WriteLivelockLayer(w io.Writer, s sideIR, m map[obligationir.IRPredicateID]obligationir.IRPredicate) error {
-	if !s.HasLivelockLayer() {
-		return nil
-	}
-
-	if !s.NeedsLivelockObligation() {
-		io.WriteString(w, `-- `)
-		io.WriteString(w, s.Label)
-		io.WriteString(w, ` is livelock free structurally: no reachable tau-cycle.`)
-		WriteNewLine(w, 2)
-		return nil
-	}
-
-	if err := WriteStateTypeDeclaration(w, s.States, obligationir.SortIRStates(s.IR.States)); err != nil {
-		return fmt.Errorf("lean.WriteLivelockLayer: %w", err)
-	}
-	WriteNewLine(w, 2)
-
-	if err := WriteRelations(w, s.States, s.IR.Init, s.IR.States, s.IR.Edges, m); err != nil {
-		return fmt.Errorf("lean.WriteLivelockLayer: %w", err)
-	}
-
-	WriteLivelockTheorem(w, s.States, s.Side.Qualify("livelock_free"), AssumptionNames(s.Side, s.IR.Assumptions))
-	WriteNewLine(w, 2)
-	return nil
-}
-
-// WriteRefinementTheorem writes the obligation itself, under the hypotheses
-// that stand for both sides' assumptions.
-func WriteRefinementTheorem(w io.Writer, mode obligationir.IRRefinementMode, hypotheses []string) {
-	if mode == obligationir.IRRefinementModeTrace {
-		io.WriteString(w, `-- Every trace of the Impl diagram is a trace of the Spec diagram: refT P1 M1 M2 P2
--- unfolds to semTf P2 M2 <= semTf P1 M1.
-theorem refines_t`)
-		WriteHypotheses(w, hypotheses)
-		io.WriteString(w, ` : refTfix SpecProc ImplProc := by
-  sorry`)
-		return
-	}
-
-	if mode == obligationir.IRRefinementModeFailuresDivergence {
-		io.WriteString(w, `-- lean-csp-prover has no FD model, so this is the standard reduction: for
--- divergence-free processes, FD refinement coincides with the F refinement.
--- Divergence of SpecProc/ImplProc arises from an infinite HTau run of the
--- underlying diagram or from a side that cannot start at all, which the
--- well-foundedness and initialisability obligations above rule out respectively.
 `)
-	}
-
-	io.WriteString(w, `-- Every stable failure of the Impl diagram is one of the Spec diagram: refF
--- P1 M1 M2 P2 unfolds to semFf P2 M2 <= semFf P1 M1, and it subsumes trace
--- inclusion.
-theorem refines_f`)
-	WriteHypotheses(w, hypotheses)
-	io.WriteString(w, ` : refFfix SpecProc ImplProc := by
-  sorry`)
 }
 
-// WriteInitialisableTheorem writes the obligation that a side admits an initial
-// valuation at all. It exists only in failures-divergence mode: a side whose
-// start edge is unsatisfiable denotes DIV, which diverges on the empty trace, and
-// the reduction of FD refinement to <=F reads divergence as arising only from
-// infinite HTau runs. Without this the well-foundedness obligations do not
-// license that reading.
-//
-// Requiring this of the Spec is stronger than FD refinement needs - DIV is the
-// bottom of the FD model, so Spec refines Impl in FD holds even for a diverging Spec - but
-// the reduction to <=F cannot see that: a diverging Spec fails <=F outright. So
-// fd mode cannot decide a refinement whose Spec side diverges, and this
-// obligation makes that visible rather than reporting a false verdict.
-func WriteInitialisableTheorem(w io.Writer, s sideIR) {
-	if !s.HasLivelockLayer() {
-		return
+func writeProcessNames(w io.Writer, sides []side) {
+	io.WriteString(w, "inductive PN where\n")
+	for _, s := range sides {
+		for _, st := range s.ir.States {
+			io.WriteString(w, "  | "+s.names.Ctor(csdf.StateID(st.Name)))
+			for _, v := range st.Vars {
+				io.WriteString(w, " ("+obligationir.VarName(v)+" : Val)")
+			}
+			if obligationir.IsMangled(st.Name) || len(st.Vars) > 0 {
+				io.WriteString(w, " -- "+SanitizeComment(st.Name+obligationir.VarsComment(st.Vars)))
+			}
+			io.WriteString(w, "\n")
+		}
 	}
+	io.WriteString(w, "deriving Inhabited\n\n")
+}
 
-	io.WriteString(w, `-- `)
-	io.WriteString(w, s.Label)
-	io.WriteString(w, ` admits an initial valuation, so it does not denote DIV. Divergence-freedom
+func writeProcFun(w io.Writer, sides []side) error {
+	io.WriteString(w, "def procfun : PN → proc PN event")
+	for _, s := range sides {
+		states := s.ir.StateMap()
+		for _, st := range s.ir.States {
+			var branches []string
+			for _, e := range s.ir.Edges {
+				if e.Src != st.Name {
+					continue
+				}
+				b, err := branch(s, states, e)
+				if err != nil {
+					return fmt.Errorf("%s: the edge %s -> %s: %w", s.label, e.Src, e.Dst, err)
+				}
+				branches = append(branches, b)
+			}
+			for _, e := range s.ir.Ends {
+				if e.Src != st.Name {
+					continue
+				}
+				guard, err := Notation.SpellFormula(e.Guard)
+				if err != nil {
+					return fmt.Errorf("%s: the end edge from %s: %w", s.label, e.Src, err)
+				}
+				branches = append(branches, "procIte ("+guard+") proc.SKIP proc.STOP")
+			}
+			body := "proc.STOP"
+			if len(branches) > 0 {
+				body = strings.Join(branches, "\n    [+]\n    ")
+			}
+			fmt.Fprintf(w, "\n  | %s =>\n    %s", "PN."+processName(s.names, st, false), body)
+		}
+	}
+	io.WriteString(w, "\n\n")
+	return nil
+}
+
+// processName is the process name of the state st applied to its values,
+// after the step when primed, without the PN. that a pattern takes.
+func processName(names obligationir.Side, st obligationir.State, primed bool) string {
+	parts := []string{names.Ctor(csdf.StateID(st.Name))}
+	for _, v := range st.Vars {
+		if primed {
+			v += "'"
+		}
+		parts = append(parts, obligationir.VarName(v))
+	}
+	return strings.Join(parts, " ")
+}
+
+// branch is the process an edge is from its source: an external choice of
+// the events it performs.
+func branch(s side, states map[string]obligationir.State, e obligationir.Edge) (string, error) {
+	enabled, next, after, err := obligationir.EdgeSets(Notation, states, e, "ev", eventTerm(e))
+	if err != nil {
+		return "", err
+	}
+	return "proc.Ext_pre_choice {ev | " + enabled + "}\n      (fun ev => " + successor(s.names, states[e.Dst], after, next) + ")", nil
+}
+
+// eventTerm is the event e performs, as a value of event.
+func eventTerm(e obligationir.Edge) string {
+	if e.Tau() {
+		return "event.Alphabet alphabet." + obligationir.TauCtor
+	}
+	ctor := "alphabet." + obligationir.EventCtor(csdf.Event(e.Channel))
+	if len(e.Fields) == 0 {
+		return "event.Alphabet " + ctor
+	}
+	return "event.Alphabet (" + strings.Join(append([]string{ctor}, obligationir.EventArgs(e)...), " ") + ")"
+}
+
+// successor is the process that picks values of vars, which body holds of,
+// and continues as dst holding them: the name of dst when it holds nothing.
+func successor(names obligationir.Side, dst obligationir.State, vars []string, body string) string {
+	target := "proc.Proc_name (PN." + processName(names, dst, true) + ")"
+	if len(vars) == 0 {
+		return target
+	}
+	pattern := vars[0]
+	if len(vars) > 1 {
+		pattern = "(" + strings.Join(vars, ", ") + ")"
+	}
+	return "Rep_int_choice_f (fun " + pattern + " => event.Internal [" + strings.Join(vars, ", ") + "]) {" + pattern + " | " + body + "}\n        (fun " + pattern + " => " + target + ")"
+}
+
+// writeProc writes the process a side denotes: its start state, of values
+// its start post admits, hidden HTau. An unsatisfiable start post leaves the
+// empty choice, DIV, and so does a start state that holds nothing.
+func writeProc(w io.Writer, s side) error {
+	body, vars, err := obligationir.InitSet(Notation, s.ir)
+	if err != nil {
+		return fmt.Errorf("%s: %w", s.label, err)
+	}
+	start := s.ir.StateMap()[s.ir.Init]
+	var p string
+	if len(vars) == 0 {
+		p = "procIte (" + body + ") (proc.Proc_name (PN." + processName(s.names, start, false) + ")) proc.DIV"
+	} else {
+		p = successor(s.names, start, vars, body)
+	}
+	fmt.Fprintf(w, "def %s : proc PN event :=\n  proc.Hiding\n    (%s)\n    {event.Alphabet alphabet.%s}\n\n", s.proc, p, obligationir.TauCtor)
+	return nil
+}
+
+// writeDivergenceFreedom writes the obligations that a side does not
+// diverge, which license reading the F refinement as FD refinement: that no
+// reachable state starts an infinite run of tau steps, and that it can start
+// at all.
+func writeDivergenceFreedom(w io.Writer, s side, axioms []string) error {
+	hypotheses := append(append([]string{}, axioms...), AssumptionNames(s.names, s.ir.Assumptions)...)
+	if s.ir.Structurally {
+		fmt.Fprintf(w, "-- %s is livelock free structurally: no reachable tau-cycle.\n\n", s.label)
+	} else {
+		writeStates(w, s.states, s.ir.States)
+		if err := writeTransitionSystem(w, s.states, s.ir); err != nil {
+			return fmt.Errorf("%s: %w", s.label, err)
+		}
+		WriteLivelockTheorem(w, s.states, s.names.Qualify("livelock_free"), hypotheses)
+		io.WriteString(w, "\n\n")
+	}
+	body, vars, err := obligationir.InitSet(Notation, s.ir)
+	if err != nil {
+		return fmt.Errorf("%s: %w", s.label, err)
+	}
+	if len(vars) > 0 {
+		body = Notation.Exists(vars, body)
+	}
+	fmt.Fprintf(w, `-- %s admits an initial valuation, so it does not denote DIV. Divergence-freedom
 -- of the process needs this as well as the well-foundedness above: DIV diverges
 -- on the empty trace, which no tau-step argument can rule out.
-theorem `)
-	io.WriteString(w, s.Side.Qualify("initialisable"))
-	io.WriteString(w, ` : `)
-
-	start := s.IR.States[s.IR.Init.Dst]
-	if len(start.Fields) > 0 {
-		io.WriteString(w, `∃ `)
-		for i, f := range start.Fields {
-			if i > 0 {
-				io.WriteString(w, ` `)
-			}
-			WriteField(w, f, false)
-		}
-		io.WriteString(w, `, `)
-		io.WriteString(w, application(s.Side.Qualify("init"), fieldArgs(start.Fields)))
-	} else {
-		io.WriteString(w, s.Side.Qualify("init"))
-	}
-	io.WriteString(w, ` := by
-  sorry`)
-	WriteNewLine(w, 2)
+theorem %s`, s.label, s.names.Qualify("initialisable"))
+	WriteHypotheses(w, hypotheses)
+	fmt.Fprintf(w, " : %s := by\n  sorry\n\n", body)
+	return nil
 }

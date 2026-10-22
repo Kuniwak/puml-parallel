@@ -1,162 +1,65 @@
-package obligationir
+package obligationir_test
 
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/google/go-cmp/cmp"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-func TestBuildRefinementTraceSharesOnePredicateLayer(t *testing.T) {
-	// Setup: two ground diagrams. Every guard/post is the omitted default, so all
-	// of them hash to the one no-argument True predicate: the shared placeholder
-	// layer is filled once and serves both sides.
-	spec := csdf.MustParse(`@startuml
-state "s0" as s0
-state "s1" as s1
-[*] --> s0
-s0 --> s1 : a
-@enduml
-`)
-	impl := csdf.MustParse(`@startuml
-state "s0" as s0
-state "s1" as s1
-[*] --> s0
-s0 --> s1 : a
-s1 --> s0 : b
-@enduml
-`)
-
-	truePred := IRPredicateID(0)
-	want := IRRefinement{
-		Mode: IRRefinementModeTrace,
-		// The union of both sides' visible events, sorted: refusal information
-		// only makes sense against one shared alphabet.
-		Alphabet: []csdf.Event{"a", "b"},
-		Predicates: map[IRPredicateID]IRPredicate{
-			truePred: {Args: []IRArg{}, Text: ""},
-		},
-		Constants: []IRConst{},
-		Spec: IRSide{
-			States: map[csdf.StateID]IRState{
-				"s0": {Fields: []IRField{}, Line: 2},
-				"s1": {Fields: []IRField{}, Line: 3},
-			},
-			Edges: []IREdge{
-				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 5},
-			},
-			Init:        IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
-			Assumptions: []IRAssumption{},
-		},
-		Impl: IRSide{
-			States: map[csdf.StateID]IRState{
-				"s0": {Fields: []IRField{}, Line: 2},
-				"s1": {Fields: []IRField{}, Line: 3},
-			},
-			Edges: []IREdge{
-				{Src: "s0", Dst: "s1", Event: "a", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 5},
-				{Src: "s1", Dst: "s0", Event: "b", EventParams: []IRArg{}, Guard: truePred, GuardArgs: []IRArg{}, Post: truePred, PostArgs: []IRArg{}, Line: 6},
-			},
-			Init:        IRInit{Dst: "s0", Post: truePred, PostArgs: []IRArg{}, Line: 4},
-			Assumptions: []IRAssumption{},
-		},
+func mustRefinement(t *testing.T) obligationir.Refinement {
+	t.Helper()
+	spec, err := coreio.Load("testdata/formula/counter.puml")
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// Execute
-	got := BuildRefinement(IRRefinementModeTrace, spec, impl)
-
-	// Assert
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
+	impl, err := coreio.Load("testdata/formula/countdown.puml")
+	if err != nil {
+		t.Fatal(err)
 	}
+	r, err := obligationir.BuildRefinement(obligationir.IRRefinementModeTrace, spec, impl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
 }
 
-func TestBuildRefinementCarriesTheEndEdgeAsGuardedTermination(t *testing.T) {
-	// Setup: an EndEdge is CSP successful termination, guarded by its own
-	// predicate, so the IR has to keep it (and register its guard in the shared
-	// predicate layer). A diagram without one terminates nowhere.
-	withEnd := csdf.MustParse(`@startuml
-state "s0" as s0
-[*] --> s0
-s0 --> [*] : done
-@enduml
-`)
-	withoutEnd := csdf.MustParse(`@startuml
-state "s0" as s0
-[*] --> s0
-s0 --> s0 : a
-@enduml
-`)
-
-	// Execute
-	got := BuildRefinement(IRRefinementModeTrace, withEnd, withoutEnd)
-
-	// Assert
-	if got.Spec.End == nil {
-		t.Fatal("want the spec's end edge to be kept, got nil")
+func TestRefinementValidateRefusesAnIROfNoPairOfDiagrams(t *testing.T) {
+	testCases := map[string]func(r *obligationir.Refinement){
+		"another version":                          func(r *obligationir.Refinement) { r.Version = 0 },
+		"an unknown model":                         func(r *obligationir.Refinement) { r.Mode = "fdr" },
+		"a side Validate refuses":                  func(r *obligationir.Refinement) { r.Impl.Init = "nowhere" },
+		"an alphabet missing a channel":            func(r *obligationir.Refinement) { r.Alphabet = r.Alphabet[1:] },
+		"an alphabet with a channel's arity wrong": func(r *obligationir.Refinement) { r.Alphabet[0].Arity++ },
 	}
-	if got.Spec.End.Src != "s0" || got.Spec.End.Line != 4 {
-		t.Errorf("want end edge s0 on line 4, got %#v", got.Spec.End)
-	}
-	if text := got.Predicates[got.Spec.End.Guard].Text; text != "done" {
-		t.Errorf("want the end guard text %q, got %q", "done", text)
-	}
-	if got.Impl.End != nil {
-		t.Errorf("want no end edge on the impl side, got %#v", got.Impl.End)
-	}
-}
 
-func TestBuildRefinementFailuresDivergenceCarriesPerSideLivelockFreedom(t *testing.T) {
-	// Setup: CSP-Prover has no FD model, so fd reduces to <=F plus a
-	// divergence-freedom obligation per side. A side whose tau relation has no
-	// reachable cycle discharges that obligation structurally.
-	diverging := csdf.MustParse(`@startuml
-state "a" as a
-[*] --> a
-a --> a : tau
-@enduml
-`)
-	visible := csdf.MustParse(`@startuml
-state "s0" as s0
-state "s1" as s1
-[*] --> s0
-s0 --> s1 : a
-@enduml
-`)
-
-	// Execute
-	got := BuildRefinement(IRRefinementModeFailuresDivergence, diverging, visible)
-
-	// Assert
-	if got.Spec.StructurallyLivelockFree == nil || got.Impl.StructurallyLivelockFree == nil {
-		t.Fatalf("want both sides to carry livelock freedom in fd mode, got %#v / %#v",
-			got.Spec.StructurallyLivelockFree, got.Impl.StructurallyLivelockFree)
+	if err := mustRefinement(t).Validate(); err != nil {
+		t.Fatalf("the valid IR is refused: %v", err)
 	}
-	if *got.Spec.StructurallyLivelockFree {
-		t.Error("want spec structurally livelock free = false (reachable tau cycle)")
-	}
-	if !*got.Impl.StructurallyLivelockFree {
-		t.Error("want impl structurally livelock free = true (no tau edge at all)")
-	}
-}
+	for name, broken := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			r := mustRefinement(t)
+			broken(&r)
 
-func TestBuildRefinementOmitsLivelockFreedomOutsideFailuresDivergence(t *testing.T) {
-	// The trace and stable-failures models never observe divergence, so the
-	// livelock fields would be noise there.
-	d := csdf.MustParse(`@startuml
-state "a" as a
-[*] --> a
-a --> a : tau
-@enduml
-`)
+			// Execute
+			err := r.Validate()
 
-	for _, mode := range []IRRefinementMode{IRRefinementModeTrace, IRRefinementModeStableFailure} {
-		t.Run(string(mode), func(t *testing.T) {
-			got := BuildRefinement(mode, d, d)
-			if got.Spec.StructurallyLivelockFree != nil || got.Impl.StructurallyLivelockFree != nil {
-				t.Errorf("want nil livelock fields for mode %s, got %#v / %#v",
-					mode, got.Spec.StructurallyLivelockFree, got.Impl.StructurallyLivelockFree)
+			// Assert
+			if err == nil {
+				t.Error("err = nil, want the IR refused")
 			}
 		})
+	}
+}
+
+func TestBuildRefinementTakesTheChannelsOfBothSides(t *testing.T) {
+	// Execute
+	r := mustRefinement(t)
+
+	// Assert: the tau of either side is no channel.
+	want := []obligationir.Channel{{Name: "inc", Arity: 1}, {Name: "show", Arity: 1}}
+	if len(r.Alphabet) != len(want) || r.Alphabet[0] != want[0] || r.Alphabet[1] != want[1] {
+		t.Errorf("alphabet = %v, want %v", r.Alphabet, want)
 	}
 }

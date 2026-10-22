@@ -71,17 +71,17 @@ type obligation struct {
 // livelockObligation builds the livelock-freedom obligation for one diagram.
 func livelockObligation(t *testing.T, name, path string) obligation {
 	t.Helper()
-	ir, err := obligationir.BuildFormulaLivelockFree(load(t, path))
+	ir, err := obligationir.BuildLivelockFree(load(t, path))
 	if err != nil {
-		t.Fatalf("BuildFormulaLivelockFree(%s) error = %v", name, err)
+		t.Fatalf("BuildLivelockFree(%s) error = %v", name, err)
 	}
 
 	var leanBuf, isaBuf strings.Builder
-	if err := lean.WriteFormulaLivelockFree(&leanBuf, ir); err != nil {
-		t.Fatalf("lean.WriteFormulaLivelockFree(%s) error = %v", name, err)
+	if err := lean.WriteLivelockFree(&leanBuf, ir); err != nil {
+		t.Fatalf("lean.WriteLivelockFree(%s) error = %v", name, err)
 	}
-	if err := isabelle.WriteFormulaLivelockFree(&isaBuf, ir); err != nil {
-		t.Fatalf("isabelle.WriteFormulaLivelockFree(%s) error = %v", name, err)
+	if err := isabelle.WriteLivelockFree(&isaBuf, ir); err != nil {
+		t.Fatalf("isabelle.WriteLivelockFree(%s) error = %v", name, err)
 	}
 	return obligation{
 		name:    name,
@@ -96,17 +96,17 @@ func livelockObligation(t *testing.T, name, path string) obligation {
 // in one model.
 func refinementObligation(t *testing.T, name string, mode obligationir.IRRefinementMode, specPath, implPath string) obligation {
 	t.Helper()
-	ir, err := obligationir.BuildFormulaRefinement(mode, load(t, specPath), load(t, implPath))
+	ir, err := obligationir.BuildRefinement(mode, load(t, specPath), load(t, implPath))
 	if err != nil {
-		t.Fatalf("BuildFormulaRefinement(%s) error = %v", name, err)
+		t.Fatalf("BuildRefinement(%s) error = %v", name, err)
 	}
 
 	var leanBuf, isaBuf strings.Builder
-	if err := lean.WriteFormulaRefinement(&leanBuf, ir); err != nil {
-		t.Fatalf("lean.WriteFormulaRefinement(%s) error = %v", name, err)
+	if err := lean.WriteRefinement(&leanBuf, ir); err != nil {
+		t.Fatalf("lean.WriteRefinement(%s) error = %v", name, err)
 	}
-	if err := isabelle.WriteFormulaRefinement(&isaBuf, ir); err != nil {
-		t.Fatalf("isabelle.WriteFormulaRefinement(%s) error = %v", name, err)
+	if err := isabelle.WriteRefinement(&isaBuf, ir); err != nil {
+		t.Fatalf("isabelle.WriteRefinement(%s) error = %v", name, err)
 	}
 
 	// The T model lives in its own CSP-Prover session; F backs both f and fd.
@@ -283,7 +283,7 @@ func TestLeanCannotDischargeAnUnformalisedPredicate(t *testing.T) {
 	// the probe would fail for that reason instead, which is exactly what the
 	// True control below caught the first time round. autoImplicit is switched
 	// off so that cannot happen silently again.
-	ir, err := obligationir.BuildFormulaRefinement(obligationir.IRRefinementModeStableFailure,
+	ir, err := obligationir.BuildRefinement(obligationir.IRRefinementModeStableFailure,
 		load(t, "testdata/disabled_spec.puml"), load(t, "testdata/disabled_impl.puml"))
 	if err != nil {
 		t.Fatal(err)

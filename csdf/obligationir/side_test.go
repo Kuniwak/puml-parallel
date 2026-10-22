@@ -1,6 +1,9 @@
 package obligationir
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSideSingleKeepsUnqualifiedNames(t *testing.T) {
 	// The single-diagram obligation leaves every declaration name unqualified.
@@ -50,5 +53,14 @@ func TestSideSpecAndImplQualifyEveryLocationDerivedName(t *testing.T) {
 				t.Errorf("PostName = %q, want %q", got, tc.post)
 			}
 		})
+	}
+}
+
+func TestAssumptionNameIsSideQualifiedAndMangled(t *testing.T) {
+	if got := SideSingle.AssumptionName("fair"); got != "assume_fair" {
+		t.Errorf("SideSingle.AssumptionName(fair) = %q", got)
+	}
+	if got := SideImpl.AssumptionName("公平性"); !strings.HasPrefix(got, "assume_") || !strings.HasSuffix(got, "_I") || strings.Contains(got, "公平性") {
+		t.Errorf("SideImpl.AssumptionName(公平性) = %q, want a mangled name with the side suffix", got)
 	}
 }

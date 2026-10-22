@@ -30,21 +30,21 @@ func binders(vars []string) string {
 // allows only of an inhabited type.
 const InhabitedVal = `instance : Inhabited Val := ⟨.ValBool false⟩`
 
-// WriteFormulaLivelockFree writes the livelock-freedom obligation of a
+// WriteLivelockFree writes the livelock-freedom obligation of a
 // diagram whose clauses are formulas, as the Isabelle back end does
-// (isabelle.WriteFormulaLivelockFree).
-func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
-	text, err := formulaLivelockFree(ir)
+// (isabelle.WriteLivelockFree).
+func WriteLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
+	text, err := livelockFree(ir)
 	if err != nil {
-		return fmt.Errorf("lean.WriteFormulaLivelockFree: %w", err)
+		return fmt.Errorf("lean.WriteLivelockFree: %w", err)
 	}
 	_, err = io.WriteString(w, text)
 	return err
 }
 
-// formulaLivelockFree is the file WriteFormulaLivelockFree writes, made whole
+// livelockFree is the file WriteLivelockFree writes, made whole
 // before any of it is written, so that an IR refused halfway writes nothing.
-func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
+func livelockFree(ir obligationir.LivelockFree) (string, error) {
 	if err := ir.Validate(); err != nil {
 		return "", err
 	}
