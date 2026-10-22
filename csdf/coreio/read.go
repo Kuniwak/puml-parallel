@@ -41,9 +41,6 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 	if err != nil {
 		return nil, err
 	}
-	if len(src.Assumptions) > 0 {
-		return nil, fmt.Errorf("line %d: an assume note has no place in a diagram of formulas yet", src.Assumptions[0].Line)
-	}
 	clauses := func(p csdf.Predicate) clause.And {
 		f, _ := parse(string(p)) // check has read every predicate already
 		return f
@@ -67,6 +64,9 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 			Guard: clauses(e.Guard),
 			Post:  clauses(e.Post),
 		})
+	}
+	for _, a := range src.Assumptions {
+		d.Assumes = append(d.Assumes, core.Assumption{ID: a.ID, Text: string(a.Text)})
 	}
 	if e := src.EndEdge; e != nil {
 		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})

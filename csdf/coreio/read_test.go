@@ -122,18 +122,6 @@ s --> s : a ; @opaque
 `,
 			want: "@opaque",
 		},
-		{
-			name: "an assume note",
-			source: `@startuml
-state "s" as s
-[*] --> s
-note as fair
-  assume いずれ a が起きる
-end note
-@enduml
-`,
-			want: "assume note",
-		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
