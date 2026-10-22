@@ -112,7 +112,6 @@ var checking = Notation{
 type Assumption struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
-	Line int    `json:"line"`
 }
 
 // State is a state and the state variables it holds.
