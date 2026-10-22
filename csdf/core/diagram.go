@@ -58,8 +58,12 @@ type End struct {
 // the start edge leads to and InitPost the post of that edge; Ends are its
 // end edges, which only promotion reads, as deletions. Assumes are what its
 // runs as a whole are assumed to satisfy, outside its meaning
-// (docs/CLAUSE_DESIGN.md).
+// (docs/CLAUSE_DESIGN.md). Name and Labels are for the reader alone, outside
+// its meaning too: the title of the diagram, and the label of each state
+// labelled apart from its ID.
 type Diagram struct {
+	Name     string
+	Labels   map[string]string
 	States   []string
 	Vars     map[string][]string
 	Init     string

@@ -23,9 +23,13 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 		return "", fmt.Errorf("coreio.Write: %d end edges; the syntax holds one end edge", len(d.Ends))
 	}
 	var b strings.Builder
-	b.WriteString("@startuml\n")
+	b.WriteString("@startuml" + titled(d.Name) + "\n")
 	for _, s := range d.States {
-		fmt.Fprintf(&b, "state %q as %s\n", s, s)
+		label, ok := d.Labels[s]
+		if !ok {
+			label = s
+		}
+		fmt.Fprintf(&b, "state %q as %s\n", label, s)
 		for _, v := range d.Vars[s] {
 			fmt.Fprintf(&b, "%s : %s\n", s, v)
 		}
@@ -65,6 +69,14 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 	}
 	b.WriteString("@enduml\n")
 	return b.String(), nil
+}
+
+// titled is what follows @startuml for a diagram named name.
+func titled(name string) string {
+	if name == "" {
+		return ""
+	}
+	return " " + name
 }
 
 // labelled is the label of an edge that carries only text, if it has any.

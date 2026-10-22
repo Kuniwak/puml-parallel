@@ -46,12 +46,19 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		return f
 	}
 	d := &core.Diagram{
+		Name:     src.Name,
 		Vars:     map[string][]string{},
 		Init:     string(src.StartEdge.Dst),
 		InitPost: clauses(src.StartEdge.Post),
 	}
 	for _, s := range csdf.SortedStates(src.States) {
 		d.States = append(d.States, string(s.ID))
+		if s.State.Name != string(s.ID) {
+			if d.Labels == nil {
+				d.Labels = map[string]string{}
+			}
+			d.Labels[string(s.ID)] = s.State.Name
+		}
 		for _, v := range s.State.Vars {
 			d.Vars[string(s.ID)] = append(d.Vars[string(s.ID)], string(v.Name))
 		}
