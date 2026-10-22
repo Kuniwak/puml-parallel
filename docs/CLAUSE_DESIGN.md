@@ -22,6 +22,9 @@ syntax.
   replaced the separate `DOMAINS` csdfbmc read: its checks module declares
   `TYPES`, `TYPEOF` and `ENVIRONMENT`, and `--env` and `--seed` give the
   rest (README, bounded model checking).
+  Until event fields and state variables carry types of their own, each
+  has the type named like it (or the one `TYPEOF` gives); an obligation
+  that binds them types them so.
 
 ## Semantic ground
 

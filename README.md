@@ -508,9 +508,9 @@ without parsing a notation back:
 {"columns": [{"kind": "event", "event": "choose?product"}, {"kind": "termination"}],
  "rows": [{"state": "vmWaitingChoosing", "name": "vmWaitingChoosing", "cells": [
    [{"result": "goto", "state": "vmDropping",
-     "condition": {"op": "atom", "name": "availableProducts contains product", "quoted": true, "args": ["c", "x"]}},
+     "condition": {"op": "atom", "name": "availableProducts contains product", "quoted": true, "terms": [{"op": "var", "name": "c"}, {"op": "var", "name": "x"}]}},
     {"result": "refuse",
-     "condition": {"op": "not", "operands": [{"op": "atom", "name": "availableProducts contains product", "quoted": true, "args": ["c", "x"]}]}}],
+     "condition": {"op": "not", "operands": [{"op": "atom", "name": "availableProducts contains product", "quoted": true, "terms": [{"op": "var", "name": "c"}, {"op": "var", "name": "x"}]}]}}],
    [{"result": "terminate", "condition": {"op": "true"}}]]}],
  "unreachable": []}
 ```

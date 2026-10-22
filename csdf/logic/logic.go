@@ -40,7 +40,7 @@ type constant struct{ value bool }
 type atom struct {
 	name   string
 	quoted bool
-	args   []Var
+	args   []Term
 }
 
 type not struct{ operand Formula }
@@ -53,10 +53,12 @@ type junction struct {
 
 type implies struct{ antecedent, consequent Formula }
 
-// quantifier binds at least one variable.
+// quantifier binds at least one variable. types, when not nil, holds the
+// type of each variable, in the order of vars.
 type quantifier struct {
 	forall bool
 	vars   []Var
+	types  []string
 	body   Formula
 }
 
@@ -73,13 +75,13 @@ func Atom(name string, args ...Var) Formula {
 	if name == "" {
 		panic("logic.Atom: a predicate needs a name")
 	}
-	return atom{name: name, args: slices.Clone(args)}
+	return atom{name: name, args: varTerms(args)}
 }
 
 // Quoted applies a predicate written in natural language to args. The text
 // is spelled as a JSON string, so that nothing it holds reads as a connective.
 func Quoted(text string, args ...Var) Formula {
-	return atom{name: text, quoted: true, args: slices.Clone(args)}
+	return atom{name: text, quoted: true, args: varTerms(args)}
 }
 
 // Not negates f.
@@ -124,12 +126,35 @@ func Exists(vars []Var, body Formula) Formula {
 // Forall binds vars universally in body; binding none is body itself.
 func Forall(vars []Var, body Formula) Formula { return newQuantifier("logic.Forall", true, vars, body) }
 
+// ExistsTyped binds vars existentially in body, each of the type of the same
+// position in types; binding none is body itself. The types are part of the
+// formula and of its tree; a notation spells the variables alone.
+func ExistsTyped(vars []Var, types []string, body Formula) Formula {
+	if len(types) != len(vars) {
+		panic(fmt.Sprintf("logic.ExistsTyped: %d variables but %d types", len(vars), len(types)))
+	}
+	return newTypedQuantifier("logic.ExistsTyped", false, vars, types, body)
+}
+
+// ForallTyped binds vars universally in body, each of the type of the same
+// position in types, as ExistsTyped does existentially.
+func ForallTyped(vars []Var, types []string, body Formula) Formula {
+	if len(types) != len(vars) {
+		panic(fmt.Sprintf("logic.ForallTyped: %d variables but %d types", len(vars), len(types)))
+	}
+	return newTypedQuantifier("logic.ForallTyped", true, vars, types, body)
+}
+
 func newQuantifier(caller string, forall bool, vars []Var, body Formula) Formula {
+	return newTypedQuantifier(caller, forall, vars, nil, body)
+}
+
+func newTypedQuantifier(caller string, forall bool, vars []Var, types []string, body Formula) Formula {
 	mustBeFormula(caller, body)
 	if len(vars) == 0 {
 		return body
 	}
-	return quantifier{forall: forall, vars: slices.Clone(vars), body: body}
+	return quantifier{forall: forall, vars: slices.Clone(vars), types: slices.Clone(types), body: body}
 }
 
 func mustBeFormula(caller string, f Formula) {
@@ -185,16 +210,18 @@ func (c constant) equal(g Formula) bool {
 }
 
 func (a atom) freeVars(bound map[Var]bool, add func(Var)) {
-	for _, v := range a.args {
-		if !bound[v] {
-			add(v)
-		}
+	for _, t := range a.args {
+		t.vars(func(v Var) {
+			if !bound[v] {
+				add(v)
+			}
+		})
 	}
 }
 func (a atom) simplify() Formula { return a }
 func (a atom) equal(g Formula) bool {
 	b, ok := g.(atom)
-	return ok && a.name == b.name && a.quoted == b.quoted && slices.Equal(a.args, b.args)
+	return ok && a.name == b.name && a.quoted == b.quoted && slices.EqualFunc(a.args, b.args, Term.equalTerm)
 }
 
 func (n not) freeVars(bound map[Var]bool, add func(Var)) { n.operand.freeVars(bound, add) }
@@ -286,16 +313,20 @@ func (q quantifier) simplify() Formula {
 		read[v] = true
 	}
 	var vars []Var
-	for _, v := range q.vars {
+	var types []string
+	for i, v := range q.vars {
 		if read[v] {
 			vars = append(vars, v)
+			if q.types != nil {
+				types = append(types, q.types[i])
+			}
 		}
 	}
-	return newQuantifier("logic.Simplify", q.forall, vars, body)
+	return newTypedQuantifier("logic.Simplify", q.forall, vars, types, body)
 }
 func (q quantifier) equal(g Formula) bool {
 	r, ok := g.(quantifier)
-	return ok && q.forall == r.forall && slices.Equal(q.vars, r.vars) && q.body.equal(r.body)
+	return ok && q.forall == r.forall && slices.Equal(q.vars, r.vars) && slices.Equal(q.types, r.types) && q.body.equal(r.body)
 }
 
 // Connectives are the spellings of a notation, spaces included.
@@ -356,20 +387,13 @@ func (a atom) spell(_ Notation, sb *strings.Builder, _ bool) {
 	} else {
 		sb.WriteString(a.name)
 	}
-	if len(a.args) == 0 {
-		return
-	}
-	args := make([]string, len(a.args))
-	for i, v := range a.args {
-		args[i] = string(v)
-	}
-	sb.WriteString("(" + strings.Join(args, ", ") + ")")
+	spellArgs(sb, a.args)
 }
 
 func (x not) spell(n Notation, sb *strings.Builder, rightmost bool) {
 	sb.WriteString(n.c.Not)
 	switch x.operand.(type) {
-	case junction, implies:
+	case junction, implies, equality:
 		parenthesised(n, sb, x.operand)
 	default:
 		operand(n, sb, x.operand, rightmost)
@@ -446,21 +470,24 @@ func parenthesised(n Notation, sb *strings.Builder, f Formula) {
 // notation. Op is one of
 //
 //	true, false            a constant
-//	atom                   Name applied to Args; Quoted when Name is natural
-//	                       language, which Quoted made
+//	atom                   Name applied to Terms; Quoted when Name is
+//	                       natural language, which Quoted or Pred made
+//	eq                     the two Terms are the same value
 //	not                    the negation of the one operand
 //	and, or                the conjunction or disjunction of the operands
 //	implies                the implication from the first operand to the second
-//	exists, forall         the one operand with Vars bound
+//	exists, forall         the one operand with Vars bound, each of the type
+//	                       of the same position in Types when it has them
 //
 // and the fields another Op has no use for are left empty.
 type Tree struct {
-	Op       Op     `json:"op"`
-	Name     string `json:"name,omitempty"`
-	Quoted   bool   `json:"quoted,omitempty"`
-	Args     []Var  `json:"args,omitempty"`
-	Vars     []Var  `json:"vars,omitempty"`
-	Operands []Tree `json:"operands,omitempty"`
+	Op       Op         `json:"op"`
+	Name     string     `json:"name,omitempty"`
+	Quoted   bool       `json:"quoted,omitempty"`
+	Terms    []TermTree `json:"terms,omitempty"`
+	Vars     []Var      `json:"vars,omitempty"`
+	Types    []string   `json:"types,omitempty"`
+	Operands []Tree     `json:"operands,omitempty"`
 }
 
 // Op is what a Tree is.
@@ -471,6 +498,7 @@ const (
 	OpTrue    Op = "true"
 	OpFalse   Op = "false"
 	OpAtom    Op = "atom"
+	OpEq      Op = "eq"
 	OpNot     Op = "not"
 	OpAnd     Op = "and"
 	OpOr      Op = "or"
@@ -490,7 +518,7 @@ func (c constant) tree() Tree {
 }
 
 func (a atom) tree() Tree {
-	return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Args: slices.Clone(a.args)}
+	return Tree{Op: OpAtom, Name: a.name, Quoted: a.quoted, Terms: termTrees(a.args)}
 }
 
 func (n not) tree() Tree { return Tree{Op: OpNot, Operands: []Tree{n.operand.tree()}} }
@@ -516,7 +544,7 @@ func (q quantifier) tree() Tree {
 	if q.forall {
 		op = OpForall
 	}
-	return Tree{Op: op, Vars: slices.Clone(q.vars), Operands: []Tree{q.body.tree()}}
+	return Tree{Op: op, Vars: slices.Clone(q.vars), Types: slices.Clone(q.types), Operands: []Tree{q.body.tree()}}
 }
 
 // quote writes text as a JSON string. HTML characters are left as they are:

@@ -330,28 +330,28 @@ func TestTreeOf(t *testing.T) {
 		},
 		"an atom is its name and its arguments": {
 			Formula: logic.Atom("guard_1", "x0"),
-			Want:    `{"op":"atom","name":"guard_1","args":["x0"]}`,
+			Want:    `{"op":"atom","name":"guard_1","terms":[{"op":"var","name":"x0"}]}`,
 		},
 		"a quoted atom says so, and its text is the name as it is": {
 			Formula: logic.Quoted(`a "b" <c>`, "c", "x"),
-			Want:    `{"op":"atom","name":"a \"b\" <c>","quoted":true,"args":["c","x"]}`,
+			Want:    `{"op":"atom","name":"a \"b\" <c>","quoted":true,"terms":[{"op":"var","name":"c"},{"op":"var","name":"x"}]}`,
 		},
 		"a negation has its operand": {
 			Formula: logic.Not(p("x")),
-			Want:    `{"op":"not","operands":[{"op":"atom","name":"p","args":["x"]}]}`,
+			Want:    `{"op":"not","operands":[{"op":"atom","name":"p","terms":[{"op":"var","name":"x"}]}]}`,
 		},
 		"a disjunction has its operands in order": {
 			Formula: logic.Or(q("x"), p("x")),
-			Want:    `{"op":"or","operands":[{"op":"atom","name":"q","args":["x"]},{"op":"atom","name":"p","args":["x"]}]}`,
+			Want:    `{"op":"or","operands":[{"op":"atom","name":"q","terms":[{"op":"var","name":"x"}]},{"op":"atom","name":"p","terms":[{"op":"var","name":"x"}]}]}`,
 		},
 		"an implication has its antecedent, then its consequent": {
 			Formula: logic.Implies(p("x"), q("x")),
-			Want:    `{"op":"implies","operands":[{"op":"atom","name":"p","args":["x"]},{"op":"atom","name":"q","args":["x"]}]}`,
+			Want:    `{"op":"implies","operands":[{"op":"atom","name":"p","terms":[{"op":"var","name":"x"}]},{"op":"atom","name":"q","terms":[{"op":"var","name":"x"}]}]}`,
 		},
 		"a quantifier has the variables it binds and its body": {
 			Formula: logic.Exists(vs("x", "y"), logic.Forall(vs("z"), p("x", "y", "z"))),
 			Want: `{"op":"exists","vars":["x","y"],"operands":[` +
-				`{"op":"forall","vars":["z"],"operands":[{"op":"atom","name":"p","args":["x","y","z"]}]}]}`,
+				`{"op":"forall","vars":["z"],"operands":[{"op":"atom","name":"p","terms":[{"op":"var","name":"x"},{"op":"var","name":"y"},{"op":"var","name":"z"}]}]}]}`,
 		},
 	}
 

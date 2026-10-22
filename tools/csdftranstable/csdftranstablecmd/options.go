@@ -100,7 +100,8 @@ With -format json, the table is written as JSON instead, for a program to read:
 with a cell per column in the same order. An OUTCOME is
 {"result": "goto", "state": ID, "condition": C}, or "terminate" or "refuse"
 without "state", and C is a syntax tree: {"op": OP, ...}, where OP is true,
-false, atom (with "name", "quoted" and "args"), not, and, or, implies (with
+false, atom (with "name", "quoted" and "terms", each {"op": "var", "name": V}
+or an index, field or apply term), not, and, or, implies (with
 "operands"), exists or forall (with "vars" and "operands"). A guard is an atom
 applied to (c, xi), or to (xi) for an end edge and an event that receives
 nothing (a sent field is the state's); a postcondition to those and x'. Being no TSV, it has no column to clash with, and -expr-mode does

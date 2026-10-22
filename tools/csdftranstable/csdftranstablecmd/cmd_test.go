@@ -49,7 +49,7 @@ a --> b : insert?coin ; g
 			Args: []string{"-format", "json", filepath.Join("testdata", "a.puml")},
 			WantStdout: `{"columns":[{"kind":"event","event":"insert?coin"},{"kind":"event","event":"reset"}],` +
 				`"rows":[` +
-				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"coins' is {coin}","quoted":true,"args":["c","x","x'"]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
+				`{"state":"a","name":"a","cells":[[{"result":"goto","state":"b","condition":{"op":"atom","name":"coins' is {coin}","quoted":true,"terms":[{"op":"var","name":"c"},{"op":"var","name":"x"},{"op":"var","name":"x'"}]}}],[{"result":"refuse","condition":{"op":"true"}}]]},` +
 				`{"state":"b","name":"b","cells":[[{"result":"refuse","condition":{"op":"true"}}],[{"result":"goto","state":"a","condition":{"op":"true"}}]]}],` +
 				`"unreachable":[]}` + "\n",
 		},
