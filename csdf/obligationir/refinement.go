@@ -223,7 +223,10 @@ func EdgeSets(n Notation, states map[string]State, e Edge, ev, event string) (en
 // InitSet is, of the values of the start state of ir (vars), that they are
 // of their types and pass the start post, spelled in n.
 func InitSet(n Notation, ir LivelockFree) (body string, vars []string, err error) {
-	start := ir.StateMap()[ir.Init]
+	start, ok := ir.StateMap()[ir.Init]
+	if !ok {
+		return "", nil, fmt.Errorf("obligationir.InitSet: no start state %s", ir.Init)
+	}
 	vars = make([]string, len(start.Vars))
 	for i, v := range start.Vars {
 		vars[i] = SpellVar(logic.Var(v + "'"))
