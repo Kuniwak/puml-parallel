@@ -182,7 +182,7 @@ state "縮退中" as degraded {
   degraded : locations ; l ⇸ Location
   state "shipments : s ⇸ Shipment" as degradedShipments <<promote>>
 }
-[*] --> running : どの map も空
+[*] --> running : @empty(shipments') ∧ @empty(locations')
 running --> degraded : HALT?why ; @empty(locations)
 degraded --> running : RESUME
 note as fair
@@ -192,7 +192,7 @@ end note
 `,
 			want: core.Promotion{
 				Modes: []string{"running", "degraded"}, Init: "running",
-				InitPost: mustParse(t, "どの map も空"),
+				InitPost: mustParse(t, "@empty(shipments') ∧ @empty(locations')"),
 				Families: []core.Family{
 					{Map: "shipments", ID: "s", Local: shp},
 					{Map: "locations", ID: "l", Local: loc, Frozen: []string{"degraded"}},

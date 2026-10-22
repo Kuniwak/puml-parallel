@@ -277,6 +277,11 @@ func TestPromoteRefuses(t *testing.T) {
 			d.Assumes = []Assumption{{ID: "a1", Text: "it is lit"}}
 			return d
 		}()}), "about the whole system"},
+		{"a global start post saying more than that every map is empty", func() Promotion {
+			p := promotion(locations)
+			p.InitPost = mustParse(t, "locations は空")
+			return p
+		}(), "global start edge"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
@@ -338,10 +343,10 @@ func modes(f Family, edges ...Edge) Promotion {
 	return Promotion{Modes: []string{"G", "H"}, Init: "G", Families: []Family{f}, Edges: edges}
 }
 
-func TestPromoteWarnsOfTheGlobalStartPostAndStartsEveryMapEmpty(t *testing.T) {
+func TestPromoteAcceptsAGlobalStartPostSayingEveryMapIsEmpty(t *testing.T) {
 	// Setup
 	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
-	p.InitPost = mustParse(t, "doors は空")
+	p.InitPost = mustParse(t, "@empty(doors')")
 
 	// Execute
 	got, warnings, err := Promote(p)
@@ -350,9 +355,8 @@ func TestPromoteWarnsOfTheGlobalStartPostAndStartsEveryMapEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Warning{{Event: "[*]", Text: "the post of the global start edge says nothing: every map starts empty"}}
-	if diff := cmp.Diff(want, warnings); diff != "" {
-		t.Errorf("warnings (-want +got):\n%s", diff)
+	if len(warnings) > 0 {
+		t.Errorf("warnings = %v, want none", warnings)
 	}
 	if diff := cmp.Diff(mustParse(t, "@empty(doors')"), got.InitPost); diff != "" {
 		t.Errorf("start post (-want +got):\n%s", diff)

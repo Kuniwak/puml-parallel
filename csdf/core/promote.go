@@ -54,7 +54,7 @@ type Constrain struct {
 // among them and Constrains on them. Edges are its hand-written edges
 // between modes, a controller's own steps (docs/CLAUSE_DESIGN.md).
 // InitPost is the post the author wrote on the global start edge, which
-// says nothing: every map starts empty. Assumes are the assume notes of the
+// may only say that maps are empty, as they start. Assumes are the assume notes of the
 // global diagram, which the expansion carries.
 type Promotion struct {
 	Assumes    []Assumption
@@ -84,9 +84,6 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
-	if len(p.InitPost.Conjuncts) > 0 {
-		warnings = append(warnings, Warning{Event: "[*]", Text: "the post of the global start edge says nothing: every map starts empty"})
-	}
 	for _, f := range p.Families {
 		if err := f.Local.wellFormed(); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
@@ -107,6 +104,9 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		out.Vars[mode] = maps
 	}
 	out.InitPost = clause.And{Conjuncts: start}
+	if err := saysEmpty(p.InitPost, maps); err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
@@ -275,6 +275,22 @@ func controlled(p Promotion, maps []string) ([]Edge, error) {
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+// saysEmpty reports, as an error, a post of the global start edge that
+// says anything but that maps of maps are empty (docs/CLAUSE_DESIGN.md):
+// every map starts empty, the instances being at their start states.
+func saysEmpty(post clause.And, maps []string) error {
+	for _, c := range clause.Normalize(post).Conjuncts {
+		b, ok := c.(clause.Builtin)
+		if ok && b.Op == clause.OpEmpty && len(b.Args) == 1 {
+			if v, ok := b.Args[0].(clause.Free); ok && v.Primed && slices.Contains(maps, v.Name) {
+				continue
+			}
+		}
+		return fmt.Errorf("the post of the global start edge says only @empty(m') of its maps, which start empty")
+	}
+	return nil
 }
 
 // isFrame says whether post says exactly that every map of maps is
