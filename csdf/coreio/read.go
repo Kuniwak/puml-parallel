@@ -70,18 +70,17 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 
 // readEdge reads one edge line, written at line, its clauses by parse.
 func readEdge(text string, line int, parse func(string) (clause.And, error)) (core.Edge, error) {
+	read := map[csdf.Predicate]clause.And{}
 	check := func(p csdf.Predicate) error {
-		_, err := parse(string(p))
+		f, err := parse(string(p))
+		read[p] = f
 		return err
 	}
 	e, err := csdf.ParseEdgeLine(text, line, check)
 	if err != nil {
 		return core.Edge{}, err
 	}
-	return edgeOf(e, func(p csdf.Predicate) clause.And {
-		f, _ := parse(string(p)) // check has read it already
-		return f
-	}), nil
+	return edgeOf(e, func(p csdf.Predicate) clause.And { return read[p] }), nil
 }
 
 func edgeOf(e csdf.Edge, clauses func(csdf.Predicate) clause.And) core.Edge {
