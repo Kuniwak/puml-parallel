@@ -35,12 +35,21 @@ type Sync struct {
 	Targets []Target
 }
 
+// Constrain is a guard conjoined onto every generated edge that matches
+// Event in channel and the directions of its fields (docs/PROMOTION.md). Its
+// field names are what Guard reads, beside the maps.
+type Constrain struct {
+	Event Event
+	Guard clause.And
+}
+
 // Promotion is a global diagram of one state, State, holding the maps of its
-// Families, with Syncs among them.
+// Families, with Syncs among them and Constrains on them.
 type Promotion struct {
-	State    string
-	Families []Family
-	Syncs    []Sync
+	State      string
+	Families   []Family
+	Syncs      []Sync
+	Constrains []Constrain
 }
 
 // Promote is the global diagram of p (docs/CLAUSE_DESIGN.md, a constructor):
@@ -102,7 +111,70 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			out.Edges = append(out.Edges, edge)
 		}
 	}
-	return out, warnings, nil
+	ws, err := constrain(p, out.Edges)
+	if err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
+	return out, append(warnings, ws...), nil
+}
+
+// constrain conjoins each constrain of p onto every edge that matches its
+// event in channel and field directions (docs/CLAUSE_DESIGN.md: the
+// expansion of a monitor process in parallel).
+func constrain(p Promotion, edges []Edge) ([]Warning, error) {
+	var ws []Warning
+	for _, c := range p.Constrains {
+		if err := clause.WellFormed(c.Guard); err != nil {
+			return nil, fmt.Errorf("constrain %s: %w", c.Event.Channel, err)
+		}
+		allowed := map[string]bool{}
+		for _, f := range p.Families {
+			allowed[f.Map] = true
+		}
+		for _, fl := range c.Event.Fields {
+			allowed[fl.Name] = true
+		}
+		for _, v := range clause.FreeVars(c.Guard) {
+			if !allowed[v.Name] {
+				return nil, fmt.Errorf("constrain %s reads %s, which is no map and no field of its event", c.Event.Channel, v.Name)
+			}
+		}
+		matched := 0
+		taken := map[string]bool{}
+		for i, e := range edges {
+			if !sameShape(e.Event, c.Event) {
+				continue
+			}
+			matched++
+			for _, fl := range e.Event.Fields {
+				taken[fl.Name] = true
+			}
+			edges[i].Guard = Conj(e.Guard, c.Guard)
+		}
+		if matched == 0 {
+			return nil, fmt.Errorf("constrain %s: no generated edge is on %s with fields of those directions", c.Event.Channel, c.Event.Channel)
+		}
+		for _, fl := range c.Event.Fields {
+			if !taken[fl.Name] {
+				ws = append(ws, Warning{Event: c.Event.Channel, Text: fmt.Sprintf("the constrain names %s, which no matching edge has; its guard says nothing about it", fl.Name)})
+			}
+		}
+	}
+	return ws, nil
+}
+
+// sameShape says whether two events are on one channel with fields of the
+// same directions, in order, whatever their names.
+func sameShape(a, b Event) bool {
+	if a.Channel != b.Channel || len(a.Fields) != len(b.Fields) {
+		return false
+	}
+	for i := range a.Fields {
+		if a.Fields[i].Send != b.Fields[i].Send {
+			return false
+		}
+	}
+	return true
 }
 
 // Warning is something Promote dropped that the author wrote: Map and

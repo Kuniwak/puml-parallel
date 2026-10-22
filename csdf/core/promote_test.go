@@ -253,6 +253,10 @@ func TestPromoteRefuses(t *testing.T) {
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}}}), "holds no state variables"},
 		{"a self-loop on the start state", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
 			Edge{Src: "none", Dst: "none", Event: ev("PING")})}), "self-loop"},
+		{"a constrain matching no generated edge", Promotion{State: "G", Families: []Family{locations},
+			Constrains: []Constrain{{Event: ev("OPEN", send("loc")), Guard: mustParse(t, "$loc is a")}}}, "no generated edge"},
+		{"a constrain reading a name that is no map and no field", Promotion{State: "G", Families: []Family{locations},
+			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "$z = 0")}}}, "z"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
@@ -466,6 +470,30 @@ func readingDenotation(t *testing.T) *lts.LTS {
 	return want
 }
 
+// doorMonitored is doors a and b and key s1, by hand, with a monitor
+// following which doors exist (bit 1 for a, 2 for b) and offering CUT only
+// while none does: the denotation of a constrain on CUT reading doors.
+func doorMonitored(*testing.T) *lts.LTS {
+	monitor := lts.New(0)
+	for set := 0; set < 4; set++ {
+		for i, x := range locIDs {
+			bit := 1 << i
+			if set&bit == 0 {
+				monitor.Add(set, "NEW."+x, set|bit)
+			} else {
+				monitor.Add(set, "GONE."+x, set&^bit)
+			}
+		}
+	}
+	monitor.Add(0, "CUT.s1", 0)
+	follows := func(label string) bool {
+		return strings.HasPrefix(label, "NEW.") || strings.HasPrefix(label, "GONE.") || strings.HasPrefix(label, "CUT.")
+	}
+	keyInstance := handLTS(tr{0, "CUT.s1", 1}, tr{1, "LOST.s1", 0})
+	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), keyInstance, monitor},
+		[]func(string) bool{mentions("a"), mentions("b"), mentions("s1"), follows})
+}
+
 func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
 	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
@@ -553,6 +581,26 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{glancerInstance("g1", "g2"), glancerInstance("g2", "g1")}, []func(string) bool{mentions("g1"), mentions("g2")})
 			},
+		},
+		{
+			name: "a constrain narrows the generated edges it matches",
+			p: Promotion{State: "G", Families: []Family{doors},
+				Constrains: []Constrain{{Event: ev("NEW", recv("loc")), Guard: mustParse(t, "$loc is a")}}},
+			env: func(t *testing.T) Env {
+				env := stock(t, doors)
+				env.Atoms["#0 is a"] = func(a []Value) bool { return a[0] == "a" }
+				return env
+			},
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{doorInstance("a"), lts.New(0)}, []func(string) bool{mentions("a"), mentions("b")})
+			},
+		},
+		{
+			name: "a constrain reads a map no instance of its event is in, as a monitor would",
+			p: Promotion{State: "G", Families: []Family{doors, keys},
+				Constrains: []Constrain{{Event: ev("CUT", recv("s")), Guard: mustParse(t, "@empty(doors)")}}},
+			env:  func(t *testing.T) Env { return stock(t, doors, keys) },
+			want: doorMonitored,
 		},
 		{
 			name: "what a sync clause reads is carried by the event (#79)",
