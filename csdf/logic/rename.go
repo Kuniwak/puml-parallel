@@ -1,9 +1,14 @@
 package logic
 
+import (
+	"fmt"
+	"slices"
+)
+
 // Rename is f with each free variable that m maps renamed to its image. A
-// variable a quantifier binds is not renamed under it. The images are not
-// checked against the variables f binds: a caller renames to names no
-// quantifier of f binds, or a renamed variable is captured.
+// variable a quantifier binds is not renamed under it, and a quantifier that
+// binds a name an image takes in its body is renamed apart first, to a fresh
+// name, so that no renamed variable is captured.
 func Rename(f Formula, m map[Var]Var) Formula {
 	switch f := f.(type) {
 	case constant:
@@ -30,7 +35,26 @@ func Rename(f Formula, m map[Var]Var) Formula {
 		for _, v := range f.vars {
 			delete(inner, v)
 		}
-		return quantifier{forall: f.forall, vars: f.vars, types: f.types, body: Rename(f.body, inner)}
+		// A bound variable an image takes would capture it, so it is renamed
+		// to a name free in the renamed body nowhere.
+		images, taken := map[Var]bool{}, map[Var]bool{}
+		for _, v := range FreeVars(f.body) {
+			if w, ok := inner[v]; ok {
+				images[w], taken[w] = true, true
+			} else {
+				taken[v] = true
+			}
+		}
+		vars := slices.Clone(f.vars)
+		for i, v := range f.vars {
+			if images[v] {
+				fresh := freshVar(v, taken, f.vars)
+				taken[fresh] = true
+				inner[v] = fresh
+				vars[i] = fresh
+			}
+		}
+		return quantifier{forall: f.forall, vars: vars, types: f.types, body: Rename(f.body, inner)}
 	}
 	panic("logic.Rename: no formula")
 }
@@ -58,4 +82,15 @@ func renameTerm(t Term, m map[Var]Var) Term {
 		return apply{fn: t.fn, args: renameTerms(t.args, m)}
 	}
 	panic("logic.Rename: no term")
+}
+
+// freshVar is v with the least number after it that names nothing taken
+// and none of the variables bound beside it.
+func freshVar(v Var, taken map[Var]bool, bound []Var) Var {
+	for i := 1; ; i++ {
+		w := Var(fmt.Sprintf("%s%d", v, i))
+		if !taken[w] && !slices.Contains(bound, w) {
+			return w
+		}
+	}
 }

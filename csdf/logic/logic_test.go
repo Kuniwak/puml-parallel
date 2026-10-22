@@ -415,3 +415,41 @@ func TestRenameRenamesTheFreeVariablesOnly(t *testing.T) {
 		t.Error(diff)
 	}
 }
+
+func TestRenameAvoidsCapture(t *testing.T) {
+	// Setup
+	n := mustNotation(t, logic.Connectives{And: " ∧ ", Or: " ∨ ", Not: "¬", Implies: " → ", Exists: "∃", Forall: "∀", True: "true", False: "false"})
+	x, y := logic.Var("x"), logic.Var("y")
+	testCases := map[string]struct {
+		F    logic.Formula
+		M    map[logic.Var]logic.Var
+		Want string
+	}{
+		"a binder named like an image is renamed apart": {
+			F:    logic.Exists([]logic.Var{y}, logic.Pred("p", true, x, y)),
+			M:    map[logic.Var]logic.Var{x: y},
+			Want: `∃y1. "p"(y, y1)`,
+		},
+		"a fresh name avoids the other free variables too": {
+			F:    logic.ForallTyped([]logic.Var{y}, []string{"T"}, logic.Pred("p", true, x, y, logic.Var("y1"))),
+			M:    map[logic.Var]logic.Var{x: y},
+			Want: `∀y2. "p"(y, y2, y1)`,
+		},
+		"a binder no image meets keeps its name": {
+			F:    logic.Exists([]logic.Var{y}, logic.Pred("p", true, x, y)),
+			M:    map[logic.Var]logic.Var{x: "z"},
+			Want: `∃y. "p"(z, y)`,
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got := logic.Rename(tc.F, tc.M)
+
+			// Assert
+			if diff := cmp.Diff(tc.Want, n.Spell(got)); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
