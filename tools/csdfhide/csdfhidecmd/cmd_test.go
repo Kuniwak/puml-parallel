@@ -9,6 +9,33 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+// TestNewMainFuncHideBindsAReceivedField hides an event whose field the
+// guard and post read: the field is bound by ∃ in both.
+func TestNewMainFuncHideBindsAReceivedField(t *testing.T) {
+	// Setup
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	spy := cli.SpyProcInout()
+	want := `@startuml
+state "a" as a
+a : x
+[*] --> a : $x' = 0
+a --> a : tau ; @exists(k : k) ($k < 2) ; @exists(k : k) ($k < 2 ∧ $x' = $k)
+@enduml
+`
+
+	// Execute
+	exitStatus := cmdFunc([]string{"-channels", "put", "testdata/put.puml"}, spy.New())
+
+	// Assert
+	if exitStatus != 0 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 0, got %d", exitStatus)
+	}
+	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestNewMainFuncHide(t *testing.T) {
 	// Arrange
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())

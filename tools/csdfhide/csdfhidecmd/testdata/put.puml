@@ -1,0 +1,6 @@
+@startuml
+state "a" as a
+a : x
+[*] --> a : $x' = 0
+a --> a : put?k ; $k < 2 ; $x' = $k
+@enduml

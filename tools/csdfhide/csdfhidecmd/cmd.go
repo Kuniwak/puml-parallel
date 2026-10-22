@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/pngsrc"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -18,12 +20,27 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseBytes(opts.Bytes)
+		source, err := pngsrc.Extract(opts.Bytes)
+		if err != nil {
+			return fmt.Errorf("csdfhidecmd.NewMainFunc: reading PlantUML source: %w", err)
+		}
+		diagram, err := coreio.Read(source)
 		if err != nil {
 			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
 		}
-
-		fmt.Fprint(inout.Stdout, csdf.Hide(diagram, opts.Channels).String())
+		hidden, err := core.Hide(diagram, opts.Channels)
+		if err != nil {
+			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
+		}
+		canonical, err := coreio.Canonical(hidden)
+		if err != nil {
+			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
+		}
+		text, err := coreio.Write(canonical)
+		if err != nil {
+			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
+		}
+		fmt.Fprint(inout.Stdout, text)
 		return nil
 	}
 }
