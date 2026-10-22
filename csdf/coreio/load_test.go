@@ -10,7 +10,7 @@ import (
 func TestLoad(t *testing.T) {
 	global := `@startuml
 state "稼働中" as running {
-  state "shipments : s" as rs <<promote>> {
+  state "shipments : s ⇸ Shipment" as rs <<promote>> {
     !include local/SHIPMENT.puml
   }
 }

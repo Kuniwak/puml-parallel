@@ -68,10 +68,10 @@ title 移動
 ' CSDF-IGNORE-END
 !define PROMOTED
 state "稼働中" as running {
-  state "locations : l" as runningLocations <<promote>> {
+  state "locations : l ⇸ Location" as runningLocations <<promote>> {
     !include local/LOCATION.puml
   }
-  state "shipments : s" as runningShipments <<promote>> {
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -98,10 +98,36 @@ end note
 			},
 		},
 		{
+			name: "map declarations, an anchored note, a note for the picture, and ->> in a title",
+			source: `@startuml
+state "稼働中" as running {
+  running : shipments ; s ⇸ Shipment
+  state "shipments : s ->> Shipment" as runningShipments <<promote>> {
+    !include "local/SHIPMENT.puml"
+  }
+}
+[*] --> running
+note as picture
+  出荷は一件ずつ
+  sync IGNORED : others(o)
+end note
+note bottom of runningShipments
+  sync SHIP : shipments(s)
+  出荷する
+end note
+@enduml
+`,
+			want: core.Promotion{
+				State:    "running",
+				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
+				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
+			},
+		},
+		{
 			name: "a bare target takes the local event named like the sync",
 			source: `@startuml
 state "稼働中" as running {
-  state "shipments : s" as runningShipments <<promote>> {
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -139,7 +165,7 @@ end note
 func promoting(body string) string {
 	return fmt.Sprintf(`@startuml
 state "稼働中" as running {
-  state "shipments : s" as rs <<promote>> {
+  state "shipments : s ⇸ Shipment" as rs <<promote>> {
     !include S.puml
   }
 }
@@ -159,6 +185,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain"},
 		{"a sync of an unknown map",
 			promoting("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
+		{"a block title without the instance's type",
+			strings.Replace(promoting("[*] --> running\n"), "s ⇸ Shipment", "s", 1), "<map> : <ID> ⇸ <Type>"},
 		{"a target that is not map(id)",
 			promoting("[*] --> running\nnote as n\n  sync X : shipments\nend note\n"), "map(id)"},
 		{"a missing include",
@@ -181,7 +209,7 @@ func TestReadPromotionGivesWhatPromoteTakes(t *testing.T) {
 	// Setup
 	source := `@startuml
 state "稼働中" as running {
-  state "locations : l" as rl <<promote>> {
+  state "locations : l ⇸ Location" as rl <<promote>> {
     !include L.puml
   }
 }

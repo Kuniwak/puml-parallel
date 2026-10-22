@@ -15,17 +15,20 @@ import (
 const id = ident.Pattern
 
 var (
-	familyOpenRe = regexp.MustCompile(`^state\s+"\s*(` + id + `)\s*:\s*(` + id + `)\s*"\s+as\s+` + id + `\s+<<promote>>\s*\{$`)
-	startRe      = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
-	syncRe       = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
-	targetRe     = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
+	mapDeclRe = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
+	startRe   = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
+	syncRe    = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
+	targetRe  = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
 )
 
-// ReadPromotion reads a global diagram (docs/SYNTAX.md, "Promotion"): one
-// composite state holding a <<promote>> block per family, each including its
-// local diagram, which include reads by the path written; a start edge into
-// that state; and notes holding sync directives. The
-// clauses of the local diagrams and of the syncs are read as authored.
+// ReadPromotion reads a global diagram (docs/PROMOTION.md): one composite
+// state holding a <<promote>> block per family, titled
+// "<map> : <ID> ⇸ <Type>" and including its local diagram, which include
+// reads by the path written, and the declarations of the maps it holds; a
+// start edge into that state; and notes, floating or anchored, whose first
+// line is a sync directive, or which are for the picture and are skipped.
+// The type in a title is not read yet. The clauses of the local diagrams and
+// of the syncs are read as authored.
 func ReadPromotion(source string, include Include) (core.Promotion, error) {
 	r := &promotionReader{include: include}
 	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
@@ -46,8 +49,23 @@ type promotionReader struct {
 	start   string
 	family  *core.Family // the <<promote>> block being read
 	depth   int          // how many blocks are open
-	note    bool
+	note    noteKind
+	maps    []string // the maps the global state declares
 }
+
+// noteKind is what the note being read is, once its first line says.
+type noteKind int
+
+const (
+	noNote noteKind = iota
+	// unread is a note whose first line is yet to come.
+	unread
+	// directed is a note whose first line was a directive; its other lines
+	// are prose.
+	directed
+	// picture is a note for the picture, skipped.
+	picture
+)
 
 func (r *promotionReader) run(lines []string) error {
 	for i, raw := range lines {
@@ -62,17 +80,25 @@ func (r *promotionReader) line(l string) error {
 	switch {
 	case l == "" || strings.HasPrefix(l, "'"), strings.HasPrefix(l, "@startuml"), l == "@enduml":
 		return nil
-	case r.note:
-		return r.directive(l)
+	case r.note != noNote:
+		return r.noteLine(l)
 	case strings.HasPrefix(l, "!include"):
 		return r.includeLine(l)
 	case strings.HasPrefix(l, "!"):
 		return nil // PlantUML's preprocessor, for the picture
 	}
-	if m := familyOpenRe.FindStringSubmatch(l); m != nil && r.depth == 1 {
-		r.p.Families = append(r.p.Families, core.Family{Map: m[1], ID: m[2]})
+	if m := pumlline.Promote.FindStringSubmatch(l); m != nil && r.depth == 1 {
+		title := pumlline.PromoteTitle.FindStringSubmatch(m[1])
+		if title == nil {
+			return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", m[1])
+		}
+		r.p.Families = append(r.p.Families, core.Family{Map: title[1], ID: title[2]})
 		r.family = &r.p.Families[len(r.p.Families)-1]
 		r.depth++
+		return nil
+	}
+	if m := mapDeclRe.FindStringSubmatch(l); m != nil && r.depth == 1 && m[1] == r.p.State {
+		r.maps = append(r.maps, m[2])
 		return nil
 	}
 	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
@@ -97,8 +123,8 @@ func (r *promotionReader) line(l string) error {
 		r.start = m[1]
 		return nil
 	}
-	if pumlline.NoteFloating.MatchString(l) && r.depth == 0 {
-		r.note = true
+	if (pumlline.NoteFloating.MatchString(l) || pumlline.NoteAnchored.MatchString(l)) && r.depth < 2 {
+		r.note = unread
 		return nil
 	}
 	return fmt.Errorf("unexpected %q", l)
@@ -109,7 +135,7 @@ func (r *promotionReader) includeLine(l string) error {
 	if m == nil || r.depth != 2 || r.family.Local != nil {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
-	src, err := r.include(strings.TrimSpace(m[1]))
+	src, err := r.include(pumlline.Unquote(strings.TrimSpace(m[1])))
 	if err != nil {
 		return err
 	}
@@ -121,15 +147,40 @@ func (r *promotionReader) includeLine(l string) error {
 	return nil
 }
 
-func (r *promotionReader) directive(l string) error {
-	if l == "end note" {
-		r.note = false
+// noteLine reads a line of a note. Its first line decides what the note is
+// (docs/PROMOTION.md): a directive, or a note for the picture.
+func (r *promotionReader) noteLine(l string) error {
+	switch {
+	case pumlline.NoteEnd.MatchString(l):
+		r.note = noNote
+		return nil
+	case r.note == picture:
+		return nil
+	case r.note == directed && isDirective(l):
+		return fmt.Errorf("this note holds a second directive; write one note per directive")
+	case r.note == directed:
+		return nil // prose under the directive
+	case !isDirective(l):
+		r.note = picture
 		return nil
 	}
-	if m := syncRe.FindStringSubmatch(l); m != nil {
-		return r.sync(m[1], m[2], m[3])
+	r.note = directed
+	m := syncRe.FindStringSubmatch(l)
+	if m == nil {
+		return fmt.Errorf("%q is no directive; a note holds a sync directive", l)
 	}
-	return fmt.Errorf("%q is no directive; a note holds sync directives", l)
+	return r.sync(m[1], m[2], m[3])
+}
+
+// isDirective reports whether a note line opens a directive, the core's
+// assume included (docs/PROMOTION.md).
+func isDirective(l string) bool {
+	for _, w := range []string{"sync ", "constrain ", "assume "} {
+		if strings.HasPrefix(l, w) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *promotionReader) sync(event, targets, guard string) error {
@@ -171,10 +222,15 @@ func (r *promotionReader) check() error {
 	switch {
 	case r.p.State == "":
 		return fmt.Errorf("no composite state holding the families")
-	case r.depth != 0 || r.note:
+	case r.depth != 0 || r.note != noNote:
 		return fmt.Errorf("a block or a note is not closed")
 	case r.start != r.p.State:
 		return fmt.Errorf("no start edge into %s", r.p.State)
+	}
+	for _, m := range r.maps {
+		if _, err := r.familyOf(m); err != nil {
+			return fmt.Errorf("%s declares %s, which is no family's map", r.p.State, m)
+		}
 	}
 	return nil
 }

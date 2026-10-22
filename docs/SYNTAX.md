@@ -301,10 +301,10 @@ A global diagram that promotes families is written as:
 ```
 @startuml
 state "稼働中" as running {
-  state "locations : l" as runningLocations <<promote>> {
+  state "locations : l ⇸ Location" as runningLocations <<promote>> {
     !include local/LOCATION.puml
   }
-  state "shipments : s" as runningShipments <<promote>> {
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -317,14 +317,18 @@ end note
 ```
 
 - One composite state holds a `<<promote>>` block per family, titled
-  `map : id`: the map that holds the instances and the name of an instance's
-  ID. The block includes the family's local diagram, read relative to the
-  global file. The global diagram has no other state and no edge but its
+  `map : ID ⇸ Type` (or `->>`) as in docs/PROMOTION.md: the map that holds
+  the instances, the name of an instance's ID, and the type of one instance,
+  which is not read yet. The block includes the family's local diagram, read
+  relative to the global file. The composite state may declare the maps it
+  holds, as `running : buys ; 約定ID ⇸ Buy`. The global diagram has no other state and no edge but its
   start edge, which has no post: every map starts empty.
 - A local diagram keeps the contract of docs/PROMOTION.md: its start state
   means that the instance does not exist, an edge out of it creates an
   instance and an edge into it deletes one.
-- A note holds directives, one per line:
+- A note, floating or anchored to a block, whose first line is a directive
+  holds that one directive; the lines after it are prose. A note whose first
+  line is no directive is for the picture and is skipped. The directive is:
   - `sync EVENT : target, … [; clause]` — the instances that take EVENT
     together. A target is `map(id)`, which takes the local event named
     EVENT, or `map(id).event`, which takes `event`; two targets of one map
