@@ -65,7 +65,7 @@ its kind:
 |---|---|---|
 | Change of representation | splitting a conjunction, parsing and printing, α-renaming | ⟦op(D)⟧ =SF ⟦D⟧ |
 | Constructor | composition, hiding, channel renaming, promotion, replicated composition | ⟦op(D₁, …)⟧ =SF op_sem(⟦D₁⟧, …), where op_sem is the CSP operator |
-| Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑SF ⟦D⟧: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
+| Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑ ⟦D⟧ in the model the operator states, ⊑SF unless it says otherwise: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
 | Analysis | evaluation, translation to logic, refinement checking | sound with respect to ⟦·⟧, and complete where stated |
 | Optimisation | partial-order reduction, symmetry, cone of influence | the answer to the property checked is unchanged; the graph may differ |
 | Livelock analysis | csdflivelockfree, the tau and `--avoid` cycles csdfbmc reports | sound with respect to failures-divergences; see below |
@@ -158,17 +158,58 @@ before its step, as a monitor does. The controller only follows,
 refuses, and switches modes, so the term stays CSP and adds one control
 state per mode, not per instance.
 
+A mode may also hold variables that are no family's map: the
+controller's own variables. The controller is a process with state, so
+they change no meaning: a hand-written edge may read those of its source
+and write those of its target in its post, beside the frame of the maps;
+a primed map in that post is allowed only as the frame `m' = m`, since the
+controller writes no instance. A generated edge is a step of the instances,
+not of the controller, so promotion frames the variables of its mode on
+it. A constrain or a sync clause may read a controller variable that every
+mode its edge is in holds, the monitor and the controller being one
+process's view of the global state; reading one a mode lacks is refused.
+A controller variable is named apart from every map and every instance ID.
+
 Every map starts empty, the instances being at S₀. So the post of the
-global start edge may only agree with that: it is accepted if it is a
-conjunction of `@empty(m')` over maps, which says what promotion says
-anyway, and any other post is refused, since it would either say nothing or
-contradict the instances' own start.
+global start edge may only agree with that about the maps: a conjunct of it
+that primes a map is accepted if it is `@empty(m')`, which says what
+promotion says anyway, and refused otherwise, since it would either say
+nothing or contradict the instances' own start. Its other conjuncts give
+the controller variables of the start mode their values; they read nothing
+but those.
 
 An `assume` note of the global diagram states what the runs of the whole
 system are assumed to satisfy. It is not part of ⟦·⟧, adds no edge and
 narrows none: the expansion carries it, and the analyses that take
 hypotheses read it. A local diagram has none, an assumption being about the
 whole system.
+
+Restricting a promotion to some of its families (`-only`) is an
+abstraction. The families left out go, with their maps, the edges only they
+take, and every clause that reads a left-out map, which is taken as true and
+reported. On a sync that a kept family takes with a left-out one, the kept
+side stays and the event keeps every field: the left-out side becomes the
+environment, which offers any value. Its obligation is in the traces model,
+not stable failures: with H the events that only left-out families take,
+
+    ⟦restricted⟧ ⊑T ⟦full⟧ \ H.
+
+Every run of the full promotion projects onto a run of the restricted one,
+so a broken invariant over the kept families survives the restriction. A
+refusal does not: the restricted promotion offers events a left-out family
+or a dropped clause would refuse, so ⟦restricted⟧ ⊑SF ⟦full⟧ \ H does not
+hold in general, and a deadlock found in the full promotion may be gone.
+An analysis that relies on refusals, a deadlock check or a livelock
+analysis, does not run after a restriction. Because the clauses are
+formulas, whether one reads a left-out map is told by its free names (O9),
+for a constrain too.
+
+A template (docs/PROMOTION.md, Wording) rewords the clauses promotion
+generates for a reader. In the formula promotion a generated clause is a
+builtin whose spelling is its meaning (P12), so a template never replaces
+it: it renders a gloss, written as a line comment above the edge, which no
+reader of the diagram reads back. Printing with templates and reading the
+result back gives the same diagram.
 
 The map of a promoted diagram is then the tuple of the instances' local
 states, domain membership is "not at S₀", and an instance's control state
