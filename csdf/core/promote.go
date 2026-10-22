@@ -310,7 +310,8 @@ func controlled(p Promotion, maps []string, generated []Edge) ([]Edge, error) {
 }
 
 // controllerVars reports, as an error, a controller variable of p that is
-// of no mode, or named like a map or an instance ID.
+// of no mode, declared twice in one, or named like a map, an instance ID
+// or a field of a local event.
 func controllerVars(p Promotion, maps []string) error {
 	ids := map[string]bool{}
 	for _, f := range p.Families {
@@ -321,12 +322,24 @@ func controllerVars(p Promotion, maps []string) error {
 			ids[tg.ID] = true
 		}
 	}
+	fields := map[string]bool{}
+	for _, f := range p.Families {
+		for _, e := range f.Local.Edges {
+			for _, fl := range e.Event.Fields {
+				fields[fl.Name] = true
+			}
+		}
+	}
 	for mode, vars := range p.Vars {
 		if !slices.Contains(p.Modes, mode) {
 			return fmt.Errorf("controller variables of no mode %s", mode)
 		}
-		for _, v := range vars {
+		for i, v := range vars {
 			switch {
+			case slices.Contains(vars[:i], v):
+				return fmt.Errorf("the controller variable %s is declared twice in %s", v, mode)
+			case fields[v]:
+				return fmt.Errorf("the controller variable %s of %s is named like a field of a local event, which a clause on a generated edge reads", v, mode)
 			case slices.Contains(maps, v):
 				return fmt.Errorf("the controller variable %s of %s is named like a map", v, mode)
 			case ids[v]:

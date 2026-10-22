@@ -286,6 +286,10 @@ func TestPromoteRefuses(t *testing.T) {
 			Vars: map[string][]string{"G": {"locations"}}}, "named like a map"},
 		{"a controller variable named like an instance ID", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Vars: map[string][]string{"G": {"loc"}}}, "named like an instance ID"},
+		{"a controller variable named like a field of a local event", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
+			Vars: map[string][]string{"G": {"q"}}}, "named like a field"},
+		{"a controller variable declared twice in a mode", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
+			Vars: map[string][]string{"G": {"halted", "halted"}}}, "twice"},
 		{"a controller variable of no mode", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Vars: map[string][]string{"Z": {"halted"}}}, "no mode Z"},
 		{"a hand-written edge priming a map other than by the frame", func() Promotion {
