@@ -160,3 +160,16 @@ func (e Event) Received() []string {
 	}
 	return names
 }
+
+// ReceivesOver reports whether a field named field, received by an edge,
+// names a variable of one of the states vars lists, over which it would
+// bind: a received field must be named apart from the variables of the
+// states of its edge.
+func ReceivesOver(field string, vars ...[]string) bool {
+	for _, vs := range vars {
+		if slices.Contains(vs, field) {
+			return true
+		}
+	}
+	return false
+}

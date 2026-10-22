@@ -37,15 +37,16 @@ func load(t *testing.T, name string) *core.Diagram {
 	return d
 }
 
-func livelock(name string) func(*testing.T, io.Writer, target.Name) error {
-	return func(t *testing.T, w io.Writer, n target.Name) error {
-		return target.CompileDiagram(w, load(t, name), n)
-	}
+// compile writes the obligation of the diagrams loaded for a case.
+type compile func(w io.Writer, ds []*core.Diagram, n target.Name) error
+
+func livelock(w io.Writer, ds []*core.Diagram, n target.Name) error {
+	return target.CompileDiagram(w, ds[0], n)
 }
 
-func refinement(mode obligationir.IRRefinementMode, spec, impl string) func(*testing.T, io.Writer, target.Name) error {
-	return func(t *testing.T, w io.Writer, n target.Name) error {
-		return target.CompileDiagrams(w, mode, load(t, spec), load(t, impl), n)
+func refinement(mode obligationir.IRRefinementMode) compile {
+	return func(w io.Writer, ds []*core.Diagram, n target.Name) error {
+		return target.CompileDiagrams(w, mode, ds[0], ds[1], n)
 	}
 }
 
@@ -55,15 +56,16 @@ func refinement(mode obligationir.IRRefinementMode, spec, impl string) func(*tes
 // generator wrote is still one a prover accepted.
 func TestTheObligationsAreTheExpectedOnes(t *testing.T) {
 	testCases := map[string]struct {
-		Golden  string
-		Compile func(*testing.T, io.Writer, target.Name) error
+		Golden   string
+		Diagrams []string
+		Compile  compile
 	}{
-		"livelock: a tau countdown spells its clauses":                         {"countdown", livelock("countdown")},
-		"livelock: maps, a received field and an ∃ under the axioms they need": {"map", livelock("map")},
-		"livelock: a diagram with no tau cycle has no obligation":              {"visible", livelock("visible")},
-		"refinement: values on events, in traces":                              {"refinement/counter_countdown.t", refinement(obligationir.IRRefinementModeTrace, "counter", "countdown")},
-		"refinement: a receive and a send, in stable failures":                 {"refinement/counter_counter.f", refinement(obligationir.IRRefinementModeStableFailure, "counter", "counter")},
-		"refinement: axioms and assumptions, divergence-freedom":               {"refinement/map_countdown.fd", refinement(obligationir.IRRefinementModeFailuresDivergence, "map", "countdown")},
+		"livelock: a tau countdown spells its clauses":                         {"countdown", []string{"countdown"}, livelock},
+		"livelock: maps, a received field and an ∃ under the axioms they need": {"map", []string{"map"}, livelock},
+		"livelock: a diagram with no tau cycle has no obligation":              {"visible", []string{"visible"}, livelock},
+		"refinement: values on events, in traces":                              {"refinement/counter_countdown.t", []string{"counter", "countdown"}, refinement(obligationir.IRRefinementModeTrace)},
+		"refinement: a receive and a send, in stable failures":                 {"refinement/counter_counter.f", []string{"counter", "counter"}, refinement(obligationir.IRRefinementModeStableFailure)},
+		"refinement: axioms and assumptions, divergence-freedom":               {"refinement/map_countdown.fd", []string{"map", "countdown"}, refinement(obligationir.IRRefinementModeFailuresDivergence)},
 	}
 
 	for name, tc := range testCases {
@@ -71,10 +73,14 @@ func TestTheObligationsAreTheExpectedOnes(t *testing.T) {
 			t.Run(name+"/"+string(backEnd), func(t *testing.T) {
 				// Setup
 				golden := filepath.Join(dir, tc.Golden+ext)
+				ds := make([]*core.Diagram, len(tc.Diagrams))
+				for i, name := range tc.Diagrams {
+					ds[i] = load(t, name)
+				}
 				var sb strings.Builder
 
 				// Execute
-				err := tc.Compile(t, &sb, backEnd)
+				err := tc.Compile(&sb, ds, backEnd)
 				if err != nil {
 					t.Fatal(err)
 				}

@@ -68,6 +68,7 @@ func (ir LivelockFree) Validate() error {
 	if !states[ir.Init] {
 		return fmt.Errorf("obligationir.Validate: no start state %q", ir.Init)
 	}
+	stateMap := ir.StateMap()
 	for _, e := range ir.Edges {
 		if !states[e.Src] || !states[e.Dst] {
 			return fmt.Errorf("obligationir.Validate: the edge %s -> %s names a state that is not there", e.Src, e.Dst)
@@ -75,7 +76,7 @@ func (ir LivelockFree) Validate() error {
 		if e.Channel == "" || e.Tau() && len(e.Fields) > 0 {
 			return fmt.Errorf("obligationir.Validate: the edge %s -> %s has no channel, or is a tau with fields", e.Src, e.Dst)
 		}
-		if err := ir.fieldsBound(e); err != nil {
+		if err := fieldsBound(e, stateMap); err != nil {
 			return fmt.Errorf("obligationir.Validate: the edge %s -> %s: %w", e.Src, e.Dst, err)
 		}
 	}
@@ -99,14 +100,15 @@ func (ir LivelockFree) Validate() error {
 // is read: a received field named twice, by nothing, or like a variable of
 // the source, which it would bind over; a sent field that is neither a
 // variable of the source nor a field e receives, which would be free.
-func (ir LivelockFree) fieldsBound(e Edge) error {
+func fieldsBound(e Edge, states map[string]State) error {
+	src := states[e.Src].Vars
 	bound := map[string]bool{}
-	for _, v := range ir.StateMap()[e.Src].Vars {
+	for _, v := range src {
 		bound[v] = true
 	}
 	received := map[string]bool{}
 	for _, f := range e.Received() {
-		if f == "" || received[f] || bound[f] {
+		if f == "" || received[f] || core.ReceivesOver(f, src) {
 			return fmt.Errorf("it receives %q twice, by no name or over a variable of %s", f, e.Src)
 		}
 		received[f] = true
