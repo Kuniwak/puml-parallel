@@ -296,8 +296,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 }
 
 func TestReadPromotionGivesWhatPromoteTakes(t *testing.T) {
-	// Setup
-	source := `@startuml
+	cases := []struct{ name, source string }{
+		{"one mode and a sync", `@startuml
 state "稼働中" as running {
   state "locations : l ⇸ Location" as rl <<promote>> {
     !include L.puml
@@ -308,20 +308,43 @@ note as n
   sync MOVE : locations(from).DEPART, locations(to).ARRIVE
 end note
 @enduml
-`
-	p, err := ReadPromotion(source, files(map[string]string{"L.puml": location}))
-	if err != nil {
-		t.Fatal(err)
+`},
+		{"two modes, a frozen family and an assumption", `@startuml
+state "稼働中" as running {
+  state "locations : l ⇸ Location" as rl <<promote>> {
+    !include L.puml
+  }
+}
+state "保守" as maint {
+  maint : locations ; l ⇸ Location
+}
+[*] --> running
+running --> maint : HALT ; @empty(locations)
+maint --> running : RESUME
+note as fair
+  assume いずれ RESUME が起きる
+end note
+@enduml
+`},
 	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			p, err := ReadPromotion(c.source, files(map[string]string{"L.puml": location}))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	// Execute
-	d, _, err := core.Promote(p)
+			// Execute
+			d, _, err := core.Promote(p)
 
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Write(d); err != nil {
-		t.Errorf("Write(Promote(p)): %v", err)
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Write(d); err != nil {
+				t.Errorf("Write(Promote(p)): %v", err)
+			}
+		})
 	}
 }
