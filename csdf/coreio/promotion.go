@@ -115,15 +115,15 @@ func (r *promotionReader) line(l string) error {
 		r.depth++
 		return nil
 	}
-	if m := mapDeclRe.FindStringSubmatch(l); m != nil && r.depth == 1 && m[1] == r.p.State {
+	if m := mapDeclRe.FindStringSubmatch(l); m != nil && r.depth == 1 && m[1] == r.mode() {
 		r.maps = append(r.maps, m[2])
 		return nil
 	}
 	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		if r.p.State != "" {
+		if len(r.p.Modes) > 0 {
 			return fmt.Errorf("%s: %w", m[2], notYet("a second global state"))
 		}
-		r.p.State = m[2]
+		r.p.Modes = []string{m[2]}
 		r.depth++
 		return nil
 	}
@@ -269,6 +269,14 @@ func (r *promotionReader) constrain(l string) error {
 	return nil
 }
 
+// mode is the global state being read, or "" before it.
+func (r *promotionReader) mode() string {
+	if len(r.p.Modes) == 0 {
+		return ""
+	}
+	return r.p.Modes[len(r.p.Modes)-1]
+}
+
 func (r *promotionReader) familyOf(m string) (*core.Family, error) {
 	for i := range r.p.Families {
 		if r.p.Families[i].Map == m {
@@ -281,13 +289,14 @@ func (r *promotionReader) familyOf(m string) (*core.Family, error) {
 // check reports, as an error, what the whole diagram lacks.
 func (r *promotionReader) check() error {
 	switch {
-	case r.p.State == "":
+	case len(r.p.Modes) == 0:
 		return fmt.Errorf("no composite state holding the families")
 	case r.depth != 0 || r.note != noNote:
 		return fmt.Errorf("a block or a note is not closed")
-	case r.start != r.p.State:
-		return fmt.Errorf("no start edge into %s", r.p.State)
+	case r.start != r.mode():
+		return fmt.Errorf("no start edge into %s", r.mode())
 	}
+	r.p.Init = r.start
 	for _, m := range r.maps {
 		if _, err := r.familyOf(m); err != nil {
 			return fmt.Errorf("%s: %w", m, notYet("a variable of the global state that is no family's map"))

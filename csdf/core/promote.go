@@ -44,10 +44,12 @@ type Constrain struct {
 	Guard clause.And
 }
 
-// Promotion is a global diagram of one state, State, holding the maps of its
-// Families, with Syncs among them and Constrains on them.
+// Promotion is a global diagram whose states, its Modes, hold the maps of
+// its Families, Init being the mode the start edge leads to, with Syncs
+// among them and Constrains on them.
 type Promotion struct {
-	State      string
+	Modes      []string
+	Init       string
 	Families   []Family
 	Syncs      []Sync
 	Constrains []Constrain
@@ -66,7 +68,7 @@ type Promotion struct {
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
-	out := &Diagram{States: []string{p.State}, Init: p.State, Vars: map[string][]string{}}
+	out := &Diagram{States: slices.Clone(p.Modes), Init: p.Init, Vars: map[string][]string{}}
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
@@ -81,18 +83,22 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
-	out.Vars[p.State] = maps
+	for _, mode := range p.Modes {
+		out.Vars[mode] = maps
+	}
 	out.InitPost = clause.And{Conjuncts: start}
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
-		edges, err := promoteSync(p, s)
-		if err != nil {
-			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+		for _, mode := range p.Modes {
+			edges, err := promoteSync(p, s, mode)
+			if err != nil {
+				return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			}
+			out.Edges = append(out.Edges, edges...)
 		}
-		out.Edges = append(out.Edges, edges...)
 		for _, tg := range s.Targets {
 			taken[tg.Map+"."+tg.Event] = true
 		}
@@ -104,12 +110,14 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 				alone = append(alone, moveOf(f, f.ID, e))
 			}
 		}
-		for _, m := range alone {
-			edge, err := promoteAlone(p, m)
-			if err != nil {
-				return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+		for _, mode := range p.Modes {
+			for _, m := range alone {
+				edge, err := promoteAlone(p, m, mode)
+				if err != nil {
+					return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+				}
+				out.Edges = append(out.Edges, edge)
 			}
-			out.Edges = append(out.Edges, edge)
 		}
 	}
 	if err := constrain(p, out.Edges); err != nil {
@@ -263,7 +271,7 @@ type move struct {
 	kind kind
 }
 
-func promoteAlone(p Promotion, m move) (Edge, error) {
+func promoteAlone(p Promotion, m move, mode string) (Edge, error) {
 	f, e := m.f, m.e
 	if slices.ContainsFunc(e.Event.Fields, func(fl Field) bool { return fl.Name == f.ID }) {
 		return Edge{}, fmt.Errorf("%s has a field named like the ID %s", e.Event.Channel, f.ID)
@@ -290,14 +298,14 @@ func promoteAlone(p Promotion, m move) (Edge, error) {
 		if err != nil {
 			return Edge{}, err
 		}
-		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
+		return Edge{Src: mode, Dst: mode, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
 	}
 	fields, pins, err := carried(m)
 	if err != nil {
 		return Edge{}, err
 	}
 	fields = append([]Field{{Name: f.ID}}, fields...)
-	return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: post}, nil
+	return Edge{Src: mode, Dst: mode, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: post}, nil
 }
 
 // carried are the fields of m's local event on the global event, and the
@@ -334,7 +342,7 @@ func carried(m move) ([]Field, clause.And, error) {
 	return fields, clause.And{Conjuncts: pins}, nil
 }
 
-func promoteSync(p Promotion, s Sync) ([]Edge, error) {
+func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 	if s.Event == Tau {
 		return nil, fmt.Errorf("tau is internal and cannot be synchronised")
 	}
@@ -415,7 +423,7 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 			return nil, err
 		}
 		out = append(out, Edge{
-			Src: p.State, Dst: p.State,
+			Src: mode, Dst: mode,
 			Event: Event{Channel: s.Event, Fields: merged},
 			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, s.Guard, guard}, pins...)...),
 			Post:  post,

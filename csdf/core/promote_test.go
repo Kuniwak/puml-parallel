@@ -253,17 +253,17 @@ func TestPromoteRefuses(t *testing.T) {
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}}}), "holds no state variables"},
 		{"a self-loop on the start state", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
 			Edge{Src: "none", Dst: "none", Event: ev("PING")})}), "self-loop"},
-		{"a constrain matching no generated edge", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain matching no generated edge", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("NOPE", recv("loc")), Guard: mustParse(t, "$loc is a")}}}, "no generated edge"},
-		{"a constrain with a sent field", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain with a sent field", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("DEPART", recv("loc"), send("q")), Guard: mustParse(t, "$q = 1")}}}, "every field of a global event is ?"},
-		{"a constrain reading a primed name", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain reading a primed name", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "${locations'} = 0")}}}, "primed"},
-		{"a constrain with an empty guard", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain with an empty guard", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc"))}}}, "empty guard"},
-		{"a constrain whose channel has edges of another shape", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain whose channel has edges of another shape", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("DEPART", recv("loc")), Guard: mustParse(t, "$loc = 0")}}}, "another shape"},
-		{"a constrain reading a name that is no map and no field", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain reading a name that is no map and no field", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "$z = 0")}}}, "z"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
@@ -322,7 +322,7 @@ func TestPromoteWarnsOfAPostItDrops(t *testing.T) {
 }
 
 func promotion(f Family, syncs ...Sync) Promotion {
-	return Promotion{State: "G", Families: []Family{f}, Syncs: syncs}
+	return Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{f}, Syncs: syncs}
 }
 
 // lamp: NEW creates it at a; from a it may go to c on GO or move to b
@@ -536,7 +536,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 	}{
 		{
 			name: "an edge out of the start state creates an instance, and an edge into it deletes one",
-			p:    Promotion{State: "G", Families: []Family{doors}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b")}, []func(string) bool{mentions("a"), mentions("b")})
@@ -544,7 +544,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync may take a creation and a deletion",
-			p: Promotion{State: "G", Families: []Family{doors, keys}, Syncs: []Sync{
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors, keys}, Syncs: []Sync{
 				{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}},
 				{Event: "SCRAP", Targets: []Target{{Map: "doors", ID: "loc", Event: "GONE"}, {Map: "keys", ID: "s", Event: "LOST"}}},
 			}},
@@ -555,7 +555,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync moves two instances of one family (#65)",
-			p:    Promotion{State: "G", Families: []Family{locations, shipments}, Syncs: []Sync{{Event: "MOVE", Targets: move}}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations, shipments}, Syncs: []Sync{{Event: "MOVE", Targets: move}}},
 			env:  func(t *testing.T) Env { return stock(t, locations, shipments) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel(
@@ -566,7 +566,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		{
 			// With x at c and y at a, only y may move to b.
 			name: "an internal event moves only an instance that can take it",
-			p:    Promotion{State: "G", Families: []Family{lamps}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{lamps}},
 			env:  func(t *testing.T) Env { return envWith(t, Env{Types: map[string][]Value{"l": {"x", "y"}}}, lamps) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{mentions("x"), mentions("y")})
@@ -574,7 +574,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync's fields merged by name: a send before a receive fixes the value",
-			p:    Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{tankTarget, gaugeTarget}}}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{tankTarget, gaugeTarget}}}},
 			env:  func(t *testing.T) Env { return tankEnv(t, tanks, gauges) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{tankInstance(tankFirst), gaugeInstance(tankFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})
@@ -582,7 +582,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync's fields merged by name: a receive before a send reads it",
-			p:    Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{gaugeTarget, tankTarget}}}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{gaugeTarget, tankTarget}}}},
 			env:  func(t *testing.T) Env { return tankEnv(t, tanks, gauges) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{tankInstance(gaugeFirst), gaugeInstance(gaugeFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})
@@ -590,7 +590,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "two receives of one name are one value",
-			p: Promotion{State: "G", Families: []Family{glancers}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{glancers}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
 				{Map: "gauges", ID: "g", Event: "PEEK"}, {Map: "gauges", ID: "h", Event: "GLANCE"}}}}},
 			env: func(t *testing.T) Env {
 				return envWith(t, Env{Types: map[string][]Value{"g": {"g1", "g2"}, "h": {"g1", "g2"}, "level": {0, 1}}}, glancers)
@@ -601,7 +601,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain narrows the generated edges it matches",
-			p: Promotion{State: "G", Families: []Family{doors},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors},
 				Constrains: []Constrain{{Event: ev("NEW", recv("loc")), Guard: mustParse(t, "$loc is a")}}},
 			env: func(t *testing.T) Env {
 				env := stock(t, doors)
@@ -612,7 +612,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain matches by position, its field renamed to the edge's own",
-			p: Promotion{State: "G", Families: []Family{doors},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors},
 				Constrains: []Constrain{{Event: ev("NEW", recv("x")), Guard: mustParse(t, "$x is a")}}},
 			env: func(t *testing.T) Env {
 				env := stock(t, doors)
@@ -623,7 +623,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain's first field is the instance ID, the rest the local event's",
-			p: Promotion{State: "G", Families: []Family{tanks},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{tanks},
 				Constrains: []Constrain{{Event: ev("LOOK", recv("t"), recv("v")), Guard: mustParse(t, "$v = 1")}}},
 			env: func(t *testing.T) Env { return tankEnv(t, tanks) },
 			want: func(*testing.T) *lts.LTS {
@@ -634,14 +634,14 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain reads a map no instance of its event is in, as a monitor would",
-			p: Promotion{State: "G", Families: []Family{doors, keys},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors, keys},
 				Constrains: []Constrain{{Event: ev("CUT", recv("s")), Guard: mustParse(t, "@empty(doors)")}}},
 			env:  func(t *testing.T) Env { return stock(t, doors, keys) },
 			want: doorMonitored,
 		},
 		{
 			name: "what a sync clause reads is carried by the event (#79)",
-			p: Promotion{State: "G", Families: []Family{locations, shipments},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations, shipments},
 				Syncs: []Sync{{Event: "MOVE", Guard: mustParse(t, "${locations[to].stock} = 0"), Targets: move}}},
 			env:  func(t *testing.T) Env { return stock(t, locations, shipments) },
 			want: readingDenotation,

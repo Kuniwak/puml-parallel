@@ -83,7 +83,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State: "running",
+				Modes: []string{"running"}, Init: "running",
 				Families: []core.Family{
 					{Map: "locations", ID: "l", Local: loc},
 					{Map: "shipments", ID: "s", Local: shp},
@@ -118,7 +118,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State:    "running",
+				Modes: []string{"running"}, Init: "running",
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
@@ -138,7 +138,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State:    "running",
+				Modes: []string{"running"}, Init: "running",
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
@@ -159,7 +159,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State:      "running",
+				Modes: []string{"running"}, Init: "running",
 				Families:   []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
 			},
