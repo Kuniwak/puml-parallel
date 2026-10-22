@@ -85,9 +85,11 @@ $ csdfparse < examples/valid/skip.puml
 (`P \ {|c|}`): every edge on a hidden channel becomes an internal `tau`
 transition, whatever its fields. A hidden field is a value the `tau` chooses
 (`c?x` hidden is `⊓ x. τ`): a field the guard and post read through a hole
-(`$x`) is bound by `@exists` in both, `@exists(x : x) (g)` for the guard and
-`@exists(x : x) (g ∧ p)` for the post, so that the two agree on it
-([CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). The result is printed as PlantUML.
+(`$x`) is bound by `@exists` in both, the guard `g` becoming `∃x. g` and the
+post `∃x. (g ∧ p)`, so that the two agree on it
+([CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). Until fields carry their
+types, the bound field ranges over the type named like it, which is why it
+prints as `@exists(x : x) (…)`. The result is printed as PlantUML.
 
 ```console
 $ csdfhide -channels 'sync' examples/valid/in.puml
