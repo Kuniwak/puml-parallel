@@ -39,7 +39,7 @@ func ReadPromotion(source string, include Include) (core.Promotion, error) {
 	if err := csdf.CheckIgnoreRegions(source); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
-	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}}
+	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}}
 	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
@@ -47,12 +47,6 @@ func ReadPromotion(source string, include Include) (core.Promotion, error) {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
 	return r.p, nil
-}
-
-// notYet refuses what a formula promotion does not read yet, by name: the
-// parts of docs/PROMOTION.md that step 5½b of #76 brings over.
-func notYet(what string) error {
-	return fmt.Errorf("%s is not supported yet by the formula promotion (step 5½b of #76)", what)
 }
 
 // Include is the source of the file an !include names, by the path written.
@@ -68,7 +62,7 @@ type promotionReader struct {
 	noteID   string                     // the ID of the floating note being read, "" for an anchored one
 	holds    map[string]map[string]bool // the maps each mode declares or has a block for
 	moves    map[string]map[string]bool // the maps each mode has a block for
-	declared []string                   // the maps the modes declare, in order
+	declared map[string][]string        // the variables each mode declares, in order
 	lineNo   int                        // the line being read
 	edgeAt   []int                      // the line of each hand-written edge
 }
@@ -115,10 +109,11 @@ func (r *promotionReader) line(l string) error {
 	if m := pumlline.Promote.FindStringSubmatch(l); m != nil && r.depth == 1 {
 		return r.block(m[1], m[2], m[3] != "")
 	}
-	if m := mapDeclRe.FindStringSubmatch(l); m != nil && r.depth == 1 && m[1] == r.mode() {
-		r.holds[r.mode()][m[2]] = true
-		if !slices.Contains(r.declared, m[2]) {
-			r.declared = append(r.declared, m[2])
+	if m := mapDeclRe.FindStringSubmatch(l); m != nil && (r.depth == 1 && m[1] == r.mode() || r.depth == 0 && r.holds[m[1]] != nil) {
+		mode := m[1]
+		r.holds[mode][m[2]] = true
+		if !slices.Contains(r.declared[mode], m[2]) {
+			r.declared[mode] = append(r.declared[mode], m[2])
 		}
 		return nil
 	}
@@ -378,9 +373,16 @@ func (r *promotionReader) check() error {
 			}
 		}
 	}
-	for _, m := range r.declared {
-		if _, err := r.familyOf(m); err != nil {
-			return fmt.Errorf("%s: %w", m, notYet("a variable of the global state that is no family's map"))
+	for _, mode := range r.p.Modes {
+		for _, v := range r.declared[mode] {
+			if _, err := r.familyOf(v); err != nil {
+				// A variable that is no family's map is the controller's own
+				// (docs/CLAUSE_DESIGN.md).
+				if r.p.Vars == nil {
+					r.p.Vars = map[string][]string{}
+				}
+				r.p.Vars[mode] = append(r.p.Vars[mode], v)
+			}
 		}
 	}
 	for i := range r.p.Families {

@@ -144,6 +144,35 @@ end note
 			},
 		},
 		{
+			name: "variables of the global state that are no family's map are the controller's",
+			source: `@startuml
+state "稼働中" as running {
+  running : shipments ; s ⇸ Shipment
+  running : 件数 ; 0..2
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+}
+state "保守" as maint
+maint : shipments ; s ⇸ Shipment
+maint : 理由
+[*] --> running : @empty(shipments') ∧ $件数' = 0
+running --> maint : HALT ; ; $理由' = 停止
+maint --> running : RESUME ; ; $件数' = 0
+@enduml
+`,
+			want: core.Promotion{
+				Modes: []string{"running", "maint"}, Init: "running",
+				Vars:     map[string][]string{"running": {"件数"}, "maint": {"理由"}},
+				InitPost: mustParse(t, "@empty(shipments') ∧ $件数' = 0"),
+				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp, Frozen: []string{"maint"}}},
+				Edges: []core.Edge{
+					{Src: "running", Dst: "maint", Event: core.Event{Channel: "HALT"}, Post: mustParse(t, "$理由' = 停止")},
+					{Src: "maint", Dst: "running", Event: core.Event{Channel: "RESUME"}, Post: mustParse(t, "$件数' = 0")},
+				},
+			},
+		},
+		{
 			name: "a constrain on an event and its fields",
 			source: `@startuml
 state "稼働中" as running {
@@ -221,9 +250,6 @@ end note
 	}
 }
 
-// refusedYet ends the refusal of what the formula promotion does not read yet.
-const refusedYet = "is not supported yet by the formula promotion (step 5½b of #76)"
-
 // promoting is a global diagram of one family, shipments, with body after
 // the block.
 func promoting(body string) string {
@@ -249,8 +275,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s ; @ne(s)\nend note\n"), "constrain ORDER?s"},
 		{"a constrain without its guard",
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s\nend note\n"), "constrain ORDER?s"},
-		{"a variable of the global state that is no family's map",
-			strings.Replace(promoting("[*] --> running\n"), "running {\n", "running {\n  running : 件数\n", 1), "a variable of the global state that is no family's map " + refusedYet},
+		{"a variable declared for a state that is no mode",
+			promoting("[*] --> running\nnowhere : 件数\n"), "unexpected"},
 		{"a mode holding no map of a family",
 			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "maintenance holds no map shipments"},
 		{"a composite mode holding no map of a family",
@@ -321,6 +347,21 @@ state "稼働中" as running {
 note as n
   sync MOVE : locations(from).DEPART, locations(to).ARRIVE
 end note
+@enduml
+`},
+		{"controller variables", `@startuml
+state "稼働中" as running {
+  running : 件数
+  state "locations : l ⇸ Location" as rl <<promote>> {
+    !include L.puml
+  }
+}
+state "保守" as maint
+maint : locations ; l ⇸ Location
+maint : 件数
+[*] --> running : $件数' = 0
+running --> maint : HALT ; $件数 = 0 ; $件数' = 1
+maint --> running : RESUME ; ; $件数' = $件数
 @enduml
 `},
 		{"two modes, a frozen family and an assumption", `@startuml
