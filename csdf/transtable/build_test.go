@@ -66,22 +66,26 @@ func TestBuild(t *testing.T) {
 
 	testCases := map[string]testCase{
 		"a state without edges is a row without cells": {
-			Diagram: "@startuml\nstate \"Idle\" as s0\n[*] --> s0\n@enduml\n",
-			Want:    map[string][]string{},
+			Diagram:    "@startuml\nstate \"Idle\" as s0\n[*] --> s0\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want:       map[string][]string{},
 		},
 		"an edge is accepted where it starts and refused where it does not": {
-			Diagram: "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\n[*] --> s0\ns0 --> s1 : a\n@enduml\n",
-			Want:    map[string][]string{"s0 a": {"→ s1"}, "s1 a": {"×"}},
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\n[*] --> s0\ns0 --> s1 : a\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want:       map[string][]string{"s0 a": {"→ s1"}, "s1 a": {"×"}},
 		},
 		"a guarded edge is accepted when its guard holds of the values and the offered field, and refused otherwise": {
-			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\n[*] --> s0 : $n' = 0\ns0 --> s1 : a?k ; $k < $n\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\n[*] --> s0 : $n' = 0\ns0 --> s1 : a?k ; $k < $n\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
 				"s0 a?k": {`["$_0 < $_1"(k, n)] → s1`, `[¬"$_0 < $_1"(k, n)] ×`},
 				"s1 a?k": {"×"},
 			},
 		},
 		"edges for one event are all listed, and refused only when none of their guards holds": {
-			Diagram: "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : a ; g1\ns0 --> s2 : a ; g2\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : a ; g1\ns0 --> s2 : a ; g2\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
 				"s0 a": {`["g1"] → s1`, `["g2"] → s2`, `[¬"g1" ∧ ¬"g2"] ×`},
 				"s1 a": {"×"}, "s2 a": {"×"},
@@ -100,6 +104,7 @@ func TestBuild(t *testing.T) {
 		"a tau step before the event binds the values after it, and an unstable state refuses nothing": {
 			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\ns1 : n\nstate \"S2\" as s2\n" +
 				"[*] --> s0 : $n' = 0\ns0 --> s1 : tau ; $n > 0 ; @eq(n', n)\ns1 --> s2 : a ; $n > 1\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
 				"s0 a": {
 					`[¬"$_0 > 0"(n)] ×`,
@@ -118,9 +123,35 @@ func TestBuild(t *testing.T) {
 				"s1 a?k": {"×"}, "s2 a?k": {"×"},
 			},
 		},
+		"a tau whose post binds a hidden field, read by the guard after it": {
+			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\ns1 : n\n[*] --> s0 : $n' = 0\n" +
+				"s0 --> s1 : tau ; ; @exists(k : n) (@eq(n', k))\ns1 --> s1 : a ; $n > 1\n@enduml\n",
+			Conditions: transtable.ConditionsEnabling,
+			Want: map[string][]string{
+				"s0 a": {
+					`[∃n@1. (∃k. n@1 = k) ∧ "$_0 > 1"(n@1)] → s1`,
+					`[∃n@1. (∃k. n@1 = k) ∧ ¬"$_0 > 1"(n@1)] ×`,
+				},
+				"s1 a": {`["$_0 > 1"(n)] → s1`, `[¬"$_0 > 1"(n)] ×`},
+			},
+		},
+		"a sent field is the value of the state, and no field of the column": {
+			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\n[*] --> s0 : $n' = 0\ns0 --> s0 : show!n ; $n > 0 ; @eq(n', n)\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want:       map[string][]string{"s0 show!n": {`["$_0 > 0"(n) ∧ n' = n] → s0`, `[¬"$_0 > 0"(n)] ×`}},
+		},
+		"termination after a tau step": {
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\n[*] --> s0\ns0 --> s1 : tau ; g\ns1 --> [*] : done\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want: map[string][]string{
+				"s0 [*]": {`[¬"g"] ×`, `["g" ∧ "done"] → [*]`, `["g" ∧ ¬"done"] ×`},
+				"s1 [*]": {`["done"] → [*]`, `[¬"done"] ×`},
+			},
+		},
 		"an end edge is a column of termination": {
-			Diagram: "@startuml\nstate \"S0\" as s0\n[*] --> s0\ns0 --> [*] : done\n@enduml\n",
-			Want:    map[string][]string{"s0 [*]": {`["done"] → [*]`, `[¬"done"] ×`}},
+			Diagram:    "@startuml\nstate \"S0\" as s0\n[*] --> s0\ns0 --> [*] : done\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want:       map[string][]string{"s0 [*]": {`["done"] → [*]`, `[¬"done"] ×`}},
 		},
 	}
 
@@ -128,13 +159,9 @@ func TestBuild(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Setup
 			d := read(t, tc.Diagram)
-			conds := tc.Conditions
-			if conds == 0 {
-				conds = transtable.ConditionsFull
-			}
 
 			// Execute
-			table, err := transtable.Build(d, conds)
+			table, err := transtable.Build(d, tc.Conditions)
 
 			// Assert
 			if err != nil {
@@ -169,6 +196,20 @@ func TestBuildRefusesADiagramItCannotTabulate(t *testing.T) {
 				t.Errorf("err = %v, want the two states on the tau cycle", err)
 			}
 		})
+	}
+}
+
+func TestBuildRefusesAnUndeclaredState(t *testing.T) {
+	// Setup: a diagram no reader read, whose edge names a state it lacks.
+	d := &core.Diagram{States: []string{"a"}, Init: "a", Edges: []core.Edge{{Src: "a", Dst: "b", Event: core.Event{Channel: "go"}}}}
+
+	// Execute
+	_, err := transtable.Build(d, transtable.ConditionsFull)
+
+	// Assert
+	var undeclared *transtable.UndeclaredStateError
+	if !errors.As(err, &undeclared) || len(undeclared.States) != 1 || undeclared.States[0] != "b" {
+		t.Errorf("err = %v, want b undeclared", err)
 	}
 }
 

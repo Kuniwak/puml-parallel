@@ -433,9 +433,9 @@ a line break for each line of a cell):
 | vmDropping | vmDropping | × | × | × | × | ["$_0 is $_1"(product, dispensing) and "$_0 is $_1 minus $_2"(availableProducts', availableProducts, product)] → vmIdle<br>[not "$_0 is $_1"(product, dispensing)] × |
 
 The columns are `state` (the ID), `name`, the visible events, and `[*]` when a
-reachable state has an end edge. States come in the order the diagram declares
-them, and events in the order the states and their edges come, so the same
-diagram always gives the same bytes. A column is an event: its channel and a
+reachable state has an end edge. States come in the canonical order, sorted by
+their IDs, and events in the order the states and their edges come, so the
+same diagram always gives the same bytes. A column is an event: its channel and a
 field of each direction in order (see `docs/SYNTAX.md`), whatever an edge names
 its fields, so `insert?coin` and `insert?c` are one column, headed by the label
 of the first edge for it, and each edge's clauses are read with its fields named
