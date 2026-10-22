@@ -29,15 +29,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			diagrams[i] = d
 		}
 
-		// Left to right, so the composite names each field as the first
-		// diagram does.
-		composite := diagrams[0]
-		for _, d := range diagrams[1:] {
-			var err error
-			if composite, err = core.Compose(composite, d, opts.Sync); err != nil {
-				return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
-			}
-			composite = core.Reachable(composite)
+		composite, err := core.ComposeAll(diagrams, opts.Sync)
+		if err != nil {
+			return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
 		}
 		composite.Name = tools.GeneratedBy("csdfparallel", opts.Args)
 

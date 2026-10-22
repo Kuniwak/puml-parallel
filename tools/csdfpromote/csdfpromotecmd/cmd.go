@@ -57,26 +57,12 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		templates = &loaded
 	}
 
-	d, warnings, err := core.Promote(prom)
+	d, warnings, err := core.PromoteOnly(prom, opts.Only)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
 	if err := report(inout.Stderr, warnings, opts.Werror); err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-	}
-	if len(opts.Only) > 0 {
-		maps := make([]string, len(prom.Families))
-		for i, f := range prom.Families {
-			maps[i] = f.Map
-		}
-		restricted, rwarnings, err := core.Restrict(d, maps, opts.Only)
-		if err != nil {
-			return fmt.Errorf("csdfpromotecmd.NewMainFunc: -only: %w", err)
-		}
-		if err := report(inout.Stderr, rwarnings, opts.Werror); err != nil {
-			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-		}
-		d = restricted
 	}
 	if opts.LintOnly {
 		return nil
@@ -100,33 +86,13 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 	return nil
 }
 
-// report writes each warning on w, at its level: core.Approximation as a
-// note, which says what the result means and is no warning of a mistake.
-// With werror, a warning is an error.
+// report writes each warning on w; with werror, one of level Warn is an
+// error.
 func report(w io.Writer, warnings []core.Warning, werror bool) error {
 	warned := false
 	for _, x := range warnings {
-		level := "warning"
-		switch {
-		case x.Text == core.Approximation:
-			level = "note"
-		case x.Level == core.Info:
-			level = "info"
-		default:
-			warned = true
-		}
-		where := x.Map
-		if x.Event != "" {
-			if where != "" {
-				where += " "
-			}
-			where += x.Event
-		}
-		if where == "" {
-			fmt.Fprintf(w, "%s: %s\n", level, x.Text)
-		} else {
-			fmt.Fprintf(w, "%s: %s: %s\n", level, where, x.Text)
-		}
+		fmt.Fprintln(w, x)
+		warned = warned || x.Level == core.Warn
 	}
 	if werror && warned {
 		return errors.New("the promotion has warnings and -Werror is set")

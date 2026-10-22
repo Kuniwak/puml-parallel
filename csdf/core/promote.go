@@ -440,7 +440,34 @@ const (
 	Warn Level = iota
 	// Info is something that may well be meant.
 	Info
+	// Note says what a result means, and is no mistake.
+	Note
 )
+
+func (l Level) String() string {
+	switch l {
+	case Info:
+		return "info"
+	case Note:
+		return "note"
+	}
+	return "warning"
+}
+
+// String is w as a tool prints it: its level, where, then what.
+func (w Warning) String() string {
+	where := w.Map
+	if w.Event != "" {
+		if where != "" {
+			where += " "
+		}
+		where += w.Event
+	}
+	if where == "" {
+		return w.Level.String() + ": " + w.Text
+	}
+	return w.Level.String() + ": " + where + ": " + w.Text
+}
 
 // Warning is something Promote reports of what the author wrote: Level
 // says how much it matters, Map and Event where, Text what.
