@@ -158,6 +158,14 @@ before its step, as a monitor does. The controller only follows,
 refuses, and switches modes, so the term stays CSP and adds one control
 state per mode, not per instance.
 
+A global end edge, from a mode to `[*]`, is the controller's too: the
+controller may terminate in that mode when its guard holds, which reads,
+like a hand-written edge's, the maps as they are and the mode's controller
+variables, never a value after the step. Promotion carries it to the
+expansion as an end edge of that mode (⟦·⟧: a guarded SKIP in the
+controller). Its meaning as an LTS is not checked yet: expansion into an
+LTS does not read end edges.
+
 A mode may also hold variables that are no family's map: the
 controller's own variables. The controller is a process with state, so
 they change no meaning: a hand-written edge may read those of its source
