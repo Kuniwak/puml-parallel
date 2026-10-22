@@ -72,6 +72,12 @@ its kind:
 
 For composition, op_sem is the CSP parallel operator on the graphs:
 ⟦D₁ ‖A D₂⟧ =SF ⟦D₁⟧ ‖A ⟦D₂⟧; for hiding, ⟦D \ C⟧ =SF ⟦D⟧ \ C.
+The two components of a parallel have separate state, so a state variable
+both name is two variables: composition renames the right side's apart,
+capture-free (P3), to a fresh name made from its own (`x` becomes `x2`),
+before pairing the states. A renamed variable keeps the type of the one it
+was named like, which an environment gives under the new name until
+binders and variables carry their types.
 
 For promotion, op_sem is a CSP term built from the local diagram P:
 
