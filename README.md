@@ -385,11 +385,15 @@ the ones going round it are not listed; a FAILS answer to the prompt therefore
 settles that the sequence is not a trace, while HOLDS settles it only for the
 listed paths. Divergence is not checked here; that is `csdflivelockfree`'s job.
 
-A trace event is text, so it is
-looked up in the diagram by one of two simple rules chosen with `-match`:
-`exact` (the default) wants the identical text, and `prefix` accepts a trace
-event as every diagram event it is a prefix of, so a trace whose parameters were
-stripped (`insert`) matches the event `insert?coin`. Anything richer, such as
+A trace event is text, so it is looked up in the diagram by one of two simple
+rules chosen with `-match`. `exact` (the default) accepts it as an event of a
+diagram's edge when it is of the edge's channel and has a field of each
+direction in order, each written `?x` or `!x`, where `x` is the field's name or
+the value it carries, which the check does not read: `insert?coin` and
+`insert?3` are both the event of `insert?coin`. `prefix` accepts it when it is
+that of the channel and of the first fields, stopping at the boundaries of each,
+so a trace whose fields were stripped (`insert`) matches `insert?coin`, and
+`ins` matches nothing. Anything richer, such as
 stripping the parameters of some events but not others, is best done to the TSV
 beforehand:
 

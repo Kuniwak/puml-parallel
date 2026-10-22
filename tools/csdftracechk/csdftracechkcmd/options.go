@@ -66,9 +66,11 @@ csdflivelockfree's business.
 Events are free-form text and their notation is not fixed, so the way a trace
 event is looked up in the diagram is one of two simple rules chosen by -match:
 
-  exact   the identical text (default)
-  prefix  the trace event is a prefix of the diagram event, so a trace whose
-          parameters were stripped ("insert") matches the label "insert?coin"
+  exact   the event's channel, and a field of each direction in order, each
+          ?x or !x with x the field's name or its value, which is not read:
+          "insert?coin" and "insert?3" are the event of insert?coin (default)
+  prefix  the channel and the first fields, stopping at their boundaries, so
+          a trace whose fields were stripped ("insert") matches insert?coin
 
 Anything richer is best done to the trace beforehand, e.g. with sed or qhs. The
 diagram may be "-" for standard input; traces must be files. Too many traces

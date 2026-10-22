@@ -8,22 +8,61 @@ import (
 )
 
 // Match decides whether an event of the trace is a given event of the
-// diagram, its label (Label). Events are free-form text and their notation is
-// not fixed, so the rules shipped here are deliberately simple; anything
-// richer is for sed or qhs to do to the trace before it gets here, or for a
-// caller to supply.
-type Match func(diagramEvent, traceEvent string) bool
+// diagram. Events of a trace are text, so the rules shipped here are
+// deliberately simple; anything richer is for sed or qhs to do to the trace
+// before it gets here, or for a caller to supply.
+type Match func(diagramEvent core.Event, traceEvent string) bool
 
-// MatchExact accepts an event of the trace only as the identical text.
-func MatchExact(diagramEvent, traceEvent string) bool {
-	return diagramEvent == traceEvent
+// MatchExact accepts an event of the trace as an event of the diagram when
+// it is of its channel and has a field of each direction in its order, each
+// written ?x or !x: x is the field's name or the value it carries, which the
+// check does not read. So insert?coin and insert?3 are both the event of
+// insert?coin.
+func MatchExact(diagramEvent core.Event, traceEvent string) bool {
+	channel, dirs := split(traceEvent)
+	return channel == diagramEvent.Channel && sameDirections(dirs, diagramEvent.Fields)
 }
 
-// MatchPrefix accepts an event of the trace as every diagram event it is a
-// prefix of, so a trace stripped of its fields ("insert") matches the label
-// with them ("insert?coin"). It includes the identical text.
-func MatchPrefix(diagramEvent, traceEvent string) bool {
-	return strings.HasPrefix(diagramEvent, traceEvent)
+// MatchPrefix accepts an event of the trace as an event of the diagram when
+// it is MatchExact of the channel and of the first fields, so a trace
+// stripped of its fields (insert) matches the event of insert?coin. A
+// prefix stops at the boundaries of the channel and of each field: ins is no
+// prefix of insert.
+func MatchPrefix(diagramEvent core.Event, traceEvent string) bool {
+	channel, dirs := split(traceEvent)
+	return channel == diagramEvent.Channel && len(dirs) <= len(diagramEvent.Fields) && sameDirections(dirs, diagramEvent.Fields[:len(dirs)])
+}
+
+// split takes a trace event apart into its channel and, for each field, in
+// order, whether it is sent.
+func split(event string) (string, []bool) {
+	i := strings.IndexAny(event, "?!")
+	if i < 0 {
+		return event, nil
+	}
+	channel := event[:i]
+	var sends []bool
+	for _, r := range event[i:] {
+		switch r {
+		case '?':
+			sends = append(sends, false)
+		case '!':
+			sends = append(sends, true)
+		}
+	}
+	return channel, sends
+}
+
+func sameDirections(sends []bool, fields []core.Field) bool {
+	if len(sends) != len(fields) {
+		return false
+	}
+	for i, f := range fields {
+		if f.Send != sends[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Label is the event e as a diagram writes it: its channel, then ?name for
@@ -142,7 +181,7 @@ func (g graph) taus(s string) []core.Edge {
 func (g graph) next(m Match, s, event string) []core.Edge {
 	var ns []core.Edge
 	for _, e := range g[s] {
-		if e.Event.Channel != core.Tau && m(Label(e.Event), event) {
+		if e.Event.Channel != core.Tau && m(e.Event, event) {
 			ns = append(ns, e)
 		}
 	}
@@ -246,7 +285,7 @@ func prefixPaths(m Match, d *core.Diagram, g graph, trace []string, upto int) []
 				tauSeen[e.Dst] = true
 				extend(e.Dst, i, append(path, e), tauSeen)
 				delete(tauSeen, e.Dst)
-			case m(Label(e.Event), trace[i]):
+			case m(e.Event, trace[i]):
 				extend(e.Dst, i+1, append(path, e), map[string]bool{e.Dst: true})
 			}
 		}
