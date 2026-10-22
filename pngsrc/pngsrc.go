@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"os"
 )
 
 const pngSignature = "\x89PNG\r\n\x1a\n"
@@ -60,6 +61,20 @@ func Extract(raw []byte) (string, error) {
 		}
 	}
 	return "", ErrNoPlantUMLChunk
+}
+
+// ReadFile is the PlantUML source of the file at path: a .puml file, or a
+// .png PlantUML rendered with its source embedded (Extract).
+func ReadFile(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("pngsrc.ReadFile: %w", err)
+	}
+	src, err := Extract(raw)
+	if err != nil {
+		return "", fmt.Errorf("pngsrc.ReadFile: %s: %w", path, err)
+	}
+	return src, nil
 }
 
 // PNGTextChunks yields each tEXt/zTXt/iTXt chunk's decoded keyword and text in
