@@ -114,6 +114,17 @@ name is one field of the global event, so the moves that name it agree on
 its value. A move that receives it reads that value; a move that sends it
 fixes it, and two moves that send it must send equal values.
 
+A constrain `e?q… ; c` (docs/PROMOTION.md) is sugar for one more process
+in parallel: a monitor that synchronises on every event of the promotion,
+follows every instance as the instances do, and offers an event matching
+`e` in channel and field directions only with values for which `c` holds
+of the maps as they are. A monitor that only follows and refuses adds no
+behaviour of its own, so the term stays CSP; conjoining `c` onto the guard
+of every generated edge that matches `e` is its expansion, and it reads any
+map, since the monitor holds them all. A constrain matching no generated
+edge is an error, and a field it names that no matching edge takes is a
+warning.
+
 The map of a promoted diagram is then the tuple of the instances' local
 states, domain membership is "not at S₀", and an instance's control state
 is its position in P; the obligation is that the expanded graph of the
