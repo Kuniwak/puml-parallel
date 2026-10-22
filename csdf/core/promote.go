@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -123,14 +124,15 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 // expansion of a monitor process in parallel).
 func constrain(p Promotion, edges []Edge) ([]Warning, error) {
 	var ws []Warning
+	mapNames := map[string]bool{}
+	for _, f := range p.Families {
+		mapNames[f.Map] = true
+	}
 	for _, c := range p.Constrains {
 		if err := clause.WellFormed(c.Guard); err != nil {
 			return nil, fmt.Errorf("constrain %s: %w", c.Event.Channel, err)
 		}
-		allowed := map[string]bool{}
-		for _, f := range p.Families {
-			allowed[f.Map] = true
-		}
+		allowed := maps.Clone(mapNames)
 		for _, fl := range c.Event.Fields {
 			allowed[fl.Name] = true
 		}
@@ -142,7 +144,7 @@ func constrain(p Promotion, edges []Edge) ([]Warning, error) {
 		matched := 0
 		taken := map[string]bool{}
 		for i, e := range edges {
-			if !sameShape(e.Event, c.Event) {
+			if !e.Event.SameShape(c.Event) {
 				continue
 			}
 			matched++
@@ -161,20 +163,6 @@ func constrain(p Promotion, edges []Edge) ([]Warning, error) {
 		}
 	}
 	return ws, nil
-}
-
-// sameShape says whether two events are on one channel with fields of the
-// same directions, in order, whatever their names.
-func sameShape(a, b Event) bool {
-	if a.Channel != b.Channel || len(a.Fields) != len(b.Fields) {
-		return false
-	}
-	for i := range a.Fields {
-		if a.Fields[i].Send != b.Fields[i].Send {
-			return false
-		}
-	}
-	return true
 }
 
 // Warning is something Promote dropped that the author wrote: Map and
