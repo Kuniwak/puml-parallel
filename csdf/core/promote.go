@@ -54,8 +54,10 @@ type Constrain struct {
 // among them and Constrains on them. Edges are its hand-written edges
 // between modes, a controller's own steps (docs/CLAUSE_DESIGN.md).
 // InitPost is the post the author wrote on the global start edge, which
-// says nothing: every map starts empty.
+// says nothing: every map starts empty. Assumes are the assume notes of the
+// global diagram, which the expansion carries.
 type Promotion struct {
+	Assumes    []Assumption
 	Modes      []string
 	Init       string
 	InitPost   clause.And
@@ -78,7 +80,7 @@ type Promotion struct {
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
-	out := &Diagram{States: slices.Clone(p.Modes), Init: p.Init, Vars: map[string][]string{}}
+	out := &Diagram{States: slices.Clone(p.Modes), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
@@ -303,6 +305,9 @@ func dropped(f Family) []Warning {
 // local-diagram contract (docs/PROMOTION.md): its start state means that
 // the instance does not exist.
 func lifecycle(f Family) error {
+	if len(f.Local.Assumes) > 0 {
+		return fmt.Errorf("a local diagram assumes nothing: an assumption is about the whole system")
+	}
 	s0 := f.Local.Init
 	if len(f.Local.Vars[s0]) > 0 {
 		return fmt.Errorf("the start state %s holds no state variables: it means that the instance does not exist", s0)

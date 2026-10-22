@@ -272,6 +272,11 @@ func TestPromoteRefuses(t *testing.T) {
 		{"a hand-written edge reading a primed name", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "@empty(locations')")}), "primed"},
 		{"a hand-written edge reading a name that is no map and no field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "$z = 0")}), "z"},
 		{"a family frozen in no mode", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{{Map: "locations", ID: "loc", Local: location(t), Frozen: []string{"Z"}}}}, "frozen in Z"},
+		{"a local diagram assuming", promotion(Family{Map: "beacons", ID: "b", Local: func() *Diagram {
+			d := beacon()
+			d.Assumes = []Assumption{{ID: "a1", Text: "it is lit"}}
+			return d
+		}()}), "about the whole system"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
@@ -351,6 +356,23 @@ func TestPromoteWarnsOfTheGlobalStartPostAndStartsEveryMapEmpty(t *testing.T) {
 	}
 	if diff := cmp.Diff(mustParse(t, "@empty(doors')"), got.InitPost); diff != "" {
 		t.Errorf("start post (-want +got):\n%s", diff)
+	}
+}
+
+func TestPromoteCarriesTheAssumptions(t *testing.T) {
+	// Setup
+	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
+	p.Assumes = []Assumption{{ID: "fair", Text: "every door is eventually shut"}}
+
+	// Execute
+	got, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(p.Assumes, got.Assumes); diff != "" {
+		t.Errorf("assumptions (-want +got):\n%s", diff)
 	}
 }
 
