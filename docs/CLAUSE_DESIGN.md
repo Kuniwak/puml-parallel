@@ -65,7 +65,7 @@ its kind:
 |---|---|---|
 | Change of representation | splitting a conjunction, parsing and printing, α-renaming | ⟦op(D)⟧ =SF ⟦D⟧ |
 | Constructor | composition, hiding, channel renaming, promotion, replicated composition | ⟦op(D₁, …)⟧ =SF op_sem(⟦D₁⟧, …), where op_sem is the CSP operator |
-| Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑ ⟦D⟧ in the model the operator states, ⊑SF unless it says otherwise: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
+| Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑SF ⟦D⟧: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
 | Analysis | evaluation, translation to logic, refinement checking | sound with respect to ⟦·⟧, and complete where stated |
 | Optimisation | partial-order reduction, symmetry, cone of influence | the answer to the property checked is unchanged; the graph may differ |
 | Livelock analysis | csdflivelockfree, the tau and `--avoid` cycles csdfbmc reports | sound with respect to failures-divergences; see below |
@@ -185,22 +185,28 @@ hypotheses read it. A local diagram has none, an assumption being about the
 whole system.
 
 Restricting a promotion to some of its families (`-only`) is an
-abstraction. The families left out go, with their maps, the edges only they
-take, and every clause that reads a left-out map, which is taken as true and
-reported. On a sync that a kept family takes with a left-out one, the kept
-side stays and the event keeps every field: the left-out side becomes the
-environment, which offers any value. Its obligation is in the traces model,
-not stable failures: with H the events that only left-out families take,
+approximation, not an abstraction in the sense of the table above. The
+families left out go, with their maps, the edges only they take, and every
+clause that reads a left-out map, which is taken as true and reported. On a
+sync that a kept family takes with a left-out one, the kept side stays and
+the event keeps every field: the left-out side becomes the environment,
+which offers any value. The restricted promotion offers events a left-out
+family or a dropped clause would refuse, so ⟦restricted⟧ ⊑SF ⟦full⟧ \ H,
+with H the events that only left-out families take, does not hold in
+general. What it keeps is stated in the stable failures model for safety
+specifications, a safety specification S being one that allows every
+refusal after each of its traces:
 
-    ⟦restricted⟧ ⊑T ⟦full⟧ \ H.
+    S ⊑SF ⟦restricted⟧  implies  S ⊑SF ⟦full⟧ \ H.
 
-Every run of the full promotion projects onto a run of the restricted one,
-so a broken invariant over the kept families survives the restriction. A
-refusal does not: the restricted promotion offers events a left-out family
-or a dropped clause would refuse, so ⟦restricted⟧ ⊑SF ⟦full⟧ \ H does not
-hold in general, and a deadlock found in the full promotion may be gone.
-An analysis that relies on refusals, a deadlock check or a livelock
-analysis, does not run after a restriction. Because the clauses are
+So a safety property proven of the restricted promotion, a broken invariant
+over the kept families found absent, holds of the full one. Nothing else
+carries over: a deadlock or any other result about refusals found of the
+restricted promotion is no conclusion about the full one, and a
+counterexample it gives may be spurious, a run the full promotion does not
+have. A tool that checks a restricted promotion says so with its result,
+and an analysis that relies on refusals, a deadlock check or a livelock
+analysis, does not take a restriction as its input. Because the clauses are
 formulas, whether one reads a left-out map is told by its free names (O9),
 for a constrain too.
 

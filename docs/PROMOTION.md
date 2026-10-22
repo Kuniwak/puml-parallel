@@ -339,9 +339,11 @@ projects onto a run of the restricted one. So a broken invariant and an
 event-avoiding cycle over the kept families survive the restriction. A
 deadlock does not: one that a left-out family causes by refusing an event, or
 by never meeting a listed clause, has no counterpart in the restriction.
-docs/CLAUSE_DESIGN.md states this as a traces refinement: the restriction
-is refined, in traces only, by the full expansion with the events only
-left-out families take hidden. In the formula promotion every clause is a
+docs/CLAUSE_DESIGN.md states this in the stable failures model: a safety
+specification the restriction refines, the full expansion with the events
+only left-out families take hidden refines too; a refusal result, a
+deadlock among them, is no conclusion about the full expansion, and a
+counterexample may be spurious, which a tool checking a restriction says. In the formula promotion every clause is a
 formula, so whether a `constrain` clause or a hand-written edge's guard
 reads a left-out map is told by its free names: such a conjunct is dropped
 and reported, like any other, rather than kept with a warning. There a family
