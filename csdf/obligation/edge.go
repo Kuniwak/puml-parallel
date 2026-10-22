@@ -43,11 +43,9 @@ func Enabled(d core.Diagram, e core.Edge) (logic.Formula, error) {
 	}
 	var chosen []logic.Var
 	var types []string
-	for _, f := range e.Event.Fields {
-		if !f.Send {
-			chosen = append(chosen, logic.Var(f.Name))
-			types = append(types, f.Name)
-		}
+	for _, f := range e.Event.Received() {
+		chosen = append(chosen, logic.Var(f))
+		types = append(types, f)
 	}
 	for _, v := range d.Vars[e.Dst] {
 		chosen = append(chosen, Var(clause.Free{Name: v, Primed: true}))

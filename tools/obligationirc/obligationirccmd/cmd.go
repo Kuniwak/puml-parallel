@@ -1,6 +1,7 @@
 package obligationirccmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 
@@ -20,8 +21,12 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		var ir obligationir.IRLivelockFree
-		if err := json.Unmarshal(opts.Bytes, &ir); err != nil {
+		// A field this release does not know is refused rather than dropped: it
+		// would be an IR of another version, whose meaning it does not read.
+		dec := json.NewDecoder(bytes.NewReader(opts.Bytes))
+		dec.DisallowUnknownFields()
+		var ir obligationir.LivelockFree
+		if err := dec.Decode(&ir); err != nil {
 			return fmt.Errorf("obligationirccmd.NewMainFunc: invalid obligation IR JSON: %w", err)
 		}
 

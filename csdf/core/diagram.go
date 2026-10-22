@@ -148,3 +148,15 @@ func (d *Diagram) clauses() []clause.And {
 	}
 	return fs
 }
+
+// Received are the names of the fields e receives, in order: those the
+// environment offers, or for a tau the diagram chooses.
+func (e Event) Received() []string {
+	names := []string{}
+	for _, f := range e.Fields {
+		if !f.Send {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}

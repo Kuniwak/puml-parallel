@@ -1,103 +1,80 @@
 package obligationirccmd
 
 import (
-	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
-// canonicalIRJSON builds the obligation IR for a guarded tau self-loop and encodes it
-// as JSON, the kind of input obligationirc consumes from csdflivelockfree.
-func canonicalIRJSON(t *testing.T) string {
-	t.Helper()
-	d, err := csdf.ParseBytes([]byte(`@startuml
-state "a" as a
-a: n ; Nat
-[*] --> a
-a --> a : tau ; n > 0 ; n' = n - 1
-@enduml
-`))
-	if err != nil {
-		t.Fatalf("ParseBytes() error = %v", err)
-	}
-	bs, err := json.Marshal(obligationir.BuildLivelockFree(d))
-	if err != nil {
-		t.Fatalf("Marshal() error = %v", err)
-	}
-	return string(bs)
+// formula is the file of testdata/formula named file: the IR of a diagram
+// and the obligations expected of it.
+func formula(file string) string {
+	return filepath.Join("..", "..", "..", "csdf", "obligationir", "testdata", "formula", file)
 }
 
-func run(t *testing.T, stdin string, args []string) (int, *cli.ProcInoutSpy) {
-	t.Helper()
+func run(stdin string, args []string) (int, *cli.ProcInoutSpy) {
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader(stdin))
 	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
 	return exitStatus, spy
 }
 
-func TestNewMainFuncDefaultTargetReemitsIR(t *testing.T) {
-	// The default target re-emits valid obligation IR JSON.
-	exitStatus, spy := run(t, canonicalIRJSON(t), []string{})
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	var ir obligationir.IRLivelockFree
-	if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
-		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, spy.Stdout.String())
-	}
-	if len(ir.Edges) != 1 {
-		t.Errorf("edges = %d, want 1", len(ir.Edges))
+// TestNewMainFuncCompilesTheIR holds obligationirc to the obligation expected
+// of the IR in each format, which is what csdflivelockfree -target writes, so
+// csdflivelockfree | obligationirc is csdflivelockfree -target.
+func TestNewMainFuncCompilesTheIR(t *testing.T) {
+	for name, ext := range map[string]string{"ir-json": ".json", "isabelle": ".thy", "lean": ".lean"} {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			want, err := os.ReadFile(formula("map" + ext))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			exitStatus, spy := run("", []string{"-target", name, formula("map.json")})
+
+			// Assert
+			if exitStatus != 0 {
+				t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+			}
+			if diff := cmp.Diff(string(want), spy.Stdout.String()); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 
-func TestNewMainFuncLeanTarget(t *testing.T) {
-	// The lean target emits the theorem, the placeholder def, and the NL comment.
-	exitStatus, spy := run(t, canonicalIRJSON(t), []string{"-target", "lean"})
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+func TestNewMainFuncRefusesAnIRItDoesNotRead(t *testing.T) {
+	testCases := map[string]string{
+		"an unknown field": `{"version":1,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[],"predicates":{}}`,
+		"another version":  `{"version":0,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[]}`,
+		"an unknown state": `{"version":1,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"b","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[]}`,
+		"an unknown op":    `{"version":1,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"xor"},"edges":[],"axioms":[],"assumptions":[]}`,
 	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"inductive St where",
-		`-- n > 0`,
-		"def guard_L5 : Val → Prop := pred_",
-		"WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("lean output missing %q\n%s", want, out)
-		}
-	}
-}
 
-func TestNewMainFuncIsabelleTarget(t *testing.T) {
-	// The isabelle target emits the theory, the placeholder definition, and the NL comment.
-	exitStatus, spy := run(t, canonicalIRJSON(t), []string{"-target", "isabelle"})
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"theory Livelock_Obligation",
-		`(* n > 0 *)`,
-		`definition guard_L5 :: "val \<Rightarrow> bool"`,
-		`theorem livelock_free: "wf_on {s. reachable s} {(s', s). tau_step s s'}"`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("isabelle output missing %q\n%s", want, out)
-		}
+	for name, input := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			exitStatus, spy := run(input, []string{"-target", "ir-json"})
+
+			// Assert
+			if exitStatus == 0 {
+				t.Errorf("want non-zero exit, got 0\nstdout: %s", spy.Stdout.String())
+			}
+		})
 	}
 }
 
 func TestNewMainFuncInvalidJSONFails(t *testing.T) {
 	// Non-JSON input is a hard error (exit 1), unlike opaque-predicate verdicts.
-	exitStatus, spy := run(t, "not json\n", []string{"-target", "lean"})
+	exitStatus, spy := run("not json\n", []string{"-target", "lean"})
 	if exitStatus == 0 {
 		t.Errorf("want non-zero exit for invalid IR JSON, got 0\nstdout: %s", spy.Stdout.String())
 	}
@@ -105,7 +82,7 @@ func TestNewMainFuncInvalidJSONFails(t *testing.T) {
 
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange / Act
-	exitStatus, spy := run(t, "", []string{"-v"})
+	exitStatus, spy := run("", []string{"-v"})
 
 	// Assert
 	if exitStatus != 0 {

@@ -62,3 +62,31 @@ func FileIncluder(dir string) Include {
 		return pngsrc.ReadFile(p)
 	}
 }
+
+// ReadBytes reads the diagram in raw, a .puml text or a .png PlantUML
+// rendered with its source embedded, as Read does.
+func ReadBytes(raw []byte) (*core.Diagram, error) {
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadBytes: reading PlantUML source: %w", err)
+	}
+	d, err := Read(src)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadBytes: %w", err)
+	}
+	return d, nil
+}
+
+// ReadPromotionBytes reads the global diagram in raw, a .puml text or a
+// .png, as ReadPromotion does.
+func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: reading PlantUML source: %w", err)
+	}
+	prom, err := ReadPromotion(src, include)
+	if err != nil {
+		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: %w", err)
+	}
+	return prom, nil
+}

@@ -66,28 +66,25 @@ Targets selected by -target:
   isabelle  an Isabelle/HOL skeleton importing CSP-Prover
   lean      a Lean 4 skeleton importing lean-csp-prover
 
-Whether the refinement holds depends on the natural-language Guard/Post
-predicates, which this tool leaves opaque, so the exit status never encodes the
-verdict. Each distinct predicate becomes an uninterpreted declaration named
-pred_<id> after its hash - "opaque" in Lean, "consts" in Isabelle - carrying its
-original text and a TODO(csdf) marker as comments; treat an artifact that still
-carries a marker as undischarged. Nothing is ever defined as True on the
-diagram's behalf, because that is not a placeholder but a different diagram, in
-which every guard fires. An omitted predicate is the exception: it has no clause,
-so it is True and stays a definition. An assume note of either diagram (see
-docs/SYNTAX.md) is listed under that side's "assumptions" in the IR, and for
-the provers becomes an uninterpreted proposition assume_<id>_S or assume_<id>_I
-under which the theorem is stated.
+The diagrams are read as formulas (docs/SYNTAX.md) and their clauses spelled in
+the target as csdflivelockfree spells them: only the environment - each atom
+(atom_<text>), function (fn_<name>) and type (type_<name>) - is declared
+uninterpreted, under a TODO(csdf) marker, once for both diagrams. Whether the
+refinement holds depends on it, so the exit status never encodes the verdict;
+treat an artifact that still carries a marker as undischarged. Nothing is ever
+defined as True on the diagram's behalf, because that is not a placeholder but a
+different diagram, in which every guard holds.
 
-The name is shared by both diagrams, and with csdflivelockfree's output for the
-same diagram, so formalising a predicate once serves every obligation it appears
-in - unless two predicates collide under the hash, in which case the later one
-takes the next free id and the two tools may name it differently. Everything
-named after a source location is side-qualified (guard_S_L<line>, post_I_L<line>,
-...), because line numbers collide between the two files. CSDF names are not
-prover identifiers, so events, state ids and variable names are encoded, and the
-theory opens with a table giving the originals of the names that had to be
-encoded.
+An event carries the value of each of its fields, in order: an event of a
+channel is the channel applied to them, so inc?k with k = 1 and with k = 2 are
+two events. Each edge of a state is an external choice of the events it can
+perform - its received fields of their types, for which some values after it
+pass its guard and post - followed by an internal choice of those values after
+it; an end edge is SKIP when its guard holds. A channel with one number of
+fields in one place and another elsewhere is refused. The axioms of the csdf_*
+predicates, as csdf_axiom_<i>, and the assume notes of either diagram (see
+docs/SYNTAX.md), as assume_<id>_S or assume_<id>_I, are hypotheses of the
+theorem.
 
 CSP-Prover has no failures-divergences model, so -m fd emits the standard
 reduction instead: a divergence-freedom obligation per side - the csdflivelockfree

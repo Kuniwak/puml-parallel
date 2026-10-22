@@ -11,7 +11,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/promote"
-	"github.com/Kuniwak/puml-parallel/pngsrc"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -36,11 +35,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 // mainFormula expands the promotion with csdf/core and prints it as PUML.
 func mainFormula(opts *Options, inout *cli.ProcInout) error {
-	source, err := pngsrc.Extract(opts.Bytes)
-	if err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: reading PlantUML source: %w", err)
-	}
-	prom, err := coreio.ReadPromotion(source, coreio.FileIncluder(opts.Base))
+	prom, err := coreio.ReadPromotionBytes(opts.Bytes, coreio.FileIncluder(opts.Base))
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}

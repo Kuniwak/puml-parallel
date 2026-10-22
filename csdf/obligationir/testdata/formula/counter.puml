@@ -1,0 +1,10 @@
+@startuml
+' A counter that receives an amount and sends its total, with a tau that
+' resets it nondeterministically to some value of its type.
+state "s" as s
+s : n
+[*] --> s : $n' = 0
+s --> s : inc?k ; $k > 0 ; $n' = $n + $k
+s --> s : show!n ; ; @eq(n', n)
+s --> s : tau ; ; @exists(m : n) (@eq(n', m))
+@enduml
