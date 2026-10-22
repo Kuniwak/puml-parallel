@@ -1,6 +1,8 @@
 package csdfparallelcmd
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -66,6 +68,37 @@ a_b --> a_b : tau ; @exists(y : y) ($y < 2) ; @exists(y : y) ($y < 2 ∧ $x' = $
 		t.Errorf("want 0, got %d", exitStatus)
 	}
 	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+		t.Error(diff)
+	}
+}
+
+// TestNewMainFuncPrintsTheRecordedComposite composes the vending machine
+// and its user as examples/compose records it, but for the paths in the
+// title.
+func TestNewMainFuncPrintsTheRecordedComposite(t *testing.T) {
+	// Setup
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	spy := cli.SpyProcInout()
+	bs, err := os.ReadFile("../../../examples/compose/user_vending_machine.puml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.ReplaceAll(string(bs), "examples/valid/", "../../../examples/valid/")
+
+	// Execute
+	exitStatus := cmdFunc([]string{
+		"-sync", "insert;showAvailable;showPurchasable;choose;drop",
+		"../../../examples/valid/user.puml",
+		"../../../examples/valid/vending_machine.puml",
+	}, spy.New())
+
+	// Assert
+	if exitStatus != 0 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 0, got %d", exitStatus)
+	}
+	got := strings.Replace(spy.Stdout.String(), "-sync insert;showAvailable;showPurchasable;choose;drop", "-sync 'insert;showAvailable;showPurchasable;choose;drop'", 1)
+	if diff := cmp.Diff(want, got); diff != "" {
 		t.Error(diff)
 	}
 }

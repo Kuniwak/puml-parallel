@@ -10,13 +10,13 @@ state "userChoosing" as userChoosing
 userChoosing: product
 state "userWaiting" as userWaiting
 
-[*] --> userIdle : wanted' is empty
-userIdle --> userIdle : tau ; ; wanted' is non-empty
-userIdle --> userGonnaBuy : showAvailable?products ; products and wanted have overlap ; product' is one of the overlap between products and wanted
-userGonnaBuy --> userPaying : insert?coin ; ; product' remains the same
-userPaying --> userGonnaBuy : showPurchasable?products ; products does not contain product ; product' remains the same
-userPaying --> userChoosing : showPurchasable?products ; products contains product ; product' remains the same
-userChoosing --> userWaiting : choose?product
-userWaiting --> userIdle : drop?product ; ; wanted' is empty
+[*] --> userIdle : $wanted' is empty
+userIdle --> userIdle : tau ; ; $wanted' is non-empty
+userIdle --> userGonnaBuy : showAvailable?products ; $products and $wanted have overlap ; $product' is one of the overlap between $products and $wanted
+userGonnaBuy --> userPaying : insert?coin ; ; $product' is $product
+userPaying --> userGonnaBuy : showPurchasable?products ; $products does not contain $product ; $product' is $product
+userPaying --> userChoosing : showPurchasable?products ; $products contains $product ; $product' is $product
+userChoosing --> userWaiting : choose!product
+userWaiting --> userIdle : drop?product ; ; $wanted' is empty
 
 @enduml
