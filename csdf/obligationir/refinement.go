@@ -117,12 +117,7 @@ func (r Refinement) Validate() error {
 // Symbols are the constants either side reads; the environment is one, so
 // an atom both sides read is one constant.
 func (r Refinement) Symbols() ([]Symbol, error) {
-	spec := r.Spec
-	spec.States = slices.Concat(r.Spec.States, r.Impl.States)
-	spec.Edges = slices.Concat(r.Spec.Edges, r.Impl.Edges)
-	spec.InitPost = logic.Tree{Op: logic.OpAnd, Operands: []logic.Tree{r.Spec.InitPost, r.Impl.InitPost}}
-	spec.Axioms = r.Axioms()
-	return spec.Symbols()
+	return Symbols(slices.Concat(r.Spec.types(), r.Impl.types()), slices.Concat(r.Spec.Formulas(), r.Impl.Formulas())...)
 }
 
 // Declarations are the constants either side reads, as a back end declares

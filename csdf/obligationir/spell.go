@@ -402,6 +402,11 @@ func (ir LivelockFree) Formulas() []logic.Tree {
 // received fields among them: each is of the type named like it, the
 // convention until they carry types of their own.
 func (ir LivelockFree) Symbols() ([]Symbol, error) {
+	return Symbols(ir.types(), ir.Formulas()...)
+}
+
+// types are the types of the state variables and received fields of ir.
+func (ir LivelockFree) types() []string {
 	var types []string
 	for _, s := range ir.States {
 		types = append(types, s.Vars...)
@@ -409,7 +414,7 @@ func (ir LivelockFree) Symbols() ([]Symbol, error) {
 	for _, e := range ir.Edges {
 		types = append(types, e.Received()...)
 	}
-	return Symbols(types, ir.Formulas()...)
+	return types
 }
 
 // Uninterpreted reports whether s is of the environment, which no obligation

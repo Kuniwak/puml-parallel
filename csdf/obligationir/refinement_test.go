@@ -63,3 +63,30 @@ func TestBuildRefinementTakesTheChannelsOfBothSides(t *testing.T) {
 		t.Errorf("alphabet = %v, want %v", r.Alphabet, want)
 	}
 }
+
+func TestRefinementSymbolsAreThoseOfEverythingEitherSideReads(t *testing.T) {
+	// Setup: the impl alone reads an atom, in the guard of an end edge.
+	spec, err := coreio.Read("@startuml\nstate \"a\" as a\n[*] --> a\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	impl, err := coreio.Read("@startuml\nstate \"a\" as a\n[*] --> a\na --> [*] : 終わってよい\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := obligationir.BuildRefinement(obligationir.IRRefinementModeTrace, spec, impl)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	syms, err := r.Symbols()
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 1 || syms[0].Name != obligationir.AtomName("終わってよい") {
+		t.Errorf("symbols = %v, want the atom of the impl's end edge", syms)
+	}
+}
