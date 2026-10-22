@@ -112,25 +112,41 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			out.Edges = append(out.Edges, edge)
 		}
 	}
-	ws, err := constrain(p, out.Edges)
-	if err != nil {
+	if err := constrain(p, out.Edges); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
-	return out, append(warnings, ws...), nil
+	return out, warnings, nil
 }
 
 // constrain conjoins each constrain of p onto every edge that matches its
 // event in channel and field directions (docs/CLAUSE_DESIGN.md: the
 // expansion of a monitor process in parallel).
-func constrain(p Promotion, edges []Edge) ([]Warning, error) {
-	var ws []Warning
+// renamedTo is c's guard with each of c's fields renamed to the field of e
+// at its position, all at once (docs/CLAUSE_DESIGN.md: a constrain matches by
+// position).
+func renamedTo(c Constrain, e Event) clause.And {
+	to := map[string]string{}
+	for i, fl := range c.Event.Fields {
+		to[fl.Name] = e.Fields[i].Name
+	}
+	return clause.Normalize(clause.MapFormula(c.Guard, 0, func(u clause.Term, _ int) clause.Term {
+		if v, ok := u.(clause.Free); ok {
+			if n, ok := to[v.Name]; ok {
+				return clause.Free{Name: n, Primed: v.Primed}
+			}
+		}
+		return u
+	}))
+}
+
+func constrain(p Promotion, edges []Edge) error {
 	mapNames := map[string]bool{}
 	for _, f := range p.Families {
 		mapNames[f.Map] = true
 	}
 	for _, c := range p.Constrains {
 		if err := clause.WellFormed(c.Guard); err != nil {
-			return nil, fmt.Errorf("constrain %s: %w", c.Event.Channel, err)
+			return fmt.Errorf("constrain %s: %w", c.Event.Channel, err)
 		}
 		allowed := maps.Clone(mapNames)
 		for _, fl := range c.Event.Fields {
@@ -138,31 +154,22 @@ func constrain(p Promotion, edges []Edge) ([]Warning, error) {
 		}
 		for _, v := range clause.FreeVars(c.Guard) {
 			if !allowed[v.Name] {
-				return nil, fmt.Errorf("constrain %s reads %s, which is no map and no field of its event", c.Event.Channel, v.Name)
+				return fmt.Errorf("constrain %s reads %s, which is no map and no field of its event", c.Event.Channel, v.Name)
 			}
 		}
 		matched := 0
-		taken := map[string]bool{}
 		for i, e := range edges {
 			if !e.Event.SameShape(c.Event) {
 				continue
 			}
 			matched++
-			for _, fl := range e.Event.Fields {
-				taken[fl.Name] = true
-			}
-			edges[i].Guard = Conj(e.Guard, c.Guard)
+			edges[i].Guard = Conj(e.Guard, renamedTo(c, e.Event))
 		}
 		if matched == 0 {
-			return nil, fmt.Errorf("constrain %s: no generated edge is on %s with fields of those directions", c.Event.Channel, c.Event.Channel)
-		}
-		for _, fl := range c.Event.Fields {
-			if !taken[fl.Name] {
-				ws = append(ws, Warning{Event: c.Event.Channel, Text: fmt.Sprintf("the constrain names %s, which no matching edge has; its guard says nothing about it", fl.Name)})
-			}
+			return fmt.Errorf("constrain %s: no generated edge is on %s with fields of those directions", c.Event.Channel, c.Event.Channel)
 		}
 	}
-	return ws, nil
+	return nil
 }
 
 // Warning is something Promote dropped that the author wrote: Map and

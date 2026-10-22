@@ -603,6 +603,28 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			want: func(*testing.T) *lts.LTS { return doorsWatched(handLTS(tr{0, "NEW.a", 0})) },
 		},
 		{
+			name: "a constrain matches by position, its field renamed to the edge's own",
+			p: Promotion{State: "G", Families: []Family{doors},
+				Constrains: []Constrain{{Event: ev("NEW", recv("x")), Guard: mustParse(t, "$x is a")}}},
+			env: func(t *testing.T) Env {
+				env := stock(t, doors)
+				env.Atoms["#0 is a"] = func(a []Value) bool { return a[0] == "a" }
+				return env
+			},
+			want: func(*testing.T) *lts.LTS { return doorsWatched(handLTS(tr{0, "NEW.a", 0})) },
+		},
+		{
+			name: "a constrain's first field is the instance ID, the rest the local event's",
+			p: Promotion{State: "G", Families: []Family{tanks},
+				Constrains: []Constrain{{Event: ev("LOOK", recv("t"), recv("v")), Guard: mustParse(t, "$v = 1")}}},
+			env: func(t *testing.T) Env { return tankEnv(t, tanks) },
+			want: func(*testing.T) *lts.LTS {
+				onLook := func(label string) bool { return strings.HasPrefix(label, "LOOK.") }
+				return lts.Parallel([]*lts.LTS{tankInstance(func(l string) string { return "SHOW.t1." + l }), handLTS(tr{0, "LOOK.t1.1", 0})},
+					[]func(string) bool{mentions("t1"), onLook})
+			},
+		},
+		{
 			name: "a constrain reads a map no instance of its event is in, as a monitor would",
 			p: Promotion{State: "G", Families: []Family{doors, keys},
 				Constrains: []Constrain{{Event: ev("CUT", recv("s")), Guard: mustParse(t, "@empty(doors)")}}},
