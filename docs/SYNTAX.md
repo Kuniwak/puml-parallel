@@ -340,10 +340,13 @@ end note
 - A second `sync` of one event, a second block of one map, and
   `!include_many` or `!includesub` are refused.
 
+- `constrain EVENT ; guard` is read as docs/PROMOTION.md says: its guard
+  is conjoined onto every generated edge matching the event in channel and
+  field directions, and may read any map.
+
 Not read yet, each refused by name until step 5½b of #76 brings it over
 from docs/PROMOTION.md:
 
-- `constrain`;
 - several global states (modes), and so a bodyless `<<promote>>` block and a
   family frozen in a state;
 - a hand-written edge of the global diagram;

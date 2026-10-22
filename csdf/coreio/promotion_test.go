@@ -143,6 +143,27 @@ end note
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
 		},
+		{
+			name: "a constrain on an event and its fields",
+			source: `@startuml
+state "稼働中" as running {
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+}
+[*] --> running
+note bottom of runningShipments
+  constrain ORDER?s ; @empty(shipments)
+  一度に一件
+end note
+@enduml
+`,
+			want: core.Promotion{
+				State:      "running",
+				Families:   []core.Family{{Map: "shipments", ID: "s", Local: shp}},
+				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -184,8 +205,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running : 何か\n"), "a post on the start edge " + refusedYet},
 		{"a hand-written edge of the global diagram",
 			promoting("[*] --> running\nrunning --> running : a\n"), "a hand-written edge of the global diagram " + refusedYet},
-		{"a constrain",
-			promoting("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain " + refusedYet},
+		{"a constrain without its guard",
+			promoting("[*] --> running\nnote as n\n  constrain ORDER?s\nend note\n"), "constrain ORDER?s"},
 		{"a global assume note",
 			promoting("[*] --> running\nnote as n\n  assume いつか止まる\nend note\n"), "an assume note in the global diagram " + refusedYet},
 		{"a second global state",
