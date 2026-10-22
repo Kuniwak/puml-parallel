@@ -1,0 +1,6 @@
+@startuml
+state "a" as a
+a : x
+[*] --> a : $x' = 0
+a --> a : tau ; @exists(y : y) ($y < 2) ; @exists(y : y) ($y < 2 ∧ $x' = $y)
+@enduml

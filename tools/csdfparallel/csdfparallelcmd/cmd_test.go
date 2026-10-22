@@ -42,6 +42,34 @@ s2_s1 --> s2_s2 : out
 	}
 }
 
+// TestNewMainFuncComposeWhatCsdfhidePrinted composes a diagram whose clauses
+// hold ∃, as csdfhide prints them.
+func TestNewMainFuncComposeWhatCsdfhidePrinted(t *testing.T) {
+	// Setup
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	spy := cli.SpyProcInout()
+	want := `@startuml auto-generated-by: csdfparallel testdata/hidden.puml testdata/other.puml
+state "(a, b)" as a_b
+a_b : x
+[*] --> a_b : $x' = 0
+a_b --> a_b : go ; ; @eq(x', x)
+a_b --> a_b : tau ; @exists(y : y) ($y < 2) ; @exists(y : y) ($y < 2 ∧ $x' = $y)
+@enduml
+`
+
+	// Execute
+	exitStatus := cmdFunc([]string{"testdata/hidden.puml", "testdata/other.puml"}, spy.New())
+
+	// Assert
+	if exitStatus != 0 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 0, got %d", exitStatus)
+	}
+	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestNewMainFuncVersion(t *testing.T) {
 	// Arrange
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
