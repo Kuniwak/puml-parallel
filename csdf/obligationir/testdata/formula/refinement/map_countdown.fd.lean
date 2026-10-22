@@ -12,13 +12,18 @@ noncomputable section
 
 namespace Refinement_Obligation
 
+inductive Scalar where
+  | SInt (i : Int)
+  | SString (s : String)
+  | SBool (b : Bool)
+  | SArray (xs : List Scalar)
+  | SDict (kvs : List (String × Scalar))
+  | SRecord (state : Scalar) (fields : List (String × Scalar))
+deriving Inhabited
+
 inductive Val where
-  | ValInt (i : Int)
-  | ValString (s : String)
-  | ValBool (b : Bool)
-  | ValArray (xs : List Val)
-  | ValDict (kvs : List (String × Val))
-  | ValMap (kvs : List (Val × Val))
+  | ValScalar (s : Scalar)
+  | ValMap (f : Scalar → Option Scalar)
 deriving Inhabited
 
 inductive alphabet where
@@ -66,26 +71,31 @@ opaque type_m : Val → Prop
 -- n
 opaque type_n : Val → Prop
 
--- A map is a ValMap; the entry of a key is the first one holding it.
-open Classical in
-noncomputable def csdf_lookup : List (Val × Val) → Val → Val
-  | [], _ => .ValBool false
-  | (j, v) :: kvs, k => if j = k then v else csdf_lookup kvs k
-
-def csdf_is_map (m : Val) : Prop :=
-  match m with
+def csdf_is_map : Val → Prop
   | .ValMap _ => True
   | _ => False
 
-def csdf_in (k m : Val) : Prop :=
-  match m with
-  | .ValMap kvs => k ∈ kvs.map Prod.fst
-  | _ => False
+def csdf_in : Val → Val → Prop
+  | .ValScalar s, .ValMap f => f s ≠ none
+  | _, _ => False
 
-noncomputable def csdf_index (m k : Val) : Val :=
-  match m with
-  | .ValMap kvs => csdf_lookup kvs k
-  | _ => .ValBool false
+def csdf_index : Val → Val → Val
+  | .ValMap f, .ValScalar s =>
+    match f s with
+    | some v => .ValScalar v
+    | none => .ValScalar (.SBool false)
+  | _, _ => .ValScalar (.SBool false)
+
+theorem csdf_map_ext : ∀ (n m : Val), csdf_is_map n → csdf_is_map m →
+    (∀ (k : Val), (csdf_in k n ↔ csdf_in k m) ∧ (csdf_in k n → csdf_index n k = csdf_index m k)) → n = m
+  | .ValMap f, .ValMap g, _, _, h => by
+    congr 1
+    funext s
+    have h1 := (h (.ValScalar s)).1
+    have h2 := (h (.ValScalar s)).2
+    cases hf : f s <;> cases hg : g s <;> simp_all [csdf_in, csdf_index]
+  | .ValScalar _, _, hn, _, _ => False.elim hn
+  | .ValMap _, .ValScalar _, _, hm, _ => False.elim hm
 
 def csdf_empty (v_m : Val) : Prop :=
   csdf_is_map v_m ∧ (∀ (v_k : Val), ¬csdf_in v_k v_m)

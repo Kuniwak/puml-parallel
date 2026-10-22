@@ -25,10 +25,6 @@ func binders(vars []string) string {
 	return strings.Join(bs, ` `)
 }
 
-// InhabitedVal lets a function into Val be declared opaque, which Lean
-// allows only of an inhabited type.
-const InhabitedVal = `instance : Inhabited Val := ⟨.ValBool false⟩`
-
 // WriteLivelockFree writes the livelock-freedom obligation of a
 // diagram whose clauses are formulas, as the Isabelle back end does
 // (isabelle.WriteLivelockFree).

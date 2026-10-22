@@ -9,35 +9,58 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// mapPrelude defines a map: a ValMap, the entry of a key the first entry of
-// the list holding it.
-const mapPrelude = `(* A map is a ValMap; the entry of a key is the first one holding it. *)
-fun csdf_lookup :: "(val \<times> val) list \<Rightarrow> val \<Rightarrow> val"
-  where "csdf_lookup [] k = ValBool False"
-  | "csdf_lookup ((j, v) # kvs) k = (if j = k then v else csdf_lookup kvs k)"
+// ValPrelude declares val, the type of every value (docs/CLAUSE_DESIGN.md):
+// a scalar, or a map, a function from scalars to scalars where it is
+// defined. Equality of maps is the equality of functions, so two maps are
+// equal just when they hold the same entries. An instance is a record, its
+// state the first component.
+const ValPrelude = `datatype scalar = SInt int
+  | SString string
+  | SBool bool
+  | SArray "scalar list"
+  | SDict "(string \<times> scalar) list"
+  | SRecord scalar "(string \<times> scalar) list"
 
-definition csdf_is_map :: "val \<Rightarrow> bool"
-  where "csdf_is_map m \<equiv> (case m of ValMap kvs \<Rightarrow> True | _ \<Rightarrow> False)"
+datatype val = ValScalar scalar
+  | ValMap "scalar \<Rightarrow> scalar option"`
+
+// mapPrelude defines what a map holds, and proves that two maps holding
+// the same entries are one.
+const mapPrelude = `definition csdf_is_map :: "val \<Rightarrow> bool"
+  where "csdf_is_map m \<equiv> (case m of ValMap f \<Rightarrow> True | _ \<Rightarrow> False)"
 
 definition csdf_in :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "csdf_in k m \<equiv> (case m of ValMap kvs \<Rightarrow> k \<in> set (map fst kvs) | _ \<Rightarrow> False)"
+  where "csdf_in k m \<equiv> (case (k, m) of (ValScalar s, ValMap f) \<Rightarrow> f s \<noteq> None | _ \<Rightarrow> False)"
 
 definition csdf_index :: "val \<Rightarrow> val \<Rightarrow> val"
-  where "csdf_index m k \<equiv> (case m of ValMap kvs \<Rightarrow> csdf_lookup kvs k | _ \<Rightarrow> ValBool False)"
+  where "csdf_index m k \<equiv> (case (m, k) of (ValMap f, ValScalar s) \<Rightarrow> (case f s of Some v \<Rightarrow> ValScalar v | None \<Rightarrow> ValScalar (SBool False)) | _ \<Rightarrow> ValScalar (SBool False))"
+
+lemma csdf_map_ext:
+  assumes "csdf_is_map n" "csdf_is_map m"
+    and "\<forall>k. (csdf_in k n \<longleftrightarrow> csdf_in k m) \<and> (csdf_in k n \<longrightarrow> csdf_index n k = csdf_index m k)"
+  shows "n = m"
+proof -
+  obtain f g where nm: "n = ValMap f" "m = ValMap g"
+    using assms(1,2) by (cases n; cases m; simp add: csdf_is_map_def)
+  have "f s = g s" for s
+    using assms(3)[rule_format, of "ValScalar s"] nm
+    by (cases "f s"; cases "g s"; simp add: csdf_in_def csdf_index_def)
+  then show ?thesis using nm by (auto intro: ext)
+qed
 
 `
 
-const atDef = `(* TODO(csdf): not formalised; the state an instance is at is uninterpreted. *)
-consts csdf_state :: "val \<Rightarrow> val"
+const atDef = `definition csdf_state :: "val \<Rightarrow> val"
+  where "csdf_state t \<equiv> (case t of ValScalar (SRecord s fs) \<Rightarrow> ValScalar s | _ \<Rightarrow> ValScalar (SBool False))"
 
 definition csdf_at :: "val \<Rightarrow> val \<Rightarrow> bool"
   where "csdf_at t s \<equiv> csdf_state t = s"
 
 `
 
-// WriteBuiltins defines the builtins b reads over the maps of ValMap: a
-// builtin is a definition, not an assumption, so no obligation rests on an
-// axiom of it. A state constant is a number of its own, so two are apart.
+// WriteBuiltins defines the builtins b reads: a builtin is a definition,
+// not an assumption, so no obligation rests on an axiom of it. A state
+// constant is a number of its own, so two are apart.
 func WriteBuiltins(w io.Writer, b obligationir.Builtins) error {
 	if b.Maps {
 		io.WriteString(w, mapPrelude)
@@ -54,7 +77,7 @@ func WriteBuiltins(w io.Writer, b obligationir.Builtins) error {
 		io.WriteString(w, atDef)
 	}
 	for i, st := range b.States {
-		fmt.Fprintf(w, "definition %s :: val\n  where \"%s \\<equiv> ValInt %d\"\n\n", st, st, i)
+		fmt.Fprintf(w, "definition %s :: val\n  where \"%s \\<equiv> ValScalar (SInt %d)\"\n\n", st, st, i)
 	}
 	return nil
 }

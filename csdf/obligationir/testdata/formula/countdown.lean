@@ -1,12 +1,17 @@
-inductive Val where
-  | ValInt (i : Int)
-  | ValString (s : String)
-  | ValBool (b : Bool)
-  | ValArray (xs : List Val)
-  | ValDict (kvs : List (String × Val))
-  | ValMap (kvs : List (Val × Val))
+inductive Scalar where
+  | SInt (i : Int)
+  | SString (s : String)
+  | SBool (b : Bool)
+  | SArray (xs : List Scalar)
+  | SDict (kvs : List (String × Scalar))
+  | SRecord (state : Scalar) (fields : List (String × Scalar))
+deriving Inhabited
 
-instance : Inhabited Val := ⟨.ValBool false⟩
+inductive Val where
+  | ValScalar (s : Scalar)
+  | ValMap (f : Scalar → Option Scalar)
+
+instance : Inhabited Val := ⟨.ValScalar (.SBool false)⟩
 
 inductive St where
   | St_a (v_n : Val) -- a (n)

@@ -23,7 +23,7 @@ var (
 // the axioms and the assumptions, read as whole identifiers. A statement is
 // ended by Isabelle's oops or Lean's :=; one ended by neither fails t, as
 // the hypotheses read after it would be another's. The lemmas of the builtins
-// are proved, not obligations, and are left out.
+// and csdf_map_ext, are proved, not obligations, and are left out.
 func theorems(t *testing.T, out string) map[string][]string {
 	t.Helper()
 	ts := map[string][]string{}
@@ -48,7 +48,7 @@ func theorems(t *testing.T, out string) map[string][]string {
 			}
 		}
 		slices.Sort(hs)
-		if name := out[loc[2]:loc[3]]; !strings.HasPrefix(name, obligationir.LemmaPrefix) {
+		if name := out[loc[2]:loc[3]]; !strings.HasPrefix(name, "csdf_") {
 			ts[name] = hs
 		}
 	}

@@ -9,33 +9,60 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// mapPrelude defines a map: a ValMap, the entry of a key the first entry of
-// the list holding it.
-const mapPrelude = `-- A map is a ValMap; the entry of a key is the first one holding it.
-open Classical in
-noncomputable def csdf_lookup : List (Val × Val) → Val → Val
-  | [], _ => .ValBool false
-  | (j, v) :: kvs, k => if j = k then v else csdf_lookup kvs k
+// ValPrelude declares Val, the type of every value, as the Isabelle back end
+// does (isabelle.ValPrelude): a scalar, or a map, a function from scalars to
+// scalars where it is defined, so that equality of maps is extensional.
+// Floats are folded into SInt for now.
+const ValPrelude = `inductive Scalar where
+  | SInt (i : Int)
+  | SString (s : String)
+  | SBool (b : Bool)
+  | SArray (xs : List Scalar)
+  | SDict (kvs : List (String × Scalar))
+  | SRecord (state : Scalar) (fields : List (String × Scalar))
+deriving Inhabited
 
-def csdf_is_map (m : Val) : Prop :=
-  match m with
+inductive Val where
+  | ValScalar (s : Scalar)
+  | ValMap (f : Scalar → Option Scalar)`
+
+// InhabitedVal lets a function into Val be declared opaque, which Lean
+// allows only of an inhabited type.
+const InhabitedVal = `instance : Inhabited Val := ⟨.ValScalar (.SBool false)⟩`
+
+// mapPrelude defines what a map holds, and proves that two maps holding
+// the same entries are one.
+const mapPrelude = `def csdf_is_map : Val → Prop
   | .ValMap _ => True
   | _ => False
 
-def csdf_in (k m : Val) : Prop :=
-  match m with
-  | .ValMap kvs => k ∈ kvs.map Prod.fst
-  | _ => False
+def csdf_in : Val → Val → Prop
+  | .ValScalar s, .ValMap f => f s ≠ none
+  | _, _ => False
 
-noncomputable def csdf_index (m k : Val) : Val :=
-  match m with
-  | .ValMap kvs => csdf_lookup kvs k
-  | _ => .ValBool false
+def csdf_index : Val → Val → Val
+  | .ValMap f, .ValScalar s =>
+    match f s with
+    | some v => .ValScalar v
+    | none => .ValScalar (.SBool false)
+  | _, _ => .ValScalar (.SBool false)
+
+theorem csdf_map_ext : ∀ (n m : Val), csdf_is_map n → csdf_is_map m →
+    (∀ (k : Val), (csdf_in k n ↔ csdf_in k m) ∧ (csdf_in k n → csdf_index n k = csdf_index m k)) → n = m
+  | .ValMap f, .ValMap g, _, _, h => by
+    congr 1
+    funext s
+    have h1 := (h (.ValScalar s)).1
+    have h2 := (h (.ValScalar s)).2
+    cases hf : f s <;> cases hg : g s <;> simp_all [csdf_in, csdf_index]
+  | .ValScalar _, _, hn, _, _ => False.elim hn
+  | .ValMap _, .ValScalar _, _, hm, _ => False.elim hm
 
 `
 
-const atDef = `-- TODO(csdf): not formalised; the state an instance is at is uninterpreted.
-opaque csdf_state : Val → Val
+const atDef = `def csdf_state : Val → Val
+  | .ValScalar (.SRecord s _) => .ValScalar s
+  | _ => .ValScalar (.SBool false)
 
 def csdf_at (t s : Val) : Prop := csdf_state t = s
 
@@ -58,7 +85,7 @@ func WriteBuiltins(w io.Writer, b obligationir.Builtins) error {
 		io.WriteString(w, atDef)
 	}
 	for i, st := range b.States {
-		fmt.Fprintf(w, "def %s : Val := .ValInt %d\n\n", st, i)
+		fmt.Fprintf(w, "def %s : Val := .ValScalar (.SInt %d)\n\n", st, i)
 	}
 	return nil
 }

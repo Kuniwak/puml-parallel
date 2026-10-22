@@ -203,16 +203,20 @@ No obligation rests on an axiom. A set of axioms can contradict itself, and
 an obligation under a contradiction holds of every diagram (ex falso), so
 the builtins are defined in a model instead and what they mean is proved
 there, as lemmas a prover checks. The model tells a map from every other
-value: the value type has a constructor of its own for a map, a list of its
-entries (ValMap), whose entry of a key is the first one holding it, and
-csdf_is_map holds of a value just when it is one. csdf_in and csdf_index
-read it; @empty, @update and @frame are defined as their maps being maps and
-their meaning holding (obligation.EmptyMeaning and the like), so each lemma
-follows from its definition by projection; @at is that the state of an
-instance, uninterpreted, is the state constant, each state constant a number
-of its own, so an instance is at one state at a time. A map that is a list
-tells two lists of the same entries apart, which no builtin reads: every one
-reads a map through csdf_in and csdf_index alone.
+value and makes equality of maps extensional: a value is a scalar or a map
+(ValMap), and a map is a function from scalars to scalars where it is
+defined, so two maps are equal just when they hold the same entries, which
+both provers prove (csdf_map_ext); an equality, an event field or an atom
+reading a map so reads its entries and nothing else, and @update and @frame
+admit exactly the maps the meaning describes. csdf_is_map holds of a value
+just when it is a map; csdf_in and csdf_index read its entries. @empty,
+@update and @frame are defined as their maps being maps and their meaning
+holding (obligation.EmptyMeaning and the like), so each lemma follows from
+its definition by projection. An instance is a record whose first component
+is its state; @at is that it is the state constant, each a number of its
+own, so an instance is at one state at a time, and a diagram starting at a
+state can be shown to start. The keys and entries of a map are scalars, so a
+map holds no map: a builtin reading one as an entry holds of nothing.
 
 Which hypotheses an obligation takes is part of what it claims. A
 refinement is stated under no hypothesis, never under an assumption of

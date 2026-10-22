@@ -12,13 +12,18 @@ noncomputable section
 
 namespace Refinement_Obligation
 
+inductive Scalar where
+  | SInt (i : Int)
+  | SString (s : String)
+  | SBool (b : Bool)
+  | SArray (xs : List Scalar)
+  | SDict (kvs : List (String × Scalar))
+  | SRecord (state : Scalar) (fields : List (String × Scalar))
+deriving Inhabited
+
 inductive Val where
-  | ValInt (i : Int)
-  | ValString (s : String)
-  | ValBool (b : Bool)
-  | ValArray (xs : List Val)
-  | ValDict (kvs : List (String × Val))
-  | ValMap (kvs : List (Val × Val))
+  | ValScalar (s : Scalar)
+  | ValMap (f : Scalar → Option Scalar)
 deriving Inhabited
 
 inductive alphabet where

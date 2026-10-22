@@ -449,3 +449,58 @@ func TestTheProversDoNotDischargeAFalseRefinement(t *testing.T) {
 		}
 	})
 }
+
+// TestTheBuiltinsAreAModel holds the definitions of the builtins to the
+// meaning a refinement needs of them, by proofs a prover checks: a frame of
+// no key leaves a map as it was, so an edge whose post is @frame(m', m) ∧
+// m' ≠ m is disabled; and a diagram starting at a state of its local
+// diagram, its types formalised, can start.
+func TestTheBuiltinsAreAModel(t *testing.T) {
+	const builtins = "../testdata/formula/builtins.puml"
+	o := refinementObligation(t, "builtins_model", obligationir.IRRefinementModeTrace, builtins, "../testdata/formula/countdown.puml")
+	start := "∃ (v_t_u27u : Val) (v_m_u27u : Val), type_t v_t_u27u ∧ type_m v_m_u27u ∧ (csdf_at v_t_u27u state__u2euA ∧ csdf_empty v_m_u27u) := by\n  sorry"
+	isaStart := "theorem initialisable_S: \"\\<exists>(v_t_u27u::val) (v_m_u27u::val). type_t v_t_u27u \\<and> type_m v_m_u27u \\<and> (csdf_at v_t_u27u state__u2euA \\<and> csdf_empty v_m_u27u)\"\n  oops"
+
+	t.Run("lean", func(t *testing.T) {
+		leanDir := requireEnv(t, proverLean, envLean)
+		src := o.leanSrc
+		for _, typ := range []string{"type_t", "type_m"} {
+			src = strings.Replace(src, "opaque "+typ+" : Val → Prop", "def "+typ+" (_ : Val) : Prop := True", 1)
+		}
+		proved := strings.Replace(src, start, strings.TrimSuffix(start, "sorry")+
+			"refine ⟨.ValScalar (.SRecord (.SInt 0) []), .ValMap (fun _ => none), trivial, trivial, rfl, trivial, ?_⟩\n  intro k\n  cases k <;> simp [csdf_in]", 1)
+		if proved == src {
+			t.Fatal("the obligation no longer states initialisable_S as this control expects")
+		}
+		disabled := "\nexample (n m : Val) (h : csdf_frame0 n m) : n = m :=\n  csdf_map_ext n m (And.left h) (And.left (And.right h)) (fun k =>\n" +
+			"    ⟨⟨(And.right (And.right h) k trivial).1, fun hm => ((And.right (And.right h) k trivial).2 hm).1⟩,\n" +
+			"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)\n"
+		proved = strings.Replace(proved, "\nend Refinement_Obligation", disabled+"\nend Refinement_Obligation", 1)
+		out, err := runLean(t, leanDir, "builtins_model.lean", proved)
+		if err != nil {
+			t.Fatalf("lean rejected the model: %v\n%s\n--- source ---\n%s", err, out, proved)
+		}
+		if diags := unexpectedLeanDiagnostics(out); len(diags) > 0 {
+			t.Errorf("lean reported %v", diags)
+		}
+	})
+	t.Run("isabelle", func(t *testing.T) {
+		cspDir := requireEnv(t, proverIsabelle, envCSP)
+		src := o.isaSrc
+		for _, typ := range []string{"type_t", "type_m"} {
+			src = strings.Replace(src, "consts "+typ+" :: \"val \\<Rightarrow> bool\"", "definition "+typ+" :: \"val \\<Rightarrow> bool\"\n  where \""+typ+" v \\<equiv> True\"", 1)
+		}
+		proved := strings.Replace(src, isaStart, strings.TrimSuffix(isaStart, "oops")+
+			"apply (rule exI[of _ \"ValScalar (SRecord (SInt 0) [])\"], rule exI[of _ \"ValMap (\\<lambda>_. None)\"])\n"+
+			"  apply (auto simp: type_t_def type_m_def csdf_at_def csdf_state_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def split: val.splits)\n  done", 1)
+		if proved == src {
+			t.Fatal("the obligation no longer states initialisable_S as this control expects")
+		}
+		disabled := "lemma frame0_keeps: \"csdf_frame0 n m \\<Longrightarrow> n = m\"\n  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)\n\n"
+		i := strings.LastIndex(proved, "\nend\n")
+		proved = proved[:i] + "\n" + disabled + proved[i+1:]
+		if out, err := runIsabelle(t, cspDir, o, proved); err != nil {
+			t.Fatalf("isabelle rejected the model: %v\n%s\n--- source ---\n%s", err, out, proved)
+		}
+	})
+}

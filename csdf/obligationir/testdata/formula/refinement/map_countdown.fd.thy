@@ -2,12 +2,15 @@ theory Refinement_Obligation
   imports CSP_F.CSP_F
 begin
 
-datatype val = ValInt int
-  | ValString string
-  | ValBool bool
-  | ValArray "val list"
-  | ValDict "(string \<times> val) list"
-  | ValMap "(val \<times> val) list"
+datatype scalar = SInt int
+  | SString string
+  | SBool bool
+  | SArray "scalar list"
+  | SDict "(string \<times> scalar) list"
+  | SRecord scalar "(string \<times> scalar) list"
+
+datatype val = ValScalar scalar
+  | ValMap "scalar \<Rightarrow> scalar option"
 
 datatype alphabet = Ev_PUT val
   | HTau
@@ -51,19 +54,27 @@ consts type_m :: "val \<Rightarrow> bool"
 (* n *)
 consts type_n :: "val \<Rightarrow> bool"
 
-(* A map is a ValMap; the entry of a key is the first one holding it. *)
-fun csdf_lookup :: "(val \<times> val) list \<Rightarrow> val \<Rightarrow> val"
-  where "csdf_lookup [] k = ValBool False"
-  | "csdf_lookup ((j, v) # kvs) k = (if j = k then v else csdf_lookup kvs k)"
-
 definition csdf_is_map :: "val \<Rightarrow> bool"
-  where "csdf_is_map m \<equiv> (case m of ValMap kvs \<Rightarrow> True | _ \<Rightarrow> False)"
+  where "csdf_is_map m \<equiv> (case m of ValMap f \<Rightarrow> True | _ \<Rightarrow> False)"
 
 definition csdf_in :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "csdf_in k m \<equiv> (case m of ValMap kvs \<Rightarrow> k \<in> set (map fst kvs) | _ \<Rightarrow> False)"
+  where "csdf_in k m \<equiv> (case (k, m) of (ValScalar s, ValMap f) \<Rightarrow> f s \<noteq> None | _ \<Rightarrow> False)"
 
 definition csdf_index :: "val \<Rightarrow> val \<Rightarrow> val"
-  where "csdf_index m k \<equiv> (case m of ValMap kvs \<Rightarrow> csdf_lookup kvs k | _ \<Rightarrow> ValBool False)"
+  where "csdf_index m k \<equiv> (case (m, k) of (ValMap f, ValScalar s) \<Rightarrow> (case f s of Some v \<Rightarrow> ValScalar v | None \<Rightarrow> ValScalar (SBool False)) | _ \<Rightarrow> ValScalar (SBool False))"
+
+lemma csdf_map_ext:
+  assumes "csdf_is_map n" "csdf_is_map m"
+    and "\<forall>k. (csdf_in k n \<longleftrightarrow> csdf_in k m) \<and> (csdf_in k n \<longrightarrow> csdf_index n k = csdf_index m k)"
+  shows "n = m"
+proof -
+  obtain f g where nm: "n = ValMap f" "m = ValMap g"
+    using assms(1,2) by (cases n; cases m; simp add: csdf_is_map_def)
+  have "f s = g s" for s
+    using assms(3)[rule_format, of "ValScalar s"] nm
+    by (cases "f s"; cases "g s"; simp add: csdf_in_def csdf_index_def)
+  then show ?thesis using nm by (auto intro: ext)
+qed
 
 definition csdf_empty :: "val \<Rightarrow> bool"
   where "csdf_empty v_m \<equiv> csdf_is_map v_m \<and> (\<forall>(v_k::val). \<not> csdf_in v_k v_m)"

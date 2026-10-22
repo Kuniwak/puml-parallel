@@ -2,12 +2,15 @@ theory Refinement_Obligation
   imports CSP_F.CSP_F
 begin
 
-datatype val = ValInt int
-  | ValString string
-  | ValBool bool
-  | ValArray "val list"
-  | ValDict "(string \<times> val) list"
-  | ValMap "(val \<times> val) list"
+datatype scalar = SInt int
+  | SString string
+  | SBool bool
+  | SArray "scalar list"
+  | SDict "(string \<times> scalar) list"
+  | SRecord scalar "(string \<times> scalar) list"
+
+datatype val = ValScalar scalar
+  | ValMap "scalar \<Rightarrow> scalar option"
 
 datatype alphabet = Ev_inc val
   | Ev_show val
