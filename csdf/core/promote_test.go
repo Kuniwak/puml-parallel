@@ -67,6 +67,39 @@ func doorInstance(x string) *lts.LTS {
 	return handLTS(tr{0, "NEW." + x, 1}, tr{1, "OPENS." + x, 2}, tr{2, "SHUTS." + x, 1}, tr{1, "GONE." + x, 0})
 }
 
+// key: CUT creates it held, and LOST deletes it.
+func key() *Diagram {
+	return &Diagram{
+		States: []string{"none", "held"},
+		Init:   "none",
+		Edges: []Edge{
+			{Src: "none", Dst: "held", Event: ev("CUT")},
+			{Src: "held", Dst: "none", Event: ev("LOST")},
+		},
+	}
+}
+
+// fittedDoor is the door x by hand when INSTALL creates it together with a
+// key and SCRAP deletes it together with one: 0 is absent, 1 shut, 2 wide.
+func fittedDoor(x string) *lts.LTS {
+	l := handLTS(tr{1, "OPENS." + x, 2}, tr{2, "SHUTS." + x, 1})
+	for _, k := range shipIDs {
+		l.Add(0, "INSTALL."+x+"."+k, 1)
+		l.Add(1, "SCRAP."+x+"."+k, 0)
+	}
+	return l
+}
+
+// fittedKey is the key k by hand: 0 is absent, 1 held.
+func fittedKey(k string) *lts.LTS {
+	l := lts.New(0)
+	for _, x := range locIDs {
+		l.Add(0, "INSTALL."+x+"."+k, 1)
+		l.Add(1, "SCRAP."+x+"."+k, 0)
+	}
+	return l
+}
+
 var (
 	locIDs  = []string{"a", "b"}
 	shipIDs = []string{"s1"}
@@ -437,6 +470,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
 	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
 	doors := Family{Map: "doors", ID: "loc", Local: door()}
+	keys := Family{Map: "keys", ID: "s", Local: key()}
 	lamps := Family{Map: "lamps", ID: "l", Local: lamp()}
 	tanks := Family{Map: "tanks", ID: "k", Local: tank(t)}
 	gauges := Family{Map: "gauges", ID: "g", Local: gauge()}
@@ -461,6 +495,17 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b")}, []func(string) bool{mentions("a"), mentions("b")})
+			},
+		},
+		{
+			name: "a sync may take a creation and a deletion",
+			p: Promotion{State: "G", Families: []Family{doors, keys}, Syncs: []Sync{
+				{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}},
+				{Event: "SCRAP", Targets: []Target{{Map: "doors", ID: "loc", Event: "GONE"}, {Map: "keys", ID: "s", Event: "LOST"}}},
+			}},
+			env: func(t *testing.T) Env { return stock(t, doors, keys) },
+			want: func(*testing.T) *lts.LTS {
+				return lts.Parallel([]*lts.LTS{fittedDoor("a"), fittedDoor("b"), fittedKey("s1")}, []func(string) bool{mentions("a"), mentions("b"), mentions("s1")})
 			},
 		},
 		{
