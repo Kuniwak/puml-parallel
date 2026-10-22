@@ -203,7 +203,7 @@ func (r *promotionReader) noteLine(l string) error {
 		return r.constrain(l)
 	case strings.HasPrefix(l, "assume "):
 		if r.noteID == "" {
-			return fmt.Errorf("an assume note floats, an assumption being about the whole system")
+			return fmt.Errorf("an assume note must float: an assumption is about the whole system")
 		}
 		r.p.Assumes = append(r.p.Assumes, core.Assumption{ID: r.noteID, Text: strings.TrimSpace(strings.TrimPrefix(l, "assume "))})
 		return nil

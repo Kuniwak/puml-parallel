@@ -102,7 +102,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
 	for _, mode := range p.Modes {
-		out.Vars[mode] = maps
+		out.Vars[mode] = slices.Clone(maps)
 	}
 	out.InitPost = clause.And{Conjuncts: start}
 	if err := saysEmpty(p.InitPost, maps); err != nil {
@@ -114,7 +114,11 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
 		for _, mode := range p.Modes {
-			if !syncMovesIn(p, s, mode) {
+			moves, err := syncMovesIn(p, s, mode)
+			if err != nil {
+				return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			}
+			if !moves {
 				continue
 			}
 			edges, err := promoteSync(p, s, mode)
@@ -563,14 +567,19 @@ func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 	return out, nil
 }
 
-// syncMovesIn says whether every family s takes part of moves in mode.
-func syncMovesIn(p Promotion, s Sync, mode string) bool {
+// syncMovesIn says whether every family s takes part of moves in mode; a
+// target of no family is an error.
+func syncMovesIn(p Promotion, s Sync, mode string) (bool, error) {
 	for _, tg := range s.Targets {
-		if f, err := familyOf(p, tg.Map); err == nil && !f.movesIn(mode) {
-			return false
+		f, err := familyOf(p, tg.Map)
+		if err != nil {
+			return false, err
+		}
+		if !f.movesIn(mode) {
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
 }
 
 func familyOf(p Promotion, m string) (Family, error) {
