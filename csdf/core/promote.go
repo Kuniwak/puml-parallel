@@ -289,7 +289,7 @@ func saysEmpty(post clause.And, maps []string) error {
 				continue
 			}
 		}
-		return fmt.Errorf("the post of the global start edge says only @empty(m') of its maps, which start empty")
+		return fmt.Errorf("the post of the global start edge may say only @empty(m') of its maps, which start empty")
 	}
 	return nil
 }
