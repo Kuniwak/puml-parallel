@@ -396,3 +396,22 @@ func TestEqualTrees(t *testing.T) {
 		})
 	}
 }
+
+func TestRenameRenamesTheFreeVariablesOnly(t *testing.T) {
+	// Setup
+	n := mustNotation(t, logic.Connectives{And: " ∧ ", Or: " ∨ ", Not: "¬", Implies: " → ", Exists: "∃", Forall: "∀", True: "true", False: "false"})
+	x, y := logic.Var("x"), logic.Var("y")
+	f := logic.And(
+		logic.Pred("p", true, logic.Index(x, y)),
+		logic.Exists([]logic.Var{x}, logic.Eq(x, y)),
+		logic.Not(logic.Eq(logic.Field(y, "f"), logic.Apply("g", x))))
+
+	// Execute
+	got := logic.Rename(f, map[logic.Var]logic.Var{x: "x@1", y: "y@2"})
+
+	// Assert
+	want := `"p"(x@1[y@2]) ∧ (∃x. x = y@2) ∧ ¬(y@2.f = g(x@1))`
+	if diff := cmp.Diff(want, n.Spell(got)); diff != "" {
+		t.Error(diff)
+	}
+}
