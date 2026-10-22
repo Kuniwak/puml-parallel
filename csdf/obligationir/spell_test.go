@@ -142,7 +142,7 @@ func TestTheIdentifiersOfTwoKindsNeverMeet(t *testing.T) {
 		"state":    func(s string) string { return obligationir.FunctionName(obligation.StatePrefix + "." + s) },
 		"family":   func(s string) string { return obligationir.FunctionName(obligation.StatePrefix + "m." + s) },
 	}
-	builtins := []string{obligationir.IndexSymbol, obligation.PredIn, obligation.PredEmpty, obligation.PredUpdate, obligation.PredAt, "csdf_frame1", obligationir.AxiomName(1)}
+	builtins := []string{obligationir.IndexSymbol, obligation.PredIn, obligation.PredEmpty, obligation.PredUpdate, obligation.PredAt, "csdf_frame1", obligationir.LemmaName(1)}
 	seen := map[string]string{}
 	for _, b := range builtins {
 		seen[b] = "builtin " + b

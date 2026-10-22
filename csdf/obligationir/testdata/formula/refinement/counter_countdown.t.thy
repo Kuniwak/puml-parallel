@@ -7,6 +7,7 @@ datatype val = ValInt int
   | ValBool bool
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
+  | ValMap "(val \<times> val) list"
 
 datatype alphabet = Ev_inc val
   | Ev_show val
@@ -76,13 +77,13 @@ definition ImplProc :: "(PN, event) proc"
 
 (* Spec admits an initial valuation, so it does not denote DIV, which
    diverges on the empty trace and, as the Impl, would make the refinement
-   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
+   vacuous. Stated under no hypothesis: it must not rest on an assumption. *)
 theorem initialisable_S: "\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u)"
   oops
 
 (* Impl admits an initial valuation, so it does not denote DIV, which
    diverges on the empty trace and, as the Impl, would make the refinement
-   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
+   vacuous. Stated under no hypothesis: it must not rest on an assumption. *)
 theorem initialisable_I: "\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u)"
   oops
 

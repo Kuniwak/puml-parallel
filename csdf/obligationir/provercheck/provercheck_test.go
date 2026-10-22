@@ -150,12 +150,13 @@ func obligations(t *testing.T) []obligation {
 	)
 	return []obligation{
 		livelockObligation(t, "livelock_countdown", countdown),
-		livelockObligation(t, "livelock_maps_and_axioms", maps),
+		livelockObligation(t, "livelock_maps_and_lemmas", maps),
+		livelockObligation(t, "livelock_every_builtin", "../testdata/formula/builtins.puml"),
 		livelockObligation(t, "livelock_hostile_names", hostileSpec),
 		refinementObligation(t, "refinement_ground_f", obligationir.IRRefinementModeStableFailure, groundSpec, groundImpl),
 		refinementObligation(t, "refinement_values_t", obligationir.IRRefinementModeTrace, counter, countdown),
 		refinementObligation(t, "refinement_values_f", obligationir.IRRefinementModeStableFailure, counter, counter),
-		refinementObligation(t, "refinement_axioms_fd", obligationir.IRRefinementModeFailuresDivergence, maps, countdown),
+		refinementObligation(t, "refinement_lemmas_fd", obligationir.IRRefinementModeFailuresDivergence, maps, countdown),
 		refinementObligation(t, "refinement_hostile_t", obligationir.IRRefinementModeTrace, hostileSpec, hostileImpl),
 		refinementObligation(t, "refinement_hostile_f", obligationir.IRRefinementModeStableFailure, hostileSpec, hostileImpl),
 		refinementObligation(t, "refinement_hostile_fd", obligationir.IRRefinementModeFailuresDivergence, hostileSpec, hostileImpl),

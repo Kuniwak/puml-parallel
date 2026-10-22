@@ -260,7 +260,7 @@ The output format is chosen with `-target`:
 
 ```console
 $ csdflivelockfree examples/valid/vending_machine.puml
-{"structurally":true,"states":[...],"init":"vmIdle","init_post":{...},"edges":[...],"lemmas":[],"assumptions":[]}
+{"structurally":true,"states":[...],"init":"vmIdle","init_post":{...},"edges":[...],"ends":[],"lemmas":[],"assumptions":[]}
 $ csdflivelockfree -target lean examples/valid/vending_machine.puml
 $ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
 $ csdfparallel a.puml b.puml | csdflivelockfree -
@@ -270,8 +270,8 @@ $ csdfpromote examples/promote/TRADES.puml | csdflivelockfree -target lean -
 The JSON IR lists the states with their variables, the start state and the post of the
 start edge, and each edge with the fields its event receives and its guard and post as
 one formula: the syntax tree of the formula of logic the clauses state (`step`), whose
-atoms, builtins and quantifiers are those of the clauses. `axioms` are what the `csdf_*`
-predicates the builtins become mean, for those the clauses use. `structurally` is `true`
+atoms, builtins and quantifiers are those of the clauses. `lemmas` are what the `csdf_*`
+predicates the builtins become mean, for those the clauses use; the skeletons prove them. `structurally` is `true`
 when no reachable `tau` cycle exists, in which case the obligation holds whatever the
 clauses say. Options precede the file; a file argument, a `-` argument, and stdin are all
 equivalent.
@@ -308,14 +308,23 @@ from its type. The atoms, functions and types are the environment: each is decla
 `opaque` in Lean, `consts` in Isabelle — under a `TODO(csdf)` marker and a comment carrying
 the text it was named by, for a human or LLM to define and then discharge the proof.
 Nothing is defined as True on the diagram's behalf, because that is not a placeholder but a
-different diagram, one where every guard holds. What the `csdf_*` predicates mean is stated
-as definitions `csdf_axiom_<i>`, and the theorem is stated under them. An assume note of the
+different diagram, one where every guard holds.
+
+The builtins are no assumption: each is defined, and what it means is proved. A map is a
+`ValMap` of the value type, a list of its entries, the entry of a key the first one holding
+it, and no other value is a map (`csdf_is_map`); `csdf_in` and `csdf_index` read it, and
+`csdf_empty`, `csdf_update` and each `csdf_frame<n>` are defined as their maps being maps
+and their meaning holding. `csdf_at` is that the state of an instance — `csdf_state`,
+uninterpreted — is the state constant, each a number of its own. What the builtins mean is
+then a lemma `csdf_lemma_<i>`, proved in the file from the definitions (`auto` in Isabelle, a
+projection of the definition in Lean), which the prover checks: no theorem rests on an axiom,
+so none holds by a contradiction among axioms. An assume note of the
 diagram (see [SYNTAX.md](./docs/SYNTAX.md)) — what it assumes of its runs as a whole, such as
 "a transaction whose fee keeps being raised is eventually confirmed", which no guard can
 state — is listed under `assumptions` in the IR and becomes an uninterpreted proposition
-`assume_<id>` in the skeletons, under which the theorem is stated too: `theorem
-livelock_free (h_csdf_axiom_1 : csdf_axiom_1) (h_assume_fair : assume_fair) : …` in Lean,
-`assumes "csdf_axiom_1" and "assume_fair" shows …` in Isabelle. That is where a fairness
+`assume_<id>` in the skeletons, under which the theorem is stated: `theorem
+livelock_free (h_assume_fair : assume_fair) : …` in Lean, `assumes "assume_fair" shows …` in
+Isabelle. That is where a fairness
 assumption belongs: a `constrain` would refuse the step, which is a different system.
 
 The obligations checked in as `examples/Livelock_Obligation.{lean,thy}` were filled in by
@@ -645,8 +654,9 @@ diagrams, under a `TODO(csdf)` marker, so formalising it once serves every oblig
 appears in. Defining it as `True` instead would not be a placeholder but a different
 diagram, one in which every guard holds, so the theorem could be discharged for diagrams
 that do not refine one another; treat an artifact that still carries a `TODO(csdf)` marker
-as undischarged. The refinement is stated under the axioms of the `csdf_*` predicates
-(`csdf_axiom_<i>`) alone, and so is `initialisable_S`/`_I`, stated in every model: of the
+as undischarged. The builtins are defined and what they mean proved, as for
+`csdflivelockfree`. The refinement is stated under no hypothesis, and so is
+`initialisable_S`/`_I`, stated in every model: of the
 Impl it is what keeps the refinement from holding vacuously, since an Impl that cannot
 start is `DIV`, and it must not rest on what the Impl assumes; of the Spec it is a sanity
 check, which may fail to prove when the Spec can start only under its assumptions — that
@@ -664,7 +674,7 @@ divergence-freedom obligation per side — the `csdflivelockfree` obligation inl
 initialisability obligation of each side, since `DIV` diverges on the empty trace and no
 `tau`-step argument rules that out, plus the stable-failures refinement. A side that is structurally livelock
 free gets a note instead of the `wf_on` theorem. The divergence-freedom obligations are
-stated under the axioms and that side's assumptions. Requiring both of the *Spec* is stronger
+stated under that side's assumptions. Requiring both of the *Spec* is stronger
 than FD refinement needs — `DIV` is the bottom of the FD model, so `Spec ⊑FD Impl` holds
 even for a diverging Spec — but `<=F` cannot see that, so `-m fd` cannot decide a
 refinement whose Spec side diverges.

@@ -7,6 +7,7 @@ datatype val = ValInt int
   | ValBool bool
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
+  | ValMap "(val \<times> val) list"
 
 datatype st = St_a val (* a (n) *)
 

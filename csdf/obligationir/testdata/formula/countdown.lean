@@ -4,6 +4,7 @@ inductive Val where
   | ValBool (b : Bool)
   | ValArray (xs : List Val)
   | ValDict (kvs : List (String × Val))
+  | ValMap (kvs : List (Val × Val))
 
 instance : Inhabited Val := ⟨.ValBool false⟩
 

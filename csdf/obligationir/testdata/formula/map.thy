@@ -7,6 +7,7 @@ datatype val = ValInt int
   | ValBool bool
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
+  | ValMap "(val \<times> val) list"
 
 datatype st = St_s val (* s (m) *)
 
@@ -26,19 +27,31 @@ consts type_k :: "val \<Rightarrow> bool"
 (* m *)
 consts type_m :: "val \<Rightarrow> bool"
 
-consts csdf_index :: "val \<Rightarrow> val \<Rightarrow> val"
+(* A map is a ValMap; the entry of a key is the first one holding it. *)
+fun csdf_lookup :: "(val \<times> val) list \<Rightarrow> val \<Rightarrow> val"
+  where "csdf_lookup [] k = ValBool False"
+  | "csdf_lookup ((j, v) # kvs) k = (if j = k then v else csdf_lookup kvs k)"
 
-consts csdf_empty :: "val \<Rightarrow> bool"
+definition csdf_is_map :: "val \<Rightarrow> bool"
+  where "csdf_is_map m \<equiv> (case m of ValMap kvs \<Rightarrow> True | _ \<Rightarrow> False)"
 
-consts csdf_frame1 :: "val \<Rightarrow> val \<Rightarrow> val \<Rightarrow> bool"
+definition csdf_in :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "csdf_in k m \<equiv> (case m of ValMap kvs \<Rightarrow> k \<in> set (map fst kvs) | _ \<Rightarrow> False)"
 
-consts csdf_in :: "val \<Rightarrow> val \<Rightarrow> bool"
+definition csdf_index :: "val \<Rightarrow> val \<Rightarrow> val"
+  where "csdf_index m k \<equiv> (case m of ValMap kvs \<Rightarrow> csdf_lookup kvs k | _ \<Rightarrow> ValBool False)"
 
-definition csdf_axiom_1 :: bool
-  where "csdf_axiom_1 \<equiv> \<forall>(v_m::val) (v_k::val). csdf_empty v_m \<longrightarrow> (\<not> csdf_in v_k v_m)"
+definition csdf_empty :: "val \<Rightarrow> bool"
+  where "csdf_empty v_m \<equiv> csdf_is_map v_m \<and> (\<forall>(v_k::val). \<not> csdf_in v_k v_m)"
 
-definition csdf_axiom_2 :: bool
-  where "csdf_axiom_2 \<equiv> \<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n v_m v_k1 \<longrightarrow> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
+definition csdf_frame1 :: "val \<Rightarrow> val \<Rightarrow> val \<Rightarrow> bool"
+  where "csdf_frame1 v_n v_m v_k1 \<equiv> csdf_is_map v_n \<and> csdf_is_map v_m \<and> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
+
+lemma csdf_lemma_1: "\<forall>(v_m::val) (v_k::val). csdf_empty v_m \<longrightarrow> (\<not> csdf_in v_k v_m)"
+  by (auto simp: csdf_empty_def csdf_frame1_def)
+
+lemma csdf_lemma_2: "\<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n v_m v_k1 \<longrightarrow> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
+  by (auto simp: csdf_empty_def csdf_frame1_def)
 
 (* TODO(csdf): not formalised; this assumption is uninterpreted. *)
 (* PUT は無限に起きない *)
@@ -58,7 +71,7 @@ definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
   where "tau_step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
 
 theorem livelock_free:
-  assumes "csdf_axiom_1" and "csdf_axiom_2" and "assume_fair"
+  assumes "assume_fair"
   shows "wf_on {s. reachable s} {(s', s). tau_step s s'}"
   oops
 

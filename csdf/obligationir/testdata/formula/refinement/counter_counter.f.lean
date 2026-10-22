@@ -18,6 +18,7 @@ inductive Val where
   | ValBool (b : Bool)
   | ValArray (xs : List Val)
   | ValDict (kvs : List (String × Val))
+  | ValMap (kvs : List (Val × Val))
 deriving Inhabited
 
 inductive alphabet where
@@ -105,13 +106,13 @@ def ImplProc : proc PN event :=
 
 -- Spec admits an initial valuation, so it does not denote DIV, which diverges on
 -- the empty trace and, as the Impl, would make the refinement vacuous. Stated
--- under the axioms alone: it must not rest on an assumption.
+-- under no hypothesis: it must not rest on an assumption.
 theorem initialisable_S : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u) := by
   sorry
 
 -- Impl admits an initial valuation, so it does not denote DIV, which diverges on
 -- the empty trace and, as the Impl, would make the refinement vacuous. Stated
--- under the axioms alone: it must not rest on an assumption.
+-- under no hypothesis: it must not rest on an assumption.
 theorem initialisable_I : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u) := by
   sorry
 

@@ -44,8 +44,9 @@ TODO(csdf) marker and a comment carrying the text it was named by. A state
 variable and a received field are of the type named like them, the convention
 until they carry types of their own. Nothing is ever defined as True on the
 diagram's behalf, because that is not a placeholder but a different diagram.
-What the csdf_* predicates mean is stated as csdf_axiom_<i>, hypotheses of the
-theorem. The theorem states well-foundedness of the tau relation restricted to
+The builtins are defined, a map being a ValMap of the value type, and what the
+csdf_* predicates mean is proved from the definitions as csdf_lemma_<i>, so the
+theorem rests on no axiom. The theorem states well-foundedness of the tau relation restricted to
 the states reachable from init via the step relation, so that valuations the
 diagram can never enter cannot falsify it. Formalising the environment and
 discharging the theorem is left to a human or LLM; treat an artifact that still

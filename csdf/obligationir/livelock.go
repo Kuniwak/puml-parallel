@@ -37,7 +37,8 @@ type LivelockFree struct {
 	// obligation reads none of them; a refinement does.
 	Ends []End `json:"ends"`
 	// Lemmas are what the csdf_* predicates of the clauses mean
-	// (obligation.Lemmas), for a back end to state.
+	// (obligation.Lemmas). A back end defines the builtins and proves them,
+	// so no theorem rests on them as hypotheses.
 	Lemmas []logic.Tree `json:"lemmas"`
 	// Assumptions are the diagram's assume notes, hypotheses of the theorem
 	// like the axioms. Never null, only empty.

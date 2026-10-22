@@ -14,16 +14,16 @@ import (
 
 var (
 	theoremName = regexp.MustCompile(`(?m)^theorem (\w+)`)
-	// axiomName is the definition of an axiom as each back end spells it:
-	// Isabelle's definition csdf_axiom_i :: bool, Lean's def csdf_axiom_i : Prop :=.
-	axiomName  = regexp.MustCompile(`(?m)^(?:definition (csdf_axiom_\d+) :: bool|def (csdf_axiom_\d+) : Prop :=)$`)
+	// lemmaName is a lemma of the builtins, proved, as each back end spells it.
+	lemmaName  = regexp.MustCompile(`(?m)^(?:lemma|theorem) (csdf_lemma_\d+)\b`)
 	identifier = regexp.MustCompile(`\w+`)
 )
 
 // theorems maps each theorem of out to the hypotheses its statement names:
 // the axioms and the assumptions, read as whole identifiers. A statement is
-// ended by Isabelle's oops or Lean's := by; one ended by neither fails t, as
-// the hypotheses read after it would be another's.
+// ended by Isabelle's oops or Lean's :=; one ended by neither fails t, as
+// the hypotheses read after it would be another's. The lemmas of the builtins
+// are proved, not obligations, and are left out.
 func theorems(t *testing.T, out string) map[string][]string {
 	t.Helper()
 	ts := map[string][]string{}
@@ -36,7 +36,7 @@ func theorems(t *testing.T, out string) map[string][]string {
 		stmt := out[loc[0]:end]
 		if k := strings.Index(stmt, "\n  oops"); k >= 0 {
 			stmt = stmt[:k]
-		} else if k := strings.Index(stmt, ":= by"); k >= 0 {
+		} else if k := strings.Index(stmt, ":="); k >= 0 {
 			stmt = stmt[:k]
 		} else {
 			t.Fatalf("the theorem %s ends neither by oops nor by := by: %s", out[loc[2]:loc[3]], stmt)
@@ -48,7 +48,9 @@ func theorems(t *testing.T, out string) map[string][]string {
 			}
 		}
 		slices.Sort(hs)
-		ts[out[loc[2]:loc[3]]] = hs
+		if name := out[loc[2]:loc[3]]; !strings.HasPrefix(name, obligationir.LemmaPrefix) {
+			ts[name] = hs
+		}
 	}
 	return ts
 }
@@ -63,16 +65,17 @@ func theorems(t *testing.T, out string) map[string][]string {
 // own side's assumptions, and the FD conclusion is conditional on them.
 func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
 	const fair, steady = "assume_fair_S", "assume_steady_I"
-	// want are the theorems of a model; nil stands for the axioms alone.
+	// want are the theorems of a model and the assumptions each takes; no
+	// theorem takes an axiom, the builtins being defined.
 	want := map[obligationir.IRRefinementMode]map[string][]string{
 		obligationir.IRRefinementModeTrace: {
-			"refines_t": nil, "initialisable_S": nil, "initialisable_I": nil,
+			"refines_t": {}, "initialisable_S": {}, "initialisable_I": {},
 		},
 		obligationir.IRRefinementModeStableFailure: {
-			"refines_f": nil, "initialisable_S": nil, "initialisable_I": nil,
+			"refines_f": {}, "initialisable_S": {}, "initialisable_I": {},
 		},
 		obligationir.IRRefinementModeFailuresDivergence: {
-			"refines_f": nil, "initialisable_S": nil, "initialisable_I": nil,
+			"refines_f": {}, "initialisable_S": {}, "initialisable_I": {},
 			"livelock_free_S": {fair}, "livelock_free_I": {steady},
 		},
 	}
@@ -91,18 +94,9 @@ func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				var axioms []string
-				for _, m := range axiomName.FindAllStringSubmatch(sb.String(), -1) {
-					axioms = append(axioms, m[1]+m[2])
-				}
-				if len(axioms) == 0 {
-					t.Fatal("no axiom, so the test would pin nothing of them")
-				}
 				expected := map[string][]string{}
 				for name, own := range ts {
-					hs := slices.Concat(axioms, own)
-					slices.Sort(hs)
-					expected[name] = hs
+					expected[name] = append([]string{}, own...)
 				}
 				if diff := cmp.Diff(expected, theorems(t, sb.String())); diff != "" {
 					t.Error(diff)
@@ -128,5 +122,34 @@ func TestTheLeanRefinementSilencesTheNamingLinter(t *testing.T) {
 	}
 	if !strings.Contains(sb.String(), "\nset_option linter.style.nameCheck false\n") {
 		t.Errorf("no set_option linter.style.nameCheck false in\n%s", sb.String())
+	}
+}
+
+// TestTheBuiltinsAreDefinedAndTheirMeaningProved pins that an obligation
+// reading the map builtins defines them and states what they mean as lemmas,
+// with a proof, and as no axiom.
+func TestTheBuiltinsAreDefinedAndTheirMeaningProved(t *testing.T) {
+	for _, backEnd := range []target.Name{target.NameIsabelle, target.NameLean} {
+		t.Run(string(backEnd), func(t *testing.T) {
+			// Setup
+			var sb strings.Builder
+
+			// Execute
+			err := target.CompileDiagram(&sb, load(t, "map"), backEnd)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			out := sb.String()
+			if n := len(lemmaName.FindAllString(out, -1)); n != 2 {
+				t.Errorf("%d lemmas, want the 2 of @empty and @frame", n)
+			}
+			for _, banned := range []string{"csdf_axiom", "axiom ", "sorry\n\ntheorem csdf_lemma", "consts csdf_in", "opaque csdf_in"} {
+				if strings.Contains(out, banned) {
+					t.Errorf("the obligation holds %q:\n%s", banned, out)
+				}
+			}
+		})
 	}
 }

@@ -74,7 +74,7 @@ func TestARefinementRefusesAChannelOfTwoArities(t *testing.T) {
 	}
 }
 
-func TestARefinementStatesAnAxiomBothSidesNeedOnce(t *testing.T) {
+func TestARefinementProvesALemmaBothSidesNeedOnce(t *testing.T) {
 	// Setup: both sides start from an empty map.
 	src := "@startuml\nstate \"a\" as a\na : m\n[*] --> a : @empty(m')\n@enduml\n"
 	var sb strings.Builder
@@ -86,7 +86,7 @@ func TestARefinementStatesAnAxiomBothSidesNeedOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := strings.Count(sb.String(), "definition csdf_axiom_"); n != 1 {
-		t.Errorf("%d axioms, want the one of @empty once\n%s", n, sb.String())
+	if n := strings.Count(sb.String(), "lemma csdf_lemma_"); n != 1 {
+		t.Errorf("%d lemmas, want the one of @empty once\n%s", n, sb.String())
 	}
 }

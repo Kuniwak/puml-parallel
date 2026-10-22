@@ -67,8 +67,10 @@ deriving Inhabited
 		return "", err
 	}
 	writeSymbols(&w, ds)
-	axioms, err := writeAxioms(&w, r.Lemmas())
-	if err != nil {
+	if err := WriteBuiltins(&w, obligationir.BuiltinsOf(ds)); err != nil {
+		return "", err
+	}
+	if err := WriteLemmas(&w, r.Lemmas()); err != nil {
 		return "", err
 	}
 	sides := sidesOf(r)
@@ -90,14 +92,14 @@ deriving Inhabited
 		}
 	}
 	for _, s := range sides {
-		if err := writeSideLemmas(&w, s, r.Mode, axioms); err != nil {
+		if err := writeSideLemmas(&w, s, r.Mode); err != nil {
 			return "", err
 		}
 	}
-	// The refinement is stated under the axioms alone: an assumption of the
+	// The refinement is stated under no hypothesis: an assumption of the
 	// impl could make it hold vacuously, and one of the spec, of liveness, is
 	// no claim traces or stable failures can state (docs/CLAUSE_DESIGN.md).
-	WriteRefinementTheorem(&w, r.Mode, axioms)
+	WriteRefinementTheorem(&w, r.Mode, nil)
 	fmt.Fprintf(&w, "\n\nend %s\n\nend\n", Namespace)
 	return w.String(), nil
 }
@@ -254,15 +256,15 @@ func writeProc(w io.Writer, s side) error {
 }
 
 // writeSideLemmas writes the lemmas of a side. That it can start at all is
-// stated under the axioms alone, since it must not rest on what the side
+// stated under no hypothesis, since it must not rest on what the side
 // assumes of its runs: of the impl it is what keeps the refinement from
 // holding vacuously, as an impl that cannot start is DIV; of the spec it is
 // a sanity check. In FD, that no reachable state starts an infinite run of
-// tau steps is stated under the axioms and the side's own assumptions, so
+// tau steps is stated under the side's own assumptions, so
 // the FD conclusion is conditional on them; with the first it licenses
 // reading the F refinement as FD refinement.
-func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, axioms []string) error {
-	assumed := append(append([]string{}, axioms...), AssumptionNames(s.names, s.ir.Assumptions)...)
+func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode) error {
+	assumed := AssumptionNames(s.names, s.ir.Assumptions)
 	if mode == obligationir.IRRefinementModeFailuresDivergence && s.ir.Structurally {
 		fmt.Fprintf(w, "-- %s is livelock free structurally: no reachable tau-cycle.\n\n", s.label)
 	} else if mode == obligationir.IRRefinementModeFailuresDivergence {
@@ -282,9 +284,9 @@ func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, ax
 	}
 	fmt.Fprintf(w, `-- %s admits an initial valuation, so it does not denote DIV, which diverges on
 -- the empty trace and, as the Impl, would make the refinement vacuous. Stated
--- under the axioms alone: it must not rest on an assumption.
+-- under no hypothesis: it must not rest on an assumption.
 theorem %s`, s.label, s.names.Qualify("initialisable"))
-	WriteHypotheses(w, axioms)
+	WriteHypotheses(w, nil)
 	fmt.Fprintf(w, " : %s := by\n  sorry\n\n", body)
 	return nil
 }

@@ -199,13 +199,28 @@ narrows none: the expansion carries it, and the analyses that take
 hypotheses read it. A local diagram has none, an assumption being about the
 whole system.
 
+No obligation rests on an axiom. A set of axioms can contradict itself, and
+an obligation under a contradiction holds of every diagram (ex falso), so
+the builtins are defined in a model instead and what they mean is proved
+there, as lemmas a prover checks. The model tells a map from every other
+value: the value type has a constructor of its own for a map, a list of its
+entries (ValMap), whose entry of a key is the first one holding it, and
+csdf_is_map holds of a value just when it is one. csdf_in and csdf_index
+read it; @empty, @update and @frame are defined as their maps being maps and
+their meaning holding (obligation.EmptyMeaning and the like), so each lemma
+follows from its definition by projection; @at is that the state of an
+instance, uninterpreted, is the state constant, each state constant a number
+of its own, so an instance is at one state at a time. A map that is a list
+tells two lists of the same entries apart, which no builtin reads: every one
+reads a map through csdf_in and csdf_index alone.
+
 Which hypotheses an obligation takes is part of what it claims. A
-refinement is stated under the axioms of the builtins alone, never under an
-assumption of either side: an assumption of the impl could make it hold
+refinement is stated under no hypothesis, never under an assumption of
+either side: an assumption of the impl could make it hold
 vacuously (an impl assumed never to run refines anything), and an
 assumption of the spec is typically a liveness assumption, which no trace
 and no stable failure can state, so it would license a claim the model does
-not make. That a side can start is stated under the axioms alone too: of
+not make. That a side can start is stated under no hypothesis too: of
 the impl it is what keeps the refinement from holding vacuously, an impl
 that cannot start being DIV, and it must not rest on what the impl assumes
 of its runs; of the spec it is a sanity check, and may fail to prove when

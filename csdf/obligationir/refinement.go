@@ -146,7 +146,7 @@ func (r Refinement) Declarations(todo string) ([]Declaration, error) {
 	return declarations(syms, todo), nil
 }
 
-// Lemmas are what the builtins of either side mean, each once.
+// Lemmas are the lemmas of either side, each once.
 func (r Refinement) Lemmas() []logic.Tree {
 	var out []logic.Tree
 	for _, a := range slices.Concat(r.Spec.Lemmas, r.Impl.Lemmas) {

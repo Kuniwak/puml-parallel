@@ -18,6 +18,7 @@ inductive Val where
   | ValBool (b : Bool)
   | ValArray (xs : List Val)
   | ValDict (kvs : List (String × Val))
+  | ValMap (kvs : List (Val × Val))
 deriving Inhabited
 
 inductive alphabet where
@@ -65,19 +66,38 @@ opaque type_m : Val → Prop
 -- n
 opaque type_n : Val → Prop
 
-opaque csdf_index : Val → Val → Val
+-- A map is a ValMap; the entry of a key is the first one holding it.
+open Classical in
+noncomputable def csdf_lookup : List (Val × Val) → Val → Val
+  | [], _ => .ValBool false
+  | (j, v) :: kvs, k => if j = k then v else csdf_lookup kvs k
 
-opaque csdf_empty : Val → Prop
+def csdf_is_map (m : Val) : Prop :=
+  match m with
+  | .ValMap _ => True
+  | _ => False
 
-opaque csdf_frame1 : Val → Val → Val → Prop
+def csdf_in (k m : Val) : Prop :=
+  match m with
+  | .ValMap kvs => k ∈ kvs.map Prod.fst
+  | _ => False
 
-opaque csdf_in : Val → Val → Prop
+noncomputable def csdf_index (m k : Val) : Val :=
+  match m with
+  | .ValMap kvs => csdf_lookup kvs k
+  | _ => .ValBool false
 
-def csdf_axiom_1 : Prop :=
-  ∀ (v_m : Val) (v_k : Val), csdf_empty v_m → (¬csdf_in v_k v_m)
+def csdf_empty (v_m : Val) : Prop :=
+  csdf_is_map v_m ∧ (∀ (v_k : Val), ¬csdf_in v_k v_m)
 
-def csdf_axiom_2 : Prop :=
-  ∀ (v_n : Val) (v_m : Val) (v_k1 : Val), csdf_frame1 v_n v_m v_k1 → (∀ (v_j : Val), (¬(v_j = v_k1)) → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j))))
+def csdf_frame1 (v_n v_m v_k1 : Val) : Prop :=
+  csdf_is_map v_n ∧ csdf_is_map v_m ∧ (∀ (v_j : Val), (¬(v_j = v_k1)) → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j))))
+
+theorem csdf_lemma_1 : ∀ (v_m : Val) (v_k : Val), csdf_empty v_m → (¬csdf_in v_k v_m) :=
+  fun _ k h => And.right h k
+
+theorem csdf_lemma_2 : ∀ (v_n : Val) (v_m : Val) (v_k1 : Val), csdf_frame1 v_n v_m v_k1 → (∀ (v_j : Val), (¬(v_j = v_k1)) → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j)))) :=
+  fun _ _ _ h => And.right (And.right h)
 
 -- TODO(csdf): not formalised; this assumption is uninterpreted.
 -- PUT は無限に起きない
@@ -136,14 +156,14 @@ inductive Reachable_S : St_S → Prop where
 def tauStep_S (s s' : St_S) : Prop :=
   (∃ (v_m : Val) (v_m_u27u : Val), s = .St_S_s v_m ∧ s' = .St_S_s v_m_u27u ∧ type_m v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m))
 
-theorem livelock_free_S (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) (h_assume_fair_S : assume_fair_S) :
+theorem livelock_free_S (h_assume_fair_S : assume_fair_S) :
     WellFounded (fun s' s => Reachable_S s ∧ tauStep_S s s') := by
   sorry
 
 -- Spec admits an initial valuation, so it does not denote DIV, which diverges on
 -- the empty trace and, as the Impl, would make the refinement vacuous. Stated
--- under the axioms alone: it must not rest on an assumption.
-theorem initialisable_S (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) : ∃ (v_m_u27u : Val), type_m v_m_u27u ∧ (csdf_empty v_m_u27u) := by
+-- under no hypothesis: it must not rest on an assumption.
+theorem initialisable_S : ∃ (v_m_u27u : Val), type_m v_m_u27u ∧ (csdf_empty v_m_u27u) := by
   sorry
 
 inductive St_I where
@@ -162,14 +182,14 @@ inductive Reachable_I : St_I → Prop where
 def tauStep_I (s s' : St_I) : Prop :=
   (∃ (v_n : Val) (v_n_u27u : Val), s = .St_I_a v_n ∧ s' = .St_I_a v_n_u27u ∧ type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3eu_u20u0 v_n ∧ atom__u24u__0_u20u_u3du_u20u_u24u__1_u20u_u2du_u20u1 v_n_u27u v_n))
 
-theorem livelock_free_I (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) :
+theorem livelock_free_I :
     WellFounded (fun s' s => Reachable_I s ∧ tauStep_I s s') := by
   sorry
 
 -- Impl admits an initial valuation, so it does not denote DIV, which diverges on
 -- the empty trace and, as the Impl, would make the refinement vacuous. Stated
--- under the axioms alone: it must not rest on an assumption.
-theorem initialisable_I (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u) := by
+-- under no hypothesis: it must not rest on an assumption.
+theorem initialisable_I : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u) := by
   sorry
 
 -- lean-csp-prover has no FD model, so this is the standard reduction: for
@@ -180,7 +200,7 @@ theorem initialisable_I (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_a
 -- Every stable failure of the Impl diagram is one of the Spec diagram: refF
 -- P1 M1 M2 P2 unfolds to semFf P2 M2 <= semFf P1 M1, and it subsumes trace
 -- inclusion.
-theorem refines_f (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) : refFfix SpecProc ImplProc := by
+theorem refines_f : refFfix SpecProc ImplProc := by
   sorry
 
 end Refinement_Obligation
