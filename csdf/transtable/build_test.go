@@ -110,6 +110,14 @@ func TestBuild(t *testing.T) {
 				"s2 a": {"×"},
 			},
 		},
+		"edges of one shape are one column, each field named as the column names it": {
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : a?k ; $k > 0\ns0 --> s2 : a?j ; $j < 0\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want: map[string][]string{
+				"s0 a?k": {`["$_0 > 0"(k)] → s1`, `["$_0 < 0"(k)] → s2`, `[¬"$_0 > 0"(k) ∧ ¬"$_0 < 0"(k)] ×`},
+				"s1 a?k": {"×"}, "s2 a?k": {"×"},
+			},
+		},
 		"an end edge is a column of termination": {
 			Diagram: "@startuml\nstate \"S0\" as s0\n[*] --> s0\ns0 --> [*] : done\n@enduml\n",
 			Want:    map[string][]string{"s0 [*]": {`["done"] → [*]`, `[¬"done"] ×`}},

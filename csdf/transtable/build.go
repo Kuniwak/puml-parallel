@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
@@ -30,8 +31,10 @@ type Column interface {
 	isColumn()
 }
 
-// EventColumn is the column of an event the environment may offer. Its
-// header is the event's label (core.Event.Label), which is what the event is.
+// EventColumn is the column of an event the environment may offer: of every
+// edge of one shape (core.Event.SameShape), whatever it names its fields.
+// Its header is the label of the first of them (core.Event.Label), and the
+// fields are named as it names them.
 type EventColumn struct{ Event string }
 
 // TerminationColumn is the column of successful termination, which an end
@@ -227,19 +230,30 @@ func (ix index) takes(u string, c Column) []take {
 		}
 		return ts
 	}
+	col, _ := core.ParseEvent(ec.Event) // the header is the label of an event
 	var ts []take
 	for _, i := range ix.out(u) {
 		e := ix.d.Edges[i]
-		if e.Event.Channel == core.Tau || e.Event.Label() != ec.Event {
+		if e.Event.Channel == core.Tau || !e.Event.SameShape(col) {
 			continue
 		}
-		guard := func(k int) (logic.Formula, error) {
-			f, err := clauseFormula(e.Guard)
+		// What the edge's clauses read of its event, named as the column
+		// names it, before the values of the steps before.
+		named := func(f clause.And, k int) (logic.Formula, error) {
+			m, err := ix.asColumn(e, col)
 			if err != nil {
 				return nil, err
 			}
-			return logic.Rename(f, ix.before(u, k)), nil
+			g, err := clauseFormula(f)
+			if err != nil {
+				return nil, err
+			}
+			for v, w := range ix.before(u, k) {
+				m[v] = w
+			}
+			return logic.Rename(g, m), nil
 		}
+		guard := func(k int) (logic.Formula, error) { return named(e.Guard, k) }
 		ts = append(ts, take{
 			guard: guard,
 			taken: func(k int) ([]conjunct, error) {
@@ -247,16 +261,35 @@ func (ix index) takes(u string, c Column) []take {
 				if err != nil {
 					return nil, err
 				}
-				p, err := clauseFormula(e.Post)
+				p, err := named(e.Post, k)
 				if err != nil {
 					return nil, err
 				}
-				return []conjunct{holds(g), {formula: logic.Rename(p, ix.before(u, k)), post: true}}, nil
+				return []conjunct{holds(g), {formula: p, post: true}}, nil
 			},
 			result: Goto{State: e.Dst},
 		})
 	}
 	return ts
+}
+
+// asColumn maps each field e receives to the name the column col gives the
+// field at its position: edges of one shape are one event, whatever they
+// name its fields. A name the column gives that is a state variable of e's
+// states is refused, as the field would read it.
+func (ix index) asColumn(e core.Edge, col core.Event) (map[logic.Var]logic.Var, error) {
+	m := map[logic.Var]logic.Var{}
+	for i, f := range e.Event.Fields {
+		name := col.Fields[i].Name
+		if f.Send || f.Name == name {
+			continue
+		}
+		if core.ReceivesOver(name, ix.d.Vars[e.Src], ix.d.Vars[e.Dst]) {
+			return nil, fmt.Errorf("the edge %s -> %s receives %s, which the column %s names %s, a state variable", e.Src, e.Dst, f.Name, col.Label(), name)
+		}
+		m[logic.Var(f.Name)] = logic.Var(name)
+	}
+	return m, nil
 }
 
 // conjuncts are what the tau steps conjoin: the guard of the i-th step over
@@ -378,14 +411,16 @@ func (ix index) outcomes(s string, c Column) ([]Outcome, error) {
 // their edges come, and then termination when one of the states may terminate.
 func columnsOf(states []string, d *core.Diagram) []Column {
 	var columns []Column
-	seen := map[string]bool{}
+	var shapes []core.Event
 	for _, s := range states {
 		for _, e := range d.Edges {
-			// The environment cannot offer tau, so it is not a column.
-			if e.Src != s || e.Event.Channel == core.Tau || seen[e.Event.Label()] {
+			// The environment cannot offer tau, so it is not a column. Edges
+			// of one shape are one event, so one column, headed by the label
+			// of the first of them.
+			if e.Src != s || e.Event.Channel == core.Tau || slices.ContainsFunc(shapes, e.Event.SameShape) {
 				continue
 			}
-			seen[e.Event.Label()] = true
+			shapes = append(shapes, e.Event)
 			columns = append(columns, EventColumn{Event: e.Event.Label()})
 		}
 	}

@@ -435,9 +435,11 @@ a line break for each line of a cell):
 The columns are `state` (the ID), `name`, the visible events, and `[*]` when a
 reachable state has an end edge. States come in the order the diagram declares
 them, and events in the order the states and their edges come, so the same
-diagram always gives the same bytes. A column is an event's label, its channel
-and its fields as the diagram writes them (see `docs/SYNTAX.md`), so
-`insert?coin` and `insert?c` are two columns.
+diagram always gives the same bytes. A column is an event: its channel and a
+field of each direction in order (see `docs/SYNTAX.md`), whatever an edge names
+its fields, so `insert?coin` and `insert?c` are one column, headed by the label
+of the first edge for it, and each edge's clauses are read with its fields named
+as the header names them.
 
 A cell holds one outcome per line, `[C] → s` (the event may be accepted, and
 the diagram be in `s`) or `[C] ×` (the event may be refused), each when its
