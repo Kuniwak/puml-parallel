@@ -417,3 +417,33 @@ func isRequired(prover string) bool {
 	}
 	return false
 }
+
+// TestTheProversDoNotDischargeAFalseRefinement is a control on the encoding:
+// an Impl that does go refines no Spec that never does, so no proof of the
+// trace refinement may go through. It is weak - a tactic can fail for reasons
+// of its own - but a generator whose refinement held vacuously, say under a
+// hypothesis that is false, would let the tactic through.
+func TestTheProversDoNotDischargeAFalseRefinement(t *testing.T) {
+	o := refinementObligation(t, "false_refinement_t", obligationir.IRRefinementModeTrace,
+		"testdata/never_spec.puml", "testdata/hostile_impl.puml")
+	t.Run("lean", func(t *testing.T) {
+		leanDir := requireEnv(t, proverLean, envLean)
+		src := strings.Replace(o.leanSrc, ": refTfix SpecProc ImplProc := by\n  sorry", ": refTfix SpecProc ImplProc := by\n  trivial", 1)
+		if src == o.leanSrc {
+			t.Fatal("the obligation no longer states refines_t as this control expects")
+		}
+		if out, err := runLean(t, leanDir, "false_refinement.lean", src); err == nil {
+			t.Errorf("lean discharged a false refinement\n%s", out)
+		}
+	})
+	t.Run("isabelle", func(t *testing.T) {
+		cspDir := requireEnv(t, proverIsabelle, envCSP)
+		src := strings.Replace(o.isaSrc, "\"SpecProc <=T ImplProc\"\n  oops", "\"SpecProc <=T ImplProc\"\n  by auto", 1)
+		if src == o.isaSrc {
+			t.Fatal("the obligation no longer states refines_t as this control expects")
+		}
+		if out, err := runIsabelle(t, cspDir, o, src); err == nil {
+			t.Errorf("isabelle discharged a false refinement\n%s", out)
+		}
+	})
+}
