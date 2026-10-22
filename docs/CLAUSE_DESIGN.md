@@ -135,6 +135,35 @@ another shape than its own is refused, since it would constrain some edges
 of the channel and not others; one matching no generated edge is refused
 too.
 
+A global diagram of several states, its **modes**, is sugar for one more
+process in parallel too: a controller whose states are the modes. It
+synchronises on every event of the promotion and on the hand-written global
+edges. In a mode it offers an instance's event, or a sync, only if every
+family taking part moves there, that is has a `<<promote>>` block there. A
+family that holds its map in a mode but has no block there is **frozen**:
+the controller refuses its events. Every mode holds every family's map,
+since the instances exist whatever the mode; a mode declaring some maps and
+not others is refused. A hand-written global edge is the controller's own
+step from one mode to another: its fields are received, its guard reads the
+maps as they are and its own fields, like a constrain's monitor, and its
+post is empty, since a controller cannot write an instance. Promotion adds
+that every map is unchanged across it. An edge on a channel that a local
+diagram or a sync uses is refused, since the controller and the instances
+would then synchronise on it with no instance to take it; so is an edge with
+a `!` field, a primed read, or a post. The controller only follows,
+refuses, and switches modes, so the term stays CSP and adds one control
+state per mode, not per instance.
+
+The post of the global start edge says nothing either: every map starts
+empty, the instances being at S₀. It is dropped with a warning, as the
+post of a local start edge is.
+
+An `assume` note of the global diagram states what the runs of the whole
+system are assumed to satisfy. It is not part of ⟦·⟧, adds no edge and
+narrows none: the expansion carries it, and the analyses that take
+hypotheses read it. A local diagram has none, an assumption being about the
+whole system.
+
 The map of a promoted diagram is then the tuple of the instances' local
 states, domain membership is "not at S₀", and an instance's control state
 is its position in P; the obligation is that the expanded graph of the
