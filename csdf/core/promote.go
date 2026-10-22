@@ -49,7 +49,7 @@ type Promotion struct {
 // the syncs, each instance at its local start state, absent from the map,
 // until created and after it is deleted. The posts of Local's start edge
 // and of a deletion say nothing, there being no instance for them to be
-// about, and are ignored (docs/PROMOTION.md). A
+// about, and are dropped with a warning (docs/PROMOTION.md). A
 // local variable v of an instance bound to x is the term
 // m[x].v: promotion substitutes it into the holes of the local clauses (O3),
 // so that two instances of one family in one sync are told apart, and the
@@ -59,6 +59,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	out := &Diagram{States: []string{p.State}, Init: p.State, Vars: map[string][]string{}}
 	var maps []string
 	var start []clause.Formula
+	var warnings []Warning
 	for _, f := range p.Families {
 		if err := f.Local.wellFormed(); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
@@ -66,6 +67,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		if err := lifecycle(f); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
+		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
@@ -100,7 +102,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			out.Edges = append(out.Edges, edge)
 		}
 	}
-	return out, nil, nil
+	return out, warnings, nil
 }
 
 // Warning is something Promote dropped that the author wrote: Map and
@@ -109,6 +111,22 @@ type Warning struct {
 	Map   string
 	Event string
 	Text  string
+}
+
+// dropped warns of the posts of f that Promote drops: the post of its
+// local start edge and of a deletion say nothing, there being no instance
+// for them to be about.
+func dropped(f Family) []Warning {
+	var ws []Warning
+	if len(f.Local.InitPost.Conjuncts) > 0 {
+		ws = append(ws, Warning{Map: f.Map, Event: "[*]", Text: "the post of the start edge says nothing: the start state means that the instance does not exist"})
+	}
+	for _, e := range f.Local.Edges {
+		if e.Dst == f.Local.Init && len(e.Post.Conjuncts) > 0 {
+			ws = append(ws, Warning{Map: f.Map, Event: e.Event.Channel, Text: "the post of a deletion says nothing: the instance no longer exists"})
+		}
+	}
+	return ws
 }
 
 // lifecycle reports, as an error, a local diagram that breaks the

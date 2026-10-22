@@ -106,7 +106,8 @@ checking walks one control state fewer per instance than a separate absent
 state would. So S₀ holds no state variables, has no self-loop, and P has no
 end edge; creation and deletion are ordinary edges of P, so a sync may take
 them like any other. The post of P's start edge and of a deletion say
-nothing, since there is no instance for them to be about, and are ignored.
+nothing, since there is no instance for them to be about, and are dropped
+with a warning (docs/PROMOTION.md).
 
 In a sync, the fields of the local events taken are merged by name: one
 name is one field of the global event, so the moves that name it agree on

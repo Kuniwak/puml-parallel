@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
@@ -229,6 +231,47 @@ func TestPromoteRefuses(t *testing.T) {
 
 			// Assert
 			assertErrorContains(t, err, c.want)
+		})
+	}
+}
+
+func TestPromoteWarnsOfAPostItDrops(t *testing.T) {
+	cases := []struct {
+		name  string
+		local func(t *testing.T) *Diagram
+		want  []Warning
+	}{
+		{"none", func(*testing.T) *Diagram { return door() }, nil},
+		{"the post of the start edge", func(t *testing.T) *Diagram {
+			d := door()
+			d.InitPost = mustParse(t, "nothing is there")
+			return d
+		}, []Warning{{Map: "doors", Event: "[*]", Text: "the post of the start edge says nothing: the start state means that the instance does not exist"}}},
+		{"the post of a deletion", func(t *testing.T) *Diagram {
+			d := door()
+			for i, e := range d.Edges {
+				if e.Event.Channel == "GONE" {
+					d.Edges[i].Post = mustParse(t, "it is gone")
+				}
+			}
+			return d
+		}, []Warning{{Map: "doors", Event: "GONE", Text: "the post of a deletion says nothing: the instance no longer exists"}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			p := promotion(Family{Map: "doors", ID: "d", Local: c.local(t)})
+
+			// Execute
+			_, got, err := Promote(p)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(c.want, got); diff != "" {
+				t.Errorf("warnings (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
