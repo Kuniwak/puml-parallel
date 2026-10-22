@@ -127,6 +127,10 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 			ir.States[0].Vars = []string{"k"}
 			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}}
 		},
+		"a received field named like a variable of the destination": func(ir *obligationir.LivelockFree) {
+			ir.States = append(ir.States, obligationir.State{Name: "b", Vars: []string{"k"}})
+			ir.Edges[0].Dst, ir.Edges[0].Fields = "b", []obligationir.Field{{Name: "k"}}
+		},
 		"a tau with a field": func(ir *obligationir.LivelockFree) {
 			ir.Edges[0].Channel, ir.Edges[0].Fields = "tau", []obligationir.Field{{Name: "k"}}
 		},

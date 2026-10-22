@@ -98,7 +98,8 @@ func (ir LivelockFree) Validate() error {
 
 // fieldsBound reports, as an error, a field of e that is not bound where it
 // is read: a received field named twice, by nothing, or like a variable of
-// the source, which it would bind over; a sent field that is neither a
+// the source or the destination, which it would bind over, as
+// obligation.Step refuses; a sent field that is neither a
 // variable of the source nor a field e receives, which would be free.
 func fieldsBound(e Edge, states map[string]State) error {
 	src := states[e.Src].Vars
@@ -108,8 +109,8 @@ func fieldsBound(e Edge, states map[string]State) error {
 	}
 	received := map[string]bool{}
 	for _, f := range e.Received() {
-		if f == "" || received[f] || core.ReceivesOver(f, src) {
-			return fmt.Errorf("it receives %q twice, by no name or over a variable of %s", f, e.Src)
+		if f == "" || received[f] || core.ReceivesOver(f, src, states[e.Dst].Vars) {
+			return fmt.Errorf("it receives %q twice, by no name or over a variable of %s or %s", f, e.Src, e.Dst)
 		}
 		received[f] = true
 	}
