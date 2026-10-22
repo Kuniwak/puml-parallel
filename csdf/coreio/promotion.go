@@ -15,10 +15,12 @@ import (
 const id = ident.Pattern
 
 var (
-	mapDeclRe = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
-	startRe   = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
-	syncRe    = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
-	targetRe  = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
+	stateDeclRe = regexp.MustCompile(`^state\s+"(?:[^"\\]|\\.)*"\s+as\s+(` + id + `)$`)
+	edgeRe      = regexp.MustCompile(`^(` + id + `)\s*-->\s*(` + id + `|\[\*\])`)
+	mapDeclRe   = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
+	startRe     = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
+	syncRe      = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
+	targetRe    = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
 )
 
 // ReadPromotion reads a global diagram (docs/PROMOTION.md): one composite
@@ -38,6 +40,12 @@ func ReadPromotion(source string, include Include) (core.Promotion, error) {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
 	return r.p, nil
+}
+
+// notYet refuses what a formula promotion does not read yet, by name: the
+// parts of docs/PROMOTION.md that step 5½b of #76 brings over.
+func notYet(what string) error {
+	return fmt.Errorf("%s is not supported yet by the formula promotion (step 5½b of #76)", what)
 }
 
 // Include is the source of the file an !include names, by the path written.
@@ -88,6 +96,10 @@ func (r *promotionReader) line(l string) error {
 		return nil // PlantUML's preprocessor, for the picture
 	}
 	if m := pumlline.Promote.FindStringSubmatch(l); m != nil && r.depth == 1 {
+		if m[3] == "" {
+			// It says that a family moves in a second global state.
+			return fmt.Errorf("%s: %w", m[2], notYet("a bodyless <<promote>> block"))
+		}
 		title := pumlline.PromoteTitle.FindStringSubmatch(m[1])
 		if title == nil {
 			return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", m[1])
@@ -103,7 +115,7 @@ func (r *promotionReader) line(l string) error {
 	}
 	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
 		if r.p.State != "" {
-			return fmt.Errorf("a second state %s; a promoted diagram has one state", m[2])
+			return fmt.Errorf("%s: %w", m[2], notYet("a second global state"))
 		}
 		r.p.State = m[2]
 		r.depth++
@@ -118,10 +130,17 @@ func (r *promotionReader) line(l string) error {
 	}
 	if m := startRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
 		if strings.TrimSpace(m[2]) != "" {
-			return fmt.Errorf("a post on the start edge; a promoted diagram starts with every map empty")
+			// Every map starts empty, which is all such a post can say.
+			return notYet("a post on the start edge")
 		}
 		r.start = m[1]
 		return nil
+	}
+	if m := stateDeclRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
+		return fmt.Errorf("%s: %w", m[1], notYet("a second global state"))
+	}
+	if edgeRe.MatchString(l) && r.depth == 0 {
+		return notYet("a hand-written edge of the global diagram")
 	}
 	if (pumlline.NoteFloating.MatchString(l) || pumlline.NoteAnchored.MatchString(l)) && r.depth < 2 {
 		r.note = unread
@@ -165,6 +184,12 @@ func (r *promotionReader) noteLine(l string) error {
 		return nil
 	}
 	r.note = directed
+	switch {
+	case strings.HasPrefix(l, "constrain "):
+		return notYet("constrain")
+	case strings.HasPrefix(l, "assume "):
+		return notYet("an assume note in the global diagram")
+	}
 	m := syncRe.FindStringSubmatch(l)
 	if m == nil {
 		return fmt.Errorf("%q is no directive; a note holds a sync directive", l)
@@ -229,7 +254,7 @@ func (r *promotionReader) check() error {
 	}
 	for _, m := range r.maps {
 		if _, err := r.familyOf(m); err != nil {
-			return fmt.Errorf("%s declares %s, which is no family's map", r.p.State, m)
+			return fmt.Errorf("%s: %w", m, notYet("a variable of the global state that is no family's map"))
 		}
 	}
 	return nil

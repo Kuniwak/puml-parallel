@@ -160,6 +160,9 @@ end note
 	}
 }
 
+// refusedYet ends the refusal of what the formula promotion does not read yet.
+const refusedYet = "is not supported yet by the formula promotion (step 5½b of #76)"
+
 // promoting is a global diagram of one family, shipments, with body after
 // the block.
 func promoting(body string) string {
@@ -177,12 +180,22 @@ func TestReadPromotionRefuses(t *testing.T) {
 	cases := []struct {
 		name, source, want string
 	}{
-		{"a post on the start edge, since every map starts empty",
-			promoting("[*] --> running : 何か\n"), "starts with every map empty"},
-		{"an edge of the global diagram",
-			promoting("[*] --> running\nrunning --> running : a\n"), "unexpected"},
-		{"a directive no one knows",
-			promoting("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain"},
+		{"a post on the start edge",
+			promoting("[*] --> running : 何か\n"), "a post on the start edge " + refusedYet},
+		{"a hand-written edge of the global diagram",
+			promoting("[*] --> running\nrunning --> running : a\n"), "a hand-written edge of the global diagram " + refusedYet},
+		{"a constrain",
+			promoting("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain " + refusedYet},
+		{"a global assume note",
+			promoting("[*] --> running\nnote as n\n  assume いつか止まる\nend note\n"), "an assume note in the global diagram " + refusedYet},
+		{"a second global state",
+			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "a second global state " + refusedYet},
+		{"a second composite global state",
+			promoting("state \"保守\" as maintenance {\n}\n[*] --> running\n"), "a second global state " + refusedYet},
+		{"a bodyless block",
+			strings.Replace(promoting("[*] --> running\n"), "<<promote>> {\n    !include S.puml\n  }", "<<promote>>", 1), "a bodyless <<promote>> block " + refusedYet},
+		{"a variable of the global state that is no family's map",
+			strings.Replace(promoting("[*] --> running\n"), "running {\n", "running {\n  running : 件数\n", 1), "a variable of the global state that is no family's map " + refusedYet},
 		{"a sync of an unknown map",
 			promoting("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
 		{"a block title without the instance's type",
