@@ -28,9 +28,9 @@ func TestWireOfAnAtom(t *testing.T) {
 			wantWire:  AtomWire{Text: []string{"", " in ", ""}, Holes: []int{0, 1}, Primed: []bool{true, false}},
 			wantTerms: []Term{post("x"), pre("xs")},
 		},
-		"no space is given back after a hole of a term that is no name": {
+		"the space that ends a term hole before a name is the glue's too": {
 			text:      "${m[k]}foo",
-			wantWire:  AtomWire{Text: []string{"", "foo"}, Holes: []int{0}, Primed: []bool{false}},
+			wantWire:  AtomWire{Text: []string{"", " foo"}, Holes: []int{0}, Primed: []bool{false}},
 			wantTerms: []Term{Index{Map: pre("m"), Key: pre("k")}},
 		},
 		"an atom under a binder reads its index as an argument": {

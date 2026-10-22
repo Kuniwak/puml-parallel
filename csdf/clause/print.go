@@ -134,26 +134,28 @@ func (pr *printer) atom(a Atom, after rune) (string, error) {
 }
 
 // hole writes $name when Parse would read it back as the same hole, and
-// ${term} otherwise; next is what is printed after it.
+// ${term} otherwise; next is what is printed after it. Either form takes in
+// one space after it before a character that could continue a name or
+// another space, so a space is written there when the text starts with such
+// a character, and one more when it starts with a space before one.
 func (pr *printer) hole(t Term, next string) (string, error) {
 	s, err := pr.term(t)
 	if err != nil {
 		return "", err
 	}
-	name, primed, ok := pr.nameOf(t)
-	if !ok || !startsHoleName(firstRune(name)) {
-		return "${" + s + "}", nil
-	}
 	n0, n1 := firstRune(next), firstRune(strings.TrimPrefix(next, string(firstRune(next))))
-	switch {
-	case n0 == '\'' && !primed:
-		return "${" + s + "}", nil
-	case n0 == ' ' && ident.IsRune(n1):
-		return "${" + s + "}", nil
-	case ident.IsRune(n0):
-		return "$" + s + " ", nil
+	space := ""
+	if ident.IsRune(n0) || (n0 == ' ' && (ident.IsRune(n1) || n1 == ' ')) {
+		space = " "
 	}
-	return "$" + s, nil
+	name, primed, ok := pr.nameOf(t)
+	switch {
+	case !ok || !startsHoleName(firstRune(name)):
+	case n0 == '\'' && !primed:
+	default:
+		return "$" + s + space, nil
+	}
+	return "${" + s + "}" + space, nil
 }
 
 // nameOf is the name a variable is printed with, and whether it is primed;
