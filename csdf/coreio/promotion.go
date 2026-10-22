@@ -104,6 +104,9 @@ func (r *promotionReader) line(l string) error {
 		if title == nil {
 			return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", m[1])
 		}
+		if _, err := r.familyOf(title[1]); err == nil {
+			return fmt.Errorf("a second <<promote>> block of %s; a map has one block", title[1])
+		}
 		r.p.Families = append(r.p.Families, core.Family{Map: title[1], ID: title[2]})
 		r.family = &r.p.Families[len(r.p.Families)-1]
 		r.depth++
@@ -150,6 +153,9 @@ func (r *promotionReader) line(l string) error {
 }
 
 func (r *promotionReader) includeLine(l string) error {
+	if word := strings.Fields(l)[0]; word != "!include" {
+		return fmt.Errorf("%s is not read: a <<promote>> block includes its local diagram with !include", word)
+	}
 	m := pumlline.Include.FindStringSubmatch(l)
 	if m == nil || r.depth != 2 || r.family.Local != nil {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
@@ -209,6 +215,11 @@ func isDirective(l string) bool {
 }
 
 func (r *promotionReader) sync(event, targets, guard string) error {
+	for _, other := range r.p.Syncs {
+		if other.Event == event {
+			return fmt.Errorf("a second sync of %s; one event is synchronised once", event)
+		}
+	}
 	s := core.Sync{Event: event}
 	for _, t := range strings.Split(targets, ",") {
 		m := targetRe.FindStringSubmatch(strings.TrimSpace(t))
