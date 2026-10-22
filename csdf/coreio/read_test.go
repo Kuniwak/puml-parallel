@@ -1,12 +1,15 @@
 package coreio
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
@@ -176,5 +179,22 @@ s --> s : a ; @exists(y : Y) ($y が大きい)
 	}
 	if !clause.AlphaEqual(got.Edges[0].Guard, want) {
 		t.Errorf("Read: the guard is %v, want %v", got.Edges[0].Guard, want)
+	}
+}
+
+func TestReadHintsAtPromotionForAGlobalDiagram(t *testing.T) {
+	// Setup
+	src, err := os.ReadFile("../../examples/promote/TRADES.puml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	_, err = Read(string(src))
+
+	// Assert
+	var hinted *csdf.PromotionHintError
+	if !errors.As(err, &hinted) {
+		t.Errorf("err = %v, want a *csdf.PromotionHintError", err)
 	}
 }

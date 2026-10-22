@@ -90,6 +90,10 @@ func parseAt(source string) (*Diagram, error) {
 	return diagram, nil
 }
 
+// WithPromotionHint adds the promotion hint to a parse error when the source
+// looks like a global diagram, for a reader of diagrams other than Parse.
+func WithPromotionHint(err error, source string) error { return withHint(err, source) }
+
 // withHint adds the promotion hint to a parse error when the source looks like a
 // global diagram.
 func withHint(err error, source string) error {

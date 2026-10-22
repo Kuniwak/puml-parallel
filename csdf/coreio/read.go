@@ -39,7 +39,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 	}
 	src, err := csdf.NewParserCheckingClauses(source, check).Parse()
 	if err != nil {
-		return nil, err
+		return nil, csdf.WithPromotionHint(err, source)
 	}
 	clauses := func(p csdf.Predicate) clause.And {
 		f, _ := parse(string(p)) // check has read every predicate already
