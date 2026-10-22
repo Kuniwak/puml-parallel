@@ -120,6 +120,13 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 		"a field received twice": func(ir *obligationir.LivelockFree) {
 			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}, {Name: "k"}}
 		},
+		"a sent field bound nowhere": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Fields = []obligationir.Field{{Send: true, Name: "k"}}
+		},
+		"a received field named like a variable of the source": func(ir *obligationir.LivelockFree) {
+			ir.States[0].Vars = []string{"k"}
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}}
+		},
 		"a tau with a field": func(ir *obligationir.LivelockFree) {
 			ir.Edges[0].Channel, ir.Edges[0].Fields = "tau", []obligationir.Field{{Name: "k"}}
 		},

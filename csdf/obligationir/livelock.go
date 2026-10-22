@@ -75,12 +75,8 @@ func (ir LivelockFree) Validate() error {
 		if e.Channel == "" || e.Tau() && len(e.Fields) > 0 {
 			return fmt.Errorf("obligationir.Validate: the edge %s -> %s has no channel, or is a tau with fields", e.Src, e.Dst)
 		}
-		seen := map[string]bool{}
-		for _, f := range e.Received() {
-			if f == "" || seen[f] {
-				return fmt.Errorf("obligationir.Validate: the edge %s -> %s receives %q twice or by no name", e.Src, e.Dst, f)
-			}
-			seen[f] = true
+		if err := ir.fieldsBound(e); err != nil {
+			return fmt.Errorf("obligationir.Validate: the edge %s -> %s: %w", e.Src, e.Dst, err)
 		}
 	}
 	for _, e := range ir.Ends {
@@ -95,6 +91,30 @@ func (ir LivelockFree) Validate() error {
 	}
 	if _, err := ir.Symbols(); err != nil {
 		return fmt.Errorf("obligationir.Validate: %w", err)
+	}
+	return nil
+}
+
+// fieldsBound reports, as an error, a field of e that is not bound where it
+// is read: a received field named twice, by nothing, or like a variable of
+// the source, which it would bind over; a sent field that is neither a
+// variable of the source nor a field e receives, which would be free.
+func (ir LivelockFree) fieldsBound(e Edge) error {
+	bound := map[string]bool{}
+	for _, v := range ir.StateMap()[e.Src].Vars {
+		bound[v] = true
+	}
+	received := map[string]bool{}
+	for _, f := range e.Received() {
+		if f == "" || received[f] || bound[f] {
+			return fmt.Errorf("it receives %q twice, by no name or over a variable of %s", f, e.Src)
+		}
+		received[f] = true
+	}
+	for _, f := range e.Fields {
+		if f.Send && !bound[f.Name] && !received[f.Name] {
+			return fmt.Errorf("it sends %q, which neither %s holds nor it receives", f.Name, e.Src)
+		}
 	}
 	return nil
 }
