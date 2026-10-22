@@ -282,6 +282,34 @@ func TestPromoteRefuses(t *testing.T) {
 			p.InitPost = mustParse(t, "locations は空")
 			return p
 		}(), "global start edge"},
+		{"a controller variable named like a map", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
+			Vars: map[string][]string{"G": {"locations"}}}, "named like a map"},
+		{"a controller variable named like an instance ID", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
+			Vars: map[string][]string{"G": {"loc"}}}, "named like an instance ID"},
+		{"a controller variable of no mode", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
+			Vars: map[string][]string{"Z": {"halted"}}}, "no mode Z"},
+		{"a hand-written edge priming a map other than by the frame", func() Promotion {
+			p := modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Post: mustParse(t, "$halted' = 1 ∧ @empty(locations')")})
+			p.Vars = map[string][]string{"G": {"halted"}, "H": {"halted"}}
+			return p
+		}(), "other than the frame"},
+		{"a hand-written edge writing a variable its target does not hold", func() Promotion {
+			p := modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Post: mustParse(t, "$halted' = 1")})
+			p.Vars = map[string][]string{"G": {"halted"}}
+			return p
+		}(), "halted'"},
+		{"a constrain reading a controller variable a mode of its edges lacks", func() Promotion {
+			p := modes(locations)
+			p.Vars = map[string][]string{"G": {"halted"}}
+			p.Constrains = []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "$halted = 0")}}
+			return p
+		}(), "halted"},
+		{"a global start post reading a map", func() Promotion {
+			p := promotion(locations)
+			p.Vars = map[string][]string{"G": {"halted"}}
+			p.InitPost = mustParse(t, "$halted' = $locations")
+			return p
+		}(), "global start edge"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
@@ -724,6 +752,39 @@ func doorsHalted(frozen func(mode int) bool, halts func(set int) []string) *lts.
 		[]func(string) bool{doorEvents("a"), doorEvents("b"), all})
 }
 
+// doorsHaltedOnce is doors a and b, by hand, in parallel with a
+// controller of run (0) and maint (1) that follows which doors exist and
+// holds whether it has halted: HALT leaves run once only, RESUME returns.
+func doorsHaltedOnce() *lts.LTS {
+	controller := lts.New(0)
+	state := func(mode, set, halted int) int { return mode*8 + set*2 + halted }
+	for mode := 0; mode < 2; mode++ {
+		for set := 0; set < 4; set++ {
+			for h := 0; h < 2; h++ {
+				for i, x := range locIDs {
+					bit := 1 << i
+					if set&bit == 0 {
+						controller.Add(state(mode, set, h), "NEW."+x, state(mode, set|bit, h))
+					} else {
+						controller.Add(state(mode, set, h), "GONE."+x, state(mode, set&^bit, h))
+						controller.Add(state(mode, set, h), "OPENS."+x, state(mode, set, h))
+						controller.Add(state(mode, set, h), "SHUTS."+x, state(mode, set, h))
+					}
+				}
+				if mode == 0 && h == 0 {
+					controller.Add(state(0, set, 0), "HALT", state(1, set, 1))
+				}
+				if mode == 1 {
+					controller.Add(state(1, set, h), "RESUME", state(0, set, h))
+				}
+			}
+		}
+	}
+	all := func(string) bool { return true }
+	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), controller},
+		[]func(string) bool{doorEvents("a"), doorEvents("b"), all})
+}
+
 // doorsShutHalted is doors a and b, by hand, in parallel with a controller
 // of run (0) and maint (1) that follows each door, absent (0), shut (1) or
 // wide (2): HALT.x leaves run while the door x is shut.
@@ -938,6 +999,22 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 				}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS { return doorsShutHalted() },
+		},
+		{
+			name: "a controller variable is read and written by hand-written edges, framed by generated ones",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Vars:     map[string][]string{"run": {"halted"}, "maint": {"halted"}},
+				InitPost: mustParse(t, "$halted' = 0 ∧ @empty(doors')"),
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "$halted = 0"), Post: mustParse(t, "$halted' = 1")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME"), Post: mustParse(t, "@eq(halted', halted) ∧ @eq(doors', doors)")},
+				}},
+			env: func(t *testing.T) Env {
+				env := stock(t, doors)
+				env.Types["halted"] = []Value{0, 1}
+				return env
+			},
+			want: func(*testing.T) *lts.LTS { return doorsHaltedOnce() },
 		},
 		{
 			name: "a frozen family takes no event in its mode",
