@@ -17,11 +17,12 @@ from typing import Callable
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, names_beyond, tells_apart
 from csdfbmc.protocol import PROTOCOL, PROTOCOL_ATOMS, Analysis, atom_handler, atom_text, handler, speaking
 from csdfbmc.checks import check_pure
+from csdfbmc.atoms import has_hole
 from csdfbmc.values import freeze
 
 LANGUAGE = "python"
-# What a clause not formalised yet was written as before the tool word
-# @opaque, which the checker takes without asking a glue.
+# What a clause not formalised yet was written as before it was an atom of
+# the environment.
 _FORMER_OPAQUE = ("OPAQUE", "opaque")
 
 
@@ -61,7 +62,7 @@ class Glue:
         key = (clause, role)
         if key not in self._compiled:
             if clause.strip() in _FORMER_OPAQUE:
-                raise ValueError(f"{clause.strip()!r} is not a clause of this glue; for a clause not formalised yet, write the tool word @opaque")
+                raise ValueError(f"{clause.strip()!r} is not a clause of this glue; for a clause not formalised yet, write it as an atom whose holes are what it reads, such as $口座 が凍結されていない")
             check_pure(clause, f"<clause {clause!r}>")
             tree = ast.parse(clause, mode="eval")
             writes = _post_writes(tree) if role == "post" else []
@@ -74,6 +75,10 @@ class Glue:
         return eval(code, self.globals, dict(binding))
 
     def analyse(self, clause: str, role: str) -> Analysis:
+        if has_hole(clause):
+            # An atom with holes is not Python: until the walk reads atoms in
+            # their wire form (#76), it is a function of the environment.
+            return Analysis(opaque=True)
         _, reads, writes = self._compile(clause, role)
         return Analysis(opaque=False, reads=tuple(reads), writes=tuple(writes))
 

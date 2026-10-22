@@ -20,7 +20,7 @@ class CandidatesTest(unittest.TestCase):
             {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6},
             {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 7},
         ])
-        ex = fixture.explorer(diagram, Checks(domains={"k": [1, 2]}))
+        ex = fixture.explorer(diagram, Checks(types={"k": [1, 2]}))
         self.assertEqual([{"params": {"k": 1}, "values": [3]}], ex.candidates("a", [2], 0))
         self.assertEqual([], ex.candidates("a", [2], 1))  # stop needs n = 0
 
@@ -38,7 +38,7 @@ class NextCommandTest(unittest.TestCase):
         with open(diagram, "w", encoding="utf-8") as f:
             json.dump(fixture.parsed(COUNTER), f)
         with open(checks, "w", encoding="utf-8") as f:
-            f.write("DOMAINS = {}\n")
+            f.write("TYPES = {}\n")
         out = io.StringIO()
         with redirect_stdout(out):
             code = next_main([diagram, checks, "--evaluator-module", "csdfbmc.python_glue", *args])

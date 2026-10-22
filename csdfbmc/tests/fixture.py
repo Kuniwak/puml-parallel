@@ -66,5 +66,29 @@ def explorer(d, checks=None, **options):
     from csdfbmc.checks import Checks
     if not isinstance(d, Diagram):
         d = diagram(d)
+    from csdfbmc import environment
     options.setdefault("cone", Cone.keep_all())
-    return Explorer(d, checks if checks is not None else Checks(domains={}), glue_meaning(), **options)
+    options.setdefault("environment", environment.NONE)
+    return Explorer(d, checks if checks is not None else Checks(types={}), glue_meaning(), **options)
+
+
+def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
+    """main (csdfbmc's or csdfbmc next's) run on diagram, a diagram written by
+    hand, and a checks module of the text checks, both written to files that
+    test cleans up: its exit code, standard output and standard error."""
+    import io
+    import json
+    import os
+    import tempfile
+    from contextlib import redirect_stderr, redirect_stdout
+    d = tempfile.TemporaryDirectory()
+    test.addCleanup(d.cleanup)
+    path, checks_path = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(parsed(diagram), f)
+    with open(checks_path, "w", encoding="utf-8") as f:
+        f.write(checks)
+    out, err = io.StringIO(), io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        code = main([path, checks_path, *args])
+    return code, out.getvalue(), err.getvalue()

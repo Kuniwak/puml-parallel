@@ -1,9 +1,9 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--opaque error|true] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--por] [--symmetry] [--cone] [--json]
 
 Reads a diagram as csdfparse prints it, or an expansion as csdfpromote -format
 json prints it, with every clause read through a glue of the evaluator
 protocol (see csdfbmc.protocol; csdfbmc.python_glue reads Python), and the
-checks module of its domains, ghosts and invariants. It walks the reachable
+checks module of its types, environment, ghosts and invariants. It walks the reachable
 states within the bound, and reports the deadlocks, the tau cycles, the
 broken invariants and, with --avoid, the cycles that never perform the
 event. Findings of one shape are reported once with their count and the
@@ -74,11 +74,21 @@ def print_cone(result) -> None:
         print(f"left out (nothing that decides a step or a property reads it): {var}, set by {'; '.join(edges) or 'no post the meaning can tell'}")
 
 
+def print_environment(env: dict) -> None:
+    """What reproduces the run: the seed and the functions given, then the
+    functions the environment decided a clause by."""
+    if env["seed"] is not None:
+        print(f"environment: seed {env['seed']}")
+    if env["given"]:
+        print(f"environment: given {', '.join(env['given'])}")
+    for name in env["decided"]:
+        print(f"decided by the environment: {name}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
     ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
-    ap.add_argument("--opaque", choices=["error", "true"], default="error", help="what a clause not formalised yet means (default: refuse)")
     ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
     ap.add_argument("--within", metavar="STATE", action="append", help="with --avoid, look for the cycles among these control states only (repeatable)")
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock, broken invariant or unconstrained post (cycles are then not looked for)")
@@ -90,8 +100,8 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
 
     try:
-        with opened(a) as (diagram, checks, meaning, writes):
-            result = Explorer(diagram, checks, opaque=a.opaque, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
+        with opened(a) as (diagram, checks, meaning, writes, environment):
+            result = Explorer(diagram, checks, environment=environment, max_states=a.max_states, avoid=a.avoid, within=a.within, first=a.first,
                               por=a.por, symmetry=a.symmetry, meaning=meaning,
                               cone=compute_cone(diagram, checks, meaning, writes=writes) if a.cone else Cone.keep_all()).run()
     except LOADING_ERRORS as e:
@@ -112,8 +122,7 @@ def main(argv=None) -> int:
             print_every(result)
         else:
             print_groups(result)
-        for c in result.opaque_clauses:
-            print(f"taken as true (not formalised): {c}")
+        print_environment(result.environment)
         if a.cone:
             print_cone(result)
         for text, maps in result.dropped_clauses:

@@ -88,7 +88,7 @@ def _sets(writes: Writes, c: Clause) -> set[str]:
         return {c.var}
     if c.kind in ("update", "create", "delete", "empty") or (c.kind == "local" and c.map):
         return {c.map}
-    if c.kind == "dropped" or c.opaque:
+    if c.kind == "dropped":
         return set()
     return writes(c) or set()
 
@@ -104,7 +104,7 @@ def _framed_and_written(writes: Writes, post: tuple[Clause, ...]) -> set[str]:
     others = [c for c in post if c.kind != "frame"]
     out: set[str] = set()
     for c in others:
-        if c.kind in ("local", "constrain") and not (c.kind == "local" and c.map) and not c.opaque \
+        if c.kind in ("local", "constrain") and not (c.kind == "local" and c.map) \
                 and writes(c) is None:
             return framed  # writes unknown: it might set any of them
         out |= _sets(writes, c) & framed

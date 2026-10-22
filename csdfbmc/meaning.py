@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from csdfbmc.atoms import function_of
 from csdfbmc.model import Clause
 from csdfbmc.protocol import ClientLike, answers
 
 # What a clause with no meaning to evaluate stands for: a glue that says the
-# clause is not formalised yet, or the tool word @opaque.
+# clause is not formalised yet.
 OPAQUE = object()
 
 
@@ -42,6 +43,11 @@ class GlueMeaning:
         self.readable = answers(client, "symmetric")
 
     def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
+        if self.client.analyse(clause.text, role).opaque:
+            # Not formalised: a function of the environment, which may tell
+            # any two IDs among its holes apart.
+            read = sorted(set(function_of(clause.text).args) & (params | maps))
+            return f"it is a function of the environment of {', '.join(read)}, which may tell the IDs apart" if read else None
         return self.client.symmetric(clause.text, role, sorted(params), sorted(maps), [sorted(g) for g in groups])
 
     def _binding(self, clause: Clause, reads: tuple[str, ...], env: dict) -> dict:
@@ -55,7 +61,7 @@ class GlueMeaning:
         return None if analysis.opaque else set(analysis.reads)
 
     def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
-        if not answers(self.client, "beyond"):
+        if not answers(self.client, "beyond") or self.client.analyse(clause.text, role).opaque:
             return None
         return set(self.client.beyond(clause.text, role, own_id))
 
@@ -81,42 +87,7 @@ class GlueMeaning:
         return OPAQUE if results is None else results[0]
 
     def opaque_message(self, clause: Clause) -> str:
-        return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or run with opaque='true'"
-
-
-class OpaqueWord:
-    """inner, but the tool word @opaque means nothing whatever inner
-    would say: it is not formalised, and nobody is asked about it."""
-
-    def __init__(self, inner: Meaning):
-        self.inner = inner
-        self.readable = inner.readable
-
-    def names(self, clause: Clause, role: str) -> set[str] | None:
-        return None if clause.opaque else self.inner.names(clause, role)
-
-    def names_beyond(self, clause: Clause, role: str, own_id: str | None) -> set[str] | None:
-        return None if clause.opaque else self.inner.names_beyond(clause, role, own_id)
-
-    def tells_apart(self, clause: Clause, role: str, params: set[str], maps: set[str], groups: list[frozenset]) -> str | None:
-        return None if clause.opaque else self.inner.tells_apart(clause, role, params, maps, groups)
-
-    def prefetch(self, clause: Clause, role: str, envs: list[dict]) -> None:
-        if not clause.opaque:
-            self.inner.prefetch(clause, role, envs)
-
-    def evaluate(self, clause: Clause, role: str, env: dict):
-        return OPAQUE if clause.opaque else self.inner.evaluate(clause, role, env)
-
-    def writes(self, clause: Clause) -> set[str] | None:
-        """What inner says a post clause gives a value to; for a meaning that
-        can say it (GlueMeaning)."""
-        return None if clause.opaque else self.inner.writes(clause)
-
-    def opaque_message(self, clause: Clause) -> str:
-        if clause.opaque:
-            return f"the clause {clause.text!r} is not formalised yet; formalise it, or run with opaque='true'"
-        return self.inner.opaque_message(clause)
+        return f"the {self.client.language} glue says the clause {clause.text!r} is not formalised; formalise it, or, in a guard, give the function its atom names in the environment"
 
 
 class Renaming:
@@ -236,6 +207,6 @@ class EqualityWord:
 
 
 def standard(inner: Meaning) -> Meaning:
-    """inner as every walk takes it: with the tool words @opaque and @eq, and
-    each renamed clause read in the names of its predicate."""
-    return OpaqueWord(EqualityWord(Renaming(inner)))
+    """inner as every walk takes it: with the tool word @eq, and each renamed
+    clause read in the names of its predicate."""
+    return EqualityWord(Renaming(inner))

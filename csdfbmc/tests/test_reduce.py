@@ -1,6 +1,8 @@
 """Partial-order and symmetry reduction: fewer states walked, the same
 findings reported."""
 import unittest
+
+from csdfbmc.environment import NONE, over
 from csdfbmc.tests import fixture
 
 from csdfbmc.model import Diagram
@@ -11,7 +13,7 @@ from csdfbmc.tests.test_promoted import GLOBAL_CHECKS, GLUE_EXPANSION
 # The checks module as a module would spell it, for the symmetry check,
 # which reads the source of the checks (ghosts and invariants) itself.
 CHECKS_SOURCE = '''
-DOMAINS = {"口座ID": ["a1", "a2"], "額": [0, 1, 2]}
+TYPES = {"口座ID": ["a1", "a2"], "額": [0, 1, 2]}
 SYMMETRIC = ["口座ID"]
 '''
 
@@ -27,9 +29,9 @@ def without_close(expansion):
 WITHOUT_CLOSE = without_close(GLUE_EXPANSION)
 
 
-def walk(expansion=GLUE_EXPANSION, *, invariants=None, symmetric=(), domains=None, **kw):
+def walk(expansion=GLUE_EXPANSION, *, invariants=None, symmetric=(), types=None, **kw):
     """The expansion walked through the reference Python glue."""
-    checks = Checks(domains=domains or GLOBAL_CHECKS.domains, invariants=invariants or {},
+    checks = Checks(types=types or GLOBAL_CHECKS.types, invariants=invariants or {},
                    symmetric=tuple(symmetric), sources=[("checks.py", CHECKS_SOURCE)])
     return fixture.explorer(expansion, checks, **kw)
 
@@ -56,11 +58,11 @@ class PartialOrderTest(unittest.TestCase):
         from csdfbmc.cone import Cone
         from csdfbmc.tests.test_labels import NotAnswering, glue, python_glue
         d = fixture.diagram(WITHOUT_CLOSE)
-        checks = Checks(domains=GLOBAL_CHECKS.domains)
+        checks = Checks(types=GLOBAL_CHECKS.types)
 
         # Execute
         full = walk(WITHOUT_CLOSE).run()
-        unasked = Explorer(d, checks, meaning=glue(NotAnswering(python_glue())), cone=Cone.keep_all(), por=True).run()
+        unasked = Explorer(d, checks, meaning=glue(NotAnswering(python_glue())), cone=Cone.keep_all(), environment=NONE, por=True).run()
 
         # Assert
         self.assertEqual(len(full.states), len(unasked.states))
@@ -70,6 +72,18 @@ class PartialOrderTest(unittest.TestCase):
         # the instances are not independent.
         exp = without_close(with_constrain("len(accounts) < 1"))
         self.assertEqual(len(walk(exp).run().states), len(walk(exp, por=True).run().states))
+
+    def test_an_atom_of_the_environment_that_reads_the_whole_map_ties_the_instances(self):
+        # Setup: an atom's function reads its holes, here the whole map, so
+        # opening a1 can disable opening a2 as for len(accounts) < 1.
+        exp = without_close(with_constrain("$accounts が 空"))
+        env = over({}, {"$accounts が 空": lambda accounts: len(accounts) < 1}, None)
+
+        # Execute
+        full, reduced = walk(exp, environment=env).run(), walk(exp, environment=env, por=True).run()
+
+        # Assert
+        self.assertEqual(len(full.states), len(reduced.states))
 
     def test_an_invariant_that_reads_the_map_keeps_its_moves_visible(self):
         inv = {"残高は上限以下": lambda accounts: all(r.残高 <= 3 for r in accounts.values() if "残高" in r)}
@@ -104,13 +118,29 @@ class SymmetryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "a1"):
             walk(with_constrain("口座ID == 'a1'"), symmetric=("口座ID",), symmetry=True)
 
+    def test_an_environment_function_of_an_id_is_refused(self):
+        # Setup: an uninterpreted function may tell any two IDs apart.
+        cases = [("an ID", "$口座ID が 特別"), ("a map keyed by IDs", "$accounts が 空")]
+        for name, atom in cases:
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, "environment"):
+                    walk(with_constrain(atom), symmetric=("口座ID",), symmetry=True, environment=over({}, {}, 7))
+
+    def test_an_environment_function_of_no_id_is_symmetric(self):
+        # Execute
+        explorer = walk(with_constrain("$額 が 小さい"), symmetric=("口座ID",), symmetry=True, environment=over({}, {}, 7))
+
+        # Assert
+        self.assertIsNotNone(explorer.symmetry)
+
     def test_a_clause_that_orders_ids_is_refused(self):
         with self.assertRaisesRegex(ValueError, "口座ID"):
             walk(with_constrain("all(口座ID < j for j in accounts)"), symmetric=("口座ID",), symmetry=True)
 
     def test_a_domain_naming_some_ids_only_is_refused(self):
         with self.assertRaisesRegex(ValueError, "相手ID"):
-            walk(symmetric=("口座ID",), domains=dict(GLOBAL_CHECKS.domains, 相手ID=["a1"]), symmetry=True)
+            walk(symmetric=("口座ID",), types=dict(GLOBAL_CHECKS.types, 相手ID=["a1"]), symmetry=True)
 
     def test_symmetry_without_a_declaration_is_refused(self):
         with self.assertRaisesRegex(ValueError, "SYMMETRIC"):

@@ -85,7 +85,7 @@ $ csdfparse < examples/valid/skip.puml
 (`P \ {|c|}`): every edge on a hidden channel becomes an internal `tau`
 transition, whatever its fields. A hidden field is a value the `tau` chooses
 (`c?x` hidden is `⊓ x. τ`): the clauses still read `x`, and `csdfbmc` chooses it
-from `DOMAINS`. The result is printed as PlantUML.
+from its type in the checks module (`TYPES`). The result is printed as PlantUML.
 
 ```console
 $ csdfhide -channels 'sync' examples/valid/in.puml
@@ -707,7 +707,7 @@ input and output, one JSON request and one JSON answer per line. A glue
 answers `hello` (its language and protocol version); `analyse`, the names a
 clause reads and, for a post, the variables it gives a value to, without
 evaluating it, or `{"opaque": true}` for a clause not yet formalised, which
-follows `--opaque`; and `guard` and `post`, the clause's value under each of
+the environment decides; and `guard` and `post`, the clause's value under each of
 a batch of bindings. Two more requests are optional, and a glue lists the
 ones it answers in its `hello`: `beyond`, the names a clause reads except a
 map it reads only at its own instance's ID, and `symmetric`, whether a clause
@@ -718,9 +718,9 @@ it reads, and `--symmetry` is refused. Values are tagged JSON (`{"tuple": …}`,
 `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has none of them. Clauses
 must be pure: the checker asks about a clause once per value of the names it
 reads, and about a guard once per edge for every parameter valuation still
-enabled. A clause not formalised yet is written as the tool word `@opaque` in
-any language; the checker takes it by `--opaque` without asking the glue, and
-`csdfpromote` does not warn that such a constrain names none of its fields.
+enabled. A clause not formalised yet is written as an atom whose holes are
+what it reads; the Python glue answers that it cannot read a clause with a
+hole, and the environment decides it (below).
 `csdfbmc/protocol.py` states the protocol in full. Anyone may add a language
 by writing a glue; `--evaluator CMD` starts it, and `--evaluator-module
 MODULE` loads a glue written in Python in-process, with no round trip. One of
@@ -761,13 +761,17 @@ gives is frozen (`csdfbmc.values.freeze`) into a `FrozenMap`, tuple or
 frozenset, and a record or a finite partial function is a `FrozenMap`. The
 glue's arguments are modules whose public names every clause may use, checked
 against the same pure subset. A clause written `OPAQUE` or `opaque`, as before
-`@opaque`, is refused with a pointer to `@opaque`.
+atoms, is refused with a pointer to writing it as an atom.
 
 The checks module is Python too, checked against the same subset before it is
-imported. `DOMAINS` maps an event parameter to the finite set of its values;
-`csdfbmc.values.record(field=domain, …)` and `partial_map(keys, values,
-max_size)` enumerate a domain of records or partial functions from the
-domains of the fields and a bound on the number of keys. A sent field
+imported. `TYPES` maps a type to the finite set of its values (its carrier
+set), and a name ranges over the type of its own name; `TYPEOF` maps a name
+to another type, so that `相手ID` can range over `口座ID`
+(`TYPEOF = {"相手ID": "口座ID"}`). `csdfbmc.values.record(field=domain, …)`
+and `partial_map(keys, values, max_size)` enumerate a type of records or
+partial functions from the types of the fields and a bound on the number of
+keys. A module that defines `DOMAINS`, which an earlier `csdfbmc` read, is
+refused: declare the values as `TYPES`. A sent field
 (`c!y`) has no domain: it sends the value `y` has at the step, and a name the
 step does not bind is an error. A `tau` chooses from the domains too: a name
 a `tau`'s clauses read that is neither a state variable nor a field, as
@@ -799,11 +803,29 @@ no end edge as a deadlock, with the trace that reached it, and every cycle of
 `--avoid EVENT` it also reports every cycle among the reachable states that
 never performs that event: under a fairness assumption written as a finite
 bound (a resend count in the domains), such a cycle is a run that never gets to
-the event, which is the livelock the `assume` note was about. A clause not
-formalised yet is refused; `--opaque true` takes it as satisfied instead,
-which over-approximates the behaviour (a deadlock it then reports may be
-spurious; a deadlock it misses cannot be hidden by it) and lists the clauses
-so taken. Findings of one shape are reported once, with their count and the
+the event, which is the livelock the `assume` note was about.
+
+A guard clause not formalised yet — a clause the glue cannot read, written
+as an atom whose holes are what it reads, such as `$口座 が凍結されていない` —
+is a pure function, which the environment gives (docs/CLAUSE_DESIGN.md, P15
+and P16). The function is named by the atom's text without its holes, and
+its arguments are the holes, in order: `$口座 が凍結されていない` is the
+function `$_0 が凍結されていない` of the value of `口座`, and every atom with
+that text, on any edge, is the same function. The tool word `@opaque` is
+refused: write the clause as such an atom. The checks module's
+`ENVIRONMENT` maps a function, written as its name or as any of its atoms,
+to `True`, `False` or a pure function taking the arguments in order;
+`--env NAME=true|false` gives a value over it, and `--seed N` chooses every
+function nothing gives, deterministically, by hashing the seed, the name and
+the values of the arguments, and nothing else, so that one seed walks the same states again and several
+seeds widen what the bound covers. The report names the seed, the given
+functions and the ones a clause was decided by (`environment` in `--json`),
+which is what reproduces a run. Before the walk, csdfbmc refuses a function
+that nothing gives and no seed chooses, listing every such function, and a
+given name that names no function of the diagram; nothing is approximated.
+A post clause not formalised is not decided by the environment yet, and is
+refused: which values it writes is known only once the walk reads atoms
+(a later step of #76). Findings of one shape are reported once, with their count and the
 shortest trace: deadlocks by control state and the event that led there,
 broken invariants by invariant and control state, cycles by the control
 states they run through, empty and unconstrained posts by event. `--all`
@@ -912,7 +934,7 @@ one, and finds the same deadlocks, cycles, broken invariants, empty posts
 and variables left without a value. Every post clause is still evaluated;
 a left-out variable just has no value in the state (null in `--json`). The
 report lists the kept variables and each left-out one with the edges that
-set it. A clause whose reads are unknown (`@opaque`), or an invariant or
+set it. A clause whose reads are unknown (one the glue cannot read), or an invariant or
 ghost update that takes any keyword, keeps the cone from being computed,
 and the report says so. A replay from such a walk carries nulls, so walk
 without `--cone` to replay a finding in the REPL.

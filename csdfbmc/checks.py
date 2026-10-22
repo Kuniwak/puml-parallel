@@ -1,9 +1,12 @@
-"""The checks module: the finite domains of the parameters, and what the
-walk checks besides the clauses.
+"""The checks module: the environment of the diagram, and what the walk
+checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
-DOMAINS (event parameter -> iterable of values) and, when wanted, GHOSTS,
-INVARIANTS and SYMMETRIC. The clauses themselves are read through a glue of
+TYPES (a type -> iterable of its values) and, when wanted, TYPEOF (a name ->
+its type; a name it does not list has the type of its own name), ENVIRONMENT
+(the functions clauses not formalised denote; see csdfbmc.environment),
+GHOSTS, INVARIANTS and SYMMETRIC. An earlier csdfbmc read DOMAINS; a module
+defining it is refused. The clauses themselves are read through a glue of
 the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
 earlier csdfbmc read, is refused: write the clauses in the glue's language
 instead.
@@ -24,7 +27,10 @@ import ast
 import importlib.util
 import inspect
 from dataclasses import dataclass, field
-from typing import Callable, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable
+
+if TYPE_CHECKING:
+    from csdfbmc.environment import Given
 
 
 class PurityError(Exception):
@@ -66,7 +72,8 @@ def check_pure(source: str, path: str = "<checks>") -> None:
 
 @dataclass
 class Checks:
-    domains: dict[str, Iterable]
+    # types: a type -> the finite values it ranges over (its carrier set).
+    types: dict[str, Iterable]
     # invariants: name -> predicate over the state variables and ghosts it
     # reads, checked at every reachable state that binds all of them.
     invariants: dict[str, Callable[..., bool]] = field(default_factory=dict)
@@ -81,11 +88,32 @@ class Checks:
     symmetric: tuple[str, ...] = ()
     # sources: (path, source) of the module, which the symmetry check reads.
     sources: list[tuple[str, str]] = field(default_factory=list)
+    # typeof: a name -> its type; a name it does not list has the type of
+    # its own name.
+    typeof: dict[str, str] = field(default_factory=dict)
+    # environment: the name of a function a clause not formalised denotes, or
+    # an atom of it -> its value, True or False, or a pure function of its
+    # arguments in order (csdfbmc.environment).
+    environment: dict[str, Given] = field(default_factory=dict)
+
+    def type_of(self, name: str) -> str:
+        return self.typeof.get(name, name)
+
+    def declares(self, name: str) -> bool:
+        """Whether name has a type, and so values to range over."""
+        return self.type_of(name) in self.types
+
+    def typed_names(self) -> dict[str, list]:
+        """Every name that has a type, with its values: the names TYPEOF
+        lists, and each type under its own name."""
+        names = {name: list(values) for name, values in self.types.items()}
+        names.update((name, list(self.types[t])) for name, t in self.typeof.items() if t in self.types)
+        return names
 
     def domain(self, name: str) -> list:
-        if name in self.domains:
-            return list(self.domains[name])
-        raise KeyError(f"no domain declared for {name!r}; add it to DOMAINS")
+        if self.declares(name):
+            return list(self.types[self.type_of(name)])
+        raise KeyError(f"no type declared for {name!r}; add it to TYPES, or give it a type with TYPEOF")
 
     def binds(self, fn: Callable, env: dict) -> bool:
         return all(p in env for p in inspect.signature(fn).parameters)
@@ -117,18 +145,33 @@ def load_checks(path: str) -> Checks:
     spec = importlib.util.spec_from_file_location("csdf_checks", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    if not isinstance(getattr(module, "DOMAINS", None), dict):
-        raise PurityError(f"{path}: the module must define DOMAINS as a dict")
+    if hasattr(module, "DOMAINS"):
+        raise PurityError(f"{path}: DOMAINS is no longer read; declare the values as TYPES (a type -> its values), "
+                          "and give a name the type of another name with TYPEOF (a name -> a type)")
+    if not isinstance(getattr(module, "TYPES", None), dict):
+        raise PurityError(f"{path}: the module must define TYPES as a dict (a type -> its values)")
+    typeof = getattr(module, "TYPEOF", {})
+    if not isinstance(typeof, dict):
+        raise PurityError(f"{path}: TYPEOF must be a dict (a name -> a type) when defined")
+    for name, t in typeof.items():
+        if t not in module.TYPES:
+            raise PurityError(f"{path}: TYPEOF gives {name!r} the type {t!r}, which TYPES does not declare")
     if not isinstance(getattr(module, "SYMMETRIC", ()), (list, tuple, set, frozenset)):
         raise PurityError(f"{path}: SYMMETRIC must be a list of instance-ID parameters when defined")
     if hasattr(module, "CLAUSES"):
         raise PurityError(f"{path}: CLAUSES is no longer read; write the clauses in the "
                           "language of a glue (csdfbmc.python_glue reads Python) and read them with --evaluator-module")
-    for table in ("INVARIANTS", "GHOSTS"):
+    for table in ("INVARIANTS", "GHOSTS", "ENVIRONMENT"):
         if not isinstance(getattr(module, table, {}), dict):
             raise PurityError(f"{path}: {table} must be a dict when defined")
+    environment = dict(getattr(module, "ENVIRONMENT", {}))
+    for name, value in environment.items():
+        if not isinstance(name, str):
+            raise PurityError(f"{path}: ENVIRONMENT names a function by {name!r}; name it by an atom of it, as text")
+        if not isinstance(value, bool) and not callable(value):
+            raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False or a function of the names it reads")
     return Checks(
-        domains=dict(module.DOMAINS),
+        types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
     )
