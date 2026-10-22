@@ -198,3 +198,21 @@ func TestReadHintsAtPromotionForAGlobalDiagram(t *testing.T) {
 		t.Errorf("err = %v, want a *csdf.PromotionHintError", err)
 	}
 }
+
+func TestReadRefusesAFieldReceivedOverAStateVariable(t *testing.T) {
+	testCases := map[string]string{
+		"of the source":      "@startuml\nstate \"a\" as a\na : k\nstate \"b\" as b\n[*] --> a\na --> b : in?k\n@enduml\n",
+		"of the destination": "@startuml\nstate \"a\" as a\nstate \"b\" as b\nb : k\n[*] --> a\na --> b : in?k\n@enduml\n",
+	}
+	for name, src := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := Read(src)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), "k") {
+				t.Errorf("err = %v, want the field k refused", err)
+			}
+		})
+	}
+}

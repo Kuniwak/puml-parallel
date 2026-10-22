@@ -65,7 +65,13 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		}
 	}
 	for _, e := range src.Edges {
-		d.Edges = append(d.Edges, edgeOf(e, clauses))
+		edge := edgeOf(e, clauses)
+		for _, f := range edge.Event.Received() {
+			if core.ReceivesOver(f, d.Vars[edge.Src], d.Vars[edge.Dst]) {
+				return nil, fmt.Errorf("line %d: the edge %s -> %s receives %s, which names a state variable of %s or %s, over which it would bind", e.Line, edge.Src, edge.Dst, f, edge.Src, edge.Dst)
+			}
+		}
+		d.Edges = append(d.Edges, edge)
 	}
 	for _, a := range src.Assumptions {
 		d.Assumes = append(d.Assumes, core.Assumption{ID: a.ID, Text: string(a.Text)})
