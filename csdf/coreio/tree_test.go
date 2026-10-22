@@ -70,65 +70,65 @@ func TestComposeTreeNamesTheLeafItCannotLoad(t *testing.T) {
 	}
 }
 
-func TestComposeTreeIsThePipelineOfItsTools(t *testing.T) {
-	// The tree, read from a file as csdfcomp reads it, against what
-	// csdfparallel writes, read back, then hidden as csdfhide does.
-	testCases := map[string]struct {
-		Tree     string
-		Base     string
-		Files    []string
-		Sync     []string
-		Channels []string
-	}{
-		"in_out_tree.json": {
-			Tree: "../../examples/valid/in_out_tree.json", Base: "../../examples/valid",
-			Files: []string{"in.puml", "out.puml"}, Sync: []string{"sync"}, Channels: []string{"sync"},
-		},
+// pipeline is the diagram the tools write for expr, run one by one as a
+// shell would: csdfparallel for an INTERFACE_PARALLEL, its output read back,
+// and csdfhide for a HIDE, each leaf loaded from base.
+func pipeline(t *testing.T, base string, expr csdf.Expr) *core.Diagram {
+	t.Helper()
+	switch e := expr.(type) {
+	case *csdf.ReferExpr:
+		d, err := Load(filepath.Join(base, e.Path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	case *csdf.HideExpr:
+		d, err := core.Hide(pipeline(t, base, e.Proc), e.Channels)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	case *csdf.InterfaceParallelExpr:
+		var ds []*core.Diagram
+		for _, p := range e.Procs {
+			ds = append(ds, pipeline(t, base, p))
+		}
+		composed, err := core.ComposeAll(ds, e.Sync)
+		if err != nil {
+			t.Fatal(err)
+		}
+		readBack, err := Read(tools(t, composed))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return readBack
 	}
-	for name, tc := range testCases {
-		t.Run(name, func(t *testing.T) {
-			// Setup
-			src, err := os.ReadFile(tc.Tree)
-			if err != nil {
-				t.Fatal(err)
-			}
-			expr, err := csdf.ParseExpr(src)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var ds []*core.Diagram
-			for _, f := range tc.Files {
-				d, err := Load(filepath.Join(tc.Base, f))
-				if err != nil {
-					t.Fatal(err)
-				}
-				ds = append(ds, d)
-			}
-			composed, err := core.ComposeAll(ds, tc.Sync)
-			if err != nil {
-				t.Fatal(err)
-			}
-			want := tools(t, composed)
-			readBack, err := Read(want)
-			if err != nil {
-				t.Fatal(err)
-			}
-			hidden, err := core.Hide(readBack, tc.Channels)
-			if err != nil {
-				t.Fatal(err)
-			}
+	t.Fatalf("no expression %T", expr)
+	return nil
+}
 
-			// Execute
-			got, err := ComposeTree(expr, FileLoader(tc.Base))
+func TestComposeTreeIsThePipelineOfItsTools(t *testing.T) {
+	// Setup
+	const base = "../../examples/valid"
+	src, err := os.ReadFile(filepath.Join(base, "in_out_tree.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	expr, err := csdf.ParseExpr(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := tools(t, pipeline(t, base, expr))
 
-			// Assert
-			if err != nil {
-				t.Fatal(err)
-			}
-			if diff := cmp.Diff(tools(t, hidden), tools(t, got)); diff != "" {
-				t.Error(diff)
-			}
-		})
+	// Execute
+	got, err := ComposeTree(expr, FileLoader(base))
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, tools(t, got)); diff != "" {
+		t.Error(diff)
 	}
 }
 
@@ -149,27 +149,40 @@ func TestComposeTreeFoldsMoreThanTwoProcs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got.Edges) != 1 || len(got.States) != 2 {
-		t.Errorf("want 1 edge between 2 states, got %s", tools(t, got))
+	want := "@startuml\nstate \"((s0, s0), s0)\" as s0_s0_s0\nstate \"((s1, s1), s1)\" as s1_s1_s1\n" +
+		"[*] --> s0_s0_s0\ns0_s0_s0 --> s1_s1_s1 : sync\n@enduml\n"
+	if diff := cmp.Diff(want, tools(t, got)); diff != "" {
+		t.Error(diff)
 	}
 }
 
 func TestFileLoaderResolvesARelativePathAgainstItsBase(t *testing.T) {
-	testCases := map[string]string{
-		"a relative path":  "in.puml",
-		"an absolute path": func() string { p, _ := filepath.Abs("../../examples/valid/in.puml"); return p }(),
+	// Setup: out.puml is in the base, and not in the directory of the test.
+	const base = "../../examples/valid"
+	abs, err := filepath.Abs(filepath.Join(base, "out.puml"))
+	if err != nil {
+		t.Fatal(err)
 	}
+	if _, err := os.Stat("out.puml"); err == nil {
+		t.Fatal("out.puml is in the directory of the test, so a loader ignoring its base would pass")
+	}
+	want, err := Load(abs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	testCases := map[string]string{"a relative path": "out.puml", "an absolute path": abs}
+
 	for name, path := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			d, err := FileLoader("../../examples/valid")(path)
+			got, err := FileLoader(base)(path)
 
 			// Assert
 			if err != nil {
 				t.Fatal(err)
 			}
-			if d.Init != "s0" {
-				t.Errorf("read %v, want in.puml", d)
+			if diff := cmp.Diff(tools(t, want), tools(t, got)); diff != "" {
+				t.Error(diff)
 			}
 		})
 	}
