@@ -8,7 +8,7 @@ import (
 )
 
 func TestExpandRendersTheClausesWithTheGivenTemplates(t *testing.T) {
-	tmpl, err := promote.LoadTemplates("../../examples/promote/templates/ja.tmpl")
+	tmpl, err := promote.LoadTemplates("testdata/ja.tmpl")
 	if err != nil {
 		t.Fatalf("promote.LoadTemplates() error = %v", err)
 	}

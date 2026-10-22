@@ -1,0 +1,22 @@
+@startuml MODES
+state "縮退中" as degraded
+degraded : accounts
+degraded : audits
+state "稼働中" as running
+running : accounts
+running : audits
+[*] --> running : @empty(accounts') ∧ @empty(audits')
+degraded --> degraded : CLOSE?口座ID ; @at(accounts[口座ID], accOpen) ∧ ${accounts[口座ID].balance} が 0 ; @frame(accounts', accounts, 口座ID) ∧ @notin(口座ID, accounts') ∧ @eq(audits', audits)
+degraded --> degraded : FREEZE?口座ID?理由 ; @at(accounts[口座ID], accOpen) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accFrozen) ∧ ${accounts'[口座ID].reason} は $理由 ∧ ${accounts'[口座ID].balance} は ${accounts[口座ID].balance} ∧ @eq(audits', audits)
+degraded --> degraded : OPEN?口座ID ; @notin(口座ID, accounts) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accOpen) ∧ ${accounts'[口座ID].balance} は 0 ∧ @eq(audits', audits)
+degraded --> running : RECOVER ; ; @eq(accounts', accounts) ∧ @eq(audits', audits)
+degraded --> degraded : UNFREEZE?口座ID ; @at(accounts[口座ID], accFrozen) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accOpen) ∧ ${accounts'[口座ID].balance} は ${accounts[口座ID].balance} ∧ @eq(audits', audits)
+running --> running : AUDIT_ARCHIVE?監査ID ; @at(audits[監査ID], audDone) ; @eq(accounts', accounts) ∧ @frame(audits', audits, 監査ID) ∧ @notin(監査ID, audits')
+running --> running : AUDIT_BEGIN?監査ID?口座ID ; @notin(監査ID, audits) ∧ $口座ID は $accounts の定義域にある ; @eq(accounts', accounts) ∧ @frame(audits', audits, 監査ID) ∧ @at(audits'[監査ID], audOpen) ∧ ${audits'[監査ID].target} は $口座ID
+running --> running : AUDIT_REPORT?監査ID ; @at(audits[監査ID], audOpen) ; @eq(accounts', accounts) ∧ @frame(audits', audits, 監査ID) ∧ @at(audits'[監査ID], audDone) ∧ ${audits'[監査ID].target} は ${audits[監査ID].target}
+running --> running : CLOSE?口座ID ; @at(accounts[口座ID], accOpen) ∧ ${accounts[口座ID].balance} が 0 ; @frame(accounts', accounts, 口座ID) ∧ @notin(口座ID, accounts') ∧ @eq(audits', audits)
+running --> degraded : DEGRADE ; ; @eq(accounts', accounts) ∧ @eq(audits', audits)
+running --> running : FREEZE?口座ID?理由 ; @at(accounts[口座ID], accOpen) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accFrozen) ∧ ${accounts'[口座ID].reason} は $理由 ∧ ${accounts'[口座ID].balance} は ${accounts[口座ID].balance} ∧ @eq(audits', audits)
+running --> running : OPEN?口座ID ; @notin(口座ID, accounts) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accOpen) ∧ ${accounts'[口座ID].balance} は 0 ∧ @eq(audits', audits)
+running --> running : UNFREEZE?口座ID ; @at(accounts[口座ID], accFrozen) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accOpen) ∧ ${accounts'[口座ID].balance} は ${accounts[口座ID].balance} ∧ @eq(audits', audits)
+@enduml

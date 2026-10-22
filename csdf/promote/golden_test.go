@@ -27,7 +27,9 @@ func TestExpandMatchesTheRecordedExpansions(t *testing.T) {
 	}
 
 	for _, path := range paths {
-
+		if strings.HasSuffix(path, ".expanded.puml") {
+			continue
+		}
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			g, err := promote.LoadGlobal(path)
 			if err != nil {
