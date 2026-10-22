@@ -194,3 +194,20 @@ func TestBuildListsTheUnreachableStates(t *testing.T) {
 		t.Error(diff)
 	}
 }
+
+func TestBuildTypesTheValuesItBinds(t *testing.T) {
+	// Setup
+	d := read(t, "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\ns1 : n\n[*] --> s0 : $n' = 0\ns0 --> s1 : tau ; ; @eq(n', n)\ns1 --> s1 : a ; $n > 1\n@enduml\n")
+
+	// Execute
+	table, err := transtable.Build(d, transtable.ConditionsFull)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := logic.TreeOf(table.Rows[0].Cells[0][0].Cond)
+	if diff := cmp.Diff([]string{"n"}, tree.Types); diff != "" {
+		t.Errorf("the value after the tau step is of no type n: %v", diff)
+	}
+}

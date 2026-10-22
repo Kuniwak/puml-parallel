@@ -11,6 +11,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/csdf/obligation"
 )
 
 // Table is the state transition table of a diagram.
@@ -195,7 +196,7 @@ type conjunct struct {
 	// binds are the values a post of a tau step leads to, which the
 	// condition binds; empty for a conjunct that binds nothing, and for the
 	// post of the accepted event, whose values after it stay free.
-	binds []logic.Var
+	binds []obligation.Value
 	// post says the conjunct is a post, which ConditionsEnabling may leave
 	// out when nothing kept reads what it binds.
 	post bool
@@ -311,9 +312,9 @@ func (ix index) conjuncts(steps []int) ([]conjunct, error) {
 		for k, v := range after {
 			m[k] = v
 		}
-		binds := make([]logic.Var, 0, len(after))
+		binds := make([]obligation.Value, 0, len(after))
 		for _, v := range ix.d.Vars[e.Dst] {
-			binds = append(binds, after[primed(v)])
+			binds = append(binds, obligation.After(v, i+1))
 		}
 		cs = append(cs, holds(logic.Rename(g, m)), conjunct{formula: logic.Rename(p, m), binds: binds, post: true})
 	}
@@ -326,11 +327,14 @@ func (ix index) closeOver(path []conjunct, then ...conjunct) logic.Formula {
 	cs := ix.conds.discharge(slices.Concat(path, then))
 	fs := make([]logic.Formula, len(cs))
 	var bound []logic.Var
+	var types []string
 	for i, c := range cs {
 		fs[i] = c.formula
-		bound = append(bound, c.binds...)
+		for _, b := range c.binds {
+			bound, types = append(bound, b.Var), append(types, b.Type)
+		}
 	}
-	return logic.Simplify(logic.Exists(bound, logic.And(fs...)))
+	return logic.Simplify(logic.ExistsTyped(bound, types, logic.And(fs...)))
 }
 
 // outcomes lists what may happen when c is offered in state s, in the

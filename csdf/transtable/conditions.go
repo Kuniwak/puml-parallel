@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/csdf/obligation"
 )
 
 // Conditions says how much of what holds along a way the condition of an
@@ -66,7 +67,7 @@ func (conds Conditions) discharge(cs []conjunct) []conjunct {
 	read := make(map[logic.Var]bool)
 	kept := make([]conjunct, 0, len(cs))
 	for _, c := range slices.Backward(cs) {
-		if c.post && !slices.ContainsFunc(c.binds, func(v logic.Var) bool { return read[v] }) {
+		if c.post && !slices.ContainsFunc(c.binds, func(v obligation.Value) bool { return read[v.Var] }) {
 			continue
 		}
 		for _, v := range logic.FreeVars(c.formula) {
