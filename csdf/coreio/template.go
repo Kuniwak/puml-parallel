@@ -57,9 +57,9 @@ func LoadTemplates(text string) (Templates, error) {
 	return Templates{set: set}, nil
 }
 
-// gloss is the gloss of e's guard and post: each builtin conjunct that
-// has a template, rendered, joined by ∧.
-func (ts Templates) gloss(e core.Edge) (string, error) {
+// Gloss is the gloss of e's guard and post: each builtin conjunct that
+// has a template, rendered, joined by ∧; "" when none has one.
+func (ts Templates) Gloss(e core.Edge) (string, error) {
 	var out []string
 	for _, f := range []clause.And{e.Guard, e.Post} {
 		for _, c := range clause.Normalize(f).Conjuncts {
@@ -93,5 +93,5 @@ func (ts Templates) gloss(e core.Edge) (string, error) {
 // line comment above it; Read skips it, so Read(WriteGlossed(d, ts)) is d
 // as Read(Write(d)) is.
 func WriteGlossed(d *core.Diagram, ts Templates) (string, error) {
-	return write(d, ts.gloss)
+	return write(d, ts.Gloss)
 }
