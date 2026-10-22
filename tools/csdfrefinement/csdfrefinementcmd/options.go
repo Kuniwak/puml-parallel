@@ -87,15 +87,19 @@ two events. Each edge of a state is an external choice of the events it can
 perform - its received fields of their types, for which some values after it
 pass its guard and post - followed by an internal choice of those values after
 it; an end edge is SKIP when its guard holds. A channel with one number of
-fields in one place and another elsewhere is refused. The axioms of the csdf_*
-predicates, as csdf_axiom_<i>, and the assume notes of either diagram (see
-docs/SYNTAX.md), as assume_<id>_S or assume_<id>_I, are hypotheses of the
-theorem.
+fields in one place and another elsewhere is refused. The refinement is stated
+under the axioms of the csdf_* predicates, as csdf_axiom_<i>, alone. The assume
+notes of a diagram (see docs/SYNTAX.md), as assume_<id>_S or assume_<id>_I, are
+hypotheses only of that side's own lemmas: initialisable_S/_I, stated in every
+model since a side that cannot start is DIV and makes the refinement vacuous, and
+under -m fd its livelock freedom. An assumption of the Impl could make the
+refinement hold vacuously, and one of the Spec, of liveness, is no claim traces
+or stable failures can state.
 
 CSP-Prover has no failures-divergences model, so -m fd emits the standard
 reduction instead: a divergence-freedom obligation per side - the csdflivelockfree
-obligation inlined, plus an initialisability obligation, since a diagram that
-cannot start denotes DIV and DIV diverges on the empty trace - plus the
+obligation inlined, beside the initialisability obligation, since DIV diverges
+on the empty trace - plus the
 stable-failures refinement. Note that the Spec-side obligations are stronger than
 FD refinement needs: DIV is the bottom of the FD model, so Spec ⊑FD Impl holds
 even for a diverging Spec. Reducing to <=F cannot see that, so -m fd cannot

@@ -99,6 +99,18 @@ def ImplProc : proc PN event :=
         (fun v_n_u27u => proc.Proc_name (PN.I_s v_n_u27u)))
     {event.Alphabet alphabet.HTau}
 
+-- Spec admits an initial valuation, so it does not denote DIV. A side that does
+-- makes the refinement vacuous, and diverges on the empty trace, which no
+-- tau-step argument can rule out.
+theorem initialisable_S : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u) := by
+  sorry
+
+-- Impl admits an initial valuation, so it does not denote DIV. A side that does
+-- makes the refinement vacuous, and diverges on the empty trace, which no
+-- tau-step argument can rule out.
+theorem initialisable_I : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u) := by
+  sorry
+
 -- Every stable failure of the Impl diagram is one of the Spec diagram: refF
 -- P1 M1 M2 P2 unfolds to semFf P2 M2 <= semFf P1 M1, and it subsumes trace
 -- inclusion.

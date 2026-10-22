@@ -136,9 +136,9 @@ theorem livelock_free_S (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_a
     WellFounded (fun s' s => Reachable_S s ∧ tauStep_S s s') := by
   sorry
 
--- Spec admits an initial valuation, so it does not denote DIV. Divergence-freedom
--- of the process needs this as well as the well-foundedness above: DIV diverges
--- on the empty trace, which no tau-step argument can rule out.
+-- Spec admits an initial valuation, so it does not denote DIV. A side that does
+-- makes the refinement vacuous, and diverges on the empty trace, which no
+-- tau-step argument can rule out.
 theorem initialisable_S (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) (h_assume_fair_S : assume_fair_S) : ∃ (v_m_u27u : Val), type_m v_m_u27u ∧ (csdf_empty v_m_u27u) := by
   sorry
 
@@ -162,9 +162,9 @@ theorem livelock_free_I (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_a
     WellFounded (fun s' s => Reachable_I s ∧ tauStep_I s s') := by
   sorry
 
--- Impl admits an initial valuation, so it does not denote DIV. Divergence-freedom
--- of the process needs this as well as the well-foundedness above: DIV diverges
--- on the empty trace, which no tau-step argument can rule out.
+-- Impl admits an initial valuation, so it does not denote DIV. A side that does
+-- makes the refinement vacuous, and diverges on the empty trace, which no
+-- tau-step argument can rule out.
 theorem initialisable_I (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u) := by
   sorry
 
@@ -176,7 +176,7 @@ theorem initialisable_I (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_a
 -- Every stable failure of the Impl diagram is one of the Spec diagram: refF
 -- P1 M1 M2 P2 unfolds to semFf P2 M2 <= semFf P1 M1, and it subsumes trace
 -- inclusion.
-theorem refines_f (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) (h_assume_fair_S : assume_fair_S) : refFfix SpecProc ImplProc := by
+theorem refines_f (h_csdf_axiom_1 : csdf_axiom_1) (h_csdf_axiom_2 : csdf_axiom_2) : refFfix SpecProc ImplProc := by
   sorry
 
 end Refinement_Obligation

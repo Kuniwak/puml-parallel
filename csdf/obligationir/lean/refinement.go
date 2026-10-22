@@ -63,7 +63,7 @@ deriving Inhabited
 		return "", err
 	}
 	writeSymbols(&w, ds)
-	hypotheses, err := writeAxioms(&w, r.Axioms())
+	axioms, err := writeAxioms(&w, r.Axioms())
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +72,6 @@ deriving Inhabited
 		if err := WriteAssumptions(&w, s.names, s.ir.Assumptions); err != nil {
 			return "", err
 		}
-		hypotheses = append(hypotheses, AssumptionNames(s.names, s.ir.Assumptions)...)
 	}
 
 	writeProcessNames(&w, sides)
@@ -86,15 +85,15 @@ deriving Inhabited
 			return "", err
 		}
 	}
-	if r.Mode == obligationir.IRRefinementModeFailuresDivergence {
-		axioms := hypotheses[:len(r.Axioms())]
-		for _, s := range sides {
-			if err := writeDivergenceFreedom(&w, s, axioms); err != nil {
-				return "", err
-			}
+	for _, s := range sides {
+		if err := writeSideLemmas(&w, s, r.Mode, axioms); err != nil {
+			return "", err
 		}
 	}
-	WriteRefinementTheorem(&w, r.Mode, hypotheses)
+	// The refinement is stated under the axioms alone: an assumption of the
+	// impl could make it hold vacuously, and one of the spec, of liveness, is
+	// no claim traces or stable failures can state (docs/CLAUSE_DESIGN.md).
+	WriteRefinementTheorem(&w, r.Mode, axioms)
 	fmt.Fprintf(&w, "\n\nend %s\n\nend\n", Namespace)
 	return w.String(), nil
 }
@@ -250,15 +249,16 @@ func writeProc(w io.Writer, s side) error {
 	return nil
 }
 
-// writeDivergenceFreedom writes the obligations that a side does not
-// diverge, which license reading the F refinement as FD refinement: that no
-// reachable state starts an infinite run of tau steps, and that it can start
-// at all.
-func writeDivergenceFreedom(w io.Writer, s side, axioms []string) error {
+// writeSideLemmas writes the lemmas of a side, under the axioms and its own
+// assumptions: that it can start at all, since a side that cannot is DIV,
+// which makes a refinement vacuous in every model; and in FD, that no
+// reachable state starts an infinite run of tau steps, which with the first
+// licenses reading the F refinement as FD refinement.
+func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, axioms []string) error {
 	hypotheses := append(append([]string{}, axioms...), AssumptionNames(s.names, s.ir.Assumptions)...)
-	if s.ir.Structurally {
+	if mode == obligationir.IRRefinementModeFailuresDivergence && s.ir.Structurally {
 		fmt.Fprintf(w, "-- %s is livelock free structurally: no reachable tau-cycle.\n\n", s.label)
-	} else {
+	} else if mode == obligationir.IRRefinementModeFailuresDivergence {
 		writeStates(w, s.states, s.ir.States)
 		if err := writeTransitionSystem(w, s.states, s.ir); err != nil {
 			return fmt.Errorf("%s: %w", s.label, err)
@@ -273,9 +273,9 @@ func writeDivergenceFreedom(w io.Writer, s side, axioms []string) error {
 	if len(vars) > 0 {
 		body = Notation.Exists(vars, body)
 	}
-	fmt.Fprintf(w, `-- %s admits an initial valuation, so it does not denote DIV. Divergence-freedom
--- of the process needs this as well as the well-foundedness above: DIV diverges
--- on the empty trace, which no tau-step argument can rule out.
+	fmt.Fprintf(w, `-- %s admits an initial valuation, so it does not denote DIV. A side that does
+-- makes the refinement vacuous, and diverges on the empty trace, which no
+-- tau-step argument can rule out.
 theorem %s`, s.label, s.names.Qualify("initialisable"))
 	WriteHypotheses(w, hypotheses)
 	fmt.Fprintf(w, " : %s := by\n  sorry\n\n", body)
