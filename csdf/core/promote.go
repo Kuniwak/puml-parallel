@@ -250,8 +250,8 @@ func controlled(p Promotion, maps []string) ([]Edge, error) {
 		if err := clause.WellFormed(e.Guard); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
-		if len(e.Post.Conjuncts) > 0 {
-			return nil, fmt.Errorf("%s has a post: it leaves every map unchanged, a controller writing no instance", name)
+		if len(e.Post.Conjuncts) > 0 && !isFrame(e.Post, maps) {
+			return nil, fmt.Errorf("%s has a post other than the frame: it leaves every map unchanged, a controller writing no instance", name)
 		}
 		allowed := map[string]bool{}
 		for _, m := range maps {
@@ -275,6 +275,24 @@ func controlled(p Promotion, maps []string) ([]Edge, error) {
 		out = append(out, e)
 	}
 	return out, nil
+}
+
+// isFrame says whether post says exactly that every map of maps is
+// unchanged, in any order.
+func isFrame(post clause.And, maps []string) bool {
+	want := clause.Normalize(Unchanged(maps)).Conjuncts
+	got := clause.Normalize(post).Conjuncts
+	if len(got) != len(want) {
+		return false
+	}
+	for _, w := range want {
+		if !slices.ContainsFunc(got, func(g clause.Formula) bool {
+			return clause.AlphaEqual(clause.And{Conjuncts: []clause.Formula{g}}, clause.And{Conjuncts: []clause.Formula{w}})
+		}) {
+			return false
+		}
+	}
+	return true
 }
 
 // Warning is something Promote dropped that the author wrote: Map and

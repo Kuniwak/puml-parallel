@@ -267,7 +267,7 @@ func TestPromoteRefuses(t *testing.T) {
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "$z = 0")}}}, "z"},
 		{"a hand-written edge into no mode", modes(locations, Edge{Src: "G", Dst: "Z", Event: ev("HALT")}), "no mode Z"},
 		{"a hand-written edge on an instance's channel", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("OPEN")}), "channel of its own"},
-		{"a hand-written edge with a post", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Post: mustParse(t, "@empty(locations')")}), "has a post"},
+		{"a hand-written edge with a post other than the frame", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Post: mustParse(t, "@empty(locations')")}), "other than the frame"},
 		{"a hand-written edge sending a field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT", send("why"))}), "holds nothing to send"},
 		{"a hand-written edge reading a primed name", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "@empty(locations')")}), "primed"},
 		{"a hand-written edge reading a name that is no map and no field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "$z = 0")}), "z"},
@@ -733,6 +733,16 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 				Edges: []Edge{
 					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "@empty(doors)")},
 					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsControlled(func(int) bool { return false }) },
+		},
+		{
+			name: "a hand-written edge may write the frame as its post",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "@empty(doors)"), Post: mustParse(t, "@eq(doors', doors)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME"), Post: mustParse(t, "@eq(doors', doors)")},
 				}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS { return doorsControlled(func(int) bool { return false }) },
