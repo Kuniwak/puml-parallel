@@ -164,6 +164,46 @@ end note
 				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
 			},
 		},
+		{
+			name: "modes, a bodyless block, a frozen family, hand-written edges, the start post and an assumption",
+			source: `@startuml
+state "稼働中" as running {
+  running : shipments ; s ⇸ Shipment
+  running : locations ; l ⇸ Location
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+  state "locations : l ⇸ Location" as runningLocations <<promote>> {
+    !include local/LOCATION.puml
+  }
+}
+state "縮退中" as degraded {
+  degraded : shipments ; s ⇸ Shipment
+  degraded : locations ; l ⇸ Location
+  state "shipments : s ⇸ Shipment" as degradedShipments <<promote>>
+}
+[*] --> running : どの map も空
+running --> degraded : HALT?why ; @empty(locations)
+degraded --> running : RESUME
+note as fair
+  assume いずれ RESUME が起きる
+end note
+@enduml
+`,
+			want: core.Promotion{
+				Modes: []string{"running", "degraded"}, Init: "running",
+				InitPost: mustParse(t, "どの map も空"),
+				Families: []core.Family{
+					{Map: "shipments", ID: "s", Local: shp},
+					{Map: "locations", ID: "l", Local: loc, Frozen: []string{"degraded"}},
+				},
+				Edges: []core.Edge{
+					{Src: "running", Dst: "degraded", Event: core.Event{Channel: "HALT", Fields: []core.Field{{Name: "why"}}}, Guard: mustParse(t, "@empty(locations)")},
+					{Src: "degraded", Dst: "running", Event: core.Event{Channel: "RESUME"}},
+				},
+				Assumes: []core.Assumption{{ID: "fair", Text: "いずれ RESUME が起きる"}},
+			},
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -201,10 +241,6 @@ func TestReadPromotionRefuses(t *testing.T) {
 	cases := []struct {
 		name, source, want string
 	}{
-		{"a post on the start edge",
-			promoting("[*] --> running : 何か\n"), "a post on the start edge " + refusedYet},
-		{"a hand-written edge of the global diagram",
-			promoting("[*] --> running\nrunning --> running : a\n"), "a hand-written edge of the global diagram " + refusedYet},
 		{"a constrain with an empty guard",
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s ;\nend note\n"), "empty guard"},
 		{"a constrain on a malformed event",
@@ -213,16 +249,20 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s ; @ne(s)\nend note\n"), "constrain ORDER?s"},
 		{"a constrain without its guard",
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s\nend note\n"), "constrain ORDER?s"},
-		{"a global assume note",
-			promoting("[*] --> running\nnote as n\n  assume いつか止まる\nend note\n"), "an assume note in the global diagram " + refusedYet},
-		{"a second global state",
-			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "a second global state " + refusedYet},
-		{"a second composite global state",
-			promoting("state \"保守\" as maintenance {\n}\n[*] --> running\n"), "a second global state " + refusedYet},
-		{"a bodyless block",
-			strings.Replace(promoting("[*] --> running\n"), "<<promote>> {\n    !include S.puml\n  }", "<<promote>>", 1), "a bodyless <<promote>> block " + refusedYet},
 		{"a variable of the global state that is no family's map",
 			strings.Replace(promoting("[*] --> running\n"), "running {\n", "running {\n  running : 件数\n", 1), "a variable of the global state that is no family's map " + refusedYet},
+		{"a mode holding no map of a family",
+			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "maintenance holds no map shipments"},
+		{"a composite mode holding no map of a family",
+			promoting("state \"保守\" as maintenance {\n}\n[*] --> running\n"), "maintenance holds no map shipments"},
+		{"only bodyless blocks of a map",
+			strings.Replace(promoting("[*] --> running\n"), "<<promote>> {\n    !include S.puml\n  }", "<<promote>>", 1), "no block of shipments includes its local diagram"},
+		{"an anchored assume note",
+			promoting("[*] --> running\nnote bottom of rs\n  assume いつか止まる\nend note\n"), "about the whole system"},
+		{"a hand-written edge whose label does not parse",
+			promoting("[*] --> running\nrunning --> running : a?? ; ; \n"), "running --> running"},
+		{"a hand-written edge into the end",
+			promoting("[*] --> running\nrunning --> [*]\n"), "no end edge"},
 		{"a second sync of one event",
 			promoting("[*] --> running\nnote as n\n  sync SHIP : shipments(s)\nend note\nnote as m\n  sync SHIP : shipments(s)\nend note\n"), "a second sync of SHIP"},
 		{"a second block of one map",

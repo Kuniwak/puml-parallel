@@ -3,6 +3,7 @@ package coreio
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -23,19 +24,21 @@ var (
 	targetRe    = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
 )
 
-// ReadPromotion reads a global diagram (docs/PROMOTION.md): one composite
-// state holding a <<promote>> block per family, titled
-// "<map> : <ID> ⇸ <Type>" and including its local diagram, which include
-// reads by the path written, and the declarations of the maps it holds; a
-// start edge into that state; and notes, floating or anchored, whose first
-// line is a sync directive, or which are for the picture and are skipped.
-// The type in a title is not read yet. The clauses of the local diagrams and
-// of the syncs are read as authored.
+// ReadPromotion reads a global diagram (docs/PROMOTION.md): its states, the
+// modes, each holding the maps it declares or has a <<promote>> block for;
+// a block titled "<map> : <ID> ⇸ <Type>" says that the family moves in that
+// mode, and exactly one block of a map includes its local diagram, which
+// include reads by the path written, the others being bodyless; a mode
+// holding a map without a block for it has the family frozen there. Then the
+// start edge into a mode, hand-written edges between modes, floating assume
+// notes, and notes, floating or anchored, whose first line is a sync or
+// constrain directive, or which are for the picture and are skipped. The type
+// in a title is not read yet. Clauses are read as authored.
 func ReadPromotion(source string, include Include) (core.Promotion, error) {
 	if err := csdf.CheckIgnoreRegions(source); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
-	r := &promotionReader{include: include}
+	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}}
 	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
@@ -55,13 +58,16 @@ func notYet(what string) error {
 type Include func(path string) (string, error)
 
 type promotionReader struct {
-	include Include
-	p       core.Promotion
-	start   string
-	family  *core.Family // the <<promote>> block being read
-	depth   int          // how many blocks are open
-	note    noteKind
-	maps    []string // the maps the global state declares
+	include  Include
+	p        core.Promotion
+	start    string
+	family   *core.Family // the <<promote>> block being read
+	depth    int          // how many blocks are open
+	note     noteKind
+	noteID   string                     // the ID of the floating note being read, "" for an anchored one
+	holds    map[string]map[string]bool // the maps each mode declares or has a block for
+	moves    map[string]map[string]bool // the maps each mode has a block for
+	declared []string                   // the maps the modes declare, in order
 }
 
 // noteKind is what the note being read is, once its first line says.
@@ -99,31 +105,19 @@ func (r *promotionReader) line(l string) error {
 		return nil // PlantUML's preprocessor, for the picture
 	}
 	if m := pumlline.Promote.FindStringSubmatch(l); m != nil && r.depth == 1 {
-		if m[3] == "" {
-			// It says that a family moves in a second global state.
-			return fmt.Errorf("%s: %w", m[2], notYet("a bodyless <<promote>> block"))
-		}
-		title := pumlline.PromoteTitle.FindStringSubmatch(m[1])
-		if title == nil {
-			return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", m[1])
-		}
-		if _, err := r.familyOf(title[1]); err == nil {
-			return fmt.Errorf("a second <<promote>> block of %s; a map has one block", title[1])
-		}
-		r.p.Families = append(r.p.Families, core.Family{Map: title[1], ID: title[2]})
-		r.family = &r.p.Families[len(r.p.Families)-1]
-		r.depth++
-		return nil
+		return r.block(m[1], m[2], m[3] != "")
 	}
 	if m := mapDeclRe.FindStringSubmatch(l); m != nil && r.depth == 1 && m[1] == r.mode() {
-		r.maps = append(r.maps, m[2])
+		r.holds[r.mode()][m[2]] = true
+		if !slices.Contains(r.declared, m[2]) {
+			r.declared = append(r.declared, m[2])
+		}
 		return nil
 	}
 	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		if len(r.p.Modes) > 0 {
-			return fmt.Errorf("%s: %w", m[2], notYet("a second global state"))
+		if err := r.newMode(m[2]); err != nil {
+			return err
 		}
-		r.p.Modes = []string{m[2]}
 		r.depth++
 		return nil
 	}
@@ -135,21 +129,29 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if m := startRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		if strings.TrimSpace(m[2]) != "" {
-			// Every map starts empty, which is all such a post can say.
-			return notYet("a post on the start edge")
+		if post := strings.TrimSpace(m[2]); post != "" {
+			// Every map starts empty; Promote drops it with a warning.
+			g, err := clause.ParseAuthored(post)
+			if err != nil {
+				return fmt.Errorf("the start edge: %w", err)
+			}
+			r.p.InitPost = g
 		}
 		r.start = m[1]
 		return nil
 	}
 	if m := stateDeclRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		return fmt.Errorf("%s: %w", m[1], notYet("a second global state"))
+		return r.newMode(m[1])
 	}
-	if edgeRe.MatchString(l) && r.depth == 0 {
-		return notYet("a hand-written edge of the global diagram")
+	if m := edgeRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
+		return r.edge(l, m[1], m[2])
 	}
-	if (pumlline.NoteFloating.MatchString(l) || pumlline.NoteAnchored.MatchString(l)) && r.depth < 2 {
-		r.note = unread
+	if m := pumlline.NoteFloating.FindStringSubmatch(l); m != nil && r.depth < 2 {
+		r.note, r.noteID = unread, m[1]
+		return nil
+	}
+	if pumlline.NoteAnchored.MatchString(l) && r.depth < 2 {
+		r.note, r.noteID = unread, ""
 		return nil
 	}
 	return fmt.Errorf("unexpected %q", l)
@@ -197,7 +199,11 @@ func (r *promotionReader) noteLine(l string) error {
 	case strings.HasPrefix(l, "constrain "):
 		return r.constrain(l)
 	case strings.HasPrefix(l, "assume "):
-		return notYet("an assume note in the global diagram")
+		if r.noteID == "" {
+			return fmt.Errorf("an assume note floats, an assumption being about the whole system")
+		}
+		r.p.Assumes = append(r.p.Assumes, core.Assumption{ID: r.noteID, Text: strings.TrimSpace(strings.TrimPrefix(l, "assume "))})
+		return nil
 	}
 	m := syncRe.FindStringSubmatch(l)
 	if m == nil {
@@ -277,6 +283,64 @@ func (r *promotionReader) mode() string {
 	return r.p.Modes[len(r.p.Modes)-1]
 }
 
+// newMode starts the mode named alias.
+func (r *promotionReader) newMode(alias string) error {
+	if slices.Contains(r.p.Modes, alias) {
+		return fmt.Errorf("a second state %s", alias)
+	}
+	r.p.Modes = append(r.p.Modes, alias)
+	r.holds[alias], r.moves[alias] = map[string]bool{}, map[string]bool{}
+	return nil
+}
+
+// block reads a <<promote>> block of the mode being read, titled title:
+// the family of its map moves there, and the block with a body includes the
+// local diagram.
+func (r *promotionReader) block(title, alias string, body bool) error {
+	t := pumlline.PromoteTitle.FindStringSubmatch(title)
+	if t == nil {
+		return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", title)
+	}
+	mode := r.mode()
+	if r.moves[mode][t[1]] {
+		return fmt.Errorf("a second <<promote>> block of %s in %s; a map has one block per mode", t[1], mode)
+	}
+	f, err := r.familyOf(t[1])
+	if err != nil {
+		r.p.Families = append(r.p.Families, core.Family{Map: t[1], ID: t[2]})
+		f = &r.p.Families[len(r.p.Families)-1]
+	} else if f.ID != t[2] {
+		return fmt.Errorf("%s: the blocks of %s write its ID as %s and as %s", alias, t[1], f.ID, t[2])
+	}
+	r.holds[mode][t[1]], r.moves[mode][t[1]] = true, true
+	if body {
+		if f.Local != nil {
+			return fmt.Errorf("a second <<promote>> block of %s with a body; one block includes its local diagram", t[1])
+		}
+		r.family = f
+		r.depth++
+	}
+	return nil
+}
+
+// edge reads a hand-written edge between modes, l, from src to dst.
+func (r *promotionReader) edge(l, src, dst string) error {
+	name := src + " --> " + dst
+	if dst == "[*]" {
+		return fmt.Errorf("%s: a global diagram has no end edge", name)
+	}
+	states := fmt.Sprintf("state %q as %s\n", src, src)
+	if dst != src {
+		states += fmt.Sprintf("state %q as %s\n", dst, dst)
+	}
+	d, err := ReadAuthored("@startuml\n" + states + "[*] --> " + src + "\n" + l + "\n@enduml\n")
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	r.p.Edges = append(r.p.Edges, d.Edges...)
+	return nil
+}
+
 func (r *promotionReader) familyOf(m string) (*core.Family, error) {
 	for i := range r.p.Families {
 		if r.p.Families[i].Map == m {
@@ -293,13 +357,27 @@ func (r *promotionReader) check() error {
 		return fmt.Errorf("no composite state holding the families")
 	case r.depth != 0 || r.note != noNote:
 		return fmt.Errorf("a block or a note is not closed")
-	case r.start != r.mode():
-		return fmt.Errorf("no start edge into %s", r.mode())
+	case !slices.Contains(r.p.Modes, r.start):
+		return fmt.Errorf("no start edge into a mode")
 	}
 	r.p.Init = r.start
-	for _, m := range r.maps {
+	for _, m := range r.declared {
 		if _, err := r.familyOf(m); err != nil {
 			return fmt.Errorf("%s: %w", m, notYet("a variable of the global state that is no family's map"))
+		}
+	}
+	for i := range r.p.Families {
+		f := &r.p.Families[i]
+		if f.Local == nil {
+			return fmt.Errorf("no block of %s includes its local diagram", f.Map)
+		}
+		for _, mode := range r.p.Modes {
+			switch {
+			case !r.holds[mode][f.Map]:
+				return fmt.Errorf("%s holds no map %s: every mode holds every map, the instances existing whatever the mode", mode, f.Map)
+			case !r.moves[mode][f.Map]:
+				f.Frozen = append(f.Frozen, mode)
+			}
 		}
 	}
 	return nil
