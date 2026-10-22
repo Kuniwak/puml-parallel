@@ -22,6 +22,21 @@ func LoadAuthored(path string) (*core.Diagram, error) {
 	return d, nil
 }
 
+// Load reads the diagram a tool wrote at path, such as one csdfparallel or
+// csdfhide printed, whose clauses may hold ∃; a diagram an author wrote is
+// read too.
+func Load(path string) (*core.Diagram, error) {
+	src, err := pngsrc.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.Load: %w", err)
+	}
+	d, err := Read(src)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.Load: %s: %w", path, err)
+	}
+	return d, nil
+}
+
 // LoadPromotion reads the global diagram at path, each !include read
 // relative to the directory path is in.
 func LoadPromotion(path string) (core.Promotion, error) {
