@@ -63,7 +63,7 @@ An event is a channel followed by its fields, in the CSP style: `c?x` receives `
 (the environment chooses its value, from those the guard accepts) and `c!y` sends
 the value of `y`, which the step already binds: a state variable before the step, or
 a field the same event receives (`c?x!x`). A sent field ranges over nothing, and a
-constant is sent through a state variable that holds it. `tau` is the internal event. An event names its fields and carries
+constant is sent through a state variable that holds it. `tau` is the internal event, and carries no fields. An event names its fields and carries
 no value and no expression; anything about a value is said by the guard and the
 post, which read a field by its name. Whitespace and comments around `?` and `!`
 are removed, so `c ? x` is `c?x`. Composition synchronises on channels, and
@@ -232,10 +232,12 @@ conjunct = builtin / exists / atom
 builtin  = "@eq(" term ", " term ")"        ; equal
          / "@ne(" term ", " term ")"        ; differ
          / "@in(" term ", " term ")"        ; key in the domain of a map
+         / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
          / "@at(" term ", " id ")"          ; instance at a state of its local diagram
-exists   = "@exists(" id ") (" clause ")" ; written by tools only
+         / "@empty(" term ")"               ; a map without entries
+exists   = "@exists(" id " : " id ") (" clause ")" ; written by tools only
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = id ["'"] *("[" term "]" / "." id) ["'"]
          / id "(" [term *(", " term)] ")" ; an environment function
@@ -260,10 +262,12 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   `$x` are the same hole.
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
 - A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
-- `@exists(v) (…)` binds `v` in its body; the innermost binder of a name
+- `@exists(v : T) (…)` binds `v`, ranging over the type `T`, in its body; the innermost binder of a name
   wins, and a bound variable has no value after the step. Authors do not
   write it (`docs/CLAUSE_DESIGN.md`); tools do. Inside a body, parentheses
   in text nest unless escaped.
+- A clause that reads an entry a map does not have, `m[x]` with `x` not in
+  the domain of `m`, is false.
 - In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
   anything else is itself.
 - A variable bound by `@exists` is a de Bruijn index inside the tools. The

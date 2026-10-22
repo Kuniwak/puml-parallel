@@ -33,6 +33,11 @@ func TestWireOfAnAtom(t *testing.T) {
 			wantWire:  AtomWire{Text: []string{"", "foo"}, Holes: []int{0}, Primed: []bool{false}},
 			wantTerms: []Term{Index{Map: pre("m"), Key: pre("k")}},
 		},
+		"an atom under a binder reads its index as an argument": {
+			text:      "@exists(v : T) ($v > 0)",
+			wantWire:  AtomWire{Text: []string{"", " > 0"}, Holes: []int{0}, Primed: []bool{false}},
+			wantTerms: []Term{Bound{Index: 0}},
+		},
 		"no holes": {
 			text:      "it rains",
 			wantWire:  AtomWire{Text: []string{"it rains"}, Holes: []int{}, Primed: []bool{}},
@@ -46,7 +51,7 @@ func TestWireOfAnAtom(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			a := f.Conjuncts[0].(Atom)
+			a := firstAtom(f)
 
 			// Execute
 			gotWire, gotTerms, err := Wire(a)
@@ -104,10 +109,6 @@ func TestWireRefuses(t *testing.T) {
 			atom: Atom{Parts: []Part{nil}},
 			want: "clause.Wire",
 		},
-		"a dangling index": {
-			atom: Atom{Parts: []Part{Hole{Term: Bound{Index: 0}}}},
-			want: "clause.Wire",
-		},
 		"a prime inside an argument of a function": {
 			atom: Atom{Parts: []Part{Hole{Term: App{Fn: "f", Args: []Term{post("x")}}}}},
 			want: "only the variable a term starts from may be primed",
@@ -122,4 +123,17 @@ func TestWireRefuses(t *testing.T) {
 			assertErrorContains(t, err, tt.want)
 		})
 	}
+}
+
+// firstAtom is the first atom of f, under any ∃.
+func firstAtom(f And) Atom {
+	for _, c := range f.Conjuncts {
+		switch c := c.(type) {
+		case Atom:
+			return c
+		case Exists:
+			return firstAtom(c.Body)
+		}
+	}
+	return Atom{}
 }

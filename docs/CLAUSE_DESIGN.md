@@ -94,6 +94,17 @@ meaning, and only the instance as it appears in the term offers the event
 so hiding the event there would make a τ self-loop; in the promoted term
 the step is a τ self-loop only if the global side is unchanged as well.
 
+Creation and deletion are events of the family, named by the global
+diagram: creation takes the start edge of P (its post gives the instance's
+first values), deletion takes an end edge of P (its guard says when the
+instance may go). P's start state is an ordinary state an instance may
+return to; only absence means the instance does not exist.
+
+In a sync, the fields of the local events taken are merged by name: one
+name is one field of the global event, so the moves that name it agree on
+its value. A move that receives it reads that value; a move that sends it
+fixes it, and two moves that send it must send equal values.
+
 The map of a promoted diagram is then the tuple of the instances' local
 states, domain membership is "not absent", and an instance's control state
 is its position in P; the obligation is that the expanded graph of the
@@ -213,14 +224,19 @@ A clause has two layers: a skeleton that the tools operate on, and atoms
 that a language interprets.
 
 ```
-clause  ::= atom | builtin | clause ∧ clause | ∃ var . clause
-builtin ::= term = term | term ≠ term | term ∈ dom term
-          | map update | frame | term at state
+clause  ::= atom | builtin | clause ∧ clause | ∃ var : type . clause
+builtin ::= term = term | term ≠ term | term ∈ dom term | term ∉ dom term
+          | map update | frame | term at state | term is empty
 term    ::= var | var' | term[term].field | envfn(term, …)
 ```
 
 A variable bound by ∃ may stand for any value, a map included; that is how
-an intermediate state is named (P5, P6).
+an intermediate state is named (P5, P6). A binder carries its type: the
+values it ranges over are those of the type, never guessed from its name.
+
+A map is partial: an instance that does not exist has no entry. A clause
+that reads an entry a map does not have (`m[x]` with x ∉ dom m) is false,
+so a clause about an instance holds only while it exists.
 
 An atom is text with holes. In the examples below the identifiers are
 Japanese, as P14 allows:

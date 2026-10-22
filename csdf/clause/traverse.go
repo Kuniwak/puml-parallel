@@ -34,7 +34,7 @@ func MapFormula(f Formula, depth int, leaf func(v Term, depth int) Term) Formula
 	case And:
 		return mapAnd(f, depth, leaf)
 	case Exists:
-		return Exists{Hint: f.Hint, Body: mapAnd(f.Body, depth+1, leaf)}
+		return Exists{Hint: f.Hint, Type: f.Type, Body: mapAnd(f.Body, depth+1, leaf)}
 	case Atom:
 		parts := make([]Part, len(f.Parts))
 		for i, p := range f.Parts {
@@ -88,4 +88,25 @@ func FreeVars(f Formula) []Free {
 		}
 	})
 	return vs
+}
+
+// EachTerm calls visit on each term f's conjuncts read, outermost first: an
+// atom's holes and a builtin's arguments, under any ∃.
+func EachTerm(f Formula, visit func(Term)) {
+	switch f := f.(type) {
+	case And:
+		for _, c := range f.Conjuncts {
+			EachTerm(c, visit)
+		}
+	case Exists:
+		EachTerm(f.Body, visit)
+	case Atom:
+		for _, a := range f.Args() {
+			visit(a)
+		}
+	case Builtin:
+		for _, a := range f.Args {
+			visit(a)
+		}
+	}
 }

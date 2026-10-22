@@ -114,15 +114,26 @@ func (p *parser) conjunct() (Formula, error) {
 	return p.atom()
 }
 
-const existsWord = "@exists("
+const (
+	existsWord = "@exists("
+	existsType = " : "
+)
 
-// exists reads @exists(name) (clause); name is Bound{0} in the clause.
+// exists reads @exists(name : type) (clause); name is Bound{0} in the
+// clause.
 func (p *parser) exists() (Formula, error) {
 	start := p.pos
 	p.pos += len([]rune(existsWord))
 	hint := p.name()
 	if hint == "" {
 		return nil, fmt.Errorf("@exists at %d: expected a name", start)
+	}
+	if err := p.expect(existsType); err != nil {
+		return nil, fmt.Errorf("@exists at %d: %w", start, err)
+	}
+	typ := p.name()
+	if typ == "" {
+		return nil, fmt.Errorf("@exists at %d: expected the type %s ranges over", start, hint)
 	}
 	if err := p.expect(") ("); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)
@@ -143,7 +154,7 @@ func (p *parser) exists() (Formula, error) {
 	if !p.atEnd() && !p.hasPrefix(conjSep) && !p.closesBody() {
 		return nil, fmt.Errorf("@exists at %d: expected %q or the end at %d", start, conjSep, p.pos)
 	}
-	return Exists{Hint: hint, Body: body}, nil
+	return Exists{Hint: hint, Type: typ, Body: body}, nil
 }
 
 // closesBody reports whether the parser is at the ")" that closes the ∃

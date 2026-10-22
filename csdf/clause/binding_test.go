@@ -13,23 +13,23 @@ func TestClose(t *testing.T) {
 		"the variable becomes the nearest index": {
 			f:    and(eq(pre("v"), pre("x"))),
 			v:    pre("v"),
-			want: Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))},
+			want: Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, pre("x")))},
 		},
 		"under a nested binder it is one index further": {
-			f:    and(Exists{Hint: "k", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{0}, pre("m")}})}),
+			f:    and(Exists{Hint: "k", Type: "T", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{0}, pre("m")}})}),
 			v:    pre("m"),
-			want: Exists{Hint: "m", Body: and(Exists{Hint: "k", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{0}, Bound{1}}})})},
+			want: Exists{Hint: "m", Type: "T", Body: and(Exists{Hint: "k", Type: "T", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{0}, Bound{1}}})})},
 		},
 		"the value after the step stays free": {
 			f:    and(eq(post("v"), pre("v"))),
 			v:    pre("v"),
-			want: Exists{Hint: "v", Body: and(eq(post("v"), Bound{0}))},
+			want: Exists{Hint: "v", Type: "T", Body: and(eq(post("v"), Bound{0}))},
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got, err := Close(tt.f, tt.v)
+			got, err := Close(tt.f, tt.v, "T")
 
 			// Assert
 			if err != nil {
@@ -49,14 +49,14 @@ func TestOpen(t *testing.T) {
 		want And
 	}{
 		"the nearest index becomes the term": {
-			e:    Exists{Body: and(eq(Bound{0}, pre("x")))},
+			e:    Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))},
 			t:    Field{Of: pre("r"), Name: "f"},
 			want: and(eq(Field{Of: pre("r"), Name: "f"}, pre("x"))),
 		},
 		"under a nested binder, the index one further": {
-			e:    Exists{Body: and(Exists{Body: and(eq(Bound{0}, Bound{1}))})},
+			e:    Exists{Type: "T", Body: and(Exists{Type: "T", Body: and(eq(Bound{0}, Bound{1}))})},
 			t:    pre("m"),
-			want: and(Exists{Body: and(eq(Bound{0}, pre("m")))}),
+			want: and(Exists{Type: "T", Body: and(eq(Bound{0}, pre("m")))}),
 		},
 	}
 	for name, tt := range tests {
@@ -77,8 +77,8 @@ func TestOpen(t *testing.T) {
 
 func TestCloseThenOpenGivesBackTheFormula(t *testing.T) {
 	// Setup
-	f := and(eq(pre("v"), pre("x")), Exists{Body: and(eq(Bound{0}, pre("v")))})
-	e, err := Close(f, pre("v"))
+	f := and(eq(pre("v"), pre("x")), Exists{Type: "T", Body: and(eq(Bound{0}, pre("v")))})
+	e, err := Close(f, pre("v"), "T")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,10 +103,10 @@ func TestSubstitute(t *testing.T) {
 		want Formula
 	}{
 		"never captures": {
-			f:    Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))},
+			f:    Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, pre("x")))},
 			v:    pre("x"),
 			t:    pre("v"),
-			want: Exists{Hint: "v", Body: and(eq(Bound{0}, pre("v")))},
+			want: Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, pre("v")))},
 		},
 		"touches only the given priming": {
 			f:    and(eq(post("x"), pre("x"))),
@@ -143,12 +143,18 @@ func TestBindingRefusesWhatBreaksItsPreconditions(t *testing.T) {
 		call func() error
 		want string
 	}{
-		"Close of a formula with a dangling index": {call: func() error { _, err := Close(dangling, pre("v")); return err }, want: "clause.Close: clause.LocallyClosed: the index 0 is under 0 binders"},
-		"Close of a primed variable":               {call: func() error { _, err := Close(and(eq(post("v"), pre("x"))), post("v")); return err }, want: "clause.Close: v' is the value after the step"},
-		"Open of an ∃ with a dangling index":       {call: func() error { _, err := Open(Exists{Body: and(eq(Bound{1}, pre("x")))}, pre("y")); return err }, want: "clause.Open: clause.LocallyClosed: the index 1 is under 1 binders"},
-		"Open with a term that has an index":       {call: func() error { _, err := Open(Exists{Body: and(eq(Bound{0}, pre("x")))}, Bound{0}); return err }, want: "clause.Open: the term: clause.LocallyClosed"},
-		"Substitute into a dangling index":         {call: func() error { _, err := Substitute(dangling, pre("x"), pre("y")); return err }, want: "clause.Substitute: clause.LocallyClosed"},
-		"Substitute a term that has an index":      {call: func() error { _, err := Substitute(and(eq(pre("x"), pre("y"))), pre("x"), Bound{0}); return err }, want: "clause.Substitute: the term: clause.LocallyClosed"},
+		"Close of a formula with a dangling index": {call: func() error { _, err := Close(dangling, pre("v"), "T"); return err }, want: "clause.Close: clause.LocallyClosed: the index 0 is under 0 binders"},
+		"Close of a primed variable":               {call: func() error { _, err := Close(and(eq(post("v"), pre("x"))), post("v"), "T"); return err }, want: "clause.Close: v' is the value after the step"},
+		"Open of an ∃ with a dangling index": {call: func() error {
+			_, err := Open(Exists{Type: "T", Body: and(eq(Bound{1}, pre("x")))}, pre("y"))
+			return err
+		}, want: "clause.Open: clause.LocallyClosed: the index 1 is under 1 binders"},
+		"Open with a term that has an index": {call: func() error {
+			_, err := Open(Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))}, Bound{0})
+			return err
+		}, want: "clause.Open: the term: clause.LocallyClosed"},
+		"Substitute into a dangling index":    {call: func() error { _, err := Substitute(dangling, pre("x"), pre("y")); return err }, want: "clause.Substitute: clause.LocallyClosed"},
+		"Substitute a term that has an index": {call: func() error { _, err := Substitute(and(eq(pre("x"), pre("y"))), pre("x"), Bound{0}); return err }, want: "clause.Substitute: the term: clause.LocallyClosed"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -167,9 +173,9 @@ func TestLocallyClosed(t *testing.T) {
 		want bool
 	}{
 		"free variables only":  {f: and(eq(pre("x"), pre("y"))), want: true},
-		"an index its ∃ binds": {f: Exists{Body: and(eq(Bound{0}, pre("y")))}, want: true},
+		"an index its ∃ binds": {f: Exists{Type: "T", Body: and(eq(Bound{0}, pre("y")))}, want: true},
 		"a dangling index":     {f: and(eq(Bound{0}, pre("y"))), want: false},
-		"an index one too far": {f: Exists{Body: and(eq(Bound{1}, pre("y")))}, want: false},
+		"an index one too far": {f: Exists{Type: "T", Body: and(eq(Bound{1}, pre("y")))}, want: false},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -189,8 +195,8 @@ func TestOperationsRefuseAFormulaOfUnknownShapeWithoutPanicking(t *testing.T) {
 	broken := And{Conjuncts: []Formula{nil}}
 	tests := map[string]func() error{
 		"Print":      func() error { _, err := Print(broken); return err },
-		"Close":      func() error { _, err := Close(broken, pre("v")); return err },
-		"Open":       func() error { _, err := Open(Exists{Hint: "v", Body: broken}, pre("y")); return err },
+		"Close":      func() error { _, err := Close(broken, pre("v"), "T"); return err },
+		"Open":       func() error { _, err := Open(Exists{Hint: "v", Type: "T", Body: broken}, pre("y")); return err },
 		"Substitute": func() error { _, err := Substitute(broken, pre("x"), pre("y")); return err },
 	}
 	for name, call := range tests {

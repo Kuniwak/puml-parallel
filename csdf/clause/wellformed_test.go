@@ -7,7 +7,7 @@ func TestWellFormed(t *testing.T) {
 		f    Formula
 		want string // a part of the error, or "" for a well-formed formula
 	}{
-		"a parsed clause":              {f: and(atom(hole(pre("x")), Text(" > 0")), Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))}), want: ""},
+		"a parsed clause":              {f: and(atom(hole(pre("x")), Text(" > 0")), Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, pre("x")))}), want: ""},
 		"true":                         {f: And{}, want: ""},
 		"a name that is no identifier": {f: and(atom(hole(pre("a b")))), want: "the variable \"a b\" is no identifier"},
 		"an empty name":                {f: and(atom(hole(pre("")))), want: "the variable \"\" is no identifier"},
@@ -15,8 +15,9 @@ func TestWellFormed(t *testing.T) {
 		"a function with no name":      {f: and(atom(hole(App{}))), want: "the function \"\" is no identifier"},
 		"an empty atom":                {f: and(atom()), want: "an empty atom"},
 		"empty text":                   {f: and(atom(Text(""), hole(pre("x")))), want: "empty text in an atom"},
-		"a hint that is no name":       {f: Exists{Hint: "", Body: and(eq(Bound{0}, pre("x")))}, want: "the hint \"\" of an ∃ is no identifier"},
-		"an empty ∃ body":              {f: Exists{Hint: "v"}, want: "the ∃ v has an empty body"},
+		"a hint that is no name":       {f: Exists{Hint: "", Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: "the hint \"\" of an ∃ is no identifier"},
+		"an ∃ without a type":          {f: Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))}, want: "the type \"\" of the ∃ v is no identifier"},
+		"an empty ∃ body":              {f: Exists{Hint: "v", Type: "T"}, want: "the ∃ v has an empty body"},
 		"a dangling index":             {f: and(eq(Bound{0}, pre("x"))), want: "clause.LocallyClosed: the index 0 is under 0 binders"},
 		"a builtin of the wrong arity": {f: and(Builtin{Op: OpEq, Args: []Term{pre("x")}}), want: "@eq takes 2 terms, not 1"},
 		"an unknown builtin":           {f: and(Builtin{Op: "foo", Args: []Term{pre("x")}}), want: "an unknown builtin @foo"},

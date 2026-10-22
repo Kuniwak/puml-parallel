@@ -30,6 +30,9 @@ func wellFormed(f Formula) error {
 		if !ident.Is(f.Hint) {
 			return fmt.Errorf("the hint %q of an ∃ is no identifier", f.Hint)
 		}
+		if !ident.Is(f.Type) {
+			return fmt.Errorf("the type %q of the ∃ %s is no identifier", f.Type, f.Hint)
+		}
 		if len(f.Body.Conjuncts) == 0 {
 			return fmt.Errorf("the ∃ %s has an empty body", f.Hint)
 		}
