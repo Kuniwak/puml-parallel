@@ -60,7 +60,7 @@ func livelockFree(ir obligationir.LivelockFree) (string, error) {
 	}
 	writeStates(&w, side, ir.States)
 	writeSymbols(&w, ds)
-	hypotheses, err := writeAxioms(&w, ir.Axioms)
+	hypotheses, err := writeAxioms(&w, ir.Lemmas)
 	if err != nil {
 		return "", err
 	}

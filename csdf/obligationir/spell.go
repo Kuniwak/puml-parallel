@@ -395,7 +395,7 @@ func (ir LivelockFree) Formulas() []logic.Tree {
 	for _, e := range ir.Ends {
 		fs = append(fs, e.Guard)
 	}
-	return append(fs, ir.Axioms...)
+	return append(fs, ir.Lemmas...)
 }
 
 // Symbols are the constants ir reads, the types of its state variables and

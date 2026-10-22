@@ -146,10 +146,10 @@ func (r Refinement) Declarations(todo string) ([]Declaration, error) {
 	return declarations(syms, todo), nil
 }
 
-// Axioms are the axioms of either side, each once.
-func (r Refinement) Axioms() []logic.Tree {
+// Lemmas are what the builtins of either side mean, each once.
+func (r Refinement) Lemmas() []logic.Tree {
 	var out []logic.Tree
-	for _, a := range slices.Concat(r.Spec.Axioms, r.Impl.Axioms) {
+	for _, a := range slices.Concat(r.Spec.Lemmas, r.Impl.Lemmas) {
 		if !slices.ContainsFunc(out, func(b logic.Tree) bool { return logic.EqualTrees(a, b) }) {
 			out = append(out, a)
 		}

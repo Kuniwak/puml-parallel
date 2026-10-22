@@ -260,7 +260,7 @@ The output format is chosen with `-target`:
 
 ```console
 $ csdflivelockfree examples/valid/vending_machine.puml
-{"structurally":true,"states":[...],"init":"vmIdle","init_post":{...},"edges":[...],"axioms":[],"assumptions":[]}
+{"structurally":true,"states":[...],"init":"vmIdle","init_post":{...},"edges":[...],"lemmas":[],"assumptions":[]}
 $ csdflivelockfree -target lean examples/valid/vending_machine.puml
 $ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
 $ csdfparallel a.puml b.puml | csdflivelockfree -
@@ -613,7 +613,7 @@ side.
 
 ```console
 $ csdfrefinement -m t abs.puml detail.puml
-{"version":1,"mode":"trace","alphabet":[{"name":"a","arity":0}],"spec":{...},"impl":{...}}
+{"version":2,"mode":"trace","alphabet":[{"name":"a","arity":0}],"spec":{...},"impl":{...}}
 $ csdfrefinement -m fd -target isabelle abs.puml detail.puml
 $ csdfparallel a.puml b.puml | csdfrefinement -m f abs.puml -
 ```

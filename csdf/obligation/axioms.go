@@ -9,7 +9,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
-// Axioms are what the predicate symbols the map builtins become mean, for
+// Lemmas are what the predicate symbols the map builtins become mean, for
 // those the clauses fs use: an empty map has no key; an update maps its key to
 // its value and keeps every other entry; a frame keeps every entry but at its
 // keys, one axiom for each number of keys; an instance is at one state at a
@@ -24,7 +24,7 @@ import (
 // that a formula is valid stays sound without them, though some valid claims
 // are then unprovable; a claim that a formula can be satisfied, such as that
 // an edge can be taken (Enabled) in some state, is sound only with them.
-func Axioms(fs ...clause.Formula) []logic.Formula {
+func Lemmas(fs ...clause.Formula) []logic.Formula {
 	var empty, update bool
 	var frames []int
 	states := map[string][]string{}

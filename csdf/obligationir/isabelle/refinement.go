@@ -54,7 +54,7 @@ func refinement(r obligationir.Refinement) (string, error) {
 		return "", err
 	}
 	writeSymbols(&w, ds)
-	axioms, err := writeAxioms(&w, r.Axioms())
+	axioms, err := writeAxioms(&w, r.Lemmas())
 	if err != nil {
 		return "", err
 	}
