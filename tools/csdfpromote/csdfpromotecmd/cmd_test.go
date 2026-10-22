@@ -24,7 +24,7 @@ func TestNewMainFuncExpandsTheRecordedExample(t *testing.T) {
 		t.Fatalf("want 0, got %d", exitStatus)
 	}
 
-	bs, err := os.ReadFile("../../../examples/promote/ACCOUNTS.expanded.puml")
+	bs, err := os.ReadFile("../../../csdf/promote/testdata/ACCOUNTS.expanded.puml")
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}

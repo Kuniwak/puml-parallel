@@ -27,9 +27,6 @@ func TestExpandMatchesTheRecordedExpansions(t *testing.T) {
 	}
 
 	for _, path := range paths {
-		if strings.HasSuffix(path, ".expanded.puml") {
-			continue
-		}
 
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			g, err := promote.LoadGlobal(path)
@@ -42,7 +39,9 @@ func TestExpandMatchesTheRecordedExpansions(t *testing.T) {
 				t.Fatalf("promote.Expand(%q) diagnostics = %v", path, diags)
 			}
 
-			golden := strings.TrimSuffix(path, ".puml") + ".expanded.puml"
+			// The recordings of csdf/promote, which csdfpromote no longer
+			// prints (#76): examples/promote records csdfpromote's.
+			golden := filepath.Join("testdata", strings.TrimSuffix(filepath.Base(path), ".puml")+".expanded.puml")
 			got := x.String()
 			if *update {
 				if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
