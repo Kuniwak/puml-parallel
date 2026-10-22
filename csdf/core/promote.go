@@ -46,10 +46,12 @@ type Constrain struct {
 
 // Promotion is a global diagram whose states, its Modes, hold the maps of
 // its Families, Init being the mode the start edge leads to, with Syncs
-// among them and Constrains on them.
+// among them and Constrains on them. Edges are its hand-written edges
+// between modes, a controller's own steps (docs/CLAUSE_DESIGN.md).
 type Promotion struct {
 	Modes      []string
 	Init       string
+	Edges      []Edge
 	Families   []Family
 	Syncs      []Sync
 	Constrains []Constrain
@@ -123,6 +125,11 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	if err := constrain(p, out.Edges); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
+	switches, err := controlled(p, maps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
+	out.Edges = append(out.Edges, switches...)
 	return out, warnings, nil
 }
 
@@ -190,6 +197,60 @@ func constrain(p Promotion, edges []Edge) error {
 		}
 	}
 	return nil
+}
+
+// controlled is the hand-written edges of p, each leaving every map
+// unchanged (docs/CLAUSE_DESIGN.md): the steps of a controller that reads
+// the maps as they are, receives its own fields, and writes no instance.
+func controlled(p Promotion, maps []string) ([]Edge, error) {
+	used := map[string]bool{}
+	for _, f := range p.Families {
+		for _, e := range f.Local.Edges {
+			used[e.Event.Channel] = true
+		}
+	}
+	for _, s := range p.Syncs {
+		used[s.Event] = true
+	}
+	var out []Edge
+	for _, e := range p.Edges {
+		name := fmt.Sprintf("%s --> %s : %s", e.Src, e.Dst, e.Event.Channel)
+		for _, s := range []string{e.Src, e.Dst} {
+			if !slices.Contains(p.Modes, s) {
+				return nil, fmt.Errorf("%s: no mode %s", name, s)
+			}
+		}
+		if e.Event.Channel != Tau && used[e.Event.Channel] {
+			return nil, fmt.Errorf("%s: %s is an event of the instances; a hand-written edge is on a channel of its own", name, e.Event.Channel)
+		}
+		if err := clause.WellFormed(e.Guard); err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		if len(e.Post.Conjuncts) > 0 {
+			return nil, fmt.Errorf("%s has a post: it leaves every map unchanged, a controller writing no instance", name)
+		}
+		allowed := map[string]bool{}
+		for _, m := range maps {
+			allowed[m] = true
+		}
+		for _, fl := range e.Event.Fields {
+			if fl.Send {
+				return nil, fmt.Errorf("%s sends %s: the controller holds nothing to send", name, fl.Name)
+			}
+			allowed[fl.Name] = true
+		}
+		for _, v := range clause.FreeVars(e.Guard) {
+			if v.Primed {
+				return nil, fmt.Errorf("%s reads %s', a primed name: it reads the maps as they are", name, v.Name)
+			}
+			if !allowed[v.Name] {
+				return nil, fmt.Errorf("%s reads %s, which is no map and no field of its event", name, v.Name)
+			}
+		}
+		e.Post = Unchanged(maps)
+		out = append(out, e)
+	}
+	return out, nil
 }
 
 // Warning is something Promote dropped that the author wrote: Map and
