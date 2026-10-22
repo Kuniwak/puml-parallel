@@ -344,14 +344,23 @@ end note
   is conjoined onto every generated edge matching the event in channel and
   field directions, and may read any map.
 
+- Several global states are modes. A mode holds the maps it declares
+  (`mode : map ; …`) or has a `<<promote>>` block for, and every mode holds
+  every family's map. Exactly one block of a map includes its local diagram;
+  the others are bodyless. A mode holding a map without a block for it has
+  the family frozen there.
+- A hand-written edge between modes, `src --> dst : EVENT?f… ; guard`, reads
+  the maps as they are and its own received fields; it has no post, a `!`
+  field, or a primed read, and it is not on a channel the instances use.
+  There is no end edge.
+- The post of the global start edge is read and dropped with a warning:
+  every map starts empty.
+- A floating `assume` note is carried into the expansion; an anchored one is
+  refused.
+
 Not read yet, each refused by name until step 5½b of #76 brings it over
 from docs/PROMOTION.md:
 
-- several global states (modes), and so a bodyless `<<promote>>` block and a
-  family frozen in a state;
-- a hand-written edge of the global diagram;
-- a post on the global start edge;
-- an `assume` note in the global diagram;
 - a variable of the global state that is no family's map;
 - `csdfpromote -only` and `-template`, which no tool reads a formula
   promotion with yet.
