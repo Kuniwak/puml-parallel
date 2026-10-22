@@ -9,86 +9,99 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
+	"github.com/google/go-cmp/cmp"
 )
 
-// theorem is the statement of the theorem name in out, from its name to its
-// proof: the hypotheses it is stated under are in it.
-func theorem(out, name string) string {
-	m := regexp.MustCompile(`(?s)theorem ` + name + `\b.*?(oops|sorry)`).FindString(out)
-	return m
+var (
+	theoremName = regexp.MustCompile(`(?m)^theorem (\w+)`)
+	axiomName   = regexp.MustCompile(`(?m)^(?:definition|def) (csdf_axiom_\d+)\b`)
+	identifier  = regexp.MustCompile(`\w+`)
+)
+
+// theorems maps each theorem of out to the hypotheses its statement names:
+// the axioms and the assumptions, read as whole identifiers.
+func theorems(out string) map[string][]string {
+	ts := map[string][]string{}
+	locs := theoremName.FindAllStringSubmatchIndex(out, -1)
+	for i, loc := range locs {
+		end := len(out)
+		if i+1 < len(locs) {
+			end = locs[i+1][0]
+		}
+		stmt := out[loc[0]:end]
+		if k := strings.Index(stmt, "\n  oops"); k >= 0 {
+			stmt = stmt[:k]
+		} else if k := strings.Index(stmt, ":= by"); k >= 0 {
+			stmt = stmt[:k]
+		}
+		hs := []string{}
+		for _, id := range identifier.FindAllString(stmt, -1) {
+			if (strings.HasPrefix(id, "csdf_axiom_") || strings.HasPrefix(id, "assume_")) && !slices.Contains(hs, id) {
+				hs = append(hs, id)
+			}
+		}
+		slices.Sort(hs)
+		ts[out[loc[2]:loc[3]]] = hs
+	}
+	return ts
 }
 
-// TestEachTheoremIsStatedUnderItsOwnHypotheses pins which hypotheses each
-// theorem takes, of a spec that assumes fair and an impl that assumes
-// steady. The refinement takes the axioms alone: an assumption of the impl
-// could make it hold vacuously, and one of the spec, of liveness, is no
-// claim traces or stable failures can state. initialisable_* takes the
-// axioms alone too, since that a side can start must not rest on what it
-// assumes of its runs; livelock_free_* takes its own side's assumptions,
-// and the FD conclusion is conditional on them.
+// TestEachTheoremIsStatedUnderItsOwnHypotheses pins the theorems of each
+// model and the hypotheses each takes, of a spec that assumes fair and an
+// impl that assumes steady. The refinement takes the axioms alone: an
+// assumption of the impl could make it hold vacuously, and one of the spec,
+// of liveness, is no claim traces or stable failures can state.
+// initialisable_* takes the axioms alone too, since that a side can start
+// must not rest on what it assumes of its runs; livelock_free_* takes its
+// own side's assumptions, and the FD conclusion is conditional on them.
 func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
-	const (
-		axiom  = "csdf_axiom_1"
-		fair   = "assume_fair_S"
-		steady = "assume_steady_I"
-	)
-	// The theorems of each model, and the hypotheses each is stated under;
-	// every other hypothesis must be absent from it.
-	theorems := map[obligationir.IRRefinementMode]map[string][]string{
+	const fair, steady = "assume_fair_S", "assume_steady_I"
+	// want are the theorems of a model; nil stands for the axioms alone.
+	want := map[obligationir.IRRefinementMode]map[string][]string{
 		obligationir.IRRefinementModeTrace: {
-			"refines_t": {axiom}, "initialisable_S": {axiom}, "initialisable_I": {axiom},
+			"refines_t": nil, "initialisable_S": nil, "initialisable_I": nil,
 		},
 		obligationir.IRRefinementModeStableFailure: {
-			"refines_f": {axiom}, "initialisable_S": {axiom}, "initialisable_I": {axiom},
+			"refines_f": nil, "initialisable_S": nil, "initialisable_I": nil,
 		},
 		obligationir.IRRefinementModeFailuresDivergence: {
-			"refines_f": {axiom}, "initialisable_S": {axiom}, "initialisable_I": {axiom},
-			"livelock_free_S": {axiom, fair}, "livelock_free_I": {axiom, steady},
+			"refines_f": nil, "initialisable_S": nil, "initialisable_I": nil,
+			"livelock_free_S": {fair}, "livelock_free_I": {steady},
 		},
 	}
-	type row struct {
-		Mode       obligationir.IRRefinementMode
-		BackEnd    target.Name
-		Theorem    string
-		Hypothesis string
-		Present    bool
-	}
-	var rows []row
-	for mode, ts := range theorems {
-		for theorem, under := range ts {
-			for _, h := range []string{axiom, fair, steady} {
-				for _, backEnd := range []target.Name{target.NameIsabelle, target.NameLean} {
-					rows = append(rows, row{mode, backEnd, theorem, h, slices.Contains(under, h)})
+
+	for mode, ts := range want {
+		for _, backEnd := range []target.Name{target.NameIsabelle, target.NameLean} {
+			t.Run(fmt.Sprintf("in %s for %s", mode, backEnd), func(t *testing.T) {
+				// Setup: the spec assumes fair; the impl assumes steady.
+				spec, impl := load(t, "map"), load(t, "fair_countdown")
+				var sb strings.Builder
+
+				// Execute
+				err := target.CompileDiagrams(&sb, mode, spec, impl, backEnd)
+
+				// Assert
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
+				var axioms []string
+				for _, m := range axiomName.FindAllStringSubmatch(sb.String(), -1) {
+					axioms = append(axioms, m[1])
+				}
+				if len(axioms) == 0 {
+					t.Fatal("no axiom, so the test would pin nothing of them")
+				}
+				expected := map[string][]string{}
+				for name, own := range ts {
+					hs := slices.Concat(axioms, own)
+					slices.Sort(hs)
+					expected[name] = hs
+				}
+				if diff := cmp.Diff(expected, theorems(sb.String())); diff != "" {
+					t.Error(diff)
+				}
+			})
 		}
-	}
-
-	for _, r := range rows {
-		verb := "lacks"
-		if r.Present {
-			verb = "takes"
-		}
-		t.Run(fmt.Sprintf("in %s for %s, %s %s", r.Mode, r.BackEnd, r.Theorem, verb+" "+r.Hypothesis), func(t *testing.T) {
-			// Setup: the spec assumes fair; the impl assumes steady.
-			spec, impl := load(t, "map"), load(t, "fair_countdown")
-			var sb strings.Builder
-
-			// Execute
-			err := target.CompileDiagrams(&sb, r.Mode, spec, impl, r.BackEnd)
-
-			// Assert
-			if err != nil {
-				t.Fatal(err)
-			}
-			stmt := theorem(sb.String(), r.Theorem)
-			if stmt == "" {
-				t.Fatalf("no theorem %s in\n%s", r.Theorem, sb.String())
-			}
-			if got := strings.Contains(stmt, r.Hypothesis); got != r.Present {
-				t.Errorf("%s under %s: %v, want %v: %s", r.Theorem, r.Hypothesis, got, r.Present, stmt)
-			}
-		})
 	}
 }
 
