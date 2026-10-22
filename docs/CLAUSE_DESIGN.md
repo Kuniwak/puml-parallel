@@ -141,22 +141,28 @@ synchronises on every event of the promotion and on the hand-written global
 edges. In a mode it offers an instance's event, or a sync, only if every
 family taking part moves there, that is has a `<<promote>>` block there. A
 family that holds its map in a mode but has no block there is **frozen**:
-the controller refuses its events. Every mode holds every family's map,
+the controller refuses its events, which Promote reports at info level.
+Every mode holds every family's map,
 since the instances exist whatever the mode; a mode declaring some maps and
 not others is refused. A hand-written global edge is the controller's own
 step from one mode to another: its fields are received, its guard reads the
-maps as they are and its own fields, like a constrain's monitor, and its
-post is empty, since a controller cannot write an instance. Promotion adds
-that every map is unchanged across it. An edge on a channel that a local
-diagram or a sync uses is refused, since the controller and the instances
-would then synchronise on it with no instance to take it; so is an edge with
-a `!` field, a primed read, or a post. The controller only follows,
+maps as they are and its own fields, like a constrain's monitor. A
+controller cannot write an instance, so every map is unchanged across the
+edge: its post is either omitted, and promotion writes that frame, or is
+exactly that frame, every map `m' = m`; any other post is refused. An edge
+on a channel that a generated global edge also carries is refused, since the
+controller and the instances would then synchronise on it with no instance
+to take it. A `!` field is refused because the controller holds no value to
+send, and a primed read in its guard because the controller reads the maps
+before its step, as a monitor does. The controller only follows,
 refuses, and switches modes, so the term stays CSP and adds one control
 state per mode, not per instance.
 
-The post of the global start edge says nothing either: every map starts
-empty, the instances being at S₀. It is dropped with a warning, as the
-post of a local start edge is.
+Every map starts empty, the instances being at S₀. So the post of the
+global start edge may only agree with that: it is accepted if it is a
+conjunction of `@empty(m')` over maps, which says what promotion says
+anyway, and any other post is refused, since it would either say nothing or
+contradict the instances' own start.
 
 An `assume` note of the global diagram states what the runs of the whole
 system are assumed to satisfy. It is not part of ⟦·⟧, adds no edge and
