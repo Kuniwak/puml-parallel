@@ -136,3 +136,15 @@ func (d *Diagram) wellFormed() error {
 	}
 	return nil
 }
+
+// clauses are every guard and post of d.
+func (d *Diagram) clauses() []clause.And {
+	fs := []clause.And{d.InitPost}
+	for _, e := range d.Edges {
+		fs = append(fs, e.Guard, e.Post)
+	}
+	for _, e := range d.Ends {
+		fs = append(fs, e.Guard)
+	}
+	return fs
+}

@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -19,6 +20,7 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 	if len(l.Ends) > 0 || len(r.Ends) > 0 {
 		return nil, fmt.Errorf("core.Compose: a diagram with end edges is not composed yet")
 	}
+	r = renamedApart(l, r)
 	out := &Diagram{
 		Vars:     map[string][]string{},
 		Init:     pair(l.Init, r.Init),
@@ -28,11 +30,6 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 	for _, ls := range l.States {
 		for _, rs := range r.States {
 			lv, rv := l.Vars[ls], r.Vars[rs]
-			for _, v := range lv {
-				if slices.Contains(rv, v) {
-					return nil, fmt.Errorf("core.Compose: both %s and %s hold %s", ls, rs, v)
-				}
-			}
 			s := pair(ls, rs)
 			if slices.Contains(out.States, s) {
 				return nil, fmt.Errorf("core.Compose: two pairs of states are both %s", s)
@@ -80,6 +77,80 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 		}
 	}
 	return out, nil
+}
+
+// renamedApart is r with each state variable that l also holds renamed to
+// a fresh name made from its own, which neither side uses
+// (docs/CLAUSE_DESIGN.md): the two are separate processes, so the two
+// variables are two. A field of an edge named like the variable is that
+// field, not the variable, and is left alone there.
+func renamedApart(l, r *Diagram) *Diagram {
+	held := func(d *Diagram) map[string]bool {
+		m := map[string]bool{}
+		for _, vs := range d.Vars {
+			for _, v := range vs {
+				m[v] = true
+			}
+		}
+		return m
+	}
+	lv, rv := held(l), held(r)
+	avoid := map[string]bool{}
+	for _, d := range []*Diagram{l, r} {
+		for v := range held(d) {
+			avoid[v] = true
+		}
+		for _, f := range d.clauses() {
+			for _, v := range clause.FreeVars(f) {
+				avoid[v.Name] = true
+			}
+		}
+		for _, e := range d.Edges {
+			for _, f := range e.Event.Fields {
+				avoid[f.Name] = true
+			}
+		}
+	}
+	rename := map[string]string{}
+	for _, v := range slices.Sorted(maps.Keys(rv)) {
+		if lv[v] {
+			fresh := clause.Fresh(avoid, v)
+			avoid[fresh] = true
+			rename[v] = fresh
+		}
+	}
+	if len(rename) == 0 {
+		return r
+	}
+	in := func(f clause.And, fields []Field) clause.And {
+		field := func(name string) bool {
+			return slices.ContainsFunc(fields, func(x Field) bool { return x.Name == name })
+		}
+		return clause.MapFormula(f, 0, func(t clause.Term, _ int) clause.Term {
+			v, ok := t.(clause.Free)
+			if to, hit := rename[v.Name]; ok && hit && (v.Primed || !field(v.Name)) {
+				return clause.Free{Name: to, Primed: v.Primed}
+			}
+			return t
+		}).(clause.And)
+	}
+	out := *r
+	out.Vars = map[string][]string{}
+	for s, vs := range r.Vars {
+		for _, v := range vs {
+			if to, ok := rename[v]; ok {
+				v = to
+			}
+			out.Vars[s] = append(out.Vars[s], v)
+		}
+	}
+	out.InitPost = in(r.InitPost, nil)
+	out.Edges = make([]Edge, len(r.Edges))
+	for i, e := range r.Edges {
+		e.Guard, e.Post = in(e.Guard, e.Event.Fields), in(e.Post, e.Event.Fields)
+		out.Edges[i] = e
+	}
+	return &out
 }
 
 // pair is the ID of the state where l is in l and r in r, as csdfparallel

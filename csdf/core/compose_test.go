@@ -59,6 +59,9 @@ func TestComposeIsTheParallelOfTheMeanings(t *testing.T) {
 		loop(t, "l", ev("put", recv("w")), "", "$m' = $w"))
 	echo := oneState(t, "e", []string{"m"}, "$m' = 0",
 		loop(t, "e", ev("put", send("m")), "", "$m' = $m"))
+	// Two switches each turning their own n on once: n is two variables.
+	switchA := oneState(t, "a", []string{"n"}, "$n' = 0", loop(t, "a", ev("onA"), "$n = 0", "$n' = 1"))
+	switchB := oneState(t, "b", []string{"n"}, "$n' = 0", loop(t, "b", ev("onB"), "$n = 0", "$n' = 1"))
 	// The producer alternates put.0 and put.1, idling at will.
 	alternating := handLTS(tr{0, "put.0", 1}, tr{0, "idle", 0}, tr{1, "put.1", 0}, tr{1, "idle", 1})
 	cases := []struct {
@@ -71,11 +74,13 @@ func TestComposeIsTheParallelOfTheMeanings(t *testing.T) {
 		{"the receiver's guard reads the sent value", producer, pickyConsumer, handLTS(tr{0, "idle", 0})},
 		{"two receives agree on one value", consumer, listener, handLTS(tr{0, "put.0", 0}, tr{0, "put.1", 0})},
 		{"two sends agree on their values", producer, echo, handLTS(tr{0, "put.0", 1}, tr{0, "idle", 0}, tr{1, "idle", 1})},
+		{"a state variable both sides hold is two variables", switchA, switchB, handLTS(tr{0, "onA", 1}, tr{0, "onB", 2}, tr{1, "onB", 3}, tr{2, "onA", 3})},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			// Setup
+			// Setup: the right side's n is renamed n2, of n's type.
 			env := bits()
+			env.Types["n2"] = env.Types["n"]
 
 			// Execute
 			composite, err := Compose(c.l, c.r, []string{"put"})
@@ -111,11 +116,6 @@ func TestComposeRefuses(t *testing.T) {
 			l:    &Diagram{States: []string{"a_b", "a"}, Init: "a"},
 			r:    &Diagram{States: []string{"c", "b_c"}, Init: "c"},
 			want: "a_b_c",
-		},
-		"a state variable both sides hold": {
-			l:    oneState(t, "l", []string{"v"}, "$v' = 0"),
-			r:    oneState(t, "r", []string{"v"}, "$v' = 0"),
-			want: "hold v",
 		},
 	}
 	for name, c := range cases {
