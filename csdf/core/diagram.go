@@ -79,6 +79,14 @@ type Assumption struct {
 	ID, Text string
 }
 
+// label is what s is labelled: its label, or its ID.
+func (d *Diagram) label(s string) string {
+	if l, ok := d.Labels[s]; ok {
+		return l
+	}
+	return s
+}
+
 // declared reports, as an error, a state d names but does not declare.
 func (d *Diagram) declared() error {
 	has := func(s string) bool { return slices.Contains(d.States, s) }

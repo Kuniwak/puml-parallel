@@ -33,7 +33,14 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 				}
 			}
 			s := pair(ls, rs)
+			if slices.Contains(out.States, s) {
+				return nil, fmt.Errorf("core.Compose: two pairs of states are both %s", s)
+			}
 			out.States = append(out.States, s)
+			if out.Labels == nil {
+				out.Labels = map[string]string{}
+			}
+			out.Labels[s] = "(" + l.label(ls) + ", " + r.label(rs) + ")"
 			if vars := append(slices.Clone(lv), rv...); len(vars) > 0 {
 				out.Vars[s] = vars
 			}
@@ -74,7 +81,9 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 	return out, nil
 }
 
-func pair(l, r string) string { return "(" + l + ", " + r + ")" }
+// pair is the ID of the state where l is in l and r in r, as csdfparallel
+// has always named it; its label says the pair.
+func pair(l, r string) string { return l + "_" + r }
 
 // Conj is the conjunction of fs, normalised.
 func Conj(fs ...clause.And) clause.And {

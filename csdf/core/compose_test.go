@@ -3,6 +3,8 @@ package core
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
 
@@ -105,6 +107,11 @@ func TestComposeRefuses(t *testing.T) {
 			r:    oneState(t, "r", []string{"v"}, "$v' = 0", loop(t, "r", ev("put", recv("w")), "", "$v' = $w")),
 			want: "capture",
 		},
+		"two pairs of states with one ID": {
+			l:    &Diagram{States: []string{"a_b", "a"}, Init: "a"},
+			r:    &Diagram{States: []string{"c", "b_c"}, Init: "c"},
+			want: "a_b_c",
+		},
 		"a state variable both sides hold": {
 			l:    oneState(t, "l", []string{"v"}, "$v' = 0"),
 			r:    oneState(t, "r", []string{"v"}, "$v' = 0"),
@@ -142,5 +149,30 @@ func TestComposeKeepsAStateWithoutVariables(t *testing.T) {
 	}
 	if !lts.StableFailuresEqual(got, want) {
 		t.Errorf("not stable-failures equivalent: %#v", got.Trans)
+	}
+}
+
+func TestComposeNamesItsStatesAsCsdfparallelDid(t *testing.T) {
+	// Setup: the right side labels its state; the left side does not.
+	l := &Diagram{States: []string{"a", "b"}, Init: "a", Edges: []Edge{{Src: "a", Dst: "b", Event: ev("go")}}}
+	r := &Diagram{States: []string{"r"}, Labels: map[string]string{"r": "待機"}, Init: "r"}
+	wantStates := []string{"a_r", "b_r"}
+	wantLabels := map[string]string{"a_r": "(a, 待機)", "b_r": "(b, 待機)"}
+
+	// Execute
+	got, err := Compose(l, r, nil)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(wantStates, got.States); diff != "" {
+		t.Errorf("States (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantLabels, got.Labels); diff != "" {
+		t.Errorf("Labels (-want +got):\n%s", diff)
+	}
+	if got.Init != "a_r" || got.Edges[0].Src != "a_r" || got.Edges[0].Dst != "b_r" {
+		t.Errorf("Init %s, edge %s --> %s", got.Init, got.Edges[0].Src, got.Edges[0].Dst)
 	}
 }
