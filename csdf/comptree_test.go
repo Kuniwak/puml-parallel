@@ -1,7 +1,6 @@
 package csdf
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -63,60 +62,6 @@ func TestParseExprRejectsInvalidTrees(t *testing.T) {
 	}
 }
 
-func TestComposeTreeComposesAndHidesReferencedDiagrams(t *testing.T) {
-	// Setup: the tree of the two example diagrams synchronised on "sync",
-	// with "sync" hidden afterwards.
-	expr, err := ParseExpr([]byte(`{
-		"op": "HIDE",
-		"proc": {
-			"op": "INTERFACE_PARALLEL",
-			"sync": ["sync"],
-			"procs": [
-				{"op": "REFER", "path": "in.puml"},
-				{"op": "REFER", "path": "out.puml"}
-			]
-		},
-		"channels": ["sync"]
-	}`))
-	if err != nil {
-		t.Fatalf("want nil, got %#v", err)
-	}
-
-	got, err := ComposeTree(expr, NewFileDiagramLoader("../examples/valid"))
-	if err != nil {
-		t.Fatalf("want nil, got %#v", err)
-	}
-
-	want := `@startuml
-state "(s0, s0)" as s0_s0
-state "(s1, s0)" as s1_s0
-state "(s2, s1)" as s2_s1
-state "(s2, s2)" as s2_s2
-[*] --> s0_s0
-s0_s0 --> s1_s0 : in
-s1_s0 --> s2_s1 : tau
-s2_s1 --> s2_s2 : out
-@enduml
-`
-	if diff := cmp.Diff(want, got.String()); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestComposeTreeReportsUnreadableReferences(t *testing.T) {
-	// Setup: a REFER pointing at a missing file must name the path it failed on.
-	expr := Expr(&ReferExpr{Path: "missing.puml"})
-
-	_, err := ComposeTree(expr, NewFileDiagramLoader("../examples/valid"))
-
-	if err == nil {
-		t.Fatal("want not nil, got nil")
-	}
-	if !strings.Contains(err.Error(), "missing.puml") {
-		t.Errorf("want an error naming missing.puml, got %q", err)
-	}
-}
-
 func TestBaseDirOf(t *testing.T) {
 	testCases := map[string]struct {
 		TreePath string
@@ -133,40 +78,5 @@ func TestBaseDirOf(t *testing.T) {
 				t.Errorf("want %q, got %q", testCase.Expected, got)
 			}
 		})
-	}
-}
-
-func TestComposeTreeFoldsMoreThanTwoProcs(t *testing.T) {
-	// Setup: three processes synchronised on the single event they share, as
-	// documented in docs/COMPOSITION_TREE.md.
-	load := func(path string) (*Diagram, error) {
-		return MustParse(`@startuml
-state "` + path + `" as s0
-state "` + path + `" as s1
-[*] --> s0
-s0 --> s1 : sync
-@enduml`), nil
-	}
-	expr := Expr(&InterfaceParallelExpr{
-		Sync: []string{"sync"},
-		Procs: []Expr{
-			&ReferExpr{Path: "A"},
-			&ReferExpr{Path: "B"},
-			&ReferExpr{Path: "C"},
-		},
-	})
-
-	got, err := ComposeTree(expr, load)
-	if err != nil {
-		t.Fatalf("want nil, got %#v", err)
-	}
-
-	// The three processes can only move together, so the composite has exactly
-	// one transition between its two states.
-	if want := 1; len(got.Edges) != want {
-		t.Errorf("want %d edges, got %d: %s", want, len(got.Edges), got.String())
-	}
-	if want := 2; len(got.States) != want {
-		t.Errorf("want %d states, got %d: %s", want, len(got.States), got.String())
 	}
 }

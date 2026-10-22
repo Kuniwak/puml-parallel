@@ -143,7 +143,10 @@ local-diagram contract, and the diagnostics.
 *composition tree* — a JSON process expression built from `REFER`, `HIDE` and
 `INTERFACE_PARALLEL` nodes — and prints the composed diagram as PlantUML. This
 is the diagram that is checked for stable-failures refinement against a
-top-level specification.
+top-level specification. It reads the clause syntax, and a `HIDE` and an
+`INTERFACE_PARALLEL` are exactly `csdfhide` and `csdfparallel`, so the tree
+above writes what `csdfparallel -sync sync in.puml out.puml | csdfhide -channels
+sync -` writes.
 
 ```console
 $ csdfcomp examples/valid/in_out_tree.json
