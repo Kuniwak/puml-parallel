@@ -40,11 +40,15 @@ func (e Event) SameShape(o Event) bool {
 	return true
 }
 
-// Edge is a transition: Src --> Dst : Event ; Guard ; Post.
+// Edge is a transition: Src --> Dst : Event ; Guard ; Post. Line is where
+// the reader read it, from 1, for a reader of a report alone; it is outside
+// the meaning of the edge, and 0 for an edge no reader read, such as one a
+// constructor built.
 type Edge struct {
 	Src, Dst    string
 	Event       Event
 	Guard, Post clause.And
+	Line        int
 }
 
 // End is an end edge: Src --> [*] : Guard.
@@ -68,6 +72,8 @@ type Diagram struct {
 	Vars     map[string][]string
 	Init     string
 	InitPost clause.And
+	// InitLine is where the reader read the start edge, as Edge.Line is.
+	InitLine int
 	Edges    []Edge
 	Ends     []End
 	Assumes  []Assumption

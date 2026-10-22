@@ -13,8 +13,8 @@ the clauses along it cannot all hold.
 
 | step | event | transition | guard | post |
 |-----:|-------|------------|-------|------|
-| 0 | (start) | `[*] --> A` |  | $n' = 0 |
-| 1 | `1` | `A --> B` | $n = 0 | true |
+| 0 | (start) | `[*] --> A` (L7) |  | $n' = 0 |
+| 1 | `1` | `A --> B` (L8) | $n = 0 | true |
 
 - after step 0: A (n@0)
 - after step 1: B (no variables)

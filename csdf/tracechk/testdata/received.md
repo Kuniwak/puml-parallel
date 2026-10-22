@@ -7,7 +7,7 @@ path never revisits a state within one run of `tau` edges, so paths going
 round a `tau` cycle, and their obligations, are not listed.
 
 - trace: `x?k`, `y`
-- the start edge `[*] --> a` must admit a valuation: ∃ n@0. "$_0 = 0"(n@0)
+- the start edge `[*] --> a` (L7) must admit a valuation: ∃ n@0. "$_0 = 0"(n@0)
 
 ## Event 1: `x?k` after the empty prefix
 
@@ -15,13 +15,13 @@ round a `tau` cycle, and their obligations, are not listed.
 
 | step | event | transition | guard | post |
 |-----:|-------|------------|-------|------|
-| 0 | (start) | `[*] --> a` |  | $n' = 0 |
+| 0 | (start) | `[*] --> a` (L7) |  | $n' = 0 |
 
 - after step 0: a (n@0)
 
 | edge out of the reached state | transition | guard | post |
 |-------------------------------|------------|-------|------|
-| next | `a --> b` | $n < $k | $n' = $n + $k ∧ $m' = 0 |
+| next | `a --> b` (L8) | $n < $k | $n' = $n + $k ∧ $m' = 0 |
 
 Obligation: ∀ n@0. "$_0 = 0"(n@0) → ∃ k n' m'. "$_0 < $_1"(n@0, k) ∧ "$_0 = $_1 + $_2"(n', n@0, k) ∧ "$_0 = 0"(m')
 
@@ -31,16 +31,16 @@ Obligation: ∀ n@0. "$_0 = 0"(n@0) → ∃ k n' m'. "$_0 < $_1"(n@0, k) ∧ "$_
 
 | step | event | transition | guard | post |
 |-----:|-------|------------|-------|------|
-| 0 | (start) | `[*] --> a` |  | $n' = 0 |
-| 1 | `x?k` | `a --> b` | $n < $k | $n' = $n + $k ∧ $m' = 0 |
+| 0 | (start) | `[*] --> a` (L7) |  | $n' = 0 |
+| 1 | `x?k` | `a --> b` (L8) | $n < $k | $n' = $n + $k ∧ $m' = 0 |
 
 - after step 0: a (n@0)
 - after step 1: b (n@1, m@1)
 
 | edge out of the reached state | transition | guard | post |
 |-------------------------------|------------|-------|------|
-| tau | `b --> a` | $m = 0 | @eq(n', n) |
-| next | `b --> b` | $m > 0 | @eq(n', n) ∧ @eq(m', m) |
+| tau | `b --> a` (L9) | $m = 0 | @eq(n', n) |
+| next | `b --> b` (L10) | $m > 0 | @eq(n', n) ∧ @eq(m', m) |
 
 Obligation: ∀ n@0 k#1 n@1 m@1. "$_0 = 0"(n@0) ∧ "$_0 < $_1"(n@0, k#1) ∧ "$_0 = $_1 + $_2"(n@1, n@0, k#1) ∧ "$_0 = 0"(m@1) → (∃ n'. "$_0 = 0"(m@1) ∧ n' = n@1) ∨ ∃ n' m'. "$_0 > 0"(m@1) ∧ n' = n@1 ∧ m' = m@1
 
@@ -48,9 +48,9 @@ Obligation: ∀ n@0 k#1 n@1 m@1. "$_0 = 0"(n@0) ∧ "$_0 < $_1"(n@0, k#1) ∧ "$
 
 | step | event | transition | guard | post |
 |-----:|-------|------------|-------|------|
-| 0 | (start) | `[*] --> a` |  | $n' = 0 |
-| 1 | `x?k` | `a --> b` | $n < $k | $n' = $n + $k ∧ $m' = 0 |
-| 2 | `tau` | `b --> a` | $m = 0 | @eq(n', n) |
+| 0 | (start) | `[*] --> a` (L7) |  | $n' = 0 |
+| 1 | `x?k` | `a --> b` (L8) | $n < $k | $n' = $n + $k ∧ $m' = 0 |
+| 2 | `tau` | `b --> a` (L9) | $m = 0 | @eq(n', n) |
 
 - after step 0: a (n@0)
 - after step 1: b (n@1, m@1)
@@ -58,7 +58,7 @@ Obligation: ∀ n@0 k#1 n@1 m@1. "$_0 = 0"(n@0) ∧ "$_0 < $_1"(n@0, k#1) ∧ "$
 
 | edge out of the reached state | transition | guard | post |
 |-------------------------------|------------|-------|------|
-| next | `a --> a` | $n > 0 | @eq(n', n) |
+| next | `a --> a` (L11) | $n > 0 | @eq(n', n) |
 
 Obligation: ∀ n@0 k#1 n@1 m@1 n@2. "$_0 = 0"(n@0) ∧ "$_0 < $_1"(n@0, k#1) ∧ "$_0 = $_1 + $_2"(n@1, n@0, k#1) ∧ "$_0 = 0"(m@1) ∧ "$_0 = 0"(m@1) ∧ n@2 = n@1 → ∃ n'. "$_0 > 0"(n@2) ∧ n' = n@2
 

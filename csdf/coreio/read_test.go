@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
@@ -20,7 +21,26 @@ func mustParse(t *testing.T, text string) clause.And {
 }
 
 // sameClauses compares clauses up to α-equivalence.
-var sameClauses = cmp.Comparer(func(a, b clause.And) bool { return clause.AlphaEqual(a, b) })
+// sameClauses compares diagrams by their meaning: clauses up to the names of
+// what they bind, and edges whatever line they were read from.
+var sameClauses = cmp.Options{
+	cmp.Comparer(func(a, b clause.And) bool { return clause.AlphaEqual(a, b) }),
+	cmpopts.IgnoreFields(core.Edge{}, "Line"),
+	cmpopts.IgnoreFields(core.Diagram{}, "InitLine"),
+}
+
+func TestReadKeepsTheLineOfEachEdge(t *testing.T) {
+	// Execute
+	d, err := Read("@startuml\nstate \"a\" as a\n[*] --> a\na --> a : x\n\na --> a : y\n@enduml\n")
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := []int{d.InitLine, d.Edges[0].Line, d.Edges[1].Line}; got[0] != 3 || got[1] != 4 || got[2] != 6 {
+		t.Errorf("lines = %v, want [3 4 6]", got)
+	}
+}
 
 func TestReadAuthoredReadsADiagram(t *testing.T) {
 	cases := []struct {

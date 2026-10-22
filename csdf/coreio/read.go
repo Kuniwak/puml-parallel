@@ -50,6 +50,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		Vars:     map[string][]string{},
 		Init:     string(src.StartEdge.Dst),
 		InitPost: clauses(src.StartEdge.Post),
+		InitLine: src.StartEdge.Line,
 	}
 	for _, s := range csdf.SortedStates(src.States) {
 		d.States = append(d.States, string(s.ID))
@@ -97,6 +98,7 @@ func edgeOf(e csdf.Edge, clauses func(csdf.Predicate) clause.And) core.Edge {
 		Event: eventOf(e.Event),
 		Guard: clauses(e.Guard),
 		Post:  clauses(e.Post),
+		Line:  e.Line,
 	}
 }
 

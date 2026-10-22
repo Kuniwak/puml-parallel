@@ -79,7 +79,7 @@ round a ` + "`tau`" + ` cycle, and their obligations, are not listed.
 		return err
 	}
 	admits := some(start)
-	fmt.Fprintf(sb, "- the start edge `[*] --> %s` must admit a valuation: %s\n\n", d.Init, notation.Spell(admits))
+	fmt.Fprintf(sb, "- the start edge `[*] --> %s`%s must admit a valuation: %s\n\n", d.Init, line(d.InitLine), notation.Spell(admits))
 
 	for _, step := range r.Steps {
 		fmt.Fprintf(sb, "## Event %d: `%s` after %s\n\n", step.Index+1, step.Event, prefixText(r.Trace.Events[:step.Index]))
@@ -119,7 +119,7 @@ func writePathTable(sb *strings.Builder, d *core.Diagram, path Path) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(sb, "| 0 | (start) | `[*] --> %s` |  | %s |\n", d.Init, post)
+	fmt.Fprintf(sb, "| 0 | (start) | `[*] --> %s`%s |  | %s |\n", d.Init, line(d.InitLine), post)
 	for i, e := range path {
 		row, err := edgeCells(e)
 		if err != nil {
@@ -147,7 +147,7 @@ func edgeCells(e core.Edge) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("`%s --> %s` | %s | %s", e.Src, e.Dst, guard, post), nil
+	return fmt.Sprintf("`%s --> %s`%s | %s | %s", e.Src, e.Dst, line(e.Line), guard, post), nil
 }
 
 // writeObligation states, for one prefix path, that the values it reaches
@@ -333,4 +333,13 @@ func typesOf(vars []logic.Var) []string {
 		types[i] = strings.FieldsFunc(string(v), func(r rune) bool { return r == '@' || r == '#' })[0]
 	}
 	return types
+}
+
+// line is where an edge was read, " (L<n>)", or nothing for one no reader
+// read.
+func line(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" (L%d)", n)
 }
