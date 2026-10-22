@@ -32,7 +32,9 @@ read by `csdf/coreio` in the same syntax, and keeps the local-diagram
 contract below; it does not read `constrain`, several global states, frozen
 families, hand-written global edges, a post on the global start edge or a
 global `assume` note yet, and refuses each by name (docs/SYNTAX.md, "Diagrams
-of formulas").
+of formulas"). The two readers differ on a global `assume` note: `csdfpromote`
+skips it as a note for the picture alone, while `csdf/coreio` refuses it,
+since `assume` is a directive it does not read yet.
 
 
 Vocabulary
