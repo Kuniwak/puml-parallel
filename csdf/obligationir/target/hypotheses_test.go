@@ -14,13 +14,18 @@ import (
 
 var (
 	theoremName = regexp.MustCompile(`(?m)^theorem (\w+)`)
-	axiomName   = regexp.MustCompile(`(?m)^(?:definition|def) (csdf_axiom_\d+)\b`)
-	identifier  = regexp.MustCompile(`\w+`)
+	// axiomName is the definition of an axiom as each back end spells it:
+	// Isabelle's definition csdf_axiom_i :: bool, Lean's def csdf_axiom_i : Prop :=.
+	axiomName  = regexp.MustCompile(`(?m)^(?:definition (csdf_axiom_\d+) :: bool|def (csdf_axiom_\d+) : Prop :=)$`)
+	identifier = regexp.MustCompile(`\w+`)
 )
 
 // theorems maps each theorem of out to the hypotheses its statement names:
-// the axioms and the assumptions, read as whole identifiers.
-func theorems(out string) map[string][]string {
+// the axioms and the assumptions, read as whole identifiers. A statement is
+// ended by Isabelle's oops or Lean's := by; one ended by neither fails t, as
+// the hypotheses read after it would be another's.
+func theorems(t *testing.T, out string) map[string][]string {
+	t.Helper()
 	ts := map[string][]string{}
 	locs := theoremName.FindAllStringSubmatchIndex(out, -1)
 	for i, loc := range locs {
@@ -33,6 +38,8 @@ func theorems(out string) map[string][]string {
 			stmt = stmt[:k]
 		} else if k := strings.Index(stmt, ":= by"); k >= 0 {
 			stmt = stmt[:k]
+		} else {
+			t.Fatalf("the theorem %s ends neither by oops nor by := by: %s", out[loc[2]:loc[3]], stmt)
 		}
 		hs := []string{}
 		for _, id := range identifier.FindAllString(stmt, -1) {
@@ -86,7 +93,7 @@ func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
 				}
 				var axioms []string
 				for _, m := range axiomName.FindAllStringSubmatch(sb.String(), -1) {
-					axioms = append(axioms, m[1])
+					axioms = append(axioms, m[1]+m[2])
 				}
 				if len(axioms) == 0 {
 					t.Fatal("no axiom, so the test would pin nothing of them")
@@ -97,7 +104,7 @@ func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
 					slices.Sort(hs)
 					expected[name] = hs
 				}
-				if diff := cmp.Diff(expected, theorems(sb.String())); diff != "" {
+				if diff := cmp.Diff(expected, theorems(t, sb.String())); diff != "" {
 					t.Error(diff)
 				}
 			})
