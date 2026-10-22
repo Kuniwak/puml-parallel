@@ -14,12 +14,25 @@ type EventField struct {
 	Name string
 }
 
+// FieldRule is what stands for a field of an event: Check accepts it, and
+// Name says what it is, for an error of an event it refuses.
+type FieldRule struct {
+	Name  string
+	Check func(string) bool
+}
+
+// The FieldRules: a diagram's event names its fields; a trace's event may
+// carry their values instead.
+var (
+	FieldIdentifier  = FieldRule{Name: "an identifier", Check: ident.Is}
+	FieldNameOrValue = FieldRule{Name: "a name or a value", Check: func(s string) bool { return s != "" }}
+)
+
 // SplitEvent takes apart an event written as a channel, then ?x for each
 // field received and !x for each sent, in order, each trimmed of spaces. The
-// channel is an identifier, and each x is one field accepts: an identifier
-// for a diagram's event, a name or a value for a trace's. Neither may hold
-// ? or !, which mark the fields.
-func SplitEvent(text string, field func(string) bool) (string, []EventField, error) {
+// channel is an identifier, and each x is one field accepts. Neither may
+// hold ? or !, which mark the fields.
+func SplitEvent(text string, field FieldRule) (string, []EventField, error) {
 	i := strings.IndexAny(text, "?!")
 	if i < 0 {
 		i = len(text)
@@ -38,8 +51,8 @@ func SplitEvent(text string, field func(string) bool) (string, []EventField, err
 			j = len(rest)
 		}
 		name := strings.TrimSpace(rest[:j])
-		if !field(name) {
-			return "", nil, fmt.Errorf("%q: expected a field after %q", text, marker)
+		if !field.Check(name) {
+			return "", nil, fmt.Errorf("%q: expected %s after %q", text, field.Name, marker)
 		}
 		fields = append(fields, EventField{Send: send, Name: name})
 		rest = rest[j:]

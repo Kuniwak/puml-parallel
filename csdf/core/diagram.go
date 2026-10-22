@@ -186,7 +186,7 @@ func ReceivesOver(field string, vars ...[]string) bool {
 // the value it carries. An x that is empty is refused; neither it nor the
 // channel may hold ? or !.
 func ParseEvent(text string) (Event, error) {
-	channel, parts, err := SplitEvent(text, func(x string) bool { return x != "" })
+	channel, parts, err := SplitEvent(text, FieldNameOrValue)
 	if err != nil {
 		return Event{}, fmt.Errorf("core.ParseEvent: %w", err)
 	}

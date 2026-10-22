@@ -88,9 +88,9 @@ func (e Event) Fields() []Field {
 }
 
 func splitEvent(text string) (string, []Field, error) {
-	channel, parts, err := core.SplitEvent(text, ident.Is)
+	channel, parts, err := core.SplitEvent(text, core.FieldIdentifier)
 	if err != nil {
-		return "", nil, fmt.Errorf("csdf.ParseEvent: %w; a field is an identifier", err)
+		return "", nil, fmt.Errorf("csdf.ParseEvent: %w", err)
 	}
 	fields := make([]Field, len(parts))
 	for i, p := range parts {
