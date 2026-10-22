@@ -127,9 +127,6 @@ func parseExpr(raw json.RawMessage) (Expr, error) {
 	}
 }
 
-// DiagramLoader resolves the path of a REFER expression to a diagram.
-type DiagramLoader func(path string) (*Diagram, error)
-
 // BaseDirOf returns the directory the relative paths of REFER expressions are
 // resolved against for a composition tree stored at treePath: the directory
 // holding the tree. An empty treePath means the tree has no location of its own
@@ -139,61 +136,4 @@ func BaseDirOf(treePath string) string {
 		return "."
 	}
 	return filepath.Dir(treePath)
-}
-
-// NewFileDiagramLoader loads referenced diagrams from the file system,
-// resolving relative paths against baseDir.
-func NewFileDiagramLoader(baseDir string) DiagramLoader {
-	return func(path string) (*Diagram, error) {
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(baseDir, path)
-		}
-		return LoadDiagram(path)
-	}
-}
-
-// ComposeTree evaluates a composition tree into a single diagram, loading the
-// diagrams of its REFER leaves with load.
-func ComposeTree(expr Expr, load DiagramLoader) (*Diagram, error) {
-	diagram, err := composeTree(expr, load)
-	if err != nil {
-		return nil, fmt.Errorf("csdf.ComposeTree: %w", err)
-	}
-	return diagram, nil
-}
-
-func composeTree(expr Expr, load DiagramLoader) (*Diagram, error) {
-	switch e := expr.(type) {
-	case *ReferExpr:
-		diagram, err := load(e.Path)
-		if err != nil {
-			return nil, fmt.Errorf("in a %s expression of %q: %w", OpRefer, e.Path, err)
-		}
-		return diagram, nil
-
-	case *HideExpr:
-		proc, err := composeTree(e.Proc, load)
-		if err != nil {
-			return nil, err
-		}
-		return Hide(proc, e.Channels), nil
-
-	case *InterfaceParallelExpr:
-		procs := make([]*Diagram, 0, len(e.Procs))
-		for _, procExpr := range e.Procs {
-			proc, err := composeTree(procExpr, load)
-			if err != nil {
-				return nil, err
-			}
-			procs = append(procs, proc)
-		}
-		composite, err := ComposeParallel(procs, e.Sync)
-		if err != nil {
-			return nil, fmt.Errorf("in an %s expression: %w", OpInterfaceParallel, err)
-		}
-		return composite, nil
-
-	default:
-		return nil, fmt.Errorf("unknown process expression: %T", expr)
-	}
 }
