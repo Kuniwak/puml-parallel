@@ -533,15 +533,6 @@ func (ir LivelockFree) StateMap() map[string]State {
 	return m
 }
 
-// AxiomNames are the propositions the axioms of ir are, in order.
-func (ir LivelockFree) AxiomNames() []string {
-	names := make([]string, len(ir.Axioms))
-	for i := range ir.Axioms {
-		names[i] = AxiomName(i + 1)
-	}
-	return names
-}
-
 // Declaration is a constant a back end declares: the lines of the comment
 // above it, todo first when the constant is uninterpreted, then the text it
 // was named by.
@@ -557,6 +548,10 @@ func (ir LivelockFree) Declarations(todo string) ([]Declaration, error) {
 	if err != nil {
 		return nil, err
 	}
+	return declarations(syms, todo), nil
+}
+
+func declarations(syms []Symbol, todo string) []Declaration {
 	ds := make([]Declaration, len(syms))
 	for i, s := range syms {
 		var comments []string
@@ -568,5 +563,5 @@ func (ir LivelockFree) Declarations(todo string) ([]Declaration, error) {
 		}
 		ds[i] = Declaration{Comments: comments, Symbol: s}
 	}
-	return ds, nil
+	return ds
 }

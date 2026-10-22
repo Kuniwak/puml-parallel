@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
@@ -53,11 +54,13 @@ func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
 	}
 	side := obligationir.SideSingle
 	io.WriteString(&w, ValPrelude+"\n\n"+InhabitedVal+"\n\n")
-	writeStates(&w, side, ir.States)
-	if err := writeSymbols(&w, ir); err != nil {
+	ds, err := ir.Declarations(PredicateTODO)
+	if err != nil {
 		return "", err
 	}
-	hypotheses, err := writeAxioms(&w, ir)
+	writeStates(&w, side, ir.States)
+	writeSymbols(&w, ds)
+	hypotheses, err := writeAxioms(&w, ir.Axioms)
 	if err != nil {
 		return "", err
 	}
@@ -65,22 +68,7 @@ func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "", err
 	}
 	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
-
-	states := ir.StateMap()
-	init, err := obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, dotted)
-	if err != nil {
-		return "", err
-	}
-	fmt.Fprintf(&w, "def init (s' : St) : Prop :=\n  %s\n\n", init)
-	if err := writeRelation(&w, side, "step", states, ir.Edges); err != nil {
-		return "", err
-	}
-	io.WriteString(&w, `inductive Reachable : St → Prop where
-  | base (s : St) : init s → Reachable s
-  | step (s s' : St) : Reachable s → step s s' → Reachable s'
-
-`)
-	if err := writeRelation(&w, side, "tauStep", states, ir.TauEdges()); err != nil {
+	if err := writeTransitionSystem(&w, side, ir); err != nil {
 		return "", err
 	}
 	WriteLivelockTheorem(&w, side, "livelock_free", hypotheses)
@@ -88,10 +76,33 @@ func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
 	return w.String(), nil
 }
 
+// writeTransitionSystem writes the relations the livelock-freedom theorem of
+// one side is stated over: init, step, Reachable and tauStep, each named for
+// the side, over the states the inductive St of the side holds, which
+// writeStates writes.
+func writeTransitionSystem(w io.Writer, side obligationir.Side, ir obligationir.LivelockFree) error {
+	st, init, reachable := side.Qualify("St"), side.Qualify("init"), side.Qualify("Reachable")
+	states := ir.StateMap()
+	initial, err := obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, dotted)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "def %s (s' : %s) : Prop :=\n  %s\n\n", init, st, initial)
+	if err := writeRelation(w, side, "step", states, ir.Edges); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, `inductive %s : %s → Prop where
+  | base (s : %s) : %s s → %s s
+  | step (s s' : %s) : %s s → %s s s' → %s s'
+
+`, reachable, st, st, init, reachable, st, reachable, side.Qualify("step"), reachable)
+	return writeRelation(w, side, "tauStep", states, ir.TauEdges())
+}
+
 func dotted(ctor string) string { return "." + ctor }
 
 func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
-	io.WriteString(w, "inductive St where\n")
+	io.WriteString(w, "inductive "+side.Qualify("St")+" where\n")
 	for _, s := range ss {
 		io.WriteString(w, "  | "+side.Ctor(csdf.StateID(s.Name)))
 		for _, v := range s.Vars {
@@ -105,11 +116,7 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "\n")
 }
 
-func writeSymbols(w io.Writer, ir obligationir.LivelockFree) error {
-	ds, err := ir.Declarations(PredicateTODO)
-	if err != nil {
-		return err
-	}
+func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
 	for _, d := range ds {
 		for _, c := range d.Comments {
 			io.WriteString(w, "-- "+SanitizeComment(c)+"\n")
@@ -120,12 +127,12 @@ func writeSymbols(w io.Writer, ir obligationir.LivelockFree) error {
 		}
 		io.WriteString(w, "opaque "+d.Name+" : "+strings.Repeat("Val → ", d.Arity)+result+"\n\n")
 	}
-	return nil
 }
 
-func writeAxioms(w io.Writer, ir obligationir.LivelockFree) ([]string, error) {
-	names := ir.AxiomNames()
-	for i, a := range ir.Axioms {
+func writeAxioms(w io.Writer, axioms []logic.Tree) ([]string, error) {
+	names := make([]string, len(axioms))
+	for i, a := range axioms {
+		names[i] = obligationir.AxiomName(i + 1)
 		f, err := Notation.SpellFormula(a)
 		if err != nil {
 			return nil, fmt.Errorf("the axiom %s: %w", names[i], err)
@@ -140,6 +147,6 @@ func writeRelation(w io.Writer, side obligationir.Side, name string, states map[
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "def %s (s s' : St) : Prop :=\n  %s\n\n", name, d)
+	fmt.Fprintf(w, "def %s (s s' : %s) : Prop :=\n  %s\n\n", side.Qualify(name), side.Qualify("St"), d)
 	return nil
 }
