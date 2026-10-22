@@ -336,7 +336,16 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 func (r *promotionReader) edge(l, src, dst string) error {
 	name := src + " --> " + dst
 	if dst == "[*]" {
-		return fmt.Errorf("%s: a global diagram has no end edge", name)
+		// The controller's termination in src: its label is a guard alone.
+		var guard clause.And
+		if _, label, ok := strings.Cut(l, ":"); ok {
+			var err error
+			if guard, err = clause.ParseAuthored(strings.TrimSpace(label)); err != nil {
+				return located{fmt.Errorf("%s: %w", name, err)}
+			}
+		}
+		r.p.Ends = append(r.p.Ends, core.End{Src: src, Guard: guard})
+		return nil
 	}
 	e, err := readEdge(l, r.lineNo, clause.ParseAuthored)
 	if err != nil {

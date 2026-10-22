@@ -53,7 +53,7 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 		}
 		return clause.And{Conjuncts: out}, nil
 	}
-	out := &Diagram{Name: d.Name, Labels: d.Labels, States: slices.Clone(d.States), Init: d.Init, Vars: map[string][]string{}, Assumes: slices.Clone(d.Assumes), Ends: slices.Clone(d.Ends)}
+	out := &Diagram{Name: d.Name, Labels: d.Labels, States: slices.Clone(d.States), Init: d.Init, Vars: map[string][]string{}, Assumes: slices.Clone(d.Assumes)}
 	for s, vars := range d.Vars {
 		for _, v := range vars {
 			if !gone[v] {
@@ -66,6 +66,13 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 		return nil, nil, err
 	}
 	out.InitPost = init
+	for _, e := range d.Ends {
+		guard, err := keepOf(e.Guard, e.Src+" --> [*]")
+		if err != nil {
+			return nil, nil, err
+		}
+		out.Ends = append(out.Ends, End{Src: e.Src, Guard: guard})
+	}
 	hidden := map[string]bool{}
 	for _, e := range d.Edges {
 		movesKept, movesGone := moves(e.Post, maps, keep)

@@ -228,6 +228,9 @@ func TestPromoteRefuses(t *testing.T) {
 			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "from", Event: "ARRIVE"}}}), "twice"},
 		{"one local event taken twice", promotion(locations, Sync{Event: "MOVE", Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "DEPART"}}}), "DEPART"},
+		{"a global end edge from no mode", withEnd(promotion(locations), End{Src: "X"}), "no mode"},
+		{"a global end edge reading a value after the step", withEnd(promotion(locations), End{Src: "G", Guard: mustParse(t, "@empty(locations')")}), "after the step"},
+		{"a global end edge reading what is no map", withEnd(promotion(locations), End{Src: "G", Guard: mustParse(t, "$z = 0")}), "z"},
 		{"a sync on tau", promotion(locations, Sync{Event: Tau, Targets: []Target{{Map: "locations", ID: "loc", Event: "DEPART"}}}), "tau"},
 		{"a target without its local event", promotion(locations, Sync{Event: "MOVE", Targets: []Target{{Map: "locations", ID: "loc"}}}), "names no local event"},
 		{"a sync clause reading an instance the sync does not bind", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "${locations[loc].stock} = 0"), Targets: []Target{
@@ -527,6 +530,28 @@ func TestPromoteCarriesTheLabelsOfTheModes(t *testing.T) {
 	if diff := cmp.Diff(p.Labels, got.Labels); diff != "" {
 		t.Errorf("labels (-want +got):\n%s", diff)
 	}
+}
+
+func TestPromoteCarriesTheGlobalEndEdges(t *testing.T) {
+	// Setup
+	p := withEnd(promotion(Family{Map: "doors", ID: "loc", Local: door()}), End{Src: "G", Guard: mustParse(t, "@empty(doors)")})
+
+	// Execute
+	got, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(p.Ends, got.Ends); diff != "" {
+		t.Errorf("end edges (-want +got):\n%s", diff)
+	}
+}
+
+// withEnd is p with the global end edge e.
+func withEnd(p Promotion, e End) Promotion {
+	p.Ends = append(p.Ends, e)
+	return p
 }
 
 func promotion(f Family, syncs ...Sync) Promotion {
