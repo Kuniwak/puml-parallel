@@ -2,40 +2,30 @@ package csdflivelockfreecmd
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
-const countdown = `@startuml
-state "a" as a
-a : n
-[*] --> a : $n' = 10
-a --> a : tau ; $n > 0 ; $n' = $n - 1
-@enduml
-`
+// formula is the diagram of testdata/formula named file, whose expected
+// obligations are beside it.
+func formula(file string) string {
+	return filepath.Join("..", "..", "..", "csdf", "obligationir", "testdata", "formula", file)
+}
 
-// run runs the command, asserting a zero exit status and empty stderr.
-func run(t *testing.T, stdin string, args []string) string {
-	t.Helper()
+// run runs the command on args and stdin.
+func run(stdin string, args []string) (int, *cli.ProcInoutSpy) {
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader(stdin))
 	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	if spy.Stderr.String() != "" {
-		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
-	}
-	return spy.Stdout.String()
+	return exitStatus, spy
 }
 
 func TestNewMainFuncTellsAStructuralCandidate(t *testing.T) {
@@ -55,7 +45,7 @@ func TestNewMainFuncTellsAStructuralCandidate(t *testing.T) {
 			Want: false,
 		},
 		"a tau self-loop whose guard is false is still a candidate, and exits 0": {
-			Stdin: "@startuml\nstate \"a\" as a\n[*] --> a\na --> a : tau ; 偽 ; \n@enduml\n",
+			Stdin: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : @eq(n', n')\na --> a : tau ; @ne(n, n) ; @eq(n', n)\n@enduml\n",
 			Want:  false,
 		},
 		"standard input is a file": {
@@ -67,12 +57,15 @@ func TestNewMainFuncTellsAStructuralCandidate(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			out := run(t, tc.Stdin, tc.Args)
+			exitStatus, spy := run(tc.Stdin, tc.Args)
 
 			// Assert
+			if exitStatus != 0 || spy.Stderr.String() != "" {
+				t.Fatalf("exit %d, stderr %q; want 0 and nothing", exitStatus, spy.Stderr.String())
+			}
 			var ir obligationir.LivelockFree
-			if err := json.Unmarshal([]byte(out), &ir); err != nil {
-				t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, out)
+			if err := json.Unmarshal([]byte(spy.Stdout.String()), &ir); err != nil {
+				t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, spy.Stdout.String())
 			}
 			if ir.Structurally != tc.Want {
 				t.Errorf("structurally = %v, want %v", ir.Structurally, tc.Want)
@@ -81,29 +74,25 @@ func TestNewMainFuncTellsAStructuralCandidate(t *testing.T) {
 	}
 }
 
-// TestNewMainFuncCompilesToTheTarget holds -target to the back end it names.
+// TestNewMainFuncCompilesToTheTarget holds -target to the obligation
+// expected of the diagram in that format.
 func TestNewMainFuncCompilesToTheTarget(t *testing.T) {
-	for _, name := range []target.Name{target.NameIRJSON, target.NameIsabelle, target.NameLean} {
-		t.Run(string(name), func(t *testing.T) {
+	for name, ext := range map[string]string{"ir-json": ".json", "isabelle": ".thy", "lean": ".lean"} {
+		t.Run(name, func(t *testing.T) {
 			// Setup
-			d, err := coreio.Read(countdown)
+			want, err := os.ReadFile(formula("countdown" + ext))
 			if err != nil {
-				t.Fatal(err)
-			}
-			ir, err := obligationir.BuildFormulaLivelockFree(d)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var want strings.Builder
-			if err := target.Compile(&want, ir, name); err != nil {
 				t.Fatal(err)
 			}
 
 			// Execute
-			got := run(t, countdown, []string{"-target", string(name)})
+			exitStatus, spy := run("", []string{"-target", name, formula("countdown.puml")})
 
 			// Assert
-			if diff := cmp.Diff(want.String(), got); diff != "" {
+			if exitStatus != 0 {
+				t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+			}
+			if diff := cmp.Diff(string(want), spy.Stdout.String()); diff != "" {
 				t.Error(diff)
 			}
 		})

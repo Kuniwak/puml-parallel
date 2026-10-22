@@ -1,0 +1,1 @@
+{"structurally":true,"states":[{"name":"s0","vars":null},{"name":"s1","vars":null}],"init":"s0","init_post":{"op":"true"},"edges":[{"src":"s0","dst":"s1","tau":false,"received":[],"step":{"op":"true"}}],"axioms":[],"assumptions":[]}
