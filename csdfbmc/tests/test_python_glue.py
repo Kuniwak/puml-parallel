@@ -14,6 +14,7 @@ def analyse(clause: str, role: str) -> dict:
 class PythonGlueTest(unittest.TestCase):
     def setUp(self):
         self.handle = evaluator([])
+        self.handle({"op": "hello"})
 
     def test_hello_names_the_language_and_the_protocol_version(self):
         self.assertEqual({"language": "python", "protocol": 1, "supports": ["beyond", "symmetric"]}, self.handle({"op": "hello"}))
@@ -87,6 +88,7 @@ class DefinitionsTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write("FEE = 1\ndef fee(n):\n    return n + FEE\n")
         self.handle = evaluator([path])
+        self.handle({"op": "hello"})
 
     def test_a_definition_is_not_read_from_the_step(self):
         self.assertEqual({"reads": ["n"], "writes": []}, self.handle(analyse("fee(n) > FEE", "guard")))

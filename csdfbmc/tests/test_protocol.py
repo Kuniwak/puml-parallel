@@ -158,6 +158,17 @@ class DecoratorTest(unittest.TestCase):
         self.assertEqual([True], client.guard("n > 0", [{"n": 1}]))
         self.assertEqual([[{"n": 1}, {"n": 0}]], inner.asked)
 
+    def test_memoising_tells_a_truth_value_from_the_number_it_equals(self):
+        # Setup
+        inner = Recording({"n": Analysis(opaque=False, reads=("n",))}, lambda b: type(b["n"]) is bool)
+        client = Memoising(inner)
+
+        # Execute
+        got = client.guard("n", [{"n": 1}]) + client.guard("n", [{"n": True}])
+
+        # Assert
+        self.assertEqual([False, True], got)
+
     def test_validating_refuses_an_assignment_beside_the_writes(self):
         for name, answer in [("a variable too many", [{"n": 1, "m": 0}]), ("a variable short", [{}])]:
             client = Validating(Recording({"p": Analysis(opaque=False, writes=("n",))}, lambda b: answer))
@@ -186,6 +197,21 @@ class ServeTest(unittest.TestCase):
         def handle(request):
             raise KeyError("boom")
         self.assertIn("boom", self.serve([json.dumps({"op": "hello"})], handle)[0]["error"])
+
+    def test_the_values_of_an_atom_post_are_encoded_both_ways(self):
+        # Setup
+        def handle(request):
+            if request["op"] == "hello":
+                return {"language": "fake", "protocol": 2}
+            return {"results": [[[frozenset(vs)]] for vs in request["values"]]}
+        request = {"op": "post", "atom": {"text": ["", " == ", ""], "holes": [0, 1], "primed": [True, False]},
+                   "values": [[{"set": [1]}]]}
+
+        # Execute
+        answers = self.serve([json.dumps({"op": "hello", "protocol": 2}), json.dumps(request)], handle)
+
+        # Assert
+        self.assertEqual({"results": [[[{"set": [{"set": [1]}]}]]]}, answers[1])
 
 
 # The repository root, from which "python -m csdfbmc.python_glue" finds the package.
