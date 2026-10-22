@@ -91,7 +91,9 @@ fields in one place and another elsewhere is refused. The refinement is stated
 under the axioms of the csdf_* predicates, as csdf_axiom_<i>, alone, and so is
 initialisable_S/_I, stated in every model: of the Impl it is what keeps the
 refinement from holding vacuously, since an Impl that cannot start is DIV, and it
-must not rest on what the Impl assumes; of the Spec it is a sanity check. The
+must not rest on what the Impl assumes; of the Spec it is a sanity check, which
+may fail to prove when the Spec can start only under its assumptions, as
+expected. The
 assume notes of a diagram (see docs/SYNTAX.md), as assume_<id>_S or
 assume_<id>_I, are hypotheses only of that side's livelock freedom under -m fd,
 so the FD conclusion is conditional on the Impl's assumptions. An assumption of

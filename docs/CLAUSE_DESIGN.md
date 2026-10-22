@@ -208,7 +208,9 @@ and no stable failure can state, so it would license a claim the model does
 not make. That a side can start is stated under the axioms alone too: of
 the impl it is what keeps the refinement from holding vacuously, an impl
 that cannot start being DIV, and it must not rest on what the impl assumes
-of its runs; of the spec it is a sanity check. Each side's assumptions are
+of its runs; of the spec it is a sanity check, and may fail to prove when
+the spec can start only under its assumptions, which is expected: the spec
+then starts only where they hold. Each side's assumptions are
 hypotheses only of that side's livelock-freedom, in failures-divergences, so
 the FD conclusion is conditional on the impl's assumptions.
 
