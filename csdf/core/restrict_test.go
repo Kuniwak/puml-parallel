@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
 )
 
@@ -214,6 +217,40 @@ func TestRestrictReportsEveryClauseItDrops(t *testing.T) {
 	for _, want := range []string{"[*]: dropped, as it reads a left-out map: @empty(doors')", "INSTALL: dropped, as it reads a left-out map: @at(doors'[loc], shut)"} {
 		if !strings.Contains(all, want) {
 			t.Errorf("warnings lack %q:\n%s", want, all)
+		}
+	}
+}
+
+func TestRestrictKeepsTheControllerVariables(t *testing.T) {
+	// Setup
+	p := fitting(plainDoor())
+	p.Modes = []string{"run", "maint"}
+	p.Init = "run"
+	p.Vars = map[string][]string{"run": {"halted"}, "maint": {"halted"}}
+	p.Edges = []Edge{
+		{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "$halted = 0 ∧ $halted と $doors"), Post: mustParse(t, "$halted' = 1")},
+		{Src: "maint", Dst: "run", Event: ev("RESUME")},
+	}
+	full, _, err := Promote(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	restricted, _, err := Restrict(full, []string{"doors", "keys"}, []string{"keys"})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantVars := map[string][]string{"run": {"keys", "halted"}, "maint": {"keys", "halted"}}
+	if diff := cmp.Diff(wantVars, restricted.Vars); diff != "" {
+		t.Errorf("Vars (-want +got):\n%s", diff)
+	}
+	for _, e := range restricted.Edges {
+		if e.Event.Channel == "HALT" && !clause.AlphaEqual(e.Guard, mustParse(t, "$halted = 0")) {
+			got, _ := clause.Print(e.Guard)
+			t.Errorf("HALT's guard = %s, want only the conjunct that reads no left-out map", got)
 		}
 	}
 }
