@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestBuildFormulaLivelockFreeTellsAReachableTauCycle(t *testing.T) {
+func TestBuildLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 	type testCase struct {
 		Source string
 		Want   bool
@@ -45,7 +45,7 @@ func TestBuildFormulaLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 			}
 
 			// Execute
-			ir, err := obligationir.BuildFormulaLivelockFree(d)
+			ir, err := obligationir.BuildLivelockFree(d)
 
 			// Assert
 			if err != nil {
@@ -58,7 +58,7 @@ func TestBuildFormulaLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 	}
 }
 
-func TestBuildFormulaLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testing.T) {
+func TestBuildLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testing.T) {
 	// Setup
 	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n = 0\n@enduml\n")
 	if err != nil {
@@ -66,7 +66,7 @@ func TestBuildFormulaLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testi
 	}
 
 	// Execute
-	_, err = obligationir.BuildFormulaLivelockFree(d)
+	_, err = obligationir.BuildLivelockFree(d)
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "the start post reads n") {
@@ -80,7 +80,7 @@ func TestFormulaLivelockFreeReadsBackFromJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	ir, err := obligationir.BuildLivelockFree(d)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 			States:   []obligationir.State{{Name: "a", Vars: []string{}}},
 			Init:     "a",
 			InitPost: logic.Tree{Op: logic.OpTrue},
-			Edges:    []obligationir.Edge{{Src: "a", Dst: "a", Tau: true, Received: []string{}, Step: logic.Tree{Op: logic.OpTrue}}},
+			Edges:    []obligationir.Edge{{Src: "a", Dst: "a", Channel: "go", Fields: []obligationir.Field{}, Step: logic.Tree{Op: logic.OpTrue}}},
 		}
 	}
 	testCases := map[string]func(ir *obligationir.LivelockFree){
@@ -117,7 +117,12 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 		"a state named twice":         func(ir *obligationir.LivelockFree) { ir.States = append(ir.States, ir.States[0]) },
 		"an unknown start state":      func(ir *obligationir.LivelockFree) { ir.Init = "b" },
 		"an edge to an unknown state": func(ir *obligationir.LivelockFree) { ir.Edges[0].Dst = "b" },
-		"a field received twice":      func(ir *obligationir.LivelockFree) { ir.Edges[0].Received = []string{"k", "k"} },
+		"a field received twice": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}, {Name: "k"}}
+		},
+		"a tau with a field": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Channel, ir.Edges[0].Fields = "tau", []obligationir.Field{{Name: "k"}}
+		},
 	}
 
 	if err := valid().Validate(); err != nil {

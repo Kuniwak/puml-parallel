@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
@@ -25,25 +26,25 @@ func binders(vars []string) string {
 	return strings.Join(bs, ` `)
 }
 
-// WriteFormulaLivelockFree writes the livelock-freedom obligation of a
+// WriteLivelockFree writes the livelock-freedom obligation of a
 // diagram whose clauses are formulas. The clauses are spelled, not left
 // opaque: what stays uninterpreted is the environment, each atom, function
 // and type a constant under a TODO(csdf) marker beside the text it was named
 // by, and the theorem is stated under the axioms of the csdf_* predicates and
 // the diagram's assumptions.
-func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
-	text, err := formulaLivelockFree(ir)
+func WriteLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
+	text, err := livelockFree(ir)
 	if err != nil {
-		return fmt.Errorf("isabelle.WriteFormulaLivelockFree: %w", err)
+		return fmt.Errorf("isabelle.WriteLivelockFree: %w", err)
 	}
 	_, err = io.WriteString(w, text)
 	return err
 }
 
-// formulaLivelockFree is the theory WriteFormulaLivelockFree writes, made
+// livelockFree is the theory WriteLivelockFree writes, made
 // whole before any of it is written, so that an IR refused halfway writes
 // nothing.
-func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
+func livelockFree(ir obligationir.LivelockFree) (string, error) {
 	if err := ir.Validate(); err != nil {
 		return "", err
 	}
@@ -55,11 +56,13 @@ func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
 	}
 	side := obligationir.SideSingle
 	io.WriteString(&w, ValPrelude+"\n\n")
-	writeStates(&w, side, ir.States)
-	if err := writeSymbols(&w, ir); err != nil {
+	ds, err := ir.Declarations(PredicateTODO)
+	if err != nil {
 		return "", err
 	}
-	hypotheses, err := writeAxioms(&w, ir)
+	writeStates(&w, side, ir.States)
+	writeSymbols(&w, ds)
+	hypotheses, err := writeAxioms(&w, ir.Axioms)
 	if err != nil {
 		return "", err
 	}
@@ -67,22 +70,7 @@ func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "", err
 	}
 	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
-
-	states := ir.StateMap()
-	init, err := obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, constructor)
-	if err != nil {
-		return "", err
-	}
-	fmt.Fprintf(&w, "definition init :: \"st \\<Rightarrow> bool\"\n  where \"init s' \\<equiv> %s\"\n\n", init)
-	if err := writeRelation(&w, side, "step", states, ir.Edges); err != nil {
-		return "", err
-	}
-	io.WriteString(&w, `inductive reachable :: "st \<Rightarrow> bool"
-  where base: "init s \<Longrightarrow> reachable s"
-  | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
-
-`)
-	if err := writeRelation(&w, side, "tau_step", states, ir.TauEdges()); err != nil {
+	if err := writeTransitionSystem(&w, side, ir); err != nil {
 		return "", err
 	}
 	WriteLivelockTheorem(&w, side, "livelock_free", hypotheses)
@@ -90,10 +78,33 @@ func formulaLivelockFree(ir obligationir.LivelockFree) (string, error) {
 	return w.String(), nil
 }
 
+// writeTransitionSystem writes the relations the livelock-freedom theorem of
+// one side is stated over: init, step, reachable and tau_step, each named
+// for the side, over the states the datatype st of the side holds, which
+// writeStates writes.
+func writeTransitionSystem(w io.Writer, side obligationir.Side, ir obligationir.LivelockFree) error {
+	st, init, reachable := side.Qualify("st"), side.Qualify("init"), side.Qualify("reachable")
+	states := ir.StateMap()
+	initial, err := obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, constructor)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "definition %s :: \"%s \\<Rightarrow> bool\"\n  where \"%s s' \\<equiv> %s\"\n\n", init, st, init, initial)
+	if err := writeRelation(w, side, "step", states, ir.Edges); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, `inductive %s :: "%s \<Rightarrow> bool"
+  where base: "%s s \<Longrightarrow> %s s"
+  | step: "%s s \<Longrightarrow> %s s s' \<Longrightarrow> %s s'"
+
+`, reachable, st, init, reachable, reachable, side.Qualify("step"), reachable)
+	return writeRelation(w, side, "tau_step", states, ir.TauEdges())
+}
+
 func constructor(ctor string) string { return ctor }
 
 func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
-	io.WriteString(w, "datatype st =")
+	io.WriteString(w, "datatype "+side.Qualify("st")+" =")
 	for i, s := range ss {
 		if i > 0 {
 			io.WriteString(w, "\n  |")
@@ -109,11 +120,7 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "\n\n")
 }
 
-func writeSymbols(w io.Writer, ir obligationir.LivelockFree) error {
-	ds, err := ir.Declarations(PredicateTODO)
-	if err != nil {
-		return err
-	}
+func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
 	for _, d := range ds {
 		for _, c := range d.Comments {
 			io.WriteString(w, comment(c)+"\n")
@@ -124,12 +131,12 @@ func writeSymbols(w io.Writer, ir obligationir.LivelockFree) error {
 		}
 		io.WriteString(w, "consts "+d.Name+" :: \""+strings.Repeat("val \\<Rightarrow> ", d.Arity)+result+"\"\n\n")
 	}
-	return nil
 }
 
-func writeAxioms(w io.Writer, ir obligationir.LivelockFree) ([]string, error) {
-	names := ir.AxiomNames()
-	for i, a := range ir.Axioms {
+func writeAxioms(w io.Writer, axioms []logic.Tree) ([]string, error) {
+	names := make([]string, len(axioms))
+	for i, a := range axioms {
+		names[i] = obligationir.AxiomName(i + 1)
 		f, err := Notation.SpellFormula(a)
 		if err != nil {
 			return nil, fmt.Errorf("the axiom %s: %w", names[i], err)
@@ -144,7 +151,8 @@ func writeRelation(w io.Writer, side obligationir.Side, name string, states map[
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "definition %s :: \"st \\<Rightarrow> st \\<Rightarrow> bool\"\n  where \"%s s s' \\<equiv> %s\"\n\n", name, name, d)
+	st, name := side.Qualify("st"), side.Qualify(name)
+	fmt.Fprintf(w, "definition %s :: \"%s \\<Rightarrow> %s \\<Rightarrow> bool\"\n  where \"%s s s' \\<equiv> %s\"\n\n", name, st, st, name, d)
 	return nil
 }
 

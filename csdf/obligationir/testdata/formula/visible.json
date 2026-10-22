@@ -1,1 +1,1 @@
-{"version":1,"structurally":true,"states":[{"name":"s0","vars":[]},{"name":"s1","vars":[]}],"init":"s0","init_post":{"op":"true"},"edges":[{"src":"s0","dst":"s1","tau":false,"received":[],"step":{"op":"true"}}],"axioms":[],"assumptions":[]}
+{"version":1,"structurally":true,"states":[{"name":"s0","vars":[]},{"name":"s1","vars":[]}],"init":"s0","init_post":{"op":"true"},"edges":[{"src":"s0","dst":"s1","channel":"a","fields":[],"step":{"op":"true"}}],"ends":[],"axioms":[],"assumptions":[]}

@@ -9,7 +9,7 @@ import (
 
 // WriteRefinement writes ir to w as newline-terminated JSON, under the same
 // no-HTML-escaping rule as WriteLivelockFree.
-func WriteRefinement(w io.Writer, ir obligationir.IRRefinement) error {
+func WriteRefinement(w io.Writer, ir obligationir.Refinement) error {
 	enc := stdjson.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(ir)

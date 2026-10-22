@@ -23,9 +23,9 @@ a --> a : tau ; $n > 0 ; $n' = $n - 1
 	if err != nil {
 		t.Fatalf("coreio.Read() error = %v", err)
 	}
-	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	ir, err := obligationir.BuildLivelockFree(d)
 	if err != nil {
-		t.Fatalf("BuildFormulaLivelockFree() error = %v", err)
+		t.Fatalf("BuildLivelockFree() error = %v", err)
 	}
 	return ir
 }

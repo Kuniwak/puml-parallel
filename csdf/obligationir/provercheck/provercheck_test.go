@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
@@ -71,25 +71,17 @@ type obligation struct {
 // livelockObligation builds the livelock-freedom obligation for one diagram.
 func livelockObligation(t *testing.T, name, path string) obligation {
 	t.Helper()
-	src, err := os.ReadFile(path)
+	ir, err := obligationir.BuildLivelockFree(load(t, path))
 	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", path, err)
-	}
-	d, err := coreio.Read(string(src))
-	if err != nil {
-		t.Fatalf("coreio.Read(%q) error = %v", path, err)
-	}
-	ir, err := obligationir.BuildFormulaLivelockFree(d)
-	if err != nil {
-		t.Fatalf("BuildFormulaLivelockFree(%s) error = %v", name, err)
+		t.Fatalf("BuildLivelockFree(%s) error = %v", name, err)
 	}
 
 	var leanBuf, isaBuf strings.Builder
-	if err := lean.WriteFormulaLivelockFree(&leanBuf, ir); err != nil {
-		t.Fatalf("lean.WriteFormulaLivelockFree(%s) error = %v", name, err)
+	if err := lean.WriteLivelockFree(&leanBuf, ir); err != nil {
+		t.Fatalf("lean.WriteLivelockFree(%s) error = %v", name, err)
 	}
-	if err := isabelle.WriteFormulaLivelockFree(&isaBuf, ir); err != nil {
-		t.Fatalf("isabelle.WriteFormulaLivelockFree(%s) error = %v", name, err)
+	if err := isabelle.WriteLivelockFree(&isaBuf, ir); err != nil {
+		t.Fatalf("isabelle.WriteLivelockFree(%s) error = %v", name, err)
 	}
 	return obligation{
 		name:    name,
@@ -104,7 +96,10 @@ func livelockObligation(t *testing.T, name, path string) obligation {
 // in one model.
 func refinementObligation(t *testing.T, name string, mode obligationir.IRRefinementMode, specPath, implPath string) obligation {
 	t.Helper()
-	ir := obligationir.BuildRefinement(mode, parse(t, specPath), parse(t, implPath))
+	ir, err := obligationir.BuildRefinement(mode, load(t, specPath), load(t, implPath))
+	if err != nil {
+		t.Fatalf("BuildRefinement(%s) error = %v", name, err)
+	}
 
 	var leanBuf, isaBuf strings.Builder
 	if err := lean.WriteRefinement(&leanBuf, ir); err != nil {
@@ -128,15 +123,11 @@ func refinementObligation(t *testing.T, name string, mode obligationir.IRRefinem
 	}
 }
 
-func parse(t *testing.T, path string) *csdf.Diagram {
+func load(t *testing.T, path string) *core.Diagram {
 	t.Helper()
-	src, err := os.ReadFile(path)
+	d, err := coreio.Load(path)
 	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", path, err)
-	}
-	d, err := csdf.ParseBytes(src)
-	if err != nil {
-		t.Fatalf("ParseBytes(%q) error = %v", path, err)
+		t.Fatalf("coreio.Load(%q) error = %v", path, err)
 	}
 	return d
 }
@@ -154,6 +145,7 @@ func obligations(t *testing.T) []obligation {
 		groundSpec  = "../../../examples/refinement_spec.puml"
 		groundImpl  = "../../../examples/refinement_impl.puml"
 		countdown   = "../testdata/formula/countdown.puml"
+		counter     = "../testdata/formula/counter.puml"
 		maps        = "../testdata/formula/map.puml"
 	)
 	return []obligation{
@@ -161,6 +153,9 @@ func obligations(t *testing.T) []obligation {
 		livelockObligation(t, "livelock_maps_and_axioms", maps),
 		livelockObligation(t, "livelock_hostile_names", hostileSpec),
 		refinementObligation(t, "refinement_ground_f", obligationir.IRRefinementModeStableFailure, groundSpec, groundImpl),
+		refinementObligation(t, "refinement_values_t", obligationir.IRRefinementModeTrace, counter, countdown),
+		refinementObligation(t, "refinement_values_f", obligationir.IRRefinementModeStableFailure, counter, counter),
+		refinementObligation(t, "refinement_axioms_fd", obligationir.IRRefinementModeFailuresDivergence, maps, countdown),
 		refinementObligation(t, "refinement_hostile_t", obligationir.IRRefinementModeTrace, hostileSpec, hostileImpl),
 		refinementObligation(t, "refinement_hostile_f", obligationir.IRRefinementModeStableFailure, hostileSpec, hostileImpl),
 		refinementObligation(t, "refinement_hostile_fd", obligationir.IRRefinementModeFailuresDivergence, hostileSpec, hostileImpl),
@@ -283,20 +278,30 @@ func TestLeanCannotDischargeAnUnformalisedPredicate(t *testing.T) {
 	o := refinementObligation(t, "disabled", obligationir.IRRefinementModeStableFailure,
 		"testdata/disabled_spec.puml", "testdata/disabled_impl.puml")
 
-	// The alias names come from the IR rather than from the fixture's line
-	// numbers: a name that does not exist would be auto-bound as an implicit
-	// argument and the probe would fail for that reason instead, which is exactly
-	// what the True control below caught the first time round. autoImplicit is
-	// switched off so that cannot happen silently again.
-	ir := obligationir.BuildRefinement(obligationir.IRRefinementModeStableFailure,
-		parse(t, "testdata/disabled_spec.puml"), parse(t, "testdata/disabled_impl.puml"))
+	// The atom names come from the IR rather than from the fixture's text: a
+	// name that does not exist would be auto-bound as an implicit argument and
+	// the probe would fail for that reason instead, which is exactly what the
+	// True control below caught the first time round. autoImplicit is switched
+	// off so that cannot happen silently again.
+	ir, err := obligationir.BuildRefinement(obligationir.IRRefinementModeStableFailure,
+		load(t, "testdata/disabled_spec.puml"), load(t, "testdata/disabled_impl.puml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(ir.Impl.Edges) != 1 {
 		t.Fatalf("the fixture has %d Impl edges, want exactly the one guarded edge", len(ir.Impl.Edges))
 	}
-	line := ir.Impl.Edges[0].Line
-	probe := "\nset_option autoImplicit false in\nexample : " +
-		obligationir.SideImpl.GuardName(line) + " ∧ " + obligationir.SideImpl.PostName(line) +
-		" := by trivial\n"
+	syms, err := obligationir.Symbols(nil, ir.Impl.Edges[0].Step)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var atoms []string
+	for _, s := range syms {
+		if s.Kind == obligationir.KindAtom {
+			atoms = append(atoms, s.Name)
+		}
+	}
+	probe := "\nset_option autoImplicit false in\nexample : " + strings.Join(atoms, " ∧ ") + " := by trivial\n"
 
 	withProbe := strings.Replace(o.leanSrc, "end Refinement_Obligation", probe+"\nend Refinement_Obligation", 1)
 	if withProbe == o.leanSrc {
@@ -318,9 +323,9 @@ func TestLeanCannotDischargeAnUnformalisedPredicate(t *testing.T) {
 	}
 }
 
-// opaquePredicate matches the nullary opaque declarations of a variable-free
-// obligation, which the soundness control rewrites back into True definitions.
-var opaquePredicate = regexp.MustCompile(`(?m)^opaque (pred_\w+) : Prop$`)
+// opaquePredicate matches the nullary atoms of a variable-free obligation,
+// which the soundness control rewrites into True definitions.
+var opaquePredicate = regexp.MustCompile(`(?m)^opaque (atom_\w+) : Prop$`)
 
 // runLean elaborates src inside the lean-csp-prover checkout, which is what puts
 // the library and Mathlib on the search path.
@@ -369,11 +374,12 @@ func isabelleBin() string {
 }
 
 // leanDiagnostic matches a line Lean attributes to a source position. Only the
-// intended sorry and the unused-variable linter are tolerated: an obligation is
+// intended sorry, the unused-variable linter and Mathlib's naming linter, which
+// the "__" of a mangled name trips, are tolerated: an obligation is
 // meant to elaborate with its theorem open and nothing else to say.
 var (
 	leanDiagnostic  = regexp.MustCompile(`^[^ ].*:\d+:\d+: (error|warning)`)
-	toleratedLeanRe = regexp.MustCompile(`declaration uses .sorry.|unused variable`)
+	toleratedLeanRe = regexp.MustCompile(`declaration uses .sorry.|unused variable|does not follow the mathlib naming conventions`)
 )
 
 func unexpectedLeanDiagnostics(out string) []string {

@@ -386,11 +386,14 @@ func applied(name string, args []logic.TermTree) (string, error) {
 }
 
 // Formulas are every formula ir states: the start post, the step of each
-// edge and the axioms.
+// edge, the guard of each end edge and the axioms.
 func (ir LivelockFree) Formulas() []logic.Tree {
 	fs := []logic.Tree{ir.InitPost}
 	for _, e := range ir.Edges {
 		fs = append(fs, e.Step)
+	}
+	for _, e := range ir.Ends {
+		fs = append(fs, e.Guard)
 	}
 	return append(fs, ir.Axioms...)
 }
@@ -399,14 +402,19 @@ func (ir LivelockFree) Formulas() []logic.Tree {
 // received fields among them: each is of the type named like it, the
 // convention until they carry types of their own.
 func (ir LivelockFree) Symbols() ([]Symbol, error) {
+	return Symbols(ir.types(), ir.Formulas()...)
+}
+
+// types are the types of the state variables and received fields of ir.
+func (ir LivelockFree) types() []string {
 	var types []string
 	for _, s := range ir.States {
 		types = append(types, s.Vars...)
 	}
 	for _, e := range ir.Edges {
-		types = append(types, e.Received...)
+		types = append(types, e.Received()...)
 	}
-	return Symbols(types, ir.Formulas()...)
+	return types
 }
 
 // Uninterpreted reports whether s is of the environment, which no obligation
@@ -491,12 +499,12 @@ func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref fu
 	if err != nil {
 		return "", err
 	}
-	if len(e.Received) > 0 {
-		received := make([]string, len(e.Received))
-		for j, f := range e.Received {
+	if fields := e.Received(); len(fields) > 0 {
+		received := make([]string, len(fields))
+		for j, f := range fields {
 			received[j] = SpellVar(logic.Var(f))
 		}
-		typed, err := n.Relativize(false, received, e.Received, step)
+		typed, err := n.Relativize(false, received, fields, step)
 		if err != nil {
 			return "", err
 		}
@@ -517,7 +525,7 @@ func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref fu
 func (ir LivelockFree) TauEdges() []Edge {
 	var taus []Edge
 	for _, e := range ir.Edges {
-		if e.Tau {
+		if e.Tau() {
 			taus = append(taus, e)
 		}
 	}
@@ -531,15 +539,6 @@ func (ir LivelockFree) StateMap() map[string]State {
 		m[s.Name] = s
 	}
 	return m
-}
-
-// AxiomNames are the propositions the axioms of ir are, in order.
-func (ir LivelockFree) AxiomNames() []string {
-	names := make([]string, len(ir.Axioms))
-	for i := range ir.Axioms {
-		names[i] = AxiomName(i + 1)
-	}
-	return names
 }
 
 // Declaration is a constant a back end declares: the lines of the comment
@@ -557,6 +556,10 @@ func (ir LivelockFree) Declarations(todo string) ([]Declaration, error) {
 	if err != nil {
 		return nil, err
 	}
+	return declarations(syms, todo), nil
+}
+
+func declarations(syms []Symbol, todo string) []Declaration {
 	ds := make([]Declaration, len(syms))
 	for i, s := range syms {
 		var comments []string
@@ -568,5 +571,5 @@ func (ir LivelockFree) Declarations(todo string) ([]Declaration, error) {
 		}
 		ds[i] = Declaration{Comments: comments, Symbol: s}
 	}
-	return ds, nil
+	return ds
 }
