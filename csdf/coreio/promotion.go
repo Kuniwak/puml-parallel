@@ -15,11 +15,11 @@ import (
 const id = ident.Pattern
 
 var (
-	stateDeclRe = regexp.MustCompile(`^state\s+"(?:[^"\\]|\\.)*"\s+as\s+(` + id + `)$`)
-	edgeRe      = regexp.MustCompile(`^(` + id + `)\s*-->\s*(` + id + `|\[\*\])`)
+	stateDeclRe = pumlline.StateDecl
+	edgeRe      = pumlline.Edge
 	mapDeclRe   = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
-	startRe     = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
-	syncRe      = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
+	startRe     = pumlline.Start
+	syncRe      = pumlline.Sync
 	targetRe    = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
 )
 
@@ -127,7 +127,7 @@ func (r *promotionReader) line(l string) error {
 		r.depth++
 		return nil
 	}
-	if l == "}" && r.depth > 0 {
+	if pumlline.Close.MatchString(l) && r.depth > 0 {
 		if r.depth == 2 && r.family.Local == nil {
 			return fmt.Errorf("the block of %s includes no local diagram", r.family.Map)
 		}

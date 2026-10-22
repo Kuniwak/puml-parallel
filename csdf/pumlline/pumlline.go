@@ -31,6 +31,16 @@ var (
 	NoteAnchored = regexp.MustCompile(`^note\s+(?:left|right|top|bottom)\s+of\s+(` + id + `)$`)
 	// NoteEnd closes a note.
 	NoteEnd = regexp.MustCompile(`^end\s+note$`)
+	// StateDecl declares a plain state: its alias.
+	StateDecl = regexp.MustCompile(`^state\s+"(?:[^"\\]|\\.)*"\s+as\s+(` + id + `)$`)
+	// Edge is an edge between two states, or into the end: its source and
+	// destination.
+	Edge = regexp.MustCompile(`^(` + id + `)\s*-->\s*(` + id + `|\[\*\])`)
+	// Start is the start edge: its destination, and the label after ":".
+	Start = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
+	// Sync is a sync directive: its event, its targets, and the guard
+	// after ";".
+	Sync = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
 )
 
 // Unquote is s without the double quotes around it, if it has them.
