@@ -71,3 +71,54 @@ func TestStableFailuresEqual(t *testing.T) {
 		})
 	}
 }
+
+func TestRefines(t *testing.T) {
+	// a → STOP □ b → STOP
+	both := func() *LTS {
+		l := New(0)
+		l.Add(0, "a", 1)
+		l.Add(0, "b", 2)
+		return l
+	}
+	// a → STOP ⊓ b → STOP
+	either := func() *LTS {
+		l := New(0)
+		l.Add(0, Tau, 1)
+		l.Add(0, Tau, 2)
+		l.Add(1, "a", 3)
+		l.Add(2, "b", 4)
+		return l
+	}
+	// a → STOP
+	onlyA := func() *LTS {
+		l := New(0)
+		l.Add(0, "a", 1)
+		return l
+	}
+	// STOP
+	stop := func() *LTS { return New(0) }
+	cases := []struct {
+		name         string
+		spec, impl   *LTS
+		traces, fail bool
+	}{
+		{"a process refines itself", both(), both(), true, true},
+		{"resolving an internal choice refines it", either(), onlyA(), true, true},
+		{"an external choice refines the internal one", either(), both(), true, true},
+		{"the internal choice refines the external one in traces only", both(), either(), true, false},
+		{"fewer traces refine in traces, and refuse more", both(), onlyA(), true, false},
+		{"more traces refine in neither", onlyA(), both(), false, false},
+		{"STOP refines every process in traces", both(), stop(), true, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			traces, fail := TracesRefines(c.spec, c.impl), StableFailuresRefines(c.spec, c.impl)
+
+			// Assert
+			if traces != c.traces || fail != c.fail {
+				t.Errorf("TracesRefines = %v, StableFailuresRefines = %v, want %v, %v", traces, fail, c.traces, c.fail)
+			}
+		})
+	}
+}
