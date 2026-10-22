@@ -26,6 +26,15 @@ without somewhere to write them, promotion produces the direct product of
 independent maps, which says almost nothing.
 
 
+`csdfpromote` reads this syntax with clauses in natural language or a glue's
+language. A promotion whose clauses are formulas (docs/CLAUSE_DESIGN.md) is
+read by `csdf/coreio` in the same syntax, and keeps the local-diagram
+contract below; it does not read `constrain`, several global states, frozen
+families, hand-written global edges, a post on the global start edge or a
+global `assume` note yet, and refuses each by name (docs/SYNTAX.md, "Diagrams
+of formulas").
+
+
 Vocabulary
 ----------
 

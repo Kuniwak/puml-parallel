@@ -337,6 +337,21 @@ end note
     what it reads of a bound instance is carried by the event.
 - `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
   `!define` are for the picture and are skipped.
+- A second `sync` of one event, a second block of one map, and
+  `!include_many` or `!includesub` are refused.
+
+Not read yet, each refused by name until step 5½b of #76 brings it over
+from docs/PROMOTION.md:
+
+- `constrain`;
+- several global states (modes), and so a bodyless `<<promote>>` block and a
+  family frozen in a state;
+- a hand-written edge of the global diagram;
+- a post on the global start edge;
+- an `assume` note in the global diagram;
+- a variable of the global state that is no family's map;
+- `csdfpromote -only` and `-template`, which no tool reads a formula
+  promotion with yet.
 
 
 Global Diagram Format
