@@ -284,6 +284,64 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   syntax.
 
 
+Diagrams of formulas (draft)
+----------------------------
+**Draft for v3.0.0 (#76); read by `csdf/coreio`, which no tool calls yet.**
+
+A diagram whose clauses are in the syntax above has the structure of the
+grammar at the top of this document: states, their variables, a start edge,
+edges and one end edge. Each guard and post is a clause. A clause written by
+an author holds no `@exists` (`coreio.ReadAuthored`); one written by a tool
+may (`coreio.Read`). A variable's type, written after `;` on its line, is
+not read yet: a variable has the type named like it (`docs/CLAUSE_DESIGN.md`).
+An assume note is refused for now.
+
+A global diagram that promotes families is written as:
+
+```
+@startuml
+state "稼働中" as running {
+  state "locations : l" as runningLocations <<promote>> {
+    !include local/LOCATION.puml
+  }
+  state "shipments : s" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+}
+[*] --> running
+
+note as lifecycle
+  create OPEN : locations
+  delete CLOSE : locations
+  create ORDER : shipments
+end note
+
+note as move
+  sync MOVE : shipments(s).SHIP, locations(from).DEPART, locations(to).ARRIVE ; ${locations[from].在庫} > 1
+end note
+@enduml
+```
+
+- One composite state holds a `<<promote>>` block per family, titled
+  `map : id`: the map that holds the instances and the name of an instance's
+  ID. The block includes the family's local diagram, read relative to the
+  global file. The global diagram has no other state and no edge but its
+  start edge, which has no post: every map starts empty.
+- A note holds directives, one per line:
+  - `create EVENT : map` — the event that creates an instance, taking the
+    local diagram's start edge. Every family has one.
+  - `delete EVENT : map` — the event that deletes an instance, taking one of
+    the local diagram's end edges.
+  - `sync EVENT : target, … [; clause]` — the instances that take EVENT
+    together. A target is `map(id)`, which takes the local event named
+    EVENT, or `map(id).event`, which takes `event`; two targets of one map
+    bind two instances, whose IDs the expansion says differ. The clause after
+    `;` is the sync's guard: it reads the maps and the targets' IDs, and
+    what it reads of a bound instance is carried by the event.
+- `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
+  `!define` are for the picture and are skipped.
+
+
 Global Diagram Format
 ---------------------
 The grammar above is what every tool reads. `csdfpromote` reads an upper-compatible
