@@ -17,8 +17,8 @@ accFrozen : reason ; 凍結理由
 
 [*] --> accNone
 
-accNone --> accOpen : OPEN ; ; balance は 0
-accOpen --> accFrozen : FREEZE?理由 ; ; reason は 理由
-accFrozen --> accOpen : UNFREEZE
-accOpen --> accNone : CLOSE ; balance が 0
+accNone --> accOpen : OPEN ; ; $balance' は 0
+accOpen --> accFrozen : FREEZE?理由 ; ; $reason' は $理由 ∧ $balance' は $balance
+accFrozen --> accOpen : UNFREEZE ; ; $balance' は $balance
+accOpen --> accNone : CLOSE ; $balance が 0
 @enduml
