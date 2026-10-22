@@ -83,7 +83,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State: "running",
+				Modes: []string{"running"}, Init: "running",
 				Families: []core.Family{
 					{Map: "locations", ID: "l", Local: loc},
 					{Map: "shipments", ID: "s", Local: shp},
@@ -118,7 +118,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State:    "running",
+				Modes: []string{"running"}, Init: "running",
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
@@ -138,7 +138,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State:    "running",
+				Modes: []string{"running"}, Init: "running",
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
@@ -159,9 +159,49 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				State:      "running",
+				Modes: []string{"running"}, Init: "running",
 				Families:   []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
+			},
+		},
+		{
+			name: "modes, a bodyless block, a frozen family, hand-written edges, the start post and an assumption",
+			source: `@startuml
+state "稼働中" as running {
+  running : shipments ; s ⇸ Shipment
+  running : locations ; l ⇸ Location
+  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+  state "locations : l ⇸ Location" as runningLocations <<promote>> {
+    !include local/LOCATION.puml
+  }
+}
+state "縮退中" as degraded {
+  degraded : shipments ; s ⇸ Shipment
+  degraded : locations ; l ⇸ Location
+  state "shipments : s ⇸ Shipment" as degradedShipments <<promote>>
+}
+[*] --> running : @empty(shipments') ∧ @empty(locations')
+running --> degraded : HALT?why ; @empty(locations)
+degraded --> running : RESUME
+note as fair
+  assume いずれ RESUME が起きる
+end note
+@enduml
+`,
+			want: core.Promotion{
+				Modes: []string{"running", "degraded"}, Init: "running",
+				InitPost: mustParse(t, "@empty(shipments') ∧ @empty(locations')"),
+				Families: []core.Family{
+					{Map: "shipments", ID: "s", Local: shp},
+					{Map: "locations", ID: "l", Local: loc, Frozen: []string{"degraded"}},
+				},
+				Edges: []core.Edge{
+					{Src: "running", Dst: "degraded", Event: core.Event{Channel: "HALT", Fields: []core.Field{{Name: "why"}}}, Guard: mustParse(t, "@empty(locations)")},
+					{Src: "degraded", Dst: "running", Event: core.Event{Channel: "RESUME"}},
+				},
+				Assumes: []core.Assumption{{ID: "fair", Text: "いずれ RESUME が起きる"}},
 			},
 		},
 	}
@@ -201,10 +241,6 @@ func TestReadPromotionRefuses(t *testing.T) {
 	cases := []struct {
 		name, source, want string
 	}{
-		{"a post on the start edge",
-			promoting("[*] --> running : 何か\n"), "a post on the start edge " + refusedYet},
-		{"a hand-written edge of the global diagram",
-			promoting("[*] --> running\nrunning --> running : a\n"), "a hand-written edge of the global diagram " + refusedYet},
 		{"a constrain with an empty guard",
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s ;\nend note\n"), "empty guard"},
 		{"a constrain on a malformed event",
@@ -213,16 +249,24 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s ; @ne(s)\nend note\n"), "constrain ORDER?s"},
 		{"a constrain without its guard",
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s\nend note\n"), "constrain ORDER?s"},
-		{"a global assume note",
-			promoting("[*] --> running\nnote as n\n  assume いつか止まる\nend note\n"), "an assume note in the global diagram " + refusedYet},
-		{"a second global state",
-			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "a second global state " + refusedYet},
-		{"a second composite global state",
-			promoting("state \"保守\" as maintenance {\n}\n[*] --> running\n"), "a second global state " + refusedYet},
-		{"a bodyless block",
-			strings.Replace(promoting("[*] --> running\n"), "<<promote>> {\n    !include S.puml\n  }", "<<promote>>", 1), "a bodyless <<promote>> block " + refusedYet},
 		{"a variable of the global state that is no family's map",
 			strings.Replace(promoting("[*] --> running\n"), "running {\n", "running {\n  running : 件数\n", 1), "a variable of the global state that is no family's map " + refusedYet},
+		{"a mode holding no map of a family",
+			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "maintenance holds no map shipments"},
+		{"a composite mode holding no map of a family",
+			promoting("state \"保守\" as maintenance {\n}\n[*] --> running\n"), "maintenance holds no map shipments"},
+		{"only bodyless blocks of a map",
+			strings.Replace(promoting("[*] --> running\n"), "<<promote>> {\n    !include S.puml\n  }", "<<promote>>", 1), "no block of shipments includes its local diagram"},
+		{"an anchored assume note",
+			promoting("[*] --> running\nnote bottom of rs\n  assume いつか止まる\nend note\n"), "about the whole system"},
+		{"a hand-written edge whose label does not parse",
+			promoting("[*] --> running\nrunning --> running : a?? ; ; \n"), "line 8"},
+		{"a hand-written edge into no state",
+			promoting("[*] --> running\nrunning --> nowhere : a\n"), "line 8: running --> nowhere names nowhere"},
+		{"a hand-written edge into the end",
+			promoting("[*] --> running\nrunning --> [*]\n"), "no end edge"},
+		{"the blocks of one map writing its ID apart",
+			promoting("state \"保守\" as maintenance {\n  state \"shipments : t ⇸ Shipment\" as ms <<promote>>\n}\n[*] --> running\n"), "write its ID as s and as t"},
 		{"a second sync of one event",
 			promoting("[*] --> running\nnote as n\n  sync SHIP : shipments(s)\nend note\nnote as m\n  sync SHIP : shipments(s)\nend note\n"), "a second sync of SHIP"},
 		{"a second block of one map",
@@ -255,9 +299,19 @@ func TestReadPromotionRefuses(t *testing.T) {
 	}
 }
 
+func TestReadPromotionNamesTheLineOfABadEdgeOnce(t *testing.T) {
+	// Execute
+	_, err := ReadPromotion(promoting("[*] --> running\nrunning --> running : a??\n"), files(map[string]string{"S.puml": shipment}))
+
+	// Assert
+	if err == nil || strings.Count(err.Error(), "line 8") != 1 {
+		t.Errorf("ReadPromotion: got %v, want an error naming line 8 once", err)
+	}
+}
+
 func TestReadPromotionGivesWhatPromoteTakes(t *testing.T) {
-	// Setup
-	source := `@startuml
+	cases := []struct{ name, source string }{
+		{"one mode and a sync", `@startuml
 state "稼働中" as running {
   state "locations : l ⇸ Location" as rl <<promote>> {
     !include L.puml
@@ -268,20 +322,43 @@ note as n
   sync MOVE : locations(from).DEPART, locations(to).ARRIVE
 end note
 @enduml
-`
-	p, err := ReadPromotion(source, files(map[string]string{"L.puml": location}))
-	if err != nil {
-		t.Fatal(err)
+`},
+		{"two modes, a frozen family and an assumption", `@startuml
+state "稼働中" as running {
+  state "locations : l ⇸ Location" as rl <<promote>> {
+    !include L.puml
+  }
+}
+state "保守" as maint {
+  maint : locations ; l ⇸ Location
+}
+[*] --> running
+running --> maint : HALT ; @empty(locations)
+maint --> running : RESUME
+note as fair
+  assume いずれ RESUME が起きる
+end note
+@enduml
+`},
 	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			p, err := ReadPromotion(c.source, files(map[string]string{"L.puml": location}))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	// Execute
-	d, _, err := core.Promote(p)
+			// Execute
+			d, _, err := core.Promote(p)
 
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Write(d); err != nil {
-		t.Errorf("Write(Promote(p)): %v", err)
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Write(d); err != nil {
+				t.Errorf("Write(Promote(p)): %v", err)
+			}
+		})
 	}
 }

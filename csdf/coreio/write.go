@@ -47,6 +47,9 @@ func Write(d *core.Diagram) (string, error) {
 		}
 		b.WriteString(e.Src + " --> [*]" + labelled(guard) + "\n")
 	}
+	for _, a := range d.Assumes {
+		fmt.Fprintf(&b, "note as %s\n  assume %s\nend note\n", a.ID, a.Text)
+	}
 	b.WriteString("@enduml\n")
 	return b.String(), nil
 }

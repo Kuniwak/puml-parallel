@@ -66,6 +66,25 @@ b --> [*] : 片付いている
 `,
 		},
 		{
+			name: "an assume note",
+			d: &core.Diagram{
+				States:  []string{"s"},
+				Vars:    map[string][]string{},
+				Init:    "s",
+				Edges:   []core.Edge{{Src: "s", Dst: "s", Event: core.Event{Channel: "a"}}},
+				Assumes: []core.Assumption{{ID: "fair", Text: "いずれ a が起きる"}},
+			},
+			want: `@startuml
+state "s" as s
+[*] --> s
+s --> s : a
+note as fair
+  assume いずれ a が起きる
+end note
+@enduml
+`,
+		},
+		{
 			name: "states in an order of their own",
 			d: &core.Diagram{
 				States: []string{"z", "a"},

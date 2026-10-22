@@ -316,13 +316,14 @@ end note
 @enduml
 ```
 
-- One composite state holds a `<<promote>>` block per family, titled
+- A composite state holds a `<<promote>>` block per family, titled
   `map : ID ⇸ Type` (or `->>`) as in docs/PROMOTION.md: the map that holds
   the instances, the name of an instance's ID, and the type of one instance,
   which is not read yet. The block includes the family's local diagram, read
   relative to the global file. The composite state may declare the maps it
-  holds, as `running : buys ; 約定ID ⇸ Buy`. The global diagram has no other state and no edge but its
-  start edge, which has no post: every map starts empty.
+  holds, as `running : buys ; 約定ID ⇸ Buy`. Its states are the modes
+  below, and its edges are the start edge and the hand-written edges between
+  modes.
 - A local diagram keeps the contract of docs/PROMOTION.md: its start state
   means that the instance does not exist, an edge out of it creates an
   instance and an edge into it deletes one.
@@ -344,14 +345,25 @@ end note
   is conjoined onto every generated edge matching the event in channel and
   field directions, and may read any map.
 
+- Several global states are modes. A mode holds the maps it declares
+  (`mode : map ; …`) or has a `<<promote>>` block for, and every mode holds
+  every family's map. Exactly one block of a map includes its local diagram;
+  the others are bodyless. A mode holding a map without a block for it has
+  the family frozen there.
+- A hand-written edge between modes, `src --> dst : EVENT?f… ; guard [; post]`,
+  reads the maps as they are and its own received fields. Its post is
+  omitted, and promotion writes that every map is unchanged, or is exactly
+  that frame; any other post is refused, and so is a `!` field or a primed
+  read. It is not on a channel that a generated edge of the global diagram
+  carries. There is no end edge.
+- The post of the global start edge may say only `@empty(m')` of maps,
+  agreeing with every map starting empty; any other post is refused.
+- A floating `assume` note is carried into the expansion; an anchored one is
+  refused.
+
 Not read yet, each refused by name until step 5½b of #76 brings it over
 from docs/PROMOTION.md:
 
-- several global states (modes), and so a bodyless `<<promote>>` block and a
-  family frozen in a state;
-- a hand-written edge of the global diagram;
-- a post on the global start edge;
-- an `assume` note in the global diagram;
 - a variable of the global state that is no family's map;
 - `csdfpromote -only` and `-template`, which no tool reads a formula
   promotion with yet.

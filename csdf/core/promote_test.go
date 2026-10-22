@@ -253,18 +253,35 @@ func TestPromoteRefuses(t *testing.T) {
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}}}), "holds no state variables"},
 		{"a self-loop on the start state", promotion(Family{Map: "beacons", ID: "b", Local: beacon(
 			Edge{Src: "none", Dst: "none", Event: ev("PING")})}), "self-loop"},
-		{"a constrain matching no generated edge", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain matching no generated edge", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("NOPE", recv("loc")), Guard: mustParse(t, "$loc is a")}}}, "no generated edge"},
-		{"a constrain with a sent field", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain with a sent field", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("DEPART", recv("loc"), send("q")), Guard: mustParse(t, "$q = 1")}}}, "every field of a global event is ?"},
-		{"a constrain reading a primed name", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain reading a primed name", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "${locations'} = 0")}}}, "primed"},
-		{"a constrain with an empty guard", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain with an empty guard", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc"))}}}, "empty guard"},
-		{"a constrain whose channel has edges of another shape", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain whose channel has edges of another shape", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("DEPART", recv("loc")), Guard: mustParse(t, "$loc = 0")}}}, "another shape"},
-		{"a constrain reading a name that is no map and no field", Promotion{State: "G", Families: []Family{locations},
+		{"a constrain reading a name that is no map and no field", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
 			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "$z = 0")}}}, "z"},
+		{"a hand-written edge into no mode", modes(locations, Edge{Src: "G", Dst: "Z", Event: ev("HALT")}), "no mode Z"},
+		{"a hand-written edge on an instance's channel", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("OPEN")}), "channel of its own"},
+		{"a hand-written edge with a post other than the frame", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Post: mustParse(t, "@empty(locations')")}), "other than the frame"},
+		{"a hand-written edge sending a field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT", send("why"))}), "holds nothing to send"},
+		{"a hand-written edge reading a primed name", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "@empty(locations')")}), "primed"},
+		{"a hand-written edge reading a name that is no map and no field", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT"), Guard: mustParse(t, "$z = 0")}), "z"},
+		{"a family frozen in no mode", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{{Map: "locations", ID: "loc", Local: location(t), Frozen: []string{"Z"}}}}, "frozen in Z"},
+		{"a local diagram assuming", promotion(Family{Map: "beacons", ID: "b", Local: func() *Diagram {
+			d := beacon()
+			d.Assumes = []Assumption{{ID: "a1", Text: "it is lit"}}
+			return d
+		}()}), "about the whole system"},
+		{"a global start post saying more than that every map is empty", func() Promotion {
+			p := promotion(locations)
+			p.InitPost = mustParse(t, "locations は空")
+			return p
+		}(), "global start edge"},
 		{"an end edge", promotion(Family{Map: "beacons", ID: "b", Local: &Diagram{
 			States: []string{"none", "on"}, Init: "none",
 			Edges: []Edge{{Src: "none", Dst: "on", Event: ev("NEW")}}, Ends: []End{{Src: "on"}}}}), "end edge"},
@@ -321,8 +338,150 @@ func TestPromoteWarnsOfAPostItDrops(t *testing.T) {
 	}
 }
 
+// modes is a promotion of f in the modes G and H, with edges between them.
+func modes(f Family, edges ...Edge) Promotion {
+	return Promotion{Modes: []string{"G", "H"}, Init: "G", Families: []Family{f}, Edges: edges}
+}
+
+func TestPromoteAcceptsAGlobalStartPostSayingEveryMapIsEmpty(t *testing.T) {
+	// Setup
+	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
+	p.InitPost = mustParse(t, "@empty(doors')")
+
+	// Execute
+	got, warnings, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(warnings) > 0 {
+		t.Errorf("warnings = %v, want none", warnings)
+	}
+	if diff := cmp.Diff(mustParse(t, "@empty(doors')"), got.InitPost); diff != "" {
+		t.Errorf("start post (-want +got):\n%s", diff)
+	}
+}
+
+func TestPromoteReportsAFrozenFamilyAsInfo(t *testing.T) {
+	// Setup
+	p := Promotion{Modes: []string{"run", "maint"}, Init: "run",
+		Families: []Family{{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}}}}
+
+	// Execute
+	_, got, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Warning{{Level: Info, Map: "doors", Text: "frozen in maint: it takes no event there"}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("warnings (-want +got):\n%s", diff)
+	}
+}
+
+func TestPromoteComparesAHandWrittenChannelWithTheGlobalOnes(t *testing.T) {
+	// Setup: DEPART is taken only through the sync MOVE, so the global
+	// diagram has no edge on DEPART.
+	p := Promotion{Modes: []string{"G", "H"}, Init: "G",
+		Families: []Family{{Map: "locations", ID: "loc", Local: location(t)}},
+		Syncs: []Sync{{Event: "MOVE", Targets: []Target{
+			{Map: "locations", ID: "from", Event: "DEPART"}, {Map: "locations", ID: "to", Event: "ARRIVE"}}}},
+		Edges: []Edge{{Src: "G", Dst: "H", Event: ev("DEPART")}}}
+
+	// Execute
+	_, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Promote: %v, want a hand-written edge on a channel no global edge carries", err)
+	}
+}
+
+func TestPromoteWritesAGeneratedEdgeOnlyInTheModesItsFamiliesMoveIn(t *testing.T) {
+	cases := []struct {
+		name    string
+		p       Promotion
+		channel string
+		want    []string
+	}{
+		{"a sync is skipped where one of its families is frozen", Promotion{Modes: []string{"run", "maint"}, Init: "run",
+			Families: []Family{
+				{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}},
+				{Map: "keys", ID: "s", Local: key()},
+			},
+			Syncs: []Sync{{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}}},
+		}, "INSTALL", []string{"run"}},
+		{"a family's own edge is skipped where it is frozen", Promotion{Modes: []string{"run", "maint"}, Init: "run",
+			Families: []Family{{Map: "keys", ID: "s", Local: key(), Frozen: []string{"run"}}},
+		}, "CUT", []string{"maint"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			d, _, err := Promote(c.p)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, e := range d.Edges {
+				if e.Event.Channel == c.channel {
+					got = append(got, e.Src)
+				}
+			}
+			if diff := cmp.Diff(c.want, got); diff != "" {
+				t.Errorf("modes of %s (-want +got):\n%s", c.channel, diff)
+			}
+		})
+	}
+}
+
+func TestPromoteLeavesAHandWrittenEdgeToItsOwnGuard(t *testing.T) {
+	// Setup: a constrain on NEW, and a hand-written edge of its own.
+	halt := mustParse(t, "@empty(doors)")
+	p := Promotion{Modes: []string{"run", "maint"}, Init: "run",
+		Families:   []Family{{Map: "doors", ID: "loc", Local: door()}},
+		Constrains: []Constrain{{Event: ev("NEW", recv("loc")), Guard: mustParse(t, "$loc is a")}},
+		Edges:      []Edge{{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: halt}}}
+
+	// Execute
+	d, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range d.Edges {
+		if e.Event.Channel == "HALT" {
+			if diff := cmp.Diff(halt, e.Guard); diff != "" {
+				t.Errorf("HALT's guard (-want +got):\n%s", diff)
+			}
+		}
+	}
+}
+
+func TestPromoteCarriesTheAssumptions(t *testing.T) {
+	// Setup
+	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
+	p.Assumes = []Assumption{{ID: "fair", Text: "every door is eventually shut"}}
+
+	// Execute
+	got, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(p.Assumes, got.Assumes); diff != "" {
+		t.Errorf("assumptions (-want +got):\n%s", diff)
+	}
+}
+
 func promotion(f Family, syncs ...Sync) Promotion {
-	return Promotion{State: "G", Families: []Family{f}, Syncs: syncs}
+	return Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{f}, Syncs: syncs}
 }
 
 // lamp: NEW creates it at a; from a it may go to c on GO or move to b
@@ -511,6 +670,100 @@ func doorMonitored(*testing.T) *lts.LTS {
 		[]func(string) bool{mentions("a"), mentions("b"), mentions("s1"), follows})
 }
 
+// doorsControlled is doors a and b, by hand, in parallel with a controller
+// of the modes run (0) and maint (1) that follows which doors exist (bit 1
+// for a, 2 for b): HALT leaves run only while no door exists, RESUME
+// returns to run, and in a mode where frozen says the doors are frozen the
+// controller offers none of their events.
+// doorEvents says a label is an event of the door x: one naming x that is
+// not the controller's own HALT, which may name the door it halts on.
+func doorEvents(x string) func(string) bool {
+	return func(label string) bool { return mentions(x)(label) && !strings.HasPrefix(label, "HALT") }
+}
+
+func doorsControlled(frozen func(mode int) bool) *lts.LTS {
+	return doorsHalted(frozen, func(set int) []string {
+		if set == 0 {
+			return []string{"HALT"}
+		}
+		return nil
+	})
+}
+
+// doorsHalted is doorsControlled with the labels halts gives, for the set
+// of doors that exist, leaving run for maint.
+func doorsHalted(frozen func(mode int) bool, halts func(set int) []string) *lts.LTS {
+	controller := lts.New(0)
+	state := func(mode, set int) int { return mode*4 + set }
+	for mode := 0; mode < 2; mode++ {
+		for set := 0; set < 4; set++ {
+			if !frozen(mode) {
+				for i, x := range locIDs {
+					bit := 1 << i
+					if set&bit == 0 {
+						controller.Add(state(mode, set), "NEW."+x, state(mode, set|bit))
+					} else {
+						controller.Add(state(mode, set), "GONE."+x, state(mode, set&^bit))
+						controller.Add(state(mode, set), "OPENS."+x, state(mode, set))
+						controller.Add(state(mode, set), "SHUTS."+x, state(mode, set))
+					}
+				}
+			}
+		}
+	}
+	for set := 0; set < 4; set++ {
+		for _, h := range halts(set) {
+			controller.Add(state(0, set), h, state(1, set))
+		}
+	}
+	for set := 0; set < 4; set++ {
+		controller.Add(state(1, set), "RESUME", state(0, set))
+	}
+	all := func(string) bool { return true }
+	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), controller},
+		[]func(string) bool{doorEvents("a"), doorEvents("b"), all})
+}
+
+// doorsShutHalted is doors a and b, by hand, in parallel with a controller
+// of run (0) and maint (1) that follows each door, absent (0), shut (1) or
+// wide (2): HALT.x leaves run while the door x is shut.
+func doorsShutHalted() *lts.LTS {
+	controller := lts.New(0)
+	state := func(mode, a, b int) int { return mode*9 + a*3 + b }
+	for mode := 0; mode < 2; mode++ {
+		for a := 0; a < 3; a++ {
+			for b := 0; b < 3; b++ {
+				door := [2]int{a, b}
+				for i, x := range locIDs {
+					to := func(v int) int {
+						d := door
+						d[i] = v
+						return state(mode, d[0], d[1])
+					}
+					switch door[i] {
+					case 0:
+						controller.Add(state(mode, a, b), "NEW."+x, to(1))
+					case 1:
+						controller.Add(state(mode, a, b), "OPENS."+x, to(2))
+						controller.Add(state(mode, a, b), "GONE."+x, to(0))
+						if mode == 0 {
+							controller.Add(state(0, a, b), "HALT."+x, state(1, a, b))
+						}
+					case 2:
+						controller.Add(state(mode, a, b), "SHUTS."+x, to(1))
+					}
+				}
+				if mode == 1 {
+					controller.Add(state(1, a, b), "RESUME", state(0, a, b))
+				}
+			}
+		}
+	}
+	all := func(string) bool { return true }
+	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), controller},
+		[]func(string) bool{doorEvents("a"), doorEvents("b"), all})
+}
+
 func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
 	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
@@ -536,7 +789,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 	}{
 		{
 			name: "an edge out of the start state creates an instance, and an edge into it deletes one",
-			p:    Promotion{State: "G", Families: []Family{doors}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b")}, []func(string) bool{mentions("a"), mentions("b")})
@@ -544,7 +797,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync may take a creation and a deletion",
-			p: Promotion{State: "G", Families: []Family{doors, keys}, Syncs: []Sync{
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors, keys}, Syncs: []Sync{
 				{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}},
 				{Event: "SCRAP", Targets: []Target{{Map: "doors", ID: "loc", Event: "GONE"}, {Map: "keys", ID: "s", Event: "LOST"}}},
 			}},
@@ -555,7 +808,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync moves two instances of one family (#65)",
-			p:    Promotion{State: "G", Families: []Family{locations, shipments}, Syncs: []Sync{{Event: "MOVE", Targets: move}}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations, shipments}, Syncs: []Sync{{Event: "MOVE", Targets: move}}},
 			env:  func(t *testing.T) Env { return stock(t, locations, shipments) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel(
@@ -566,7 +819,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		{
 			// With x at c and y at a, only y may move to b.
 			name: "an internal event moves only an instance that can take it",
-			p:    Promotion{State: "G", Families: []Family{lamps}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{lamps}},
 			env:  func(t *testing.T) Env { return envWith(t, Env{Types: map[string][]Value{"l": {"x", "y"}}}, lamps) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{lampInstance("x"), lampInstance("y")}, []func(string) bool{mentions("x"), mentions("y")})
@@ -574,7 +827,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync's fields merged by name: a send before a receive fixes the value",
-			p:    Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{tankTarget, gaugeTarget}}}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{tankTarget, gaugeTarget}}}},
 			env:  func(t *testing.T) Env { return tankEnv(t, tanks, gauges) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{tankInstance(tankFirst), gaugeInstance(tankFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})
@@ -582,7 +835,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a sync's fields merged by name: a receive before a send reads it",
-			p:    Promotion{State: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{gaugeTarget, tankTarget}}}},
+			p:    Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{tanks, gauges}, Syncs: []Sync{{Event: "SHOW", Targets: []Target{gaugeTarget, tankTarget}}}},
 			env:  func(t *testing.T) Env { return tankEnv(t, tanks, gauges) },
 			want: func(*testing.T) *lts.LTS {
 				return lts.Parallel([]*lts.LTS{tankInstance(gaugeFirst), gaugeInstance(gaugeFirst)}, []func(string) bool{mentions("t1"), mentions("g1")})
@@ -590,7 +843,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "two receives of one name are one value",
-			p: Promotion{State: "G", Families: []Family{glancers}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{glancers}, Syncs: []Sync{{Event: "PEEK", Targets: []Target{
 				{Map: "gauges", ID: "g", Event: "PEEK"}, {Map: "gauges", ID: "h", Event: "GLANCE"}}}}},
 			env: func(t *testing.T) Env {
 				return envWith(t, Env{Types: map[string][]Value{"g": {"g1", "g2"}, "h": {"g1", "g2"}, "level": {0, 1}}}, glancers)
@@ -601,7 +854,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain narrows the generated edges it matches",
-			p: Promotion{State: "G", Families: []Family{doors},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors},
 				Constrains: []Constrain{{Event: ev("NEW", recv("loc")), Guard: mustParse(t, "$loc is a")}}},
 			env: func(t *testing.T) Env {
 				env := stock(t, doors)
@@ -612,7 +865,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain matches by position, its field renamed to the edge's own",
-			p: Promotion{State: "G", Families: []Family{doors},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors},
 				Constrains: []Constrain{{Event: ev("NEW", recv("x")), Guard: mustParse(t, "$x is a")}}},
 			env: func(t *testing.T) Env {
 				env := stock(t, doors)
@@ -623,7 +876,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain's first field is the instance ID, the rest the local event's",
-			p: Promotion{State: "G", Families: []Family{tanks},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{tanks},
 				Constrains: []Constrain{{Event: ev("LOOK", recv("t"), recv("v")), Guard: mustParse(t, "$v = 1")}}},
 			env: func(t *testing.T) Env { return tankEnv(t, tanks) },
 			want: func(*testing.T) *lts.LTS {
@@ -634,14 +887,72 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		},
 		{
 			name: "a constrain reads a map no instance of its event is in, as a monitor would",
-			p: Promotion{State: "G", Families: []Family{doors, keys},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{doors, keys},
 				Constrains: []Constrain{{Event: ev("CUT", recv("s")), Guard: mustParse(t, "@empty(doors)")}}},
 			env:  func(t *testing.T) Env { return stock(t, doors, keys) },
 			want: doorMonitored,
 		},
 		{
+			name: "a hand-written global edge switches modes, reading the maps as they are",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "@empty(doors)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsControlled(func(int) bool { return false }) },
+		},
+		{
+			name: "a hand-written edge may write the frame as its post",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "@empty(doors)"), Post: mustParse(t, "@eq(doors', doors)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME"), Post: mustParse(t, "@eq(doors', doors)")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsControlled(func(int) bool { return false }) },
+		},
+		{
+			name: "a hand-written edge's guard reads its received field",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT", recv("why")), Guard: mustParse(t, "$why is a")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env: func(t *testing.T) Env {
+				env := stock(t, doors)
+				env.Types["why"] = []Value{"a", "b"}
+				env.Atoms["#0 is a"] = func(a []Value) bool { return a[0] == "a" }
+				return env
+			},
+			want: func(*testing.T) *lts.LTS {
+				return doorsHalted(func(int) bool { return false }, func(int) []string { return []string{"HALT.a"} })
+			},
+		},
+		{
+			name: "a hand-written edge's guard reads an entry of a map",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT", recv("loc")), Guard: mustParse(t, "@at(doors[loc], shut)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsShutHalted() },
+		},
+		{
+			name: "a frozen family takes no event in its mode",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run",
+				Families: []Family{{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}}},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "@empty(doors)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsControlled(func(mode int) bool { return mode == 1 }) },
+		},
+		{
 			name: "what a sync clause reads is carried by the event (#79)",
-			p: Promotion{State: "G", Families: []Family{locations, shipments},
+			p: Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations, shipments},
 				Syncs: []Sync{{Event: "MOVE", Guard: mustParse(t, "${locations[to].stock} = 0"), Targets: move}}},
 			env:  func(t *testing.T) Env { return stock(t, locations, shipments) },
 			want: readingDenotation,

@@ -14,11 +14,16 @@ import (
 // local-diagram contract): it holds no state variables and has no
 // self-loop, an edge out of it creates an instance, an edge into it deletes
 // one, and Local has no end edge. An instance that does not exist has no
-// entry in the map.
+// entry in the map. Frozen are the modes in which the family holds its map
+// but takes no event (docs/CLAUSE_DESIGN.md).
 type Family struct {
 	Map, ID string
 	Local   *Diagram
+	Frozen  []string
 }
+
+// movesIn says whether f takes its events in mode.
+func (f Family) movesIn(mode string) bool { return !slices.Contains(f.Frozen, mode) }
 
 // Target is one occurrence in a sync: an instance of the family of Map,
 // bound to the ID variable ID, taking the local event Event.
@@ -44,10 +49,19 @@ type Constrain struct {
 	Guard clause.And
 }
 
-// Promotion is a global diagram of one state, State, holding the maps of its
-// Families, with Syncs among them and Constrains on them.
+// Promotion is a global diagram whose states, its Modes, hold the maps of
+// its Families, Init being the mode the start edge leads to, with Syncs
+// among them and Constrains on them. Edges are its hand-written edges
+// between modes, a controller's own steps (docs/CLAUSE_DESIGN.md).
+// InitPost is the post the author wrote on the global start edge, which
+// may only say that maps are empty, as they start. Assumes are the assume notes of the
+// global diagram, which the expansion carries.
 type Promotion struct {
-	State      string
+	Assumes    []Assumption
+	Modes      []string
+	Init       string
+	InitPost   clause.And
+	Edges      []Edge
 	Families   []Family
 	Syncs      []Sync
 	Constrains []Constrain
@@ -66,7 +80,7 @@ type Promotion struct {
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
-	out := &Diagram{States: []string{p.State}, Init: p.State, Vars: map[string][]string{}}
+	out := &Diagram{States: slices.Clone(p.Modes), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
@@ -77,22 +91,42 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		if err := lifecycle(f); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
+		for _, mode := range f.Frozen {
+			if !slices.Contains(p.Modes, mode) {
+				return nil, nil, fmt.Errorf("core.Promote: %s is frozen in %s, which is no mode", f.Map, mode)
+			}
+			warnings = append(warnings, Warning{Level: Info, Map: f.Map, Text: "frozen in " + mode + ": it takes no event there"})
+		}
 		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
-	out.Vars[p.State] = maps
+	for _, mode := range p.Modes {
+		out.Vars[mode] = slices.Clone(maps)
+	}
 	out.InitPost = clause.And{Conjuncts: start}
+	if err := saysEmpty(p.InitPost, maps); err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 		}
-		edges, err := promoteSync(p, s)
-		if err != nil {
-			return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+		for _, mode := range p.Modes {
+			moves, err := syncMovesIn(p, s, mode)
+			if err != nil {
+				return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			}
+			if !moves {
+				continue
+			}
+			edges, err := promoteSync(p, s, mode)
+			if err != nil {
+				return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
+			}
+			out.Edges = append(out.Edges, edges...)
 		}
-		out.Edges = append(out.Edges, edges...)
 		for _, tg := range s.Targets {
 			taken[tg.Map+"."+tg.Event] = true
 		}
@@ -104,17 +138,27 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 				alone = append(alone, moveOf(f, f.ID, e))
 			}
 		}
-		for _, m := range alone {
-			edge, err := promoteAlone(p, m)
-			if err != nil {
-				return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+		for _, mode := range p.Modes {
+			if !f.movesIn(mode) {
+				continue
 			}
-			out.Edges = append(out.Edges, edge)
+			for _, m := range alone {
+				edge, err := promoteAlone(p, m, mode)
+				if err != nil {
+					return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
+				}
+				out.Edges = append(out.Edges, edge)
+			}
 		}
 	}
 	if err := constrain(p, out.Edges); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
+	switches, err := controlled(p, maps, out.Edges)
+	if err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
+	out.Edges = append(out.Edges, switches...)
 	return out, warnings, nil
 }
 
@@ -184,9 +228,105 @@ func constrain(p Promotion, edges []Edge) error {
 	return nil
 }
 
-// Warning is something Promote dropped that the author wrote: Map and
-// Event say where, Text what (docs/PROMOTION.md, the warnings table).
+// controlled is the hand-written edges of p, each leaving every map
+// unchanged (docs/CLAUSE_DESIGN.md): the steps of a controller that reads
+// the maps as they are, receives its own fields, and writes no instance.
+// None is on a channel of the generated edges.
+func controlled(p Promotion, maps []string, generated []Edge) ([]Edge, error) {
+	used := map[string]bool{}
+	for _, e := range generated {
+		used[e.Event.Channel] = true
+	}
+	var out []Edge
+	for _, e := range p.Edges {
+		name := fmt.Sprintf("%s --> %s : %s", e.Src, e.Dst, e.Event.Channel)
+		for _, s := range []string{e.Src, e.Dst} {
+			if !slices.Contains(p.Modes, s) {
+				return nil, fmt.Errorf("%s: no mode %s", name, s)
+			}
+		}
+		if e.Event.Channel != Tau && used[e.Event.Channel] {
+			return nil, fmt.Errorf("%s: %s is a channel of the generated edges; a hand-written edge is on a channel of its own", name, e.Event.Channel)
+		}
+		if err := clause.WellFormed(e.Guard); err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
+		}
+		if len(e.Post.Conjuncts) > 0 && !isFrame(e.Post, maps) {
+			return nil, fmt.Errorf("%s has a post other than the frame: it leaves every map unchanged, a controller writing no instance", name)
+		}
+		allowed := map[string]bool{}
+		for _, m := range maps {
+			allowed[m] = true
+		}
+		for _, fl := range e.Event.Fields {
+			if fl.Send {
+				return nil, fmt.Errorf("%s sends %s: the controller holds nothing to send", name, fl.Name)
+			}
+			allowed[fl.Name] = true
+		}
+		for _, v := range clause.FreeVars(e.Guard) {
+			if v.Primed {
+				return nil, fmt.Errorf("%s reads %s', a primed name: it reads the maps as they are", name, v.Name)
+			}
+			if !allowed[v.Name] {
+				return nil, fmt.Errorf("%s reads %s, which is no map and no field of its event", name, v.Name)
+			}
+		}
+		e.Post = Unchanged(maps)
+		out = append(out, e)
+	}
+	return out, nil
+}
+
+// saysEmpty reports, as an error, a post of the global start edge that
+// says anything but that maps of maps are empty (docs/CLAUSE_DESIGN.md):
+// every map starts empty, the instances being at their start states.
+func saysEmpty(post clause.And, maps []string) error {
+	for _, c := range clause.Normalize(post).Conjuncts {
+		b, ok := c.(clause.Builtin)
+		if ok && b.Op == clause.OpEmpty && len(b.Args) == 1 {
+			if v, ok := b.Args[0].(clause.Free); ok && v.Primed && slices.Contains(maps, v.Name) {
+				continue
+			}
+		}
+		return fmt.Errorf("the post of the global start edge may say only @empty(m') of its maps, which start empty")
+	}
+	return nil
+}
+
+// isFrame says whether post says exactly that every map of maps is
+// unchanged, in any order.
+func isFrame(post clause.And, maps []string) bool {
+	want := clause.Normalize(Unchanged(maps)).Conjuncts
+	got := clause.Normalize(post).Conjuncts
+	if len(got) != len(want) {
+		return false
+	}
+	for _, w := range want {
+		if !slices.ContainsFunc(got, func(g clause.Formula) bool {
+			return clause.AlphaEqual(clause.And{Conjuncts: []clause.Formula{g}}, clause.And{Conjuncts: []clause.Formula{w}})
+		}) {
+			return false
+		}
+	}
+	return true
+}
+
+// Level says how much a Warning matters (docs/PROMOTION.md, the warnings
+// and info tables).
+type Level int
+
+const (
+	// Warn is something that is likely a mistake.
+	Warn Level = iota
+	// Info is something that may well be meant.
+	Info
+)
+
+// Warning is something Promote reports of what the author wrote: Level
+// says how much it matters, Map and Event where, Text what.
 type Warning struct {
+	Level Level
 	Map   string
 	Event string
 	Text  string
@@ -212,6 +352,9 @@ func dropped(f Family) []Warning {
 // local-diagram contract (docs/PROMOTION.md): its start state means that
 // the instance does not exist.
 func lifecycle(f Family) error {
+	if len(f.Local.Assumes) > 0 {
+		return fmt.Errorf("a local diagram assumes nothing: an assumption is about the whole system")
+	}
 	s0 := f.Local.Init
 	if len(f.Local.Vars[s0]) > 0 {
 		return fmt.Errorf("the start state %s holds no state variables: it means that the instance does not exist", s0)
@@ -263,7 +406,7 @@ type move struct {
 	kind kind
 }
 
-func promoteAlone(p Promotion, m move) (Edge, error) {
+func promoteAlone(p Promotion, m move, mode string) (Edge, error) {
 	f, e := m.f, m.e
 	if slices.ContainsFunc(e.Event.Fields, func(fl Field) bool { return fl.Name == f.ID }) {
 		return Edge{}, fmt.Errorf("%s has a field named like the ID %s", e.Event.Channel, f.ID)
@@ -290,14 +433,14 @@ func promoteAlone(p Promotion, m move) (Edge, error) {
 		if err != nil {
 			return Edge{}, err
 		}
-		return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
+		return Edge{Src: mode, Dst: mode, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
 	}
 	fields, pins, err := carried(m)
 	if err != nil {
 		return Edge{}, err
 	}
 	fields = append([]Field{{Name: f.ID}}, fields...)
-	return Edge{Src: p.State, Dst: p.State, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: post}, nil
+	return Edge{Src: mode, Dst: mode, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: post}, nil
 }
 
 // carried are the fields of m's local event on the global event, and the
@@ -334,7 +477,7 @@ func carried(m move) ([]Field, clause.And, error) {
 	return fields, clause.And{Conjuncts: pins}, nil
 }
 
-func promoteSync(p Promotion, s Sync) ([]Edge, error) {
+func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 	if s.Event == Tau {
 		return nil, fmt.Errorf("tau is internal and cannot be synchronised")
 	}
@@ -415,13 +558,28 @@ func promoteSync(p Promotion, s Sync) ([]Edge, error) {
 			return nil, err
 		}
 		out = append(out, Edge{
-			Src: p.State, Dst: p.State,
+			Src: mode, Dst: mode,
 			Event: Event{Channel: s.Event, Fields: merged},
 			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, s.Guard, guard}, pins...)...),
 			Post:  post,
 		})
 	}
 	return out, nil
+}
+
+// syncMovesIn says whether every family s takes part of moves in mode; a
+// target of no family is an error.
+func syncMovesIn(p Promotion, s Sync, mode string) (bool, error) {
+	for _, tg := range s.Targets {
+		f, err := familyOf(p, tg.Map)
+		if err != nil {
+			return false, err
+		}
+		if !f.movesIn(mode) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func familyOf(p Promotion, m string) (Family, error) {

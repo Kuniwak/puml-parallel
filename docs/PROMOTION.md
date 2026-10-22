@@ -29,12 +29,15 @@ independent maps, which says almost nothing.
 `csdfpromote` reads this syntax with clauses in natural language or a glue's
 language. A promotion whose clauses are formulas (docs/CLAUSE_DESIGN.md) is
 read by `csdf/coreio` in the same syntax, and keeps the local-diagram
-contract below; it reads `constrain`, but not several global states, frozen
-families, hand-written global edges, a post on the global start edge or a
-global `assume` note yet, and refuses each by name (docs/SYNTAX.md, "Diagrams
-of formulas"). The two readers differ on a global `assume` note: `csdfpromote`
-skips it as a note for the picture alone, while `csdf/coreio` refuses it,
-since `assume` is a directive it does not read yet.
+contract below; it reads `constrain`, several global states with frozen
+families and hand-written global edges, a post on the global start edge and
+global `assume` notes (docs/CLAUSE_DESIGN.md gives their meaning). Its
+differences from `csdfpromote`: a hand-written global edge's post is omitted
+or exactly the frame that leaves every map unchanged; a hand-written edge is
+on a channel no generated edge carries; the global start post may say only
+`@empty(m')` of maps; and every mode holds every family's map. `csdfpromote` skips a global `assume`
+note as a note for the picture alone; `csdf/coreio` carries it into the
+expansion.
 
 
 Vocabulary
@@ -143,9 +146,12 @@ ID, and PlantUML would merge the two boxes into one.
 A state that holds the map but has no block for it has that family **frozen**
 there, which is reported as `info`. This is deliberate: expanding into every
 state that holds the map would quietly write a specification in which trades go
-on being booked during maintenance. The edges that switch modes, and the frames
-that say every map is unchanged across them, are hand-written; promotion says
-nothing about them.
+on being booked during maintenance. Every state holds every family's map: the
+instances exist whatever the mode, so a state that declares some maps and not
+others is refused. The edges that switch modes are hand-written. Every map is
+unchanged across them, since an edge of the global diagram cannot write an
+instance: write the frame that says so as their post, or leave the post out and
+promotion writes it; any other post is refused.
 
 
 The local-diagram contract
@@ -262,7 +268,9 @@ first and then the author's, so that a tool reading the expansion gets the
 clauses back by splitting on it. A template file that defines `and`, the name
 an earlier version gave the connective, is refused.
 
-Every map starts empty, which the `<<promote>>` blocks already say, so the
+Every map starts empty, which the `<<promote>>` blocks already say. The
+formula promotion accepts a post on the global start edge only if it says the
+same, a conjunction of `@empty(m')` over maps, and refuses any other. The
 expansion says it on the start edge: after the author's clauses, one `empty`
 clause per map the start state holds, in the order the maps were promoted.
 The author need not write it. The clauses are carried in the expansion's
@@ -311,9 +319,10 @@ type — and leaves out the others:
   language no tool here reads, so whether it reads a left-out map cannot be
   told: it is kept, with a warning saying so. The post clauses and frames of
   a left-out map go with the map.
-- Hand-written edges are kept as they were written. Their predicates are
-  opaque text, so one on a state that held a left-out map is reported as a
-  warning: it may still name the map.
+- Hand-written edges are kept as they were written: a guard and the frame
+  that leaves every map unchanged. Their guards are opaque text, so one on a
+  state that held a left-out map is reported as a warning: it may still name
+  the map.
 
 With every listed clause taken as true, each run of the full expansion
 projects onto a run of the restricted one. So a broken invariant and an

@@ -56,7 +56,9 @@ type End struct {
 // Diagram is a diagram whose clauses are formulas. States are its states;
 // Vars gives the state variables of those that hold any; Init is the state
 // the start edge leads to and InitPost the post of that edge; Ends are its
-// end edges, which only promotion reads, as deletions.
+// end edges, which only promotion reads, as deletions. Assumes are what its
+// runs as a whole are assumed to satisfy, outside its meaning
+// (docs/CLAUSE_DESIGN.md).
 type Diagram struct {
 	States   []string
 	Vars     map[string][]string
@@ -64,6 +66,13 @@ type Diagram struct {
 	InitPost clause.And
 	Edges    []Edge
 	Ends     []End
+	Assumes  []Assumption
+}
+
+// Assumption is one assume note: ID names the note, Text is what it
+// assumes, which no clause can say.
+type Assumption struct {
+	ID, Text string
 }
 
 // declared reports, as an error, a state d names but does not declare.
