@@ -26,6 +26,20 @@ type Event struct {
 	Fields  []Field
 }
 
+// SameShape says whether e and o are on one channel with fields of the
+// same directions, in order, whatever their names.
+func (e Event) SameShape(o Event) bool {
+	if e.Channel != o.Channel || len(e.Fields) != len(o.Fields) {
+		return false
+	}
+	for i := range e.Fields {
+		if e.Fields[i].Send != o.Fields[i].Send {
+			return false
+		}
+	}
+	return true
+}
+
 // Edge is a transition: Src --> Dst : Event ; Guard ; Post.
 type Edge struct {
 	Src, Dst    string

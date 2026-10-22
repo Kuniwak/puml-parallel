@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -35,12 +36,21 @@ type Sync struct {
 	Targets []Target
 }
 
+// Constrain is a guard conjoined onto every generated edge that matches
+// Event in channel and the directions of its fields (docs/PROMOTION.md). Its
+// field names are what Guard reads, beside the maps.
+type Constrain struct {
+	Event Event
+	Guard clause.And
+}
+
 // Promotion is a global diagram of one state, State, holding the maps of its
-// Families, with Syncs among them.
+// Families, with Syncs among them and Constrains on them.
 type Promotion struct {
-	State    string
-	Families []Family
-	Syncs    []Sync
+	State      string
+	Families   []Family
+	Syncs      []Sync
+	Constrains []Constrain
 }
 
 // Promote is the global diagram of p (docs/CLAUSE_DESIGN.md, a constructor):
@@ -102,7 +112,76 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			out.Edges = append(out.Edges, edge)
 		}
 	}
+	if err := constrain(p, out.Edges); err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
 	return out, warnings, nil
+}
+
+// constrain conjoins each constrain of p onto every edge that matches its
+// event in channel and field directions (docs/CLAUSE_DESIGN.md: the
+// expansion of a monitor process in parallel).
+// renamedTo is c's guard with each of c's fields renamed to the field of e
+// at its position, all at once (docs/CLAUSE_DESIGN.md: a constrain matches by
+// position).
+func renamedTo(c Constrain, e Event) clause.And {
+	to := map[string]string{}
+	for i, fl := range c.Event.Fields {
+		to[fl.Name] = e.Fields[i].Name
+	}
+	return clause.Normalize(clause.MapFormula(c.Guard, 0, func(u clause.Term, _ int) clause.Term {
+		if v, ok := u.(clause.Free); ok {
+			if n, ok := to[v.Name]; ok {
+				return clause.Free{Name: n, Primed: v.Primed}
+			}
+		}
+		return u
+	}))
+}
+
+func constrain(p Promotion, edges []Edge) error {
+	mapNames := map[string]bool{}
+	for _, f := range p.Families {
+		mapNames[f.Map] = true
+	}
+	for _, c := range p.Constrains {
+		if err := clause.WellFormed(c.Guard); err != nil {
+			return fmt.Errorf("constrain %s: %w", c.Event.Channel, err)
+		}
+		if len(c.Guard.Conjuncts) == 0 {
+			return fmt.Errorf("constrain %s has an empty guard, which constrains nothing", c.Event.Channel)
+		}
+		allowed := maps.Clone(mapNames)
+		for _, fl := range c.Event.Fields {
+			if fl.Send {
+				return fmt.Errorf("constrain %s sends %s: every field of a global event is ?", c.Event.Channel, fl.Name)
+			}
+			allowed[fl.Name] = true
+		}
+		for _, v := range clause.FreeVars(c.Guard) {
+			if v.Primed {
+				return fmt.Errorf("constrain %s reads %s', a primed name: it reads the maps as they are", c.Event.Channel, v.Name)
+			}
+			if !allowed[v.Name] {
+				return fmt.Errorf("constrain %s reads %s, which is no map and no field of its event", c.Event.Channel, v.Name)
+			}
+		}
+		matched := 0
+		for i, e := range edges {
+			if e.Event.Channel != c.Event.Channel {
+				continue
+			}
+			if !e.Event.SameShape(c.Event) {
+				return fmt.Errorf("constrain %s: a generated edge on %s has fields of another shape, which it would leave unconstrained", c.Event.Channel, c.Event.Channel)
+			}
+			matched++
+			edges[i].Guard = Conj(e.Guard, renamedTo(c, e.Event))
+		}
+		if matched == 0 {
+			return fmt.Errorf("constrain %s: no generated edge is on %s with fields of those directions", c.Event.Channel, c.Event.Channel)
+		}
+	}
+	return nil
 }
 
 // Warning is something Promote dropped that the author wrote: Map and

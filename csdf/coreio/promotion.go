@@ -195,7 +195,7 @@ func (r *promotionReader) noteLine(l string) error {
 	r.note = directed
 	switch {
 	case strings.HasPrefix(l, "constrain "):
-		return notYet("constrain")
+		return r.constrain(l)
 	case strings.HasPrefix(l, "assume "):
 		return notYet("an assume note in the global diagram")
 	}
@@ -244,6 +244,28 @@ func (r *promotionReader) sync(event, targets, guard string) error {
 	}
 	s.Guard = g
 	r.p.Syncs = append(r.p.Syncs, s)
+	return nil
+}
+
+// constrain reads `constrain EVENT ; guard` (docs/PROMOTION.md).
+func (r *promotionReader) constrain(l string) error {
+	head, guard, ok := strings.Cut(strings.TrimPrefix(l, "constrain "), ";")
+	head = strings.TrimSpace(head)
+	if !ok {
+		return fmt.Errorf("constrain %s: expected `constrain EVENT ; guard`", head)
+	}
+	if strings.TrimSpace(guard) == "" {
+		return fmt.Errorf("constrain %s has an empty guard, which constrains nothing", head)
+	}
+	e, err := csdf.ParseEvent(head)
+	if err != nil {
+		return fmt.Errorf("constrain %s: %w", head, err)
+	}
+	g, err := clause.ParseAuthored(strings.TrimSpace(guard))
+	if err != nil {
+		return fmt.Errorf("constrain %s: %w", head, err)
+	}
+	r.p.Constrains = append(r.p.Constrains, core.Constrain{Event: eventOf(e), Guard: g})
 	return nil
 }
 
