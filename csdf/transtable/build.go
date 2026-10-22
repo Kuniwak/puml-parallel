@@ -6,6 +6,7 @@ package transtable
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -240,21 +241,23 @@ func (ix index) takes(u string, c Column) []take {
 		}
 		// What the edge's clauses read of its event, named as the column
 		// names it, before the values of the steps before.
-		named := func(f clause.And, k int) (logic.Formula, error) {
-			m, err := ix.asColumn(e, col)
-			if err != nil {
-				return nil, err
-			}
-			g, err := clauseFormula(f)
-			if err != nil {
-				return nil, err
-			}
+		m, sends := asColumn(e, col)
+		named := func(f logic.Formula, k int) logic.Formula {
+			mk := maps.Clone(m)
 			for v, w := range ix.before(u, k) {
-				m[v] = w
+				mk[v] = w
 			}
-			return logic.Rename(g, m), nil
+			return logic.Rename(f, mk)
 		}
-		guard := func(k int) (logic.Formula, error) { return named(e.Guard, k) }
+		// The guard holds where the edge is taken: the clause, and that the
+		// column's values at its sent fields are those it sends.
+		guard := func(k int) (logic.Formula, error) {
+			g, err := clauseFormula(e.Guard)
+			if err != nil {
+				return nil, err
+			}
+			return named(logic.And(append([]logic.Formula{g}, sends...)...), k), nil
+		}
 		ts = append(ts, take{
 			guard: guard,
 			taken: func(k int) ([]conjunct, error) {
@@ -262,11 +265,11 @@ func (ix index) takes(u string, c Column) []take {
 				if err != nil {
 					return nil, err
 				}
-				p, err := named(e.Post, k)
+				p, err := clauseFormula(e.Post)
 				if err != nil {
 					return nil, err
 				}
-				return []conjunct{holds(g), {formula: p, post: true}}, nil
+				return []conjunct{holds(g), {formula: named(p, k), post: true}}, nil
 			},
 			result: Goto{State: e.Dst},
 		})
@@ -274,23 +277,23 @@ func (ix index) takes(u string, c Column) []take {
 	return ts
 }
 
-// asColumn maps each field e receives to the name the column col gives the
-// field at its position: edges of one shape are one event, whatever they
-// name its fields. A name the column gives that is a state variable of e's
-// states is refused, as the field would read it.
-func (ix index) asColumn(e core.Edge, col core.Event) (map[logic.Var]logic.Var, error) {
+// asColumn reads e as an event of the column col, which has e's shape: it
+// maps each field e receives to the column's name at its position, and says,
+// of each field e sends, that the column's value at its position is the one
+// e sends. The column's names are fresh (columnsOf), so neither captures a
+// name e reads.
+func asColumn(e core.Edge, col core.Event) (map[logic.Var]logic.Var, []logic.Formula) {
 	m := map[logic.Var]logic.Var{}
+	var sends []logic.Formula
 	for i, f := range e.Event.Fields {
-		name := col.Fields[i].Name
-		if f.Send || f.Name == name {
-			continue
+		name := logic.Var(col.Fields[i].Name)
+		if f.Send {
+			sends = append(sends, logic.Eq(name, logic.Var(f.Name)))
+		} else {
+			m[logic.Var(f.Name)] = name
 		}
-		if core.ReceivesOver(name, ix.d.Vars[e.Src], ix.d.Vars[e.Dst]) {
-			return nil, fmt.Errorf("the edge %s -> %s receives %s, which the column %s names %s, a state variable", e.Src, e.Dst, f.Name, col.Label(), name)
-		}
-		m[logic.Var(f.Name)] = logic.Var(name)
 	}
-	return m, nil
+	return m, sends
 }
 
 // conjuncts are what the tau steps conjoin: the guard of the i-th step over
@@ -411,21 +414,53 @@ func (ix index) outcomes(s string, c Column) ([]Outcome, error) {
 	return os, nil
 }
 
+// columnEvent is the event of the column of the edges of d of shape: its
+// fields named after the first edge's, each made fresh against every name
+// renaming an edge's field to it could capture - a state variable, the name
+// a field of another position of an edge of the shape has, and the other
+// fields of the column - so that every diagram has its columns.
+func columnEvent(d *core.Diagram, shape core.Event, vars map[string]bool) core.Event {
+	col := core.Event{Channel: shape.Channel}
+	for i, f := range shape.Fields {
+		taken := maps.Clone(vars)
+		for _, e := range d.Edges {
+			if !e.Event.SameShape(shape) {
+				continue
+			}
+			for j, g := range e.Event.Fields {
+				if j != i {
+					taken[g.Name] = true
+				}
+			}
+		}
+		for _, g := range col.Fields {
+			taken[g.Name] = true
+		}
+		col.Fields = append(col.Fields, core.Field{Send: f.Send, Name: clause.Fresh(taken, f.Name)})
+	}
+	return col
+}
+
 // columnsOf returns the visible events of states, in the order the states and
 // their edges come, and then termination when one of the states may terminate.
 func columnsOf(states []string, d *core.Diagram) []Column {
+	vars := map[string]bool{}
+	for _, vs := range d.Vars {
+		for _, v := range vs {
+			vars[v] = true
+		}
+	}
 	var columns []Column
 	var shapes []core.Event
 	for _, s := range states {
 		for _, e := range d.Edges {
 			// The environment cannot offer tau, so it is not a column. Edges
-			// of one shape are one event, so one column, headed by the label
-			// of the first of them.
+			// of one shape are one event, so one column.
 			if e.Src != s || e.Event.Channel == core.Tau || slices.ContainsFunc(shapes, e.Event.SameShape) {
 				continue
 			}
 			shapes = append(shapes, e.Event)
-			columns = append(columns, EventColumn{Event: e.Event})
+			columns = append(columns, EventColumn{Event: columnEvent(d, e.Event, vars)})
 		}
 	}
 	if slices.ContainsFunc(d.Ends, func(e core.End) bool { return slices.Contains(states, e.Src) }) {

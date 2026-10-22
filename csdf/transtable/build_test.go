@@ -135,10 +135,37 @@ func TestBuild(t *testing.T) {
 				"s1 a": {`["$_0 > 1"(n)] → s1`, `[¬"$_0 > 1"(n)] ×`},
 			},
 		},
-		"a sent field is the value of the state, and no field of the column": {
+		"a sent field is a value of the column the edge sends its own value as": {
 			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\n[*] --> s0 : $n' = 0\ns0 --> s0 : show!n ; $n > 0 ; @eq(n', n)\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
-			Want:       map[string][]string{"s0 show!n": {`["$_0 > 0"(n) ∧ n' = n] → s0`, `[¬"$_0 > 0"(n)] ×`}},
+			Want:       map[string][]string{"s0 show!n2": {`["$_0 > 0"(n) ∧ n2 = n ∧ n' = n] → s0`, `[¬("$_0 > 0"(n) ∧ n2 = n)] ×`}},
+		},
+		"two edges of one column sending different values, each refused but where its value is sent": {
+			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\ns0 : m\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0 : $n' = 0 ∧ $m' = 1\n" +
+				"s0 --> s1 : out!n ; g1\ns0 --> s2 : out!m ; g2\n@enduml\n",
+			Conditions: transtable.ConditionsFull,
+			Want: map[string][]string{
+				"s0 out!n2": {`["g1" ∧ n2 = n] → s1`, `["g2" ∧ n2 = m] → s2`, `[¬("g1" ∧ n2 = n) ∧ ¬("g2" ∧ n2 = m)] ×`},
+				"s1 out!n2": {"×"}, "s2 out!n2": {"×"},
+			},
+		},
+		"one shape in two states naming its field apart, the second over the first's name": {
+			Diagram: "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\ns2 : k\n[*] --> s0\ns0 --> s1 : a?k\n" +
+				"s1 --> s2 : go ; ; $k' = 0\ns2 --> s2 : a?j ; $j < $k ; @eq(k', j)\n@enduml\n",
+			Conditions: transtable.ConditionsEnabling,
+			Want: map[string][]string{
+				"s0 a?k2": {"→ s1"}, "s1 a?k2": {"×"},
+				"s2 a?k2": {`["$_0 < $_1"(k2, k)] → s2`, `[¬"$_0 < $_1"(k2, k)] ×`},
+				"s0 go":   {"×"}, "s1 go": {"→ s2"}, "s2 go": {"×"},
+			},
+		},
+		"two fields swapped by name between edges are read by position": {
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : p?x?y ; $x < $y\ns0 --> s2 : p?y?x ; $x < $y\n@enduml\n",
+			Conditions: transtable.ConditionsEnabling,
+			Want: map[string][]string{
+				"s0 p?x2?y2": {`["$_0 < $_1"(x2, y2)] → s1`, `["$_0 < $_1"(y2, x2)] → s2`, `[¬"$_0 < $_1"(x2, y2) ∧ ¬"$_0 < $_1"(y2, x2)] ×`},
+				"s1 p?x2?y2": {"×"}, "s2 p?x2?y2": {"×"},
+			},
 		},
 		"termination after a tau step": {
 			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\n[*] --> s0\ns0 --> s1 : tau ; g\ns1 --> [*] : done\n@enduml\n",

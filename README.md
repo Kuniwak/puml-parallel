@@ -425,9 +425,9 @@ $ csdfcomp tree.json | csdftranstable -
 For `vending_machine.puml` it writes this table (shown here as Markdown, with
 a line break for each line of a cell):
 
-| state | name | showAvailable!availableProducts | insert?coin | showPurchasable?purchasableProducts | choose?product | drop?product |
+| state | name | showAvailable!availableProducts2 | insert?coin | showPurchasable?purchasableProducts | choose?product | drop?product |
 |---|---|---|---|---|---|---|
-| vmIdle | vmIdle | ["$_0 is $_1"(availableProducts', availableProducts)] → vmIdle | ["$_0 is the set of $_1"(coins', coin) and "$_0 is $_1"(availableProducts', availableProducts)] → vmCoinsInserted | × | × | × |
+| vmIdle | vmIdle | [availableProducts2 = availableProducts and "$_0 is $_1"(availableProducts', availableProducts)] → vmIdle<br>[not (availableProducts2 = availableProducts)] × | ["$_0 is the set of $_1"(coins', coin) and "$_0 is $_1"(availableProducts', availableProducts)] → vmCoinsInserted | × | × | × |
 | vmCoinsInserted | vmCoinsInserted | × | × | ["$_0 is $_1"(availableProducts', availableProducts) and "$_0 is $_1"(coins', coins)] → vmWaitingChoosing | × | × |
 | vmWaitingChoosing | vmWaitingChoosing | × | ["$_0 is $_1 with $_2 added"(coins', coins, coin) and "$_0 is $_1"(availableProducts', availableProducts)] → vmCoinsInserted | × | ["$_0 contains $_1"(availableProducts, product) and "$_0 is $_1"(dispensing', product)] → vmDropping<br>[not "$_0 contains $_1"(availableProducts, product)] × | × |
 | vmDropping | vmDropping | × | × | × | × | ["$_0 is $_1"(product, dispensing) and "$_0 is $_1 minus $_2"(availableProducts', availableProducts, product)] → vmIdle<br>[not "$_0 is $_1"(product, dispensing)] × |
@@ -437,9 +437,12 @@ reachable state has an end edge. States come in the canonical order, sorted by
 their IDs, and events in the order the states and their edges come, so the
 same diagram always gives the same bytes. A column is an event: its channel and a
 field of each direction in order (see `docs/SYNTAX.md`), whatever an edge names
-its fields, so `insert?coin` and `insert?c` are one column, headed by the label
-of the first edge for it, and each edge's clauses are read with its fields named
-as the header names them.
+its fields, so `insert?coin` and `insert?c` are one column. The column names
+each of its fields after the first edge's, made fresh where that name is taken
+by a state variable or by another position (`showAvailable!availableProducts2`
+above), and each edge's clauses are read with its received fields renamed to
+the column's and, for each field it sends, the condition that the column's
+value there is the one it sends.
 
 A cell holds one outcome per line, `[C] → s` (the event may be accepted, and
 the diagram be in `s`) or `[C] ×` (the event may be refused), each when its
