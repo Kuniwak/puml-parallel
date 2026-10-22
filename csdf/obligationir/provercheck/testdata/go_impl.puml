@@ -1,0 +1,6 @@
+@startuml
+' Does go forever, with no clause to make it fail.
+state "a" as a
+[*] --> a
+a --> a : go
+@enduml

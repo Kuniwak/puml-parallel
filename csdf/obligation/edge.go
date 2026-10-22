@@ -71,7 +71,7 @@ func declared(d core.Diagram, e core.Edge) error {
 		before[v] = true
 	}
 	for _, f := range e.Event.Fields {
-		if !f.Send && (slices.Contains(d.Vars[e.Src], f.Name) || slices.Contains(d.Vars[e.Dst], f.Name)) {
+		if !f.Send && core.ReceivesOver(f.Name, d.Vars[e.Src], d.Vars[e.Dst]) {
 			return fmt.Errorf("the edge %s -> %s receives %s, which names a state variable", e.Src, e.Dst, f.Name)
 		}
 		if !f.Send {

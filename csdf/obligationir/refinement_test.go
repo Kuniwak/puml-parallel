@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
@@ -88,5 +89,18 @@ func TestRefinementSymbolsAreThoseOfEverythingEitherSideReads(t *testing.T) {
 	}
 	if len(syms) != 1 || syms[0].Name != obligationir.AtomName("終わってよい") {
 		t.Errorf("symbols = %v, want the atom of the impl's end edge", syms)
+	}
+}
+
+func TestInitSetRefusesAnUnknownStartState(t *testing.T) {
+	// Setup
+	ir := obligationir.LivelockFree{States: []obligationir.State{{Name: "a"}}, Init: "b", InitPost: logic.Tree{Op: logic.OpTrue}}
+
+	// Execute
+	_, _, err := obligationir.InitSet(plain, ir)
+
+	// Assert
+	if err == nil {
+		t.Error("err = nil, want the unknown start state refused")
 	}
 }

@@ -199,6 +199,21 @@ narrows none: the expansion carries it, and the analyses that take
 hypotheses read it. A local diagram has none, an assumption being about the
 whole system.
 
+Which hypotheses an obligation takes is part of what it claims. A
+refinement is stated under the axioms of the builtins alone, never under an
+assumption of either side: an assumption of the impl could make it hold
+vacuously (an impl assumed never to run refines anything), and an
+assumption of the spec is typically a liveness assumption, which no trace
+and no stable failure can state, so it would license a claim the model does
+not make. That a side can start is stated under the axioms alone too: of
+the impl it is what keeps the refinement from holding vacuously, an impl
+that cannot start being DIV, and it must not rest on what the impl assumes
+of its runs; of the spec it is a sanity check, and may fail to prove when
+the spec can start only under its assumptions, which is expected: the spec
+then starts only where they hold. Each side's assumptions are
+hypotheses only of that side's livelock-freedom, in failures-divergences, so
+the FD conclusion is conditional on the impl's assumptions.
+
 Restricting a promotion to some of its families (`-only`) is an
 approximation, not an abstraction in the sense of the table above. The
 families left out go, with their maps, the edges only they take, and every

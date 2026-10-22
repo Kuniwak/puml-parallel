@@ -1,5 +1,9 @@
 import LeanCspProver.CSP_T.CSP_T_Main
 
+-- Every name is mangled behind a prefix of its kind, and a mangled name holds
+-- "__", which Mathlib's naming linter warns of.
+set_option linter.style.nameCheck false
+
 -- The guards below are propositions, so the Prop-valued procIte is used rather
 -- than the Bool-valued proc.IF.
 attribute [local instance] Classical.propDecidable
@@ -98,6 +102,18 @@ def ImplProc : proc PN event :=
     (Rep_int_choice_f (fun v_n_u27u => event.Internal [v_n_u27u]) {v_n_u27u | type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u)}
         (fun v_n_u27u => proc.Proc_name (PN.I_a v_n_u27u)))
     {event.Alphabet alphabet.HTau}
+
+-- Spec admits an initial valuation, so it does not denote DIV, which diverges on
+-- the empty trace and, as the Impl, would make the refinement vacuous. Stated
+-- under the axioms alone: it must not rest on an assumption.
+theorem initialisable_S : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u0 v_n_u27u) := by
+  sorry
+
+-- Impl admits an initial valuation, so it does not denote DIV, which diverges on
+-- the empty trace and, as the Impl, would make the refinement vacuous. Stated
+-- under the axioms alone: it must not rest on an assumption.
+theorem initialisable_I : ∃ (v_n_u27u : Val), type_n v_n_u27u ∧ (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u) := by
+  sorry
 
 -- Every trace of the Impl diagram is a trace of the Spec diagram: refT P1 M1 M2 P2
 -- unfolds to semTf P2 M2 <= semTf P1 M1.

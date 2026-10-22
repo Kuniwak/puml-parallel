@@ -44,6 +44,10 @@ func refinement(r obligationir.Refinement) (string, error) {
 	var w strings.Builder
 	fmt.Fprintf(&w, `import %s
 
+-- Every name is mangled behind a prefix of its kind, and a mangled name holds
+-- "__", which Mathlib's naming linter warns of.
+set_option linter.style.nameCheck false
+
 -- The guards below are propositions, so the Prop-valued procIte is used rather
 -- than the Bool-valued proc.IF.
 attribute [local instance] Classical.propDecidable
@@ -63,7 +67,7 @@ deriving Inhabited
 		return "", err
 	}
 	writeSymbols(&w, ds)
-	hypotheses, err := writeAxioms(&w, r.Axioms())
+	axioms, err := writeAxioms(&w, r.Axioms())
 	if err != nil {
 		return "", err
 	}
@@ -72,7 +76,6 @@ deriving Inhabited
 		if err := WriteAssumptions(&w, s.names, s.ir.Assumptions); err != nil {
 			return "", err
 		}
-		hypotheses = append(hypotheses, AssumptionNames(s.names, s.ir.Assumptions)...)
 	}
 
 	writeProcessNames(&w, sides)
@@ -86,15 +89,15 @@ deriving Inhabited
 			return "", err
 		}
 	}
-	if r.Mode == obligationir.IRRefinementModeFailuresDivergence {
-		axioms := hypotheses[:len(r.Axioms())]
-		for _, s := range sides {
-			if err := writeDivergenceFreedom(&w, s, axioms); err != nil {
-				return "", err
-			}
+	for _, s := range sides {
+		if err := writeSideLemmas(&w, s, r.Mode, axioms); err != nil {
+			return "", err
 		}
 	}
-	WriteRefinementTheorem(&w, r.Mode, hypotheses)
+	// The refinement is stated under the axioms alone: an assumption of the
+	// impl could make it hold vacuously, and one of the spec, of liveness, is
+	// no claim traces or stable failures can state (docs/CLAUSE_DESIGN.md).
+	WriteRefinementTheorem(&w, r.Mode, axioms)
 	fmt.Fprintf(&w, "\n\nend %s\n\nend\n", Namespace)
 	return w.String(), nil
 }
@@ -250,20 +253,24 @@ func writeProc(w io.Writer, s side) error {
 	return nil
 }
 
-// writeDivergenceFreedom writes the obligations that a side does not
-// diverge, which license reading the F refinement as FD refinement: that no
-// reachable state starts an infinite run of tau steps, and that it can start
-// at all.
-func writeDivergenceFreedom(w io.Writer, s side, axioms []string) error {
-	hypotheses := append(append([]string{}, axioms...), AssumptionNames(s.names, s.ir.Assumptions)...)
-	if s.ir.Structurally {
+// writeSideLemmas writes the lemmas of a side. That it can start at all is
+// stated under the axioms alone, since it must not rest on what the side
+// assumes of its runs: of the impl it is what keeps the refinement from
+// holding vacuously, as an impl that cannot start is DIV; of the spec it is
+// a sanity check. In FD, that no reachable state starts an infinite run of
+// tau steps is stated under the axioms and the side's own assumptions, so
+// the FD conclusion is conditional on them; with the first it licenses
+// reading the F refinement as FD refinement.
+func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, axioms []string) error {
+	assumed := append(append([]string{}, axioms...), AssumptionNames(s.names, s.ir.Assumptions)...)
+	if mode == obligationir.IRRefinementModeFailuresDivergence && s.ir.Structurally {
 		fmt.Fprintf(w, "-- %s is livelock free structurally: no reachable tau-cycle.\n\n", s.label)
-	} else {
+	} else if mode == obligationir.IRRefinementModeFailuresDivergence {
 		writeStates(w, s.states, s.ir.States)
 		if err := writeTransitionSystem(w, s.states, s.ir); err != nil {
 			return fmt.Errorf("%s: %w", s.label, err)
 		}
-		WriteLivelockTheorem(w, s.states, s.names.Qualify("livelock_free"), hypotheses)
+		WriteLivelockTheorem(w, s.states, s.names.Qualify("livelock_free"), assumed)
 		io.WriteString(w, "\n\n")
 	}
 	body, vars, err := obligationir.InitSet(Notation, s.ir)
@@ -273,11 +280,11 @@ func writeDivergenceFreedom(w io.Writer, s side, axioms []string) error {
 	if len(vars) > 0 {
 		body = Notation.Exists(vars, body)
 	}
-	fmt.Fprintf(w, `-- %s admits an initial valuation, so it does not denote DIV. Divergence-freedom
--- of the process needs this as well as the well-foundedness above: DIV diverges
--- on the empty trace, which no tau-step argument can rule out.
+	fmt.Fprintf(w, `-- %s admits an initial valuation, so it does not denote DIV, which diverges on
+-- the empty trace and, as the Impl, would make the refinement vacuous. Stated
+-- under the axioms alone: it must not rest on an assumption.
 theorem %s`, s.label, s.names.Qualify("initialisable"))
-	WriteHypotheses(w, hypotheses)
+	WriteHypotheses(w, axioms)
 	fmt.Fprintf(w, " : %s := by\n  sorry\n\n", body)
 	return nil
 }

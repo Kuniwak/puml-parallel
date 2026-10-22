@@ -639,17 +639,24 @@ diagrams, under a `TODO(csdf)` marker, so formalising it once serves every oblig
 appears in. Defining it as `True` instead would not be a placeholder but a different
 diagram, one in which every guard holds, so the theorem could be discharged for diagrams
 that do not refine one another; treat an artifact that still carries a `TODO(csdf)` marker
-as undischarged. The axioms of the `csdf_*` predicates (`csdf_axiom_<i>`) and each side's
-assume notes, side-qualified (`assume_<id>_S`, `assume_<id>_I`), are the hypotheses of the
-theorem. Process names are side-qualified (`S_<state>`, `I_<state>`), because state names
+as undischarged. The refinement is stated under the axioms of the `csdf_*` predicates
+(`csdf_axiom_<i>`) alone, and so is `initialisable_S`/`_I`, stated in every model: of the
+Impl it is what keeps the refinement from holding vacuously, since an Impl that cannot
+start is `DIV`, and it must not rest on what the Impl assumes; of the Spec it is a sanity
+check, which may fail to prove when the Spec can start only under its assumptions — that
+is expected, not a flaw of the encoding. Each side's assume notes, side-qualified (`assume_<id>_S`, `assume_<id>_I`), are
+hypotheses only of that side's livelock-freedom under `-m fd`, so the FD conclusion is
+conditional on the Impl's assumptions. An assumption of the Impl could make the refinement
+hold vacuously, and one of the Spec is typically about liveness, which traces and stable
+failures cannot state (see [CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). Process names are side-qualified (`S_<state>`, `I_<state>`), because state names
 collide between the two files.
 
 CSP-Prover has no failures-divergences model, so `-m fd` emits the standard reduction: for
 divergence-free processes FD refinement coincides with `<=F`, so the theory carries a
 divergence-freedom obligation per side — the `csdflivelockfree` obligation inlined, in its
-`wf_on` form, since the F model cannot observe divergence at all — plus an initialisability
-obligation per side, since `DIV` diverges on the empty trace and no `tau`-step argument
-rules that out, plus the stable-failures refinement. A side that is structurally livelock
+`wf_on` form, since the F model cannot observe divergence at all — plus the
+initialisability obligation of each side, since `DIV` diverges on the empty trace and no
+`tau`-step argument rules that out, plus the stable-failures refinement. A side that is structurally livelock
 free gets a note instead of the `wf_on` theorem. The divergence-freedom obligations are
 stated under the axioms and that side's assumptions. Requiring both of the *Spec* is stronger
 than FD refinement needs — `DIV` is the bottom of the FD model, so `Spec ⊑FD Impl` holds

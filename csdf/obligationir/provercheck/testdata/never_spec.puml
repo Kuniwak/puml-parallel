@@ -1,0 +1,5 @@
+@startuml
+' Never does anything.
+state "s" as s
+[*] --> s
+@enduml

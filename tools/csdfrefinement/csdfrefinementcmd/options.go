@@ -22,22 +22,28 @@ type Options struct {
 // CommonOptions returns the parsed common options.
 func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
 
+// abbreviations are the short spellings of the models -m takes.
+var abbreviations = map[string]obligationir.IRRefinementMode{
+	"t":  obligationir.IRRefinementModeTrace,
+	"f":  obligationir.IRRefinementModeStableFailure,
+	"fd": obligationir.IRRefinementModeFailuresDivergence,
+}
+
 // ParseMode maps a -m spelling to the model the obligation is stated in. Both the
 // short and the long name are accepted; there is no default, because which model
 // a refinement holds in is a different claim in each case.
 func ParseMode(s string) (obligationir.IRRefinementMode, error) {
-	switch s {
-	case "t", "trace":
-		return obligationir.IRRefinementModeTrace, nil
-	case "f", "stable-failure":
-		return obligationir.IRRefinementModeStableFailure, nil
-	case "fd", "failures-divergence":
-		return obligationir.IRRefinementModeFailuresDivergence, nil
-	case "":
+	if s == "" {
 		return "", errors.New("-m is required (want t|trace, f|stable-failure, or fd|failures-divergence)")
-	default:
+	}
+	if m, ok := abbreviations[s]; ok {
+		return m, nil
+	}
+	m, err := obligationir.ParseIRRefinementMode(s)
+	if err != nil {
 		return "", fmt.Errorf("unknown -m %q (want t|trace, f|stable-failure, or fd|failures-divergence)", s)
 	}
+	return m, nil
 }
 
 func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
@@ -81,15 +87,23 @@ two events. Each edge of a state is an external choice of the events it can
 perform - its received fields of their types, for which some values after it
 pass its guard and post - followed by an internal choice of those values after
 it; an end edge is SKIP when its guard holds. A channel with one number of
-fields in one place and another elsewhere is refused. The axioms of the csdf_*
-predicates, as csdf_axiom_<i>, and the assume notes of either diagram (see
-docs/SYNTAX.md), as assume_<id>_S or assume_<id>_I, are hypotheses of the
-theorem.
+fields in one place and another elsewhere is refused. The refinement is stated
+under the axioms of the csdf_* predicates, as csdf_axiom_<i>, alone, and so is
+initialisable_S/_I, stated in every model: of the Impl it is what keeps the
+refinement from holding vacuously, since an Impl that cannot start is DIV, and it
+must not rest on what the Impl assumes; of the Spec it is a sanity check, which
+may fail to prove when the Spec can start only under its assumptions, as
+expected. The
+assume notes of a diagram (see docs/SYNTAX.md), as assume_<id>_S or
+assume_<id>_I, are hypotheses only of that side's livelock freedom under -m fd,
+so the FD conclusion is conditional on the Impl's assumptions. An assumption of
+the Impl could make the refinement hold vacuously, and one of the Spec, of
+liveness, is no claim traces or stable failures can state.
 
 CSP-Prover has no failures-divergences model, so -m fd emits the standard
 reduction instead: a divergence-freedom obligation per side - the csdflivelockfree
-obligation inlined, plus an initialisability obligation, since a diagram that
-cannot start denotes DIV and DIV diverges on the empty trace - plus the
+obligation inlined, beside the initialisability obligation, since DIV diverges
+on the empty trace - plus the
 stable-failures refinement. Note that the Spec-side obligations are stronger than
 FD refinement needs: DIV is the bottom of the FD model, so Spec ⊑FD Impl holds
 even for a diverging Spec. Reducing to <=F cannot see that, so -m fd cannot

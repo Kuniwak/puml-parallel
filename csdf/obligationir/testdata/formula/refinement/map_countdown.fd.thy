@@ -113,12 +113,11 @@ theorem livelock_free_S:
   shows "wf_on {s. reachable_S s} {(s', s). tau_step_S s s'}"
   oops
 
-(* Spec admits an initial valuation, so it does not denote DIV.
-   Divergence-freedom of the process needs this as well as the well-foundedness
-   above: DIV diverges on the empty trace, which no tau-step argument can rule
-   out. *)
+(* Spec admits an initial valuation, so it does not denote DIV, which
+   diverges on the empty trace and, as the Impl, would make the refinement
+   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
 theorem initialisable_S:
-  assumes "csdf_axiom_1" and "csdf_axiom_2" and "assume_fair_S"
+  assumes "csdf_axiom_1" and "csdf_axiom_2"
   shows "\<exists>(v_m_u27u::val). type_m v_m_u27u \<and> (csdf_empty v_m_u27u)"
   oops
 
@@ -142,10 +141,9 @@ theorem livelock_free_I:
   shows "wf_on {s. reachable_I s} {(s', s). tau_step_I s s'}"
   oops
 
-(* Impl admits an initial valuation, so it does not denote DIV.
-   Divergence-freedom of the process needs this as well as the well-foundedness
-   above: DIV diverges on the empty trace, which no tau-step argument can rule
-   out. *)
+(* Impl admits an initial valuation, so it does not denote DIV, which
+   diverges on the empty trace and, as the Impl, would make the refinement
+   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
 theorem initialisable_I:
   assumes "csdf_axiom_1" and "csdf_axiom_2"
   shows "\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u)"
@@ -160,7 +158,7 @@ theorem initialisable_I:
    CSP-Prover P <=F Q unfolds to failures Q <= failures P, and <=F subsumes
    trace inclusion. *)
 theorem refines_f:
-  assumes "csdf_axiom_1" and "csdf_axiom_2" and "assume_fair_S"
+  assumes "csdf_axiom_1" and "csdf_axiom_2"
   shows "SpecProc <=F ImplProc"
   oops
 
