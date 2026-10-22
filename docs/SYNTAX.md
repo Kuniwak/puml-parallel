@@ -310,12 +310,6 @@ state "稼働中" as running {
 }
 [*] --> running
 
-note as lifecycle
-  create OPEN : locations
-  delete CLOSE : locations
-  create ORDER : shipments
-end note
-
 note as move
   sync MOVE : shipments(s).SHIP, locations(from).DEPART, locations(to).ARRIVE ; ${locations[from].在庫} > 1
 end note
@@ -327,11 +321,10 @@ end note
   ID. The block includes the family's local diagram, read relative to the
   global file. The global diagram has no other state and no edge but its
   start edge, which has no post: every map starts empty.
+- A local diagram keeps the contract of docs/PROMOTION.md: its start state
+  means that the instance does not exist, an edge out of it creates an
+  instance and an edge into it deletes one.
 - A note holds directives, one per line:
-  - `create EVENT : map` — the event that creates an instance, taking the
-    local diagram's start edge. Every family has one.
-  - `delete EVENT : map` — the event that deletes an instance, taking one of
-    the local diagram's end edges.
   - `sync EVENT : target, … [; clause]` — the instances that take EVENT
     together. A target is `map(id)`, which takes the local event named
     EVENT, or `map(id).event`, which takes `event`; two targets of one map

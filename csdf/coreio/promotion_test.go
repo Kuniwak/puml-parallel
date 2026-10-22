@@ -10,20 +10,27 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
+// location: its start state none means it does not exist; OPEN creates it
+// and CLOSE deletes it (docs/PROMOTION.md).
 const location = `@startuml
+state "なし" as none
 state "空き" as free
 free : 在庫
-[*] --> free : $在庫' = 0
+[*] --> none
+none --> free : OPEN ; ; $在庫' = 0
 free --> free : DEPART ; $在庫 > 0 ; $在庫' = $在庫 - 1
 free --> free : ARRIVE ; ; $在庫' = $在庫 + 1
-free --> [*]
+free --> none : CLOSE ; $在庫 = 0
 @enduml
 `
 
+// shipment: ORDER creates it waiting; SHIP ships it.
 const shipment = `@startuml
+state "なし" as none
 state "待ち" as waiting
 state "済み" as done
-[*] --> waiting
+[*] --> none
+none --> waiting : ORDER
 waiting --> done : SHIP
 @enduml
 `
@@ -56,12 +63,6 @@ state "稼働中" as running {
 }
 [*] --> running
 
-note as lifecycle
-  create OPEN : locations
-  delete CLOSE : locations
-  create ORDER : shipments
-end note
-
 note as move
   sync MOVE : shipments(s).SHIP, locations(from).DEPART, locations(to).ARRIVE ; ${locations[from].在庫} > 1
 end note
@@ -79,8 +80,8 @@ end note
 	want := core.Promotion{
 		State: "running",
 		Families: []core.Family{
-			{Map: "locations", ID: "l", Local: loc, Create: "OPEN", Delete: "CLOSE"},
-			{Map: "shipments", ID: "s", Local: shp, Create: "ORDER"},
+			{Map: "locations", ID: "l", Local: loc},
+			{Map: "shipments", ID: "s", Local: shp},
 		},
 		Syncs: []core.Sync{
 			{Event: "MOVE", Guard: mustParse(t, "${locations[from].在庫} > 1"), Targets: []core.Target{
@@ -113,7 +114,6 @@ state "稼働中" as running {
 }
 [*] --> running
 note as n
-  create ORDER : shipments
   sync SHIP : shipments(s)
 end note
 @enduml
@@ -140,17 +140,15 @@ func TestReadPromotionRefuses(t *testing.T) {
 		name, source, want string
 	}{
 		{"a post on the start edge, since every map starts empty",
-			wrap("[*] --> running : 何か\nnote as n\n  create ORDER : shipments\nend note\n"), "starts with every map empty"},
+			wrap("[*] --> running : 何か\n"), "starts with every map empty"},
 		{"an edge of the global diagram",
-			wrap("[*] --> running\nrunning --> running : a\nnote as n\n  create ORDER : shipments\nend note\n"), "unexpected"},
+			wrap("[*] --> running\nrunning --> running : a\n"), "unexpected"},
 		{"a directive no one knows",
 			wrap("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain"},
-		{"a family without a creation event",
-			wrap("[*] --> running\n"), "no creation event"},
 		{"a sync of an unknown map",
-			wrap("[*] --> running\nnote as n\n  create ORDER : shipments\n  sync X : others(o)\nend note\n"), "others"},
+			wrap("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
 		{"a target that is not map(id)",
-			wrap("[*] --> running\nnote as n\n  create ORDER : shipments\n  sync X : shipments\nend note\n"), "map(id)"},
+			wrap("[*] --> running\nnote as n\n  sync X : shipments\nend note\n"), "map(id)"},
 		{"a missing include",
 			strings.Replace(wrap("[*] --> running\n"), "S.puml", "T.puml", 1), "no file T.puml"},
 	}
@@ -177,8 +175,6 @@ state "稼働中" as running {
 }
 [*] --> running
 note as n
-  create OPEN : locations
-  delete CLOSE : locations
   sync MOVE : locations(from).DEPART, locations(to).ARRIVE
 end note
 @enduml

@@ -19,9 +19,6 @@ state "稼働中" as running {
   }
 }
 [*] --> running
-note as n
-  create ORDER : shipments
-end note
 @enduml
 `
 	for path, src := range map[string]string{"G.puml": global, "local/SHIPMENT.puml": shipment} {
@@ -37,8 +34,8 @@ end note
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := p.Families[0].Local.Init; got != "waiting" {
-		t.Errorf("the local diagram starts at %q, want waiting", got)
+	if got := p.Families[0].Local.Init; got != "none" {
+		t.Errorf("the local diagram starts at %q, want none", got)
 	}
 }
 
@@ -56,7 +53,7 @@ func TestLoadAuthoredReadsAFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Edges) != 1 {
-		t.Errorf("read %d edges, want 1", len(d.Edges))
+	if len(d.Edges) != 2 {
+		t.Errorf("read %d edges, want 2", len(d.Edges))
 	}
 }

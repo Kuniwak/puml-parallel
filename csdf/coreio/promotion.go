@@ -18,7 +18,6 @@ var (
 	includeRe    = regexp.MustCompile(`^!include\s+(.+)$`)
 	startRe      = regexp.MustCompile(`^\[\*\]\s*-->\s*(` + id + `)\s*(?::\s*(.*))?$`)
 	noteOpenRe   = regexp.MustCompile(`^note\s+as\s+` + id + `$`)
-	lifecycleRe  = regexp.MustCompile(`^(create|delete)\s+(` + id + `)\s*:\s*(` + id + `)$`)
 	syncRe       = regexp.MustCompile(`^sync\s+(` + id + `)\s*:\s*([^;]*?)\s*(?:;\s*(.*))?$`)
 	targetRe     = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
 )
@@ -26,7 +25,7 @@ var (
 // ReadPromotion reads a global diagram (docs/SYNTAX.md, "Promotion"): one
 // composite state holding a <<promote>> block per family, each including its
 // local diagram, which include reads by the path written; a start edge into
-// that state; and notes holding the create, delete and sync directives. The
+// that state; and notes holding sync directives. The
 // clauses of the local diagrams and of the syncs are read as authored.
 func ReadPromotion(source string, include func(string) (string, error)) (core.Promotion, error) {
 	r := &promotionReader{include: include}
@@ -132,22 +131,10 @@ func (r *promotionReader) directive(l string) error {
 		r.note = false
 		return nil
 	}
-	if m := lifecycleRe.FindStringSubmatch(l); m != nil {
-		f, err := r.familyOf(m[3])
-		if err != nil {
-			return err
-		}
-		if m[1] == "create" {
-			f.Create = m[2]
-		} else {
-			f.Delete = m[2]
-		}
-		return nil
-	}
 	if m := syncRe.FindStringSubmatch(l); m != nil {
 		return r.sync(m[1], m[2], m[3])
 	}
-	return fmt.Errorf("%q is no directive; a note holds create, delete and sync directives", l)
+	return fmt.Errorf("%q is no directive; a note holds sync directives", l)
 }
 
 func (r *promotionReader) sync(event, targets, guard string) error {
@@ -193,11 +180,6 @@ func (r *promotionReader) check() error {
 		return fmt.Errorf("a block or a note is not closed")
 	case r.start != r.p.State:
 		return fmt.Errorf("no start edge into %s", r.p.State)
-	}
-	for _, f := range r.p.Families {
-		if f.Create == "" {
-			return fmt.Errorf("%s: no creation event; write create <event> : %s", f.Map, f.Map)
-		}
 	}
 	return nil
 }
