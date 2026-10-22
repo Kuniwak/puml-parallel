@@ -1,0 +1,83 @@
+// Package coreio reads and writes csdf/core diagrams in the .puml syntax
+// (docs/SYNTAX.md), their clauses in the csdf/clause syntax.
+package coreio
+
+import (
+	"fmt"
+
+	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+)
+
+// ReadAuthored reads a diagram an author wrote: its clauses are read by
+// clause.ParseAuthored, so none holds ∃.
+func ReadAuthored(source string) (*core.Diagram, error) {
+	d, err := read(source, clause.ParseAuthored)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadAuthored: %w", err)
+	}
+	return d, nil
+}
+
+// Read reads a diagram a tool wrote, such as Write's: its clauses are read
+// by clause.Parse, so they may hold ∃.
+func Read(source string) (*core.Diagram, error) {
+	d, err := read(source, clause.Parse)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.Read: %w", err)
+	}
+	return d, nil
+}
+
+// read reads source with the structure csdf.Parser reads, each clause by
+// parse.
+func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
+	check := func(p csdf.Predicate) error {
+		_, err := parse(string(p))
+		return err
+	}
+	src, err := csdf.NewParserCheckingClauses(source, check).Parse()
+	if err != nil {
+		return nil, err
+	}
+	if len(src.Assumptions) > 0 {
+		return nil, fmt.Errorf("line %d: an assume note has no place in a diagram of formulas yet", src.Assumptions[0].Line)
+	}
+	clauses := func(p csdf.Predicate) clause.And {
+		f, _ := parse(string(p)) // check has read every predicate already
+		return f
+	}
+	d := &core.Diagram{
+		Vars:     map[string][]string{},
+		Init:     string(src.StartEdge.Dst),
+		InitPost: clauses(src.StartEdge.Post),
+	}
+	for _, s := range csdf.SortedStates(src.States) {
+		d.States = append(d.States, string(s.ID))
+		for _, v := range s.State.Vars {
+			d.Vars[string(s.ID)] = append(d.Vars[string(s.ID)], string(v.Name))
+		}
+	}
+	for _, e := range src.Edges {
+		d.Edges = append(d.Edges, core.Edge{
+			Src:   string(e.Src),
+			Dst:   string(e.Dst),
+			Event: event(e.Event),
+			Guard: clauses(e.Guard),
+			Post:  clauses(e.Post),
+		})
+	}
+	if e := src.EndEdge; e != nil {
+		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
+	}
+	return d, nil
+}
+
+func event(e csdf.Event) core.Event {
+	out := core.Event{Channel: e.Channel()}
+	for _, f := range e.Fields() {
+		out.Fields = append(out.Fields, core.Field{Send: f.Dir == csdf.Sent, Name: f.Name})
+	}
+	return out
+}
