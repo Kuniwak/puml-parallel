@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/csdf/pumlline"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
 
@@ -20,14 +21,14 @@ const idPattern = ident.Pattern
 // an empty one rather than dropped, which keeps the line numbers csdf.Parse
 // reports pointing at the source the author wrote.
 var (
-	compositeOpenRe = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+(` + idPattern + `)\s*\{$`)
-	promoteRe       = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+(` + idPattern + `)\s+<<promote>>\s*(\{?)$`)
-	closeRe         = regexp.MustCompile(`^}$`)
-	includeRe       = regexp.MustCompile(`^!include\s+(.+)$`)
-	noteFloatingRe  = regexp.MustCompile(`^note\s+as\s+(` + idPattern + `)$`)
-	noteAnchoredRe  = regexp.MustCompile(`^note\s+(?:left|right|top|bottom)\s+of\s+(` + idPattern + `)$`)
-	noteEndRe       = regexp.MustCompile(`^end\s+note$`)
-	promoteTitleRe  = regexp.MustCompile(`^(\S+)\s*:\s*(.+?)\s*(?:⇸|->>)\s*(\S+)$`)
+	compositeOpenRe = pumlline.CompositeOpen
+	promoteRe       = pumlline.Promote
+	closeRe         = pumlline.Close
+	includeRe       = pumlline.Include
+	noteFloatingRe  = pumlline.NoteFloating
+	noteAnchoredRe  = pumlline.NoteAnchored
+	noteEndRe       = pumlline.NoteEnd
+	promoteTitleRe  = pumlline.PromoteTitle
 	syncBodyRe      = regexp.MustCompile(`^sync\s+([^(;:]+?)\s*:\s*(.+)$`)
 	constrainBodyRe = regexp.MustCompile(`^constrain\s+([^;]+?)\s*;\s*(.+)$`)
 	mapRefRe        = regexp.MustCompile(`^([^\s()]+)\s*\(([^()]*)\)$`)
@@ -201,7 +202,7 @@ func (s *scanner) readPromote(i int) (int, error) {
 	if inc == nil {
 		return 0, fmt.Errorf("line %d: expected a single !include in the <<promote>> block opened at line %d, got %q", body+1, line, strings.TrimSpace(s.lines[body]))
 	}
-	p.Path = unquote(strings.TrimSpace(inc[1]))
+	p.Path = pumlline.Unquote(strings.TrimSpace(inc[1]))
 
 	end := body + 1
 	for end < len(s.lines) && strings.TrimSpace(s.lines[end]) == "" {
@@ -235,13 +236,6 @@ func (s *scanner) blank(n int) {
 	for range n {
 		s.out = append(s.out, "")
 	}
-}
-
-func unquote(s string) string {
-	if len(s) >= 2 && strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
-		return s[1 : len(s)-1]
-	}
-	return s
 }
 
 // readNote lifts one note out of the source. A note whose first non-empty line
