@@ -30,93 +30,107 @@ func fitting(door *Diagram) Promotion {
 		}}
 }
 
-// safety is the safety specification of the traces of l: l with a τ from
-// every state to STOP, so that it allows every refusal after each trace.
-func safety(l *lts.LTS) *lts.LTS {
-	out := lts.New(l.Init)
-	stop := len(l.Trans)
-	for src, byLabel := range l.Trans {
-		if src >= stop {
-			stop = src + 1
-		}
-		for label, dsts := range byLabel {
-			for _, d := range dsts {
-				out.Add(src, label, d)
-			}
-		}
-	}
-	for src := range l.Trans {
-		out.Add(src, lts.Tau, stop)
-	}
-	return out
-}
-
 func TestRestrictKeepsTheKeptFamiliesWithTheOthersAsTheEnvironment(t *testing.T) {
+	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
+	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
+	moving := Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations, shipments}, Syncs: []Sync{{Event: "MOVE", Targets: []Target{
+		{Map: "shipments", ID: "s", Event: "MOVE"},
+		{Map: "locations", ID: "from", Event: "DEPART"},
+		{Map: "locations", ID: "to", Event: "ARRIVE"},
+	}}}}
+	onlyLocations := func(label string) bool {
+		return strings.HasPrefix(label, "OPEN.") || strings.HasPrefix(label, "CLOSE.")
+	}
 	cases := []struct {
 		name string
-		door *Diagram
-		// hidden are the events only the doors take.
+		p    Promotion
+		keep []string
+		// hidden are the events only the left-out families take.
 		hidden func(string) bool
-		sf     bool
+		// want is the restriction written by hand, if it is written.
+		want        *lts.LTS
+		refinesFull bool
+		dropped     string
 	}{
 		{
 			// A door that is not there refuses SCRAP; the restriction,
 			// whose doors are the environment, does not.
-			name:   "the restriction offers what a left-out family refuses",
-			door:   plainDoor(),
-			hidden: func(string) bool { return false },
-			sf:     false,
+			name:        "the restriction offers what a left-out family refuses",
+			p:           fitting(plainDoor()),
+			keep:        []string{"keys"},
+			hidden:      func(string) bool { return false },
+			want:        fittedKey("s1"),
+			refinesFull: false,
+			dropped:     "doors",
 		},
 		{
 			// Hidden, a door's OPENS and SHUTS make it never stable, so
 			// there is no failure to compare: divergence is outside the
 			// stable failures model.
 			name: "the events only a left-out family takes are hidden",
-			door: door(),
+			p:    fitting(door()),
+			keep: []string{"keys"},
 			hidden: func(label string) bool {
 				return strings.HasPrefix(label, "OPENS.") || strings.HasPrefix(label, "SHUTS.")
 			},
-			sf: true,
+			want:        fittedKey("s1"),
+			refinesFull: true,
+			dropped:     "doors",
+		},
+		{
+			// MOVE chains two moves of locations through ∃, one clause
+			// that holds the shipments' move too: dropped whole, it
+			// leaves shipments free there.
+			name:    "chained moves of a left-out map free the kept one",
+			p:       moving,
+			keep:    []string{"shipments"},
+			hidden:  onlyLocations,
+			dropped: "locations",
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			p := fitting(c.door)
-			full, _, err := Promote(p)
+			full, _, err := Promote(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}
-			env := stock(t, p.Families...)
+			env := stock(t, c.p.Families...)
 			fullLTS, err := Expand(full, env)
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := fittedKey("s1")
+			var maps []string
+			for _, f := range c.p.Families {
+				maps = append(maps, f.Map)
+			}
+			hidden := lts.Hide(fullLTS, c.hidden)
 
 			// Execute
-			restricted, warnings, err := Restrict(full, []string{"doors", "keys"}, []string{"keys"})
+			restricted, warnings, err := Restrict(full, maps, c.keep)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := Expand(restricted, env)
 
 			// Assert
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := Expand(restricted, env)
-			if err != nil {
-				t.Fatal(err)
+			if c.want != nil && !lts.StableFailuresEqual(got, c.want) {
+				t.Errorf("the restriction is not the kept families alone, the others offering anything")
 			}
-			if !lts.StableFailuresEqual(got, want) {
-				t.Errorf("the restriction is not the key alone, the doors offering anything")
+			// Every safety specification the restriction refines, the
+			// full promotion refines with hidden hidden: its traces are
+			// the restriction's.
+			if !lts.TracesRefines(got, hidden) {
+				t.Errorf("the full promotion, hidden, has a trace the restriction has not")
 			}
-			hidden := lts.Hide(fullLTS, c.hidden)
-			if spec := safety(got); !lts.StableFailuresRefines(spec, got) || !lts.StableFailuresRefines(spec, hidden) {
-				t.Errorf("a safety specification the restriction refines is not refined by the full promotion with the doors' own events hidden")
+			if lts.StableFailuresRefines(got, hidden) != c.refinesFull {
+				t.Errorf("StableFailuresRefines = %v, want %v", !c.refinesFull, c.refinesFull)
 			}
-			if lts.StableFailuresRefines(got, hidden) != c.sf {
-				t.Errorf("StableFailuresRefines = %v, want %v", !c.sf, c.sf)
-			}
-			if len(warnings) < 2 || !strings.Contains(warnings[0].Text, "spurious") || !strings.Contains(warnings[1].Text, "doors") {
-				t.Errorf("warnings = %v, want what a restriction does not carry over, then the dropped clauses that read doors", warnings)
+			if len(warnings) < 2 || !strings.Contains(warnings[0].Text, "spurious") || !strings.Contains(warnings[1].Text, c.dropped) {
+				t.Errorf("warnings = %v, want what a restriction does not carry over, then the dropped clauses that read %s", warnings, c.dropped)
 			}
 		})
 	}
