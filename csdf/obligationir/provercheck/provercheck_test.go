@@ -374,12 +374,11 @@ func isabelleBin() string {
 }
 
 // leanDiagnostic matches a line Lean attributes to a source position. Only the
-// intended sorry, the unused-variable linter and Mathlib's naming linter, which
-// the "__" of a mangled name trips, are tolerated: an obligation is
+// intended sorry and the unused-variable linter are tolerated: an obligation is
 // meant to elaborate with its theorem open and nothing else to say.
 var (
 	leanDiagnostic  = regexp.MustCompile(`^[^ ].*:\d+:\d+: (error|warning)`)
-	toleratedLeanRe = regexp.MustCompile(`declaration uses .sorry.|unused variable|does not follow the mathlib naming conventions`)
+	toleratedLeanRe = regexp.MustCompile(`declaration uses .sorry.|unused variable`)
 )
 
 func unexpectedLeanDiagnostics(out string) []string {

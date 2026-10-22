@@ -44,6 +44,10 @@ func refinement(r obligationir.Refinement) (string, error) {
 	var w strings.Builder
 	fmt.Fprintf(&w, `import %s
 
+-- Every name is mangled behind a prefix of its kind, and a mangled name holds
+-- "__", which Mathlib's naming linter warns of.
+set_option linter.style.nameCheck false
+
 -- The guards below are propositions, so the Prop-valued procIte is used rather
 -- than the Bool-valued proc.IF.
 attribute [local instance] Classical.propDecidable

@@ -80,3 +80,22 @@ func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
 		}
 	}
 }
+
+// TestTheLeanRefinementSilencesTheNamingLinter pins the option that keeps
+// Mathlib's naming linter, which the "__" of a mangled name trips, from
+// warning on every declaration.
+func TestTheLeanRefinementSilencesTheNamingLinter(t *testing.T) {
+	// Setup
+	var sb strings.Builder
+
+	// Execute
+	err := target.CompileDiagrams(&sb, obligationir.IRRefinementModeTrace, load(t, "counter"), load(t, "countdown"), target.NameLean)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sb.String(), "\nset_option linter.style.nameCheck false\n") {
+		t.Errorf("no set_option linter.style.nameCheck false in\n%s", sb.String())
+	}
+}
