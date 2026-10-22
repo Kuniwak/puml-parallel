@@ -54,11 +54,16 @@ func writeRejection(sb *strings.Builder, d *core.Diagram, r Result) error {
 		if err := writePathTable(sb, d, p.Path); err != nil {
 			return err
 		}
-		along, err := pathClauses(d, p.Path)
+		r := run{}
+		along, err := r.pathClauses(d, p.Path)
 		if err != nil {
 			return err
 		}
-		infeasible := logic.Not(some(along))
+		feasible, err := r.some(along)
+		if err != nil {
+			return err
+		}
+		infeasible := logic.Not(feasible)
 		fmt.Fprintf(sb, "Infeasible iff: %s\n\n", notation.Spell(infeasible))
 	}
 	return nil
@@ -74,11 +79,15 @@ round a ` + "`tau`" + ` cycle, and their obligations, are not listed.
 
 `)
 	fmt.Fprintf(sb, "- trace: %s\n", joinEvents(r.Trace.Events))
-	start, err := startClause(d)
+	at0 := run{}
+	start, err := at0.startClause(d)
 	if err != nil {
 		return err
 	}
-	admits := some(start)
+	admits, err := at0.some(start)
+	if err != nil {
+		return err
+	}
 	fmt.Fprintf(sb, "- the start edge `[*] --> %s`%s must admit a valuation: %s\n\n", d.Init, line(d.InitLine), notation.Spell(admits))
 
 	for _, step := range r.Steps {
@@ -172,20 +181,23 @@ func writeObligation(sb *strings.Builder, d *core.Diagram, p PrefixPath) error {
 		sb.WriteString("\n")
 	}
 
+	r := run{}
 	var conclusion []logic.Formula
 	for _, e := range append(append([]core.Edge{}, p.Taus...), p.Next...) {
 		enabled, err := obligation.Enabled(*d, e)
 		if err != nil {
 			return err
 		}
-		conclusion = append(conclusion, logic.Rename(enabled, before(d, e, n)))
+		conclusion = append(conclusion, logic.Rename(enabled, r.before(d, e, n)))
 	}
-	along, err := pathClauses(d, p.Path)
+	along, err := r.pathClauses(d, p.Path)
 	if err != nil {
 		return err
 	}
-	ob := logic.Simplify(logic.Implies(along, logic.Or(conclusion...)))
-	ob = every(ob)
+	ob, err := r.every(logic.Simplify(logic.Implies(along, logic.Or(conclusion...))))
+	if err != nil {
+		return err
+	}
 	fmt.Fprintf(sb, "Obligation: %s\n\n", notation.Spell(ob))
 	return nil
 }
@@ -202,28 +214,65 @@ var notation = func() logic.Notation {
 	return n
 }()
 
-// at names the value of the state variable v after step i.
-func at(v string, i int) logic.Var { return logic.Var(fmt.Sprintf("%s@%d", v, i)) }
+// run holds the type of each value along a run a report names: those
+// obligation.After and obligation.Received name, which every variable of an
+// obligation is.
+type run map[logic.Var]string
+
+func (r run) at(v string, i int) logic.Var { return r.add(obligation.After(v, i)) }
+
+func (r run) received(k string, i int) logic.Var { return r.add(obligation.Received(k, i)) }
+
+func (r run) add(v obligation.Value) logic.Var {
+	r[v.Var] = v.Type
+	return v.Var
+}
+
+// some binds the free variables of f existentially, and every universally,
+// each of its type.
+func (r run) some(f logic.Formula) (logic.Formula, error) {
+	return r.bind(f, logic.ExistsTyped)
+}
+
+func (r run) every(f logic.Formula) (logic.Formula, error) {
+	return r.bind(f, logic.ForallTyped)
+}
+
+func (r run) bind(f logic.Formula, q func([]logic.Var, []string, logic.Formula) logic.Formula) (logic.Formula, error) {
+	vars := logic.FreeVars(f)
+	if len(vars) == 0 {
+		return f, nil
+	}
+	types := make([]string, len(vars))
+	for i, v := range vars {
+		typ, ok := r[v]
+		if !ok {
+			return nil, fmt.Errorf("tracechk: %s is no value of the run", v)
+		}
+		types[i] = typ
+	}
+	return q(vars, types, f), nil
+}
 
 // before maps the variables of the source of e to their values after step n,
 // those e is taken from.
-func before(d *core.Diagram, e core.Edge, n int) map[logic.Var]logic.Var {
+func (r run) before(d *core.Diagram, e core.Edge, n int) map[logic.Var]logic.Var {
 	m := map[logic.Var]logic.Var{}
 	for _, v := range d.Vars[e.Src] {
-		m[logic.Var(v)] = at(v, n)
+		m[logic.Var(v)] = r.at(v, n)
 	}
 	return m
 }
 
 // startClause is the post of the start edge over the values after step 0.
-func startClause(d *core.Diagram) (logic.Formula, error) {
+func (r run) startClause(d *core.Diagram) (logic.Formula, error) {
 	f, err := obligation.Formula(d.InitPost)
 	if err != nil {
 		return nil, fmt.Errorf("the start post: %w", err)
 	}
 	m := map[logic.Var]logic.Var{}
 	for _, v := range d.Vars[d.Init] {
-		m[obligation.Var(clause.Free{Name: v, Primed: true})] = at(v, 0)
+		m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(v, 0)
 	}
 	return logic.Rename(f, m), nil
 }
@@ -231,8 +280,8 @@ func startClause(d *core.Diagram) (logic.Formula, error) {
 // pathClauses is the conjunction of the clauses along a path, from the
 // start post: the guard and post of step i read the values after step i-1,
 // the fields it receives and the values after it.
-func pathClauses(d *core.Diagram, path Path) (logic.Formula, error) {
-	start, err := startClause(d)
+func (r run) pathClauses(d *core.Diagram, path Path) (logic.Formula, error) {
+	start, err := r.startClause(d)
 	if err != nil {
 		return nil, err
 	}
@@ -242,12 +291,12 @@ func pathClauses(d *core.Diagram, path Path) (logic.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		m := before(d, e, i)
+		m := r.before(d, e, i)
 		for _, v := range d.Vars[e.Dst] {
-			m[obligation.Var(clause.Free{Name: v, Primed: true})] = at(v, i+1)
+			m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(v, i+1)
 		}
 		for _, f := range e.Event.Received() {
-			m[logic.Var(f)] = logic.Var(fmt.Sprintf("%s#%d", f, i+1))
+			m[logic.Var(f)] = r.received(f, i+1)
 		}
 		conjuncts = append(conjuncts, logic.Rename(step, m))
 	}
@@ -288,7 +337,7 @@ func valuesOf(d *core.Diagram, s string, i int) string {
 	}
 	names := make([]string, len(vars))
 	for j, v := range vars {
-		names[j] = string(at(v, i))
+		names[j] = string(obligation.After(v, i).Var)
 	}
 	return strings.Join(names, ", ")
 }
@@ -306,33 +355,6 @@ func joinEvents(events []string) string {
 
 func joinStates(states []string) string {
 	return strings.Join(states, ", ")
-}
-
-// some binds the free variables of f existentially, and every universally,
-// each of the type named like it: v@i of the type v, k#i of the type k, as
-// obligation.Enabled types what it chooses.
-func some(f logic.Formula) logic.Formula {
-	vars := logic.FreeVars(f)
-	if len(vars) == 0 {
-		return f
-	}
-	return logic.ExistsTyped(vars, typesOf(vars), f)
-}
-
-func every(f logic.Formula) logic.Formula {
-	vars := logic.FreeVars(f)
-	if len(vars) == 0 {
-		return f
-	}
-	return logic.ForallTyped(vars, typesOf(vars), f)
-}
-
-func typesOf(vars []logic.Var) []string {
-	types := make([]string, len(vars))
-	for i, v := range vars {
-		types[i] = strings.FieldsFunc(string(v), func(r rune) bool { return r == '@' || r == '#' })[0]
-	}
-	return types
 }
 
 // line is where an edge was read, " (L<n>)", or nothing for one no reader

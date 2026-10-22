@@ -17,13 +17,18 @@ func TestTheValuesOfAPathAreOfTheTypesNamedLikeThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	along, err := pathClauses(d, Path{d.Edges[0]})
+	r := run{}
+	along, err := r.pathClauses(d, Path{d.Edges[0]})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Execute
-	tree := logic.TreeOf(some(along))
+	f, err := r.some(along)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree := logic.TreeOf(f)
 
 	// Assert
 	if diff := cmp.Diff([]logic.Var{"n@0", "n@1", "k#1"}, tree.Vars); diff != "" {
