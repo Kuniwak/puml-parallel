@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
@@ -87,7 +88,7 @@ func (e Event) Fields() []Field {
 }
 
 func splitEvent(text string) (string, []Field, error) {
-	channel, parts, err := ident.SplitEvent(text, ident.Is)
+	channel, parts, err := core.SplitEvent(text, ident.Is)
 	if err != nil {
 		return "", nil, fmt.Errorf("csdf.ParseEvent: %w, each an identifier", err)
 	}

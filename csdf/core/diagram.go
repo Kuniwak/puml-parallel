@@ -9,7 +9,6 @@ import (
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 // Tau is the channel of an internal event.
@@ -182,12 +181,12 @@ func ReceivesOver(field string, vars ...[]string) bool {
 }
 
 // ParseEvent reads an event written as a label is (Label), as
-// ident.SplitEvent takes it apart: a channel, then ?x for each field
+// SplitEvent takes it apart: a channel, then ?x for each field
 // received and !x for each sent, in order, where x is the field's name or
 // the value it carries. An x that is empty is refused; neither it nor the
 // channel may hold ? or !.
 func ParseEvent(text string) (Event, error) {
-	channel, parts, err := ident.SplitEvent(text, func(x string) bool { return x != "" })
+	channel, parts, err := SplitEvent(text, func(x string) bool { return x != "" })
 	if err != nil {
 		return Event{}, fmt.Errorf("core.ParseEvent: %w", err)
 	}

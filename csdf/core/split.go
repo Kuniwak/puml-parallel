@@ -1,8 +1,10 @@
-package ident
+package core
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 // EventField is a field of an event as SplitEvent takes it apart: sent (!)
@@ -23,7 +25,7 @@ func SplitEvent(text string, field func(string) bool) (string, []EventField, err
 		i = len(text)
 	}
 	channel := strings.TrimSpace(text[:i])
-	if !Is(channel) {
+	if !ident.Is(channel) {
 		return "", nil, fmt.Errorf("%q: expected a channel, then ?field or !field", text)
 	}
 	var fields []EventField
