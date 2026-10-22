@@ -470,6 +470,15 @@ func readingDenotation(t *testing.T) *lts.LTS {
 	return want
 }
 
+// doorsWatched is doors a and b, by hand, in parallel with a watcher that
+// follows every NEW and offers what it allows: the denotation of a
+// constrain on NEW.
+func doorsWatched(watcher *lts.LTS) *lts.LTS {
+	onNew := func(label string) bool { return strings.HasPrefix(label, "NEW.") }
+	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), watcher},
+		[]func(string) bool{mentions("a"), mentions("b"), onNew})
+}
+
 // doorMonitored is doors a and b and key s1, by hand, with a monitor
 // following which doors exist (bit 1 for a, 2 for b) and offering CUT only
 // while none does: the denotation of a constrain on CUT reading doors.
@@ -591,9 +600,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 				env.Atoms["#0 is a"] = func(a []Value) bool { return a[0] == "a" }
 				return env
 			},
-			want: func(*testing.T) *lts.LTS {
-				return lts.Parallel([]*lts.LTS{doorInstance("a"), lts.New(0)}, []func(string) bool{mentions("a"), mentions("b")})
-			},
+			want: func(*testing.T) *lts.LTS { return doorsWatched(handLTS(tr{0, "NEW.a", 0})) },
 		},
 		{
 			name: "a constrain reads a map no instance of its event is in, as a monitor would",
