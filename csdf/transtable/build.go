@@ -36,13 +36,13 @@ type Column interface {
 // edge of one shape (core.Event.SameShape), whatever it names its fields.
 // Its header is the label of the first of them (core.Event.Label), and the
 // fields are named as it names them.
-type EventColumn struct{ Event string }
+type EventColumn struct{ Event core.Event }
 
 // TerminationColumn is the column of successful termination, which an end
 // edge performs. Its header is spelled the way PlantUML spells the end.
 type TerminationColumn struct{}
 
-func (c EventColumn) Header() string     { return c.Event }
+func (c EventColumn) Header() string     { return c.Event.Label() }
 func (TerminationColumn) Header() string { return "[*]" }
 func (EventColumn) isColumn()            {}
 func (TerminationColumn) isColumn()      {}
@@ -231,7 +231,7 @@ func (ix index) takes(u string, c Column) []take {
 		}
 		return ts
 	}
-	col, _ := core.ParseEvent(ec.Event) // the header is the label of an event
+	col := ec.Event
 	var ts []take
 	for _, i := range ix.out(u) {
 		e := ix.d.Edges[i]
@@ -425,7 +425,7 @@ func columnsOf(states []string, d *core.Diagram) []Column {
 				continue
 			}
 			shapes = append(shapes, e.Event)
-			columns = append(columns, EventColumn{Event: e.Event.Label()})
+			columns = append(columns, EventColumn{Event: e.Event})
 		}
 	}
 	if slices.ContainsFunc(d.Ends, func(e core.End) bool { return slices.Contains(states, e.Src) }) {

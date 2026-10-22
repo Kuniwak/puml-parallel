@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
@@ -22,7 +23,7 @@ func TestWriteJSON(t *testing.T) {
 		},
 		"a column says what it is, and a cell lists its outcomes in the order of the columns": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "a"}, transtable.TerminationColumn{}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}, transtable.TerminationColumn{}},
 				Rows: []transtable.Row{{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{
 					{goTo(q("g", c, x), "s1"), refuse(not(q("g", c, x)))},
 					{{Cond: logic.True, Result: transtable.Terminate{}}},
@@ -40,7 +41,7 @@ func TestWriteJSON(t *testing.T) {
 		// event spelled like a column of the TSV is no clash here.
 		"an event spelled like a column of the TSV is an event": {
 			Table: &transtable.Table{
-				Columns: []transtable.Column{transtable.EventColumn{Event: "[*]"}},
+				Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "[*]"}}},
 				Rows:    []transtable.Row{{State: "s0", Name: "a <b> & c", Cells: [][]transtable.Outcome{{refuse(logic.True)}}}},
 			},
 			Want: `{"columns":[{"kind":"event","event":"[*]"}],` +

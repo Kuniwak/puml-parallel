@@ -77,7 +77,7 @@ func jsonOf(t *Table) jsonTable {
 func jsonColumnOf(c Column) jsonColumn {
 	switch c := c.(type) {
 	case EventColumn:
-		return jsonColumn{Kind: "event", Event: c.Event}
+		return jsonColumn{Kind: "event", Event: c.Header()}
 	case TerminationColumn:
 		return jsonColumn{Kind: "termination"}
 	}

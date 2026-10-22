@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
@@ -49,7 +50,7 @@ func TestWrite(t *testing.T) {
 	}
 
 	table := &transtable.Table{
-		Columns: []transtable.Column{transtable.EventColumn{Event: "a"}},
+		Columns: []transtable.Column{transtable.EventColumn{Event: core.Event{Channel: "a"}}},
 		Rows:    []transtable.Row{{State: "s0", Name: "S0", Cells: [][]transtable.Outcome{{refuse(not(q("g", c, x)))}}}},
 	}
 
