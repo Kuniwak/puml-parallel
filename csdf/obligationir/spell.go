@@ -386,11 +386,14 @@ func applied(name string, args []logic.TermTree) (string, error) {
 }
 
 // Formulas are every formula ir states: the start post, the step of each
-// edge and the axioms.
+// edge, the guard of each end edge and the axioms.
 func (ir LivelockFree) Formulas() []logic.Tree {
 	fs := []logic.Tree{ir.InitPost}
 	for _, e := range ir.Edges {
 		fs = append(fs, e.Step)
+	}
+	for _, e := range ir.Ends {
+		fs = append(fs, e.Guard)
 	}
 	return append(fs, ir.Axioms...)
 }

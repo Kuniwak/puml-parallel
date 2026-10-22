@@ -126,9 +126,9 @@ generated edge's clauses one by one and each clause's kind; it is the
 expansion of the tools before `csdf/core`, which `csdfbmc` reads until it
 moves onto the clause syntax.
 
-The PUML expansion is read by `csdflivelockfree`. It is not yet read by
-`csdftracechk`, `csdftranstable` or `csdfrefinement`, which read the clauses of
-the tools before `csdf/core` (#76).
+The PUML expansion is read by `csdflivelockfree` and `csdfrefinement`. It is not
+yet read by `csdftracechk` or `csdftranstable`, which read the clauses of the
+tools before `csdf/core` (#76).
 
 ```console
 $ csdfpromote -format json examples/promote/TRADES.puml
@@ -589,8 +589,9 @@ with a self-loop per local edge.
 `csdfrefinement` compiles a refinement proof obligation for two CSDF diagrams and exits 0.
 The first is the Spec (the abstract side) and the second the Impl (the concrete side), and
 the obligation states that every behaviour of the Impl is allowed by the Spec — the
-direction FDR checks. As with `csdflivelockfree`, whether it holds depends on the
-natural-language guards and postconditions, so the exit status never encodes the verdict.
+direction FDR checks. It reads the clause syntax of [SYNTAX.md](./docs/SYNTAX.md). As with
+`csdflivelockfree`, whether it holds depends on the environment the clauses name, so the
+exit status never encodes the verdict.
 
 The model is chosen with `-m`, which is mandatory because each model is a different claim:
 
@@ -606,7 +607,7 @@ side.
 
 ```console
 $ csdfrefinement -m t abs.puml detail.puml
-{"mode":"trace","alphabet":["a"],"predicates":{...},"constants":[],"spec":{...},"impl":{...}}
+{"version":1,"mode":"trace","alphabet":[{"name":"a","arity":0}],"spec":{...},"impl":{...}}
 $ csdfrefinement -m fd -target isabelle abs.puml detail.puml
 $ csdfparallel a.puml b.puml | csdfrefinement -m f abs.puml -
 ```
@@ -615,39 +616,33 @@ At most one argument may be `-`: two diagrams cannot be told apart in a single s
 
 The prover targets encode both diagrams as CSP-Prover process terms and state the
 obligation as a one-line `<=T`/`<=F` refinement, so the artifact stays small and the
-metatheory that makes it meaningful is CSP-Prover's rather than this tool's. Each state
+metatheory that makes it meaningful is CSP-Prover's rather than this tool's. An event
+carries the value of each of its fields, in order: an event of a channel is the channel
+applied to them, so `inc?k` with `k = 1` and with `k = 2` are two events, and a channel
+with one number of fields in one place and another elsewhere is refused. Each state
 becomes a process name — parameterised by its variables — whose body is the external
-choice over its out-edges; each branch is guarded by the edge's full *enabledness*
-condition, `Guard ∧ ∃v'. Post`, because an edge whose postcondition no valuation satisfies
-cannot fire and must contribute a refusal. The successor is a replicated internal choice
-over the valuations the postcondition admits, since the diagram — not the environment —
-picks one. Two edges carrying the same event need no special treatment: external choice
-between identical prefixes is internal choice. A `tau` edge becomes a prefix on the
-reserved event `HTau`, hidden once at the outermost level, which is what produces
-instability and, on an infinite `tau` run, divergence. An end edge becomes
-`IF <guard> THEN SKIP ELSE STOP`. The start edge becomes the replicated internal choice
-over the initial valuations its postcondition admits; when it admits none that choice is
-over the empty set, which is `DIV` — a diagram that cannot start diverges. A diagram
-without state variables follows the same rule, since its valuation domain is a one-point
-set.
+choice over its out-edges. Each edge is an external prefix choice `? ev:X -> …` over the
+events it is *enabled* for: those of some received values of their types for which some
+values after it pass its guard and post, so an edge no valuation lets fire contributes a
+refusal (the choice over the empty set is `STOP`). The successor is a replicated internal
+choice over the values after it that the event, the guard and the post admit, since the
+diagram — not the environment — picks one. A `tau` edge becomes a prefix on the reserved
+event `HTau`, hidden once at the outermost level, which is what produces instability and,
+on an infinite `tau` run, divergence. An end edge becomes `IF <guard> THEN SKIP ELSE STOP`.
+The start edge becomes the replicated internal choice over the initial valuations its post
+admits; when it admits none that choice is over the empty set, which is `DIV` — a diagram
+that cannot start diverges. A diagram without state variables follows the same rule.
 
-Predicates use the same `pred_<id>` spelling as `csdflivelockfree`, are shared by both
-diagrams, and dedupe across them, so formalising a predicate once serves every obligation
-it appears in. Each side's assume notes are listed under its `assumptions` and become
-side-qualified propositions (`assume_<id>_S`, `assume_<id>_I`) under which the theorem is
-stated. They are *uninterpreted* — an `opaque` declaration in Lean, a `consts`
-declaration in Isabelle — carrying the natural-language text and a `TODO(csdf)` marker as
-comments. Defining them as `True` instead would not be a placeholder but a different
-diagram, one in which every guard fires, so the theorem could be discharged for diagrams
+The clauses are spelled as `csdflivelockfree` spells them (see the table above): only the
+environment — atoms, functions and types — is declared uninterpreted, once for both
+diagrams, under a `TODO(csdf)` marker, so formalising it once serves every obligation it
+appears in. Defining it as `True` instead would not be a placeholder but a different
+diagram, one in which every guard holds, so the theorem could be discharged for diagrams
 that do not refine one another; treat an artifact that still carries a `TODO(csdf)` marker
-as undischarged. Everything named after a source location is side-qualified —
-`guard_S_L<line>`, `post_I_L<line>`, `init_S` — because line numbers collide between the
-two files.
-
-CSDF names are not prover identifiers — an event has `?` and `!` in it, an id may be
-written in any script — so events, state ids and variable names are encoded into a
-letters-digits-underscore identifier; the theory opens with a table giving the originals
-of every name that had to be encoded.
+as undischarged. The axioms of the `csdf_*` predicates (`csdf_axiom_<i>`) and each side's
+assume notes, side-qualified (`assume_<id>_S`, `assume_<id>_I`), are the hypotheses of the
+theorem. Process names are side-qualified (`S_<state>`, `I_<state>`), because state names
+collide between the two files.
 
 CSP-Prover has no failures-divergences model, so `-m fd` emits the standard reduction: for
 divergence-free processes FD refinement coincides with `<=F`, so the theory carries a
@@ -655,15 +650,15 @@ divergence-freedom obligation per side — the `csdflivelockfree` obligation inl
 `wf_on` form, since the F model cannot observe divergence at all — plus an initialisability
 obligation per side, since `DIV` diverges on the empty trace and no `tau`-step argument
 rules that out, plus the stable-failures refinement. A side that is structurally livelock
-free gets a note instead of the `wf_on` theorem. Requiring both of the *Spec* is stronger
+free gets a note instead of the `wf_on` theorem. The divergence-freedom obligations are
+stated under the axioms and that side's assumptions. Requiring both of the *Spec* is stronger
 than FD refinement needs — `DIV` is the bottom of the FD model, so `Spec ⊑FD Impl` holds
 even for a diverging Spec — but `<=F` cannot see that, so `-m fd` cannot decide a
 refinement whose Spec side diverges.
 
 One encoding detail is forced by the prover rather than by CSP. A replicated internal
 choice can only be indexed by the event type there — the process datatype has no spare type
-variable — so when the diagrams carry state variables the event type is layered into
-`Alphabet` plus an inert `Internal` index, reached through the library's injection-based
+variable — so the event type is layered into `Alphabet` plus an inert `Internal` index, reached through the library's injection-based
 replicated choice. No process ever performs an `Internal` event, so no trace and no refusal
 changes.
 

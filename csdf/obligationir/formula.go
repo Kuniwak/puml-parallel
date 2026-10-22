@@ -33,6 +33,10 @@ type LivelockFree struct {
 	Init     string     `json:"init"`
 	InitPost logic.Tree `json:"init_post"`
 	Edges    []Edge     `json:"edges"`
+	// Ends are the end edges: the diagram may terminate from Src when Guard
+	// holds of its values. Termination is no tau step, so the livelock
+	// obligation reads none of them; a refinement does.
+	Ends []End `json:"ends"`
 	// Axioms are what the csdf_* predicates of the clauses mean
 	// (obligation.Axioms); a back end states the theorem under them.
 	Axioms []logic.Tree `json:"axioms"`
@@ -80,6 +84,11 @@ func (ir LivelockFree) Validate() error {
 			seen[f] = true
 		}
 	}
+	for _, e := range ir.Ends {
+		if !states[e.Src] {
+			return fmt.Errorf("obligationir.Validate: an end edge leaves %s, which is not there", e.Src)
+		}
+	}
 	for _, f := range ir.Formulas() {
 		if _, err := checking.SpellFormula(f); err != nil {
 			return fmt.Errorf("obligationir.Validate: %w", err)
@@ -113,6 +122,12 @@ type Edge struct {
 	Channel string     `json:"channel"`
 	Fields  []Field    `json:"fields"`
 	Step    logic.Tree `json:"step"`
+}
+
+// End is an end edge: Src --> [*] : Guard, over the values of Src.
+type End struct {
+	Src   string     `json:"src"`
+	Guard logic.Tree `json:"guard"`
 }
 
 // Field is a field of an event: received (?Name), which the step chooses, or
@@ -160,6 +175,15 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Channel: e.Event.Channel, Fields: fieldsOf(e.Event), Step: logic.TreeOf(step)})
 		clauses = append(clauses, e.Guard, e.Post)
 	}
+	ends := make([]End, 0, len(d.Ends))
+	for _, e := range d.Ends {
+		guard, err := endGuard(d, e)
+		if err != nil {
+			return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
+		}
+		ends = append(ends, End{Src: e.Src, Guard: logic.TreeOf(guard)})
+		clauses = append(clauses, e.Guard)
+	}
 	states := make([]State, len(d.States))
 	for i, s := range d.States {
 		states[i] = State{Name: s, Vars: append([]string{}, d.Vars[s]...)}
@@ -175,9 +199,28 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		Init:         d.Init,
 		InitPost:     logic.TreeOf(post),
 		Edges:        edges,
+		Ends:         ends,
 		Axioms:       logic.Trees(obligation.Axioms(clauses...)),
 		Assumptions:  assumptions,
 	}, nil
+}
+
+// endGuard is the guard of an end edge, which reads only the values of the
+// state it leaves.
+func endGuard(d *core.Diagram, e core.End) (logic.Formula, error) {
+	if !slices.Contains(d.States, e.Src) {
+		return nil, fmt.Errorf("no state %s, which an end edge leaves", e.Src)
+	}
+	for _, v := range clause.FreeVars(e.Guard) {
+		if v.Primed || !slices.Contains(d.Vars[e.Src], v.Name) {
+			return nil, fmt.Errorf("the end edge from %s reads %s, which %s does not hold", e.Src, obligation.Var(v), e.Src)
+		}
+	}
+	f, err := obligation.Formula(e.Guard)
+	if err != nil {
+		return nil, fmt.Errorf("the end edge from %s: %w", e.Src, err)
+	}
+	return logic.Simplify(f), nil
 }
 
 // initPost is the post of the start edge, which reads only the values after

@@ -1,149 +1,94 @@
 package csdfrefinementcmd
 
 import (
-	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 	"github.com/google/go-cmp/cmp"
 )
 
-func run(t *testing.T, spy *cli.ProcInoutSpy, args []string) string {
-	t.Helper()
+// formula is the file of testdata/formula named file: a diagram, or the
+// obligations expected of a pair of them under refinement/.
+func formula(file string) string {
+	return filepath.Join("..", "..", "..", "csdf", "obligationir", "testdata", "formula", file)
+}
+
+// run runs the command on args and stdin.
+func run(stdin string, args []string) (int, *cli.ProcInoutSpy) {
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(stdin))
 	exitStatus := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())(args, spy.New())
-	if exitStatus != 0 {
-		t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
-	}
-	if spy.Stderr.String() != "" {
-		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
-	}
-	return spy.Stdout.String()
+	return exitStatus, spy
 }
 
-func TestNewMainFuncEmitsIR(t *testing.T) {
-	// Arrange: two diagrams over overlapping alphabets.
-	spy := cli.SpyProcInout()
+// TestNewMainFuncCompilesToTheTarget holds -m and -target to the obligation
+// expected of the pair, the abstract diagram first.
+func TestNewMainFuncCompilesToTheTarget(t *testing.T) {
+	type testCase struct {
+		Args  []string
+		Stdin string
+		Want  string
+	}
 
-	// Act
-	out := run(t, spy, []string{
-		"-m", "t",
-		filepath.Join("testdata", "spec.puml"),
-		filepath.Join("testdata", "impl.puml"),
-	})
+	testCases := map[string]testCase{
+		"traces, as JSON": {
+			Args: []string{"-m", "t", formula("counter.puml"), formula("countdown.puml")},
+			Want: "refinement/counter_countdown.t.json",
+		},
+		"stable failures, for Isabelle": {
+			Args: []string{"-m", "f", "-target", "isabelle", formula("counter.puml"), formula("counter.puml")},
+			Want: "refinement/counter_counter.f.thy",
+		},
+		"failures-divergences, for Lean, the impl from standard input": {
+			Args:  []string{"-m", "fd", "-target", "lean", formula("map.puml"), "-"},
+			Stdin: mustRead(formula("countdown.puml")),
+			Want:  "refinement/map_countdown.fd.lean",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			want := mustRead(formula(tc.Want))
+
+			// Execute
+			exitStatus, spy := run(tc.Stdin, tc.Args)
+
+			// Assert
+			if exitStatus != 0 {
+				t.Fatalf("want exit 0, got %d (stderr: %s)", exitStatus, spy.Stderr.String())
+			}
+			if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+				t.Error(diff)
+			}
+		})
+	}
+}
+
+func TestNewMainFuncRefusesAChannelOfTwoArities(t *testing.T) {
+	// Setup: inc carries one field in the spec and none in the impl.
+	impl := "@startuml\nstate \"a\" as a\n[*] --> a\na --> a : inc\n@enduml\n"
+
+	// Execute
+	exitStatus, spy := run(impl, []string{"-m", "t", formula("counter.puml"), "-"})
 
 	// Assert
-	var ir obligationir.IRRefinement
-	if err := json.Unmarshal([]byte(out), &ir); err != nil {
-		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, out)
-	}
-	if ir.Mode != obligationir.IRRefinementModeTrace {
-		t.Errorf("mode = %q, want trace", ir.Mode)
-	}
-	if diff := cmp.Diff([]string{"a"}, []string{string(ir.Alphabet[0])}); diff != "" {
-		t.Error(diff)
-	}
-	if ir.Spec.Init.Dst != "s0" || ir.Impl.Init.Dst != "t0" {
-		t.Errorf("want spec s0 and impl t0, got %q and %q", ir.Spec.Init.Dst, ir.Impl.Init.Dst)
-	}
-	// The order of the arguments is the direction of the obligation, so it must
-	// not be symmetric: the abstract diagram comes first.
-	if ir.Spec.Init.Dst == ir.Impl.Init.Dst {
-		t.Error("want the two sides to stay distinct")
+	if exitStatus == 0 || !strings.Contains(spy.Stderr.String(), "the channel inc has") {
+		t.Errorf("exit %d, stderr %q; want the channel refused", exitStatus, spy.Stderr.String())
 	}
 }
 
-func TestNewMainFuncFailuresDivergenceCarriesLivelockFields(t *testing.T) {
-	spy := cli.SpyProcInout()
-
-	out := run(t, spy, []string{
-		"-m", "fd",
-		filepath.Join("testdata", "spec.puml"),
-		filepath.Join("testdata", "impl.puml"),
-	})
-
-	var ir obligationir.IRRefinement
-	if err := json.Unmarshal([]byte(out), &ir); err != nil {
-		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, out)
+func mustRead(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
 	}
-	if ir.Spec.StructurallyLivelockFree == nil || !*ir.Spec.StructurallyLivelockFree {
-		t.Errorf("want a tau-free spec to be structurally livelock free, got %#v", ir.Spec.StructurallyLivelockFree)
-	}
-}
-
-func TestNewMainFuncReadsOneDiagramFromStdin(t *testing.T) {
-	// Arrange: at most one side may come from stdin, the other from a file.
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(`@startuml
-state "s0" as s0
-[*] --> s0
-s0 --> s0 : a
-@enduml
-`))
-
-	// Act
-	out := run(t, spy, []string{"-m", "f", "-", filepath.Join("testdata", "impl.puml")})
-
-	// Assert
-	var ir obligationir.IRRefinement
-	if err := json.Unmarshal([]byte(out), &ir); err != nil {
-		t.Fatalf("stdout is not valid obligation IR JSON: %v\n%s", err, out)
-	}
-	if ir.Spec.Init.Dst != "s0" {
-		t.Errorf("want the spec read from stdin, got %q", ir.Spec.Init.Dst)
-	}
-}
-
-func TestNewMainFuncIsabelleTarget(t *testing.T) {
-	spy := cli.SpyProcInout()
-
-	out := run(t, spy, []string{
-		"-m", "fd", "-target", "isabelle",
-		filepath.Join("testdata", "spec.puml"),
-		filepath.Join("testdata", "impl.puml"),
-	})
-
-	for _, want := range []string{
-		"theory Refinement_Obligation\n  imports CSP_F.CSP_F",
-		`overloading Set_procfun == "PNfun :: (PN, event) pnfun"`,
-		`theorem refines_f: "SpecProc <=F ImplProc"`,
-		// Neither diagram has a tau edge, so both discharge divergence freedom
-		// structurally and no wf_on obligation is emitted.
-		"(* Spec is livelock free structurally: no reachable tau-cycle. *)",
-		"(* Impl is livelock free structurally: no reachable tau-cycle. *)",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("isabelle output missing %q\n%s", want, out)
-		}
-	}
-}
-
-func TestNewMainFuncLeanTarget(t *testing.T) {
-	spy := cli.SpyProcInout()
-
-	out := run(t, spy, []string{
-		"-m", "fd", "-target", "lean",
-		filepath.Join("testdata", "spec.puml"),
-		filepath.Join("testdata", "impl.puml"),
-	})
-
-	for _, want := range []string{
-		"import LeanCspProver.CSP_F.CSP_F_Main",
-		"instance Set_procfun : HasPNfun PN event where",
-		"theorem refines_f : refFfix SpecProc ImplProc := by",
-		// Neither diagram has a tau edge, so both discharge divergence freedom
-		// structurally and no well-foundedness obligation is emitted.
-		"-- Spec is livelock free structurally: no reachable tau-cycle.",
-		"-- Impl is livelock free structurally: no reachable tau-cycle.",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("lean output missing %q\n%s", want, out)
-		}
-	}
+	return string(b)
 }
 
 func TestNewMainFuncVersion(t *testing.T) {

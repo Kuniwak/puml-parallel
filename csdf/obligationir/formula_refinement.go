@@ -1,0 +1,221 @@
+package obligationir
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/logic"
+)
+
+// Refinement is the obligation that Spec ⊑ Impl in the model Mode, the
+// direction FDR checks, of two diagrams whose clauses are formulas
+// (docs/CLAUSE_DESIGN.md, O8). Each side is stated as its livelock-freedom
+// obligation is, and its events carry the values of their fields: an event
+// of a channel is the channel applied to the value of each field, in order,
+// so two events that differ in a value are two events.
+type Refinement struct {
+	Version  int              `json:"version"`
+	Mode     IRRefinementMode `json:"mode"`
+	Alphabet []Channel        `json:"alphabet"`
+	Spec     LivelockFree     `json:"spec"`
+	Impl     LivelockFree     `json:"impl"`
+}
+
+// Channel is a visible channel of either side and the number of its fields.
+type Channel struct {
+	Name  string `json:"name"`
+	Arity int    `json:"arity"`
+}
+
+// BuildFormulaRefinement states spec ⊑ impl in mode. A channel with one
+// number of fields in one place and another elsewhere is refused, since its
+// events would be of no one type. An end edge is SKIP when its guard holds.
+func BuildFormulaRefinement(mode IRRefinementMode, spec, impl *core.Diagram) (Refinement, error) {
+	sides := make([]LivelockFree, 2)
+	for i, d := range []*core.Diagram{spec, impl} {
+		ir, err := BuildFormulaLivelockFree(d)
+		if err != nil {
+			return Refinement{}, fmt.Errorf("obligationir.BuildFormulaRefinement: %s: %w", sideName(i), err)
+		}
+		sides[i] = ir
+	}
+	r := Refinement{Version: IRVersion, Mode: mode, Spec: sides[0], Impl: sides[1]}
+	alphabet, err := r.channels()
+	if err != nil {
+		return Refinement{}, fmt.Errorf("obligationir.BuildFormulaRefinement: %w", err)
+	}
+	r.Alphabet = alphabet
+	return r, nil
+}
+
+func sideName(i int) string { return []string{"the spec", "the impl"}[i] }
+
+// channels is the sorted union of the visible channels of both sides.
+func (r Refinement) channels() ([]Channel, error) {
+	arity := map[string]int{}
+	for _, side := range []LivelockFree{r.Spec, r.Impl} {
+		for _, e := range side.Edges {
+			if e.Tau() {
+				continue
+			}
+			if n, ok := arity[e.Channel]; ok && n != len(e.Fields) {
+				return nil, fmt.Errorf("the channel %s has %d fields in one place and %d in another", e.Channel, n, len(e.Fields))
+			}
+			arity[e.Channel] = len(e.Fields)
+		}
+	}
+	out := make([]Channel, 0, len(arity))
+	for name, n := range arity {
+		out = append(out, Channel{Name: name, Arity: n})
+	}
+	slices.SortFunc(out, func(a, b Channel) int { return strings.Compare(a.Name, b.Name) })
+	return out, nil
+}
+
+// Validate reports, as an error, what makes r no refinement obligation: an
+// encoding of another version, an unknown model, a side Validate refuses, or
+// an alphabet that is not the channels of the sides.
+func (r Refinement) Validate() error {
+	if r.Version != IRVersion {
+		return fmt.Errorf("obligationir.Refinement.Validate: version %d, want %d", r.Version, IRVersion)
+	}
+	switch r.Mode {
+	case IRRefinementModeTrace, IRRefinementModeStableFailure, IRRefinementModeFailuresDivergence:
+	default:
+		return fmt.Errorf("obligationir.Refinement.Validate: no model %q", r.Mode)
+	}
+	for i, side := range []LivelockFree{r.Spec, r.Impl} {
+		if err := side.Validate(); err != nil {
+			return fmt.Errorf("obligationir.Refinement.Validate: %s: %w", sideName(i), err)
+		}
+	}
+	want, err := r.channels()
+	if err != nil {
+		return fmt.Errorf("obligationir.Refinement.Validate: %w", err)
+	}
+	if !slices.Equal(want, r.Alphabet) {
+		return fmt.Errorf("obligationir.Refinement.Validate: the alphabet %v is not the channels of the sides, %v", r.Alphabet, want)
+	}
+	if _, err := r.Symbols(); err != nil {
+		return fmt.Errorf("obligationir.Refinement.Validate: %w", err)
+	}
+	return nil
+}
+
+// Symbols are the constants either side reads; the environment is one, so
+// an atom both sides read is one constant.
+func (r Refinement) Symbols() ([]Symbol, error) {
+	spec := r.Spec
+	spec.States = slices.Concat(r.Spec.States, r.Impl.States)
+	spec.Edges = slices.Concat(r.Spec.Edges, r.Impl.Edges)
+	spec.InitPost = logic.Tree{Op: logic.OpAnd, Operands: []logic.Tree{r.Spec.InitPost, r.Impl.InitPost}}
+	spec.Axioms = r.Axioms()
+	return spec.Symbols()
+}
+
+// Declarations are the constants either side reads, as a back end declares
+// them; see LivelockFree.Declarations.
+func (r Refinement) Declarations(todo string) ([]Declaration, error) {
+	syms, err := r.Symbols()
+	if err != nil {
+		return nil, err
+	}
+	return declarations(syms, todo), nil
+}
+
+// Axioms are the axioms of either side, each once.
+func (r Refinement) Axioms() []logic.Tree {
+	var out []logic.Tree
+	for _, a := range slices.Concat(r.Spec.Axioms, r.Impl.Axioms) {
+		if !slices.ContainsFunc(out, func(b logic.Tree) bool { return treeEqual(a, b) }) {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+func treeEqual(a, b logic.Tree) bool { return fmt.Sprintf("%#v", a) == fmt.Sprintf("%#v", b) }
+
+// EventArgs are the values an event of e carries, in the order of its
+// fields: a received field is the variable the step chooses, and a sent one
+// the variable it names, a value the step has bound already.
+func EventArgs(e Edge) []string {
+	args := make([]string, len(e.Fields))
+	for i, f := range e.Fields {
+		args[i] = SpellVar(logic.Var(f.Name))
+	}
+	return args
+}
+
+// EdgeSets are what an edge of a process term reads, spelled in n: enabled is
+// that the event ev is one the edge performs from the values before it, of
+// some received values of their types for which some values after it pass
+// its guard and post; next is, of the values after it (after), that ev is
+// such an event and they pass its guard and post. event spells the event
+// the edge performs, the channel applied to EventArgs.
+func EdgeSets(n Notation, states map[string]State, e Edge, ev, event string) (enabled, next string, after []string, err error) {
+	dst, ok := states[e.Dst]
+	if !ok {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: no state %s", e.Dst)
+	}
+	after = make([]string, len(dst.Vars))
+	for i, v := range dst.Vars {
+		after[i] = SpellVar(logic.Var(v + "'"))
+	}
+	step, err := n.SpellFormula(e.Step)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	typedAfter, err := n.Relativize(false, after, dst.Vars, step)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	withEvent := func(body string) (string, error) {
+		received := e.Received()
+		vars := make([]string, len(received))
+		for i, f := range received {
+			vars[i] = SpellVar(logic.Var(f))
+		}
+		body = ev + " = " + event + n.And + "(" + body + ")"
+		if len(vars) == 0 {
+			return body, nil
+		}
+		typed, err := n.Relativize(false, vars, received, body)
+		if err != nil {
+			return "", err
+		}
+		return n.Exists(vars, typed), nil
+	}
+	someAfter := typedAfter
+	if len(after) > 0 {
+		someAfter = n.Exists(after, typedAfter)
+	}
+	if enabled, err = withEvent(someAfter); err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	if next, err = withEvent(typedAfter); err != nil {
+		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
+	}
+	return enabled, next, after, nil
+}
+
+// InitSet is, of the values of the start state of ir (vars), that they are
+// of their types and pass the start post, spelled in n.
+func InitSet(n Notation, ir LivelockFree) (body string, vars []string, err error) {
+	start := ir.StateMap()[ir.Init]
+	vars = make([]string, len(start.Vars))
+	for i, v := range start.Vars {
+		vars[i] = SpellVar(logic.Var(v + "'"))
+	}
+	post, err := n.SpellFormula(ir.InitPost)
+	if err != nil {
+		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
+	}
+	body, err = n.Relativize(false, vars, start.Vars, post)
+	if err != nil {
+		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
+	}
+	return body, vars, nil
+}
