@@ -69,13 +69,7 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		if err != nil {
 			return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
 		}
-		received := []string{}
-		for _, f := range e.Event.Fields {
-			if !f.Send {
-				received = append(received, f.Name)
-			}
-		}
-		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Tau: e.Event.Channel == core.Tau, Received: received, Step: logic.TreeOf(step)})
+		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Tau: e.Event.Channel == core.Tau, Received: e.Event.Received(), Step: logic.TreeOf(step)})
 		clauses = append(clauses, e.Guard, e.Post)
 	}
 	states := make([]State, len(d.States))
@@ -87,12 +81,12 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		assumptions = append(assumptions, IRAssumption{ID: a.ID, Text: csdf.Predicate(a.Text)})
 	}
 	return LivelockFree{
-		Structurally: !tauCycleReachable(d),
+		Structurally: !d.TauCycleReachable(),
 		States:       states,
 		Init:         d.Init,
 		InitPost:     logic.TreeOf(post),
 		Edges:        edges,
-		Axioms:       trees(obligation.Axioms(clauses...)),
+		Axioms:       logic.Trees(obligation.Axioms(clauses...)),
 		Assumptions:  assumptions,
 	}, nil
 }
@@ -110,51 +104,4 @@ func initPost(d *core.Diagram) (logic.Formula, error) {
 		return nil, fmt.Errorf("the start post: %w", err)
 	}
 	return logic.Simplify(f), nil
-}
-
-// tauCycleReachable reports whether the graph of the states, every edge
-// taken whatever its clauses, reaches a cycle of tau edges from the start.
-func tauCycleReachable(d *core.Diagram) bool {
-	reached := map[string]bool{d.Init: true}
-	todo := []string{d.Init}
-	for len(todo) > 0 {
-		s := todo[0]
-		todo = todo[1:]
-		for _, e := range d.Edges {
-			if e.Src == s && !reached[e.Dst] {
-				reached[e.Dst] = true
-				todo = append(todo, e.Dst)
-			}
-		}
-	}
-	// A state is on a tau cycle when it reaches itself by tau edges alone.
-	for s := range reached {
-		seen := map[string]bool{}
-		todo := []string{s}
-		for len(todo) > 0 {
-			t := todo[0]
-			todo = todo[1:]
-			for _, e := range d.Edges {
-				if e.Src != t || e.Event.Channel != core.Tau {
-					continue
-				}
-				if e.Dst == s {
-					return true
-				}
-				if !seen[e.Dst] {
-					seen[e.Dst] = true
-					todo = append(todo, e.Dst)
-				}
-			}
-		}
-	}
-	return false
-}
-
-func trees(fs []logic.Formula) []logic.Tree {
-	out := make([]logic.Tree, len(fs))
-	for i, f := range fs {
-		out[i] = logic.TreeOf(f)
-	}
-	return out
 }

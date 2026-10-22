@@ -47,10 +47,7 @@ func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
 	}
 	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
 
-	states := map[string]obligationir.State{}
-	for _, s := range ir.States {
-		states[s.Name] = s
-	}
+	states := ir.StateMap()
 	init := obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, func(ctor string) string { return ctor })
 	fmt.Fprintf(w, "definition init :: \"st \\<Rightarrow> bool\"\n  where \"init s' \\<equiv> %s\"\n\n", init)
 	writeRelation(w, side, "step", states, ir.Edges)
@@ -59,13 +56,7 @@ func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 `)
-	var taus []obligationir.Edge
-	for _, e := range ir.Edges {
-		if e.Tau {
-			taus = append(taus, e)
-		}
-	}
-	writeRelation(w, side, "tau_step", states, taus)
+	writeRelation(w, side, "tau_step", states, ir.TauEdges())
 	WriteLivelockTheorem(w, side, "livelock_free", hypotheses)
 	io.WriteString(w, "\n\nend\n")
 	return nil
@@ -89,25 +80,21 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 }
 
 func writeSymbols(w io.Writer, ir obligationir.LivelockFree) {
-	for _, s := range ir.Symbols() {
-		if obligationir.Uninterpreted(s) {
-			io.WriteString(w, comment(PredicateTODO)+"\n")
-		}
-		if s.Text != "" {
-			io.WriteString(w, comment(s.Text)+"\n")
+	for _, d := range ir.Declarations(PredicateTODO) {
+		for _, c := range d.Comments {
+			io.WriteString(w, comment(c)+"\n")
 		}
 		result := "val"
-		if s.Pred {
+		if d.Pred {
 			result = "bool"
 		}
-		io.WriteString(w, "consts "+s.Name+" :: \""+strings.Repeat("val \\<Rightarrow> ", s.Arity)+result+"\"\n\n")
+		io.WriteString(w, "consts "+d.Name+" :: \""+strings.Repeat("val \\<Rightarrow> ", d.Arity)+result+"\"\n\n")
 	}
 }
 
 func writeAxioms(w io.Writer, ir obligationir.LivelockFree) []string {
-	names := make([]string, len(ir.Axioms))
+	names := ir.AxiomNames()
 	for i, a := range ir.Axioms {
-		names[i] = obligationir.AxiomName(i + 1)
 		fmt.Fprintf(w, "definition %s :: bool\n  where \"%s \\<equiv> %s\"\n\n", names[i], names[i], Notation.SpellFormula(a))
 	}
 	return names

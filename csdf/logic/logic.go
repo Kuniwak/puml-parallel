@@ -558,3 +558,12 @@ func quote(text string) string {
 	}
 	return strings.TrimSuffix(sb.String(), "\n")
 }
+
+// Trees returns the syntax tree of each of fs.
+func Trees(fs []Formula) []Tree {
+	out := make([]Tree, len(fs))
+	for i, f := range fs {
+		out[i] = f.tree()
+	}
+	return out
+}

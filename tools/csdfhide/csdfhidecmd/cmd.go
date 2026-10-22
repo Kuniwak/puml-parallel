@@ -6,7 +6,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/pngsrc"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -20,11 +19,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		source, err := pngsrc.Extract(opts.Bytes)
-		if err != nil {
-			return fmt.Errorf("csdfhidecmd.NewMainFunc: reading PlantUML source: %w", err)
-		}
-		diagram, err := coreio.Read(source)
+		diagram, err := coreio.ReadBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
 		}

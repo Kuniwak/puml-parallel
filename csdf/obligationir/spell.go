@@ -365,3 +365,58 @@ func StepDisjuncts(n Notation, side Side, states map[string]State, edges []Edge,
 	}
 	return strings.Join(ds, n.Or)
 }
+
+// TauEdges are the tau edges of ir.
+func (ir LivelockFree) TauEdges() []Edge {
+	var taus []Edge
+	for _, e := range ir.Edges {
+		if e.Tau {
+			taus = append(taus, e)
+		}
+	}
+	return taus
+}
+
+// StateMap is the states of ir by name.
+func (ir LivelockFree) StateMap() map[string]State {
+	m := make(map[string]State, len(ir.States))
+	for _, s := range ir.States {
+		m[s.Name] = s
+	}
+	return m
+}
+
+// AxiomNames are the propositions the axioms of ir are, in order.
+func (ir LivelockFree) AxiomNames() []string {
+	names := make([]string, len(ir.Axioms))
+	for i := range ir.Axioms {
+		names[i] = AxiomName(i + 1)
+	}
+	return names
+}
+
+// Declaration is a constant a back end declares: the lines of the comment
+// above it, todo first when the constant is uninterpreted, then the text it
+// was named by.
+type Declaration struct {
+	Comments []string
+	Symbol
+}
+
+// Declarations are the constants ir reads, as a back end declares them, todo
+// marking those of the environment.
+func (ir LivelockFree) Declarations(todo string) []Declaration {
+	syms := ir.Symbols()
+	ds := make([]Declaration, len(syms))
+	for i, s := range syms {
+		var comments []string
+		if Uninterpreted(s) {
+			comments = append(comments, todo)
+		}
+		if s.Text != "" {
+			comments = append(comments, s.Text)
+		}
+		ds[i] = Declaration{Comments: comments, Symbol: s}
+	}
+	return ds
+}

@@ -120,7 +120,9 @@ namespace `)
 
 	WritePredicates(w, ir.Predicates)
 	for _, s := range sides(ir) {
-		WriteAssumptions(w, s.Side, s.IR.Assumptions)
+		if err := WriteAssumptions(w, s.Side, s.IR.Assumptions); err != nil {
+			return fmt.Errorf("lean.WriteRefinement: %w", err)
+		}
 	}
 
 	for _, s := range sides(ir) {

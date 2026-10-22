@@ -42,13 +42,12 @@ func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
 	writeStates(w, side, ir.States)
 	writeSymbols(w, ir)
 	hypotheses := writeAxioms(w, ir)
-	WriteAssumptions(w, side, ir.Assumptions)
+	if err := WriteAssumptions(w, side, ir.Assumptions); err != nil {
+		return fmt.Errorf("lean.WriteFormulaLivelockFree: %w", err)
+	}
 	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
 
-	states := map[string]obligationir.State{}
-	for _, s := range ir.States {
-		states[s.Name] = s
-	}
+	states := ir.StateMap()
 	fmt.Fprintf(w, "def init (s' : St) : Prop :=\n  %s\n\n", obligationir.InitDisjunct(Notation, side, states[ir.Init], ir.InitPost, dotted))
 	writeRelation(w, side, "step", states, ir.Edges)
 	io.WriteString(w, `inductive Reachable : St → Prop where
@@ -56,13 +55,7 @@ func WriteFormulaLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 `)
-	var taus []obligationir.Edge
-	for _, e := range ir.Edges {
-		if e.Tau {
-			taus = append(taus, e)
-		}
-	}
-	writeRelation(w, side, "tauStep", states, taus)
+	writeRelation(w, side, "tauStep", states, ir.TauEdges())
 	WriteLivelockTheorem(w, side, "livelock_free", hypotheses)
 	io.WriteString(w, "\n")
 	return nil
@@ -86,25 +79,21 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 }
 
 func writeSymbols(w io.Writer, ir obligationir.LivelockFree) {
-	for _, s := range ir.Symbols() {
-		if obligationir.Uninterpreted(s) {
-			io.WriteString(w, "-- "+PredicateTODO+"\n")
-		}
-		if s.Text != "" {
-			io.WriteString(w, "-- "+SanitizeComment(s.Text)+"\n")
+	for _, d := range ir.Declarations(PredicateTODO) {
+		for _, c := range d.Comments {
+			io.WriteString(w, "-- "+SanitizeComment(c)+"\n")
 		}
 		result := "Val"
-		if s.Pred {
+		if d.Pred {
 			result = "Prop"
 		}
-		io.WriteString(w, "opaque "+s.Name+" : "+strings.Repeat("Val → ", s.Arity)+result+"\n\n")
+		io.WriteString(w, "opaque "+d.Name+" : "+strings.Repeat("Val → ", d.Arity)+result+"\n\n")
 	}
 }
 
 func writeAxioms(w io.Writer, ir obligationir.LivelockFree) []string {
-	names := make([]string, len(ir.Axioms))
+	names := ir.AxiomNames()
 	for i, a := range ir.Axioms {
-		names[i] = obligationir.AxiomName(i + 1)
 		fmt.Fprintf(w, "def %s : Prop :=\n  %s\n\n", names[i], Notation.SpellFormula(a))
 	}
 	return names

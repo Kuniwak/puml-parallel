@@ -75,7 +75,9 @@ func WriteLivelockFree(w io.Writer, ir obligationir.IRLivelockFree) error {
 	WriteNewLine(w, 2)
 
 	WritePredicates(w, ir.Predicates)
-	WriteAssumptions(w, side, ir.Assumptions)
+	if err := WriteAssumptions(w, side, ir.Assumptions); err != nil {
+		return fmt.Errorf("lean.WriteLivelockFree: %w", err)
+	}
 
 	if err := WriteTransitionSystem(w, side, ir.Init, ir.States, ir.Edges, ir.Predicates); err != nil {
 		return fmt.Errorf("lean.WriteLivelockFree: %w", err)
@@ -104,17 +106,14 @@ func AssumptionNames(side obligationir.Side, as []obligationir.IRAssumption) []s
 // WriteAssumptions declares the proposition each assume note stands for. Like
 // a predicate it is opaque, not True: an assumption taken for granted would
 // discharge the theorem for a diagram it does not hold of.
-func WriteAssumptions(w io.Writer, side obligationir.Side, as []obligationir.IRAssumption) {
+func WriteAssumptions(w io.Writer, side obligationir.Side, as []obligationir.IRAssumption) error {
 	for _, a := range as {
-		WriteLineComment(w, AssumptionTODO)
-		WriteNewLine(w, 1)
-		WriteLineComment(w, string(a.Text))
-		WriteNewLine(w, 1)
-		io.WriteString(w, `opaque `)
-		io.WriteString(w, side.AssumptionName(a.ID))
-		io.WriteString(w, ` : Prop`)
-		WriteNewLine(w, 2)
+		_, err := fmt.Fprintf(w, "-- %s\n-- %s\nopaque %s : Prop\n\n", AssumptionTODO, SanitizeComment(string(a.Text)), side.AssumptionName(a.ID))
+		if err != nil {
+			return fmt.Errorf("lean.WriteAssumptions: %w", err)
+		}
 	}
+	return nil
 }
 
 // WriteHypotheses writes the binders that put the named propositions in scope

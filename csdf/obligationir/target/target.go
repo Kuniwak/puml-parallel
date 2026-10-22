@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/irjson"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
@@ -64,4 +65,17 @@ func Compile(w io.Writer, ir obligationir.LivelockFree, name Name) error {
 	default:
 		return fmt.Errorf("target.Compile: unknown target %q", name)
 	}
+}
+
+// CompileDiagram states the livelock-freedom obligation of d and writes it
+// to w in the format named by name.
+func CompileDiagram(w io.Writer, d *core.Diagram, name Name) error {
+	ir, err := obligationir.BuildFormulaLivelockFree(d)
+	if err != nil {
+		return fmt.Errorf("target.CompileDiagram: %w", err)
+	}
+	if err := Compile(w, ir, name); err != nil {
+		return fmt.Errorf("target.CompileDiagram: %w", err)
+	}
+	return nil
 }
