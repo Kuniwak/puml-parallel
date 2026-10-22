@@ -399,6 +399,70 @@ func TestPromoteComparesAHandWrittenChannelWithTheGlobalOnes(t *testing.T) {
 	}
 }
 
+func TestPromoteWritesAGeneratedEdgeOnlyInTheModesItsFamiliesMoveIn(t *testing.T) {
+	cases := []struct {
+		name    string
+		p       Promotion
+		channel string
+		want    []string
+	}{
+		{"a sync is skipped where one of its families is frozen", Promotion{Modes: []string{"run", "maint"}, Init: "run",
+			Families: []Family{
+				{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}},
+				{Map: "keys", ID: "s", Local: key()},
+			},
+			Syncs: []Sync{{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}}},
+		}, "INSTALL", []string{"run"}},
+		{"a family's own edge is skipped where it is frozen", Promotion{Modes: []string{"run", "maint"}, Init: "run",
+			Families: []Family{{Map: "keys", ID: "s", Local: key(), Frozen: []string{"run"}}},
+		}, "CUT", []string{"maint"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			d, _, err := Promote(c.p)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, e := range d.Edges {
+				if e.Event.Channel == c.channel {
+					got = append(got, e.Src)
+				}
+			}
+			if diff := cmp.Diff(c.want, got); diff != "" {
+				t.Errorf("modes of %s (-want +got):\n%s", c.channel, diff)
+			}
+		})
+	}
+}
+
+func TestPromoteLeavesAHandWrittenEdgeToItsOwnGuard(t *testing.T) {
+	// Setup: a constrain on NEW, and a hand-written edge of its own.
+	halt := mustParse(t, "@empty(doors)")
+	p := Promotion{Modes: []string{"run", "maint"}, Init: "run",
+		Families:   []Family{{Map: "doors", ID: "loc", Local: door()}},
+		Constrains: []Constrain{{Event: ev("NEW", recv("loc")), Guard: mustParse(t, "$loc is a")}},
+		Edges:      []Edge{{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: halt}}}
+
+	// Execute
+	d, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range d.Edges {
+		if e.Event.Channel == "HALT" {
+			if diff := cmp.Diff(halt, e.Guard); diff != "" {
+				t.Errorf("HALT's guard (-want +got):\n%s", diff)
+			}
+		}
+	}
+}
+
 func TestPromoteCarriesTheAssumptions(t *testing.T) {
 	// Setup
 	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
@@ -611,7 +675,24 @@ func doorMonitored(*testing.T) *lts.LTS {
 // for a, 2 for b): HALT leaves run only while no door exists, RESUME
 // returns to run, and in a mode where frozen says the doors are frozen the
 // controller offers none of their events.
+// doorEvents says a label is an event of the door x: one naming x that is
+// not the controller's own HALT, which may name the door it halts on.
+func doorEvents(x string) func(string) bool {
+	return func(label string) bool { return mentions(x)(label) && !strings.HasPrefix(label, "HALT") }
+}
+
 func doorsControlled(frozen func(mode int) bool) *lts.LTS {
+	return doorsHalted(frozen, func(set int) []string {
+		if set == 0 {
+			return []string{"HALT"}
+		}
+		return nil
+	})
+}
+
+// doorsHalted is doorsControlled with the labels halts gives, for the set
+// of doors that exist, leaving run for maint.
+func doorsHalted(frozen func(mode int) bool, halts func(set int) []string) *lts.LTS {
 	controller := lts.New(0)
 	state := func(mode, set int) int { return mode*4 + set }
 	for mode := 0; mode < 2; mode++ {
@@ -630,13 +711,57 @@ func doorsControlled(frozen func(mode int) bool) *lts.LTS {
 			}
 		}
 	}
-	controller.Add(state(0, 0), "HALT", state(1, 0))
+	for set := 0; set < 4; set++ {
+		for _, h := range halts(set) {
+			controller.Add(state(0, set), h, state(1, set))
+		}
+	}
 	for set := 0; set < 4; set++ {
 		controller.Add(state(1, set), "RESUME", state(0, set))
 	}
 	all := func(string) bool { return true }
 	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), controller},
-		[]func(string) bool{mentions("a"), mentions("b"), all})
+		[]func(string) bool{doorEvents("a"), doorEvents("b"), all})
+}
+
+// doorsShutHalted is doors a and b, by hand, in parallel with a controller
+// of run (0) and maint (1) that follows each door, absent (0), shut (1) or
+// wide (2): HALT.x leaves run while the door x is shut.
+func doorsShutHalted() *lts.LTS {
+	controller := lts.New(0)
+	state := func(mode, a, b int) int { return mode*9 + a*3 + b }
+	for mode := 0; mode < 2; mode++ {
+		for a := 0; a < 3; a++ {
+			for b := 0; b < 3; b++ {
+				door := [2]int{a, b}
+				for i, x := range locIDs {
+					to := func(v int) int {
+						d := door
+						d[i] = v
+						return state(mode, d[0], d[1])
+					}
+					switch door[i] {
+					case 0:
+						controller.Add(state(mode, a, b), "NEW."+x, to(1))
+					case 1:
+						controller.Add(state(mode, a, b), "OPENS."+x, to(2))
+						controller.Add(state(mode, a, b), "GONE."+x, to(0))
+						if mode == 0 {
+							controller.Add(state(0, a, b), "HALT."+x, state(1, a, b))
+						}
+					case 2:
+						controller.Add(state(mode, a, b), "SHUTS."+x, to(1))
+					}
+				}
+				if mode == 1 {
+					controller.Add(state(1, a, b), "RESUME", state(0, a, b))
+				}
+			}
+		}
+	}
+	all := func(string) bool { return true }
+	return lts.Parallel([]*lts.LTS{doorInstance("a"), doorInstance("b"), controller},
+		[]func(string) bool{doorEvents("a"), doorEvents("b"), all})
 }
 
 func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
@@ -786,6 +911,33 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 				}},
 			env:  func(t *testing.T) Env { return stock(t, doors) },
 			want: func(*testing.T) *lts.LTS { return doorsControlled(func(int) bool { return false }) },
+		},
+		{
+			name: "a hand-written edge's guard reads its received field",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT", recv("why")), Guard: mustParse(t, "$why is a")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env: func(t *testing.T) Env {
+				env := stock(t, doors)
+				env.Types["why"] = []Value{"a", "b"}
+				env.Atoms["#0 is a"] = func(a []Value) bool { return a[0] == "a" }
+				return env
+			},
+			want: func(*testing.T) *lts.LTS {
+				return doorsHalted(func(int) bool { return false }, func(int) []string { return []string{"HALT.a"} })
+			},
+		},
+		{
+			name: "a hand-written edge's guard reads an entry of a map",
+			p: Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{doors},
+				Edges: []Edge{
+					{Src: "run", Dst: "maint", Event: ev("HALT", recv("loc")), Guard: mustParse(t, "@at(doors[loc], shut)")},
+					{Src: "maint", Dst: "run", Event: ev("RESUME")},
+				}},
+			env:  func(t *testing.T) Env { return stock(t, doors) },
+			want: func(*testing.T) *lts.LTS { return doorsShutHalted() },
 		},
 		{
 			name: "a frozen family takes no event in its mode",

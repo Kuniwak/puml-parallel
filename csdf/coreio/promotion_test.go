@@ -265,6 +265,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nrunning --> nowhere : a\n"), "line 8: running --> nowhere names nowhere"},
 		{"a hand-written edge into the end",
 			promoting("[*] --> running\nrunning --> [*]\n"), "no end edge"},
+		{"the blocks of one map writing its ID apart",
+			promoting("state \"保守\" as maintenance {\n  state \"shipments : t ⇸ Shipment\" as ms <<promote>>\n}\n[*] --> running\n"), "write its ID as s and as t"},
 		{"a second sync of one event",
 			promoting("[*] --> running\nnote as n\n  sync SHIP : shipments(s)\nend note\nnote as m\n  sync SHIP : shipments(s)\nend note\n"), "a second sync of SHIP"},
 		{"a second block of one map",
