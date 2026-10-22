@@ -8,7 +8,8 @@ import (
 
 // FormulaJSON is f as a list of its conjuncts in JSON: an atom in the shape
 // a glue receives it (clause.AtomWire) with the terms its arguments stand
-// for, a builtin by its op, and ∃ by the type it ranges over and its body;
+// for and the name of the environment function it denotes
+// (clause.FunctionOf), a builtin by its op, and ∃ by the type it ranges over and its body;
 // a hint carries no meaning and is not written. It is never nil; a formula
 // that is not well formed (clause.WellFormed) is an error.
 func FormulaJSON(f clause.And) ([]any, error) {
@@ -27,7 +28,11 @@ func formulaJSON(f clause.And) ([]any, error) {
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, map[string]any{"atom": w, "args": termsJSON(terms)})
+			fn, err := clause.FunctionOf(c)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, map[string]any{"atom": w, "function": fn.Name, "args": termsJSON(terms)})
 		case clause.Builtin:
 			b := map[string]any{"builtin": string(c.Op), "args": termsJSON(c.Args)}
 			if c.State != "" {

@@ -15,6 +15,7 @@ func TestFormulaJSONCarriesAtomsAsAGlueReceivesThem(t *testing.T) {
 	f := mustParse(t, "${m[x].stock'} = $stock - $q ∧ @ne(from, to) ∧ @exists(m2 : locations) (@at(m2[x], open))")
 	want := `[
 {"atom":{"text":[""," = "," - ",""],"holes":[0,1,2],"primed":[true,false,false]},
+ "function":"$_0 = $_1 - $_2",
  "args":[{"field":{"of":{"index":{"map":{"free":"m","primed":true},"key":{"free":"x"}}},"name":"stock"}},{"free":"stock"},{"free":"q"}]},
 {"builtin":"ne","args":[{"free":"from"},{"free":"to"}]},
 {"exists":"locations","body":[{"builtin":"at","args":[{"index":{"map":{"bound":0},"key":{"free":"x"}}}],"state":"open"}]}
@@ -46,7 +47,7 @@ func TestFormulaJSONCarriesAtomsAsAGlueReceivesThem(t *testing.T) {
 func TestFormulaJSONOfAnAtomUnderABinder(t *testing.T) {
 	// Setup
 	f := mustParse(t, "@exists(v : T) ($v > 0)")
-	want := `[{"exists":"T","body":[{"atom":{"text":[""," > 0"],"holes":[0],"primed":[false]},"args":[{"bound":0}]}]}]`
+	want := `[{"exists":"T","body":[{"atom":{"text":[""," > 0"],"holes":[0],"primed":[false]},"function":"$_0 > 0","args":[{"bound":0}]}]}]`
 
 	// Execute
 	clauses, err := FormulaJSON(f)
