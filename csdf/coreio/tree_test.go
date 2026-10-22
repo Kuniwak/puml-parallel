@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -11,11 +12,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestComposeTreeEvaluatesATreeOfFormulas(t *testing.T) {
-	// Setup: a producer puts a value its consumer takes, the put hidden.
+func TestComposeTree(t *testing.T) {
 	diagrams := map[string]string{
-		"p.puml": "@startuml\nstate \"p\" as p\np : n\n[*] --> p : $n' = 0\np --> p : put!n ; ; $n' = $n + 1\n@enduml\n",
-		"c.puml": "@startuml\nstate \"c\" as c\nc : m\n[*] --> c : $m' = 0\nc --> c : put?k ; $k > $m ; @eq(m', k)\n@enduml\n",
+		"p.puml":   "@startuml\nstate \"p\" as p\np : n\n[*] --> p : $n' = 0\np --> p : put!n ; ; $n' = $n + 1\n@enduml\n",
+		"c.puml":   "@startuml\nstate \"c\" as c\nc : m\n[*] --> c : $m' = 0\nc --> c : put?k ; $k > $m ; @eq(m', k)\n@enduml\n",
+		"in.puml":  "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\nstate \"s2\" as s2\n[*] --> s0\ns0 --> s1 : in\ns1 --> s2 : sync\n@enduml\n",
+		"out.puml": "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\nstate \"s2\" as s2\n[*] --> s0\ns0 --> s1 : sync\ns1 --> s2 : out\n@enduml\n",
+		"one.puml": "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\n[*] --> s0\ns0 --> s1 : sync\n@enduml\n",
 	}
 	load := func(path string) (*core.Diagram, error) {
 		src, ok := diagrams[path]
@@ -24,33 +27,48 @@ func TestComposeTreeEvaluatesATreeOfFormulas(t *testing.T) {
 		}
 		return Read(src)
 	}
-	expr, err := csdf.ParseExpr([]byte(`{"op": "HIDE", "channels": ["put"], "proc":
-		{"op": "INTERFACE_PARALLEL", "sync": ["put"], "procs": [{"op": "REFER", "path": "p.puml"}, {"op": "REFER", "path": "c.puml"}]}}`))
-	if err != nil {
-		t.Fatal(err)
+	testCases := map[string]struct {
+		Expr string
+		Want string
+	}{
+		// The consumer's k is the value the producer sends, so hiding put
+		// binds nothing new.
+		"a hidden channel of formulas": {
+			Expr: `{"op": "HIDE", "channels": ["put"], "proc": {"op": "INTERFACE_PARALLEL", "sync": ["put"], "procs": [{"op": "REFER", "path": "p.puml"}, {"op": "REFER", "path": "c.puml"}]}}`,
+			Want: "@startuml\nstate \"(p, c)\" as p_c\np_c : n\np_c : m\n[*] --> p_c : $n' = 0 ∧ $m' = 0\n" +
+				"p_c --> p_c : tau ; $n > $m ; $n > $m ∧ $n' = $n + 1 ∧ @eq(m', n)\n@enduml\n",
+		},
+		"the tree of in_out_tree.json": {
+			Expr: `{"op": "HIDE", "channels": ["sync"], "proc": {"op": "INTERFACE_PARALLEL", "sync": ["sync"], "procs": [{"op": "REFER", "path": "in.puml"}, {"op": "REFER", "path": "out.puml"}]}}`,
+			Want: "@startuml\nstate \"(s0, s0)\" as s0_s0\nstate \"(s1, s0)\" as s1_s0\nstate \"(s2, s1)\" as s2_s1\nstate \"(s2, s2)\" as s2_s2\n" +
+				"[*] --> s0_s0\ns0_s0 --> s1_s0 : in\ns1_s0 --> s2_s1 : tau\ns2_s1 --> s2_s2 : out\n@enduml\n",
+		},
+		"three processes, which can only move together": {
+			Expr: `{"op": "INTERFACE_PARALLEL", "sync": ["sync"], "procs": [{"op": "REFER", "path": "one.puml"}, {"op": "REFER", "path": "one.puml"}, {"op": "REFER", "path": "one.puml"}]}`,
+			Want: "@startuml\nstate \"((s0, s0), s0)\" as s0_s0_s0\nstate \"((s1, s1), s1)\" as s1_s1_s1\n" +
+				"[*] --> s0_s0_s0\ns0_s0_s0 --> s1_s1_s1 : sync\n@enduml\n",
+		},
 	}
 
-	// Execute
-	d, err := ComposeTree(expr, load)
-	if err != nil {
-		t.Fatal(err)
-	}
-	canonical, err := Canonical(d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := Write(canonical)
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			expr, err := csdf.ParseExpr([]byte(tc.Expr))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The consumer's k is the value the producer sends, so hiding put binds
-	// nothing new.
-	want := "@startuml\nstate \"(p, c)\" as p_c\np_c : n\np_c : m\n[*] --> p_c : $n' = 0 ∧ $m' = 0\n" +
-		"p_c --> p_c : tau ; $n > $m ; $n > $m ∧ $n' = $n + 1 ∧ @eq(m', n)\n@enduml\n"
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Error(diff)
+			// Execute
+			got, err := ComposeTree(expr, load)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tc.Want, tools(t, got)); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 
@@ -62,97 +80,11 @@ func TestComposeTreeNamesTheLeafItCannotLoad(t *testing.T) {
 	}
 
 	// Execute
-	_, err = ComposeTree(expr, func(path string) (*core.Diagram, error) { return nil, fmt.Errorf("no %s", path) })
+	_, err = ComposeTree(expr, func(path string) (*core.Diagram, error) { return nil, fmt.Errorf("cannot read") })
 
 	// Assert
-	if err == nil {
-		t.Error("err = nil, want the missing leaf named")
-	}
-}
-
-// pipeline is the diagram the tools write for expr, run one by one as a
-// shell would: csdfparallel for an INTERFACE_PARALLEL, its output read back,
-// and csdfhide for a HIDE, each leaf loaded from base.
-func pipeline(t *testing.T, base string, expr csdf.Expr) *core.Diagram {
-	t.Helper()
-	switch e := expr.(type) {
-	case *csdf.ReferExpr:
-		d, err := Load(filepath.Join(base, e.Path))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return d
-	case *csdf.HideExpr:
-		d, err := core.Hide(pipeline(t, base, e.Proc), e.Channels)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return d
-	case *csdf.InterfaceParallelExpr:
-		var ds []*core.Diagram
-		for _, p := range e.Procs {
-			ds = append(ds, pipeline(t, base, p))
-		}
-		composed, err := core.ComposeAll(ds, e.Sync)
-		if err != nil {
-			t.Fatal(err)
-		}
-		readBack, err := Read(tools(t, composed))
-		if err != nil {
-			t.Fatal(err)
-		}
-		return readBack
-	}
-	t.Fatalf("no expression %T", expr)
-	return nil
-}
-
-func TestComposeTreeIsThePipelineOfItsTools(t *testing.T) {
-	// Setup
-	const base = "../../examples/valid"
-	src, err := os.ReadFile(filepath.Join(base, "in_out_tree.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	expr, err := csdf.ParseExpr(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := tools(t, pipeline(t, base, expr))
-
-	// Execute
-	got, err := ComposeTree(expr, FileLoader(base))
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(want, tools(t, got)); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestComposeTreeFoldsMoreThanTwoProcs(t *testing.T) {
-	// Setup: three processes synchronised on the one event they share.
-	load := func(path string) (*core.Diagram, error) {
-		return Read("@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\n[*] --> s0\ns0 --> s1 : sync\n@enduml\n")
-	}
-	expr, err := csdf.ParseExpr([]byte(`{"op": "INTERFACE_PARALLEL", "sync": ["sync"], "procs": [{"op": "REFER", "path": "A"}, {"op": "REFER", "path": "B"}, {"op": "REFER", "path": "C"}]}`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Execute
-	got, err := ComposeTree(expr, load)
-
-	// Assert: the three can only move together.
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "@startuml\nstate \"((s0, s0), s0)\" as s0_s0_s0\nstate \"((s1, s1), s1)\" as s1_s1_s1\n" +
-		"[*] --> s0_s0_s0\ns0_s0_s0 --> s1_s1_s1 : sync\n@enduml\n"
-	if diff := cmp.Diff(want, tools(t, got)); diff != "" {
-		t.Error(diff)
+	if err == nil || !strings.Contains(err.Error(), "missing.puml") {
+		t.Errorf("err = %v, want missing.puml named", err)
 	}
 }
 
