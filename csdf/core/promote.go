@@ -58,8 +58,9 @@ type Constrain struct {
 // the global start edge, which may only say that maps are empty, as they
 // start, and give the start mode's controller variables their values.
 // Assumes are the assume notes of the global diagram, which the expansion
-// carries.
+// carries. Labels label the modes, for the reader alone.
 type Promotion struct {
+	Labels     map[string]string
 	Assumes    []Assumption
 	Modes      []string
 	Vars       map[string][]string
@@ -84,7 +85,7 @@ type Promotion struct {
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
-	out := &Diagram{States: slices.Clone(p.Modes), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
+	out := &Diagram{States: slices.Clone(p.Modes), Labels: maps.Clone(p.Labels), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning

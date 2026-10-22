@@ -83,7 +83,8 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				Modes: []string{"running"}, Init: "running",
+				Labels: map[string]string{"running": "稼働中"},
+				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{
 					{Map: "locations", ID: "l", Local: loc},
 					{Map: "shipments", ID: "s", Local: shp},
@@ -118,7 +119,8 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				Modes: []string{"running"}, Init: "running",
+				Labels: map[string]string{"running": "稼働中"},
+				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
@@ -138,7 +140,8 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				Modes: []string{"running"}, Init: "running",
+				Labels: map[string]string{"running": "稼働中"},
+				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
@@ -162,7 +165,8 @@ maint --> running : RESUME ; ; $件数' = 0
 @enduml
 `,
 			want: core.Promotion{
-				Modes: []string{"running", "maint"}, Init: "running",
+				Labels: map[string]string{"maint": "保守", "running": "稼働中"},
+				Modes:  []string{"running", "maint"}, Init: "running",
 				Vars:     map[string][]string{"running": {"件数"}, "maint": {"理由"}},
 				InitPost: mustParse(t, "@empty(shipments') ∧ $件数' = 0"),
 				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp, Frozen: []string{"maint"}}},
@@ -188,7 +192,8 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				Modes: []string{"running"}, Init: "running",
+				Labels: map[string]string{"running": "稼働中"},
+				Modes:  []string{"running"}, Init: "running",
 				Families:   []core.Family{{Map: "shipments", ID: "s", Local: shp}},
 				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
 			},
@@ -220,7 +225,8 @@ end note
 @enduml
 `,
 			want: core.Promotion{
-				Modes: []string{"running", "degraded"}, Init: "running",
+				Labels: map[string]string{"degraded": "縮退中", "running": "稼働中"},
+				Modes:  []string{"running", "degraded"}, Init: "running",
 				InitPost: mustParse(t, "@empty(shipments') ∧ @empty(locations')"),
 				Families: []core.Family{
 					{Map: "shipments", ID: "s", Local: shp},

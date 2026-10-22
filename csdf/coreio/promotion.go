@@ -17,7 +17,7 @@ import (
 const id = ident.Pattern
 
 var (
-	stateDeclRe = pumlline.StateDecl
+	stateDeclRe = pumlline.StateDeclLabelled
 	edgeRe      = pumlline.Edge
 	mapDeclRe   = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
 	startRe     = pumlline.Start
@@ -118,7 +118,7 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if m := pumlline.CompositeOpen.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		if err := r.newMode(m[2]); err != nil {
+		if err := r.newMode(m[2], pumlline.Unquote(m[1])); err != nil {
 			return err
 		}
 		r.depth++
@@ -144,7 +144,7 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if m := stateDeclRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
-		return r.newMode(m[1])
+		return r.newMode(m[2], pumlline.Unquote(m[1]))
 	}
 	if m := edgeRe.FindStringSubmatch(l); m != nil && r.depth == 0 {
 		return r.edge(l, m[1], m[2])
@@ -286,12 +286,18 @@ func (r *promotionReader) mode() string {
 	return r.p.Modes[len(r.p.Modes)-1]
 }
 
-// newMode starts the mode named alias.
-func (r *promotionReader) newMode(alias string) error {
+// newMode starts the mode named alias, labelled label.
+func (r *promotionReader) newMode(alias, label string) error {
 	if slices.Contains(r.p.Modes, alias) {
 		return fmt.Errorf("a second state %s", alias)
 	}
 	r.p.Modes = append(r.p.Modes, alias)
+	if label != alias {
+		if r.p.Labels == nil {
+			r.p.Labels = map[string]string{}
+		}
+		r.p.Labels[alias] = label
+	}
 	r.holds[alias], r.moves[alias] = map[string]bool{}, map[string]bool{}
 	return nil
 }

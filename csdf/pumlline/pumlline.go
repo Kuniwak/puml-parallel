@@ -33,6 +33,8 @@ var (
 	NoteEnd = regexp.MustCompile(`^end\s+note$`)
 	// StateDecl declares a plain state: its alias.
 	StateDecl = regexp.MustCompile(`^state\s+"(?:[^"\\]|\\.)*"\s+as\s+(` + id + `)$`)
+	// StateDeclLabelled declares a plain state: its label, then its alias.
+	StateDeclLabelled = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+(` + id + `)$`)
 	// Edge is an edge between two states, or into the end: its source and
 	// destination.
 	Edge = regexp.MustCompile(`^(` + id + `)\s*-->\s*(` + id + `|\[\*\])`)

@@ -254,3 +254,19 @@ func TestRestrictKeepsTheControllerVariables(t *testing.T) {
 		}
 	}
 }
+
+func TestRestrictKeepsTheTitleAndTheLabels(t *testing.T) {
+	// Setup
+	d := &Diagram{Name: "N", Labels: map[string]string{"G": "稼働中"}, States: []string{"G"}, Init: "G", Vars: map[string][]string{"G": {"doors"}}}
+
+	// Execute
+	got, _, err := Restrict(d, []string{"doors"}, []string{"doors"})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "N" || got.Labels["G"] != "稼働中" {
+		t.Errorf("Name %q, Labels %v", got.Name, got.Labels)
+	}
+}
