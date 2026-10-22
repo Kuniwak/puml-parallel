@@ -3,6 +3,7 @@ package target_test
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,53 +27,68 @@ func theorem(out, name string) string {
 // assumes of its runs; livelock_free_* takes its own side's assumptions,
 // and the FD conclusion is conditional on them.
 func TestEachTheoremIsStatedUnderItsOwnHypotheses(t *testing.T) {
-	t_, f, fd := obligationir.IRRefinementModeTrace, obligationir.IRRefinementModeStableFailure, obligationir.IRRefinementModeFailuresDivergence
-	rows := []struct {
+	const (
+		axiom  = "csdf_axiom_1"
+		fair   = "assume_fair_S"
+		steady = "assume_steady_I"
+	)
+	// The theorems of each model, and the hypotheses each is stated under;
+	// every other hypothesis must be absent from it.
+	theorems := map[obligationir.IRRefinementMode]map[string][]string{
+		obligationir.IRRefinementModeTrace: {
+			"refines_t": {axiom}, "initialisable_S": {axiom}, "initialisable_I": {axiom},
+		},
+		obligationir.IRRefinementModeStableFailure: {
+			"refines_f": {axiom}, "initialisable_S": {axiom}, "initialisable_I": {axiom},
+		},
+		obligationir.IRRefinementModeFailuresDivergence: {
+			"refines_f": {axiom}, "initialisable_S": {axiom}, "initialisable_I": {axiom},
+			"livelock_free_S": {axiom, fair}, "livelock_free_I": {axiom, steady},
+		},
+	}
+	type row struct {
 		Mode       obligationir.IRRefinementMode
+		BackEnd    target.Name
 		Theorem    string
 		Hypothesis string
 		Present    bool
-	}{
-		{t_, "refines_t", "csdf_axiom_1", true},
-		{t_, "refines_t", "assume_fair_S", false},
-		{t_, "refines_t", "assume_steady_I", false},
-		{t_, "initialisable_S", "csdf_axiom_1", true},
-		{t_, "initialisable_S", "assume_fair_S", false},
-		{t_, "initialisable_I", "assume_steady_I", false},
-		{f, "refines_f", "csdf_axiom_1", true},
-		{f, "refines_f", "assume_fair_S", false},
-		{f, "refines_f", "assume_steady_I", false},
-		{f, "initialisable_I", "assume_steady_I", false},
-		{fd, "refines_f", "assume_steady_I", false},
-		{fd, "refines_f", "assume_fair_S", false},
-		{fd, "livelock_free_I", "assume_steady_I", true},
-		{fd, "livelock_free_I", "assume_fair_S", false},
-		{fd, "initialisable_I", "assume_steady_I", false},
+	}
+	var rows []row
+	for mode, ts := range theorems {
+		for theorem, under := range ts {
+			for _, h := range []string{axiom, fair, steady} {
+				for _, backEnd := range []target.Name{target.NameIsabelle, target.NameLean} {
+					rows = append(rows, row{mode, backEnd, theorem, h, slices.Contains(under, h)})
+				}
+			}
+		}
 	}
 
-	for _, row := range rows {
-		for _, backEnd := range []target.Name{target.NameIsabelle, target.NameLean} {
-			t.Run(fmt.Sprintf("%s/%s/%s/%s/%v", row.Mode, backEnd, row.Theorem, row.Hypothesis, row.Present), func(t *testing.T) {
-				// Setup
-				spec, impl := load(t, "map"), load(t, "fair_countdown")
-				var sb strings.Builder
-
-				// Execute
-				err := target.CompileDiagrams(&sb, row.Mode, spec, impl, backEnd)
-
-				// Assert
-				if err != nil {
-					t.Fatal(err)
-				}
-				stmt := theorem(sb.String(), row.Theorem)
-				if stmt == "" {
-					t.Fatalf("no theorem %s in\n%s", row.Theorem, sb.String())
-				}
-				if got := strings.Contains(stmt, row.Hypothesis); got != row.Present {
-					t.Errorf("%s under %s: %v, want %v: %s", row.Theorem, row.Hypothesis, got, row.Present, stmt)
-				}
-			})
+	for _, r := range rows {
+		verb := "lacks"
+		if r.Present {
+			verb = "takes"
 		}
+		t.Run(fmt.Sprintf("in %s for %s, %s %s", r.Mode, r.BackEnd, r.Theorem, verb+" "+r.Hypothesis), func(t *testing.T) {
+			// Setup: the spec assumes fair; the impl assumes steady.
+			spec, impl := load(t, "map"), load(t, "fair_countdown")
+			var sb strings.Builder
+
+			// Execute
+			err := target.CompileDiagrams(&sb, r.Mode, spec, impl, r.BackEnd)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			stmt := theorem(sb.String(), r.Theorem)
+			if stmt == "" {
+				t.Fatalf("no theorem %s in\n%s", r.Theorem, sb.String())
+			}
+			if got := strings.Contains(stmt, r.Hypothesis); got != r.Present {
+				t.Errorf("%s under %s: %v, want %v: %s", r.Theorem, r.Hypothesis, got, r.Present, stmt)
+			}
+		})
 	}
 }
 

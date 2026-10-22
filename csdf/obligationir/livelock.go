@@ -102,14 +102,22 @@ func (ir LivelockFree) Validate() error {
 // obligation.Step refuses; a sent field that is neither a
 // variable of the source nor a field e receives, which would be free.
 func fieldsBound(e Edge, states map[string]State) error {
-	src := states[e.Src].Vars
+	srcState, ok := states[e.Src]
+	if !ok {
+		return fmt.Errorf("no state %s", e.Src)
+	}
+	dstState, ok := states[e.Dst]
+	if !ok {
+		return fmt.Errorf("no state %s", e.Dst)
+	}
+	src := srcState.Vars
 	bound := map[string]bool{}
 	for _, v := range src {
 		bound[v] = true
 	}
 	received := map[string]bool{}
 	for _, f := range e.Received() {
-		if f == "" || received[f] || core.ReceivesOver(f, src, states[e.Dst].Vars) {
+		if f == "" || received[f] || core.ReceivesOver(f, src, dstState.Vars) {
 			return fmt.Errorf("it receives %q twice, by no name or over a variable of %s or %s", f, e.Src, e.Dst)
 		}
 		received[f] = true
