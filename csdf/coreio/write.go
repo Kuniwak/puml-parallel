@@ -9,7 +9,8 @@ import (
 )
 
 // Write writes d in the syntax Read reads, so that Read(Write(d)) is d up to
-// α-equivalence of its clauses. A state is named by its ID. The syntax holds
+// α-equivalence of its clauses: Read keeps the states in the order Write
+// writes them, which is d's. A state is named by its ID. The syntax holds
 // one end edge, so a diagram with more is an error.
 func Write(d *core.Diagram) (string, error) {
 	if len(d.Ends) > 1 {

@@ -9,27 +9,30 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
-func TestWriteWritesTheSyntaxReadReads(t *testing.T) {
-	cases := []struct {
+// written are diagrams with the text Write writes of them.
+func written(t *testing.T) []struct {
+	name string
+	d    *core.Diagram
+	want string
+} {
+	return []struct {
 		name string
-		d    func(t *testing.T) *core.Diagram
+		d    *core.Diagram
 		want string
 	}{
 		{
 			name: "states, variables, the start edge and edges",
-			d: func(t *testing.T) *core.Diagram {
-				return &core.Diagram{
-					States:   []string{"s"},
-					Vars:     map[string][]string{"s": {"x"}},
-					Init:     "s",
-					InitPost: mustParse(t, "$x' = 0"),
-					Edges: []core.Edge{
-						{Src: "s", Dst: "s", Event: core.Event{Channel: "inc", Fields: []core.Field{{Send: true, Name: "x"}}},
-							Guard: mustParse(t, "$x < 1"), Post: mustParse(t, "$x' = $x + 1")},
-						{Src: "s", Dst: "s", Event: core.Event{Channel: "reset"}, Post: mustParse(t, "$x' = 0")},
-						{Src: "s", Dst: "s", Event: core.Event{Channel: "look"}, Guard: mustParse(t, "$x ; は 0")},
-					},
-				}
+			d: &core.Diagram{
+				States:   []string{"s"},
+				Vars:     map[string][]string{"s": {"x"}},
+				Init:     "s",
+				InitPost: mustParse(t, "$x' = 0"),
+				Edges: []core.Edge{
+					{Src: "s", Dst: "s", Event: core.Event{Channel: "inc", Fields: []core.Field{{Send: true, Name: "x"}}},
+						Guard: mustParse(t, "$x < 1"), Post: mustParse(t, "$x' = $x + 1")},
+					{Src: "s", Dst: "s", Event: core.Event{Channel: "reset"}, Post: mustParse(t, "$x' = 0")},
+					{Src: "s", Dst: "s", Event: core.Event{Channel: "look"}, Guard: mustParse(t, "$x ; は 0")},
+				},
 			},
 			want: `@startuml
 state "s" as s
@@ -43,16 +46,15 @@ s --> s : look ; $x \; は 0
 		},
 		{
 			name: "∃, received fields and an end edge",
-			d: func(t *testing.T) *core.Diagram {
-				return &core.Diagram{
-					States: []string{"a", "b"},
-					Init:   "a",
-					Edges: []core.Edge{
-						{Src: "a", Dst: "b", Event: core.Event{Channel: "put", Fields: []core.Field{{Name: "k"}}},
-							Guard: mustParse(t, "@exists(y : Y) ($y < $k)")},
-					},
-					Ends: []core.End{{Src: "b", Guard: mustParse(t, "片付いている")}},
-				}
+			d: &core.Diagram{
+				States: []string{"a", "b"},
+				Vars:   map[string][]string{},
+				Init:   "a",
+				Edges: []core.Edge{
+					{Src: "a", Dst: "b", Event: core.Event{Channel: "put", Fields: []core.Field{{Name: "k"}}},
+						Guard: mustParse(t, "@exists(y : Y) ($y < $k)")},
+				},
+				Ends: []core.End{{Src: "b", Guard: mustParse(t, "片付いている")}},
 			},
 			want: `@startuml
 state "a" as a
@@ -63,14 +65,31 @@ b --> [*] : 片付いている
 @enduml
 `,
 		},
+		{
+			name: "states in an order of their own",
+			d: &core.Diagram{
+				States: []string{"z", "a"},
+				Vars:   map[string][]string{"z": {"x"}},
+				Init:   "a",
+				Edges:  []core.Edge{{Src: "a", Dst: "z", Event: core.Event{Channel: "go"}}},
+			},
+			want: `@startuml
+state "z" as z
+z : x
+state "a" as a
+[*] --> a
+a --> z : go
+@enduml
+`,
+		},
 	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			// Setup
-			d := c.d(t)
+}
 
+func TestWrite(t *testing.T) {
+	for _, c := range written(t) {
+		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			got, err := Write(d)
+			got, err := Write(c.d)
 
 			// Assert
 			if err != nil {
@@ -79,24 +98,30 @@ b --> [*] : 片付いている
 			if diff := cmp.Diff(c.want, got); diff != "" {
 				t.Errorf("Write (-want +got):\n%s", diff)
 			}
-			back, err := Read(got)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if diff := cmp.Diff(normalised(d), back, sameClauses); diff != "" {
-				t.Errorf("Read(Write(d)) (-d +got):\n%s", diff)
-			}
 		})
 	}
 }
 
-// normalised is d as Read gives it back: every state in Vars.
-func normalised(d *core.Diagram) *core.Diagram {
-	out := *d
-	if out.Vars == nil {
-		out.Vars = map[string][]string{}
+// TestReadOfWriteIsTheDiagram reads back what Write wrote: Read keeps the
+// order the states are written in, and gives Vars even when it is empty.
+func TestReadOfWriteIsTheDiagram(t *testing.T) {
+	for _, c := range written(t) {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			text := c.want
+
+			// Execute
+			got, err := Read(text)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(c.d, got, sameClauses); diff != "" {
+				t.Errorf("Read(Write(d)) (-d +got):\n%s", diff)
+			}
+		})
 	}
-	return &out
 }
 
 func TestWriteRefuses(t *testing.T) {
