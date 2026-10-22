@@ -332,20 +332,17 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 	return nil
 }
 
+// notYetEnd says why a global end edge is refused: in CSP the promoted
+// term terminates only when every process of it does, the instances among
+// them, and they do not, so what the controller's termination means is
+// not defined yet (docs/CLAUSE_DESIGN.md).
+const notYetEnd = "is not supported yet by the formula promotion: what the controller's termination means beside instances that never terminate is not defined yet (#76)"
+
 // edge reads a hand-written edge between modes, l, from src to dst.
 func (r *promotionReader) edge(l, src, dst string) error {
 	name := src + " --> " + dst
 	if dst == "[*]" {
-		// The controller's termination in src: its label is a guard alone.
-		var guard clause.And
-		if _, label, ok := strings.Cut(l, ":"); ok {
-			var err error
-			if guard, err = clause.ParseAuthored(strings.TrimSpace(label)); err != nil {
-				return located{fmt.Errorf("%s: %w", name, err)}
-			}
-		}
-		r.p.Ends = append(r.p.Ends, core.End{Src: src, Guard: guard})
-		return nil
+		return fmt.Errorf("%s: a global end edge %s", name, notYetEnd)
 	}
 	e, err := readEdge(l, r.lineNo, clause.ParseAuthored)
 	if err != nil {

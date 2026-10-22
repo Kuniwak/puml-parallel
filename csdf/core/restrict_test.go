@@ -1,7 +1,6 @@
 package core
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -269,30 +268,5 @@ func TestRestrictKeepsTheTitleAndTheLabels(t *testing.T) {
 	}
 	if got.Name != "N" || got.Labels["G"] != "稼働中" {
 		t.Errorf("Name %q, Labels %v", got.Name, got.Labels)
-	}
-}
-
-func TestRestrictDropsWhatAnEndEdgeReadsOfALeftOutMap(t *testing.T) {
-	// Setup
-	p := fitting(plainDoor())
-	p.Ends = []End{{Src: p.Init, Guard: mustParse(t, "@empty(doors) ∧ @empty(keys)")}}
-	full, _, err := Promote(p)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []End{{Src: p.Init, Guard: mustParse(t, "@empty(keys)")}}
-
-	// Execute
-	got, warnings, err := Restrict(full, []string{"doors", "keys"}, []string{"keys"})
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(want, got.Ends); diff != "" {
-		t.Errorf("end edges (-want +got):\n%s", diff)
-	}
-	if !slices.ContainsFunc(warnings, func(w Warning) bool { return w.Event == p.Init+" --> [*]" && strings.Contains(w.Text, "@empty(doors)") }) {
-		t.Errorf("the dropped clause is not reported: %v", warnings)
 	}
 }

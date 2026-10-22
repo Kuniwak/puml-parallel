@@ -269,24 +269,6 @@ state "稼働中" as running {
 `, body)
 }
 
-func TestReadPromotionReadsAGlobalEndEdge(t *testing.T) {
-	// Setup
-	source := promoting("[*] --> running\nrunning --> [*] : $shipments が空\n")
-	include := files(map[string]string{"S.puml": shipment})
-	want := []core.End{{Src: "running", Guard: mustParse(t, "$shipments が空")}}
-
-	// Execute
-	got, err := ReadPromotion(source, include)
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(want, got.Ends, sameClauses); diff != "" {
-		t.Errorf("end edges (-want +got):\n%s", diff)
-	}
-}
-
 func TestReadPromotionRefuses(t *testing.T) {
 	cases := []struct {
 		name, source, want string
@@ -313,8 +295,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nrunning --> running : a?? ; ; \n"), "line 8"},
 		{"a hand-written edge into no state",
 			promoting("[*] --> running\nrunning --> nowhere : a\n"), "line 8: running --> nowhere names nowhere"},
-		{"a global end edge whose guard does not parse",
-			promoting("[*] --> running\nrunning --> [*] : @nothing(x)\n"), "running --> [*]"},
+		{"a global end edge",
+			promoting("[*] --> running\nrunning --> [*]\n"), "a global end edge is not supported yet"},
 		{"the blocks of one map writing its ID apart",
 			promoting("state \"保守\" as maintenance {\n  state \"shipments : t ⇸ Shipment\" as ms <<promote>>\n}\n[*] --> running\n"), "write its ID as s and as t"},
 		{"a second sync of one event",

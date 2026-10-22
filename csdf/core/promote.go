@@ -58,8 +58,7 @@ type Constrain struct {
 // the global start edge, which may only say that maps are empty, as they
 // start, and give the start mode's controller variables their values.
 // Assumes are the assume notes of the global diagram, which the expansion
-// carries. Ends are its end edges, the controller's own termination in a
-// mode. Labels label the modes, for the reader alone.
+// carries. Labels label the modes, for the reader alone.
 type Promotion struct {
 	Labels     map[string]string
 	Assumes    []Assumption
@@ -68,7 +67,6 @@ type Promotion struct {
 	Init       string
 	InitPost   clause.And
 	Edges      []Edge
-	Ends       []End
 	Families   []Family
 	Syncs      []Sync
 	Constrains []Constrain
@@ -119,9 +117,6 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
 	out.InitPost = Conj(clause.And{Conjuncts: start}, given)
-	if out.Ends, err = globalEnds(p, maps); err != nil {
-		return nil, nil, fmt.Errorf("core.Promote: %w", err)
-	}
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
@@ -310,32 +305,6 @@ func controlled(p Promotion, maps []string, generated []Edge) ([]Edge, error) {
 			}
 		}
 		e.Post = Conj(Unchanged(maps), own)
-		out = append(out, e)
-	}
-	return out, nil
-}
-
-// globalEnds are the end edges of p, the controller's (docs/CLAUSE_DESIGN.md):
-// each from a mode, its guard reading the maps as they are and the
-// controller variables of that mode.
-func globalEnds(p Promotion, maps []string) ([]End, error) {
-	var out []End
-	for _, e := range p.Ends {
-		name := e.Src + " --> [*]"
-		if !slices.Contains(p.Modes, e.Src) {
-			return nil, fmt.Errorf("%s: %s is no mode", name, e.Src)
-		}
-		if err := clause.WellFormed(e.Guard); err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
-		}
-		for _, v := range clause.FreeVars(e.Guard) {
-			switch {
-			case v.Primed:
-				return nil, fmt.Errorf("%s reads %s', a value after the step: it reads the maps as they are", name, v.Name)
-			case !slices.Contains(maps, v.Name) && !slices.Contains(p.Vars[e.Src], v.Name):
-				return nil, fmt.Errorf("%s reads %s, which is no map and no variable of %s", name, v.Name, e.Src)
-			}
-		}
 		out = append(out, e)
 	}
 	return out, nil

@@ -358,10 +358,8 @@ end note
   received fields; its post writes its target's controller variables, and
   primes a map only as its frame `m' = m`, which promotion writes if left
   out. It has no `!` field and no primed read in its guard, and it is not on
-  a channel that a generated edge of the global diagram carries.
-- A global end edge, `mode --> [*] : guard`, is the controller's
-  termination in that mode: its guard reads the maps as they are and the
-  mode's controller variables, and it is carried into the expansion.
+  a channel that a generated edge of the global diagram carries. There is
+  no end edge.
 - The post of the global start edge says `@empty(m')` of maps, which start
   empty anyway, and gives the start mode's controller variables their
   values; any other post is refused.
