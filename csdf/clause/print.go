@@ -28,6 +28,12 @@ func Print(f Formula) (string, error) {
 	return pr.and(n, 0)
 }
 
+// PrintTerm writes the term t as a hole's content writes it, ${t}: t
+// stands under no binder, so an index in it is an error.
+func PrintTerm(t Term) (string, error) {
+	return (&printer{avoid: map[string]bool{}}).term(t)
+}
+
 type printer struct {
 	avoid map[string]bool // the free names, which no bound name may take
 	scope []string        // the names printed for the enclosing binders, innermost last

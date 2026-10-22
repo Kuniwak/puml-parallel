@@ -13,6 +13,12 @@ import (
 // writes them, which is d's. A state is named by its ID. The syntax holds
 // one end edge, so a diagram with more is an error.
 func Write(d *core.Diagram) (string, error) {
+	return write(d, func(core.Edge) (string, error) { return "", nil })
+}
+
+// write is Write, with the line comment gloss gives written above each
+// edge it gives one for.
+func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, error) {
 	if len(d.Ends) > 1 {
 		return "", fmt.Errorf("coreio.Write: %d end edges; the syntax holds one end edge", len(d.Ends))
 	}
@@ -37,6 +43,13 @@ func Write(d *core.Diagram) (string, error) {
 		post, err := clause.Print(e.Post)
 		if err != nil {
 			return "", fmt.Errorf("coreio.Write: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+		}
+		g, err := gloss(e)
+		if err != nil {
+			return "", fmt.Errorf("coreio.Write: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+		}
+		if g != "" {
+			b.WriteString("' " + g + "\n")
 		}
 		fmt.Fprintf(&b, "%s --> %s : %s\n", e.Src, e.Dst, edgeLabel(event(e.Event), guard, post))
 	}

@@ -30,12 +30,14 @@ independent maps, which says almost nothing.
 language. A promotion whose clauses are formulas (docs/CLAUSE_DESIGN.md) is
 read by `csdf/coreio` in the same syntax, and keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
-families and hand-written global edges, a post on the global start edge and
-global `assume` notes (docs/CLAUSE_DESIGN.md gives their meaning). Its
-differences from `csdfpromote`: a hand-written global edge's post is omitted
-or exactly the frame that leaves every map unchanged; a hand-written edge is
-on a channel no generated edge carries; the global start post may say only
-`@empty(m')` of maps; and every mode holds every family's map. `csdfpromote` skips a global `assume`
+families and hand-written global edges, variables of the global state that
+are no family's map, a post on the global start edge, global `assume`
+notes, `-only` and templates (docs/CLAUSE_DESIGN.md gives their meaning). Its
+differences from `csdfpromote`: a hand-written global edge's post primes a
+map only as its frame, which promotion writes if the post leaves it out; a
+hand-written edge is on a channel no generated edge carries; the global
+start post may say only `@empty(m')` of maps, beside the start mode's own
+variables; and every mode holds every family's map. `csdfpromote` skips a global `assume`
 note as a note for the picture alone; `csdf/coreio` carries it into the
 expansion.
 
@@ -257,6 +259,14 @@ file:
 | `frame`    | `Var`               | `v' = v`                   |
 | `empty`    | `Map`               | `m = ∅`                    |
 
+In the formula promotion the generated clauses are builtins (`@in`,
+`@notin`, `@at`, `@frame`, `@empty`, `@eq`, `@ne`), and a template does
+not replace one: it renders a gloss of it, printed as a line comment above
+the edge, so that the diagram still reads back to the same formulas. Its
+templates are named after the builtins, with the builtin's terms as
+`.Args` and, for `@at`, its state as `.State`; the names above belong to
+`csdfpromote`.
+
 A clause the file does not define keeps its default. Every clause is rendered
 once when the file is read, so a template that cannot render is refused rather
 than turning into an opaque predicate. A Japanese set ships as
@@ -328,7 +338,16 @@ With every listed clause taken as true, each run of the full expansion
 projects onto a run of the restricted one. So a broken invariant and an
 event-avoiding cycle over the kept families survive the restriction. A
 deadlock does not: one that a left-out family causes by refusing an event, or
-by never meeting a listed clause, has no counterpart in the restriction. The
+by never meeting a listed clause, has no counterpart in the restriction.
+docs/CLAUSE_DESIGN.md states this in the stable failures model: a safety
+specification the restriction refines, the full expansion with the events
+only left-out families take hidden refines too; a refusal result, a
+deadlock among them, is no conclusion about the full expansion, and a
+counterexample may be spurious, which a tool checking a restriction says. In the formula promotion every clause is a
+formula, so whether a `constrain` clause or a hand-written edge's guard
+reads a left-out map is told by its free names: such a conjunct is dropped
+and reported, like any other, rather than kept with a warning. There a family
+is named by its map alone, the type of an instance not being read yet. The
 listed clauses are exactly what was assumed; restate the ones that matter as
 `assume` notes, or let a checker take them as true and say so (`csdfbmc`
 reports them as `dropped_clauses`).

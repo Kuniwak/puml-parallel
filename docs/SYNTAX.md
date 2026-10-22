@@ -350,23 +350,22 @@ end note
   every family's map. Exactly one block of a map includes its local diagram;
   the others are bodyless. A mode holding a map without a block for it has
   the family frozen there.
-- A hand-written edge between modes, `src --> dst : EVENT?f… ; guard [; post]`,
-  reads the maps as they are and its own received fields. Its post is
-  omitted, and promotion writes that every map is unchanged, or is exactly
-  that frame; any other post is refused, and so is a `!` field or a primed
-  read. It is not on a channel that a generated edge of the global diagram
-  carries. There is no end edge.
-- The post of the global start edge may say only `@empty(m')` of maps,
-  agreeing with every map starting empty; any other post is refused.
+- A mode may declare variables that are no family's map (`mode : v`, inside
+  a composite mode or under a plain one): the controller's own variables.
+- A hand-written edge between modes, `src --> dst : EVENT?f… ; guard ; post`,
+  reads the maps as they are, its source's controller variables and its own
+  received fields; its post writes its target's controller variables, and
+  primes a map only as its frame `m' = m`, which promotion writes if left
+  out. It has no `!` field and no primed read in its guard, and it is not on
+  a channel that a generated edge of the global diagram carries. There is
+  no end edge.
+- The post of the global start edge says `@empty(m')` of maps, which start
+  empty anyway, and gives the start mode's controller variables their
+  values; any other post is refused.
 - A floating `assume` note is carried into the expansion; an anchored one is
   refused.
 
-Not read yet, each refused by name until step 5½b of #76 brings it over
-from docs/PROMOTION.md:
-
-- a variable of the global state that is no family's map;
-- `csdfpromote -only` and `-template`, which no tool reads a formula
-  promotion with yet.
+No tool reads a formula promotion with `-only` or `-template` yet.
 
 
 Global Diagram Format

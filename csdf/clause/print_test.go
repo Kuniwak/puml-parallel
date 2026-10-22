@@ -158,3 +158,38 @@ func TestPrintOfParseIsTheTextAuthorsWrite(t *testing.T) {
 		})
 	}
 }
+
+func TestPrintTerm(t *testing.T) {
+	cases := []struct {
+		name string
+		t    Term
+		want string
+	}{
+		{"a name", Free{Name: "x"}, "x"},
+		{"a primed name", Free{Name: "x", Primed: true}, "x'"},
+		{"an entry's field", Field{Of: Index{Map: Free{Name: "m"}, Key: Free{Name: "k"}}, Name: "v"}, "m[k].v"},
+		{"an application", App{Fn: "f", Args: []Term{Free{Name: "a"}}}, "f(a)"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			got, err := PrintTerm(c.t)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != c.want {
+				t.Errorf("PrintTerm = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestPrintTermRefusesADanglingIndex(t *testing.T) {
+	// Execute
+	_, err := PrintTerm(Bound{Index: 0})
+
+	// Assert
+	assertErrorContains(t, err, "binders")
+}

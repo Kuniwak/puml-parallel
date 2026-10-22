@@ -175,3 +175,38 @@ func StableFailuresEqual(a, b *LTS) bool {
 	}
 	return true
 }
+
+// TracesRefines says spec ⊑T impl: every trace of impl is a trace of spec.
+func TracesRefines(spec, impl *LTS) bool { return refines(spec, impl, false) }
+
+// StableFailuresRefines says spec ⊑SF impl: every trace and every stable
+// failure of impl is one of spec.
+func StableFailuresRefines(spec, impl *LTS) bool { return refines(spec, impl, true) }
+
+// refines walks the traces of impl beside spec, as StableFailuresEqual
+// walks both, checking inclusion one way only.
+func refines(spec, impl *LTS, failures bool) bool {
+	type pair struct{ s, i Set }
+	queue := []pair{{spec.TauClosure(Set{spec.Init: true}), impl.TauClosure(Set{impl.Init: true})}}
+	seen := map[string]bool{}
+	for len(queue) > 0 {
+		p := queue[0]
+		queue = queue[1:]
+		k := p.s.key() + "|" + p.i.key()
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		vs, vi := spec.Initials(p.s), impl.Initials(p.i)
+		if !subset(vi, vs) {
+			return false
+		}
+		if failures && !coveredBy(impl.Acceptances(p.i), spec.Acceptances(p.s)) {
+			return false
+		}
+		for label := range vi {
+			queue = append(queue, pair{spec.After(p.s, label), impl.After(p.i, label)})
+		}
+	}
+	return true
+}

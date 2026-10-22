@@ -53,12 +53,16 @@ type Constrain struct {
 // its Families, Init being the mode the start edge leads to, with Syncs
 // among them and Constrains on them. Edges are its hand-written edges
 // between modes, a controller's own steps (docs/CLAUSE_DESIGN.md).
-// InitPost is the post the author wrote on the global start edge, which
-// may only say that maps are empty, as they start. Assumes are the assume notes of the
-// global diagram, which the expansion carries.
+// Vars are the controller's own variables each mode holds, beside the
+// maps (docs/CLAUSE_DESIGN.md). InitPost is the post the author wrote on
+// the global start edge, which may only say that maps are empty, as they
+// start, and give the start mode's controller variables their values.
+// Assumes are the assume notes of the global diagram, which the expansion
+// carries.
 type Promotion struct {
 	Assumes    []Assumption
 	Modes      []string
+	Vars       map[string][]string
 	Init       string
 	InitPost   clause.And
 	Edges      []Edge
@@ -101,13 +105,17 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		maps = append(maps, f.Map)
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
-	for _, mode := range p.Modes {
-		out.Vars[mode] = slices.Clone(maps)
-	}
-	out.InitPost = clause.And{Conjuncts: start}
-	if err := saysEmpty(p.InitPost, maps); err != nil {
+	if err := controllerVars(p, maps); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
+	for _, mode := range p.Modes {
+		out.Vars[mode] = append(slices.Clone(maps), p.Vars[mode]...)
+	}
+	given, err := startPost(p, maps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
+	out.InitPost = Conj(clause.And{Conjuncts: start}, given)
 	taken := map[string]bool{}
 	for _, s := range p.Syncs {
 		if err := clause.WellFormed(s.Guard); err != nil {
@@ -196,6 +204,12 @@ func constrain(p Promotion, edges []Edge) error {
 			return fmt.Errorf("constrain %s has an empty guard, which constrains nothing", c.Event.Channel)
 		}
 		allowed := maps.Clone(mapNames)
+		controller := map[string]bool{}
+		for _, vars := range p.Vars {
+			for _, v := range vars {
+				allowed[v], controller[v] = true, true
+			}
+		}
 		for _, fl := range c.Event.Fields {
 			if fl.Send {
 				return fmt.Errorf("constrain %s sends %s: every field of a global event is ?", c.Event.Channel, fl.Name)
@@ -217,6 +231,11 @@ func constrain(p Promotion, edges []Edge) error {
 			}
 			if !e.Event.SameShape(c.Event) {
 				return fmt.Errorf("constrain %s: a generated edge on %s has fields of another shape, which it would leave unconstrained", c.Event.Channel, c.Event.Channel)
+			}
+			for _, v := range clause.FreeVars(c.Guard) {
+				if controller[v.Name] && !slices.Contains(p.Vars[e.Src], v.Name) {
+					return fmt.Errorf("constrain %s reads %s, which %s does not hold", c.Event.Channel, v.Name, e.Src)
+				}
 			}
 			matched++
 			edges[i].Guard = Conj(e.Guard, renamedTo(c, e.Event))
@@ -251,12 +270,16 @@ func controlled(p Promotion, maps []string, generated []Edge) ([]Edge, error) {
 		if err := clause.WellFormed(e.Guard); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
-		if len(e.Post.Conjuncts) > 0 && !isFrame(e.Post, maps) {
-			return nil, fmt.Errorf("%s has a post other than the frame: it leaves every map unchanged, a controller writing no instance", name)
+		own, err := ownPost(e.Post, maps)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", name, err)
 		}
 		allowed := map[string]bool{}
 		for _, m := range maps {
 			allowed[m] = true
+		}
+		for _, v := range p.Vars[e.Src] {
+			allowed[v] = true
 		}
 		for _, fl := range e.Event.Fields {
 			if fl.Send {
@@ -272,44 +295,108 @@ func controlled(p Promotion, maps []string, generated []Edge) ([]Edge, error) {
 				return nil, fmt.Errorf("%s reads %s, which is no map and no field of its event", name, v.Name)
 			}
 		}
-		e.Post = Unchanged(maps)
+		for _, v := range clause.FreeVars(own) {
+			switch {
+			case v.Primed && !slices.Contains(p.Vars[e.Dst], v.Name):
+				return nil, fmt.Errorf("%s writes %s', which %s does not hold", name, v.Name, e.Dst)
+			case !v.Primed && !allowed[v.Name]:
+				return nil, fmt.Errorf("%s reads %s, which is no map, no variable of %s and no field of its event", name, v.Name, e.Src)
+			}
+		}
+		e.Post = Conj(Unchanged(maps), own)
 		out = append(out, e)
 	}
 	return out, nil
 }
 
-// saysEmpty reports, as an error, a post of the global start edge that
-// says anything but that maps of maps are empty (docs/CLAUSE_DESIGN.md):
-// every map starts empty, the instances being at their start states.
-func saysEmpty(post clause.And, maps []string) error {
-	for _, c := range clause.Normalize(post).Conjuncts {
-		b, ok := c.(clause.Builtin)
-		if ok && b.Op == clause.OpEmpty && len(b.Args) == 1 {
-			if v, ok := b.Args[0].(clause.Free); ok && v.Primed && slices.Contains(maps, v.Name) {
-				continue
+// controllerVars reports, as an error, a controller variable of p that is
+// of no mode, declared twice in one, or named like a map, an instance ID
+// or a field of a local event.
+func controllerVars(p Promotion, maps []string) error {
+	ids := map[string]bool{}
+	for _, f := range p.Families {
+		ids[f.ID] = true
+	}
+	for _, s := range p.Syncs {
+		for _, tg := range s.Targets {
+			ids[tg.ID] = true
+		}
+	}
+	fields := map[string]bool{}
+	for _, f := range p.Families {
+		for _, e := range f.Local.Edges {
+			for _, fl := range e.Event.Fields {
+				fields[fl.Name] = true
 			}
 		}
-		return fmt.Errorf("the post of the global start edge may say only @empty(m') of its maps, which start empty")
+	}
+	for mode, vars := range p.Vars {
+		if !slices.Contains(p.Modes, mode) {
+			return fmt.Errorf("controller variables of no mode %s", mode)
+		}
+		for i, v := range vars {
+			switch {
+			case slices.Contains(vars[:i], v):
+				return fmt.Errorf("the controller variable %s is declared twice in %s", v, mode)
+			case fields[v]:
+				return fmt.Errorf("the controller variable %s of %s is named like a field of a local event, which a clause on a generated edge reads", v, mode)
+			case slices.Contains(maps, v):
+				return fmt.Errorf("the controller variable %s of %s is named like a map", v, mode)
+			case ids[v]:
+				return fmt.Errorf("the controller variable %s of %s is named like an instance ID", v, mode)
+			}
+		}
 	}
 	return nil
 }
 
-// isFrame says whether post says exactly that every map of maps is
-// unchanged, in any order.
-func isFrame(post clause.And, maps []string) bool {
-	want := clause.Normalize(Unchanged(maps)).Conjuncts
-	got := clause.Normalize(post).Conjuncts
-	if len(got) != len(want) {
-		return false
+// startPost is the part of the post of the global start edge that gives
+// the start mode's controller variables their values; the rest may only
+// say that maps are empty (docs/CLAUSE_DESIGN.md): every map starts
+// empty, the instances being at their start states.
+func startPost(p Promotion, maps []string) (clause.And, error) {
+	refuse := fmt.Errorf("the post of the global start edge says only @empty(m') of its maps, which start empty, and gives the start mode's own variables their values")
+	var own []clause.Formula
+	for _, c := range clause.Normalize(p.InitPost).Conjuncts {
+		if b, ok := c.(clause.Builtin); ok && b.Op == clause.OpEmpty && len(b.Args) == 1 {
+			if v, ok := b.Args[0].(clause.Free); ok && v.Primed && slices.Contains(maps, v.Name) {
+				continue
+			}
+		}
+		vars := clause.FreeVars(clause.And{Conjuncts: []clause.Formula{c}})
+		if len(vars) == 0 {
+			return clause.And{}, refuse
+		}
+		for _, v := range vars {
+			if !v.Primed || !slices.Contains(p.Vars[p.Init], v.Name) {
+				return clause.And{}, refuse
+			}
+		}
+		own = append(own, c)
 	}
-	for _, w := range want {
-		if !slices.ContainsFunc(got, func(g clause.Formula) bool {
-			return clause.AlphaEqual(clause.And{Conjuncts: []clause.Formula{g}}, clause.And{Conjuncts: []clause.Formula{w}})
+	return clause.And{Conjuncts: own}, nil
+}
+
+// ownPost is the part of a hand-written edge's post about the controller's
+// own variables: a conjunct priming a map may only be its frame, m' = m,
+// since a controller writes no instance (docs/CLAUSE_DESIGN.md).
+func ownPost(post clause.And, maps []string) (clause.And, error) {
+	frames := clause.Normalize(Unchanged(maps)).Conjuncts
+	var own []clause.Formula
+	for _, c := range clause.Normalize(post).Conjuncts {
+		one := clause.And{Conjuncts: []clause.Formula{c}}
+		primesMap := slices.ContainsFunc(clause.FreeVars(one), func(v clause.Free) bool { return v.Primed && slices.Contains(maps, v.Name) })
+		if !primesMap {
+			own = append(own, c)
+			continue
+		}
+		if !slices.ContainsFunc(frames, func(w clause.Formula) bool {
+			return clause.AlphaEqual(one, clause.And{Conjuncts: []clause.Formula{w}})
 		}) {
-			return false
+			return clause.And{}, fmt.Errorf("it has a post other than the frame of the maps: it leaves every map unchanged, a controller writing no instance")
 		}
 	}
-	return true
+	return clause.And{Conjuncts: own}, nil
 }
 
 // Level says how much a Warning matters (docs/PROMOTION.md, the warnings
@@ -433,14 +520,14 @@ func promoteAlone(p Promotion, m move, mode string) (Edge, error) {
 		if err != nil {
 			return Edge{}, err
 		}
-		return Edge{Src: mode, Dst: mode, Event: Event{Channel: Tau}, Guard: g, Post: q}, nil
+		return Edge{Src: mode, Dst: mode, Event: Event{Channel: Tau}, Guard: g, Post: Conj(q, Unchanged(p.Vars[mode]))}, nil
 	}
 	fields, pins, err := carried(m)
 	if err != nil {
 		return Edge{}, err
 	}
 	fields = append([]Field{{Name: f.ID}}, fields...)
-	return Edge{Src: mode, Dst: mode, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: post}, nil
+	return Edge{Src: mode, Dst: mode, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: Conj(post, Unchanged(p.Vars[mode]))}, nil
 }
 
 // carried are the fields of m's local event on the global event, and the
@@ -499,7 +586,7 @@ func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 			}
 		}
 	}
-	if err := readsBound(p, s); err != nil {
+	if err := readsBound(p, s, mode); err != nil {
 		return nil, err
 	}
 	var fields []Field
@@ -561,7 +648,7 @@ func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 			Src: mode, Dst: mode,
 			Event: Event{Channel: s.Event, Fields: merged},
 			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, s.Guard, guard}, pins...)...),
-			Post:  post,
+			Post:  Conj(post, Unchanged(p.Vars[mode])),
 		})
 	}
 	return out, nil
@@ -757,8 +844,11 @@ func MapType(f Family, ids []Value, env Env) ([]Value, error) {
 // does not give it: a name that is no map, no target's ID and no field of a
 // target's local event, or an entry of a map keyed by anything but the ID
 // of one of that map's targets (docs/CLAUSE_DESIGN.md, Control state).
-func readsBound(p Promotion, s Sync) error {
+func readsBound(p Promotion, s Sync, mode string) error {
 	allowed := map[string]bool{}
+	for _, v := range p.Vars[mode] {
+		allowed[v] = true
+	}
 	keys := map[string]map[string]bool{}
 	for _, f := range p.Families {
 		allowed[f.Map] = true
