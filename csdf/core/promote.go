@@ -95,6 +95,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			if !slices.Contains(p.Modes, mode) {
 				return nil, nil, fmt.Errorf("core.Promote: %s is frozen in %s, which is no mode", f.Map, mode)
 			}
+			warnings = append(warnings, Warning{Level: Info, Map: f.Map, Text: "frozen in " + mode + ": it takes no event there"})
 		}
 		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
@@ -311,9 +312,21 @@ func isFrame(post clause.And, maps []string) bool {
 	return true
 }
 
-// Warning is something Promote dropped that the author wrote: Map and
-// Event say where, Text what (docs/PROMOTION.md, the warnings table).
+// Level says how much a Warning matters (docs/PROMOTION.md, the warnings
+// and info tables).
+type Level int
+
+const (
+	// Warn is something that is likely a mistake.
+	Warn Level = iota
+	// Info is something that may well be meant.
+	Info
+)
+
+// Warning is something Promote reports of what the author wrote: Level
+// says how much it matters, Map and Event where, Text what.
 type Warning struct {
+	Level Level
 	Map   string
 	Event string
 	Text  string

@@ -363,6 +363,24 @@ func TestPromoteAcceptsAGlobalStartPostSayingEveryMapIsEmpty(t *testing.T) {
 	}
 }
 
+func TestPromoteReportsAFrozenFamilyAsInfo(t *testing.T) {
+	// Setup
+	p := Promotion{Modes: []string{"run", "maint"}, Init: "run",
+		Families: []Family{{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}}}}
+
+	// Execute
+	_, got, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Warning{{Level: Info, Map: "doors", Text: "frozen in maint: it takes no event there"}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("warnings (-want +got):\n%s", diff)
+	}
+}
+
 func TestPromoteCarriesTheAssumptions(t *testing.T) {
 	// Setup
 	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
