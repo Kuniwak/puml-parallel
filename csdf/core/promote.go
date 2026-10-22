@@ -53,9 +53,12 @@ type Constrain struct {
 // its Families, Init being the mode the start edge leads to, with Syncs
 // among them and Constrains on them. Edges are its hand-written edges
 // between modes, a controller's own steps (docs/CLAUSE_DESIGN.md).
+// InitPost is the post the author wrote on the global start edge, which
+// says nothing: every map starts empty.
 type Promotion struct {
 	Modes      []string
 	Init       string
+	InitPost   clause.And
 	Edges      []Edge
 	Families   []Family
 	Syncs      []Sync
@@ -79,6 +82,9 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
+	if len(p.InitPost.Conjuncts) > 0 {
+		warnings = append(warnings, Warning{Event: "[*]", Text: "the post of the global start edge says nothing: every map starts empty"})
+	}
 	for _, f := range p.Families {
 		if err := f.Local.wellFormed(); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)

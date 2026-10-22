@@ -333,6 +333,27 @@ func modes(f Family, edges ...Edge) Promotion {
 	return Promotion{Modes: []string{"G", "H"}, Init: "G", Families: []Family{f}, Edges: edges}
 }
 
+func TestPromoteWarnsOfTheGlobalStartPostAndStartsEveryMapEmpty(t *testing.T) {
+	// Setup
+	p := promotion(Family{Map: "doors", ID: "loc", Local: door()})
+	p.InitPost = mustParse(t, "doors は空")
+
+	// Execute
+	got, warnings, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Warning{{Event: "[*]", Text: "the post of the global start edge says nothing: every map starts empty"}}
+	if diff := cmp.Diff(want, warnings); diff != "" {
+		t.Errorf("warnings (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(mustParse(t, "@empty(doors')"), got.InitPost); diff != "" {
+		t.Errorf("start post (-want +got):\n%s", diff)
+	}
+}
+
 func promotion(f Family, syncs ...Sync) Promotion {
 	return Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{f}, Syncs: syncs}
 }
