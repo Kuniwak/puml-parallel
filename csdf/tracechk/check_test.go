@@ -18,10 +18,22 @@ func read(t *testing.T, src string) *core.Diagram {
 	return d
 }
 
-func TestLabelWritesTheFieldsOfAnEvent(t *testing.T) {
-	e := core.Event{Channel: "pay", Fields: []core.Field{{Name: "coin"}, {Send: true, Name: "change"}}}
-	if got := tracechk.Label(e); got != "pay?coin!change" {
-		t.Errorf("Label = %q, want pay?coin!change", got)
+func TestLabel(t *testing.T) {
+	testCases := map[string]struct {
+		Event core.Event
+		Want  string
+	}{
+		"no field":             {core.Event{Channel: "tick"}, "tick"},
+		"a received field":     {core.Event{Channel: "in", Fields: []core.Field{{Name: "k"}}}, "in?k"},
+		"a sent field alone":   {core.Event{Channel: "out", Fields: []core.Field{{Send: true, Name: "n"}}}, "out!n"},
+		"both, in their order": {core.Event{Channel: "pay", Fields: []core.Field{{Name: "coin"}, {Send: true, Name: "change"}}}, "pay?coin!change"},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			if got := tracechk.Label(tc.Event); got != tc.Want {
+				t.Errorf("Label = %q, want %q", got, tc.Want)
+			}
+		})
 	}
 }
 

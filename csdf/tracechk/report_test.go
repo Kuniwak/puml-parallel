@@ -90,3 +90,49 @@ a --> a : y ; $n > 0 ; @eq(n', n)
 		})
 	}
 }
+
+// TestWriteMarkdownSpellsWhatEachObligationReads pins, by hand, what the
+// obligations of a report read.
+func TestWriteMarkdownSpellsWhatEachObligationReads(t *testing.T) {
+	testCases := map[string]struct {
+		Diagram string
+		Trace   []string
+		Want    string
+	}{
+		"a sent field is the value the step holds, and no field of its own": {
+			Diagram: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n' = 0\na --> a : out!n ; ; @eq(n', n)\n@enduml\n",
+			Trace:   []string{"out!n", "out!n"},
+			Want:    "Obligation: ∀ n@0 n@1. \"$_0 = 0\"(n@0) ∧ n@1 = n@0 → ∃ n'. n' = n@1",
+		},
+		"a received field is a value of its step": {
+			Diagram: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $k\n@enduml\n",
+			Trace:   []string{"in?k", "in?k"},
+			Want:    "Obligation: ∀ n@0 n@1 k#1. \"$_0 = 0\"(n@0) ∧ \"$_0 = $_1\"(n@1, k#1) → ∃ k n'. \"$_0 = $_1\"(n', k)",
+		},
+		"a quantifier a disjunct follows is parenthesised": {
+			Diagram: "@startuml\nstate \"a\" as a\na : n\nstate \"b\" as b\nb : n\n[*] --> a : $n' = 0\na --> b : tau ; ; $n' = 1\na --> a : go ; ; $n' = 2\nb --> b : go ; ; @eq(n', n)\n@enduml\n",
+			Trace:   []string{"go"},
+			Want:    "Obligation: ∀ n@0. \"$_0 = 0\"(n@0) → (∃ n'. \"$_0 = 1\"(n')) ∨ ∃ n'. \"$_0 = 2\"(n')",
+		},
+	}
+
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			d := read(t, tc.Diagram)
+			r := tracechk.Check(tracechk.MatchExact, d, tracechk.Trace{Name: "trace.tsv", Events: tc.Trace})
+			var sb strings.Builder
+
+			// Execute
+			err := tracechk.WriteMarkdown(&sb, d, r)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(sb.String(), tc.Want) {
+				t.Errorf("no %q in\n%s", tc.Want, sb.String())
+			}
+		})
+	}
+}
