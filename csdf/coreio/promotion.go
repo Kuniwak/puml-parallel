@@ -68,6 +68,8 @@ type promotionReader struct {
 	holds    map[string]map[string]bool // the maps each mode declares or has a block for
 	moves    map[string]map[string]bool // the maps each mode has a block for
 	declared []string                   // the maps the modes declare, in order
+	lineNo   int                        // the line being read
+	edgeAt   []int                      // the line of each hand-written edge
 }
 
 // noteKind is what the note being read is, once its first line says.
@@ -86,6 +88,7 @@ const (
 
 func (r *promotionReader) run(lines []string) error {
 	for i, raw := range lines {
+		r.lineNo = i + 1
 		if err := r.line(strings.TrimSpace(raw)); err != nil {
 			return fmt.Errorf("line %d: %w", i+1, err)
 		}
@@ -329,15 +332,12 @@ func (r *promotionReader) edge(l, src, dst string) error {
 	if dst == "[*]" {
 		return fmt.Errorf("%s: a global diagram has no end edge", name)
 	}
-	states := fmt.Sprintf("state %q as %s\n", src, src)
-	if dst != src {
-		states += fmt.Sprintf("state %q as %s\n", dst, dst)
-	}
-	d, err := ReadAuthored("@startuml\n" + states + "[*] --> " + src + "\n" + l + "\n@enduml\n")
+	e, err := readEdge(l, r.lineNo, clause.ParseAuthored)
 	if err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
-	r.p.Edges = append(r.p.Edges, d.Edges...)
+	r.p.Edges = append(r.p.Edges, e)
+	r.edgeAt = append(r.edgeAt, r.lineNo)
 	return nil
 }
 
@@ -361,6 +361,13 @@ func (r *promotionReader) check() error {
 		return fmt.Errorf("no start edge into a mode")
 	}
 	r.p.Init = r.start
+	for i, e := range r.p.Edges {
+		for _, s := range []string{e.Src, e.Dst} {
+			if !slices.Contains(r.p.Modes, s) {
+				return fmt.Errorf("line %d: %s --> %s names %s, which is no state of the global diagram", r.edgeAt[i], e.Src, e.Dst, s)
+			}
+		}
+	}
 	for _, m := range r.declared {
 		if _, err := r.familyOf(m); err != nil {
 			return fmt.Errorf("%s: %w", m, notYet("a variable of the global state that is no family's map"))

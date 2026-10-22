@@ -57,13 +57,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		}
 	}
 	for _, e := range src.Edges {
-		d.Edges = append(d.Edges, core.Edge{
-			Src:   string(e.Src),
-			Dst:   string(e.Dst),
-			Event: eventOf(e.Event),
-			Guard: clauses(e.Guard),
-			Post:  clauses(e.Post),
-		})
+		d.Edges = append(d.Edges, edgeOf(e, clauses))
 	}
 	for _, a := range src.Assumptions {
 		d.Assumes = append(d.Assumes, core.Assumption{ID: a.ID, Text: string(a.Text)})
@@ -72,6 +66,32 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
 	}
 	return d, nil
+}
+
+// readEdge reads one edge line, written at line, its clauses by parse.
+func readEdge(text string, line int, parse func(string) (clause.And, error)) (core.Edge, error) {
+	check := func(p csdf.Predicate) error {
+		_, err := parse(string(p))
+		return err
+	}
+	e, err := csdf.ParseEdgeLine(text, line, check)
+	if err != nil {
+		return core.Edge{}, err
+	}
+	return edgeOf(e, func(p csdf.Predicate) clause.And {
+		f, _ := parse(string(p)) // check has read it already
+		return f
+	}), nil
+}
+
+func edgeOf(e csdf.Edge, clauses func(csdf.Predicate) clause.And) core.Edge {
+	return core.Edge{
+		Src:   string(e.Src),
+		Dst:   string(e.Dst),
+		Event: eventOf(e.Event),
+		Guard: clauses(e.Guard),
+		Post:  clauses(e.Post),
+	}
 }
 
 func eventOf(e csdf.Event) core.Event {
