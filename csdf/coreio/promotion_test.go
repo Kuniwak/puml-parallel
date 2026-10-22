@@ -299,6 +299,16 @@ func TestReadPromotionRefuses(t *testing.T) {
 	}
 }
 
+func TestReadPromotionNamesTheLineOfABadEdgeOnce(t *testing.T) {
+	// Execute
+	_, err := ReadPromotion(promoting("[*] --> running\nrunning --> running : a??\n"), files(map[string]string{"S.puml": shipment}))
+
+	// Assert
+	if err == nil || strings.Count(err.Error(), "line 8") != 1 {
+		t.Errorf("ReadPromotion: got %v, want an error naming line 8 once", err)
+	}
+}
+
 func TestReadPromotionGivesWhatPromoteTakes(t *testing.T) {
 	cases := []struct{ name, source string }{
 		{"one mode and a sync", `@startuml

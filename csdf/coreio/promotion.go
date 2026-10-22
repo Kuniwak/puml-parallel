@@ -1,6 +1,7 @@
 package coreio
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -90,6 +91,10 @@ func (r *promotionReader) run(lines []string) error {
 	for i, raw := range lines {
 		r.lineNo = i + 1
 		if err := r.line(strings.TrimSpace(raw)); err != nil {
+			var at located
+			if errors.As(err, &at) {
+				return err // it names its line already
+			}
 			return fmt.Errorf("line %d: %w", i+1, err)
 		}
 	}
@@ -334,12 +339,17 @@ func (r *promotionReader) edge(l, src, dst string) error {
 	}
 	e, err := readEdge(l, r.lineNo, clause.ParseAuthored)
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return located{fmt.Errorf("%s: %w", name, err)}
 	}
 	r.p.Edges = append(r.p.Edges, e)
 	r.edgeAt = append(r.edgeAt, r.lineNo)
 	return nil
 }
+
+// located is an error that names its source line itself.
+type located struct{ error }
+
+func (l located) Unwrap() error { return l.error }
 
 func (r *promotionReader) familyOf(m string) (*core.Family, error) {
 	for i := range r.p.Families {
