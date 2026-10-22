@@ -1,4 +1,4 @@
-@startuml ATTEMPTS
+@startuml
 state "稼働中" as running
 running : attempts
 [*] --> running : @empty(attempts')

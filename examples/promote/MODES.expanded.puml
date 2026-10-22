@@ -1,4 +1,4 @@
-@startuml MODES
+@startuml
 state "縮退中" as degraded
 degraded : accounts
 degraded : audits

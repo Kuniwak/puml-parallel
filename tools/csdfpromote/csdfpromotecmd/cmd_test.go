@@ -45,10 +45,9 @@ func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
 				t.Log(spy.Stderr.String())
 				t.Fatalf("want 0, got %d", exitStatus)
 			}
-			// The recording names the diagram after the file; the command
-			// names it after the command line that produced it.
-			name := strings.TrimSuffix(filepath.Base(path), ".puml")
-			got := strings.Replace(spy.Stdout.String(), "@startuml auto-generated-by: csdfpromote "+path+"\n", "@startuml "+name+"\n", 1)
+			// The recording leaves the title out, which the command fills
+			// with the command line that produced it.
+			got := tools.Untitled(spy.Stdout.String())
 			if *update {
 				if err := os.WriteFile(golden, []byte(got), 0o644); err != nil {
 					t.Fatal(err)

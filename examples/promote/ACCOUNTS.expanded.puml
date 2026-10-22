@@ -1,4 +1,4 @@
-@startuml ACCOUNTS
+@startuml
 state "稼働中" as running
 running : accounts
 [*] --> running : @empty(accounts')

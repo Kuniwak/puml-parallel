@@ -48,20 +48,3 @@ func TestHideIsTheHidingOfTheMeaning(t *testing.T) {
 		})
 	}
 }
-
-func TestHideKeepsTheTitleAndTheLabels(t *testing.T) {
-	// Setup
-	d := &Diagram{Name: "N", Labels: map[string]string{"s": "待機"}, States: []string{"s"}, Init: "s",
-		Edges: []Edge{{Src: "s", Dst: "s", Event: ev("go")}}}
-
-	// Execute
-	got, err := Hide(d, []string{"go"})
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Name != "N" || got.Labels["s"] != "待機" {
-		t.Errorf("Name %q, Labels %v", got.Name, got.Labels)
-	}
-}

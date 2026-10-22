@@ -89,3 +89,33 @@ func TestComposeAllFoldsLeftAndDropsWhatNoEdgeReaches(t *testing.T) {
 		t.Errorf("States (-want +got):\n%s", diff)
 	}
 }
+
+func TestConstructorsKeepTheTitleAndTheLabels(t *testing.T) {
+	d := &Diagram{Name: "N", Labels: map[string]string{"G": "稼働中"}, States: []string{"G"}, Init: "G",
+		Vars: map[string][]string{"G": {"doors"}}, Edges: []Edge{{Src: "G", Dst: "G", Event: ev("go")}}}
+	cases := []struct {
+		name string
+		op   func() (*Diagram, error)
+	}{
+		{"Hide", func() (*Diagram, error) { return Hide(d, []string{"go"}) }},
+		{"Restrict", func() (*Diagram, error) {
+			r, _, err := Restrict(d, []string{"doors"}, []string{"doors"})
+			return r, err
+		}},
+		{"Reachable", func() (*Diagram, error) { return Reachable(d), nil }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			got, err := c.op()
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Name != "N" || got.Labels["G"] != "稼働中" {
+				t.Errorf("Name %q, Labels %v", got.Name, got.Labels)
+			}
+		})
+	}
+}
