@@ -109,7 +109,7 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 			States:   []obligationir.State{{Name: "a", Vars: []string{}}},
 			Init:     "a",
 			InitPost: logic.Tree{Op: logic.OpTrue},
-			Edges:    []obligationir.Edge{{Src: "a", Dst: "a", Tau: true, Received: []string{}, Step: logic.Tree{Op: logic.OpTrue}}},
+			Edges:    []obligationir.Edge{{Src: "a", Dst: "a", Channel: "go", Fields: []obligationir.Field{}, Step: logic.Tree{Op: logic.OpTrue}}},
 		}
 	}
 	testCases := map[string]func(ir *obligationir.LivelockFree){
@@ -117,7 +117,12 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 		"a state named twice":         func(ir *obligationir.LivelockFree) { ir.States = append(ir.States, ir.States[0]) },
 		"an unknown start state":      func(ir *obligationir.LivelockFree) { ir.Init = "b" },
 		"an edge to an unknown state": func(ir *obligationir.LivelockFree) { ir.Edges[0].Dst = "b" },
-		"a field received twice":      func(ir *obligationir.LivelockFree) { ir.Edges[0].Received = []string{"k", "k"} },
+		"a field received twice": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}, {Name: "k"}}
+		},
+		"a tau with a field": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Channel, ir.Edges[0].Fields = "tau", []obligationir.Field{{Name: "k"}}
+		},
 	}
 
 	if err := valid().Validate(); err != nil {

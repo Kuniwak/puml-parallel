@@ -404,7 +404,7 @@ func (ir LivelockFree) Symbols() ([]Symbol, error) {
 		types = append(types, s.Vars...)
 	}
 	for _, e := range ir.Edges {
-		types = append(types, e.Received...)
+		types = append(types, e.Received()...)
 	}
 	return Symbols(types, ir.Formulas()...)
 }
@@ -491,12 +491,12 @@ func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref fu
 	if err != nil {
 		return "", err
 	}
-	if len(e.Received) > 0 {
-		received := make([]string, len(e.Received))
-		for j, f := range e.Received {
+	if fields := e.Received(); len(fields) > 0 {
+		received := make([]string, len(fields))
+		for j, f := range fields {
 			received[j] = SpellVar(logic.Var(f))
 		}
-		typed, err := n.Relativize(false, received, e.Received, step)
+		typed, err := n.Relativize(false, received, fields, step)
 		if err != nil {
 			return "", err
 		}
@@ -517,7 +517,7 @@ func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref fu
 func (ir LivelockFree) TauEdges() []Edge {
 	var taus []Edge
 	for _, e := range ir.Edges {
-		if e.Tau {
+		if e.Tau() {
 			taus = append(taus, e)
 		}
 	}

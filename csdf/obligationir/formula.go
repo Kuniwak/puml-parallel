@@ -69,8 +69,11 @@ func (ir LivelockFree) Validate() error {
 		if !states[e.Src] || !states[e.Dst] {
 			return fmt.Errorf("obligationir.Validate: the edge %s -> %s names a state that is not there", e.Src, e.Dst)
 		}
+		if e.Channel == "" || e.Tau() && len(e.Fields) > 0 {
+			return fmt.Errorf("obligationir.Validate: the edge %s -> %s has no channel, or is a tau with fields", e.Src, e.Dst)
+		}
 		seen := map[string]bool{}
-		for _, f := range e.Received {
+		for _, f := range e.Received() {
 			if f == "" || seen[f] {
 				return fmt.Errorf("obligationir.Validate: the edge %s -> %s receives %q twice or by no name", e.Src, e.Dst, f)
 			}
@@ -100,16 +103,45 @@ type State struct {
 	Vars []string `json:"vars"`
 }
 
-// Edge is a step of the diagram: from Src to Dst, internal when Tau.
-// Received are the fields its event receives, which Step reads and the step
-// chooses; Step is its guard and post, over the values before it (x), the
-// received fields and the values after it (x').
+// Edge is a step of the diagram: from Src to Dst, on an event of Channel
+// with Fields, internal when the channel is core.Tau. Step is its guard and
+// post, over the values before it (x), the fields its event receives and
+// the values after it (x').
 type Edge struct {
-	Src      string     `json:"src"`
-	Dst      string     `json:"dst"`
-	Tau      bool       `json:"tau"`
-	Received []string   `json:"received"`
-	Step     logic.Tree `json:"step"`
+	Src     string     `json:"src"`
+	Dst     string     `json:"dst"`
+	Channel string     `json:"channel"`
+	Fields  []Field    `json:"fields"`
+	Step    logic.Tree `json:"step"`
+}
+
+// Field is a field of an event: received (?Name), which the step chooses, or
+// sent (!Name), a value the step has bound already.
+type Field struct {
+	Send bool   `json:"send"`
+	Name string `json:"name"`
+}
+
+// Tau reports whether e is internal.
+func (e Edge) Tau() bool { return e.Channel == core.Tau }
+
+// Received are the names of the fields e receives, in order.
+func (e Edge) Received() []string {
+	names := []string{}
+	for _, f := range e.Fields {
+		if !f.Send {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+func fieldsOf(e core.Event) []Field {
+	fs := make([]Field, len(e.Fields))
+	for i, f := range e.Fields {
+		fs[i] = Field{Send: f.Send, Name: f.Name}
+	}
+	return fs
 }
 
 // BuildFormulaLivelockFree states the livelock-freedom obligation of d.
@@ -125,7 +157,7 @@ func BuildFormulaLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		if err != nil {
 			return LivelockFree{}, fmt.Errorf("obligationir.BuildFormulaLivelockFree: %w", err)
 		}
-		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Tau: e.Event.Channel == core.Tau, Received: e.Event.Received(), Step: logic.TreeOf(step)})
+		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Channel: e.Event.Channel, Fields: fieldsOf(e.Event), Step: logic.TreeOf(step)})
 		clauses = append(clauses, e.Guard, e.Post)
 	}
 	states := make([]State, len(d.States))
