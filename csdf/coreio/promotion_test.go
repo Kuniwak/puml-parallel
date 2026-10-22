@@ -46,9 +46,23 @@ func files(m map[string]string) Include {
 	}
 }
 
-func TestReadPromotionReadsFamiliesAndSyncs(t *testing.T) {
-	// Setup
-	source := `@startuml MOVE
+func TestReadPromotion(t *testing.T) {
+	loc, err := ReadAuthored(location)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shp, err := ReadAuthored(shipment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	include := files(map[string]string{"local/LOCATION.puml": location, "local/SHIPMENT.puml": shipment})
+	cases := []struct {
+		name, source string
+		want         core.Promotion
+	}{
+		{
+			name: "families and a sync, a picture's lines aside",
+			source: `@startuml MOVE
 ' CSDF-IGNORE-BEGIN
 title 移動
 ' CSDF-IGNORE-END
@@ -67,49 +81,28 @@ note as move
   sync MOVE : shipments(s).SHIP, locations(from).DEPART, locations(to).ARRIVE ; ${locations[from].在庫} > 1
 end note
 @enduml
-`
-	include := files(map[string]string{"local/LOCATION.puml": location, "local/SHIPMENT.puml": shipment})
-	loc, err := ReadAuthored(location)
-	if err != nil {
-		t.Fatal(err)
-	}
-	shp, err := ReadAuthored(shipment)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := core.Promotion{
-		State: "running",
-		Families: []core.Family{
-			{Map: "locations", ID: "l", Local: loc},
-			{Map: "shipments", ID: "s", Local: shp},
+`,
+			want: core.Promotion{
+				State: "running",
+				Families: []core.Family{
+					{Map: "locations", ID: "l", Local: loc},
+					{Map: "shipments", ID: "s", Local: shp},
+				},
+				Syncs: []core.Sync{
+					{Event: "MOVE", Guard: mustParse(t, "${locations[from].在庫} > 1"), Targets: []core.Target{
+						{Map: "shipments", ID: "s", Event: "SHIP"},
+						{Map: "locations", ID: "from", Event: "DEPART"},
+						{Map: "locations", ID: "to", Event: "ARRIVE"},
+					}},
+				},
+			},
 		},
-		Syncs: []core.Sync{
-			{Event: "MOVE", Guard: mustParse(t, "${locations[from].在庫} > 1"), Targets: []core.Target{
-				{Map: "shipments", ID: "s", Event: "SHIP"},
-				{Map: "locations", ID: "from", Event: "DEPART"},
-				{Map: "locations", ID: "to", Event: "ARRIVE"},
-			}},
-		},
-	}
-
-	// Execute
-	got, err := ReadPromotion(source, include)
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	if diff := cmp.Diff(want, got, sameClauses); diff != "" {
-		t.Errorf("ReadPromotion (-want +got):\n%s", diff)
-	}
-}
-
-func TestReadPromotionTakesTheEventNamedLikeTheSyncForABareTarget(t *testing.T) {
-	// Setup
-	source := `@startuml
+		{
+			name: "a bare target takes the local event named like the sync",
+			source: `@startuml
 state "稼働中" as running {
   state "shipments : s" as runningShipments <<promote>> {
-    !include SHIPMENT.puml
+    !include local/SHIPMENT.puml
   }
 }
 [*] --> running
@@ -117,40 +110,59 @@ note as n
   sync SHIP : shipments(s)
 end note
 @enduml
-`
-	want := []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}
-
-	// Execute
-	got, err := ReadPromotion(source, files(map[string]string{"SHIPMENT.puml": shipment}))
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
+`,
+			want: core.Promotion{
+				State:    "running",
+				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
+				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
+			},
+		},
 	}
-	if diff := cmp.Diff(want, got.Syncs[0].Targets); diff != "" {
-		t.Errorf("targets (-want +got):\n%s", diff)
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Execute
+			got, err := ReadPromotion(c.source, include)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(c.want, got, sameClauses); diff != "" {
+				t.Errorf("ReadPromotion (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
+// promoting is a global diagram of one family, shipments, with body after
+// the block.
+func promoting(body string) string {
+	return fmt.Sprintf(`@startuml
+state "稼働中" as running {
+  state "shipments : s" as rs <<promote>> {
+    !include S.puml
+  }
+}
+%s@enduml
+`, body)
+}
+
 func TestReadPromotionRefuses(t *testing.T) {
-	wrap := func(body string) string {
-		return "@startuml\nstate \"稼働中\" as running {\n  state \"shipments : s\" as rs <<promote>> {\n    !include S.puml\n  }\n}\n" + body + "@enduml\n"
-	}
 	cases := []struct {
 		name, source, want string
 	}{
 		{"a post on the start edge, since every map starts empty",
-			wrap("[*] --> running : 何か\n"), "starts with every map empty"},
+			promoting("[*] --> running : 何か\n"), "starts with every map empty"},
 		{"an edge of the global diagram",
-			wrap("[*] --> running\nrunning --> running : a\n"), "unexpected"},
+			promoting("[*] --> running\nrunning --> running : a\n"), "unexpected"},
 		{"a directive no one knows",
-			wrap("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain"},
+			promoting("[*] --> running\nnote as n\n  constrain a ; b\nend note\n"), "constrain"},
 		{"a sync of an unknown map",
-			wrap("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
+			promoting("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
 		{"a target that is not map(id)",
-			wrap("[*] --> running\nnote as n\n  sync X : shipments\nend note\n"), "map(id)"},
+			promoting("[*] --> running\nnote as n\n  sync X : shipments\nend note\n"), "map(id)"},
 		{"a missing include",
-			strings.Replace(wrap("[*] --> running\n"), "S.puml", "T.puml", 1), "no file T.puml"},
+			strings.Replace(promoting("[*] --> running\n"), "S.puml", "T.puml", 1), "no file T.puml"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
