@@ -12,6 +12,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
+from csdfbmc.values import FrozenMap
+
 VERSION = 2
 
 RECEIVED, SENT = "?", "!"
@@ -227,7 +229,7 @@ class Family:
     that state as its fields."""
     init: str
     states: tuple[str, ...]
-    vars: dict[str, tuple[str, ...]]   # local state -> its variables, in declaration order
+    vars: FrozenMap   # local state -> the tuple of its variables, in declaration order
 
 
 def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
@@ -241,7 +243,7 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
         raise ValueError(f"the family of {m}: its variables are of the states {sorted(doc['vars'])}, not of each of its states {list(states)}")
     if doc["vars"][doc["init"]]:
         raise ValueError(f"the family of {m}: its start state {doc['init']}, which is absence, holds variables")
-    return m, Family(doc["init"], states, {s: tuple(doc["vars"][s]) for s in states})
+    return m, Family(doc["init"], states, FrozenMap({s: tuple(doc["vars"][s]) for s in states}))
 
 
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:

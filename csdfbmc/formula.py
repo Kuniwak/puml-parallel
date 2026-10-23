@@ -201,7 +201,7 @@ def _join(joined: list[dict], options: list[dict]) -> list[dict]:
 
 
 def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
-          domain: Callable[[str], list], where: str, families: Mapping[str, Family] = FrozenMap()) -> list[dict]:
+          domain: Callable[[str], list], where: str, families: Mapping[str, Family]) -> list[dict]:
     """The valuations of names, the variables of the state after the step,
     that post allows from before. domain gives the values of a name's type;
     where names the edge in a refusal; families gives, for each map, what
