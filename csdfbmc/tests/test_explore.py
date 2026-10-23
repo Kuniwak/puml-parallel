@@ -385,8 +385,10 @@ class SampleTest(unittest.TestCase):
                 self.assertEqual(([("r", (FrozenMap(),), ())], []), (result.deadlocks, result.bound_reached))
 
     def test_a_value_of_the_sample_occurring_nowhere_adds_no_state(self):
-        tests = {"a sample": (sample(["a", "b"]), {"k"}), "the same values, not a sample": (["a", "b"], set())}
-        for name, (keys, samples) in tests.items():
+        used_up = ("r", (FrozenMap({"a": inst("closed", bal=0), "b": inst("closed", bal=0)}),), ())
+        tests = {"a sample": (sample(["a", "b"]), {"k"}, [], [used_up]),
+                 "the same values, not a sample": (["a", "b"], set(), [used_up], [])}
+        for name, (keys, samples, deadlocks, reached) in tests.items():
             with self.subTest(name):
                 # Setup
                 d = dict(OPENING, edges=OPENING["edges"][:2])
@@ -395,7 +397,7 @@ class SampleTest(unittest.TestCase):
                 result = fixture.explorer(d, Checks(types={"k": keys}, samples=frozenset(samples))).run()
 
                 # Assert
-                self.assertEqual(9, len(result.states))
+                self.assertEqual((9, deadlocks, reached), (len(result.states), result.deadlocks, result.bound_reached))
 
 
 class DataIndependenceTest(unittest.TestCase):
@@ -474,13 +476,15 @@ class DataIndependenceTest(unittest.TestCase):
 
     def test_a_sample_type_told_apart_by_equality_and_keys_only_is_walked(self):
         tick = edge("r", "r", "TICK?n", guard=[atom("$n > 0")], post=[eq("m'", "m")])
+        closed = [("r", (FrozenMap({"a": inst("closed", bal=0)}),), ())]
         tests = {
-            "the builtins": self.opening(builtin("eq", "k", "k"), builtin("notin", "k", "m")),
-            "an atom equating it": self.opening(atom("$k == $k")),
-            "an atom counting the map keyed by it": self.opening(atom("len($m) < 3")),
-            "an atom ordering a value of no sample type": dict(OPENING, edges=OPENING["edges"][:2] + [tick]),
+            "the builtins": (self.opening(builtin("eq", "k", "k"), builtin("notin", "k", "m")), closed),
+            "an atom equating it": (self.opening(atom("$k == $k")), closed),
+            "an atom counting the map keyed by it": (self.opening(atom("len($m) < 3")), closed),
+            # TICK is always enabled, so no state is without a way out.
+            "an atom ordering a value of no sample type": (dict(OPENING, edges=OPENING["edges"][:2] + [tick]), []),
         }
-        for name, d in tests.items():
+        for name, (d, reached) in tests.items():
             with self.subTest(name):
                 # Setup
                 checks = Checks(types={"k": sample(["a"]), "n": [1]}, samples=frozenset({"k"}))
@@ -490,7 +494,7 @@ class DataIndependenceTest(unittest.TestCase):
                 result = fixture.explorer(d, checks, symmetric=symmetric).run()
 
                 # Assert
-                self.assertEqual([], result.deadlocks)
+                self.assertEqual(([], reached), (result.deadlocks, result.bound_reached))
 
 
 class ReplayTest(unittest.TestCase):

@@ -9,7 +9,7 @@ import unittest
 from contextlib import redirect_stderr
 
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, diagram, edge
+from csdfbmc.tests.fixture import atom, diagram, edge, fld, idx
 from csdfbmc.tests.test_explore import COUNTER, OPENING
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -156,41 +156,39 @@ class SampleReportTest(unittest.TestCase):
     SAMPLE = 'from csdfbmc.values import sample\nTYPES = {"k": sample(["a"])}\n'
 
     def opening(self, *guard):
+        """OPENING without STOP, OPEN guarded by guard too and opening an
+        account with a balance of 0 or 1: two states where every ID is used
+        up, after CLOSE."""
         e = OPENING["edges"][0]
-        return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard))] + OPENING["edges"][1:2])
+        post = e["post"][:-1] + [atom("${} in [0, 1]", fld(idx("m'", "k"), "bal"))]
+        return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard), post=post)] + OPENING["edges"][1:2])
 
     def test_the_bound_reached_is_reported_and_is_no_finding(self):
+        closed = "r [{'a': {'at': 'closed', 'fields': {'bal': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)'] (a sample type has more values)"
         tests = {
-            "the text": ((), "states: 3\nbound reached at r [{'a': {'at': 'closed', 'fields': {'bal': 0}}}] after ['OPEN(k=a)', 'CLOSE(k=a)']"
-                             " (a sample type has more values)\n"),
-            "every finding": (("--all",), "states: 3\nbound reached at r [{'a': {'at': 'closed', 'fields': {'bal': 0}}}] after ['OPEN(k=a)', 'CLOSE(k=a)']"
-                                         " (a sample type has more values)\n"),
+            "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']"
+                                   " (a sample type has more values)\n"),
+            "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),
+            "as JSON": (("--json",), (), 0, {"deadlocks": [], "bound_reached": [["OPEN(k=a)", "CLOSE(k=a)"]] * 2,
+                                             "groups": [["bound_reached", "r", "CLOSE", 2]]}),
+            "a sample type the diagram orders": ((), (atom("$k > 'a'"),), 2, "argument 0 is ordered"),
         }
-        for name, (args, want) in tests.items():
+        for name, (args, guard, want_code, want) in tests.items():
             with self.subTest(name):
                 # Execute
-                code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", *args, d=self.opening(), checks=self.SAMPLE)
+                code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", *args, d=self.opening(*guard), checks=self.SAMPLE)
 
                 # Assert
-                self.assertEqual((0, want), (code, out), err)
-
-    def test_the_json_report_carries_the_bound_reached(self):
-        # Execute
-        code, out, _ = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--json", d=self.opening(), checks=self.SAMPLE)
-
-        # Assert
-        report = json.loads(out)
-        self.assertEqual(0, code)
-        self.assertEqual(([], ["OPEN(k=a)", "CLOSE(k=a)"]), (report["deadlocks"], report["bound_reached"][0]["trace"]))
-        self.assertEqual([("bound_reached", "r", "CLOSE", 1)], [(g["kind"], g["at"], g["after"], g["count"]) for g in report["groups"]])
-
-    def test_a_sample_type_the_diagram_orders_is_a_loading_error(self):
-        # Execute
-        code, _, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", d=self.opening(atom("$k > 'a'")), checks=self.SAMPLE)
-
-        # Assert
-        self.assertEqual(2, code)
-        self.assertIn("argument 0 is ordered", err)
+                self.assertEqual(want_code, code, err)
+                if want_code == 2:
+                    self.assertIn(want, err)
+                elif isinstance(want, dict):
+                    report = json.loads(out)
+                    self.assertEqual(want, {"deadlocks": report["deadlocks"],
+                                            "bound_reached": [r["trace"] for r in report["bound_reached"]],
+                                            "groups": [[g["kind"], g["at"], g["after"], g["count"]] for g in report["groups"]]})
+                else:
+                    self.assertEqual(want, out)
 
 
 class NextCommandTest(unittest.TestCase):

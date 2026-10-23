@@ -902,8 +902,8 @@ from one. That value is opaque: it equals nothing but
 itself, so it is none of the values of any type, of a ghost or of the state,
 and it has no order and no text. A glue receives it as `{"fresh": [TYPE,
 N]}` (csdfbmc.protocol), and only an atom the glue said `symmetric` of, below,
-is shown one; an atom, an environment function or a function of the
-environment that would read it otherwise stops the walk with an error. If an edge or an
+is shown one; any other atom, an atom of `ENVIRONMENT` or an environment
+function a term applies that would read it stops the walk with an error. If an edge or an
 end edge is then enabled, the state is reported as `bound reached … (a
 sample type has more values)` — `bound_reached` in `--json`, and a group
 of kind `bound_reached` — and not as a deadlock; it is no finding, so
