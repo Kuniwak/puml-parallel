@@ -220,11 +220,8 @@ its definition by projection. An instance is a record whose first component
 is its state; @at is that it is the state constant, each a number of its
 own, so an instance is at one state at a time, and a diagram starting at a
 state can be shown to start. A value that is no record is at no state. The
-keys and entries of a map are scalars, so a map holds no map: an obligation
-reading a map as the key or the entry of a map, or reading as a map an
-entry or a field of an instance, which the model has no map for, is refused
-rather than stated, since a builtin over it would hold of nothing and the
-obligation hold vacuously.
+keys and entries of a map are scalars, so this model has no map of maps: a
+builtin reading one holds of nothing. A model with nested maps is open.
 
 Which hypotheses an obligation takes is part of what it claims. A
 refinement is stated under no hypothesis, never under an assumption of
