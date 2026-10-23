@@ -360,7 +360,7 @@ func runIsabelle(t *testing.T, cspDir string, o obligation, src string) (string,
 		t.Fatalf("WriteFile error = %v", err)
 	}
 	session := "Csdf_" + obligationir.Mangle(o.name)
-	root := "session " + session + " = " + o.parent + " +\n  sessions\n    \"HOL-Library\"\n  theories\n    " + o.theory + "\n"
+	root := isabelle.Root(session, o.parent, o.theory)
 	if err := os.WriteFile(filepath.Join(dir, "ROOT"), []byte(root), 0o644); err != nil {
 		t.Fatalf("WriteFile error = %v", err)
 	}
