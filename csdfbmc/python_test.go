@@ -119,8 +119,10 @@ func TestThePromotedExampleStopsOnlyWhenEveryIDIsConfirmed(t *testing.T) {
 		t.Fatalf("want exit status 0 (the bound reached is no finding), got %v\n%s", err, out)
 	}
 	text := string(out)
-	if !strings.Contains(text, "states: 496\n") {
-		t.Errorf("want %q in the report, got:\n%s", "states: 496\n", text)
+	for _, want := range []string{"states: 496\n", "bound reached ×19 at running after CONFIRMED", "(a sample type has more values)"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("want %q in the report, got:\n%s", want, text)
+		}
 	}
 	if strings.Contains(text, "deadlock") {
 		t.Errorf("want no deadlock, got:\n%s", text)

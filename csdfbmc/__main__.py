@@ -8,6 +8,9 @@ csdfbmc.python_glue reads Python). The checks module gives the types, the
 environment, the ghosts and the invariants. It walks the reachable states
 within the bound, and reports the deadlocks, the tau cycles, the broken
 invariants and, with --avoid, the cycles that never perform the event.
+A state with no way out that one more value of each type given as a sample
+(csdfbmc.values.sample) would give one is reported as the bound reached,
+not as a deadlock, and is no finding.
 Findings of one shape are reported once with their count and the shortest
 trace; --all lists every one, and --first stops the walk at the first
 deadlock or broken invariant. Exits 1 when it finds any, 2 on a usage or
@@ -21,6 +24,10 @@ from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
 from csdfbmc.explore import Explorer
 
 
+# Why a state where the bound was reached is no deadlock.
+MORE = " (a sample type has more values)"
+
+
 def print_groups(result) -> None:
     for g in result.groups():
         n = f" ×{g['count']}" if g["count"] > 1 else ""
@@ -30,6 +37,11 @@ def print_groups(result) -> None:
                 print(f"deadlock at {g['example']} after {g['trace']}")
             else:
                 print(f"deadlock{n} at {g['at']} after {g['after']}{first}")
+        elif g["kind"] == "bound_reached":
+            if g["count"] == 1:
+                print(f"bound reached at {g['example']} after {g['trace']}{MORE}")
+            else:
+                print(f"bound reached{n} at {g['at']} after {g['after']}{first}{MORE}")
         elif g["kind"] == "violation":
             if g["count"] == 1:
                 print(f"invariant {g['invariant']!r} broken at {g['example']} after {g['trace']}")
@@ -46,6 +58,8 @@ def print_groups(result) -> None:
 def print_every(result) -> None:
     for s in result.deadlocks:
         print(f"deadlock at {result.describe(s)} after {result.trace_to(s)}")
+    for s in result.bound_reached:
+        print(f"bound reached at {result.describe(s)} after {result.trace_to(s)}{MORE}")
     for cycle in result.tau_cycles:
         print(f"tau cycle through {[c[0] for c in cycle]} reached after {result.trace_to(cycle[0])}")
     for name, s in result.violations:

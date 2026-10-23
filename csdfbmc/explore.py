@@ -85,6 +85,7 @@ class Result:
             "truncated": self.truncated,
             "bound": self.bound,
             "deadlocks": [at(s) for s in self.deadlocks],
+            "bound_reached": [at(s) for s in self.bound_reached],
             "tau_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.tau_cycles],
             "violations": [{"invariant": name, **at(s)} for name, s in self.violations],
             "avoid": self.avoid,
@@ -97,8 +98,8 @@ class Result:
 
     def groups(self) -> list[dict]:
         """The findings folded by shape, each with its count and the first
-        (shortest) representative: deadlocks by (control state, the event
-        that led there), broken invariants by (invariant, control state),
+        (shortest) representative: deadlocks, and the states where the bound
+        was reached, by (control state, the event that led there), broken invariants by (invariant, control state),
         empty posts by event, cycles by the set of control states they run
         through. In the order the first of each was met."""
         groups: dict[tuple, dict] = {}
@@ -117,6 +118,8 @@ class Result:
 
         for s in self.deadlocks:
             add(("deadlock", s[0], last_event(s)), lambda s=s: {"kind": "deadlock", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s)})
+        for s in self.bound_reached:
+            add(("bound_reached", s[0], last_event(s)), lambda s=s: {"kind": "bound_reached", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s)})
         for name, s in self.violations:
             add(("violation", name, s[0]), lambda name=name, s=s: {"kind": "violation", "invariant": name, "at": s[0], "trace": self.trace_to(s), "example": self.describe(s)})
         for cycle in self.tau_cycles:
