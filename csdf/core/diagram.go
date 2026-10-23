@@ -123,6 +123,24 @@ type FamilyStates struct {
 	Vars   map[string][]string
 }
 
+// clone is f sharing no slice or map with it.
+func (f FamilyStates) clone() FamilyStates {
+	vars := make(map[string][]string, len(f.Vars))
+	for s, vs := range f.Vars {
+		vars[s] = slices.Clone(vs)
+	}
+	return FamilyStates{Map: f.Map, Init: f.Init, States: slices.Clone(f.States), Vars: vars}
+}
+
+// cloneFamilies are fs, each cloned.
+func cloneFamilies(fs []FamilyStates) []FamilyStates {
+	var out []FamilyStates
+	for _, f := range fs {
+		out = append(out, f.clone())
+	}
+	return out
+}
+
 // familiesWellFormed reports, as an error, a family of d of a map no state
 // of d holds, two families of one map, or a family whose start state or
 // variables are of no state of it, or whose start state holds variables.

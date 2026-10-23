@@ -26,7 +26,7 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 		Init:     pair(l.Init, r.Init),
 		InitPost: Conj(l.InitPost, r.InitPost),
 		Assumes:  append(slices.Clone(l.Assumes), r.Assumes...),
-		Families: append(slices.Clone(l.Families), r.Families...),
+		Families: append(cloneFamilies(l.Families), cloneFamilies(r.Families)...),
 	}
 	for _, ls := range l.States {
 		for _, rs := range r.States {
@@ -136,7 +136,7 @@ func renamedApart(l, r *Diagram) *Diagram {
 		}).(clause.And)
 	}
 	out := *r
-	out.Families = slices.Clone(r.Families)
+	out.Families = cloneFamilies(r.Families)
 	for i, f := range out.Families {
 		if to, ok := rename[f.Map]; ok {
 			out.Families[i].Map = to
