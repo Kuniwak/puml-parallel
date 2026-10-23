@@ -14,7 +14,10 @@ constrains ranges over its type in TYPES (refused without one). An
 instance @at puts at a local state holds exactly that state's variables,
 which the family of its map gives (Diagram.families): each the post leaves
 open ranges over its type the same way, and a post that gives a field the
-state does not hold is refused. Every
+state does not hold is refused. So is a post that allows a map of a
+family to hold what no instance is, however it wrote the value (@eq of the
+map or of an entry, @update, or TYPES): the value is the post's, so it is
+refused rather than taken for no successor. Every
 valuation found is then checked against the whole post, so what
 determines a value is an optimisation of the meaning, never a part of it.
 """
@@ -211,6 +214,7 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
     for branch in _branches(post, (), ev.carrier):
         for after in _solve_branch(ev, branch, names, before, domain, where, families):
             if all(ev._holds(f, before, after, bound) for f, bound in branch):
+                _check_instances(after, families, where)
                 if not any(all(same_value(after[n], o[n]) for n in names) for o in out):
                     out.append(after)
     return out
@@ -353,6 +357,40 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
             choices = [{**c, k: Rec(state, FrozenMap(r))} for c in choices for r in records]
         afters = [dict(f, **{x: FrozenMap(c)}) for f in afters for c in choices]
     return afters
+
+
+def _check_instances(after: dict, families: Mapping[str, Family], where: str) -> None:
+    """Refuses a valuation the post allows in which the map of a family holds
+    what no instance of it is: an instance is at a state of its family other
+    than the start state, which is absence, and holds exactly that state's
+    variables. However the post wrote the value - @eq of the map or an
+    entry, @update, or over TYPES - the value is the post's, not the
+    environment's, so it is the author's mistake and refused rather than
+    taken for no successor."""
+    for x, fam in families.items():
+        if x not in after:
+            continue
+        m = after[x]
+        if not isinstance(m, Mapping):
+            raise PostError(f"{where}: the post gives {x}' the value {m!r}, which is no map")
+        for k, v in m.items():
+            why = _not_an_instance(fam, v)
+            if why:
+                raise PostError(f"{where}: the post gives {x}' the entry {k!r} = {v!r}, which no instance of {x} is: {why}")
+
+
+def _not_an_instance(fam: Family, v) -> str | None:
+    """Why v is no instance of fam, or None when it is one."""
+    if not isinstance(v, Rec):
+        return "it is no instance at all"
+    if v.state not in fam.states:
+        return f"{v.state} is no state of its family"
+    if v.state == fam.init:
+        return f"{v.state} is the start state, which is absence"
+    own = fam.vars[v.state]
+    if set(v.fields) != set(own):
+        return f"at {v.state} it holds {', '.join(own) or 'no field'}, not {', '.join(sorted(v.fields)) or 'no field'}"
+    return None
 
 
 def _own_fields(families: Mapping[str, Family], x: str, k, state: str, where: str) -> tuple[str, ...]:

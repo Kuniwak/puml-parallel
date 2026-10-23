@@ -92,8 +92,9 @@ class SolveTest(unittest.TestCase):
             "an equality of a value outside its type (Q5)": ([eq("n", "n'")], ["n"], {"n": 9}, [{"n": 9}]),
             "a post atom of the glue": ([atom("$n' in ($x, $x + 1)")], ["n"], {"x": 1}, [{"n": 1}, {"n": 2}]),
             "@empty": ([builtin("empty", "m'")], ["m"], {}, [{"m": FrozenMap()}]),
-            "@update": ([builtin("update", "m'", "m", "k", "v")], ["m"], {"m": M, "k": "b", "v": inst("open")},
-                        [{"m": M.set("b", inst("open"))}]),
+            "@update": ([builtin("update", "m'", "m", "k", "v")], ["m"], {"m": M, "k": "b", "v": inst("open", bal=0)},
+                        [{"m": M.set("b", inst("open", bal=0))}]),
+            "@eq of the map": ([eq("m'", "v")], ["m"], {"v": M}, [{"m": M}]),
             "@frame with @at and the fields": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
                                                 atom("${} == ${} + 1", fld(idx("m'", "k"), "bal"), fld(idx("m", "k"), "bal"))],
                                                ["m"], {"m": M, "k": "a"}, [{"m": FrozenMap({"a": inst("closed", bal=2)})}]),
@@ -148,6 +149,26 @@ class SolveTest(unittest.TestCase):
             "fields of an entry without its state": ([builtin("frame", "m'", "m", "k"), atom("${} == 1", fld(idx("m'", "k"), "bal"))],
                                                      ["m"], {"m": M, "k": "a"}, "but not its state"),
             "a variable of no state after the step": ([eq("z'", "x")], ["n"], {"x": 1}, "z is no variable"),
+            "an entry equal to an instance without a field of its state": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("open")},
+                "m' the entry 'b' = .*, which no instance of m is: at open it holds bal, not no field"),
+            "an entry equal to an instance with a field not of its state": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("open", bal=0, fee=1)},
+                "which no instance of m is: at open it holds bal, not bal, fee"),
+            "an entry equal to an instance at the start state": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("none")},
+                "which no instance of m is: none is the start state, which is absence"),
+            "an entry equal to an instance at no state of the family": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("shut")},
+                "which no instance of m is: shut is no state of its family"),
+            "an entry equal to a value that is no instance": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": 1},
+                "which no instance of m is: it is no instance at all"),
+            "the map equal to one holding what no instance is": (
+                [eq("m'", "v")], ["m"], {"v": FrozenMap({"a": inst("closed")})}, "m' the entry 'a' = .*, which no instance of m is"),
+            "the map equal to a value that is no map": ([eq("m'", "v")], ["m"], {"v": 1}, "m' the value 1, which is no map"),
+            "@update with what no instance is": ([builtin("update", "m'", "m", "k", "v")], ["m"], {"m": M, "k": "b", "v": inst("open")},
+                                                 "m' the entry 'b' = .*, which no instance of m is"),
         }
         for name, (post, names, before, said) in tests.items():
             with self.subTest(name):
@@ -211,6 +232,11 @@ class SolveIsTheMeaningTest(unittest.TestCase):
         a0, a1, b0 = inst("open", bal=0), inst("open", bal=1), inst("closed", bal=0)
         tests = {
             "@update": ([builtin("update", "m'", "m", "k", "v")], {"m": FrozenMap({"a": a0}), "k": "b", "v": b0}),
+            "@update of an entry there": ([builtin("update", "m'", "m", "k", "v")], {"m": FrozenMap({"a": a0}), "k": "a", "v": b0}),
+            "@eq of the map": ([eq("m'", "v")], {"v": FrozenMap({"a": a1, "b": b0})}),
+            "@eq of the map to the one before": ([eq("m'", "m")], {"m": FrozenMap({"b": b0})}),
+            "@frame with an entry equal to another entry": ([builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), idx("m", "j"))],
+                                                            {"m": FrozenMap({"a": a1}), "k": "b", "j": "a"}),
             "@frame with an entry equal to a value": ([builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")],
                                                       {"m": FrozenMap({"a": a0}), "k": "b", "v": b0}),
             "@frame with @at and a field fixed": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
