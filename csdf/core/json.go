@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
@@ -148,153 +149,147 @@ type AppDoc struct {
 
 // MarshalJSON writes f with its kind.
 func (f FormulaDoc) MarshalJSON() ([]byte, error) {
-	switch {
-	case f.Atom != nil && f.Builtin == nil && f.Exists == nil:
-		return json.Marshal(struct {
-			Kind string `json:"kind"`
-			AtomDoc
-		}{"atom", *f.Atom})
-	case f.Builtin != nil && f.Atom == nil && f.Exists == nil:
-		return json.Marshal(struct {
-			Kind string `json:"kind"`
-			BuiltinDoc
-		}{"builtin", *f.Builtin})
-	case f.Exists != nil && f.Atom == nil && f.Builtin == nil:
-		return json.Marshal(struct {
-			Kind string `json:"kind"`
-			ExistsDoc
-		}{"exists", *f.Exists})
-	}
-	return nil, fmt.Errorf("core.FormulaDoc: exactly one of atom, builtin and exists is set, not %+v", f)
+	return marshalTagged("conjunct", []variant{
+		{"atom", f.Atom != nil, f.Atom}, {"builtin", f.Builtin != nil, f.Builtin}, {"exists", f.Exists != nil, f.Exists},
+	})
 }
 
 // UnmarshalJSON reads a conjunct of the kind it names, with the fields of
 // that kind only.
 func (f *FormulaDoc) UnmarshalJSON(raw []byte) error {
-	kind, err := kindOf(raw)
+	var a AtomDoc
+	var b BuiltinDoc
+	var e ExistsDoc
+	kind, err := unmarshalTagged(raw, "conjunct", []variant{{"atom", true, &a}, {"builtin", true, &b}, {"exists", true, &e}})
 	if err != nil {
 		return err
 	}
 	*f = FormulaDoc{}
 	switch kind {
 	case "atom":
-		var v struct {
-			Kind string `json:"kind"`
-			AtomDoc
-		}
-		err, f.Atom = strict(raw, &v), &v.AtomDoc
+		f.Atom = &a
 	case "builtin":
-		var v struct {
-			Kind string `json:"kind"`
-			BuiltinDoc
-		}
-		err, f.Builtin = strict(raw, &v), &v.BuiltinDoc
-	case "exists":
-		var v struct {
-			Kind string `json:"kind"`
-			ExistsDoc
-		}
-		err, f.Exists = strict(raw, &v), &v.ExistsDoc
+		f.Builtin = &b
 	default:
-		return fmt.Errorf("core.FormulaDoc: the kind %q is none of atom, builtin and exists", kind)
-	}
-	if err != nil {
-		return fmt.Errorf("core.FormulaDoc: a conjunct of kind %s: %w", kind, err)
+		f.Exists = &e
 	}
 	return nil
 }
 
 // MarshalJSON writes t with its kind.
 func (t TermDoc) MarshalJSON() ([]byte, error) {
-	var kind string
-	var v any
-	n := 0
-	for _, c := range []struct {
-		set  bool
-		kind string
-		v    any
-	}{
-		{t.Free != nil, "free", t.Free}, {t.Bound != nil, "bound", t.Bound}, {t.Index != nil, "index", t.Index},
-		{t.Field != nil, "field", t.Field}, {t.App != nil, "app", t.App},
-	} {
-		if c.set {
-			n++
-			kind, v = c.kind, c.v
-		}
-	}
-	if n != 1 {
-		return nil, fmt.Errorf("core.TermDoc: exactly one of free, bound, index, field and app is set, not %+v", t)
-	}
-	fields, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	head := fmt.Sprintf(`{"kind":%q`, kind)
-	if string(fields) == "{}" {
-		return []byte(head + "}"), nil
-	}
-	return []byte(head + "," + string(fields[1:])), nil
+	return marshalTagged("term", []variant{
+		{"free", t.Free != nil, t.Free}, {"bound", t.Bound != nil, t.Bound}, {"index", t.Index != nil, t.Index},
+		{"field", t.Field != nil, t.Field}, {"app", t.App != nil, t.App},
+	})
 }
 
 // UnmarshalJSON reads a term of the kind it names, with the fields of that
 // kind only.
 func (t *TermDoc) UnmarshalJSON(raw []byte) error {
-	kind, err := kindOf(raw)
+	var fr FreeDoc
+	var bd BoundDoc
+	var ix IndexDoc
+	var fd FieldTermDoc
+	var ap AppDoc
+	kind, err := unmarshalTagged(raw, "term", []variant{{"free", true, &fr}, {"bound", true, &bd}, {"index", true, &ix}, {"field", true, &fd}, {"app", true, &ap}})
 	if err != nil {
 		return err
 	}
 	*t = TermDoc{}
 	switch kind {
 	case "free":
-		var v struct {
-			Kind string `json:"kind"`
-			FreeDoc
-		}
-		err, t.Free = strict(raw, &v), &v.FreeDoc
+		t.Free = &fr
 	case "bound":
-		var v struct {
-			Kind string `json:"kind"`
-			BoundDoc
-		}
-		err, t.Bound = strict(raw, &v), &v.BoundDoc
+		t.Bound = &bd
 	case "index":
-		var v struct {
-			Kind string `json:"kind"`
-			IndexDoc
-		}
-		err, t.Index = strict(raw, &v), &v.IndexDoc
+		t.Index = &ix
 	case "field":
-		var v struct {
-			Kind string `json:"kind"`
-			FieldTermDoc
-		}
-		err, t.Field = strict(raw, &v), &v.FieldTermDoc
-	case "app":
-		var v struct {
-			Kind string `json:"kind"`
-			AppDoc
-		}
-		err, t.App = strict(raw, &v), &v.AppDoc
+		t.Field = &fd
 	default:
-		return fmt.Errorf("core.TermDoc: the kind %q is none of free, bound, index, field and app", kind)
-	}
-	if err != nil {
-		return fmt.Errorf("core.TermDoc: a term of kind %s: %w", kind, err)
+		t.App = &ap
 	}
 	return nil
 }
 
-func kindOf(raw []byte) (string, error) {
-	var k struct {
-		Kind *string `json:"kind"`
+// variant is one kind of a tagged union: its name, whether it is the one
+// set, and its fields (a pointer to them).
+type variant struct {
+	kind string
+	set  bool
+	v    any
+}
+
+// marshalTagged writes the one variant of a union of what (a word for
+// errors) that is set: its fields, and "kind" its name.
+func marshalTagged(what string, variants []variant) ([]byte, error) {
+	var chosen *variant
+	for i := range variants {
+		if variants[i].set {
+			if chosen != nil {
+				chosen = nil
+				break
+			}
+			chosen = &variants[i]
+		}
 	}
-	if err := json.Unmarshal(raw, &k); err != nil {
+	if chosen == nil {
+		return nil, fmt.Errorf("a %s is exactly one of %s; not one is set", what, kindNames(variants))
+	}
+	raw, err := json.Marshal(chosen.v)
+	if err != nil {
+		return nil, err
+	}
+	fields := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return nil, err
+	}
+	kind, err := json.Marshal(chosen.kind)
+	if err != nil {
+		return nil, err
+	}
+	fields["kind"] = kind
+	return json.Marshal(fields)
+}
+
+// unmarshalTagged reads raw into the fields of the variant its "kind"
+// names, refusing a key that variant has no field for, and returns the kind.
+func unmarshalTagged(raw []byte, what string, variants []variant) (string, error) {
+	fields := map[string]json.RawMessage{}
+	if err := json.Unmarshal(raw, &fields); err != nil {
 		return "", err
 	}
-	if k.Kind == nil {
-		return "", fmt.Errorf("core: %s has no kind", raw)
+	k, ok := fields["kind"]
+	if !ok {
+		return "", fmt.Errorf("%s has no kind", raw)
 	}
-	return *k.Kind, nil
+	var kind string
+	if err := json.Unmarshal(k, &kind); err != nil {
+		return "", fmt.Errorf("the kind of %s: %w", raw, err)
+	}
+	delete(fields, "kind")
+	for _, v := range variants {
+		if v.kind != kind {
+			continue
+		}
+		rest, err := json.Marshal(fields)
+		if err != nil {
+			return "", err
+		}
+		if err := strict(rest, v.v); err != nil {
+			return "", fmt.Errorf("a %s of kind %s: %w", what, kind, err)
+		}
+		return kind, nil
+	}
+	return "", fmt.Errorf("the kind %q is none of %s", kind, kindNames(variants))
+}
+
+func kindNames(variants []variant) string {
+	names := make([]string, len(variants))
+	for i, v := range variants {
+		names[i] = v.kind
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // strict decodes raw into v, refusing a key v has no field for.
