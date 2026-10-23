@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
-from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Exists, Field, Free, Index, root
+from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, conjuncts, root, subterms
 from csdfbmc.protocol import ClientLike, answers, shown_atom
 from csdfbmc.values import scalars
 
@@ -69,38 +69,11 @@ class _Carrying:
         return False
 
 
-def _clauses(d: Diagram):
-    """(clause, where, role) for every clause of d."""
-    yield d.start_post, "the start edge", "post"
-    for e in d.edges:
-        where = f"{e.src} --> {e.dst} : {e.event} (line {e.line})"
-        yield e.guard, where, "guard"
-        yield e.post, where, "post"
-    for x in d.ends:
-        yield x.guard, f"the end edge from {x.src}", "guard"
-
-
-def _conjuncts(clause: tuple, bound: tuple, types: set):
+def _conjuncts(clause: tuple, types: set):
     """(formula, bound) for every conjunct of clause, inside its ∃s too;
     bound says, per bound index, whether it ranges over a sample type."""
-    for f in clause:
-        if isinstance(f, Exists):
-            yield from _conjuncts(f.body, bound + (f.type in types,), types)
-        else:
-            yield f, bound
-
-
-def _terms(t):
-    """t and every term inside it."""
-    yield t
-    if isinstance(t, Index):
-        yield from _terms(t.map)
-        yield from _terms(t.key)
-    elif isinstance(t, Field):
-        yield from _terms(t.of)
-    elif isinstance(t, App):
-        for a in t.args:
-            yield from _terms(a)
+    for f, binders in conjuncts(clause):
+        yield f, tuple(t in types for t in binders)
 
 
 def _keys(c: _Carrying) -> None:
@@ -108,10 +81,10 @@ def _keys(c: _Carrying) -> None:
     grown = True
     while grown:
         grown = False
-        for clause, _, _ in _clauses(c.d):
-            for f, bound in _conjuncts(clause, (), c.types):
+        for clause, _, _ in c.d.clauses():
+            for f, bound in _conjuncts(clause, c.types):
                 for a in f.args:
-                    for t in _terms(a):
+                    for t in subterms(a):
                         if isinstance(t, Index):
                             grown |= c.key(t.map, t.key, bound)
                 if isinstance(f, Builtin) and f.op in ("in", "notin"):
@@ -131,13 +104,13 @@ def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, envi
     _keys(c)
     samples = ", ".join(sorted(checks.samples))
     groups = [[v for v in checks.types[t]] for t in sorted(checks.samples)]
-    for clause, where, role in _clauses(diagram):
+    for clause, where, role in diagram.clauses():
         def refuse(why: str):
             raise ValueError(f"{where}, {role}: {why}; a sample type ({samples}) may be told apart only by =, ≠ and "
                              "the keys of maps, since one value occurring nowhere stands for every value beyond the sample")
-        for f, bound in _conjuncts(clause, (), c.types):
+        for f, bound in _conjuncts(clause, c.types):
             for a in f.args:
-                for t in _terms(a):
+                for t in subterms(a):
                     if isinstance(t, App) and any(c.term(x, bound) for x in t.args):
                         refuse(f"the environment function {t.fn} reads a value of a sample type, and may tell the values apart")
             if not isinstance(f, Atom):

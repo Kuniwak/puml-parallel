@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from typing import Iterator
 
 from csdfbmc.values import FrozenMap
 
@@ -134,6 +135,30 @@ def free_names(t, primed: bool | None = None) -> set[str]:
     return out
 
 
+def conjuncts(clause: tuple, binders: tuple[str, ...] = ()) -> Iterator[tuple[Formula, tuple[str, ...]]]:
+    """(formula, binders) for every conjunct of clause that is no ∃, inside
+    its ∃s too; binders are the types of the ∃s around it, outermost first,
+    so that the bound index i is bound by binders[-1 - i]."""
+    for f in clause:
+        if isinstance(f, Exists):
+            yield from conjuncts(f.body, binders + (f.type,))
+        else:
+            yield f, binders
+
+
+def subterms(t: Term) -> Iterator[Term]:
+    """t and every term inside it."""
+    yield t
+    if isinstance(t, Index):
+        yield from subterms(t.map)
+        yield from subterms(t.key)
+    elif isinstance(t, Field):
+        yield from subterms(t.of)
+    elif isinstance(t, App):
+        for a in t.args:
+            yield from subterms(a)
+
+
 def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str, ...] = ()) -> dict:
     """doc, refused unless it has every key required and no key beyond
     those and optional: the JSON is what csdfparse writes, and nothing else
@@ -214,6 +239,10 @@ class Edge:
     @property
     def is_tau(self) -> bool:
         return self.name == TAU
+
+    def describe(self) -> str:
+        """The edge as a message names it: its states, its event and its line."""
+        return f"{self.src} --> {self.dst} : {self.event} (line {self.line})"
 
 
 @dataclass(frozen=True)
@@ -317,6 +346,16 @@ class Diagram:
 
     def out_edges(self, sid: str) -> list[Edge]:
         return [e for e in self.edges if e.src == sid]
+
+    def clauses(self) -> Iterator[tuple[tuple, str, str]]:
+        """(clause, where, role) for every clause of the diagram: where names
+        its edge, and role is guard or post."""
+        yield self.start_post, "the start edge", "post"
+        for e in self.edges:
+            yield e.guard, e.describe(), "guard"
+            yield e.post, e.describe(), "post"
+        for x in self.ends:
+            yield x.guard, f"the end edge from {x.src}", "guard"
 
     def atoms(self) -> list[tuple[Atom, Edge | None, str]]:
         """Every atom of the diagram, with its edge (None for the start and

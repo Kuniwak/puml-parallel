@@ -300,7 +300,7 @@ class Explorer:
         """(params, event as taken, next states) for every value of the fields
         of e enabled from state. With record, an empty post is kept."""
         out = []
-        where = f"{e.src} --> {e.dst} : {e.event} (line {e.line})"
+        where = e.describe()
         for params in self._offers(state, e):
             before = self._before(state, params)
             if not self.ev.holds(e.guard, before):
@@ -328,7 +328,7 @@ class Explorer:
 
     def _enabled(self, state: State, e: Edge) -> bool:
         """Whether e has a transition from state, its ghosts left aside."""
-        where = f"{e.src} --> {e.dst} : {e.event} (line {e.line})"
+        where = e.describe()
         return any(self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where)
                    for before in (self._before(state, params) for params in self._offers(state, e)))
 
