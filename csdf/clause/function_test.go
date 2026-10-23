@@ -56,8 +56,8 @@ func TestFunctionOfAnAtomAsTheSharedCasesSay(t *testing.T) {
 	}
 }
 
-// Holes csdfbmc does not read yet (a path, a value after the step), which the
-// shared cases therefore refuse, but which an obligation states.
+// Holes whose arguments are not names before the step (a path, a value after
+// the step), which the shared cases leave out.
 func TestFunctionOfAnAtomWithHolesOnlyGoReads(t *testing.T) {
 	tests := map[string]struct {
 		text string

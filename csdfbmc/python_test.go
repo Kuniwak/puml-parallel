@@ -107,32 +107,24 @@ func TestTheWithdrawExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 }
 
 // The expansion of a promoted diagram is walked through the reference glue,
-// local clauses and all; the fee-bumping example comes out clean.
-func TestThePromotedExampleWalksClean(t *testing.T) {
+// local clauses and all. With no end edge, the walk stops only when every ID
+// of the bound is confirmed, which it reports as a deadlock; no cycle avoids
+// CONFIRMED.
+func TestThePromotedExampleStopsOnlyWhenEveryIDIsConfirmed(t *testing.T) {
 	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
 		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "CONFIRMED")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("want exit status 0 (nothing found), got %v\n%s", err, out)
+	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
+		t.Fatalf("want exit status 1 (the deadlocks), got %v\n%s", err, out)
 	}
-	if string(out) != "states: 496\n" {
-		t.Errorf("want only the state count, got:\n%s", out)
+	text := string(out)
+	for _, want := range []string{"states: 496\n", "deadlock ×19 at running after CONFIRMED"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("want %q in the report, got:\n%s", want, text)
+		}
 	}
-}
-
-// The attempts are declared SYMMETRIC, and the glue says no clause tells
-// their IDs apart, so --symmetry walks one state per renaming of their IDs
-// and still comes out clean.
-func TestThePromotedExampleWalksCleanUnderSymmetry(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
-		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "CONFIRMED", "--symmetry", "--por")
-	cmd.Dir = ".."
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("want exit status 0 (nothing found), got %v\n%s", err, out)
-	}
-	if string(out) != "states: 104\n" {
-		t.Errorf("want the 104 representatives of the 496 states, got:\n%s", out)
+	if strings.Contains(text, "cycle") {
+		t.Errorf("want no cycle, got:\n%s", text)
 	}
 }

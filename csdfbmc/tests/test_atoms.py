@@ -31,7 +31,20 @@ class FunctionOfTest(unittest.TestCase):
         # Assert
         self.assertEqual(a.name, b.name)
 
-    def test_refuses_what_a_guard_cannot_read_yet(self):
+    def test_names_a_function_whose_holes_read_paths_or_values_after_the_step(self):
+        tests = {
+            "a value after the step": ("$在庫' が $数量 以上", "$_0 が $_1 以上", ("在庫'", "数量")),
+            "a term with a path": ("${locations[from].在庫} が 十分", "$_0 が 十分", ("locations[from].在庫",)),
+        }
+        for name, (text, want_name, want_args) in tests.items():
+            with self.subTest(name):
+                # Execute
+                f = function_of(text)
+
+                # Assert
+                self.assertEqual((want_name, want_args), (f.name, f.args))
+
+    def test_refuses_what_names_no_function(self):
         for case in CASES["refused"]:
             with self.subTest(case["case"]):
                 # Execute, Assert

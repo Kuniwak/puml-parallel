@@ -1,5 +1,5 @@
 {
-  "doc": "The environment function an atom denotes (docs/CLAUSE_DESIGN.md): its name marks each hole with the position of the argument it reads, and its arguments are the distinct terms the holes read, in order of first appearance. Read by the Python tests (csdfbmc/tests/test_atoms.py) and the Go ones (csdf/clause/function_test.go). The refused cases are what csdfbmc does not read yet; Go reads paths and values after the step.",
+  "doc": "The environment function an atom denotes (docs/CLAUSE_DESIGN.md): its name marks each hole with the position of the argument it reads, and its arguments are the distinct terms the holes read, in order of first appearance. Read by the Python tests (csdfbmc/tests/test_atoms.py) and the Go ones (csdf/clause/function_test.go). The named cases' arguments are names before the step; csdfbmc names a function by a hole of a path or of a value after the step too (csdfbmc/tests/test_atoms.py), as Go does (csdf/clause/function_test.go).",
   "named": [
     {"case": "a $name hole and the space that ends it", "text": "$在庫 が 十分", "name": "$_0 が 十分", "args": ["在庫"]},
     {"case": "two holes, the first read again", "text": "$a と $b と $a が 等しい", "name": "$_0 と $_1 と $_0 が 等しい", "args": ["a", "b"]},
@@ -14,8 +14,6 @@
     {"case": "no hole", "text": "晴れている", "name": "晴れている", "args": []}
   ],
   "refused": [
-    {"case": "a value after the step", "text": "$在庫' が 十分", "message": "after the step"},
-    {"case": "a term with a path", "text": "${locations[from].在庫} が 十分", "message": "a name"},
     {"case": "an unclosed brace", "text": "${在庫 が 十分", "message": "closing"}
   ]
 }

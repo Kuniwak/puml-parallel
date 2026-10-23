@@ -1,8 +1,9 @@
 """The checks module of examples/bmc/attempts/ATTEMPTS.puml, for its expansion
 (csdfpromote -format json examples/bmc/attempts/ATTEMPTS.puml).
 
-The map `attempts` holds, per 試行ID, the attempt's local state (under
-"state") and its local variables. The fairness assumption of the diagram
+The map `attempts` holds, per 試行ID, an instance: its local state, which
+only the builtin @at reads, and its local variables, which are all an atom,
+a ghost or an invariant sees of it. The fairness assumption of the diagram
 becomes the finite set of IDs: a run cannot register fresh attempts forever.
 """
 from csdfbmc.values import record

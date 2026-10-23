@@ -2,9 +2,10 @@
 checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
-TYPES (a type -> iterable of its values) and, when wanted, TYPEOF (a name ->
-its type; a name it does not list has the type of its own name), ENVIRONMENT
-(the functions clauses not formalised denote; see csdfbmc.environment),
+TYPES (a type -> iterable of its values, its carrier set) and, when wanted,
+TYPEOF (a name -> its type; a name it does not list has the type of its own
+name), ENVIRONMENT (declares the atoms that are functions of the
+environment, and gives them; see csdfbmc.environment),
 GHOSTS, INVARIANTS and SYMMETRIC. An earlier csdfbmc read DOMAINS; a module
 defining it is refused. The clauses themselves are read through a glue of
 the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
@@ -91,10 +92,11 @@ class Checks:
     # typeof: a name -> its type; a name it does not list has the type of
     # its own name.
     typeof: dict[str, str] = field(default_factory=dict)
-    # environment: the name of a function a clause not formalised denotes, or
-    # an atom of it -> its value, True or False, or a pure function of its
-    # arguments in order (csdfbmc.environment).
-    environment: dict[str, Given] = field(default_factory=dict)
+    # environment: the functions of the environment it declares, each by
+    # its name or an atom of it -> its value, True or False, a pure function
+    # of its arguments in order, or None to leave it to --env or --seed
+    # (csdfbmc.environment).
+    environment: dict[str, "Given | None"] = field(default_factory=dict)
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
@@ -109,6 +111,12 @@ class Checks:
         names = {name: list(values) for name, values in self.types.items()}
         names.update((name, list(self.types[t])) for name, t in self.typeof.items() if t in self.types)
         return names
+
+    def carrier(self, type_: str) -> list:
+        """The values of the type type_, which an ∃ ranges over."""
+        if type_ in self.types:
+            return list(self.types[type_])
+        raise KeyError(f"no type {type_!r} in TYPES, which an ∃ ranges over")
 
     def domain(self, name: str) -> list:
         if self.declares(name):
@@ -168,8 +176,9 @@ def load_checks(path: str) -> Checks:
     for name, value in environment.items():
         if not isinstance(name, str):
             raise PurityError(f"{path}: ENVIRONMENT names a function by {name!r}; name it by an atom of it, as text")
-        if not isinstance(value, bool) and not callable(value):
-            raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False or a function of the names it reads")
+        if value is not None and not isinstance(value, bool) and not callable(value):
+            raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
+                              "or None to leave it to --env or --seed")
     return Checks(
         types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),

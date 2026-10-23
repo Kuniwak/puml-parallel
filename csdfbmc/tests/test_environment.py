@@ -1,5 +1,6 @@
-"""The environment: the pure functions a clause not formalised denotes, given
-by the checks module or the command line, or chosen from a seed."""
+"""The environment: the pure functions the atoms the checks module declares
+denote, given by the checks module or the command line, or chosen from a
+seed."""
 import unittest
 
 from csdfbmc import environment
@@ -115,26 +116,35 @@ class RecordingTest(unittest.TestCase):
 class OverTest(unittest.TestCase):
     def test_the_command_line_wins_over_the_module_and_the_seed_decides_the_rest(self):
         # Setup
-        env = over({"p": True, "q": True}, {"q": False}, 5)
+        env = over({"p": True, "q": True, "r": None}, {"q": False}, 5)
 
         # Execute
-        got = [env.decide(n, ()) for n in ("p", "q")]
-        rest = env.decide("r", ())
+        got = [env.decide(n, ()) for n in ("p", "q", "r")]
 
         # Assert
-        self.assertEqual([True, False], got)
-        self.assertEqual(seeded(5)("r", ()), rest)
+        self.assertEqual([True, False, seeded(5)("r", ())], got)
 
-    def test_without_a_seed_the_rest_is_undecided(self):
+    def test_the_module_declares_the_functions_by_name_whatever_atom_names_them(self):
         # Execute
-        value = over({}, {}, None).decide("r", ())
+        env = over({"$x が凍結されていない": None, "q": True}, {}, None)
+
+        # Assert
+        self.assertEqual(frozenset({"$_0 が凍結されていない", "q"}), env.declared)
+
+    def test_a_declared_function_nothing_gives_is_undecided_without_a_seed(self):
+        # Execute
+        value = over({"r": None}, {}, None).decide("r", ())
 
         # Assert
         self.assertIsNone(value)
 
+    def test_the_command_line_may_give_only_a_declared_function(self):
+        with self.assertRaisesRegex(ValueError, "--env names 'p', which the checks module's ENVIRONMENT does not declare"):
+            over({"q": None}, {"p": True}, None)
+
     def test_the_report_names_the_seed_and_the_given_names(self):
         # Setup
-        env = over({"q": True}, {"p": False}, 5)
+        env = over({"q": True, "p": None, "r": None}, {"p": False}, 5)
 
         # Execute
         report = env.to_json()
@@ -142,14 +152,13 @@ class OverTest(unittest.TestCase):
         # Assert
         self.assertEqual({"seed": 5, "given": ["p", "q"]}, report)
 
-    def test_none_decides_nothing_and_reports_nothing(self):
+    def test_none_declares_nothing_and_reports_nothing(self):
         # Execute
-        value, report = environment.NONE.decide("p", ()), environment.NONE.to_json()
+        declared, report = environment.NONE.declared, environment.NONE.to_json()
 
         # Assert
-        self.assertIsNone(value)
+        self.assertEqual(frozenset(), declared)
         self.assertEqual({"seed": None, "given": []}, report)
-
 
 if __name__ == "__main__":
     unittest.main()

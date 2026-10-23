@@ -2,7 +2,7 @@
 that enumerate their domains from the domains of their fields."""
 import unittest
 
-from csdfbmc.values import FrozenMap, freeze, record, partial_map
+from csdfbmc.values import FrozenMap, Rec, encode, freeze, record, partial_map, visible
 
 
 class FrozenMapTest(unittest.TestCase):

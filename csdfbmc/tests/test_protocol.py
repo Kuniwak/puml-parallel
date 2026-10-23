@@ -1,5 +1,6 @@
-"""The evaluator protocol carries values in a tagged JSON encoding, since
-JSON has no tuples, sets or maps with keys other than strings."""
+"""The evaluator protocol: atoms and the values of their arguments by index,
+in a tagged JSON encoding, since JSON has no tuples, sets or maps with keys
+other than strings."""
 import gc
 import io
 import json
@@ -8,8 +9,14 @@ import sys
 import unittest
 import warnings
 
-from csdfbmc.protocol import NO_CLOSE, Analysis, Client, answers, EvaluatorError, Memoising, Validating, from_wire, serve, start_command, start_module, to_wire
+from csdfbmc.protocol import (NO_CLOSE, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
+                              start_command, start_module, to_wire)
+from csdfbmc.python_glue import evaluator
 from csdfbmc.values import FrozenMap
+
+GREATER = {"text": ["", " > ", ""], "holes": [0, 1], "primed": [False, False]}
+NEXT = {"text": ["", " == ", " + 1"], "holes": [0, 1], "primed": [True, False]}
+HELLO = {"language": "fake", "protocol": 2}
 
 
 class WireEncodingTest(unittest.TestCase):
@@ -56,48 +63,16 @@ def fake(answers: dict):
     return lambda request: answers[request["op"]]
 
 
-HELLO = {"language": "fake", "protocol": 1}
-
-
 class ClientTest(unittest.TestCase):
-    """The client refuses an answer the protocol does not define, rather
-    than reading something into it."""
-
-    def test_a_hello_naming_no_language_is_refused(self):
-        with self.assertRaises(EvaluatorError):
-            Client(fake({"hello": {"protocol": 1}}), NO_CLOSE)
-
-    def test_a_malformed_answer_is_refused(self):
-        for name, answers, ask in [
-            ("analyse without reads", {"analyse": {"writes": []}}, lambda c: c.analyse("x", "guard")),
-            ("reads that are not names", {"analyse": {"reads": [1], "writes": []}}, lambda c: c.analyse("x", "guard")),
-            ("a guard that is not a truth value", {"guard": {"results": [1]}}, lambda c: c.guard("x", [{}])),
-            ("fewer results than bindings", {"guard": {"results": []}}, lambda c: c.guard("x", [{}])),
-            ("a post that is not a list of assignments", {"post": {"results": [[1]]}}, lambda c: c.post("x", [{}])),
-            ("an answer that is not an object", {"guard": [True]}, lambda c: c.guard("x", [{}])),
-            ("an error that is not a message", {"guard": {"error": ["x"]}}, lambda c: c.guard("x", [{}])),
-            ("beyond without reads", {"beyond": {}}, lambda c: c.beyond("x", "guard", "i")),
-            ("symmetric that is not a truth value", {"symmetric": {"symmetric": 1}}, lambda c: c.symmetric("x", "guard", [], [], [])),
-            ("not symmetric without why", {"symmetric": {"symmetric": False}}, lambda c: c.symmetric("x", "guard", [], [], [])),
-        ]:
-            client = Client(fake({"hello": dict(HELLO, supports=["beyond", "symmetric"]), **answers}), NO_CLOSE)
-            with self.subTest(name), self.assertRaises(EvaluatorError):
-                ask(client)
-
-
-class SupportsTest(unittest.TestCase):
-    """A glue answers beyond and symmetric only when its hello says it
-    does; the client asks nothing of one that does not."""
-
-    def test_the_optional_requests_are_asked_of_a_glue_that_answers_them(self):
-        for name, ask, want in [
-            ("beyond", lambda c: c.beyond("x", "guard", "i"), ("n",)),
-            ("symmetric", lambda c: c.symmetric("x", "guard", ["i"], [], [["a", "b"]]), "i is ordered"),
-        ]:
+    def test_it_asks_the_glue_about_atoms(self):
+        tests = {
+            "a guard": (lambda c: c.guard(GREATER, [[3, 2], [1, 2]]), [True, False]),
+            "a post": (lambda c: c.post(NEXT, [[2]]), [[[3]]]),
+        }
+        for name, (ask, want) in tests.items():
             with self.subTest(name):
                 # Setup
-                client = Client(fake({"hello": dict(HELLO, supports=["beyond", "symmetric"]),
-                                      "beyond": {"reads": ["n"]}, "symmetric": {"symmetric": False, "why": "i is ordered"}}), NO_CLOSE)
+                client = Client(evaluator([]), NO_CLOSE)
 
                 # Execute
                 got = ask(client)
@@ -105,79 +80,108 @@ class SupportsTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(want, got)
 
-    def test_a_glue_that_does_not_answer_them_is_not_asked(self):
+    def test_a_wrong_answer_is_refused(self):
+        tests = {
+            "a glue speaking protocol 1": ({"hello": {"language": "old", "protocol": 1}}, lambda c: None, "protocol 2"),
+            "a hello naming no language": ({"hello": {"protocol": 2}}, lambda c: None, "names no language"),
+            "a hello whose supports are not names": ({"hello": dict(HELLO, supports=[1])}, lambda c: None, "not a list of requests"),
+            "fewer results than lists of values":
+                ({"hello": HELLO, "guard": {"results": [True]}}, lambda c: c.guard(GREATER, [[1, 2], [3, 4]]), "one result per list of values"),
+            "a guard that is not a truth value":
+                ({"hello": HELLO, "guard": {"results": [1]}}, lambda c: c.guard(GREATER, [[1, 2]]), "a guard is a truth value"),
+            "a post that is not lists of values":
+                ({"hello": HELLO, "post": {"results": [[3]]}}, lambda c: c.post(NEXT, [[2]]), "a post is a list of lists"),
+            "an error answer": ({"hello": HELLO, "guard": {"error": "boom"}}, lambda c: c.guard(GREATER, [[1, 2]]), "boom"),
+            "symmetric of a glue that does not answer it":
+                ({"hello": HELLO}, lambda c: c.symmetric(GREATER, [0], [], [["a1", "a2"]]), "does not answer symmetric"),
+            "a post giving another number of values":
+                ({"hello": HELLO, "post": {"results": [[[1, 2]]]}}, lambda c: checked(c).post(NEXT, [[2]]), "1 value after the step"),
+        }
+        for name, (answers, ask, error) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(EvaluatorError, error):
+                    ask(Client(fake(answers), NO_CLOSE))
+
+
+class CountingGlue:
+    """The Python glue, counting the lists of values it is asked about."""
+
+    def __init__(self):
+        self.inner = evaluator([])
+        self.asked = 0
+
+    def __call__(self, request):
+        self.asked += len(request.get("values", []))
+        return self.inner(request)
+
+
+class CheckedTest(unittest.TestCase):
+    def test_an_atom_is_asked_once_per_list_of_values(self):
         # Setup
-        client = Client(fake({"hello": HELLO}), NO_CLOSE)
-
-        # Execute, Assert
-        self.assertFalse(answers(client, "beyond"))
-        with self.assertRaises(EvaluatorError):
-            client.beyond("x", "guard", "i")
-
-    def test_a_hello_with_supports_that_are_not_names_is_refused(self):
-        # Execute, Assert
-        with self.assertRaises(EvaluatorError):
-            Client(fake({"hello": dict(HELLO, supports="beyond")}), NO_CLOSE)
-
-    def test_validating_refuses_a_name_beyond_that_the_clause_does_not_read(self):
-        # Setup
-        inner = Client(fake({"hello": dict(HELLO, supports=["beyond"]), "analyse": {"reads": ["n"], "writes": []},
-                             "beyond": {"reads": ["n", "m"]}}), NO_CLOSE)
-
-        # Execute, Assert
-        with self.assertRaisesRegex(EvaluatorError, "'m'"):
-            Validating(inner).beyond("x", "guard", "i")
-
-
-class Recording:
-    """A client answering from tables, which records the bindings it is asked about."""
-    language = "fake"
-    supports = frozenset()
-
-    def __init__(self, analyses: dict, answer):
-        self.analyses, self.answer, self.asked = analyses, answer, []
-
-    def analyse(self, clause, role):
-        return self.analyses[clause]
-
-    def guard(self, clause, bindings):
-        self.asked.append(bindings)
-        return [self.answer(b) for b in bindings]
-
-    post = guard
-
-    def close(self):
-        pass
-
-
-class DecoratorTest(unittest.TestCase):
-    def test_memoising_asks_once_per_value_of_what_a_clause_reads(self):
-        inner = Recording({"n > 0": Analysis(opaque=False, reads=("n",))}, lambda b: b["n"] > 0)
-        client = Memoising(inner)
-        self.assertEqual([True, False, True], client.guard("n > 0", [{"n": 1}, {"n": 0}, {"n": 1}]))
-        self.assertEqual([True], client.guard("n > 0", [{"n": 1}]))
-        self.assertEqual([[{"n": 1}, {"n": 0}]], inner.asked)
-
-    def test_memoising_tells_a_truth_value_from_the_number_it_equals(self):
-        # Setup
-        inner = Recording({"n": Analysis(opaque=False, reads=("n",))}, lambda b: type(b["n"]) is bool)
-        client = Memoising(inner)
+        glue = CountingGlue()
+        client = checked(Client(glue, NO_CLOSE))
 
         # Execute
-        got = client.guard("n", [{"n": 1}]) + client.guard("n", [{"n": True}])
+        client.guard(GREATER, [[3, 2], [3, 2]])
+        client.guard(GREATER, [[3, 2], [1, 2]])
+
+        # Assert
+        self.assertEqual(2, glue.asked)
+
+    def test_a_truth_value_is_not_the_number_it_equals(self):
+        # Setup
+        client = checked(Client(CountingGlue(), NO_CLOSE))
+        same = {"text": ["", " is True"], "holes": [0], "primed": [False]}
+
+        # Execute
+        got = client.guard(same, [[1]]) + client.guard(same, [[True]])
 
         # Assert
         self.assertEqual([False, True], got)
 
-    def test_validating_refuses_an_assignment_beside_the_writes(self):
-        for name, answer in [("a variable too many", [{"n": 1, "m": 0}]), ("a variable short", [{}])]:
-            client = Validating(Recording({"p": Analysis(opaque=False, writes=("n",))}, lambda b: answer))
-            with self.subTest(name), self.assertRaises(EvaluatorError):
-                client.post("p", [{}])
 
-    def test_validating_passes_an_assignment_to_exactly_the_writes(self):
-        client = Validating(Recording({"p": Analysis(opaque=False, writes=("n",))}, lambda b: [{"n": 1}]))
-        self.assertEqual([[{"n": 1}]], client.post("p", [{}]))
+class HandlerTest(unittest.TestCase):
+    """A glue speaks protocol 2 after its hello agreed on it, and only that."""
+
+    def handle(self):
+        return atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC)
+
+    def test_a_request_it_does_not_speak_is_refused(self):
+        tests = {
+            "a request before hello": (False, {"op": "guard", "atom": GREATER, "values": [[1, 2]]}, "hello"),
+            "a clause of protocol 1": (True, {"op": "guard", "clause": "n > 0", "bindings": [{"n": 1}]}, "carries an atom"),
+            "analyse of protocol 1": (True, {"op": "analyse", "clause": "n > 0", "role": "guard"}, "carries an atom"),
+            "symmetric of a glue that does not answer it": (True, {"op": "symmetric", "atom": GREATER, "params": [0], "maps": [], "groups": [["a", "b"]]}, "no request"),
+        }
+        for name, (greet, request, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                handle = self.handle()
+                if greet:
+                    handle({"op": "hello", "protocol": 2})
+
+                # Execute
+                answer = handle(request)
+
+                # Assert
+                self.assertIn(said, answer.get("error", ""))
+
+    def test_a_hello_asking_another_protocol_is_refused(self):
+        for name, hello in {"protocol 1, named by none": {"op": "hello"}, "protocol 3": {"op": "hello", "protocol": 3}}.items():
+            with self.subTest(name):
+                # Execute
+                answer = self.handle()(hello)
+
+                # Assert
+                self.assertIn("speaks protocol 2", answer.get("error", ""))
+
+    def test_a_glue_without_symmetric_supports_nothing(self):
+        # Execute
+        hello = self.handle()({"op": "hello", "protocol": 2})
+
+        # Assert
+        self.assertEqual(HELLO, hello)
 
 
 class ServeTest(unittest.TestCase):
@@ -189,14 +193,14 @@ class ServeTest(unittest.TestCase):
         return [json.loads(line) for line in out.getvalue().splitlines()]
 
     def test_a_line_that_is_not_a_request_is_answered_with_an_error(self):
-        answers = self.serve(["not json", json.dumps({"op": "hello"})], lambda r: HELLO)
+        answers = self.serve(["not json", json.dumps({"op": "hello", "protocol": 2})], lambda r: HELLO)
         self.assertIn("error", answers[0])
         self.assertEqual(HELLO, answers[1])
 
     def test_what_the_handle_raises_is_answered_with_an_error(self):
         def handle(request):
             raise KeyError("boom")
-        self.assertIn("boom", self.serve([json.dumps({"op": "hello"})], handle)[0]["error"])
+        self.assertIn("boom", self.serve([json.dumps({"op": "hello", "protocol": 2})], handle)[0]["error"])
 
     def test_the_values_of_an_atom_post_are_encoded_both_ways(self):
         # Setup
@@ -228,21 +232,23 @@ class TransportTest(unittest.TestCase):
         self.evaluators = {"command": command, "module": start_module("csdfbmc.python_glue", [])}
 
     def test_both_answer_alike(self):
+        set_m = {"text": ["", " == ", ".set('k', (1, 2))"], "holes": [0, 1], "primed": [True, False]}
+        two = {"text": ["len(", ") == 2"], "holes": [0], "primed": [False]}
         for ask, want in [
             (lambda ev: ev.language, "python"),
-            (lambda ev: ev.analyse("[{'m': m.set('k', (1, 2))}]", "post"), Analysis(opaque=False, reads=("m",), writes=("m",))),
-            (lambda ev: ev.post("[{'m': m.set('k', (1, 2))}]", [{"m": FrozenMap()}]), [[{"m": FrozenMap({"k": (1, 2)})}]]),
-            (lambda ev: ev.guard("len(s) == 2", [{"s": frozenset({1, 2})}]), [True]),
+            (lambda ev: ev.post(set_m, [[FrozenMap()]]), [[[FrozenMap({"k": (1, 2)})]]]),
+            (lambda ev: ev.guard(two, [[frozenset({1, 2})]]), [True]),
         ]:
             for how, ev in self.evaluators.items():
                 with self.subTest(how=how, want=want):
                     self.assertEqual(want, ask(ev))
 
     def test_an_error_answer_is_raised_with_its_message(self):
+        broken = {"text": ["", " >"], "holes": [0], "primed": [False]}
         for how, ev in self.evaluators.items():
             with self.subTest(how=how), self.assertRaises(EvaluatorError) as cm:
-                ev.guard("x >", [{}])
-            self.assertIn("x >", str(cm.exception))
+                ev.guard(broken, [[1]])
+            self.assertIn("$0 >", str(cm.exception))
 
     def test_a_glue_that_stops_before_hello_leaves_no_pipe_open(self):
         with warnings.catch_warnings(record=True) as caught:
@@ -254,7 +260,7 @@ class TransportTest(unittest.TestCase):
 
     def test_a_glue_speaking_another_protocol_version_is_refused(self):
         with self.assertRaises(EvaluatorError) as cm:
-            start_command([sys.executable, "-c", "import sys; sys.stdin.readline(); print('{\"language\": \"x\", \"protocol\": 99}')"])
+            start_command([sys.executable, "-c", 'import sys; sys.stdin.readline(); print(\'{"language": "x", "protocol": 99}\')'])
         self.assertIn("99", str(cm.exception))
 
 

@@ -1,26 +1,32 @@
 """The environment: what a diagram takes from outside (docs/CLAUSE_DESIGN.md,
 P15 and P16). Besides the types of the checks module, it holds the pure
-functions that a clause not formalised denotes - an atom the glue says it
-cannot read: a truth value for each valuation of the names the clause may
-read, fixed for the whole run. The tool word @opaque is no longer read.
+functions that atoms not formalised denote: a truth value for each
+valuation of the atom's arguments, fixed for the whole run.
 
-A function is named by its atom: the atom's text without its holes, its
-arguments the values of the holes, in order (csdfbmc.atoms); atoms with the
-same text are the same function. A name given may be written as any atom of
+Which atoms are functions of the environment is declared, by the checks
+module alone: every key of its ENVIRONMENT declares one, and every other
+atom is read through the glue, which answers an atom it cannot read with
+an error. A key gives the function True, False or a pure function of the
+arguments in order, or None, which declares it and leaves it to be chosen:
+by --env NAME=true|false, or by --seed N. --env may name only a declared
+function, and --seed chooses only declared functions nothing gives; a
+declared function nothing gives and no seed chooses is refused before the
+walk, and so is a declared name that names no atom of the diagram.
+
+A function is named by its atom: the atom's text with each hole written
+$_N, N the position of the argument it reads (csdfbmc.atoms); atoms with
+the same text are the same function. A name may be written as any atom of
 the function, `$在庫 が 十分` as well as `$_0 が 十分`.
 
-A function is given by the checks module (ENVIRONMENT) or the command line
-(--env NAME=true|false), or chosen from a seed (--seed N): a seed picks one
-function deterministically, by hashing the seed, the function's name and the
-values of its arguments, and nothing else, so that the same seed walks the
-same states again and different seeds widen what bounded checking covers. A
-given function wins over the seed; a function given as Python takes the
-arguments in order. The report names the seed and the given functions,
-which is all a run needs to be reproduced.
+A seed picks one function deterministically, by hashing the seed, the
+function's name and the values of its arguments, and nothing else, so that
+the same seed walks the same states again and different seeds widen what
+bounded checking covers. The report names the seed and the given
+functions, which is all a run needs to be reproduced.
 
 What decides is a function (Decide) built from combinators - nothing,
-seeded, given_over - and an Environment is that function together with what
-reproduces it.
+seeded, given_over - and an Environment is that function together with
+what it declares and what reproduces it.
 """
 from __future__ import annotations
 
@@ -32,6 +38,8 @@ from typing import Callable
 from csdfbmc.atoms import function_of
 
 Given = bool | Callable[..., bool]
+# A key of ENVIRONMENT whose value is None declares the function and gives
+# nothing: --env or --seed chooses it.
 
 # Decide is the value of the function named name for the values of its
 # arguments, in order, or None when it decides nothing for that name.
@@ -91,9 +99,10 @@ def recording(decide: Decide, seen: dict[str, None]) -> Decide:
 
 @dataclass(frozen=True)
 class Environment:
-    """What decides the functions, and what reproduces it: the seed and the
-    functions given, by name."""
+    """What decides the functions, and what reproduces it: the functions
+    declared, by name; the seed; and the functions given, by name."""
     decide: Decide
+    declared: frozenset[str]
     seed: int | None
     given: Mapping[str, Given]
 
@@ -101,16 +110,24 @@ class Environment:
         return {"seed": self.seed, "given": sorted(self.given)}
 
 
-# NONE decides nothing: no function is given, and there is no seed.
-NONE = Environment(decide=nothing, seed=None, given={})
+# NONE declares nothing: every atom is the glue's.
+NONE = Environment(decide=nothing, declared=frozenset(), seed=None, given={})
 
 
-def over(module: Mapping[str, Given], given: Mapping[str, Given], seed: int | None) -> Environment:
-    """The environment of a run: given over the checks module's ENVIRONMENT
-    (module), and the seed, when there is one, for the rest."""
-    merged = named(module) | named(given)
+def over(module: Mapping[str, "Given | None"], given: Mapping[str, Given], seed: int | None) -> Environment:
+    """The environment of a run: the functions the checks module's
+    ENVIRONMENT (module) declares, given by it or by given (--env) where
+    either gives one, and chosen from the seed, when there is one, for the
+    rest. given may name only a declared function."""
+    declared = named(module)
+    cli = named(given)
+    undeclared = [n for n in given if function_of(n).name not in declared]
+    if undeclared:
+        raise ValueError(f"--env names {', '.join(map(repr, undeclared))}, which the checks module's ENVIRONMENT does not declare; "
+                         "declare it there (None leaves it to --env or --seed)")
+    merged = {n: g for n, g in declared.items() if g is not None} | cli
     return Environment(decide=_given_over_named(merged, seeded(seed) if seed is not None else nothing),
-                       seed=seed, given=merged)
+                       declared=frozenset(declared), seed=seed, given=merged)
 
 
 def canonical(v) -> str:
