@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
@@ -34,7 +33,9 @@ type DiagramDoc struct {
 }
 
 // EdgeDoc is an edge: its event as its channel and its fields in order,
-// the event's label (Event.Label), its guard and post, and its line.
+// its guard and post, and its line. Label is derived from the channel and
+// the fields (Event.Label) for a reader of the JSON; a reader in Go ignores
+// it.
 type EdgeDoc struct {
 	Src     string       `json:"src"`
 	Dst     string       `json:"dst"`
@@ -46,8 +47,7 @@ type EdgeDoc struct {
 	Line    int          `json:"line"`
 }
 
-// FieldDoc is a field of an event: Dir "?" for one received, "!" for one
-// sent.
+// FieldDoc is a field of an event, its direction as Field.Dir writes it.
 type FieldDoc struct {
 	Dir  string `json:"dir"`
 	Name string `json:"name"`
@@ -65,38 +65,67 @@ type AssumptionDoc struct {
 	Text string `json:"text"`
 }
 
-// FormulaDoc is one conjunct of a clause, exactly one of three:
-//
-//   - an atom: Atom in the shape a glue receives it (clause.AtomWire),
-//     Pieces its text as the atom holds it (Atom.Text without the space the
-//     wire puts after a hole), Function the name of the environment function
-//     it denotes (clause.FunctionOf), and Args the terms its arguments stand
-//     for;
-//   - a builtin: Builtin its op, Args its terms, State the state of @at;
-//   - ∃: Exists the type it ranges over, Body its conjuncts, where the
-//     variable it binds is the bound index 0. A hint carries no meaning and
-//     is not written.
+// FormulaDoc is one conjunct of a clause, a tagged union written with
+// "kind" "atom", "builtin" or "exists" beside the fields of that kind: exactly
+// one of its fields is set.
 type FormulaDoc struct {
-	Atom     *clause.AtomWire `json:"atom,omitempty"`
-	Pieces   []string         `json:"pieces,omitempty"`
-	Function string           `json:"function,omitempty"`
-	Builtin  string           `json:"builtin,omitempty"`
-	State    string           `json:"state,omitempty"`
-	Args     []TermDoc        `json:"args,omitempty"`
-	Exists   string           `json:"exists,omitempty"`
-	Body     []FormulaDoc     `json:"body,omitempty"`
+	Atom    *AtomDoc
+	Builtin *BuiltinDoc
+	Exists  *ExistsDoc
 }
 
-// TermDoc is a term, exactly one of: a free variable (Free, primed when
-// Primed), a bound index (Bound), an entry of a map (Index), a field
-// (Field), or an environment function applied (App).
+// AtomDoc is an atom: Pieces its text as the atom holds it (clause.Pieces),
+// Holes the argument each hole reads and Args the terms the arguments stand
+// for (clause.Wire). These are the atom. Text, Primed and Function are a view
+// derived from them for a program that hands atoms to a glue, such as
+// csdfbmc: the text as the glue receives it and which arguments are values
+// after the step (clause.AtomWire), and the name of the environment
+// function the atom denotes (clause.FunctionOf). A reader of the JSON in Go
+// ignores them.
+type AtomDoc struct {
+	Pieces   []string  `json:"pieces"`
+	Holes    []int     `json:"holes"`
+	Args     []TermDoc `json:"args"`
+	Text     []string  `json:"text"`
+	Primed   []bool    `json:"primed"`
+	Function string    `json:"function"`
+}
+
+// BuiltinDoc is a builtin: its op, its terms, and the state of @at.
+type BuiltinDoc struct {
+	Op    string    `json:"op"`
+	Args  []TermDoc `json:"args"`
+	State string    `json:"state,omitempty"`
+}
+
+// ExistsDoc is ∃: the type it ranges over, and its body, where the variable
+// it binds is the bound index 0. A hint carries no meaning and is not
+// written.
+type ExistsDoc struct {
+	Type string       `json:"type"`
+	Body []FormulaDoc `json:"body"`
+}
+
+// TermDoc is a term, a tagged union written with "kind" "free", "bound",
+// "index", "field" or "app" beside the fields of that kind: exactly one of
+// its fields is set.
 type TermDoc struct {
-	Free   string    `json:"free,omitempty"`
-	Primed bool      `json:"primed,omitempty"`
-	Bound  *int      `json:"bound,omitempty"`
-	Index  *IndexDoc `json:"index,omitempty"`
-	Field  *FieldOf  `json:"field,omitempty"`
-	App    *AppDoc   `json:"app,omitempty"`
+	Free  *FreeDoc
+	Bound *BoundDoc
+	Index *IndexDoc
+	Field *FieldTermDoc
+	App   *AppDoc
+}
+
+// FreeDoc is a free variable, primed when it is the value after the step.
+type FreeDoc struct {
+	Name   string `json:"name"`
+	Primed bool   `json:"primed,omitempty"`
+}
+
+// BoundDoc is a de Bruijn index: 0 is the nearest enclosing ∃.
+type BoundDoc struct {
+	Index int `json:"index"`
 }
 
 // IndexDoc is m[k].
@@ -105,8 +134,8 @@ type IndexDoc struct {
 	Key TermDoc `json:"key"`
 }
 
-// FieldOf is t.f.
-type FieldOf struct {
+// FieldTermDoc is t.f.
+type FieldTermDoc struct {
 	Of   TermDoc `json:"of"`
 	Name string  `json:"name"`
 }
@@ -115,6 +144,164 @@ type FieldOf struct {
 type AppDoc struct {
 	Fn   string    `json:"fn"`
 	Args []TermDoc `json:"args"`
+}
+
+// MarshalJSON writes f with its kind.
+func (f FormulaDoc) MarshalJSON() ([]byte, error) {
+	switch {
+	case f.Atom != nil && f.Builtin == nil && f.Exists == nil:
+		return json.Marshal(struct {
+			Kind string `json:"kind"`
+			AtomDoc
+		}{"atom", *f.Atom})
+	case f.Builtin != nil && f.Atom == nil && f.Exists == nil:
+		return json.Marshal(struct {
+			Kind string `json:"kind"`
+			BuiltinDoc
+		}{"builtin", *f.Builtin})
+	case f.Exists != nil && f.Atom == nil && f.Builtin == nil:
+		return json.Marshal(struct {
+			Kind string `json:"kind"`
+			ExistsDoc
+		}{"exists", *f.Exists})
+	}
+	return nil, fmt.Errorf("core.FormulaDoc: exactly one of atom, builtin and exists is set, not %+v", f)
+}
+
+// UnmarshalJSON reads a conjunct of the kind it names, with the fields of
+// that kind only.
+func (f *FormulaDoc) UnmarshalJSON(raw []byte) error {
+	kind, err := kindOf(raw)
+	if err != nil {
+		return err
+	}
+	*f = FormulaDoc{}
+	switch kind {
+	case "atom":
+		var v struct {
+			Kind string `json:"kind"`
+			AtomDoc
+		}
+		err, f.Atom = strict(raw, &v), &v.AtomDoc
+	case "builtin":
+		var v struct {
+			Kind string `json:"kind"`
+			BuiltinDoc
+		}
+		err, f.Builtin = strict(raw, &v), &v.BuiltinDoc
+	case "exists":
+		var v struct {
+			Kind string `json:"kind"`
+			ExistsDoc
+		}
+		err, f.Exists = strict(raw, &v), &v.ExistsDoc
+	default:
+		return fmt.Errorf("core.FormulaDoc: the kind %q is none of atom, builtin and exists", kind)
+	}
+	if err != nil {
+		return fmt.Errorf("core.FormulaDoc: a conjunct of kind %s: %w", kind, err)
+	}
+	return nil
+}
+
+// MarshalJSON writes t with its kind.
+func (t TermDoc) MarshalJSON() ([]byte, error) {
+	var kind string
+	var v any
+	n := 0
+	for _, c := range []struct {
+		set  bool
+		kind string
+		v    any
+	}{
+		{t.Free != nil, "free", t.Free}, {t.Bound != nil, "bound", t.Bound}, {t.Index != nil, "index", t.Index},
+		{t.Field != nil, "field", t.Field}, {t.App != nil, "app", t.App},
+	} {
+		if c.set {
+			n++
+			kind, v = c.kind, c.v
+		}
+	}
+	if n != 1 {
+		return nil, fmt.Errorf("core.TermDoc: exactly one of free, bound, index, field and app is set, not %+v", t)
+	}
+	fields, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	head := fmt.Sprintf(`{"kind":%q`, kind)
+	if string(fields) == "{}" {
+		return []byte(head + "}"), nil
+	}
+	return []byte(head + "," + string(fields[1:])), nil
+}
+
+// UnmarshalJSON reads a term of the kind it names, with the fields of that
+// kind only.
+func (t *TermDoc) UnmarshalJSON(raw []byte) error {
+	kind, err := kindOf(raw)
+	if err != nil {
+		return err
+	}
+	*t = TermDoc{}
+	switch kind {
+	case "free":
+		var v struct {
+			Kind string `json:"kind"`
+			FreeDoc
+		}
+		err, t.Free = strict(raw, &v), &v.FreeDoc
+	case "bound":
+		var v struct {
+			Kind string `json:"kind"`
+			BoundDoc
+		}
+		err, t.Bound = strict(raw, &v), &v.BoundDoc
+	case "index":
+		var v struct {
+			Kind string `json:"kind"`
+			IndexDoc
+		}
+		err, t.Index = strict(raw, &v), &v.IndexDoc
+	case "field":
+		var v struct {
+			Kind string `json:"kind"`
+			FieldTermDoc
+		}
+		err, t.Field = strict(raw, &v), &v.FieldTermDoc
+	case "app":
+		var v struct {
+			Kind string `json:"kind"`
+			AppDoc
+		}
+		err, t.App = strict(raw, &v), &v.AppDoc
+	default:
+		return fmt.Errorf("core.TermDoc: the kind %q is none of free, bound, index, field and app", kind)
+	}
+	if err != nil {
+		return fmt.Errorf("core.TermDoc: a term of kind %s: %w", kind, err)
+	}
+	return nil
+}
+
+func kindOf(raw []byte) (string, error) {
+	var k struct {
+		Kind *string `json:"kind"`
+	}
+	if err := json.Unmarshal(raw, &k); err != nil {
+		return "", err
+	}
+	if k.Kind == nil {
+		return "", fmt.Errorf("core: %s has no kind", raw)
+	}
+	return *k.Kind, nil
+}
+
+// strict decodes raw into v, refusing a key v has no field for.
+func strict(raw []byte, v any) error {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
 }
 
 // MarshalDiagram is d as JSON (DiagramDoc). A diagram that is not well
@@ -132,14 +319,13 @@ func MarshalDiagram(d *Diagram) ([]byte, error) {
 }
 
 // UnmarshalDiagram reads the diagram MarshalDiagram wrote. Another version,
-// an unknown key, a conjunct or term that is not exactly one of its kinds,
-// an atom whose wire is not the one its pieces and arguments make, and a
-// diagram that is not well formed are errors.
+// an unknown key, a conjunct or term of no kind it knows or with a key of
+// another kind, a field of no direction, an atom whose pieces and holes do
+// not fit, and a diagram that is not well formed are errors. What a document
+// derives (an edge's label, an atom's text, primed and function) is not read.
 func UnmarshalDiagram(raw []byte) (*Diagram, error) {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
 	var doc DiagramDoc
-	if err := dec.Decode(&doc); err != nil {
+	if err := strict(raw, &doc); err != nil {
 		return nil, fmt.Errorf("core.UnmarshalDiagram: %w", err)
 	}
 	d, err := doc.Diagram()
@@ -174,11 +360,7 @@ func DiagramDocOf(d *Diagram) (DiagramDoc, error) {
 	for _, e := range d.Edges {
 		ed := EdgeDoc{Src: e.Src, Dst: e.Dst, Channel: e.Event.Channel, Fields: []FieldDoc{}, Label: e.Event.Label(), Line: e.Line}
 		for _, f := range e.Event.Fields {
-			dir := "?"
-			if f.Send {
-				dir = "!"
-			}
-			ed.Fields = append(ed.Fields, FieldDoc{Dir: dir, Name: f.Name})
+			ed.Fields = append(ed.Fields, FieldDoc{Dir: f.Dir(), Name: f.Name})
 		}
 		if ed.Guard, err = FormulaDocOf(e.Guard); err != nil {
 			return DiagramDoc{}, fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, ed.Label, err)
@@ -208,11 +390,11 @@ func (doc DiagramDoc) Diagram() (*Diagram, error) {
 	}
 	d := &Diagram{Name: doc.Name, States: append([]string{}, doc.States...), Vars: map[string][]string{},
 		Init: doc.Init, InitLine: doc.InitLine}
-	for s, l := range doc.Labels {
-		if d.Labels == nil {
-			d.Labels = map[string]string{}
+	if len(doc.Labels) > 0 {
+		d.Labels = make(map[string]string, len(doc.Labels))
+		for s, l := range doc.Labels {
+			d.Labels[s] = l
 		}
-		d.Labels[s] = l
 	}
 	for s, vs := range doc.Vars {
 		if len(vs) > 0 {
@@ -220,32 +402,28 @@ func (doc DiagramDoc) Diagram() (*Diagram, error) {
 		}
 	}
 	var err error
-	if d.InitPost, err = formulaOfDoc(doc.InitPost); err != nil {
+	if d.InitPost, err = formulaOfDocs(doc.InitPost); err != nil {
 		return nil, fmt.Errorf("the start edge: %w", err)
 	}
 	for _, ed := range doc.Edges {
 		e := Edge{Src: ed.Src, Dst: ed.Dst, Event: Event{Channel: ed.Channel}, Line: ed.Line}
-		for _, f := range ed.Fields {
-			switch f.Dir {
-			case "?", "!":
-				e.Event.Fields = append(e.Event.Fields, Field{Send: f.Dir == "!", Name: f.Name})
-			default:
-				return nil, fmt.Errorf("the edge on %s: the field %s has the direction %q, neither ? nor !", ed.Channel, f.Name, f.Dir)
+		for _, fd := range ed.Fields {
+			f, err := FieldOfDir(fd.Dir, fd.Name)
+			if err != nil {
+				return nil, fmt.Errorf("the edge on %s: %w", ed.Channel, err)
 			}
+			e.Event.Fields = append(e.Event.Fields, f)
 		}
-		if e.Event.Label() != ed.Label {
-			return nil, fmt.Errorf("the edge on %s is labelled %q, but its channel and fields make %q", ed.Channel, ed.Label, e.Event.Label())
+		if e.Guard, err = formulaOfDocs(ed.Guard); err != nil {
+			return nil, fmt.Errorf("%s --> %s : %s: %w", ed.Src, ed.Dst, e.Event.Label(), err)
 		}
-		if e.Guard, err = formulaOfDoc(ed.Guard); err != nil {
-			return nil, fmt.Errorf("%s --> %s : %s: %w", ed.Src, ed.Dst, ed.Label, err)
-		}
-		if e.Post, err = formulaOfDoc(ed.Post); err != nil {
-			return nil, fmt.Errorf("%s --> %s : %s: %w", ed.Src, ed.Dst, ed.Label, err)
+		if e.Post, err = formulaOfDocs(ed.Post); err != nil {
+			return nil, fmt.Errorf("%s --> %s : %s: %w", ed.Src, ed.Dst, e.Event.Label(), err)
 		}
 		d.Edges = append(d.Edges, e)
 	}
 	for _, ed := range doc.Ends {
-		guard, err := formulaOfDoc(ed.Guard)
+		guard, err := formulaOfDocs(ed.Guard)
 		if err != nil {
 			return nil, fmt.Errorf("the end edge from %s: %w", ed.Src, err)
 		}
@@ -283,30 +461,24 @@ func formulaDocs(f clause.And) ([]FormulaDoc, error) {
 			if err != nil {
 				return nil, err
 			}
-			pieces := []string{""}
-			for _, p := range c.Parts {
-				switch p := p.(type) {
-				case clause.Text:
-					pieces[len(pieces)-1] += string(p)
-				case clause.Hole:
-					pieces = append(pieces, "")
-				}
-			}
-			out = append(out, FormulaDoc{Atom: &w, Pieces: pieces, Function: fn.Name, Args: termDocs(terms)})
+			out = append(out, FormulaDoc{Atom: &AtomDoc{
+				Pieces: clause.Pieces(c), Holes: w.Holes, Args: termDocs(terms),
+				Text: w.Text, Primed: w.Primed, Function: fn.Name,
+			}})
 		case clause.Builtin:
-			out = append(out, FormulaDoc{Builtin: string(c.Op), Args: termDocs(c.Args), State: c.State})
+			out = append(out, FormulaDoc{Builtin: &BuiltinDoc{Op: string(c.Op), Args: termDocs(c.Args), State: c.State}})
 		case clause.Exists:
 			body, err := formulaDocs(c.Body)
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, FormulaDoc{Exists: c.Type, Body: body})
+			out = append(out, FormulaDoc{Exists: &ExistsDoc{Type: c.Type, Body: body}})
 		}
 	}
 	return out, nil
 }
 
-func formulaOfDoc(docs []FormulaDoc) (clause.And, error) {
+func formulaOfDocs(docs []FormulaDoc) (clause.And, error) {
 	f := clause.And{}
 	for _, doc := range docs {
 		c, err := doc.formula()
@@ -319,68 +491,29 @@ func formulaOfDoc(docs []FormulaDoc) (clause.And, error) {
 }
 
 func (doc FormulaDoc) formula() (clause.Formula, error) {
-	kinds := 0
-	for _, is := range []bool{doc.Atom != nil, doc.Builtin != "", doc.Exists != ""} {
-		if is {
-			kinds++
-		}
-	}
-	if kinds != 1 {
-		return nil, fmt.Errorf("a conjunct is exactly one of an atom, a builtin and ∃, not %+v", doc)
-	}
-	args, err := termsOfDocs(doc.Args)
-	if err != nil {
-		return nil, err
-	}
 	switch {
 	case doc.Atom != nil:
-		if doc.Builtin != "" || doc.State != "" || doc.Exists != "" || doc.Body != nil {
-			return nil, fmt.Errorf("an atom carries no builtin, state or body: %+v", doc)
-		}
-		if len(doc.Pieces) != len(doc.Atom.Holes)+1 {
-			return nil, fmt.Errorf("an atom has one piece more than holes, not %d for %d", len(doc.Pieces), len(doc.Atom.Holes))
-		}
-		parts := []clause.Part{clause.Text(doc.Pieces[0])}
-		for i, h := range doc.Atom.Holes {
-			if h < 0 || h >= len(args) {
-				return nil, fmt.Errorf("hole %d reads argument %d of %d", i, h, len(args))
-			}
-			parts = append(parts, clause.Hole{Term: args[h]}, clause.Text(doc.Pieces[i+1]))
-		}
-		a := clause.Normalize(clause.And{Conjuncts: []clause.Formula{clause.Atom{Parts: parts}}}).Conjuncts[0].(clause.Atom)
-		w, terms, err := clause.Wire(a)
+		args, err := termsOfDocs(doc.Atom.Args)
 		if err != nil {
 			return nil, err
 		}
-		fn, err := clause.FunctionOf(a)
+		return clause.AtomOf(doc.Atom.Pieces, doc.Atom.Holes, args)
+	case doc.Builtin != nil:
+		args, err := termsOfDocs(doc.Builtin.Args)
 		if err != nil {
 			return nil, err
 		}
-		if !reflect.DeepEqual(w, *doc.Atom) || !reflect.DeepEqual(terms, args) || fn.Name != doc.Function {
-			return nil, fmt.Errorf("the atom %q: its wire and function are not those its pieces and arguments make", fn.Name)
-		}
-		return a, nil
-	case doc.Builtin != "":
-		if doc.Pieces != nil || doc.Function != "" || doc.Body != nil {
-			return nil, fmt.Errorf("a builtin carries no pieces, function or body: %+v", doc)
-		}
-		return clause.Builtin{Op: clause.Op(doc.Builtin), Args: args, State: doc.State}, nil
+		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, State: doc.Builtin.State}, nil
 	default:
-		if doc.Pieces != nil || doc.Function != "" || doc.State != "" || doc.Args != nil {
-			return nil, fmt.Errorf("∃ carries no pieces, function, state or arguments: %+v", doc)
-		}
-		body, err := formulaOfDoc(doc.Body)
+		body, err := formulaOfDocs(doc.Exists.Body)
 		if err != nil {
 			return nil, err
 		}
-		return clause.Exists{Type: doc.Exists, Body: body}, nil
+		return clause.Exists{Type: doc.Exists.Type, Body: body}, nil
 	}
 }
 
 func termDocs(ts []clause.Term) []TermDoc {
-	if len(ts) == 0 {
-		return nil
-	}
 	out := make([]TermDoc, len(ts))
 	for i, t := range ts {
 		out[i] = termDoc(t)
@@ -391,14 +524,13 @@ func termDocs(ts []clause.Term) []TermDoc {
 func termDoc(t clause.Term) TermDoc {
 	switch t := t.(type) {
 	case clause.Free:
-		return TermDoc{Free: t.Name, Primed: t.Primed}
+		return TermDoc{Free: &FreeDoc{Name: t.Name, Primed: t.Primed}}
 	case clause.Bound:
-		i := t.Index
-		return TermDoc{Bound: &i}
+		return TermDoc{Bound: &BoundDoc{Index: t.Index}}
 	case clause.Index:
 		return TermDoc{Index: &IndexDoc{Map: termDoc(t.Map), Key: termDoc(t.Key)}}
 	case clause.Field:
-		return TermDoc{Field: &FieldOf{Of: termDoc(t.Of), Name: t.Name}}
+		return TermDoc{Field: &FieldTermDoc{Of: termDoc(t.Of), Name: t.Name}}
 	case clause.App:
 		return TermDoc{App: &AppDoc{Fn: t.Fn, Args: termDocs(t.Args)}}
 	}
@@ -406,7 +538,7 @@ func termDoc(t clause.Term) TermDoc {
 }
 
 func termsOfDocs(docs []TermDoc) ([]clause.Term, error) {
-	var out []clause.Term
+	out := make([]clause.Term, 0, len(docs))
 	for _, doc := range docs {
 		t, err := doc.term()
 		if err != nil {
@@ -418,20 +550,11 @@ func termsOfDocs(docs []TermDoc) ([]clause.Term, error) {
 }
 
 func (doc TermDoc) term() (clause.Term, error) {
-	kinds := 0
-	for _, is := range []bool{doc.Free != "", doc.Bound != nil, doc.Index != nil, doc.Field != nil, doc.App != nil} {
-		if is {
-			kinds++
-		}
-	}
-	if kinds != 1 || doc.Primed && doc.Free == "" {
-		return nil, fmt.Errorf("a term is exactly one of free, bound, index, field and app, not %+v", doc)
-	}
 	switch {
-	case doc.Free != "":
-		return clause.Free{Name: doc.Free, Primed: doc.Primed}, nil
+	case doc.Free != nil:
+		return clause.Free{Name: doc.Free.Name, Primed: doc.Free.Primed}, nil
 	case doc.Bound != nil:
-		return clause.Bound{Index: *doc.Bound}, nil
+		return clause.Bound{Index: doc.Bound.Index}, nil
 	case doc.Index != nil:
 		m, err := doc.Index.Map.term()
 		if err != nil {
@@ -448,11 +571,12 @@ func (doc TermDoc) term() (clause.Term, error) {
 			return nil, err
 		}
 		return clause.Field{Of: o, Name: doc.Field.Name}, nil
-	default:
+	case doc.App != nil:
 		args, err := termsOfDocs(doc.App.Args)
 		if err != nil {
 			return nil, err
 		}
 		return clause.App{Fn: doc.App.Fn, Args: args}, nil
 	}
+	return nil, fmt.Errorf("a term of no kind")
 }
