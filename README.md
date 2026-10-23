@@ -329,7 +329,8 @@ builtins mean is then a lemma `csdf_lemma_<i>`, proved in the file from the defi
 (`auto` in Isabelle, a projection of the definition in Lean), which the prover checks: no
 theorem rests on an axiom, so none holds by a contradiction among axioms. The model rests on
 the libraries: an Isabelle theory imports `HOL-Library.Countable`, so a session building it
-declares `sessions "HOL-Library"` in its ROOT, and a Lean file imports
+declares `sessions "HOL-Library"` in its ROOT (the ROOT is shown by `csdflivelockfree -h`
+and `csdfrefinement -h`), and a Lean file imports
 `Mathlib.Data.List.Sort`, `Mathlib.Order.RelClasses` and `Mathlib.SetTheory.Cardinal.Order`,
 which need Mathlib `v4.29.0-rc4` (Lean `v4.29.0-rc4`, the version lean-csp-prover pins) or later. An assume note of the
 diagram (see [SYNTAX.md](./docs/SYNTAX.md)) — what it assumes of its runs as a whole, such as

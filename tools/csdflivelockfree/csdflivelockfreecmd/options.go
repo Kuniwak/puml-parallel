@@ -4,8 +4,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
@@ -25,7 +27,7 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 		flags.SetOutput(inout.Stderr)
 		flags.Usage = func() {
 			w := flags.Output()
-			fmt.Fprintf(w, `Usage: csdflivelockfree [options] [file.puml|file.png]
+			io.WriteString(w, `Usage: csdflivelockfree [options] [file.puml|file.png]
 
 Compiles a livelock-freedom proof obligation for a Composable State Diagram to
 the target selected by -target and exits 0:
@@ -63,6 +65,11 @@ assume_<id>, declared like an atom under a TODO(csdf) marker, and the
 theorem is stated under those hypotheses. A file argument, a "-" argument,
 and standard input are all equivalent.
 
+The isabelle theory imports the libraries the builtins rest on, so the ROOT of
+the session building it, saved as Livelock_Obligation.thy, declares their
+sessions:
+
+`+isabelle.Root("Csdf_Obligation", "HOL", "Livelock_Obligation")+`
 Options:
 `)
 			flags.PrintDefaults()

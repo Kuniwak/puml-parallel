@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/google/go-cmp/cmp"
@@ -187,5 +188,22 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 				t.Fatal("want not nil, got nil")
 			}
 		})
+	}
+}
+
+func TestUsageShouldShowTheIsabelleRoot(t *testing.T) {
+	// Arrange
+	parseOptions := NewParseOptionsFunc()
+	spy := cli.SpyProcInout()
+
+	// Act
+	if _, err := parseOptions([]string{"-h"}, spy.New()); err != nil {
+		t.Fatalf("want nil, got %#v", err)
+	}
+
+	// Assert
+	want := isabelle.Root("Csdf_Obligation", "CSP_F", "Refinement_Obligation")
+	if !strings.Contains(spy.Stderr.String(), want) {
+		t.Errorf("usage lacks the ROOT\n%s\nin\n%s", want, spy.Stderr.String())
 	}
 }
