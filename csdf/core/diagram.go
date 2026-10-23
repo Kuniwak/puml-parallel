@@ -6,6 +6,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -105,6 +106,71 @@ type Diagram struct {
 	Edges    []Edge
 	Ends     []End
 	Assumes  []Assumption
+	// Families are, for a promoted diagram, the local states of the family
+	// whose instances each map holds: what an instance in the map may be
+	// (docs/PROMOTION.md). A diagram no promotion made has none.
+	Families []FamilyStates
+}
+
+// FamilyStates is what an instance in the map Map may be: at one of
+// States other than Init, holding that state's Vars as its fields. Init,
+// the local start state, is absence: an instance there has no entry in
+// the map, and it holds no variables.
+type FamilyStates struct {
+	Map    string
+	Init   string
+	States []string
+	Vars   map[string][]string
+}
+
+// clone is f sharing no slice or map with it.
+func (f FamilyStates) clone() FamilyStates {
+	vars := make(map[string][]string, len(f.Vars))
+	for s, vs := range f.Vars {
+		vars[s] = slices.Clone(vs)
+	}
+	return FamilyStates{Map: f.Map, Init: f.Init, States: slices.Clone(f.States), Vars: vars}
+}
+
+// cloneFamilies are fs, each cloned.
+func cloneFamilies(fs []FamilyStates) []FamilyStates {
+	var out []FamilyStates
+	for _, f := range fs {
+		out = append(out, f.clone())
+	}
+	return out
+}
+
+// familiesWellFormed reports, as an error, a family of d of a map no state
+// of d holds, two families of one map, or a family whose start state or
+// variables are of no state of it, or whose start state holds variables.
+func (d *Diagram) familiesWellFormed() error {
+	seen := map[string]bool{}
+	for _, f := range d.Families {
+		if seen[f.Map] {
+			return fmt.Errorf("two families of %s", f.Map)
+		}
+		seen[f.Map] = true
+		held := false
+		for _, vs := range d.Vars {
+			held = held || slices.Contains(vs, f.Map)
+		}
+		if !held {
+			return fmt.Errorf("the family of %s: %s is no variable of any state", f.Map, f.Map)
+		}
+		if !slices.Contains(f.States, f.Init) {
+			return fmt.Errorf("the family of %s: its start state %s is none of its states", f.Map, f.Init)
+		}
+		for _, s := range slices.Sorted(maps.Keys(f.Vars)) {
+			if !slices.Contains(f.States, s) {
+				return fmt.Errorf("the family of %s: variables of %s, which is none of its states", f.Map, s)
+			}
+		}
+		if len(f.Vars[f.Init]) > 0 {
+			return fmt.Errorf("the family of %s: its start state %s, which is absence, holds variables", f.Map, f.Init)
+		}
+	}
+	return nil
 }
 
 // Assumption is one assume note: ID names the note, Text is what it
@@ -153,6 +219,9 @@ func (d *Diagram) wellFormed() error {
 	if err := d.declared(); err != nil {
 		return err
 	}
+	if err := d.familiesWellFormed(); err != nil {
+		return err
+	}
 	if err := clause.WellFormed(d.InitPost); err != nil {
 		return fmt.Errorf("the start edge: %w", err)
 	}
@@ -166,6 +235,68 @@ func (d *Diagram) wellFormed() error {
 	for _, e := range d.Ends {
 		if err := clause.WellFormed(e.Guard); err != nil {
 			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return d.atsWellFormed()
+}
+
+// atsWellFormed reports, as an error, an @at of an entry of a family's map
+// at a state that is none of the family's, or at its start state, which is
+// absence (said with @notin).
+func (d *Diagram) atsWellFormed() error {
+	if err := d.atsIn(d.InitPost); err != nil {
+		return fmt.Errorf("the start edge: %w", err)
+	}
+	for _, e := range d.Edges {
+		for _, c := range []clause.And{e.Guard, e.Post} {
+			if err := d.atsIn(c); err != nil {
+				return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+			}
+		}
+	}
+	for _, e := range d.Ends {
+		if err := d.atsIn(e.Guard); err != nil {
+			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return nil
+}
+
+// atsIn is atsWellFormed of the clause c.
+func (d *Diagram) atsIn(c clause.And) error {
+	for _, f := range c.Conjuncts {
+		switch f := f.(type) {
+		case clause.Exists:
+			if err := d.atsIn(f.Body); err != nil {
+				return err
+			}
+		case clause.Builtin:
+			if f.Op != clause.OpAt || len(f.Args) == 0 {
+				continue
+			}
+			ix, ok := f.Args[0].(clause.Index)
+			if !ok {
+				continue
+			}
+			m, ok := ix.Map.(clause.Free)
+			if !ok {
+				continue
+			}
+			i := slices.IndexFunc(d.Families, func(x FamilyStates) bool { return x.Map == m.Name })
+			if i < 0 {
+				continue
+			}
+			fam := d.Families[i]
+			if !slices.Contains(fam.States, f.State) {
+				prime := ""
+				if m.Primed {
+					prime = "'"
+				}
+				return fmt.Errorf("@at(%s%s[…], %s), but %s is no state of the family of %s", m.Name, prime, f.State, f.State, m.Name)
+			}
+			if f.State == fam.Init {
+				return fmt.Errorf("%s is the start state of the family of %s, which is absence; say @notin", f.State, m.Name)
+			}
 		}
 	}
 	return nil

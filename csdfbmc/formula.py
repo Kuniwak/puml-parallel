@@ -10,7 +10,14 @@ A post is solved, not searched: the values after the step come from what
 determines them - an equality builtin with a value after the step on one
 side (Q5), @empty, @update, @frame with @at and @notin for its keys, and
 the values a post atom allows - and only a variable nothing in the post
-constrains ranges over its type in TYPES (refused without one). Every
+constrains ranges over its type in TYPES (refused without one). An
+instance @at puts at a local state holds exactly that state's variables,
+which the family of its map gives (Diagram.families): each the post leaves
+open ranges over its type the same way, and a post that gives a field the
+state does not hold is refused. So is a post that allows a map of a
+family to hold what no instance is, however it wrote the value (@eq of the
+map or of an entry, @update, or TYPES): the value is the post's, so it is
+refused rather than taken for no successor. Every
 valuation found is then checked against the whole post, so what
 determines a value is an optimisation of the meaning, never a part of it.
 """
@@ -20,7 +27,7 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
-from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Field, Free, Index, is_primed
+from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, is_primed
 from csdfbmc.values import FrozenMap, Rec, same_value
 
 
@@ -197,20 +204,23 @@ def _join(joined: list[dict], options: list[dict]) -> list[dict]:
 
 
 def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
-          domain: Callable[[str], list], where: str) -> list[dict]:
+          domain: Callable[[str], list], where: str, families: Mapping[str, Family]) -> list[dict]:
     """The valuations of names, the variables of the state after the step,
     that post allows from before. domain gives the values of a name's type;
-    where names the edge in a refusal."""
+    where names the edge in a refusal; families gives, for each map, what
+    an instance in it may be: at a state @at gives, it holds exactly that
+    state's variables."""
     out: list[dict] = []
     for branch in _branches(post, (), ev.carrier):
-        for after in _solve_branch(ev, branch, names, before, domain, where):
+        for after in _solve_branch(ev, branch, names, before, domain, where, families):
             if all(ev._holds(f, before, after, bound) for f, bound in branch):
+                _check_instances(after, families, where)
                 if not any(all(same_value(after[n], o[n]) for n in names) for o in out):
                     out.append(after)
     return out
 
 
-def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, where) -> list[dict]:
+def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, where, families) -> list[dict]:
     options: list[list[dict]] = []
     frames: dict[str, list[tuple]] = {}
     mentioned: set[tuple] = set()
@@ -237,7 +247,7 @@ def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, whe
             return []
     out = []
     for a in joined:
-        out.extend(_assemble(a, names, frames, mentioned, domain, where))
+        out.extend(_assemble(a, names, frames, mentioned, domain, where, families))
     return out
 
 
@@ -290,10 +300,12 @@ def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | 
     return None
 
 
-def _assemble(a: dict, names, frames, mentioned, domain, where) -> list[dict]:
+def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> list[dict]:
     """The valuations after the step that the assignment a to locations
     makes: none when a contradicts itself, and one per value of its type for
-    a variable or a field of an instance nothing determines."""
+    a variable or a field of an instance nothing determines. An instance
+    @at puts at a state holds exactly the variables its family gives that
+    state."""
     afters: list[dict] = [{}]
 
     def typed(name: str, what: str) -> list:
@@ -333,13 +345,63 @@ def _assemble(a: dict, names, frames, mentioned, domain, where) -> list[dict]:
                 if fields:
                     raise PostError(f"{where}: the post gives fields of {x}'[{k!r}] but not its state; say @at({x}'[…], STATE)")
                 raise PostError(f"{where}: the post leaves {x}'[{k!r}] unconstrained; say @notin(…, {x}') or @at({x}'[…], STATE)")
+            own = _own_fields(families, x, k, state, where)
+            stray = [n for n in fields if n not in own]
+            if stray:
+                raise PostError(f"{where}: the post gives {x}'[{k!r}].{stray[0]}, but an instance at {state} holds only "
+                                f"{', '.join(own) or 'no field'}")
             records: list[dict] = [dict(given)]
-            for name in fields:
+            for name in own:
                 if name not in given:
                     records = [dict(r, **{name: v}) for r in records for v in typed(name, f"{x}'[{k!r}].{name}")]
             choices = [{**c, k: Rec(state, FrozenMap(r))} for c in choices for r in records]
         afters = [dict(f, **{x: FrozenMap(c)}) for f in afters for c in choices]
     return afters
+
+
+def _check_instances(after: dict, families: Mapping[str, Family], where: str) -> None:
+    """Refuses a valuation the post allows in which the map of a family holds
+    what no instance of it is: an instance is at a state of its family other
+    than the start state, which is absence, and holds exactly that state's
+    variables. However the post wrote the value - @eq of the map or an
+    entry, @update, or over TYPES - the value is the post's, not the
+    environment's, so it is the author's mistake and refused rather than
+    taken for no successor."""
+    for x, fam in families.items():
+        if x not in after:
+            continue
+        m = after[x]
+        if not isinstance(m, Mapping):
+            raise PostError(f"{where}: the post gives {x}' the value {m!r}, which is no map")
+        for k, v in m.items():
+            why = _not_an_instance(fam, v)
+            if why:
+                raise PostError(f"{where}: the post gives {x}' the entry {k!r} = {v!r}, which no instance of {x} is: {why}")
+
+
+def _not_an_instance(fam: Family, v) -> str | None:
+    """Why v is no instance of fam, or None when it is one."""
+    if not isinstance(v, Rec):
+        return "it is no instance at all"
+    if v.state not in fam.states:
+        return f"{v.state} is no state of its family"
+    if v.state == fam.init:
+        return f"{v.state} is the start state, which is absence"
+    own = fam.vars[v.state]
+    if set(v.fields) != set(own):
+        return f"at {v.state} it holds {', '.join(own) or 'no field'}, not {', '.join(sorted(v.fields)) or 'no field'}"
+    return None
+
+
+def _own_fields(families: Mapping[str, Family], x: str, k, state: str, where: str) -> tuple[str, ...]:
+    """The variables an instance of the map x holds at state."""
+    fam = families.get(x)
+    if fam is None:
+        raise PostError(f"{where}: the post puts {x}'[{k!r}] at {state}, but {x} is the map of no family, so nothing says "
+                        "what an instance there holds; check the expansion csdfpromote -format json writes")
+    if state not in fam.vars or state == fam.init:
+        raise PostError(f"{where}: the post puts {x}'[{k!r}] at {state}, which is no state an instance of {x} may be at")
+    return fam.vars[state]
 
 
 def _among(k, keys) -> bool:

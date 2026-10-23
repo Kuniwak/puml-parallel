@@ -1,5 +1,5 @@
 """Diagrams written by hand for the tests, in the JSON csdfparse prints
-(core.DiagramDoc, version 1). The atoms follow the reader only as far as the
+(core.DiagramDoc, version 2). The atoms follow the reader only as far as the
 tests need: a hole is $name or $name' (a space after it ends it before a
 character that could continue the name, as in docs/SYNTAX.md), and ${}
 takes the next of the terms given."""
@@ -108,11 +108,18 @@ def end(src, guard=()):
     return {"src": src, "guard": list(guard)}
 
 
-def diagram(states, init, init_post=(), edges=(), ends=(), name="D", assumes=()):
+def family(m, init, states):
+    """The family of the map m: states maps each local state to its
+    variables, in order; init is the start state, which is absence."""
+    return {"map": m, "init": init, "states": list(states), "vars": {s: list(vs) for s, vs in states.items()}}
+
+
+def diagram(states, init, init_post=(), edges=(), ends=(), name="D", assumes=(), families=()):
     """A diagram: states maps each state to its variables, in order."""
-    return {"version": 1, "name": name, "states": list(states), "labels": {},
+    return {"version": 2, "name": name, "states": list(states), "labels": {},
             "vars": {s: list(vs) for s, vs in states.items()}, "init": init, "init_post": list(init_post),
-            "init_line": 0, "edges": list(edges), "ends": list(ends), "assumes": list(assumes)}
+            "init_line": 0, "edges": list(edges), "ends": list(ends), "assumes": list(assumes),
+            "families": list(families)}
 
 
 def load(doc):

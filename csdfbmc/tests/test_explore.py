@@ -4,7 +4,7 @@ import unittest
 from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, exists, fld, idx
+from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, exists, family, fld, idx
 from csdfbmc.values import FrozenMap, Rec
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
@@ -42,7 +42,7 @@ ACCOUNTS = diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], edges=
                eq(fld(idx("m'", "k"), "bal"), fld(idx("m", "k"), "bal"))]),
     edge("r", "r", "DROP?k", guard=[builtin("at", idx("m", "k"), state="closed")],
          post=[builtin("frame", "m'", "m", "k"), builtin("notin", "k", "m'")]),
-])
+], families=[family("m", "none", {"none": [], "open": ["bal"], "closed": ["bal"]})])
 
 
 class WalkTest(unittest.TestCase):

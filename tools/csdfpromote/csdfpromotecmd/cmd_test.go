@@ -91,7 +91,7 @@ func TestNewMainFunc(t *testing.T) {
 		},
 		"-format json prints the expansion as csdfparse prints a diagram": {
 			args:         []string{"-format", "json", accountsPath},
-			wantStdout:   []string{`"version":1`, `"kind":"builtin","op":"notin"`},
+			wantStdout:   []string{`"version":2`, `"kind":"builtin","op":"notin"`},
 			wantNoStdout: []string{"@startuml", `"origin"`},
 		},
 		"an unknown -format is refused": {
@@ -124,7 +124,7 @@ func TestNewMainFunc(t *testing.T) {
 		},
 		"-only with -format json drops what reads a left-out map, and says so": {
 			args:         []string{"-only", "buys", "-format", "json", "../../../examples/promote/TRADES.puml"},
-			wantStdout:   []string{`"version":1`},
+			wantStdout:   []string{`"version":2`},
 			wantNoStdout: []string{"cycles"},
 			wantStderr:   "dropped, as it reads a left-out map",
 		},

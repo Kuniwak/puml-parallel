@@ -1,6 +1,8 @@
-"""The diagram as csdfparse prints it (core.DiagramDoc, version 1): its
+"""The diagram as csdfparse prints it (core.DiagramDoc, version 2): its
 clauses are formulas, a skeleton of ∧, ∃ and builtins over terms, with
-atoms a glue or the environment gives the meaning of (docs/CLAUSE_DESIGN.md).
+atoms a glue or the environment gives the meaning of (docs/CLAUSE_DESIGN.md);
+and, for a promoted diagram, the family of each map: what an instance in the
+map may be (docs/PROMOTION.md).
 
 A clause is a tuple of its conjuncts. A variable bound by ∃ is a de Bruijn
 index (Bound): 0 is the nearest enclosing ∃.
@@ -8,9 +10,11 @@ index (Bound): 0 is the nearest enclosing ∃.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-VERSION = 1
+from csdfbmc.values import FrozenMap
+
+VERSION = 2
 
 RECEIVED, SENT = "?", "!"
 TAU = "tau"
@@ -218,6 +222,49 @@ class End:
     guard: tuple
 
 
+@dataclass(frozen=True)
+class Family:
+    """The family of a map: an instance in it is at one of states other
+    than init, the start state, which is absence, and holds the vars of
+    that state as its fields."""
+    init: str
+    states: tuple[str, ...]
+    vars: FrozenMap   # local state -> the tuple of its variables, in declaration order
+
+
+def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
+    _fields(doc, "a family", ("map", "init", "states", "vars"))
+    m, states = doc["map"], tuple(doc["states"])
+    if m not in held:
+        raise ValueError(f"the family of {m}: {m} is no variable of any state")
+    if doc["init"] not in states:
+        raise ValueError(f"the family of {m}: its start state {doc['init']} is none of its states")
+    if sorted(doc["vars"]) != sorted(states):
+        raise ValueError(f"the family of {m}: its variables are of the states {sorted(doc['vars'])}, not of each of its states {list(states)}")
+    if doc["vars"][doc["init"]]:
+        raise ValueError(f"the family of {m}: its start state {doc['init']}, which is absence, holds variables")
+    return m, Family(doc["init"], states, FrozenMap({s: tuple(doc["vars"][s]) for s in states}))
+
+
+def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
+    """Refuses an @at of an entry of a family's map at a state that is not
+    one an instance may be at. It mirrors core.Diagram.wellFormed, which
+    refuses such a diagram before it is written, for a JSON written by hand."""
+    for f in clause:
+        if isinstance(f, Exists):
+            _check_at(f.body, families, where)
+        elif isinstance(f, Builtin) and f.op == "at" and isinstance(f.args[0], Index) and isinstance(f.args[0].map, Free):
+            m = f.args[0].map.name
+            fam = families.get(m)
+            if fam is None:
+                continue
+            if f.state not in fam.states:
+                raise ValueError(f"{where}: @at({m}{chr(39) if f.args[0].map.primed else ''}[…], {f.state}), "
+                                 f"but {f.state} is no state of the family of {m}")
+            if f.state == fam.init:
+                raise ValueError(f"{where}: {f.state} is the start state of the family of {m}, which is absence; say @notin")
+
+
 @dataclass
 class Diagram:
     name: str
@@ -229,13 +276,14 @@ class Diagram:
     edges: list[Edge]
     ends: list[End]
     assumptions: list[dict]
+    families: dict[str, Family] = field(default_factory=dict)   # map -> its family, for a promoted diagram
 
     @classmethod
     def from_json(cls, d: dict) -> "Diagram":
         if not isinstance(d, dict) or d.get("version") != VERSION:
             raise ValueError(f"the diagram JSON is version {d.get('version') if isinstance(d, dict) else None!r}, but csdfbmc reads "
                              f"version {VERSION}; write it with csdfparse (or csdfpromote -format json) of this release")
-        _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "init", "init_post", "init_line", "edges", "ends", "assumes"))
+        _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "init", "init_post", "init_line", "edges", "ends", "assumes", "families"))
         edges = []
         for e in d["edges"]:
             _fields(e, "an edge", ("src", "dst", "channel", "fields", "label", "guard", "post", "line"))
@@ -243,9 +291,24 @@ class Diagram:
             edges.append(Edge(src=e["src"], dst=e["dst"], name=e["channel"], fields=fields, event=e["label"],
                               guard=formula_of(e["guard"]), post=formula_of(e["post"]), line=e["line"]))
         ends = [End(x["src"], formula_of(x["guard"])) for x in (_fields(x, "an end edge", ("src", "guard")) for x in d["ends"])]
+        held = {v for vs in d["vars"].values() for v in vs}
+        families: dict[str, Family] = {}
+        for doc in d["families"]:
+            m, fam = _family_of(doc, held)
+            if m in families:
+                raise ValueError(f"two families of {m}")
+            families[m] = fam
+        start_post = formula_of(d["init_post"])
+        _check_at(start_post, families, "the start edge")
+        for e in edges:
+            for c in (e.guard, e.post):
+                _check_at(c, families, f"{e.src} --> {e.dst} : {e.event}")
+        for x in ends:
+            _check_at(x.guard, families, f"the end edge from {x.src}")
         return cls(name=d["name"], states=list(d["states"]), labels=dict(d["labels"]),
-                   vars={s: tuple(d["vars"][s]) for s in d["states"]}, start=d["init"], start_post=formula_of(d["init_post"]),
-                   edges=edges, ends=ends, assumptions=[_fields(a, "an assume note", ("id", "text")) for a in d["assumes"]])
+                   vars={s: tuple(d["vars"][s]) for s in d["states"]}, start=d["init"], start_post=start_post,
+                   edges=edges, ends=ends, assumptions=[_fields(a, "an assume note", ("id", "text")) for a in d["assumes"]],
+                   families=families)
 
     @classmethod
     def load(cls, path: str) -> "Diagram":

@@ -6,7 +6,7 @@ import unittest
 from csdfbmc import environment
 from csdfbmc.formula import Evaluator, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import formula_of
+from csdfbmc.model import Family, formula_of
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx
 from csdfbmc.values import FrozenMap, Rec, same_value
@@ -17,6 +17,15 @@ TYPES = {"T": [1, 2], "n": [0, 1, 2], "p": [0, 1], "k": ["a", "b"], "bal": [0, 1
 TYPES["m"] = [FrozenMap({k: v for k, v in zip(("a", "b"), entries) if v is not None})
               for entries in itertools.product([None] + [Rec(s, FrozenMap(bal=b)) for s in ("open", "closed") for b in TYPES["bal"]],
                                                repeat=2)]
+# Every map from "a" and "b" to an instance open with a balance and a p, or
+# shut with no field.
+TYPES["w"] = [FrozenMap({k: v for k, v in zip(("a", "b"), entries) if v is not None})
+              for entries in itertools.product([None, Rec("shut", FrozenMap())] +
+                                               [Rec("open", FrozenMap(bal=b, p=q)) for b in TYPES["bal"] for q in TYPES["p"]], repeat=2)]
+# The families of the maps: what an instance in each may be. An instance of
+# m is dear only in a refusal, fee having no type.
+FAMILIES = {"m": Family("none", ("none", "open", "closed", "dear"), FrozenMap({"none": (), "open": ("bal",), "closed": ("bal",), "dear": ("fee",)})),
+            "w": Family("none", ("none", "open", "shut"), FrozenMap({"none": (), "open": ("bal", "p"), "shut": ()}))}
 
 
 def evaluator(env=environment.NONE, given=None):
@@ -75,7 +84,7 @@ class GuardTest(unittest.TestCase):
 
 class SolveTest(unittest.TestCase):
     def solve(self, post, names, before, env=environment.NONE):
-        return solve(evaluator(env), formula_of(post), tuple(names), before, lambda n: TYPES[n], "the edge")
+        return solve(evaluator(env), formula_of(post), tuple(names), before, lambda n: TYPES[n], "the edge", FAMILIES)
 
     def test_the_values_after_the_step_come_from_what_determines_them(self):
         tests = {
@@ -83,8 +92,9 @@ class SolveTest(unittest.TestCase):
             "an equality of a value outside its type (Q5)": ([eq("n", "n'")], ["n"], {"n": 9}, [{"n": 9}]),
             "a post atom of the glue": ([atom("$n' in ($x, $x + 1)")], ["n"], {"x": 1}, [{"n": 1}, {"n": 2}]),
             "@empty": ([builtin("empty", "m'")], ["m"], {}, [{"m": FrozenMap()}]),
-            "@update": ([builtin("update", "m'", "m", "k", "v")], ["m"], {"m": M, "k": "b", "v": inst("open")},
-                        [{"m": M.set("b", inst("open"))}]),
+            "@update": ([builtin("update", "m'", "m", "k", "v")], ["m"], {"m": M, "k": "b", "v": inst("open", bal=0)},
+                        [{"m": M.set("b", inst("open", bal=0))}]),
+            "@eq of the map": ([eq("m'", "v")], ["m"], {"v": M}, [{"m": M}]),
             "@frame with @at and the fields": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
                                                 atom("${} == ${} + 1", fld(idx("m'", "k"), "bal"), fld(idx("m", "k"), "bal"))],
                                                ["m"], {"m": M, "k": "a"}, [{"m": FrozenMap({"a": inst("closed", bal=2)})}]),
@@ -124,14 +134,41 @@ class SolveTest(unittest.TestCase):
     def test_what_it_cannot_enumerate_is_refused(self):
         tests = {
             "a variable nothing determines, of no type": ([], ["q"], {}, "q has none in TYPES"),
-            "a field nothing determines, of no type": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="open"),
+            "a field nothing determines, of no type": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="dear"),
                                                         builtin("ne", fld(idx("m'", "k"), "fee"), "x")], ["m"], {"m": M, "k": "b", "x": 0},
                                                        "m'\\['b'\\].fee, .* fee has none in TYPES"),
+            "a field the post does not mention, of no type": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="dear")],
+                                                              ["m"], {"m": M, "k": "b"}, "m'\\['b'\\].fee, .* fee has none in TYPES"),
+            "a field not of the state": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
+                                          eq(fld(idx("m'", "k"), "fee"), "x")], ["m"], {"m": M, "k": "b", "x": 0},
+                                         "m'\\['b'\\].fee, but an instance at closed holds only bal"),
+            "an instance of a map of no family": ([builtin("frame", "q'", "q", "k"), builtin("at", idx("q'", "k"), state="open")],
+                                                  ["q"], {"q": FrozenMap(), "k": "b"}, "q is the map of no family"),
             "part of a map, unframed": ([builtin("at", idx("m'", "k"), state="open")], ["m"], {"k": "a"}, "only in part"),
             "a frame's key left open": ([builtin("frame", "m'", "m", "k")], ["m"], {"m": M, "k": "a"}, "leaves m'\\['a'\\] unconstrained"),
             "fields of an entry without its state": ([builtin("frame", "m'", "m", "k"), atom("${} == 1", fld(idx("m'", "k"), "bal"))],
                                                      ["m"], {"m": M, "k": "a"}, "but not its state"),
             "a variable of no state after the step": ([eq("z'", "x")], ["n"], {"x": 1}, "z is no variable"),
+            "an entry equal to an instance without a field of its state": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("open")},
+                "m' the entry 'b' = .*, which no instance of m is: at open it holds bal, not no field"),
+            "an entry equal to an instance with a field not of its state": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("open", bal=0, fee=1)},
+                "which no instance of m is: at open it holds bal, not bal, fee"),
+            "an entry equal to an instance at the start state": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("none")},
+                "which no instance of m is: none is the start state, which is absence"),
+            "an entry equal to an instance at no state of the family": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": inst("shut")},
+                "which no instance of m is: shut is no state of its family"),
+            "an entry equal to a value that is no instance": (
+                [builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")], ["m"], {"m": M, "k": "b", "v": 1},
+                "which no instance of m is: it is no instance at all"),
+            "the map equal to one holding what no instance is": (
+                [eq("m'", "v")], ["m"], {"v": FrozenMap({"a": inst("closed")})}, "m' the entry 'a' = .*, which no instance of m is"),
+            "the map equal to a value that is no map": ([eq("m'", "v")], ["m"], {"v": 1}, "m' the value 1, which is no map"),
+            "@update with what no instance is": ([builtin("update", "m'", "m", "k", "v")], ["m"], {"m": M, "k": "b", "v": inst("open")},
+                                                 "m' the entry 'b' = .*, which no instance of m is"),
         }
         for name, (post, names, before, said) in tests.items():
             with self.subTest(name):
@@ -184,7 +221,7 @@ class SolveIsTheMeaningTest(unittest.TestCase):
                         if ev.holds(clause, before, dict(zip(names, vs)))]
 
                 # Execute
-                got = solve(ev, clause, names, before, lambda n: TYPES[n], "the edge")
+                got = solve(ev, clause, names, before, lambda n: TYPES[n], "the edge", FAMILIES)
 
                 # Assert
                 self.assertTrue(_same(want, got), f"want {want}, got {got}")
@@ -195,6 +232,11 @@ class SolveIsTheMeaningTest(unittest.TestCase):
         a0, a1, b0 = inst("open", bal=0), inst("open", bal=1), inst("closed", bal=0)
         tests = {
             "@update": ([builtin("update", "m'", "m", "k", "v")], {"m": FrozenMap({"a": a0}), "k": "b", "v": b0}),
+            "@update of an entry there": ([builtin("update", "m'", "m", "k", "v")], {"m": FrozenMap({"a": a0}), "k": "a", "v": b0}),
+            "@eq of the map": ([eq("m'", "v")], {"v": FrozenMap({"a": a1, "b": b0})}),
+            "@eq of the map to the one before": ([eq("m'", "m")], {"m": FrozenMap({"b": b0})}),
+            "@frame with an entry equal to another entry": ([builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), idx("m", "j"))],
+                                                            {"m": FrozenMap({"a": a1}), "k": "b", "j": "a"}),
             "@frame with an entry equal to a value": ([builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")],
                                                       {"m": FrozenMap({"a": a0}), "k": "b", "v": b0}),
             "@frame with @at and a field fixed": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
@@ -217,6 +259,10 @@ class SolveIsTheMeaningTest(unittest.TestCase):
             "two frames whose bases agree on what both keep": ([builtin("frame", "m'", "m", "k"), builtin("frame", "m'", "w", "k"),
                                                                 builtin("notin", "k", "m'")],
                                                                {"m": FrozenMap({"a": a0, "b": b0}), "w": FrozenMap({"b": b0}), "k": "a"}),
+            "@frame with @at alone, its field over TYPES": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="open")],
+                                                            {"m": FrozenMap({"a": a0}), "k": "b"}),
+            "@frame with @at of an instance already there": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed")],
+                                                             {"m": FrozenMap({"a": a1, "b": b0}), "k": "a"}),
             "a map nothing constrains": ([], {}),
         }
         ev = evaluator()
@@ -227,7 +273,33 @@ class SolveIsTheMeaningTest(unittest.TestCase):
                 want = [{"m": m} for m in TYPES["m"] if ev.holds(clause, before, {"m": m})]
 
                 # Execute
-                got = solve(ev, clause, ("m",), before, lambda n: TYPES[n], "the edge")
+                got = solve(ev, clause, ("m",), before, lambda n: TYPES[n], "the edge", FAMILIES)
+
+                # Assert
+                self.assertTrue(_same(want, got), f"want {want}, got {got}")
+
+    def test_solve_finds_an_instance_with_exactly_the_fields_of_its_state(self):
+        # Setup
+        open_, shut = Rec("open", FrozenMap(bal=1, p=0)), Rec("shut", FrozenMap())
+        tests = {
+            "@at alone, every field over TYPES": ([builtin("frame", "w'", "w", "k"), builtin("at", idx("w'", "k"), state="open")],
+                                                  {"w": FrozenMap({"a": shut}), "k": "b"}),
+            "@at with one field given, the other over TYPES": ([builtin("frame", "w'", "w", "k"), builtin("at", idx("w'", "k"), state="open"),
+                                                                eq(fld(idx("w'", "k"), "bal"), "x")], {"w": FrozenMap(), "k": "a", "x": 1}),
+            "@at of a state with no field": ([builtin("frame", "w'", "w", "k"), builtin("at", idx("w'", "k"), state="shut")],
+                                             {"w": FrozenMap({"a": open_}), "k": "a"}),
+            "@at under ∃ of the key": ([exists("k", builtin("frame", "w'", "w", fixture.bound(0)),
+                                               builtin("at", idx("w'", fixture.bound(0)), state="shut"))], {"w": FrozenMap({"a": open_})}),
+        }
+        ev = evaluator()
+        for name, (post, before) in tests.items():
+            with self.subTest(name):
+                # Setup
+                clause = formula_of(post)
+                want = [{"w": w} for w in TYPES["w"] if ev.holds(clause, before, {"w": w})]
+
+                # Execute
+                got = solve(ev, clause, ("w",), before, lambda n: TYPES[n], "the edge", FAMILIES)
 
                 # Assert
                 self.assertTrue(_same(want, got), f"want {want}, got {got}")
