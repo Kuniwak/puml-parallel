@@ -83,10 +83,10 @@ definition csdf_frame1 :: "val \<Rightarrow> val \<Rightarrow> val \<Rightarrow>
   where "csdf_frame1 v_n v_m v_k1 \<equiv> csdf_is_map v_n \<and> csdf_is_map v_m \<and> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
 
 lemma csdf_lemma_1: "\<forall>(v_m::val) (v_k::val). csdf_empty v_m \<longrightarrow> (\<not> csdf_in v_k v_m)"
-  by (auto simp: csdf_empty_def csdf_frame1_def)
+  by (auto simp: csdf_empty_def csdf_frame1_def split: val.splits scalar.splits)
 
 lemma csdf_lemma_2: "\<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n v_m v_k1 \<longrightarrow> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
-  by (auto simp: csdf_empty_def csdf_frame1_def)
+  by (auto simp: csdf_empty_def csdf_frame1_def split: val.splits scalar.splits)
 
 (* TODO(csdf): not formalised; this assumption is uninterpreted. *)
 (* PUT は無限に起きない *)

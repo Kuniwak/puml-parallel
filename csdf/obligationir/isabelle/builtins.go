@@ -88,7 +88,7 @@ func WriteLemmas(w io.Writer, b obligationir.Builtins, lemmas []logic.Tree) erro
 		if err != nil {
 			return fmt.Errorf("isabelle.WriteLemmas: %w", err)
 		}
-		fmt.Fprintf(w, "lemma %s: \"%s\"\n  by (auto simp: %s)\n\n", obligationir.LemmaName(i+1), f, strings.Join(unfold, " "))
+		fmt.Fprintf(w, "lemma %s: \"%s\"\n  by (auto simp: %s split: val.splits scalar.splits)\n\n", obligationir.LemmaName(i+1), f, strings.Join(unfold, " "))
 	}
 	return nil
 }

@@ -89,7 +89,7 @@ func WriteLemmas(w io.Writer, lemmas []logic.Tree) error {
 		case obligationir.LemmaMeaning:
 			proof = "fun" + strings.Repeat(" _", n) + " h => And.right (And.right h)"
 		case obligationir.LemmaApart:
-			proof = fmt.Sprintf("by\n    intro t h\n    cases t with\n    | ValScalar s => cases s <;> simp_all [csdf_at, %s, %s]\n    | ValMap _ => exact h.1", states[0], states[1])
+			proof = fmt.Sprintf("by\n    intro t h\n    cases t with\n    | ValScalar s => cases s <;> simp_all [csdf_at, %s, %s] <;> (obtain ⟨rfl, h2⟩ := h; simp at h2)\n    | ValMap _ => exact h.1", states[0], states[1])
 		}
 		fmt.Fprintf(w, "theorem %s : %s :=\n  %s\n\n", obligationir.LemmaName(i+1), f, proof)
 	}

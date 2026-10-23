@@ -67,16 +67,16 @@ definition state__u2euB :: val
   where "state__u2euB \<equiv> ValScalar (SInt 1)"
 
 lemma csdf_lemma_1: "\<forall>(v_m::val) (v_k::val). csdf_empty v_m \<longrightarrow> (\<not> csdf_in v_k v_m)"
-  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def)
+  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def split: val.splits scalar.splits)
 
 lemma csdf_lemma_2: "\<forall>(v_n::val) (v_m::val) (v_k::val) (v_v::val). csdf_update v_n v_m v_k v_v \<longrightarrow> (csdf_in v_k v_n \<and> csdf_index v_n v_k = v_v \<and> (\<forall>(v_j::val). (\<not> (v_j = v_k)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j)))))"
-  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def)
+  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def split: val.splits scalar.splits)
 
 lemma csdf_lemma_3: "\<forall>(v_n::val) (v_m::val). csdf_frame0 v_n v_m \<longrightarrow> (\<forall>(v_j::val). True \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
-  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def)
+  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def split: val.splits scalar.splits)
 
 lemma csdf_lemma_4: "\<forall>(v_t::val). \<not> (csdf_at v_t state__u2euA \<and> csdf_at v_t state__u2euB)"
-  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def)
+  by (auto simp: csdf_empty_def csdf_update_def csdf_frame0_def csdf_at_def state__u2euA_def state__u2euB_def split: val.splits scalar.splits)
 
 definition init :: "st \<Rightarrow> bool"
   where "init s' \<equiv> \<exists>(v_t_u27u::val) (v_m_u27u::val). s' = St_s v_t_u27u v_m_u27u \<and> type_t v_t_u27u \<and> type_m v_m_u27u \<and> (csdf_at v_t_u27u state__u2euA \<and> csdf_empty v_m_u27u)"
