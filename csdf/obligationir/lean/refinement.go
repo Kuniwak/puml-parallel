@@ -60,6 +60,7 @@ func refinement(r obligationir.Refinement, e Edits) (string, error) {
 	}
 	var w strings.Builder
 	fmt.Fprintf(&w, `import %s
+%s
 
 -- Every name is mangled behind a prefix of its kind, and a mangled name holds
 -- "__", which Mathlib's naming linter warns of.
@@ -76,7 +77,7 @@ namespace %s
 %s
 deriving Inhabited
 
-`, refinementImport(r.Mode), Namespace, ValPrelude)
+`, refinementImport(r.Mode), LibraryImports, Namespace, ValPrelude)
 	writeAlphabet(&w, r.Alphabet)
 
 	ds, err := r.Declarations(PredicateTODO)

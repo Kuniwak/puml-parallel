@@ -360,7 +360,7 @@ func runIsabelle(t *testing.T, cspDir string, o obligation, src string) (string,
 		t.Fatalf("WriteFile error = %v", err)
 	}
 	session := "Csdf_" + obligationir.Mangle(o.name)
-	root := "session " + session + " = " + o.parent + " +\n  theories\n    " + o.theory + "\n"
+	root := "session " + session + " = " + o.parent + " +\n  sessions\n    \"HOL-Library\"\n  theories\n    " + o.theory + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "ROOT"), []byte(root), 0o644); err != nil {
 		t.Fatalf("WriteFile error = %v", err)
 	}
@@ -471,12 +471,9 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 	leanEdits := lean.Edits{
 		Types: types,
 		Proofs: map[string]string{"initialisable_S": strings.Join([]string{
-			"have canon : csdf_canon [] = [] := by",
-			"    have h := Classical.epsilon_spec (p := fun l => csdf_same l []) ⟨[], fun _ => Iff.rfl⟩",
-			"    exact List.eq_nil_iff_forall_not_mem.mpr (fun p hp => by simpa using (h p).mp hp)",
-			"  refine ⟨.ValRecord (.ValInt 0) [], .ValMap [], trivial, ?_, trivial, ?_, rfl, trivial, ?_⟩",
+			"refine ⟨.ValRecord (.ValInt 0) [], .ValMap [], trivial, ?_, trivial, ?_, rfl, trivial, ?_⟩",
 			"  · exact csdf_wf.record _ _ (csdf_wf.int 0) (by simp)",
-			"  · exact csdf_wf.map [] List.nodup_nil canon.symm (by simp) (by simp)",
+			"  · exact csdf_wf.map [] List.nodup_nil List.Pairwise.nil.sortedLE (by simp) (by simp)",
 			"  · intro k ⟨v, hv⟩; simp at hv"}, "\n")},
 		Lemmas: []string{"theorem frame0_keeps (n m : Val) (wn : csdf_wf n) (wm : csdf_wf m) (h : csdf_frame0 n m) : n = m :=\n" +
 			"  csdf_map_ext n m wn wm (And.left h) (And.left (And.right h)) (fun k =>\n" +
@@ -486,7 +483,7 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 	isaEdits := isabelle.Edits{
 		Types: types,
 		Proofs: map[string]string{"initialisable_S": "apply (rule exI[of _ \"ValRecord (ValInt 0) []\"], rule exI[of _ \"ValMap []\"])\n" +
-			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def csdf_canon_def intro: csdf_wf.intros)\n  done"},
+			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def intro: csdf_wf.intros)\n  done"},
 		Lemmas: []string{"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
 			"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
 	}

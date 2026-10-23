@@ -318,7 +318,7 @@ different diagram, one where every guard holds.
 
 The builtins are no assumption: each is defined, and what it means is proved. A map is a
 `ValMap`, a list of its entries, and maps nest. A value is well formed (`csdf_wf`) when every
-map in it has distinct keys and is the one list of its entries `csdf_canon` chooses, and
+map in it has distinct keys, sorted in a linear order of every value the library gives, and
 every quantifier over a type is restricted to well-formed values, so that two maps are
 equal just when they hold the same entries (`csdf_map_ext`, proved in the file).
 `csdf_is_map` holds of a map, `csdf_in` and `csdf_index` read its entries, and
@@ -327,7 +327,10 @@ and their meaning holding. An instance is a record whose first component is its 
 and `csdf_at` is that it is the state constant, each a number of its own. What the
 builtins mean is then a lemma `csdf_lemma_<i>`, proved in the file from the definitions
 (`auto` in Isabelle, a projection of the definition in Lean), which the prover checks: no
-theorem rests on an axiom, so none holds by a contradiction among axioms. An assume note of the
+theorem rests on an axiom, so none holds by a contradiction among axioms. The model rests on
+the libraries: an Isabelle theory imports `HOL-Library.Countable`, so a session building it
+declares `sessions "HOL-Library"` in its ROOT, and a Lean file imports
+`Mathlib.Data.List.Sort` and `Mathlib.SetTheory.Cardinal.Order`. An assume note of the
 diagram (see [SYNTAX.md](./docs/SYNTAX.md)) — what it assumes of its runs as a whole, such as
 "a transaction whose fee keeps being raised is eventually confirmed", which no guard can
 state — is listed under `assumptions` in the IR and becomes an uninterpreted proposition

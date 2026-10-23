@@ -63,7 +63,7 @@ func refinement(r obligationir.Refinement, e Edits) (string, error) {
 		return "", err
 	}
 	var w strings.Builder
-	fmt.Fprintf(&w, "theory Refinement_Obligation\n  imports %s\nbegin\n\n%s\n\n", refinementImport(r.Mode), ValPrelude)
+	fmt.Fprintf(&w, "theory Refinement_Obligation\n  imports %s %s\nbegin\n\n%s\n\n", refinementImport(r.Mode), LibraryImports, ValPrelude)
 	writeAlphabet(&w, r.Alphabet)
 
 	ds, err := r.Declarations(PredicateTODO)

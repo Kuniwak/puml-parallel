@@ -1,4 +1,6 @@
 import LeanCspProver.CSP_F.CSP_F_Main
+import Mathlib.Data.List.Sort
+import Mathlib.SetTheory.Cardinal.Order
 
 -- Every name is mangled behind a prefix of its kind, and a mangled name holds
 -- "__", which Mathlib's naming linter warns of.
@@ -56,14 +58,11 @@ opaque type_k : Val → Prop
 -- n
 opaque type_n : Val → Prop
 
--- A map is the list of its entries csdf_canon chooses among the lists of them,
--- so that two maps holding the same entries are one.
-def csdf_same (a b : List (Val × Val)) : Prop := ∀ p, p ∈ a ↔ p ∈ b
+-- Values are well ordered, as every type is (the library's WellOrderingRel):
+-- a linear order the keys of a map are sorted in.
+noncomputable instance : LinearOrder Val := IsWellOrder.linearOrder WellOrderingRel
 
-noncomputable def csdf_canon (kvs : List (Val × Val)) : List (Val × Val) :=
-  Classical.epsilon (fun l => csdf_same l kvs)
-
--- A value is well formed when every map in it is canonical, of distinct keys.
+-- A value is well formed when every map in it has distinct keys, sorted.
 inductive csdf_wf : Val → Prop where
   | int (i : Int) : csdf_wf (.ValInt i)
   | string (s : String) : csdf_wf (.ValString s)
@@ -72,7 +71,7 @@ inductive csdf_wf : Val → Prop where
   | dict (kvs : List (String × Val)) : (∀ p ∈ kvs, csdf_wf p.2) → csdf_wf (.ValDict kvs)
   | record (st : Val) (fs : List (String × Val)) : csdf_wf st → (∀ p ∈ fs, csdf_wf p.2) →
       csdf_wf (.ValRecord st fs)
-  | map (kvs : List (Val × Val)) : (kvs.map Prod.fst).Nodup → kvs = csdf_canon kvs →
+  | map (kvs : List (Val × Val)) : (kvs.map Prod.fst).Nodup → (kvs.map Prod.fst).SortedLE →
       (∀ p ∈ kvs, csdf_wf p.1) → (∀ p ∈ kvs, csdf_wf p.2) → csdf_wf (.ValMap kvs)
 
 def csdf_is_map : Val → Prop
@@ -102,13 +101,6 @@ theorem csdf_unique : ∀ (kvs : List (Val × Val)), (kvs.map Prod.fst).Nodup �
     · subst hk; exact absurd ⟨(k, v), hv, rfl⟩ hn.1
     · exact csdf_unique rest hn.2 k v w hv hw
 
-theorem csdf_canon_eq (a b : List (Val × Val)) (h : csdf_same a b) : csdf_canon a = csdf_canon b := by
-  unfold csdf_canon
-  congr 1
-  funext l
-  apply propext
-  exact ⟨fun hl p => (hl p).trans (h p), fun hl p => (hl p).trans (h p).symm⟩
-
 theorem csdf_map_half : ∀ (a b : List (Val × Val)), (a.map Prod.fst).Nodup →
     (∀ k, (csdf_in k (.ValMap a) ↔ csdf_in k (.ValMap b)) ∧
       (csdf_in k (.ValMap a) → csdf_index (.ValMap a) k = csdf_index (.ValMap b) k)) →
@@ -123,16 +115,22 @@ theorem csdf_map_half : ∀ (a b : List (Val × Val)), (a.map Prod.fst).Nodup �
   rw [← v1, he]
   exact Classical.choose_spec inb
 
+-- Entries of distinct keys, sorted, are in the order of their keys.
+theorem csdf_sorted_entries (kvs : List (Val × Val)) (n : (kvs.map Prod.fst).Nodup)
+    (s : (kvs.map Prod.fst).SortedLE) : kvs.Pairwise (fun p q => p.1 < q.1) :=
+  List.pairwise_map.mp (List.sortedLT_iff_nodup_and_sortedLE.mpr ⟨n, s⟩).pairwise
+
 -- Two well-formed maps holding the same entries are one.
 theorem csdf_map_ext : ∀ (n m : Val), csdf_wf n → csdf_wf m → csdf_is_map n → csdf_is_map m →
     (∀ (k : Val), (csdf_in k n ↔ csdf_in k m) ∧ (csdf_in k n → csdf_index n k = csdf_index m k)) → n = m := by
   intro n m wn wm hn hm h
   cases wn <;> cases wm <;> simp only [csdf_is_map] at hn hm
-  case map.map a na ca _ _ b nb cb _ _ =>
-    have same : csdf_same a b := fun p =>
+  case map.map a na sa _ _ b nb sb _ _ =>
+    have perm : a.Perm b := (List.perm_ext_iff_of_nodup na.of_map nb.of_map).mpr fun p =>
       ⟨csdf_map_half a b na h p,
        csdf_map_half b a nb (fun k => ⟨(h k).1.symm, fun i => ((h k).2 ((h k).1.mpr i)).symm⟩) p⟩
-    rw [ca, cb, csdf_canon_eq a b same]
+    rw [perm.eq_of_pairwise (fun _ _ _ _ h1 h2 => absurd (lt_trans h1 h2) (lt_irrefl _))
+      (csdf_sorted_entries a na sa) (csdf_sorted_entries b nb sb)]
 
 inductive PN where
   | S_s (v_n : Val) -- s (n)
