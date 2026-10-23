@@ -49,7 +49,7 @@ func livelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "", err
 	}
 	var w strings.Builder
-	io.WriteString(&w, "theory Livelock_Obligation\n  imports Main\nbegin\n\n")
+	io.WriteString(&w, "theory Livelock_Obligation\n  imports Main "+LibraryImports+"\nbegin\n\n")
 	if ir.Structurally {
 		io.WriteString(&w, "(* Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation. *)\n\nend\n")
 		return w.String(), nil

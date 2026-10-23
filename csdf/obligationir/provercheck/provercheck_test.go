@@ -360,7 +360,7 @@ func runIsabelle(t *testing.T, cspDir string, o obligation, src string) (string,
 		t.Fatalf("WriteFile error = %v", err)
 	}
 	session := "Csdf_" + obligationir.Mangle(o.name)
-	root := "session " + session + " = " + o.parent + " +\n  theories\n    " + o.theory + "\n"
+	root := "session " + session + " = " + o.parent + " +\n  sessions\n    \"HOL-Library\"\n  theories\n    " + o.theory + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "ROOT"), []byte(root), 0o644); err != nil {
 		t.Fatalf("WriteFile error = %v", err)
 	}
@@ -486,7 +486,7 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 	isaEdits := isabelle.Edits{
 		Types: types,
 		Proofs: map[string]string{"initialisable_S": "apply (rule exI[of _ \"ValRecord (ValInt 0) []\"], rule exI[of _ \"ValMap []\"])\n" +
-			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def csdf_canon_def intro: csdf_wf.intros)\n  done"},
+			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def intro: csdf_wf.intros)\n  done"},
 		Lemmas: []string{"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
 			"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
 	}
