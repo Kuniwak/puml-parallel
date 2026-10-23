@@ -1,103 +1,200 @@
-"""The diagram as csdfparse prints it, or an expansion as csdfpromote
--format json prints it, with the clauses of each predicate."""
+"""The diagram as csdfparse prints it (core.DiagramDoc, version 1): its
+clauses are formulas, a skeleton of ∧, ∃ and builtins over terms, with
+atoms a glue or the environment gives the meaning of (docs/CLAUSE_DESIGN.md).
+
+A clause is a tuple of its conjuncts. A variable bound by ∃ is a de Bruijn
+index (Bound): 0 is the nearest enclosing ∃.
+"""
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-# The tool word of a clause not formalised yet (docs/SYNTAX.md), which stands
-# for the clause where it has no text, in a report.
-OPAQUE_WORD = "@opaque"
-
-# The forms of a clause (csdf.ClauseForm), and the kinds of the clauses an
-# author writes, which say their form.
-FORM_TEXT, FORM_OPAQUE, FORM_EQ = "text", "opaque", "eq"
-AUTHORED_KINDS = ("local", "constrain")
-
+VERSION = 1
 
 RECEIVED, SENT = "?", "!"
-
-
-def split_event(e: dict) -> tuple[str, tuple[tuple[str, str], ...]]:
-    """The channel and the fields, (direction, name) in the event's order, of
-    an edge's event, as csdfparse writes them out: the grammar of an event is
-    read by csdfparse alone."""
-    if "channel" not in e or "fields" not in e:
-        raise ValueError(f"the edge on {e.get('event')!r} has no channel and fields; write the diagram with csdfparse 3 or later")
-    fields = tuple((f["dir"], f["name"]) for f in e["fields"])
-    for d, n in fields:
-        if d not in (RECEIVED, SENT):
-            raise ValueError(f"the field {n!r} of {e['event']!r} has the direction {d!r}, which is neither ? nor !")
-    return e["channel"], fields
+TAU = "tau"
 
 
 @dataclass(frozen=True)
-class Clause:
-    """One clause of a predicate. kind is "local" for a clause the author
-    wrote (map None in a flat diagram, the family's map in an expansion),
-    "constrain" for a constrain directive's, and one of the generated kinds of
-    csdfpromote - in_dom, not_in_dom, at_state, update, create, delete, frame,
-    and empty on the start edge - whose meaning is built in. text is the
-    clause as its language reads it."""
-    kind: str
-    text: str
-    map: str | None = None
-    id: str | None = None      # the event parameter the instance ID is written as
-    state: str | None = None   # the local state's name, for at_state/update/create
-    var: str | None = None     # the framed variable
-    path: str | None = None    # the local diagram, for a local clause of a family
-    line: int = 0
-    maps: tuple[str, ...] = ()  # the left-out maps a dropped clause read
-    # rename: (from, to) pairs, sorted: the clause reads the name from for the
-    # value the predicate it is in names to (a composition writes them).
-    rename: tuple[tuple[str, str], ...] = ()
-    # eq: the two names the tool word @eq(a, b) says are equal; its text is
-    # the word itself.
-    eq: tuple[str, ...] = ()
-
-    @classmethod
-    def from_json(cls, c: dict) -> "Clause":
-        """A clause as csdfparse or csdfpromote writes it. One the author wrote
-        (kind local or constrain) says by its form what it is; a generated one
-        says it by its kind and is text."""
-        form = c.get("form")
-        if form is None and c["kind"] in AUTHORED_KINDS:
-            raise ValueError(f"the clause {c!r} has no form; write the diagram with csdfparse or csdfpromote 3 or later")
-        form = form or FORM_TEXT
-        eq: tuple[str, ...] = ()
-        if form == FORM_OPAQUE:
-            raise ValueError(f"{OPAQUE_WORD} is no longer read: write the clause as an atom whose holes are what it reads, "
-                             "such as `$口座 が凍結されていない`, and give its function in the environment (ENVIRONMENT, --env or --seed)")
-        if form == FORM_EQ:
-            eq = tuple(c["eq"])
-            text = f"@eq({eq[0]}, {eq[1]})"  # how a report names it
-        elif form == FORM_TEXT:
-            text = c["text"]
-        else:
-            raise ValueError(f"the clause {c!r} has the form {form!r}, which is none of text, opaque and eq")
-        return cls(kind=c["kind"], text=text, eq=eq, map=c.get("map"), id=c.get("id"), state=c.get("state"),
-                   var=c.get("var"), path=c.get("path"), line=c.get("line", 0),
-                   maps=tuple(c.get("maps", ())), rename=tuple(sorted(c.get("rename", {}).items())))
+class Free:
+    """A free variable: a name of the diagram, before the step or, when
+    primed, after it."""
+    name: str
+    primed: bool = False
 
 
-def local_clauses(owner: dict, key: str) -> tuple[Clause, ...]:
-    """The clauses of owner's predicate key, as csdfparse writes them out
-    under key_clauses: the grammar of a clause is read by csdfparse alone."""
-    clauses = owner.get(f"{key}_clauses")
-    if clauses is None:
-        raise ValueError(f"the {key} {owner.get(key)!r} has no {key}_clauses; write the diagram with csdfparse 3 or later")
-    return tuple(Clause.from_json({"kind": "local", **c}) for c in clauses)
+@dataclass(frozen=True)
+class Bound:
+    index: int
+
+
+@dataclass(frozen=True)
+class Index:
+    """The entry of map at key, m[k]."""
+    map: "Term"
+    key: "Term"
+
+
+@dataclass(frozen=True)
+class Field:
+    """The field name of of, t.f."""
+    of: "Term"
+    name: str
+
+
+@dataclass(frozen=True)
+class App:
+    """An environment function applied, f(t, …)."""
+    fn: str
+    args: tuple
+
+
+Term = Free | Bound | Index | Field | App
+
+
+@dataclass(frozen=True)
+class Atom:
+    """An atom as a glue receives it, text and holes and which arguments are
+    values after the step; the name of the environment function it denotes;
+    and the terms its arguments stand for."""
+    text: tuple[str, ...]
+    holes: tuple[int, ...]
+    primed: tuple[bool, ...]
+    function: str
+    args: tuple
+
+    @property
+    def wire(self) -> dict:
+        return {"text": list(self.text), "holes": list(self.holes), "primed": list(self.primed)}
+
+
+@dataclass(frozen=True)
+class Builtin:
+    """A fact a tool states: op is the builtin's word without @, state the
+    state of @at."""
+    op: str
+    args: tuple
+    state: str = ""
+
+
+@dataclass(frozen=True)
+class Exists:
+    """∃ over the values of type, binding the bound index 0 in body."""
+    type: str
+    body: tuple
+
+
+Formula = Atom | Builtin | Exists
+
+BUILTIN_ARITY = {"eq": 2, "ne": 2, "in": 2, "notin": 2, "empty": 1, "update": 4, "at": 1}
+
+
+def root(t: Term) -> Term:
+    """The term a path starts from."""
+    while isinstance(t, (Index, Field)):
+        t = t.map if isinstance(t, Index) else t.of
+    return t
+
+
+def is_primed(t: Term) -> bool:
+    """Whether t is a value after the step: its root is a primed variable."""
+    r = root(t)
+    return isinstance(r, Free) and r.primed
+
+
+def free_names(t, primed: bool | None = None) -> set[str]:
+    """The free variables of a term or formula, those primed or not when
+    primed says which."""
+    out: set[str] = set()
+
+    def walk(x):
+        if isinstance(x, Free):
+            if primed is None or x.primed == primed:
+                out.add(x.name)
+        elif isinstance(x, Index):
+            walk(x.map)
+            walk(x.key)
+        elif isinstance(x, Field):
+            walk(x.of)
+        elif isinstance(x, (App, Atom, Builtin)):
+            for a in x.args:
+                walk(a)
+        elif isinstance(x, Exists):
+            for c in x.body:
+                walk(c)
+        elif isinstance(x, tuple):
+            for c in x:
+                walk(c)
+    walk(t)
+    return out
+
+
+def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str, ...] = ()) -> dict:
+    """doc, refused unless it has every key required and no key beyond
+    those and optional: the JSON is what csdfparse writes, and nothing else
+    is read."""
+    if not isinstance(doc, dict):
+        raise ValueError(f"{what} is {doc!r}, not an object")
+    missing = [k for k in required if k not in doc]
+    unknown = sorted(set(doc) - set(required) - set(optional))
+    if missing or unknown:
+        raise ValueError(f"{what} {doc!r} lacks {missing} or has keys it does not read, {unknown}")
+    return doc
+
+
+_TERMS = {"free": (("name",), ("primed",)), "bound": (("index",), ()), "index": (("map", "key"), ()),
+          "field": (("of", "name"), ()), "app": (("fn", "args"), ())}
+_CONJUNCTS = {"atom": (("pieces", "holes", "args", "text", "primed", "function"), ()),
+              "builtin": (("op", "args"), ("state",)), "exists": (("type", "body"), ())}
+
+
+def _kind(doc: dict, kinds: dict, what: str) -> str:
+    kind = doc.get("kind") if isinstance(doc, dict) else None
+    if kind not in kinds:
+        raise ValueError(f"{what} of the kind {kind!r}, which is none of {', '.join(kinds)}")
+    required, optional = kinds[kind]
+    _fields(doc, f"{what} of the kind {kind}", ("kind",) + required, optional)
+    return kind
+
+
+def term_of(doc: dict) -> Term:
+    kind = _kind(doc, _TERMS, "a term")
+    if kind == "free":
+        return Free(doc["name"], doc.get("primed", False))
+    if kind == "bound":
+        return Bound(doc["index"])
+    if kind == "index":
+        return Index(term_of(doc["map"]), term_of(doc["key"]))
+    if kind == "field":
+        return Field(term_of(doc["of"]), doc["name"])
+    return App(doc["fn"], tuple(term_of(a) for a in doc["args"]))
+
+
+def formula_of(docs: list) -> tuple:
+    """The clause whose conjuncts docs are."""
+    return tuple(_conjunct(d) for d in docs)
+
+
+def _conjunct(doc: dict) -> Formula:
+    kind = _kind(doc, _CONJUNCTS, "a conjunct")
+    if kind == "atom":
+        return Atom(text=tuple(doc["text"]), holes=tuple(doc["holes"]), primed=tuple(doc["primed"]),
+                    function=doc["function"], args=tuple(term_of(a) for a in doc["args"]))
+    if kind == "builtin":
+        return Builtin(doc["op"], tuple(term_of(a) for a in doc["args"]), doc.get("state", ""))
+    return Exists(doc["type"], formula_of(doc["body"]))
 
 
 @dataclass(frozen=True)
 class Edge:
     src: str
     dst: str
-    event: str
-    name: str
+    name: str                            # the channel
     fields: tuple[tuple[str, str], ...]  # (direction, name), in the event's order
-    guard: tuple[Clause, ...]
-    post: tuple[Clause, ...]
+    event: str                           # the label, channel?x!y
+    guard: tuple
+    post: tuple
     line: int
 
     @property
@@ -107,127 +204,48 @@ class Edge:
 
     @property
     def sent(self) -> tuple[str, ...]:
-        """The sent fields, c!y: names the step binds."""
+        """The sent fields, c!y: values the step has bound."""
         return tuple(n for d, n in self.fields if d == SENT)
 
     @property
     def is_tau(self) -> bool:
-        return self.event == "tau"
-
-    def implicit_ids(self) -> tuple[str, ...]:
-        """The instance-ID parameters the clauses read that the event does not
-        carry: a promoted tau names no instance, so its id ranges over them."""
-        seen: dict[str, None] = {}
-        for c in self.guard + self.post:
-            if c.id and c.id not in self.params:
-                seen.setdefault(c.id)
-        return tuple(seen)
+        return self.name == TAU
 
 
 @dataclass(frozen=True)
-class EndEdge:
+class End:
     src: str
-    guard: tuple[Clause, ...]
-
-
-@dataclass(frozen=True)
-class Promote:
-    map: str
-    id_param: str
-    path: str
-    in_state: str
-
-
-@dataclass
-class Local:
-    """A local diagram: what the generated clauses and the local clauses of a
-    family refer to. Local states are named by their name, which is what the
-    clauses carry."""
-    path: str
-    vars: dict[str, tuple[str, ...]]  # local state name -> variables
-
-    @classmethod
-    def from_json(cls, path: str, d: dict) -> "Local":
-        vars_: dict[str, tuple[str, ...]] = {}
-        for sid, st in d["states"].items():
-            name = st.get("name", sid)
-            if name in vars_:
-                raise ValueError(f"{path}: two local states are named {name!r}; the clauses name states by name, so names must be unique")
-            vars_[name] = tuple(v["name"] for v in st.get("vars", []))
-        return cls(path=path, vars=vars_)
-
-    def vars_of(self, state_name: str) -> tuple[str, ...]:
-        if state_name not in self.vars:
-            raise KeyError(f"{self.path}: no local state named {state_name!r}")
-        return self.vars[state_name]
+    guard: tuple
 
 
 @dataclass
 class Diagram:
-    vars: dict[str, tuple[str, ...]]          # state id -> its variables, in declaration order
+    name: str
+    states: list[str]
+    labels: dict[str, str]
+    vars: dict[str, tuple[str, ...]]   # state -> its variables, in declaration order
     start: str
-    start_post: tuple[Clause, ...]
+    start_post: tuple
     edges: list[Edge]
-    end: EndEdge | None
-    assumptions: list[dict] = field(default_factory=list)
-    promotes: dict[str, Promote] = field(default_factory=dict)   # by map
-    locals: dict[str, Local] = field(default_factory=dict)       # by path
+    ends: list[End]
+    assumptions: list[dict]
 
     @classmethod
     def from_json(cls, d: dict) -> "Diagram":
-        if "diagram" in d and "edges" in d:
-            return cls.from_expansion(d)
-        return cls._from_flat(d, d.get("edges", []), None)
-
-    @classmethod
-    def from_expansion(cls, x: dict) -> "Diagram":
-        d = x["diagram"]
-        by_text = {}
-        for e in x.get("edges", []):
-            raw = e["edge"]
-            key = (raw["src"], raw["dst"], raw["event"], raw.get("guard"), raw.get("post"))
-            if e.get("guard") or e.get("post"):
-                by_text[key] = (tuple(Clause.from_json(c) for c in e.get("guard", [])),
-                                tuple(Clause.from_json(c) for c in e.get("post", [])))
-        out = cls._from_flat(d, d.get("edges", []), by_text)
-        # The start edge's clauses one by one, the maps' empty start among
-        # them; an expansion from before it carried them has only the text.
-        if "start" in x:
-            if not isinstance(x["start"], list):
-                raise ValueError(f"the expansion's start is {x['start']!r}, not a list of clauses; run csdfpromote again")
-            out.start_post = tuple(Clause.from_json(c) for c in x["start"])
-        out.promotes = {p["map"]: Promote(map=p["map"], id_param=p["id_param"], path=p.get("path", ""), in_state=p["in"])
-                        for p in x.get("promotes", [])}
-        out.locals = {path: Local.from_json(path, local) for path, local in x.get("locals", {}).items()}
-        # A bodyless block shares the file of the block that includes it.
-        for p in out.promotes.values():
-            if not p.path:
-                for q in x.get("promotes", []):
-                    if q["map"] == p.map and q.get("path"):
-                        out.promotes[p.map] = Promote(p.map, p.id_param, q["path"], p.in_state)
-        return out
-
-    @classmethod
-    def _from_flat(cls, d: dict, raw_edges: list, by_text) -> "Diagram":
-        vars_ = {sid: tuple(v["name"] for v in st.get("vars", [])) for sid, st in d["states"].items()}
+        if not isinstance(d, dict) or d.get("version") != VERSION:
+            raise ValueError(f"the diagram JSON is version {d.get('version') if isinstance(d, dict) else None!r}, but csdfbmc reads "
+                             f"version {VERSION}; write it with csdfparse (or csdfpromote -format json) of this release")
+        _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "init", "init_post", "init_line", "edges", "ends", "assumes"))
         edges = []
-        for e in raw_edges:
-            name, fields = split_event(e)
-            key = (e["src"], e["dst"], e["event"], e.get("guard"), e.get("post"))
-            if by_text is not None and key in by_text:
-                guard, post = by_text[key]
-            else:
-                guard, post = local_clauses(e, "guard"), local_clauses(e, "post")
-            edges.append(Edge(src=e["src"], dst=e["dst"], event=e["event"], name=name, fields=fields,
-                              guard=guard, post=post, line=e.get("line", 0)))
-        end = None
-        if d.get("end_edge"):
-            end = EndEdge(src=d["end_edge"]["src"], guard=local_clauses(d["end_edge"], "guard"))
-        start = d["start_edge"]
-        for sid in (start["dst"], *[e.src for e in edges], *[e.dst for e in edges]):
-            vars_.setdefault(sid, ())
-        return cls(vars=vars_, start=start["dst"], start_post=local_clauses(start, "post"),
-                   edges=edges, end=end, assumptions=list(d.get("assumptions", [])))
+        for e in d["edges"]:
+            _fields(e, "an edge", ("src", "dst", "channel", "fields", "label", "guard", "post", "line"))
+            fields = tuple((f["dir"], f["name"]) for f in (_fields(f, "a field", ("dir", "name")) for f in e["fields"]))
+            edges.append(Edge(src=e["src"], dst=e["dst"], name=e["channel"], fields=fields, event=e["label"],
+                              guard=formula_of(e["guard"]), post=formula_of(e["post"]), line=e["line"]))
+        ends = [End(x["src"], formula_of(x["guard"])) for x in (_fields(x, "an end edge", ("src", "guard")) for x in d["ends"])]
+        return cls(name=d["name"], states=list(d["states"]), labels=dict(d["labels"]),
+                   vars={s: tuple(d["vars"][s]) for s in d["states"]}, start=d["init"], start_post=formula_of(d["init_post"]),
+                   edges=edges, ends=ends, assumptions=[_fields(a, "an assume note", ("id", "text")) for a in d["assumes"]])
 
     @classmethod
     def load(cls, path: str) -> "Diagram":
@@ -237,9 +255,21 @@ class Diagram:
     def out_edges(self, sid: str) -> list[Edge]:
         return [e for e in self.edges if e.src == sid]
 
-    def local_of(self, clause: Clause) -> Local:
-        """The local diagram a clause about a family refers to."""
-        path = clause.path or (self.promotes[clause.map].path if clause.map in self.promotes else None)
-        if path is None or path not in self.locals:
-            raise KeyError(f"the clause {clause.text!r} is about map {clause.map!r}, whose local diagram is not in the expansion")
-        return self.locals[path]
+    def atoms(self) -> list[tuple[Atom, Edge | None, str]]:
+        """Every atom of the diagram, with its edge (None for the start and
+        end edges) and the role of its clause, guard or post."""
+        out = []
+
+        def walk(fs, edge, role):
+            for f in fs:
+                if isinstance(f, Atom):
+                    out.append((f, edge, role))
+                elif isinstance(f, Exists):
+                    walk(f.body, edge, role)
+        walk(self.start_post, None, "post")
+        for e in self.edges:
+            walk(e.guard, e, "guard")
+            walk(e.post, e, "post")
+        for e in self.ends:
+            walk(e.guard, None, "guard")
+        return out

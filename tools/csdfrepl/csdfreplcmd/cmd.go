@@ -49,8 +49,8 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			if opts.DiagramJSON != "" {
 				run.Suggester = &bmc.Suggester{Diagram: opts.DiagramJSON, Checker: opts.Checker}
 			} else {
-				run.SuggesterForDiagram = func(d *csdf.Diagram) (animation.Suggester, func(), error) {
-					return bmc.ForDiagram(d, opts.Checker)
+				run.SuggesterForSource = func(source []byte) (animation.Suggester, func(), error) {
+					return bmc.ForSource(source, opts.Checker)
 				}
 			}
 		}

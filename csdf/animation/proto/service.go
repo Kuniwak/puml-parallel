@@ -38,10 +38,10 @@ type Service struct {
 	suggesters SuggesterFactory
 }
 
-// SuggesterFactory builds a session's suggester from its diagram and, for an
-// expansion, the JSON the checker reads; the cleanup, if any, runs when the
-// session is removed.
-type SuggesterFactory func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error)
+// SuggesterFactory builds a session's suggester from its diagram's source
+// and, for an expansion, the JSON the checker reads; the cleanup, if any,
+// runs when the session is removed.
+type SuggesterFactory func(source []byte, diagramJSON string) (animation.Suggester, func(), error)
 
 // SetSuggesters gives the daemon a checker: every session created afterwards
 // suggests values at its prompts and accepts statevar picks.
@@ -104,7 +104,7 @@ func (s *Service) handleSessionNew(req Request) Response {
 	}
 	e := &entry{path: req.Path, session: session}
 	if s.suggesters != nil {
-		sg, cleanup, err := s.suggesters(diagram, req.DiagramJSON)
+		sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
 		if err != nil {
 			return s.errorFromErr(err)
 		}

@@ -1,75 +1,149 @@
-"""Diagrams written by hand for the tests, filled in the way csdfparse writes
-them out: the channel and fields of each event and the clauses of each
-predicate. The grammar is csdfparse's; this follows it only as far as the
-tests' diagrams need: no escapes, and @opaque on its own."""
+"""Diagrams written by hand for the tests, in the JSON csdfparse prints
+(core.DiagramDoc, version 1). The atoms follow the reader only as far as the
+tests need: a hole is $name or $name' (a space after it ends it before a
+character that could continue the name, as in docs/SYNTAX.md), and ${}
+takes the next of the terms given."""
+from __future__ import annotations
+
 import re
-
-CONNECTIVE = " ∧ "
-
-
-def clauses(text):
-    if text is None or text.strip() == "":
-        return []
-    return [{"form": "opaque"} if t.strip() == "@opaque" else {"form": "text", "text": t.strip()} for t in text.split(CONNECTIVE)]
+import unicodedata
 
 
-def event(text):
-    channel, *rest = re.split(r"([?!])", text)
-    return {"channel": channel, "fields": [{"dir": d, "name": n} for d, n in zip(rest[::2], rest[1::2])]}
+def continues_name(c: str) -> bool:
+    """Whether c may appear in an identifier (csdf/ident)."""
+    return c == "_" or unicodedata.category(c)[0] in "LN"
 
 
-def parsed(diagram):
-    """diagram, or the diagram of an expansion, as csdfparse would write it;
-    what a test edited is taken apart again."""
-    if "diagram" in diagram:
-        return dict(diagram, diagram=parsed(diagram["diagram"]),
-                    edges=[dict(e, edge=_edge(e["edge"])) for e in diagram.get("edges", [])])
-    out = dict(diagram, edges=[_edge(e) for e in diagram.get("edges", [])])
-    out["start_edge"] = dict(diagram["start_edge"], post_clauses=clauses(diagram["start_edge"].get("post")))
-    if diagram.get("end_edge"):
-        out["end_edge"] = dict(diagram["end_edge"], guard_clauses=clauses(diagram["end_edge"].get("guard")))
-    return out
+def term(t):
+    """A term: "x" is the variable x before the step, "x'" after it; a dict
+    is a term already."""
+    if isinstance(t, dict):
+        return t
+    if t.endswith("'"):
+        return {"kind": "free", "name": t[:-1], "primed": True}
+    return {"kind": "free", "name": t}
 
 
-def _edge(e):
-    return dict(e, **event(e["event"]), guard_clauses=clauses(e.get("guard")), post_clauses=clauses(e.get("post")))
+def idx(m, k):
+    return {"kind": "index", "map": term(m), "key": term(k)}
 
 
-def diagram(d):
-    """The Diagram of a diagram written by hand."""
+def fld(t, name):
+    return {"kind": "field", "of": term(t), "name": name}
+
+
+def bound(i):
+    return {"kind": "bound", "index": i}
+
+
+def atom(text, *terms):
+    """The atom text, its holes $x, $x' and ${} (the next of terms)."""
+    pieces, holes, args, given = [""], [], [], list(terms)
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c == "$" and text[i + 1:i + 3] == "{}":
+            t = term(given.pop(0))
+            i += 3
+        elif c == "$" and i + 1 < len(text) and continues_name(text[i + 1]) and not text[i + 1].isdigit():
+            j = i + 1
+            while j < len(text) and continues_name(text[j]):
+                j += 1
+            name = text[i + 1:j]
+            if j < len(text) and text[j] == "'":
+                name += "'"
+                j += 1
+            if j + 1 < len(text) and text[j] == " " and continues_name(text[j + 1]):
+                j += 1
+            t = term(name)
+            i = j
+        else:
+            pieces[-1] += c
+            i += 1
+            continue
+        if t not in args:
+            args.append(t)
+        holes.append(args.index(t))
+        pieces.append("")
+    primed = [_primed(a) for a in args]
+    wire = [pieces[0]] + [(" " + p if p and continues_name(p[0]) else p) for p in pieces[1:]]
+    function = _escaped(pieces[0]) + "".join(
+        f"$_{h}" + (" " if p and continues_name(p[0]) else "") + _escaped(p) for h, p in zip(holes, pieces[1:]))
+    return {"kind": "atom", "pieces": pieces, "holes": holes, "args": args, "text": wire, "primed": primed, "function": function}
+
+
+def _escaped(piece):
+    return re.sub(r"\$(?=[{\w])", r"\\$", piece)
+
+
+def _primed(t):
+    while t["kind"] in ("index", "field"):
+        t = t["map"] if t["kind"] == "index" else t["of"]
+    return t["kind"] == "free" and t.get("primed", False)
+
+
+def builtin(op, *args, state=None):
+    b = {"kind": "builtin", "op": op, "args": [term(a) for a in args]}
+    if state is not None:
+        b["state"] = state
+    return b
+
+
+def eq(a, b):
+    return builtin("eq", a, b)
+
+
+def exists(type_, *body):
+    return {"kind": "exists", "type": type_, "body": list(body)}
+
+
+def edge(src, dst, event, guard=(), post=(), line=0):
+    channel, *rest = re.split(r"([?!])", event)
+    return {"src": src, "dst": dst, "channel": channel,
+            "fields": [{"dir": d, "name": n} for d, n in zip(rest[::2], rest[1::2])],
+            "label": event, "guard": list(guard), "post": list(post), "line": line}
+
+
+def end(src, guard=()):
+    return {"src": src, "guard": list(guard)}
+
+
+def diagram(states, init, init_post=(), edges=(), ends=(), name="D", assumes=()):
+    """A diagram: states maps each state to its variables, in order."""
+    return {"version": 1, "name": name, "states": list(states), "labels": {},
+            "vars": {s: list(vs) for s, vs in states.items()}, "init": init, "init_post": list(init_post),
+            "init_line": 0, "edges": list(edges), "ends": list(ends), "assumes": list(assumes)}
+
+
+def load(doc):
     from csdfbmc.model import Diagram
-    return Diagram.from_json(parsed(d))
+    return Diagram.from_json(doc)
 
 
 _GLUE = None
 
 
-def glue_meaning():
-    """The meaning the reference Python glue gives clauses, one glue for the
-    whole run (it runs in-process and holds no state between requests but its
-    caches)."""
+def glue():
+    """The reference Python glue, checked, one for the whole run (it runs
+    in-process and holds no state between requests but its caches)."""
     global _GLUE
-    from csdfbmc.meaning import GlueMeaning, standard
     from csdfbmc.protocol import checked, start_module
     if _GLUE is None:
-        _GLUE = start_module("csdfbmc.python_glue", [])
-    return standard(GlueMeaning(checked(_GLUE)))
+        _GLUE = checked(start_module("csdfbmc.python_glue", []))
+    return _GLUE
 
 
 def explorer(d, checks=None, **options):
-    """An Explorer walking d, a diagram written by hand (or a Diagram), with
-    its clauses read by the reference Python glue. checks holds the domains,
-    ghosts, invariants and symmetric parameters."""
-    from csdfbmc.cone import Cone
+    """An Explorer walking d, a diagram written by hand (or a Diagram), its
+    atoms read by the reference Python glue."""
+    from csdfbmc import environment
+    from csdfbmc.checks import Checks
     from csdfbmc.explore import Explorer
     from csdfbmc.model import Diagram
-    from csdfbmc.checks import Checks
     if not isinstance(d, Diagram):
-        d = diagram(d)
-    from csdfbmc import environment
-    options.setdefault("cone", Cone.keep_all())
+        d = load(d)
     options.setdefault("environment", environment.NONE)
-    return Explorer(d, checks if checks is not None else Checks(types={}), glue_meaning(), **options)
+    return Explorer(d, checks if checks is not None else Checks(types={}), glue(), **options)
 
 
 def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
@@ -85,7 +159,7 @@ def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
     test.addCleanup(d.cleanup)
     path, checks_path = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(parsed(diagram), f)
+        json.dump(diagram, f)
     with open(checks_path, "w", encoding="utf-8") as f:
         f.write(checks)
     out, err = io.StringIO(), io.StringIO()

@@ -2,10 +2,11 @@
 checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
-TYPES (a type -> iterable of its values) and, when wanted, TYPEOF (a name ->
-its type; a name it does not list has the type of its own name), ENVIRONMENT
-(the functions clauses not formalised denote; see csdfbmc.environment),
-GHOSTS, INVARIANTS and SYMMETRIC. An earlier csdfbmc read DOMAINS; a module
+TYPES (a type -> iterable of its values, its carrier set) and, when wanted,
+TYPEOF (a name -> its type; a name it does not list has the type of its own
+name), ENVIRONMENT (declares the atoms that are functions of the
+environment, and gives them; see csdfbmc.environment),
+GHOSTS and INVARIANTS. An earlier csdfbmc read DOMAINS; a module
 defining it is refused. The clauses themselves are read through a glue of
 the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
 earlier csdfbmc read, is refused: write the clauses in the glue's language
@@ -17,9 +18,8 @@ variables and ghosts it reads. Values must be hashable (tuples, frozenset,
 FrozenMap); dicts, lists and sets are frozen into those. Nothing in the
 module may assign inside a function, loop with a statement, raise, read or
 write the outside world, or use floats, so that a check is deterministic;
-comprehensions are expressions and are allowed. SYMMETRIC, when defined,
-lists the instance-ID parameters whose values are interchangeable (see
-csdfbmc.reduce).
+comprehensions are expressions and are allowed. SYMMETRIC, which
+--symmetry read, is refused until symmetry reduction walks the formulas.
 """
 from __future__ import annotations
 
@@ -83,18 +83,16 @@ class Checks:
     # variables before the step, and returns the new value. A ghost with no
     # update for an event keeps its value.
     ghosts: dict[str, tuple[object, dict[str, Callable[..., object]]]] = field(default_factory=dict)
-    # symmetric: the instance-ID parameters whose values are interchangeable,
-    # which --symmetry lets the walk store one state per renaming of.
-    symmetric: tuple[str, ...] = ()
     # sources: (path, source) of the module, which the symmetry check reads.
     sources: list[tuple[str, str]] = field(default_factory=list)
     # typeof: a name -> its type; a name it does not list has the type of
     # its own name.
     typeof: dict[str, str] = field(default_factory=dict)
-    # environment: the name of a function a clause not formalised denotes, or
-    # an atom of it -> its value, True or False, or a pure function of its
-    # arguments in order (csdfbmc.environment).
-    environment: dict[str, Given] = field(default_factory=dict)
+    # environment: the functions of the environment it declares, each by
+    # its name or an atom of it -> its value, True or False, a pure function
+    # of its arguments in order, or None to leave it to --env or --seed
+    # (csdfbmc.environment).
+    environment: dict[str, "Given | None"] = field(default_factory=dict)
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
@@ -109,6 +107,12 @@ class Checks:
         names = {name: list(values) for name, values in self.types.items()}
         names.update((name, list(self.types[t])) for name, t in self.typeof.items() if t in self.types)
         return names
+
+    def carrier(self, type_: str) -> list:
+        """The values of the type type_, which an ∃ ranges over."""
+        if type_ in self.types:
+            return list(self.types[type_])
+        raise KeyError(f"no type {type_!r} in TYPES, which an ∃ ranges over")
 
     def domain(self, name: str) -> list:
         if self.declares(name):
@@ -156,8 +160,9 @@ def load_checks(path: str) -> Checks:
     for name, t in typeof.items():
         if t not in module.TYPES:
             raise PurityError(f"{path}: TYPEOF gives {name!r} the type {t!r}, which TYPES does not declare")
-    if not isinstance(getattr(module, "SYMMETRIC", ()), (list, tuple, set, frozenset)):
-        raise PurityError(f"{path}: SYMMETRIC must be a list of instance-ID parameters when defined")
+    if hasattr(module, "SYMMETRIC"):
+        raise PurityError(f"{path}: SYMMETRIC is read by --symmetry, which csdfbmc does not walk the formulas with yet "
+                          "(a later change of #76 brings it back); leave it out until then")
     if hasattr(module, "CLAUSES"):
         raise PurityError(f"{path}: CLAUSES is no longer read; write the clauses in the "
                           "language of a glue (csdfbmc.python_glue reads Python) and read them with --evaluator-module")
@@ -168,10 +173,11 @@ def load_checks(path: str) -> Checks:
     for name, value in environment.items():
         if not isinstance(name, str):
             raise PurityError(f"{path}: ENVIRONMENT names a function by {name!r}; name it by an atom of it, as text")
-        if not isinstance(value, bool) and not callable(value):
-            raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False or a function of the names it reads")
+        if value is not None and not isinstance(value, bool) and not callable(value):
+            raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
+                              "or None to leave it to --env or --seed")
     return Checks(
         types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
-        symmetric=tuple(getattr(module, "SYMMETRIC", ())), sources=[(path, source)],
+        sources=[(path, source)],
     )

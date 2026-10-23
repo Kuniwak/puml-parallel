@@ -25,7 +25,9 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			w := flags.Output()
 			fmt.Fprintf(w, `Usage: csdfparse [options] [file.puml|file.png]
 
-Parses a Composable State Diagram and prints the parsed structure as JSON.
+Parses a Composable State Diagram and prints it as JSON, its clauses as
+formulas (core.DiagramDoc, version 1): the shape csdfbmc reads. A diagram
+that still holds promotion directives is refused; run csdfpromote first.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:

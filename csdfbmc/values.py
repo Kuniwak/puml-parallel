@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Iterable
 
 
@@ -66,6 +67,45 @@ class FrozenMap(Mapping):
         return FrozenMap(d)
 
 
+@dataclass(frozen=True)
+class Rec:
+    """An instance of a family, the value of an entry of a map: the state of
+    its local diagram and the values of its fields. The state is a position,
+    not a value (docs/CLAUSE_DESIGN.md, control state): only the builtin @at
+    reads it, and a glue, a ghost or an invariant sees the fields alone
+    (visible)."""
+    state: str
+    fields: "FrozenMap"
+
+
+def same_value(a, b) -> bool:
+    """Whether two values are one value: of one kind as well as equal, so
+    that 1 is not True, all the way into containers."""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, tuple):
+        return len(a) == len(b) and all(same_value(x, y) for x, y in zip(a, b))
+    if isinstance(a, Mapping):
+        return a.keys() == b.keys() and all(same_value(a[k], b[k]) for k in a)
+    if isinstance(a, Rec):
+        return a.state == b.state and same_value(a.fields, b.fields)
+    return a == b
+
+
+def visible(value):
+    """value as a glue, a ghost update or an invariant sees it: each
+    instance as the map of its fields, without its state."""
+    if isinstance(value, Rec):
+        return FrozenMap({k: visible(v) for k, v in value.fields.items()})
+    if isinstance(value, FrozenMap):
+        return FrozenMap({visible(k): visible(v) for k, v in value.items()})
+    if isinstance(value, tuple):
+        return tuple(visible(v) for v in value)
+    if isinstance(value, frozenset):
+        return frozenset(visible(v) for v in value)
+    return value
+
+
 def freeze(value):
     """Returns value in a hashable form: dicts become FrozenMaps, lists tuples,
     sets frozensets, recursively. Anything else must already be hashable."""
@@ -83,7 +123,10 @@ def freeze(value):
 
 def encode(value):
     """value as JSON would carry it: FrozenMaps as objects, tuples and
-    frozensets as arrays (a frozenset sorted when it can be)."""
+    frozensets as arrays (a frozenset sorted when it can be), an instance as
+    {"at": its state, "fields": its fields}."""
+    if isinstance(value, Rec):
+        return {"at": value.state, "fields": encode(value.fields)}
     if isinstance(value, Mapping):
         return {str(k): encode(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):

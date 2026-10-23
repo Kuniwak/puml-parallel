@@ -2,20 +2,17 @@
 from __future__ import annotations
 
 import inspect
-
 import itertools
 import sys
 from dataclasses import dataclass, field
 
-from csdfbmc.cone import Cone
-from csdfbmc.formal import RECORD_STATE
-from csdfbmc.model import Clause, Diagram, Edge
-from csdfbmc.atoms import function_of
-from csdfbmc.environment import Environment, recording
-from csdfbmc.meaning import OPAQUE, Meaning
-from csdfbmc.reduce import PartialOrder, Symmetry
 from csdfbmc.checks import Checks, apply
-from csdfbmc.values import FrozenMap, encode, freeze
+from csdfbmc.environment import Environment
+from csdfbmc.formula import Evaluator, Missing, solve
+from csdfbmc.meaning import AtomMeaning, apply_given
+from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
+from csdfbmc.protocol import ClientLike
+from csdfbmc.values import encode, freeze, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -32,7 +29,7 @@ class Result:
     truncated: bool
     bound: int
     # environment: the seed and the given functions of the environment, and
-    # the functions it decided a clause by (csdfbmc.environment); what a run
+    # the functions it decided an atom by (csdfbmc.environment); what a run
     # needs to be reproduced.
     environment: dict
     violations: list[tuple[str, State]] = field(default_factory=list)
@@ -40,25 +37,11 @@ class Result:
     avoid: str | None = None
     ghost_names: tuple[str, ...] = ()
     # empty_posts: (state, event as taken) where the guard held but the post
-    # clauses admitted no successor: a clause that cannot be satisfied from
-    # this state, or post clauses that disagree.
+    # admitted no successor: a clause that cannot be satisfied from this
+    # state, or clauses that disagree.
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
-    # unconstrained: (state, event as taken, variables) where the post clauses
-    # left variables of the next state without a value: a post clause is
-    # missing, or one constrains fewer variables than it should.
-    unconstrained: list[tuple[State, str, tuple[str, ...]]] = field(default_factory=list)
     # stopped_early: the walk stopped at the first finding (first=True).
     stopped_early: bool = False
-    # dropped_clauses: the guard clauses csdfpromote -only listed as reading a
-    # left-out map, which the walk took as true, as (text, maps).
-    dropped_clauses: list[tuple[str, tuple[str, ...]]] = field(default_factory=list)
-    # relevant: the variables the cone kept, in the order the diagram
-    # declares them; None when every variable was kept. dropped: each one
-    # left out, with the edges whose posts set it. cone_blocked_by: what
-    # kept the cone from being computed.
-    relevant: tuple[str, ...] | None = None
-    dropped: dict[str, list[str]] = field(default_factory=dict)
-    cone_blocked_by: tuple[str, ...] = ()
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -87,6 +70,7 @@ class Result:
             if self.ghost_names:
                 d["ghosts"] = dict(zip(self.ghost_names, s[2]))
             return d
+
         def at(s: State) -> dict:
             return {"at": st(s), "trace": self.trace_to(s), "replay": self.replay_to(s)}
         return {
@@ -99,12 +83,7 @@ class Result:
             "avoid": self.avoid,
             "avoiding_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.avoiding_cycles],
             "empty_posts": [{"event": label, **at(s)} for s, label in self.empty_posts],
-            "unconstrained": [{"event": label, "variables": list(names), **at(s)} for s, label, names in self.unconstrained],
             "environment": self.environment,
-            "dropped_clauses": [{"text": text, "maps": list(maps)} for text, maps in self.dropped_clauses],
-            "relevant": list(self.relevant) if self.relevant is not None else None,
-            "dropped_variables": self.dropped,
-            "cone_blocked_by": list(self.cone_blocked_by),
             "groups": self.groups(),
             "stopped_early": self.stopped_early,
         }
@@ -113,8 +92,8 @@ class Result:
         """The findings folded by shape, each with its count and the first
         (shortest) representative: deadlocks by (control state, the event
         that led there), broken invariants by (invariant, control state),
-        empty and unconstrained posts by event, cycles by the set of control
-        states they run through. In the order the first of each was met."""
+        empty posts by event, cycles by the set of control states they run
+        through. In the order the first of each was met."""
         groups: dict[tuple, dict] = {}
 
         def add(key: tuple, make):
@@ -139,303 +118,112 @@ class Result:
         for cycle in self.avoiding_cycles:
             states = tuple(sorted({c[0] for c in cycle}))
             add(("avoiding_cycle", states), lambda cycle=cycle, states=states: {"kind": "avoiding_cycle", "avoid": self.avoid, "through": list(states), "trace": self.trace_to(cycle[0])})
-        for s, label, names in self.unconstrained:
-            event = label.split("(")[0]
-            add(("unconstrained", event, names), lambda s=s, event=event, names=names: {"kind": "unconstrained", "event": event, "variables": list(names), "at": s[0], "trace": self.trace_to(s)})
         for s, label in self.empty_posts:
             event = label.split("(")[0]
             add(("empty_post", event, s[0]), lambda s=s, event=event: {"kind": "empty_post", "event": event, "at": s[0], "trace": self.trace_to(s)})
         return list(groups.values())
 
     def describe(self, s: State) -> str:
-        text = f"{s[0]} {list(s[1])}"
+        text = f"{s[0]} {[encode(v) for v in s[1]]}"
         if self.ghost_names:
             text += " " + str(dict(zip(self.ghost_names, s[2])))
         return text
 
 
 class Explorer:
-    """Enumerates the states a diagram can reach when its clauses mean what
-    meaning says. A guard decides; a post returns the successor values of the
-    variables it constrains, as a collection of partial assignments, and the
-    successors of an edge are the natural join of what its clauses return.
-    Event parameters range over the declared domains.
+    """Enumerates the states a diagram can reach (docs/CLAUSE_DESIGN.md, O7).
 
-    In an expansion of a promoted diagram, a map variable holds, per instance
-    ID, a record of the local state's name (under "state") and the local
-    variables. The generated clauses (in_dom, at_state, update, create, delete,
-    frame) have their meaning built in; a local clause is evaluated over the
-    instance's variables and the event's parameters, a constrain clause over
-    the maps.
+    A step from a state takes an edge out of its control state: the fields
+    the event receives range over their types in TYPES, except a field an
+    equality builtin of the guard determines from the state and the fields
+    determined before it, which is computed (Q5); the guard must hold; and
+    the post gives the values after the step (csdfbmc.formula.solve). A sent
+    field sends the value the step has bound.
 
-    environment decides a guard clause not formalised yet (a clause the glue
-    cannot read) as the pure function it denotes (csdfbmc.environment),
-    applied to the values of its holes: the function its atom names
-    (csdfbmc.atoms). The caller
-    builds it, with the checks module's ENVIRONMENT in it when wanted
-    (csdfbmc.environment.over); csdfbmc.environment.NONE decides nothing.
-
-    A function nothing decides, a given name that names no function, and a
-    post clause not formalised (which the environment does not decide yet)
-    are refused before the walk.
+    client is the glue every atom the environment does not declare is read
+    through (csdfbmc.protocol.checked gives it); environment declares and
+    decides the others (csdfbmc.environment). Before the walk, a declared
+    function nothing gives and no seed chooses is refused, listing every
+    one, and so is a declared name that names no atom of the diagram.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
     fairness assumption written as a finite bound (a resend count in the
-    domains), such a cycle is a livelock: a run that never gets to the event.
+    types), such a cycle is a livelock: a run that never gets to the event.
     within narrows those cycles to the control states named.
 
-    meaning says what the hand-written and constrain clauses mean
-    (csdfbmc.meaning): a glue of the evaluator protocol (GlueMeaning), which
-    reads every clause by its text, as meaning.standard makes it, with the
-    tool words. A guard clause the meaning has nothing for is the
-    environment's.
-    symmetry is refused when the meaning cannot say whether a clause tells
-    the IDs apart.
-
-    checks is the checks module (csdfbmc.checks): the domains, ghosts,
-    invariants and the symmetric parameters.
-
-    por and symmetry turn on the reductions of csdfbmc.reduce: the walk then
-    meets fewer states and reports the same deadlocks, broken invariants and
-    cycles. An empty or unconstrained post is reported only at the states
-    the walk still meets.
+    checks is the checks module (csdfbmc.checks): the types, ghosts and
+    invariants. A ghost update and an invariant see each instance as the map
+    of its fields.
     """
 
-    def __init__(self, diagram: Diagram, checks: Checks, meaning: Meaning, *, max_states: int = 100_000,
-                 avoid: str | None = None, within: list[str] | None = None, first: bool = False,
-                 por: bool = False, symmetry: bool = False, cone: Cone, environment: Environment):
+    def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
+                 max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
+                 first: bool = False):
         self.d = diagram
         self.checks = checks
         self.environment = environment
-        self.decided_seen: dict[str, None] = {}
-        self._decide = recording(environment.decide, self.decided_seen)
-        self._tau_choices: dict[tuple, tuple[str, ...]] = {}
-        self._check_sent()
+        self.meaning = AtomMeaning(client, environment, checks.domain)
+        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(checks.environment))
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
-        # first stops the walk at the first deadlock, broken invariant or
-        # unconstrained post; cycles need the whole space and are not checked then.
+        # first stops the walk at the first deadlock or broken invariant;
+        # cycles need the whole space and are not checked then.
         self.first = first
-        self.dropped_seen: dict[tuple[str, tuple[str, ...]], None] = {}
         self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
-        self.unconstrained: list[tuple[State, str, tuple[str, ...]]] = []
-        # meaning: what the hand-written and constrain clauses mean.
-        self.meaning = meaning
-        # cone says which variables the walk keeps (csdfbmc.cone).
-        self.cone = cone
-        self.por = PartialOrder(self) if por else None
-        if symmetry and not self.meaning.readable:
-            raise ValueError("symmetry is checked by asking of every clause whether it tells the IDs apart, which this glue does not answer (its hello supports no \"symmetric\")")
-        self.symmetry = Symmetry(diagram, checks, self.meaning) if symmetry else None
+        self._check_fields()
         self._check_environment()
 
-    # -- environments -----------------------------------------------------------
+    # -- before the walk ----------------------------------------------------------
 
-    def _env(self, state: State, params: dict | None = None) -> dict:
-        sid, values, ghosts = state
-        env = dict(zip(self.ghost_names, ghosts))
-        env.update(zip(self.d.vars[sid], values))
-        if params:
-            env.update(params)
-        return env
-
-    def _id_of(self, clause: Clause, env: dict):
-        param = clause.id or self.d.promotes[clause.map].id_param
-        if param not in env:
-            raise KeyError(f"the clause {clause.text!r} needs the instance ID {param!r}, which the event does not carry")
-        return env[param]
-
-    def _instance_env(self, clause: Clause, env: dict) -> dict:
-        """The names a local clause of a family may read: the event's
-        parameters and ghosts, and the instance's variables when it exists."""
-        local_env = dict(env)
-        record = env[clause.map].get(self._id_of(clause, env)) if clause.map in env else None
-        if record is not None:
-            local_env.update((k, v) for k, v in record.items() if k != RECORD_STATE)
-        return local_env
+    def _check_fields(self) -> None:
+        """Refuses an edge that receives a field named like a variable of its
+        states, over which it would bind, and one that sends a name its step
+        does not bind: c!y sends a state variable before the step or a field
+        the event receives."""
+        for e in self.d.edges:
+            for n in e.params:
+                if n in self.d.vars[e.src] or n in self.d.vars[e.dst]:
+                    raise KeyError(f"{e.event} at line {e.line} receives {n!r}, which names a state variable of {e.src} or {e.dst}")
+            bound = set(self.d.vars[e.src]) | set(e.params)
+            for n in e.sent:
+                if n not in bound:
+                    raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
 
     def _check_environment(self) -> None:
-        """Refuses, before the walk, what the environment cannot decide: a
-        post clause not formalised, which it does not decide yet (#76, step
-        6); a function of a guard not formalised that nothing gives and no
-        seed chooses, listing every one; and a given name that names no
-        function of the diagram."""
-        def authored(c: Clause) -> bool:
-            return c.kind in ("local", "constrain")
-        posts = list(self.d.start_post) + [c for e in self.d.edges for c in e.post]
-        for c in posts:
-            if authored(c) and self.meaning.names(c, "post") is None:
-                raise ValueError(f"the post clause {c.text!r} is not formalised; the environment does not decide a post clause "
-                                 "yet, so formalise it in the glue's language")
-        guards = [(c, self._bindable(e.src, e.params, c)) for e in self.d.edges for c in e.guard]
-        if self.d.end is not None:
-            guards += [(c, self._bindable(self.d.end.src, (), c)) for c in self.d.end.guard]
-        functions: dict[str, int] = {}
-        for c, bindable in guards:
-            if not authored(c) or self.meaning.names(c, "guard") is not None:
-                continue
-            f = function_of(c.text)
-            unbound = [a for a in f.args if a not in bindable]
-            if unbound:
-                raise ValueError(f"the atom {c.text!r} reads {', '.join(unbound)}, which the step does not bind")
-            functions.setdefault(f.name, len(f.args))
-        for name, g in self.environment.given.items():
-            if name in functions and callable(g) and not _takes(g, functions[name]):
-                n = functions[name]
-                raise ValueError(f"{name!r} has {n} hole{'' if n == 1 else 's'}, but the function given takes other arguments; "
-                                 "give a function of the holes, in order")
-        unknown = [g for g in self.environment.given if g not in functions]
+        """Refuses what the environment cannot decide: a declared function
+        nothing gives and no seed chooses, listing every one; a declared name
+        that names no atom of the diagram; and a function given as Python
+        that does not take the atom's arguments."""
+        arity = {a.function: len(a.args) for a, _, _ in self.d.atoms()}
+        unknown = [n for n in self.environment.declared if n not in arity]
         if unknown:
-            raise ValueError(f"the environment names no function of the diagram: {', '.join(map(repr, unknown))}")
-        undecided = [f for f in functions if f not in self.environment.given]
+            raise ValueError(f"the environment declares {', '.join(map(repr, sorted(unknown)))}, which names no atom of the diagram")
+        for name, g in self.environment.given.items():
+            if callable(g) and not _takes(g, arity[name]):
+                n = arity[name]
+                raise ValueError(f"{name!r} has {n} argument{'' if n == 1 else 's'}, but the function given takes other arguments; "
+                                 "give a function of the arguments, in order")
+        undecided = sorted(n for n in self.environment.declared if n not in self.environment.given)
         if undecided and self.environment.seed is None:
             raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
                              "give each in ENVIRONMENT or with --env NAME=true|false, or choose them with --seed N")
 
-    def _bindable(self, src: str, params: tuple[str, ...], clause: Clause) -> set[str]:
-        """The names a guard clause on an edge out of src with params may
-        read: the ghosts, src's variables, the event's fields, and a
-        family's clause the instance's own variables too."""
-        names = set(self.ghost_names) | set(self.d.vars[src]) | set(params)
-        if clause.kind == "local" and clause.map:
-            names |= {v for vs in self.d.local_of(clause).vars.values() for v in vs}
-        return names
+    # -- values ----------------------------------------------------------------
 
-    def _decided(self, clause: Clause, env: dict) -> bool:
-        """What the environment says a guard clause not formalised means at
-        env: the function its atom names, of the values of its holes
-        (csdfbmc.atoms). Undecided is an error, never false."""
-        f = function_of(clause.text)
-        missing = [a for a in f.args if a not in env]
-        if missing:
-            raise KeyError(f"the atom {clause.text!r} reads {', '.join(missing)}, which the step does not bind")
-        value = self._decide(f.name, tuple(env[a] for a in f.args))
-        if value is None:
-            raise ValueError(f"the environment decided nothing for {f.name!r}; give it, or choose it with --seed N")
-        return value
+    def _before(self, state: State, params: dict | None = None) -> dict:
+        sid, values, _ = state
+        return {**dict(zip(self.d.vars[sid], values)), **(params or {})}
 
-    # -- guards -----------------------------------------------------------------
-
-    def _holds(self, clauses: tuple[Clause, ...], env: dict) -> bool:
-        return all(self._guard_holds(c, env) for c in clauses)
-
-    def _guard_holds(self, c: Clause, env: dict) -> bool:
-        if c.kind == "in_dom":
-            return self._id_of(c, env) in env[c.map]
-        if c.kind == "not_in_dom":
-            return self._id_of(c, env) not in env[c.map]
-        if c.kind == "at_state":
-            record = env[c.map].get(self._id_of(c, env))
-            return record is not None and record[RECORD_STATE] == c.state
-        if c.kind == "frame":
-            return True
-        if c.kind == "dropped":
-            self.dropped_seen.setdefault((c.text, c.maps))
-            return True
-        if c.kind not in ("local", "constrain"):
-            raise ValueError(f"unknown clause kind {c.kind!r} in a guard")
-        scope = self._instance_env(c, env) if c.map and c.kind == "local" else env
-        value = self.meaning.evaluate(c, "guard", scope)
-        if value is OPAQUE:
-            return self._decided(c, scope)
-        return bool(value)
-
-    # -- posts ------------------------------------------------------------------
-
-    def _assignments(self, c: Clause, env: dict) -> list[dict]:
-        """What a post clause admits, as frozen assignments."""
-        returned = self.meaning.evaluate(c, "post", env)
-        if returned is OPAQUE:
-            raise KeyError(self.meaning.opaque_message(c))
-        if isinstance(returned, (bool, int, str)) or returned is None:
-            raise TypeError(f"the post clause {c.text!r} gave {returned!r}; a post gives a collection of assignments such as [{{'x': x + 1}}]")
-        out = []
-        for a in returned:
-            if not hasattr(a, "items"):
-                raise TypeError(f"the post clause {c.text!r} gave {a!r}; each successor is a mapping from variable names to values")
-            out.append({k: freeze(v) for k, v in a.items()})
-        return out
-
-    @staticmethod
-    def _join(joined: list[dict], assignments: list[dict]) -> list[dict]:
-        return [dict(j, **a) for j in joined for a in assignments
-                if all(j[k] == v for k, v in a.items() if k in j)]
-
-    def _successor_values(self, clauses: tuple[Clause, ...], env: dict, dst: str) -> tuple[list[tuple], tuple[str, ...]]:
-        """The valuations of dst the post clauses admit, and the variables no
-        clause gave a value (then the valuations are empty)."""
-        joined: list[dict] = [{}]
-        moves: dict[str, Clause] = {}
-        local_posts: dict[str, list[Clause]] = {}
-        for c in clauses:
-            if c.kind == "empty":
-                joined = self._join(joined, [{c.map: FrozenMap() if self.cone.keeps(c.map) else None}])
-            elif c.kind == "frame":
-                # A left-out variable has no value to carry across.
-                joined = self._join(joined, [{c.var: env[c.var] if self.cone.keeps(c.var) else None}])
-            elif c.kind in ("update", "create", "delete"):
-                moves[c.map] = c
-            elif c.kind == "local" and c.map:
-                local_posts.setdefault(c.map, []).append(c)
-            elif c.kind in ("local", "constrain"):
-                joined = self._join(joined, self._assignments(c, env))
-            else:
-                raise ValueError(f"unknown clause kind {c.kind!r} in a post")
-            if not joined:
-                return [], ()
-
-        for m, move in moves.items():
-            idv = self._id_of(move, env)
-            if not self.cone.keeps(m):
-                # A left-out map has no local post clauses, since they read
-                # it; a move into a state with variables then leaves them
-                # without a value, as in the full walk. Otherwise the move
-                # admits one successor, and the map has no value.
-                names = self.d.local_of(move).vars_of(move.state) if move.kind != "delete" else ()
-                if names:
-                    return [], tuple(f"{m}[{idv}].{n}" for n in names)
-                joined = self._join(joined, [{m: None}])
-                continue
-            current = env[m]
-            if move.kind == "delete":
-                joined = self._join(joined, [{m: current.without(idv)}])
-                continue
-            local = self.d.local_of(move)
-            names = local.vars_of(move.state)
-            scope = self._instance_env(move, env)
-            records: list[dict] = [{}]
-            for c in local_posts.get(m, []):
-                records = self._join(records, self._assignments(c, scope))
-                if not records:
-                    return [], ()
-            missing = tuple(f"{m}[{idv}].{n}" for n in names if n not in records[0])
-            if missing:
-                return [], missing
-            joined = self._join(joined, [
-                {m: current.set(idv, FrozenMap({RECORD_STATE: move.state, **{n: r[n] for n in names}}))} for r in records])
-            if not joined:
-                return [], ()
-        for m in local_posts:
-            if m not in moves:
-                raise ValueError(f"the post has local clauses for map {m!r} but no update, create or delete of it")
-
-        names = self.d.vars[dst]
-        if joined:
-            missing = tuple(n for n in names if n not in joined[0])
-            if missing:
-                return [], missing
-        # A variable left out of the cone has no value in the state; the
-        # successors that differ only in it are one.
-        projected = dict.fromkeys(tuple(j[n] if self.cone.keeps(n) else None for n in names) for j in joined)
-        return list(projected), ()
-
-    # -- ghosts and invariants --------------------------------------------------
+    def _ghost_env(self, state: State, params: dict | None = None) -> dict:
+        env = dict(zip(self.ghost_names, state[2]))
+        env.update((k, visible(v)) for k, v in self._before(state, params).items())
+        return env
 
     def _ghosts_after(self, state: State, name: str, params: dict) -> tuple:
-        env = self._env(state, params)
+        env = self._ghost_env(state, params)
         out = []
         for ghost, (_, updates) in self.checks.ghosts.items():
             if name in updates:
@@ -445,133 +233,90 @@ class Explorer:
         return tuple(out)
 
     def _check_invariants(self, state: State) -> list[str]:
-        env = self._env(state)
-        broken = []
-        for name, fn in self.checks.invariants.items():
-            if self.checks.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}"):
-                broken.append(name)
-        return broken
+        env = self._ghost_env(state)
+        return [name for name, fn in self.checks.invariants.items()
+                if self.checks.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}")]
 
     # -- transitions ------------------------------------------------------------
 
+    def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
+        names = self.d.vars[dst]
+        return [tuple(freeze(a[n]) for n in names) for a in solve(self.ev, post, names, before, self.checks.domain, where)]
+
     def initial(self) -> list[State]:
         ghosts = tuple(init for init, _ in self.checks.ghosts.values())
-        env = dict(zip(self.ghost_names, ghosts))
-        vals, missing = self._successor_values(self.d.start_post, env, self.d.start)
-        if missing:
-            raise KeyError(f"the start edge leaves {list(missing)} of state {self.d.start!r} without a value; its post clauses must give every variable a value")
+        vals = self._successor_values(self.d.start_post, {}, self.d.start, "the start edge")
         return [(self.d.start, v, ghosts) for v in vals]
 
+    def _determined(self, e: Edge, p: str, known: set[str]):
+        """The term an equality builtin of e's guard determines the field p
+        by, from the names known (Q5); None when none does."""
+        for c in e.guard:
+            if isinstance(c, Builtin) and c.op == "eq":
+                for x, y in ((c.args[0], c.args[1]), (c.args[1], c.args[0])):
+                    if x == Free(p) and free_names(y, primed=False) <= known and not free_names(y, primed=True):
+                        return y
+        return None
+
+    def _offers(self, state: State, e: Edge) -> list[dict]:
+        """The values of the fields e receives that the walk tries: each
+        ranges over its type, unless the guard determines it (Q5)."""
+        alive: list[dict] = [{}]
+        known = set(self.d.vars[state[0]])
+        for p in e.params:
+            term = self._determined(e, p, known)
+            grown = []
+            for params in alive:
+                if term is not None:
+                    try:
+                        grown.append(dict(params, **{p: self.ev.value(term, self._before(state, params), {}, ())}))
+                    except Missing:
+                        pass  # the guard reads an entry its map does not have: false
+                else:
+                    grown.extend(dict(params, **{p: v}) for v in self.checks.domain(p))
+            alive = grown
+            known.add(p)
+        return alive
+
+    def _label(self, e: Edge, before: dict) -> str:
+        """The event as taken: each field, in the event's order, with the
+        value received or sent."""
+        if not e.fields:
+            return e.name
+        return e.name + "(" + ", ".join(f"{n}={encode(before[n])}" for _, n in e.fields) + ")"
+
     def _edge_successors(self, state: State, e: Edge, record: bool = True):
-        """(params, event as taken, next states) for every parameter valuation
-        of e that is enabled from state. With record, what the walk reports
-        (unconstrained and empty posts) is kept."""
-        names = e.params + e.implicit_ids() + self._chosen_by_tau(e)
+        """(params, event as taken, next states) for every value of the fields
+        of e enabled from state. With record, an empty post is kept."""
         out = []
-        for params in self._enabled(state, e, names):
-            label = self._label(e, self._env(state, params), params)
-            ghosts = self._ghosts_after(state, e.name, params)
-            vals, missing = self._successor_values(e.post, self._env(state, params), e.dst)
-            if missing:
-                if record:
-                    self.unconstrained.append((state, label, missing))
+        where = f"{e.src} --> {e.dst} : {e.event} (line {e.line})"
+        for params in self._offers(state, e):
+            before = self._before(state, params)
+            if not self.ev.holds(e.guard, before):
                 continue
+            label = self._label(e, before)
+            vals = self._successor_values(e.post, before, e.dst, where)
             if not vals:
                 if record:
                     self.empty_posts.append((state, label))
                 continue
+            ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
 
-    @staticmethod
-    def _label(e: Edge, env: dict, params: dict) -> str:
-        """The event as taken: each field, in the event's order, with the value
-        received or sent (c!y sends the value y has at the step), then what
-        the step chose that the event does not carry, as a tau's choices."""
-        shown = {n: env[n] for _, n in e.fields}
-        shown.update((n, v) for n, v in params.items() if n not in shown)
-        return e.name if not shown else e.name + "(" + ", ".join(f"{p}={v}" for p, v in shown.items()) + ")"
-
-    def _check_sent(self) -> None:
-        """Refuses an edge that sends a name its step does not bind: c!y sends
-        a state variable before the step or a field the event receives."""
-        for e in self.d.edges:
-            bound = set(self.d.vars.get(e.src, ())) | set(e.params)
-            for n in e.sent:
-                if n not in bound:
-                    raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
-
-    def _chosen_by_tau(self, e: Edge) -> tuple[str, ...]:
-        """The values a tau chooses: the names its clauses read that are not
-        state variables (an instance's own among them), ghosts or fields but
-        have a domain. Hiding c?x leaves such a tau, which is the internal
-        choice of x over its domain; a name with no domain is not chosen, and
-        is refused when read. A tau names what it chose in its label, as
-        tau(x=1), as a promoted tau names the instance it chose.
-
-        A tau the author wrote is read by the same rule, so a name that has a
-        domain is chosen whether hiding left it or not."""
-        if not e.is_tau:
-            return ()
-        key = (e.src, e.dst, e.line, e.guard, e.post)
-        if key not in self._tau_choices:
-            bound = set(self.d.vars.get(e.src, ())) | set(self.d.vars.get(e.dst, ())) | set(self.ghost_names) | set(e.params) | set(e.implicit_ids())
-            chosen: dict[str, None] = {}
-            for role, clauses in (("guard", e.guard), ("post", e.post)):
-                for c in clauses:
-                    if c.kind not in ("local", "constrain"):
-                        continue
-                    own = set()
-                    if c.kind == "local" and c.map:
-                        # A family's clause reads the instance's own variables.
-                        own = {v for vs in self.d.local_of(c).vars.values() for v in vs}
-                    for n in sorted(self.meaning.names(c, role) or ()):
-                        if n not in bound and n not in own and self.checks.declares(n):
-                            chosen.setdefault(n)
-            self._tau_choices[key] = tuple(chosen)
-        return self._tau_choices[key]
-
-    def _values(self, e: Edge, name: str) -> list:
-        """The values e's field name ranges over: its domain, and of those
-        only the ones every name renamed onto it can also take. A composition
-        renames a side's field onto the other's, and the two synchronise only
-        on a value both sides can take."""
-        values = self.checks.domain(name)
-        for c in e.guard + e.post:
-            for f, t in c.rename:
-                if t != name:
-                    continue
-                try:
-                    held = self.checks.domain(f)
-                except KeyError:
-                    continue  # a name with no domain of its own takes any value
-                values = [v for v in values if v in held]
-        return values
-
-    def _enabled(self, state: State, e: Edge, names: tuple[str, ...]) -> list[dict]:
-        """The parameter valuations of e whose guard holds at state. The
-        guard is taken clause by clause over every valuation still enabled,
-        so a clause read through a glue costs one request per edge."""
-        alive = [(params, self._env(state, params))
-                 for params in (dict(zip(names, args)) for args in itertools.product(*(self._values(e, p) for p in names)))]
-        for c in e.guard:
-            if c.kind in ("local", "constrain"):
-                self.meaning.prefetch(c, "guard", [self._instance_env(c, env) if c.map and c.kind == "local" else env for _, env in alive])
-            alive = [(params, env) for params, env in alive if self._guard_holds(c, env)]
-        return [params for params, _ in alive]
-
     def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
-        """(event name, event as taken, next state, edge) for every enabled transition."""
-        return [tr[:4] for tr in self._transitions(state)]
-
-    def _transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
-        """successors, each with the parameter valuation it was taken with."""
+        """(event name, event as taken, next state, edge) for every enabled
+        transition. A transition of an edge whose post admits no successor is
+        kept among the empty posts."""
         out = []
         for e in self.d.out_edges(state[0]):
-            for params, label, nexts in self._edge_successors(state, e):
+            for _, label, nexts in self._edge_successors(state, e):
                 for t in nexts:
-                    out.append((e.name, label, t, e, params))
+                    out.append((e.name, label, t, e))
         return out
+
+    def can_end(self, state: State) -> bool:
+        return any(end.src == state[0] and self.ev.holds(end.guard, self._before(state)) for end in self.d.ends)
 
     # -- what a REPL asks at a value prompt ------------------------------------
 
@@ -581,8 +326,8 @@ class Explorer:
 
     def candidates(self, state_id: str, values: list, edge_index: int) -> list[dict]:
         """The values the clauses admit after the edge_index-th outgoing edge of
-        state_id (in the diagram's order) from the given values, per parameter
-        valuation: [{"params": {...}, "values": [...]}, ...]. The ghosts are
+        state_id (in the diagram's order) from the given values, per value of
+        the fields: [{"params": {...}, "values": [...]}, ...]. The ghosts are
         taken at their initial values, since a REPL does not keep them."""
         edges = self.d.out_edges(state_id)
         if edge_index < 0 or edge_index >= len(edges):
@@ -597,14 +342,12 @@ class Explorer:
                 out.append({"params": {k: encode(v) for k, v in params.items()}, "values": [encode(v) for v in t[1]]})
         return out
 
-    def can_end(self, state: State) -> bool:
-        end = self.d.end
-        return end is not None and end.src == state[0] and self._holds(end.guard, self._env(state))
-
     # -- the walk ----------------------------------------------------------------
 
     def run(self) -> Result:
-        parents: dict[State, tuple[State, str] | None] = {}
+        self.empty_posts = []
+        self.meaning.decided.clear()
+        parents: dict[State, tuple[State, str, Edge] | None] = {}
         order: list[State] = []
         queue: list[State] = []
         tau_next: dict[State, list[State]] = {}
@@ -612,18 +355,10 @@ class Explorer:
         deadlocks: list[State] = []
         violations: list[tuple[str, State]] = []
         truncated = False
-        # seen: the states met, each by its representative under symmetry, to
-        # the state the walk met first and expands.
-        seen: dict[State, State] = {}
-
-        def key(s: State) -> State:
-            return self.symmetry.canonical(s) if self.symmetry else s
-
-        def met(s: State) -> State | None:
-            return seen.get(key(s))
+        seen: set[State] = set()
 
         def visit(s: State):
-            seen[key(s)] = s
+            seen.add(s)
             parents.setdefault(s, None)
             order.append(s)
             queue.append(s)
@@ -631,7 +366,7 @@ class Explorer:
                 violations.append((name, s))
 
         for s in self.initial():
-            if met(s) is None:
+            if s not in seen:
                 visit(s)
 
         stopped = False
@@ -639,51 +374,40 @@ class Explorer:
         while i < len(queue) and not stopped:
             s = queue[i]
             i += 1
-            if self.first and (violations or self.unconstrained):
+            if self.first and violations:
                 stopped = True
                 break
-            succ = self._transitions(s)
+            succ = self.successors(s)
             if not succ and not self.can_end(s):
                 deadlocks.append(s)
                 if self.first:
                     stopped = True
                     break
-            if self.por:
-                succ = self.por.ample(s, succ, lambda t: met(t) is not None)
-            for _, label, t, edge, _ in succ:
-                if met(t) is not None:
+            for _, label, t, edge in succ:
+                if t in seen:
                     continue
                 if len(order) >= self.max_states:
                     truncated = True
                     continue
                 parents[t] = (s, label, edge)
                 visit(t)
-            nexts = [(name, met(t) or t) for name, _, t, _, _ in succ]
-            tau_next[s] = [t for name, t in nexts if name == "tau"]
+            tau_next[s] = [t for _, _, t, edge in succ if edge.is_tau]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
-                avoid_next[s] = [t for name, t in nexts if name != self.avoid and (self.within is None or t[0] in self.within)]
+                avoid_next[s] = [t for name, _, t, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,
             tau_cycles=_cycles(order, tau_next) if not stopped else [],
             truncated=truncated, bound=self.max_states,
-            environment={**self.environment.to_json(), "decided": list(self.decided_seen)},
+            environment={**self.environment.to_json(), "decided": list(self.meaning.decided)},
             violations=violations,
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
-            empty_posts=self.empty_posts, unconstrained=self.unconstrained,
-            stopped_early=stopped, dropped_clauses=list(self.dropped_seen),
-            relevant=self._relevant_in_order(), dropped=self.cone.dropped, cone_blocked_by=self.cone.blocked_by,
+            empty_posts=self.empty_posts, stopped_early=stopped,
         )
 
-    def _relevant_in_order(self) -> tuple[str, ...] | None:
-        if self.cone.relevant is None:
-            return None
-        declared = dict.fromkeys(v for vs in self.d.vars.values() for v in vs)
-        return tuple(v for v in declared if v in self.cone.relevant)
 
-
-def _cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[list[State]]:
+def _cycles(states: list[State], next_: dict[State, list[State]]) -> list[list[State]]:
     """One cycle per strongly connected component of the given graph that has
     a cycle, in the order the states were met."""
     index: dict[State, int] = {}
@@ -697,7 +421,7 @@ def _cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[lis
         index[v] = low[v] = next(counter)
         stack.append(v)
         on_stack.add(v)
-        for w in tau_next.get(v, ()):
+        for w in next_.get(v, ()):
             if w not in index:
                 connect(w)
                 low[v] = min(low[v], low[w])
@@ -712,7 +436,7 @@ def _cycles(states: list[State], tau_next: dict[State, list[State]]) -> list[lis
                 if w == v:
                     break
             comp.reverse()
-            if len(comp) > 1 or v in tau_next.get(v, ()):
+            if len(comp) > 1 or v in next_.get(v, ()):
                 cycles.append(comp)
 
     sys.setrecursionlimit(max(sys.getrecursionlimit(), len(states) + 1000))

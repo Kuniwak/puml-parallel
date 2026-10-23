@@ -1,5 +1,5 @@
 @startuml ATTEMPTS
-' examples/promote/ATTEMPTS.puml with every clause written in Python, read
+' examples/promote/ATTEMPTS.puml with every atom written in Python, read
 ' through the reference glue. Fee bumping: a stuck attempt is replaced by one
 ' that pays more. The constrain says what a replacement is; the assume note
 ' says what no guard can - that the replacements stop.
@@ -11,12 +11,10 @@ state "稼働中" as running {
   }
 }
 
-[*] --> running : [{'attempts': FrozenMap()}]
-' The scenario may rest once every attempt is confirmed.
-running --> [*] : len(attempts) > 0 and all(r.state == '確定' for r in attempts.values())
+[*] --> running
 
 note bottom of runningAttempts
-  constrain RESEND?試行ID?置換Tx ; 置換Tx.置換元 in attempts and attempts[置換Tx.置換元].state == '滞留' and 置換Tx.手数料 > attempts[置換Tx.置換元].手数料
+  constrain RESEND?試行ID?置換Tx ; @at(attempts[置換Tx.置換元], attStuck) ∧ $置換Tx.手数料 > ${attempts[置換Tx.置換元].手数料}
 end note
 
 note as fair

@@ -83,14 +83,15 @@ class LoadChecksTest(unittest.TestCase):
         # Setup
         path = self.write('''
             TYPES = {}
-            ENVIRONMENT = {"在庫 が 十分": lambda 在庫: 在庫 > 1, "$n が 正": True}
+            ENVIRONMENT = {"在庫 が 十分": lambda 在庫: 在庫 > 1, "$n が 正": True, "$m が 負": None}
         ''')
 
         # Execute
         checks = load_checks(path)
 
         # Assert
-        self.assertEqual({"在庫 が 十分", "$n が 正"}, set(checks.environment))
+        self.assertEqual({"在庫 が 十分", "$n が 正", "$m が 負"}, set(checks.environment))
+        self.assertIsNone(checks.environment["$m が 負"])
         self.assertTrue(checks.environment["在庫 が 十分"](在庫=2))
 
     def test_refuses_a_module_that_would_otherwise_be_misread(self):
@@ -110,6 +111,16 @@ class LoadChecksTest(unittest.TestCase):
                 # Execute, Assert
                 with self.assertRaisesRegex(PurityError, message):
                     load_checks(path)
+
+    def test_an_exists_ranges_over_the_type_it_names(self):
+        # Setup
+        checks = Checks(types={"口座ID": ["a1", "a2"]}, typeof={"相手ID": "口座ID"})
+
+        # Execute, Assert
+        self.assertEqual(["a1", "a2"], checks.carrier("口座ID"))
+        with self.assertRaisesRegex(KeyError, "相手ID"):
+            checks.carrier("相手ID")
+
 
 if __name__ == "__main__":
     unittest.main()

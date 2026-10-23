@@ -7,7 +7,6 @@ import (
 	"syscall"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
@@ -28,11 +27,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		sock := tools.ResolveSocketPath(opts.Sock, inout.Env)
 		service := proto.NewService(version.Version, opts.Common.Debug())
 		if opts.Checker.Asks() {
-			service.SetSuggesters(func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error) {
+			service.SetSuggesters(func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
 				if diagramJSON != "" {
 					return &bmc.Suggester{Diagram: diagramJSON, Checker: opts.Checker}, func() {}, nil
 				}
-				return bmc.ForDiagram(d, opts.Checker)
+				return bmc.ForSource(source, opts.Checker)
 			})
 		}
 

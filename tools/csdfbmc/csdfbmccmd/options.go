@@ -22,14 +22,15 @@ func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
 
 const usage = `Usage: csdfbmc [launcher options] <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [checker options]
 
-Runs csdfbmc, the bounded model checker, on a diagram as csdfparse prints it,
-or an expansion as csdfpromote -format json prints it, with every clause read
-through a glue of the evaluator protocol and the checks module of its
-types, environment, ghosts and invariants. The checker is Python (standard library only,
-3.11 or later); this binary carries its sources and runs them with the
-python3 on the PATH, so a release needs no checkout. The launcher reads its
-own options first and hands every argument after them to the checker as it
-is.
+Runs csdfbmc, the bounded model checker, on a diagram as csdfparse prints it
+(or an expansion as csdfpromote -format json prints it), its clauses as
+formulas: the checker evaluates the builtins and ∃, the atoms the checks
+module declares are functions of the environment, and every other atom is
+read through a glue of the evaluator protocol. The checker is Python
+(standard library only, 3.11 or later); this binary carries its sources and
+runs them with the python3 on the PATH, so a release needs no checkout. The
+launcher reads its own options first and hands every argument after them to
+the checker as it is.
 
 Launcher options:
   -python PATH  the interpreter to run (default: $CSDFBMC_PYTHON, else python3 on the PATH)
@@ -39,39 +40,34 @@ Launcher options:
   -silent       silent mode
 
 Checker options (the checker's --help lists them in full):
-  --evaluator CMD      read every clause through the glue CMD starts, which
-                       speaks the evaluator protocol
+  --evaluator CMD      read every atom the environment does not declare
+                       through the glue CMD starts, which speaks the
+                       evaluator protocol
   --evaluator-module MODULE
                        the same, with a glue written in Python loaded
                        in-process; "csdfbmc.python_glue DEFS.py..." reads
-                       clauses written in Python. One of the two is needed.
+                       atoms written in Python. One of the two is needed.
   --max-states N       stop after this many states (default 100000)
-  --seed N             choose the functions a clause not formalised denotes
-                       from this seed, where nothing gives them; without it,
-                       a function nothing gives is refused (a post clause not
-                       formalised is refused either way, until #76's step 6)
+  --seed N             choose from this seed the functions of the
+                       environment the checks module declares and nothing
+                       gives; without it such a function is refused
   --env NAME=true|false
-                       give the function NAME the value true or false, over
-                       the checks module's ENVIRONMENT (repeatable)
+                       give the declared function NAME the value true or
+                       false (repeatable)
   --avoid EVENT        also report the cycles that never perform EVENT
   --within STATE       with --avoid, look among these control states only
-  --first              stop at the first deadlock, broken invariant or unconstrained post
+  --first              stop at the first deadlock or broken invariant
   --all                list every finding instead of one per shape with a count
-  --por                take the moves of one independent instance at a time
-                       (partial-order reduction)
-  --symmetry           store one state per renaming of the instance IDs the
-                       checks module declares SYMMETRIC
-  --cone               leave out the variables that nothing deciding a step or
-                       a property reads (cone of influence); same findings
   --json               print the result as JSON
 
 The checks module defines TYPES (a type -> its finite values) and, when
-wanted, TYPEOF (a name -> its type), ENVIRONMENT (the function a clause not
-formalised denotes, named by its atom's text without its holes or by any
-of its atoms -> True, False or a pure function of its holes' values in
-order; @opaque is refused: write the clause as an atom), GHOSTS, INVARIANTS
-and SYMMETRIC. A run reports its seed and the given functions, which
-reproduce it.
+wanted, TYPEOF (a name -> its type), ENVIRONMENT (declares the atoms that
+are functions of the environment, each named by its atom's text with its
+holes as $_0, $_1, ... -> True, False, a pure
+function of its arguments in order, or None to leave it to --env or
+--seed), GHOSTS and INVARIANTS. A variable no post determines ranges over
+its type. A run reports its seed and the given functions, which reproduce
+it.
 
 "csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)" answers what a REPL asks at a
@@ -91,7 +87,7 @@ Examples:
       --evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"
   $ csdfbmc wallet.json checks.py --evaluator-module "csdfbmc.python_glue checks.py" --avoid 確定 --within sending --json
   $ csdfpromote -format json GLOBAL.puml > global.json
-  $ csdfbmc global.json checks.py --evaluator-module csdfbmc.python_glue --symmetry --por
+  $ csdfbmc global.json checks.py --evaluator-module csdfbmc.python_glue --avoid CONFIRMED
 `
 
 // NewParseOptionsFunc reads the launcher's options by hand rather than with

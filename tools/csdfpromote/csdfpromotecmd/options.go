@@ -65,18 +65,9 @@ With -template, the builtins of each edge are glossed in a line comment above
 it, by templates named after the builtin words (see
 examples/promote/templates/ja.tmpl).
 
--json and -format json print the directives and the expansion of the tools
-before csdf/core, which csdfbmc reads until it moves onto the clause syntax:
-
-  {"diagram": <the diagram as csdfparse prints it>,
-   "edges": [{"edge": <the edge>, "origin": "promote: ...",
-              "guard": [CLAUSE, ...], "post": [CLAUSE, ...]}, ...],
-   "promotes": [{"map": M, "id_param": P, "type": T, "path": F, "in": S}, ...],
-   "locals": {F: <the local diagram as csdfparse prints it>, ...}}
-
-where a CLAUSE is {"kind": K, "text": T, ...} with K one of in_dom, not_in_dom,
-at_state, update, create, delete, frame, local, constrain or dropped. Its -only
-takes a map or a type, and -template is refused with it.
+-format json prints the expansion as JSON, as csdfparse prints a diagram
+(core.DiagramDoc): the shape csdfbmc reads. -template is refused with it.
+-json prints the directives as parsed.
 
 Options:
 `)
@@ -102,7 +93,7 @@ Examples:
 		asJSON := flags.Bool("json", false, "print the parsed directives as JSON instead of expanding them")
 		only := flags.String("only", "", "comma-separated families to keep, each named by its map (default: all)")
 		var format string
-		flags.StringVar(&format, "format", promote.OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program, with the clauses of every edge)")
+		flags.StringVar(&format, "format", promote.OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program such as csdfbmc, as csdfparse prints a diagram)")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {

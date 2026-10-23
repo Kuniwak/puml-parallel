@@ -1,5 +1,5 @@
-"""The reference glue reads clauses written in the pure subset of Python and
-answers the requests of the evaluator protocol about them."""
+"""The reference glue answers the requests of the protocol about atoms: text
+with holes, whose values come by the index of their argument."""
 import os
 import tempfile
 import unittest
@@ -7,96 +7,131 @@ import unittest
 from csdfbmc.python_glue import evaluator
 
 
-def analyse(clause: str, role: str) -> dict:
-    return {"op": "analyse", "clause": clause, "role": role}
+def atom(text: list[str], holes: list[int], primed: list[bool]) -> dict:
+    return {"text": text, "holes": holes, "primed": primed}
 
 
-class PythonGlueTest(unittest.TestCase):
+class PythonGlueAtomTest(unittest.TestCase):
     def setUp(self):
         self.handle = evaluator([])
-        self.handle({"op": "hello"})
+        self.handle({"op": "hello", "protocol": 2})
 
-    def test_hello_names_the_language_and_the_protocol_version(self):
-        self.assertEqual({"language": "python", "protocol": 1, "supports": ["beyond", "symmetric"]}, self.handle({"op": "hello"}))
+    def test_a_guard_is_evaluated_per_list_of_values(self):
+        tests = {
+            "two lists of values": (atom(["", " > ", ""], [0, 1], [False, False]), [[3, 2], [1, 2]], [True, False]),
+            "no holes": (atom(["1 < 2"], [], []), [[]], [True]),
+        }
+        for name, (a, values, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                request = {"op": "guard", "atom": a, "values": values}
 
-    def test_beyond_leaves_out_a_map_read_only_at_the_own_id(self):
-        for clause, want in [
-            ("accounts[i]['n'] > 0", ["i"]),
-            ("accounts[i]['n'] + accounts[j]['n'] > 0", ["accounts", "i", "j"]),
-            ("len(accounts) < 2", ["accounts"]),
-            ("n > 0", ["n"]),
-        ]:
-            with self.subTest(clause):
-                answer = self.handle({"op": "beyond", "clause": clause, "role": "guard", "own_id": "i"})
-                self.assertEqual(want, answer["reads"])
+                # Execute
+                answer = self.handle(request)
 
-    def test_symmetric_says_whether_a_clause_tells_two_ids_apart(self):
-        ask = {"op": "symmetric", "role": "guard", "params": ["i"], "maps": ["accounts"], "groups": [["a1", "a2"]]}
-        for clause, symmetric, said in [
-            ("i in accounts", True, None),
-            ("i in ['a1', 'a2']", True, None),
-            ("i == 'a1'", False, "'a1'"),
-            ("i < j", False, "ordered"),
-            ("sorted(accounts)[0] == i", False, "sorted"),
-        ]:
-            with self.subTest(clause):
-                answer = self.handle(dict(ask, clause=clause))
+                # Assert
+                self.assertEqual({"results": want}, answer)
+
+    def test_a_post_gives_the_values_after_the_step_per_list_of_values_before_it(self):
+        tests = {
+            "one value, by ==": (atom(["", " == ", " + 1"], [0, 1], [True, False]), [[2]], [[[3]]]),
+            "a choice, by in": (atom(["", " in (", ", ", " + 1)"], [0, 1, 1], [True, False]), [[1]], [[[1], [2]]]),
+            "two values at once": (atom(["(", ", ", ") == (", ", ", ")"], [0, 1, 2, 3], [True, True, False, False]), [[5, 6]], [[[5, 6]]]),
+        }
+        for name, (a, values, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                request = {"op": "post", "atom": a, "values": values}
+
+                # Execute
+                answer = self.handle(request)
+
+                # Assert
+                self.assertEqual({"results": want}, answer)
+
+    def test_a_post_of_another_shape_is_refused(self):
+        tests = {
+            "no value after the step on the left": (atom(["", " == ", ""], [0, 1], [False, True]), [[1]],
+                                                    "argument 0 is a value before the step"),
+            "a value after the step on the right": (atom(["", " == ", ""], [0, 1], [True, True]), [[]], "a post atom of this glue"),
+            "not an equation": (atom(["", " > 0"], [0], [True]), [[]], "a post atom of this glue"),
+        }
+        for name, (a, values, said) in tests.items():
+            with self.subTest(name):
+                # Execute
+                answer = self.handle({"op": "post", "atom": a, "values": values})
+
+                # Assert
+                self.assertIn(said, answer["error"])
+
+    def test_a_malformed_request_is_refused(self):
+        tests = {
+            "text not one piece more than the holes": (
+                {"op": "guard", "atom": atom(["", " > 0", ""], [0], [False]), "values": [[1]]}, "one piece of text more than"),
+            "a hole reading no argument": (
+                {"op": "guard", "atom": atom(["", " > 0"], [1], [False]), "values": [[1]]}, "argument 1"),
+            "values of another number than the arguments": (
+                {"op": "guard", "atom": atom(["", " > 0"], [0], [False]), "values": [[1, 2]]}, "2 values"),
+            "an atom that is not Python": (
+                {"op": "guard", "atom": atom(["", " が凍結されていない"], [0], [False]), "values": [[1]]}, "SyntaxError"),
+            "an atom outside the pure subset": (
+                {"op": "guard", "atom": atom(["open(", ")"], [0], [False]), "values": [["f"]]}, "calling open"),
+            "text naming what stands for a hole": (
+                {"op": "guard", "atom": atom(["_csdf_hole_0 + ", " > 0"], [0], [False]), "values": [[1]]}, "_csdf_hole_"),
+            "an unprimed hole on the left of a post": (
+                {"op": "post", "atom": atom(["(", ", ", ") == (1, 2)"], [0, 1], [True, False]), "values": [[1]]},
+                "argument 1 is a value before the step"),
+            "a choice of another length than the values after the step": (
+                {"op": "post", "atom": atom(["(", ", ", ") in [(1, 2, 3)]"], [0, 1], [True, True]), "values": [[]]},
+                "3 values"),
+        }
+        for name, (request, said) in tests.items():
+            with self.subTest(name):
+                # Execute
+                answer = self.handle(request)
+
+                # Assert
+                self.assertIn(said, answer.get("error", ""))
+
+    def test_symmetric_says_whether_an_atom_tells_two_ids_apart(self):
+        tests = {
+            "an ID looked up": (atom(["", " in ", ""], [0, 1], [False, False]), [1], True, None),
+            "an ID compared with a constant": (atom(["", " == 'a1'"], [0], [False]), [], False, "'a1'"),
+            "an ID ordered": (atom(["", " < ", "['x']"], [0, 1], [False, False]), [1], False, "argument 0 is ordered"),
+        }
+        for name, (a, maps, symmetric, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                request = {"op": "symmetric", "atom": a, "params": [0], "maps": maps, "groups": [["a1", "a2"]]}
+
+                # Execute
+                answer = self.handle(request)
+
+                # Assert
+                why = answer.get("why")
                 self.assertEqual(symmetric, answer["symmetric"])
-                if said:
-                    self.assertIn(said, answer["why"])
-
-    def test_analyse_says_what_a_clause_reads_and_writes(self):
-        for request, want in [
-            (analyse("n + k <= 3 and all(v > 0 for v in xs)", "guard"), {"reads": ["k", "n", "xs"], "writes": []}),
-            (analyse("[{'x': x + 1, 'y': y}]", "post"), {"reads": ["x", "y"], "writes": ["x", "y"]}),
-            (analyse("[{'y': v} for v in (y, y + 1)]", "post"), {"reads": ["y"], "writes": ["y"]}),
-            (analyse("$在庫 が 十分", "guard"), {"opaque": True}),
-            (analyse("${在庫} > 0", "guard"), {"opaque": True}),
-        ]:
-            with self.subTest(request=request):
-                self.assertEqual(want, self.handle(request))
-
-    def test_evaluation_answers_one_result_per_binding(self):
-        for request, want in [
-            ({"op": "guard", "clause": "n + k <= 3", "bindings": [{"n": 1, "k": 2}, {"n": 2, "k": 2}]},
-             {"results": [True, False]}),
-            ({"op": "post", "clause": "[{'xs': {v}} for v in (y, y + 1)]", "bindings": [{"y": 1}]},
-             {"results": [[{"xs": frozenset({1})}, {"xs": frozenset({2})}]]}),
-        ]:
-            with self.subTest(request=request):
-                self.assertEqual(want, self.handle(request))
-
-    def test_what_the_glue_cannot_read_or_evaluate_is_answered_with_an_error(self):
-        for request, said in [
-            (analyse("{(1, 2): 0} and [{'z': 0}]", "post"), "list or set of assignments"),
-            (analyse("[{'x': 1}, {'y': 2}]", "post"), "same variables"),
-            (analyse("open('f') and 1.5", "guard"), "not allowed"),
-            ({"op": "guard", "clause": "m['k'] > 0", "bindings": [{"m": {}}]}, "'k'"),
-            ({"op": "frobnicate"}, "unknown request"),
-            (analyse("OPAQUE", "guard"), "write it as an atom"),
-            (analyse("opaque", "post"), "write it as an atom"),
-        ]:
-            with self.subTest(request=request):
-                self.assertIn(said, self.handle(request)["error"])
+                self.assertEqual(said is None, why is None)
+                self.assertIn(said or "", why or "")
 
 
 class DefinitionsTest(unittest.TestCase):
-    """The glue's arguments are modules whose public names every clause may use."""
+    """The glue's arguments are modules whose public names every atom may use."""
 
-    def setUp(self):
+    def test_an_atom_evaluates_with_the_definitions(self):
+        # Setup
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
         path = os.path.join(d.name, "defs.py")
         with open(path, "w", encoding="utf-8") as f:
             f.write("FEE = 1\ndef fee(n):\n    return n + FEE\n")
-        self.handle = evaluator([path])
-        self.handle({"op": "hello"})
+        handle = evaluator([path])
+        handle({"op": "hello", "protocol": 2})
 
-    def test_a_definition_is_not_read_from_the_step(self):
-        self.assertEqual({"reads": ["n"], "writes": []}, self.handle(analyse("fee(n) > FEE", "guard")))
+        # Execute
+        answer = handle({"op": "guard", "atom": atom(["fee(", ") > FEE"], [0], [False]), "values": [[1]]})
 
-    def test_a_clause_evaluates_with_the_definitions(self):
-        self.assertEqual({"results": [True]}, self.handle({"op": "guard", "clause": "fee(n) > FEE", "bindings": [{"n": 1}]}))
+        # Assert
+        self.assertEqual({"results": [True]}, answer)
 
 
 if __name__ == "__main__":

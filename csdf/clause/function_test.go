@@ -8,9 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// functionNames are the cases of testdata/function_names.json, which the
-// Python tests read too (csdfbmc/tests/test_atoms.py), so that Go and the walk
-// name an environment function alike.
+// functionNames are the cases of testdata/function_names.json.
 type functionNames struct {
 	Named []struct {
 		Case string   `json:"case"`
@@ -56,8 +54,8 @@ func TestFunctionOfAnAtomAsTheSharedCasesSay(t *testing.T) {
 	}
 }
 
-// Holes csdfbmc does not read yet (a path, a value after the step), which the
-// shared cases therefore refuse, but which an obligation states.
+// Holes whose arguments are not names before the step (a path, a value after
+// the step), which the shared cases leave out.
 func TestFunctionOfAnAtomWithHolesOnlyGoReads(t *testing.T) {
 	tests := map[string]struct {
 		text string

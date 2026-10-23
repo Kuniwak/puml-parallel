@@ -1,252 +1,347 @@
-"""The explorer walks the product of control states and valuations.
-
-The diagram is the JSON csdfparse prints, its clauses written in the language
-of the reference Python glue; the checks give the domains the values of
-received fields are drawn from.
-"""
+"""The walk: the states a diagram reaches, and what it finds among them."""
 import unittest
-from csdfbmc.tests import fixture
 
-from csdfbmc.model import Diagram
-from csdfbmc.protocol import EvaluatorError
+from csdfbmc import environment
 from csdfbmc.checks import Checks
-from csdfbmc import environment as environments
+from csdfbmc.tests import fixture
+from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, exists, fld, idx
+from csdfbmc.values import FrozenMap, Rec
+
+# A counter from 2 down to 0, then stop: n is decremented while positive.
+COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
+    edge("a", "a", "dec", guard=[atom("$n > 0")], post=[atom("$n' == $n - 1")]),
+    edge("a", "b", "stop", guard=[atom("$n == 0")]),
+])
+
+# COUNTER with a bump back up at n = 0, so the walk can avoid stop forever.
+BUMPING = dict(COUNTER, edges=COUNTER["edges"] + [edge("a", "a", "bump", guard=[atom("$n == 0")], post=[atom("$n' == $n + 1")])])
+
+# A balance that deposits raise by amount minus fee and withdrawals reduce by
+# amount plus fee.
+LEDGER = diagram({"a": ["残高"]}, "a", init_post=[atom("$残高' == 0")], edges=[
+    edge("a", "a", "入庫?額", post=[atom("$残高' == $残高 + $額 - 1")]),
+    edge("a", "a", "出庫?額", guard=[atom("$額 + 1 <= $残高")], post=[atom("$残高' == $残高 - $額 - 1")]),
+])
 
 
-COUNTER = {
-    "states": {
-        "a": {"name": "counting", "vars": [{"name": "n", "type": "Nat"}], "line": 2},
-        "b": {"name": "stopped", "vars": [], "line": 4},
-    },
-    "start_edge": {"dst": "a", "post": "[{'n': 2}]", "line": 5},
-    "edges": [
-        {"src": "a", "dst": "a", "event": "dec", "channel": "dec", "fields": [], "guard": "n > 0", "post": "[{'n': n - 1}]", "line": 6},
-        {"src": "a", "dst": "b", "event": "stop", "channel": "stop", "fields": [], "guard": "n == 0", "post": "", "line": 7},
-    ],
-    "end_edge": None,
-    "assumptions": [],
-}
-
-NO_CHECKS = Checks(types={})
+def ledger_checks(**extra):
+    return Checks(types={"額": [1, 2, 3]}, **extra)
 
 
-class ExplorerTest(unittest.TestCase):
+def inst(state, **fields):
+    return Rec(state, FrozenMap(fields))
+
+
+# One family by hand, as csdfpromote writes it: OPEN creates an instance,
+# CLOSE moves it, DROP deletes it.
+ACCOUNTS = diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], edges=[
+    edge("r", "r", "OPEN?k", guard=[builtin("notin", "k", "m")],
+         post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="open"), atom("${} == 0", fld(idx("m'", "k"), "bal"))]),
+    edge("r", "r", "CLOSE?k", guard=[builtin("at", idx("m", "k"), state="open")],
+         post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
+               eq(fld(idx("m'", "k"), "bal"), fld(idx("m", "k"), "bal"))]),
+    edge("r", "r", "DROP?k", guard=[builtin("at", idx("m", "k"), state="closed")],
+         post=[builtin("frame", "m'", "m", "k"), builtin("notin", "k", "m'")]),
+])
+
+
+class WalkTest(unittest.TestCase):
     def test_reaches_every_valuation_the_clauses_admit(self):
+        # Execute
         result = fixture.explorer(COUNTER).run()
-        self.assertEqual(
-            {("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())},
-            set(result.states),
-        )
+
+        # Assert
+        self.assertEqual([("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())], result.states)
 
     def test_reports_a_state_with_no_way_out_as_a_deadlock(self):
+        # Execute
         result = fixture.explorer(COUNTER).run()
-        self.assertEqual([("b", (), ())], result.deadlocks)
-        self.assertEqual(["dec", "dec", "stop"], result.trace_to(("b", (), ())))
 
-    def test_an_end_edge_is_a_way_out(self):
-        diagram = dict(COUNTER, end_edge={"src": "b", "guard": "", "line": 8})
-        result = fixture.explorer(diagram).run()
-        self.assertEqual([], result.deadlocks)
+        # Assert
+        self.assertEqual([("b", (), ())], result.deadlocks)
+        self.assertEqual(["dec", "dec", "stop"], result.trace_to(result.deadlocks[0]))
+
+    def test_an_end_edge_whose_guard_holds_is_a_way_out(self):
+        tests = {"an end edge": ([end("b")], []), "one whose guard does not hold": ([end("b", [atom("1 > 2")])], [("b", (), ())])}
+        for name, (ends, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                result = fixture.explorer(dict(COUNTER, ends=ends)).run()
+
+                # Assert
+                self.assertEqual(want, result.deadlocks)
 
     def test_finds_a_tau_cycle_among_the_reachable_states(self):
-        diagram = dict(COUNTER, edges=COUNTER["edges"] + [
-            {"src": "a", "dst": "a", "event": "tau", "channel": "tau", "fields": [], "guard": "n == 0", "post": "[{'n': n}]", "line": 9},
-        ])
-        result = fixture.explorer(diagram).run()
-        self.assertEqual([[("a", (0,), ())]], result.tau_cycles)
-
-    def test_event_parameters_range_over_their_domain(self):
-        diagram = dict(COUNTER, edges=[
-            {"src": "a", "dst": "a", "event": "add?k", "channel": "add", "fields": [{"dir": "?", "name": "k"}], "guard": "n + k <= 3", "post": "[{'n': n + k}]", "line": 6},
-        ])
-        result = fixture.explorer(diagram, Checks(types={"k": [1, 2]})).run()
-        self.assertEqual({("a", (2,), ()), ("a", (3,), ())}, set(result.states))
-        self.assertEqual(["add(k=1)"], result.trace_to(("a", (3,), ())))
-
-    def without_its_guard(self):
-        """COUNTER with dec's guard not formalised yet: an atom of its holes."""
-        return dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$n が 正"), COUNTER["edges"][1]])
-
-    def test_the_tool_word_opaque_is_refused(self):
         # Setup
-        diagram = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="@opaque"), COUNTER["edges"][1]])
-
-        # Execute, Assert
-        with self.assertRaisesRegex(ValueError, "write the clause as an atom"):
-            fixture.diagram(diagram)
-
-    def with_an_unread_variable(self):
-        """without_its_guard, with a variable x that nothing reads."""
-        d = self.without_its_guard()
-        a = dict(d["states"]["a"], vars=d["states"]["a"]["vars"] + [{"name": "x"}])
-        start = dict(d["start_edge"], post="[{'n': 2, 'x': 0}]")
-        dec = dict(d["edges"][0], post="[{'n': n - 1, 'x': x}]")
-        return dict(d, states=dict(d["states"], a=a), start_edge=start, edges=[dec, d["edges"][1]])
-
-    def test_an_atom_is_the_function_its_text_names_whatever_its_holes_are_called(self):
-        # Setup
-        cases = [
-            ("given by its name", {"$_0 が 正": lambda n: n > 0}),
-            ("given as the atom", {"$n が 正": lambda n: n > 0}),
-            ("given under another hole name", {"$m が 正": lambda m: m > 0}),
-        ]
-        for name, given in cases:
-            with self.subTest(name):
-                env = environments.over({}, given, None)
-
-                # Execute
-                result = fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
-
-                # Assert
-                self.assertEqual({("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}, set(result.states))
-                self.assertEqual(["$_0 が 正"], result.to_json()["environment"]["decided"])
-
-    def test_a_seed_reads_only_the_atoms_holes(self):
-        # Setup
-        def asked(diagram):
-            seen, seeded = [], environments.over({}, {}, 7)
-            env = environments.Environment(decide=lambda name, args: seen.append((name, tuple(args))) or seeded.decide(name, args),
-                                           seed=7, given={})
-            fixture.explorer(diagram, environment=env, max_states=10).run()
-            return seen
+        d = diagram({"a": [], "b": []}, "a", edges=[edge("a", "b", "tau"), edge("b", "a", "tau")])
 
         # Execute
-        plain, with_x = asked(self.without_its_guard()), asked(self.with_an_unread_variable())
+        result = fixture.explorer(d).run()
 
         # Assert
-        self.assertEqual(plain, with_x)
-        self.assertEqual({("$_0 が 正", (2,))}, set(plain[:1]))
+        self.assertEqual([[("a", (), ()), ("b", (), ())]], result.tau_cycles)
 
-    def with_two_atoms(self):
-        """COUNTER with both guards not formalised yet."""
-        return dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$n が 正"), dict(COUNTER["edges"][1], guard="$n が 零")])
+    def test_the_bound_on_states_stops_the_walk(self):
+        # Execute
+        result = fixture.explorer(LEDGER, ledger_checks(), max_states=5).run()
 
-    def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
+        # Assert
+        self.assertTrue(result.truncated)
+        self.assertEqual(5, len(result.states))
+
+    def test_a_post_that_admits_no_successor_is_reported(self):
         # Setup
-        cases = [
-            ("a function nothing decides, each listed", self.with_two_atoms(), environments.NONE,
-             "nothing decides the environment's functions '$_0 が 正', '$_0 が 零'"),
-            ("a given name that names no function", self.without_its_guard(), environments.over({}, {"$n が 零": True, "$n が 正": True}, None),
-             "names no function of the diagram: '$_0 が 零'"),
-            ("a post not formalised", dict(COUNTER, edges=[dict(COUNTER["edges"][0], post="$n が 減る"), COUNTER["edges"][1]]),
-             environments.over({}, {}, 7), "the post clause '$n が 減る' is not formalised"),
-            ("a given function taking other than the atom's holes", self.without_its_guard(),
-             environments.over({}, {"$n が 正": lambda n, m: True}, None), "'$_0 が 正' has 1 hole, but the function given takes"),
-            ("a hole the step does not bind", dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard="$k が 正"), COUNTER["edges"][1]]),
-             environments.over({}, {}, 7), "the atom '$k が 正' reads k, which the step does not bind"),
-        ]
-        for name, diagram, env, message in cases:
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[edge("a", "a", "go", post=[atom("$n' in ()")])])
+
+        # Execute
+        result = fixture.explorer(d).run()
+
+        # Assert
+        self.assertEqual([(("a", (0,), ()), "go")], result.empty_posts)
+        self.assertEqual([("a", (0,), ())], result.deadlocks)
+
+    def test_a_second_run_reports_what_the_first_did(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[edge("a", "a", "go", post=[atom("$n' in ()")])])
+        explorer = fixture.explorer(d)
+        first = explorer.run()
+
+        # Execute
+        again = explorer.run()
+
+        # Assert
+        self.assertEqual(first.empty_posts, again.empty_posts)
+        self.assertEqual(1, len(again.empty_posts))
+
+
+class FieldTest(unittest.TestCase):
+    def test_a_received_field_ranges_over_its_type(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[edge("a", "a", "set?x", post=[eq("n'", "x")])])
+
+        # Execute
+        result = fixture.explorer(d, Checks(types={"x": [1, 2]})).run()
+
+        # Assert
+        self.assertEqual({0, 1, 2}, {s[1][0] for s in result.states})
+
+    def test_a_field_an_equality_of_the_guard_determines_is_computed_not_enumerated(self):
+        # Setup: x has no type, and 5 would lie outside one anyway (Q5).
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 5")], edges=[
+            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])])
+
+        # Execute
+        result = fixture.explorer(d).run()
+
+        # Assert
+        self.assertEqual(["report(x=5)"], [label for _, label, _, _ in fixture.explorer(d).successors(result.states[0])])
+
+    def test_a_sent_field_sends_the_value_the_step_binds(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 3")], edges=[edge("a", "a", "show!n", post=[eq("n'", "n")])])
+
+        # Execute
+        labels = [label for _, label, _, _ in fixture.explorer(d).successors(("a", (3,), ()))]
+
+        # Assert
+        self.assertEqual(["show(n=3)"], labels)
+
+    def test_a_field_the_step_cannot_take_is_refused(self):
+        tests = {
+            "a sent field the step does not bind": (diagram({"a": []}, "a", edges=[edge("a", "a", "show!y")]), "sends 'y'"),
+            "a received field named like a state variable": (diagram({"a": ["n"]}, "a", edges=[edge("a", "a", "set?n")]),
+                                                             "receives 'n', which names a state variable"),
+        }
+        for name, (d, said) in tests.items():
             with self.subTest(name):
                 # Execute, Assert
-                with self.assertRaisesRegex(ValueError, message.replace("$", r"\$")):
-                    fixture.explorer(diagram, environment=env)
+                with self.assertRaisesRegex(KeyError, said):
+                    fixture.explorer(d)
 
-    def test_a_function_the_environment_leaves_undecided_is_an_error_not_false(self):
-        # Setup
-        env = environments.Environment(decide=environments.nothing, seed=7, given={})
+    def test_a_hidden_field_is_chosen_under_its_exists(self):
+        # Setup: hiding c?x leaves ∃x in the guard and the post.
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
+            edge("a", "a", "tau", guard=[exists("x", atom("${} > $n", fixture.bound(0)))],
+                 post=[exists("x", atom("${} > $n", fixture.bound(0)), eq("n'", fixture.bound(0)))])])
 
-        # Execute, Assert
-        with self.assertRaisesRegex(ValueError, r"decided nothing for '\$_0 が 正'"):
-            fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
-
-    def test_a_given_function_giving_other_than_a_truth_value_is_refused(self):
-        # Setup
-        env = environments.over({}, {"$n が 正": lambda n: n}, None)
-
-        # Execute, Assert
-        with self.assertRaisesRegex(ValueError, "gave 2; it gives True or False"):
-            fixture.explorer(self.without_its_guard(), environment=env, max_states=10).run()
-
-    def test_a_seed_decides_every_function(self):
         # Execute
-        result = fixture.explorer(self.with_two_atoms(), environment=environments.over({}, {}, 7), max_states=10).run()
+        result = fixture.explorer(d, Checks(types={"x": [1, 2]})).run()
 
         # Assert
-        self.assertEqual(["$_0 が 正", "$_0 が 零"], sorted(result.to_json()["environment"]["decided"]))
+        self.assertEqual({0, 1, 2}, {s[1][0] for s in result.states})
 
-    def test_the_environment_decides_a_clause_not_formalised(self):
-        # Setup
-        cases = {
-            "the function that is always false": (False, {("a", (2,), ())}),
-            "a function of the names it reads": (lambda n: n > 0, {("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())}),
-        }
-        for name, (given, want) in cases.items():
-            with self.subTest(name):
-                environment = environments.over({}, {"$n が 正": given}, None)
 
-                # Execute
-                result = fixture.explorer(self.without_its_guard(), environment=environment, max_states=10).run()
+class FamilyTest(unittest.TestCase):
+    """A map of instances, as csdfpromote writes it, walked by the builtins."""
 
-                # Assert
-                self.assertEqual(want, set(result.states))
+    def test_instances_are_created_moved_and_deleted(self):
+        # Execute
+        result = fixture.explorer(ACCOUNTS, Checks(types={"k": ["a"]})).run()
 
-    def test_a_seed_walks_the_same_states_again_and_is_reported(self):
-        # Setup
-        def walk():
-            return fixture.explorer(self.without_its_guard(), environment=environments.over({}, {}, 7), max_states=10).run()
+        # Assert
+        self.assertEqual([("r", (FrozenMap(),), ()), ("r", (FrozenMap({"a": inst("open", bal=0)}),), ()),
+                          ("r", (FrozenMap({"a": inst("closed", bal=0)}),), ())], result.states)
+        self.assertEqual([], result.deadlocks)
+
+    def test_a_glue_never_sees_an_instance_s_state(self):
+        # Setup: OPEN only while every instance the glue sees is its fields.
+        d = dict(ACCOUNTS, edges=[dict(ACCOUNTS["edges"][0], guard=ACCOUNTS["edges"][0]["guard"] + [atom("all(set(r) == {'bal'} for r in $m.values())")])]
+                 + ACCOUNTS["edges"][1:])
 
         # Execute
-        first, again = walk(), walk()
+        result = fixture.explorer(d, Checks(types={"k": ["a", "b"]})).run()
+
+        # Assert
+        self.assertIn(("r", (FrozenMap({"a": inst("open", bal=0), "b": inst("open", bal=0)}),), ()), result.states)
+
+
+class EnvironmentTest(unittest.TestCase):
+    """An atom the checks module declares is a function of the environment;
+    every other atom is the glue's."""
+
+    FROZEN = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
+        edge("a", "a", "inc", guard=[atom("$n が凍結されていない"), atom("$n < 2")], post=[atom("$n' == $n + 1")])])
+
+    def test_the_environment_decides_an_atom_it_declares(self):
+        tests = {"given true": (True, 3), "given false": (False, 1), "given as a function": (lambda n: n < 1, 2)}
+        for name, (given, states) in tests.items():
+            with self.subTest(name):
+                # Setup
+                env = environment.over({"$_0 が凍結されていない": given}, {}, None)
+
+                # Execute
+                result = fixture.explorer(self.FROZEN, environment=env).run()
+
+                # Assert
+                self.assertEqual(states, len(result.states))
+                self.assertEqual(["$_0 が凍結されていない"], result.environment["decided"])
+
+    def test_an_atom_the_environment_does_not_declare_is_the_glue_s(self):
+        with self.assertRaisesRegex(Exception, "が凍結されていない"):
+            fixture.explorer(self.FROZEN).run()
+
+    def test_a_seed_chooses_only_what_is_declared_and_walks_the_same_states_again(self):
+        # Setup
+        env = environment.over({"$_0 が凍結されていない": None}, {}, 7)
+
+        # Execute
+        first, again = fixture.explorer(self.FROZEN, environment=env).run(), fixture.explorer(self.FROZEN, environment=env).run()
 
         # Assert
         self.assertEqual(first.states, again.states)
-        self.assertEqual({"seed": 7, "given": [], "decided": ["$_0 が 正"]}, first.to_json()["environment"])
+        self.assertEqual(7, first.environment["seed"])
 
-    def test_the_bound_on_states_stops_the_walk(self):
-        result = fixture.explorer(COUNTER, max_states=2).run()
-        self.assertEqual(2, len(result.states))
-        self.assertTrue(result.truncated)
-
-
-class PostTest(unittest.TestCase):
-    """A post clause is a collection of partial assignments to the variables
-    after the step; the successors of an edge are their natural join."""
-
-    def diagram(self, post, init="[{'x': 0, 'y': 0}]"):
-        return fixture.diagram({
-            "states": {"a": {"name": "a", "vars": [{"name": "x"}, {"name": "y"}], "line": 2}},
-            "start_edge": {"dst": "a", "post": init, "line": 3},
-            "edges": [{"src": "a", "dst": "a", "event": "step", "channel": "step", "fields": [], "guard": "", "post": post, "line": 4}],
-            "end_edge": None, "assumptions": [],
-        })
-
-    def test_the_successors_are_the_join_of_the_clauses(self):
-        result = fixture.explorer(self.diagram("[{'x': x + 1}] ∧ [{'y': y}, {'y': y + 1}]"), max_states=6).run()
-        self.assertIn(("a", (1, 0), ()), result.states)
-        self.assertIn(("a", (1, 1), ()), result.states)
-
-    def test_two_clauses_constraining_one_variable_must_agree(self):
-        result = fixture.explorer(self.diagram("[{'x': 1}, {'x': 2}] ∧ [{'x': 2}, {'x': 3}] ∧ [{'y': y}]"), max_states=6).run()
-        self.assertEqual({("a", (0, 0), ()), ("a", (2, 0), ())}, set(result.states))
-
-    def test_a_variable_no_clause_constrains_is_a_finding(self):
-        result = fixture.explorer(self.diagram("[{'x': x + 1}]"), max_states=6).run()
-        self.assertEqual([(("a", (0, 0), ()), "step", ("y",))], result.unconstrained)
-        self.assertEqual([("a", (0, 0), ())], result.states)
-
-    def test_a_post_that_returns_no_successor_is_reported(self):
-        result = fixture.explorer(self.diagram("[]")).run()
-        self.assertEqual([(("a", (0, 0), ()), "step")], result.empty_posts)
-        self.assertEqual([("a", (0, 0), ())], result.deadlocks)
-
-    def test_successor_values_are_frozen(self):
-        result = fixture.explorer(self.diagram("[{'x': x, 'y': y}]", init="[{'x': {'k': [1]}, 'y': 0}]")).run()
-        x = result.states[0][1][0]
-        self.assertEqual({"k": (1,)}, dict(x))
-        hash(x)
-
-    def test_a_post_must_be_assignments(self):
-        with self.assertRaisesRegex(EvaluatorError, "list or set of assignments"):
-            fixture.explorer(self.diagram("x == y")).run()
+    def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
+        tests = {
+            "a declared function nothing gives, with no seed": ({"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
+            "a declared name of no atom": ({"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no atom of the diagram"),
+            "a function of other arguments": ({"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
+        }
+        for name, (module, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    fixture.explorer(self.FROZEN, environment=environment.over(module, {}, None))
 
 
-class EventFieldsTest(unittest.TestCase):
-    def test_an_edge_without_its_channel_and_fields_is_refused(self):
-        diagram = {"states": {"a": {"name": "a", "vars": []}}, "start_edge": {"dst": "a", "post": ""},
-                   "edges": [{"src": "a", "dst": "a", "event": "c?x", "guard": "", "post": ""}],
-                   "end_edge": None, "assumptions": []}
-        with self.assertRaisesRegex(ValueError, "no channel and fields"):
-            Diagram.from_json(diagram)
+class PropertyTest(unittest.TestCase):
+    def test_a_broken_invariant_names_the_state_and_the_trace(self):
+        # Setup
+        checks = ledger_checks(invariants={"残高は 4 未満": lambda 残高: 残高 < 4})
+
+        # Execute
+        result = fixture.explorer(LEDGER, checks, max_states=200).run()
+
+        # Assert
+        name, state = result.violations[0]
+        self.assertEqual(("残高は 4 未満", ("a", (4,), ())), (name, state))
+        self.assertEqual(["入庫(額=3)", "入庫(額=3)"], result.trace_to(state))
+
+    def test_ghosts_follow_the_events_and_invariants_may_read_them(self):
+        # Setup
+        checks = ledger_checks(
+            ghosts={"総入庫": (0, {"入庫": lambda 総入庫, 額: 総入庫 + 額}), "総出庫": (0, {"出庫": lambda 総出庫, 額: 総出庫 + 額}),
+                    "総fee": (0, {"入庫": lambda 総fee: 総fee + 1, "出庫": lambda 総fee: 総fee + 1})},
+            invariants={"帳簿は総和に一致": lambda 残高, 総入庫, 総出庫, 総fee: 残高 == 総入庫 - 総出庫 - 総fee})
+
+        # Execute
+        result = fixture.explorer(LEDGER, checks, max_states=300).run()
+
+        # Assert
+        self.assertEqual([], result.violations)
+        self.assertTrue(any(ghost == (3, 0, 1) for _, _, ghost in result.states))
+
+    def test_a_cycle_that_avoids_the_event_is_reported_within_the_states_named(self):
+        tests = {
+            "a counter that bumps back up": (BUMPING, None, 1),
+            "one that only counts down": (COUNTER, None, 0),
+            "within the state it loops in": (BUMPING, ["a"], 1),
+            "within another state": (BUMPING, ["b"], 0),
+        }
+        for name, (d, within, cycles) in tests.items():
+            with self.subTest(name):
+                # Execute
+                result = fixture.explorer(d, avoid="stop", within=within).run()
+
+                # Assert
+                self.assertEqual(cycles, len(result.avoiding_cycles))
+
+    def test_findings_of_one_shape_are_one_group_with_a_count(self):
+        # Setup: a deadlock at b after stop, met from each start value.
+        d = dict(COUNTER, init_post=[atom("$n' in (0, 1)")])
+
+        # Execute
+        groups = fixture.explorer(d).run().groups()
+
+        # Assert
+        self.assertEqual([("deadlock", "b", "stop", 1)], [(g["kind"], g["at"], g["after"], g["count"]) for g in groups])
+
+    def test_first_stops_the_walk_at_the_first_finding(self):
+        # Execute
+        result = fixture.explorer(LEDGER, ledger_checks(invariants={"残高は 1 未満": lambda 残高: 残高 < 1}), first=True).run()
+
+        # Assert
+        self.assertTrue(result.stopped_early)
+        self.assertEqual(("残高は 1 未満", ("a", (1,), ())), result.violations[0])
+        self.assertEqual(3, len(result.states))
+
+
+class ReplayTest(unittest.TestCase):
+    def test_a_deadlock_carries_its_replay(self):
+        # Execute
+        result = fixture.explorer(COUNTER).run()
+
+        # Assert
+        self.assertEqual({"initial": [2], "steps": [
+            {"event": "dec", "src": "a", "dst": "a", "line": 0, "values": [1]},
+            {"event": "dec", "src": "a", "dst": "a", "line": 0, "values": [0]},
+            {"event": "stop", "src": "a", "dst": "b", "line": 0, "values": []},
+        ]}, result.replay_to(result.deadlocks[0]))
+
+    def test_an_instance_is_encoded_with_its_state(self):
+        # Execute
+        result = fixture.explorer(ACCOUNTS, Checks(types={"k": ["a"]})).run()
+
+        # Assert
+        self.assertEqual([{"a": {"at": "open", "fields": {"bal": 0}}}], result.replay_to(result.states[1])["steps"][0]["values"])
+
+
+class CandidatesTest(unittest.TestCase):
+    """What a REPL asks at a value prompt."""
+
+    def test_initial_candidates_are_the_start_post_s_valuations(self):
+        self.assertEqual([[2]], fixture.explorer(COUNTER).initial_candidates())
+
+    def test_candidates_of_an_edge_come_per_value_of_the_fields(self):
+        # Execute
+        got = fixture.explorer(LEDGER, ledger_checks()).candidates("a", [3], 1)
+
+        # Assert
+        self.assertEqual([{"params": {"額": 1}, "values": [1]}, {"params": {"額": 2}, "values": [0]}], got)
+
+    def test_a_bad_edge_index_is_refused(self):
+        with self.assertRaisesRegex(IndexError, "no edge 5"):
+            fixture.explorer(COUNTER).candidates("a", [1], 5)
 
 
 if __name__ == "__main__":

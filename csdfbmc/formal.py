@@ -1,14 +1,11 @@
-"""What a formal expression may use besides the names of the step: the
-helpers over the maps of an expansion and a few pure builtins."""
+"""What a formal expression may use besides its holes: a few pure
+builtins. An instance of a family reaches an expression as the map of its
+fields; its state is read only through the builtin @at, never by a glue."""
 from __future__ import annotations
 
 import ast
 
 from csdfbmc.values import FrozenMap
-
-# The key under which an instance's record holds its local state's name; the
-# local variables are the other keys.
-RECORD_STATE = "state"
 
 # What a formal expression may call besides the names of the step.
 FORMAL_GLOBALS = {
@@ -16,9 +13,6 @@ FORMAL_GLOBALS = {
     "len": len, "all": all, "any": any, "sum": sum, "min": min, "max": max, "abs": abs,
     "sorted": sorted, "set": set, "frozenset": frozenset, "tuple": tuple, "range": range,
     "FrozenMap": FrozenMap,
-    "at": lambda m, i, state: i in m and m[i][RECORD_STATE] == state,
-    "exists": lambda m, pred: any(pred(i, r) for i, r in m.items()),
-    "count": lambda m, pred: sum(1 for i, r in m.items() if pred(i, r)),
 }
 
 
@@ -32,15 +26,6 @@ def free_names(tree: ast.AST) -> set[str]:
         elif isinstance(node, ast.arg):
             bound.add(node.arg)
     return loaded - bound
-
-
-def names_beyond(tree: ast.AST, own_id: str | None) -> set[str]:
-    """The names tree reads, but a map read only as m[own_id]: what ties a
-    clause about one instance to the others."""
-    keyed = {id(n.value) for n in ast.walk(tree)
-             if isinstance(n, ast.Subscript) and isinstance(n.value, ast.Name)
-             and isinstance(n.slice, ast.Name) and n.slice.id == own_id}
-    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name) and id(n) not in keyed}
 
 
 def tells_apart(tree: ast.AST, params: set[str], maps: set[str], groups: list[frozenset]) -> tuple[int, str] | None:
