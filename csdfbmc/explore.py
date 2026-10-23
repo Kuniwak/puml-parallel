@@ -170,8 +170,8 @@ class Explorer:
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
-                 max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
-                 first: bool = False, symmetric: Mapping[Atom, frozenset[int]] | None = None):
+                 symmetric: Mapping[Atom, frozenset[int]], max_states: int = 100_000, avoid: str | None = None,
+                 within: list[str] | None = None, first: bool = False):
         self.d = diagram
         self.checks = checks
         self.environment = environment

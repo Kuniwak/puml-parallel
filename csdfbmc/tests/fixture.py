@@ -150,6 +150,7 @@ def explorer(d, checks=None, **options):
     if not isinstance(d, Diagram):
         d = load(d)
     options.setdefault("environment", environment.NONE)
+    options.setdefault("symmetric", {})
     return Explorer(d, checks if checks is not None else Checks(types={}), glue(), **options)
 
 

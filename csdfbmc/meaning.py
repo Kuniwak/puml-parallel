@@ -42,11 +42,11 @@ class AtomMeaning:
     may hold a value beyond a sample (csdfbmc.values.Fresh)."""
 
     def __init__(self, client: ClientLike, environment: Environment, domain: Callable[[str], list],
-                 symmetric: Mapping[Atom, frozenset[int]] | None = None):
+                 symmetric: Mapping[Atom, frozenset[int]]):
         self.client = client
         self.environment = environment
         self.domain = domain
-        self.symmetric = dict(symmetric or {})
+        self.symmetric = dict(symmetric)
         self.decided: dict[str, None] = {}
 
     def _beyond(self, atom: Atom, indices: Iterable[int], args: list) -> None:
