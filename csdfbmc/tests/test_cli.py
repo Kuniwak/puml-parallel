@@ -9,8 +9,8 @@ import unittest
 from contextlib import redirect_stderr
 
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, diagram, edge
-from csdfbmc.tests.test_explore import COUNTER
+from csdfbmc.tests.fixture import atom, diagram, edge, fld, idx
+from csdfbmc.tests.test_explore import COUNTER, OPENING
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -24,9 +24,9 @@ def walk(test, *args, d=COUNTER, checks="TYPES = {}\n"):
     return fixture.run_main(test, main, d, *args, checks=checks)
 
 
-def ask_next(test, *args, d=COUNTER):
+def ask_next(test, *args, d=COUNTER, checks="TYPES = {}\n"):
     from csdfbmc.next import main
-    return fixture.run_main(test, main, d, "--evaluator-module", "csdfbmc.python_glue", *args)
+    return fixture.run_main(test, main, d, "--evaluator-module", "csdfbmc.python_glue", *args, checks=checks)
 
 
 class GlueTest(unittest.TestCase):
@@ -149,6 +149,48 @@ class ReportTest(unittest.TestCase):
         self.assertIn("q has none in TYPES", err)
 
 
+class SampleReportTest(unittest.TestCase):
+    """Where the bound was reached is reported apart from the deadlocks, and
+    is no finding for the exit status."""
+
+    SAMPLE = 'from csdfbmc.values import sample\nTYPES = {"k": sample(["a"])}\n'
+
+    def opening(self, *guard):
+        """OPENING without STOP, OPEN guarded by guard too and opening an
+        account with a balance of 0 or 1: two states where every ID is used
+        up, after CLOSE."""
+        e = OPENING["edges"][0]
+        post = e["post"][:-1] + [atom("${} in [0, 1]", fld(idx("m'", "k"), "bal"))]
+        return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard), post=post)] + OPENING["edges"][1:2])
+
+    def test_the_bound_reached_is_reported_and_is_no_finding(self):
+        closed = "r [{'a': {'at': 'closed', 'fields': {'bal': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)'] (a sample type has more values)"
+        tests = {
+            "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']"
+                                   " (a sample type has more values)\n"),
+            "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),
+            "as JSON": (("--json",), (), 0, {"deadlocks": [], "bound_reached": [["OPEN(k=a)", "CLOSE(k=a)"]] * 2,
+                                             "groups": [["bound_reached", "r", "CLOSE", 2]]}),
+            "a sample type the diagram orders": ((), (atom("$k > 'a'"),), 2, "argument 0 is ordered"),
+        }
+        for name, (args, guard, want_code, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", *args, d=self.opening(*guard), checks=self.SAMPLE)
+
+                # Assert
+                self.assertEqual(want_code, code, err)
+                if want_code == 2:
+                    self.assertIn(want, err)
+                elif isinstance(want, dict):
+                    report = json.loads(out)
+                    self.assertEqual(want, {"deadlocks": report["deadlocks"],
+                                            "bound_reached": [r["trace"] for r in report["bound_reached"]],
+                                            "groups": [[g["kind"], g["at"], g["after"], g["count"]] for g in report["groups"]]})
+                else:
+                    self.assertEqual(want, out)
+
+
 class NextCommandTest(unittest.TestCase):
     def test_initial_prints_the_initial_values(self):
         # Execute
@@ -156,6 +198,17 @@ class NextCommandTest(unittest.TestCase):
 
         # Assert
         self.assertEqual((0, {"candidates": [{"params": {}, "values": [2]}]}), (code, json.loads(out)))
+
+    def test_a_sample_type_the_diagram_orders_is_answered_since_next_tries_no_value_beyond_it(self):
+        # Setup
+        e = OPENING["edges"][0]
+        d = dict(OPENING, edges=[dict(e, guard=e["guard"] + [atom("$k > 'a'")])])
+
+        # Execute
+        code, out, err = ask_next(self, "--initial", d=d, checks=SampleReportTest.SAMPLE)
+
+        # Assert
+        self.assertEqual((0, {"candidates": [{"params": {}, "values": [{}]}]}), (code, json.loads(out)), err)
 
     def test_edge_prints_the_values_after_the_edge_from_a_runtime_state(self):
         # Setup

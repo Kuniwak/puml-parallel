@@ -150,7 +150,19 @@ def explorer(d, checks=None, **options):
     if not isinstance(d, Diagram):
         d = load(d)
     options.setdefault("environment", environment.NONE)
+    options.setdefault("symmetric", {})
     return Explorer(d, checks if checks is not None else Checks(types={}), glue(), **options)
+
+
+def checked_explorer(d, checks, **options):
+    """An Explorer walking d as csdfbmc does: the symmetry of its atoms
+    told first by csdfbmc.independence.check_independent."""
+    from csdfbmc import environment
+    from csdfbmc.independence import check_independent
+    if isinstance(d, dict):
+        d = load(d)
+    env = options.setdefault("environment", environment.NONE)
+    return explorer(d, checks, symmetric=check_independent(d, checks, glue(), env), **options)
 
 
 def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):

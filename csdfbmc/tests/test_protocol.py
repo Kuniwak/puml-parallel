@@ -12,11 +12,13 @@ import warnings
 from csdfbmc.protocol import (NO_CLOSE, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
                               start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
-from csdfbmc.values import FrozenMap
+from csdfbmc.values import Fresh, FrozenMap
 
 GREATER = {"text": ["", " > ", ""], "holes": [0, 1], "primed": [False, False]}
 NEXT = {"text": ["", " == ", " + 1"], "holes": [0, 1], "primed": [True, False]}
 HELLO = {"language": "fake", "protocol": 2}
+SAME = {"text": ["", " == ", ""], "holes": [0, 1], "primed": [False, False]}
+KEYED = {"text": ["", " == {**", ", ", ": 1}"], "holes": [0, 1, 2], "primed": [True, False, False]}
 
 
 class WireEncodingTest(unittest.TestCase):
@@ -31,6 +33,7 @@ class WireEncodingTest(unittest.TestCase):
             ((1, 2), {"tuple": [1, 2]}),
             (frozenset({2, 1}), {"set": [1, 2]}),
             (FrozenMap({"k": 1}), {"map": [["k", 1]]}),
+            (Fresh("ID", 0), {"fresh": ["ID", 0]}),
         ]:
             with self.subTest(value=value):
                 self.assertEqual(wire, to_wire(value))
@@ -44,7 +47,7 @@ class WireEncodingTest(unittest.TestCase):
         self.assertIsNot(True, from_wire(to_wire(1)))
 
     def test_an_untagged_array_or_object_is_refused(self):
-        for wire in ([1, 2], {"a": 1}, {"set": [1], "map": []}, 1.5):
+        for wire in ([1, 2], {"a": 1}, {"set": [1], "map": []}, 1.5, {"fresh": ["ID"]}, {"fresh": [0, "ID"]}):
             with self.subTest(wire=wire), self.assertRaises(ValueError):
                 from_wire(wire)
 
@@ -238,6 +241,10 @@ class TransportTest(unittest.TestCase):
             (lambda ev: ev.language, "python"),
             (lambda ev: ev.post(set_m, [[FrozenMap()]]), [[[FrozenMap({"k": (1, 2)})]]]),
             (lambda ev: ev.guard(two, [[frozenset({1, 2})]]), [True]),
+            (lambda ev: ev.guard(SAME, [[Fresh("ID"), Fresh("ID")], [Fresh("ID"), "a"], [Fresh("ID"), Fresh("ID", 1)]]),
+             [True, False, False]),
+            (lambda ev: ev.post(KEYED, [[FrozenMap(), Fresh("ID")]]),
+             [[[FrozenMap({Fresh("ID"): 1})]]]),
         ]:
             for how, ev in self.evaluators.items():
                 with self.subTest(how=how, want=want):

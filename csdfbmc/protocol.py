@@ -26,6 +26,10 @@ supports it:
   ...], "groups": [[ID, ...], ...]} -> {"symmetric": true}, or {"symmetric":
   false, "why": MESSAGE}: whether the atom tells apart two IDs of a group,
   which the arguments params range over and the arguments maps are keyed by.
+  true means the atom's value is invariant under permuting the sample
+  values in only these arguments: renaming the IDs of a group by one
+  permutation in the arguments params and the keys of the arguments maps,
+  every other argument left as it is, never changes what the atom answers.
 
 What an atom reads is its holes, which the tools know themselves, so the
 protocol asks nothing about it. Which atoms are functions of the environment
@@ -39,7 +43,10 @@ told for the same atom and the same values.
 Values cross the protocol in a tagged JSON encoding, since JSON has no
 tuples, sets or maps with keys other than strings: integers, strings,
 booleans and null as themselves, and {"tuple": [...]}, {"set": [...]},
-{"map": [[key, value], ...]} for the containers of csdfbmc.values. An
+{"map": [[key, value], ...]} for the containers of csdfbmc.values, and
+{"fresh": [TYPE, N]} for a value of the sample type TYPE beyond its sample
+(csdfbmc.values.Fresh), equal to nothing but itself and with no order; the
+checker sends one only to an atom the glue said symmetric of. An
 instance of a family crosses as the map of its fields: its state is a
 position, which a glue never sees (docs/CLAUSE_DESIGN.md, control state).
 
@@ -60,9 +67,9 @@ import subprocess
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap
+from csdfbmc.values import Fresh, FrozenMap
 
-_TAGS = ("tuple", "set", "map")
+_TAGS = ("tuple", "set", "map", "fresh")
 
 # The protocol of atoms, the one the checker speaks.
 PROTOCOL = 2
@@ -72,6 +79,8 @@ def to_wire(value):
     """value, a value of the checker's model, in the tagged encoding."""
     if value is None or isinstance(value, (bool, int, str)):
         return value
+    if isinstance(value, Fresh):
+        return {"fresh": [value.type, value.n]}
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
@@ -93,6 +102,10 @@ def from_wire(wire):
                 return tuple(from_wire(v) for v in items)
             if tag == "set":
                 return frozenset(from_wire(v) for v in items)
+            if tag == "fresh":
+                if len(items) == 2 and isinstance(items[0], str) and type(items[1]) is int:
+                    return Fresh(items[0], items[1])
+                raise ValueError(f"{wire!r} is not a value beyond a sample: fresh is [TYPE, N], a text and an integer")
             if all(isinstance(kv, list) and len(kv) == 2 for kv in items):
                 return FrozenMap((from_wire(k), from_wire(v)) for k, v in items)
     raise ValueError(f"{wire!r} is not a value in the tagged encoding: a scalar, or one of {list(_TAGS)} as the only key")
