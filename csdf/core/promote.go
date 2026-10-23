@@ -22,8 +22,9 @@ type Family struct {
 	Frozen  []string
 }
 
-// familyStatesOf is what an instance of f may be.
-func familyStatesOf(f Family) FamilyStates {
+// States is what an instance of f may be: the local states of f.Local and
+// the variables of each, under the map f.Map.
+func (f Family) States() FamilyStates {
 	vars := map[string][]string{}
 	for _, s := range f.Local.States {
 		if vs := f.Local.Vars[s]; len(vs) > 0 {
@@ -115,7 +116,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		}
 		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
-		out.Families = append(out.Families, familyStatesOf(f))
+		out.Families = append(out.Families, f.States())
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
 	if err := controllerVars(p, maps); err != nil {
