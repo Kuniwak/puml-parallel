@@ -84,7 +84,9 @@ theorem csdf_lemma_4 : ∀ (v_t : Val), ¬(csdf_at v_t state__u2euA ∧ csdf_at 
   by
     intro t h
     cases t with
-    | ValScalar s => cases s <;> simp_all [csdf_at, state__u2euA, state__u2euB] <;> (obtain ⟨rfl, h2⟩ := h; simp at h2)
+    | ValScalar s =>
+      cases s <;> simp_all [csdf_at, state__u2euA, state__u2euB]
+      all_goals (obtain ⟨rfl, h2⟩ := h; simp at h2)
     | ValMap _ => exact h.1
 
 def init (s' : St) : Prop :=
