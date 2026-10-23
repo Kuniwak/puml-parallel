@@ -26,6 +26,10 @@ supports it:
   ...], "groups": [[ID, ...], ...]} -> {"symmetric": true}, or {"symmetric":
   false, "why": MESSAGE}: whether the atom tells apart two IDs of a group,
   which the arguments params range over and the arguments maps are keyed by.
+  true means the atom's value is invariant under permuting the sample
+  values in only these arguments: renaming the IDs of a group by one
+  permutation in the arguments params and the keys of the arguments maps,
+  every other argument left as it is, never changes what the atom answers.
 
 What an atom reads is its holes, which the tools know themselves, so the
 protocol asks nothing about it. Which atoms are functions of the environment
