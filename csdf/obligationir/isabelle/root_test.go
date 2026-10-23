@@ -2,7 +2,7 @@ package isabelle
 
 import "testing"
 
-func TestRootShouldExtendTheParentWithTheLibrarySessions(t *testing.T) {
+func TestRootShouldExtendTheParentWithTheLibrarySession(t *testing.T) {
 	// Execute
 	got := Root("Csdf_Obligation", "CSP_F", "Refinement_Obligation")
 
