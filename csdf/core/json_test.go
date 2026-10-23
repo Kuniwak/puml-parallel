@@ -259,6 +259,25 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 				{Map: "m", Init: "none", States: []string{"none"}, Vars: map[string][]string{"none": {"bal"}}}}},
 			want: "the family of m: its start state none, which is absence, holds variables",
 		},
+		"an @at of an entry at no state of its family": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
+				Edges:    []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c"}, Post: mustParse(t, "@at(m'[k], gone)")}},
+				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}}}},
+			want: "s0 --> s0 : c: @at(m'[…], gone), but gone is no state of the family of m",
+		},
+		"an @at of an entry at the start state of its family": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0",
+				InitPost: clause.And{Conjuncts: []clause.Formula{clause.Exists{Hint: "k", Type: "K", Body: clause.And{Conjuncts: []clause.Formula{
+					clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: clause.Free{Name: "m", Primed: true}, Key: clause.Bound{Index: 0}}}, State: "none"}}}}}},
+				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}}}},
+			want: "the start edge: none is the start state of the family of m, which is absence; say @notin",
+		},
+		"an @at in a guard at no state of its family": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
+				Ends:     []End{{Src: "s0", Guard: mustParse(t, "@at(m[k], gone)")}},
+				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}}}},
+			want: "the end edge from s0: @at(m[…], gone), but gone is no state of the family of m",
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

@@ -248,7 +248,8 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
 
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
     """Refuses an @at of an entry of a family's map at a state that is not
-    one an instance may be at."""
+    one an instance may be at. It mirrors core.Diagram.wellFormed, which
+    refuses such a diagram before it is written, for a JSON written by hand."""
     for f in clause:
         if isinstance(f, Exists):
             _check_at(f.body, families, where)

@@ -237,6 +237,68 @@ func (d *Diagram) wellFormed() error {
 			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
 		}
 	}
+	return d.atsWellFormed()
+}
+
+// atsWellFormed reports, as an error, an @at of an entry of a family's map
+// at a state that is none of the family's, or at its start state, which is
+// absence (said with @notin).
+func (d *Diagram) atsWellFormed() error {
+	if err := d.atsIn(d.InitPost); err != nil {
+		return fmt.Errorf("the start edge: %w", err)
+	}
+	for _, e := range d.Edges {
+		for _, c := range []clause.And{e.Guard, e.Post} {
+			if err := d.atsIn(c); err != nil {
+				return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+			}
+		}
+	}
+	for _, e := range d.Ends {
+		if err := d.atsIn(e.Guard); err != nil {
+			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return nil
+}
+
+// atsIn is atsWellFormed of the clause c.
+func (d *Diagram) atsIn(c clause.And) error {
+	for _, f := range c.Conjuncts {
+		switch f := f.(type) {
+		case clause.Exists:
+			if err := d.atsIn(f.Body); err != nil {
+				return err
+			}
+		case clause.Builtin:
+			if f.Op != clause.OpAt || len(f.Args) == 0 {
+				continue
+			}
+			ix, ok := f.Args[0].(clause.Index)
+			if !ok {
+				continue
+			}
+			m, ok := ix.Map.(clause.Free)
+			if !ok {
+				continue
+			}
+			i := slices.IndexFunc(d.Families, func(x FamilyStates) bool { return x.Map == m.Name })
+			if i < 0 {
+				continue
+			}
+			fam := d.Families[i]
+			if !slices.Contains(fam.States, f.State) {
+				prime := ""
+				if m.Primed {
+					prime = "'"
+				}
+				return fmt.Errorf("@at(%s%s[…], %s), but %s is no state of the family of %s", m.Name, prime, f.State, f.State, m.Name)
+			}
+			if f.State == fam.Init {
+				return fmt.Errorf("%s is the start state of the family of %s, which is absence; say @notin", f.State, m.Name)
+			}
+		}
+	}
 	return nil
 }
 
