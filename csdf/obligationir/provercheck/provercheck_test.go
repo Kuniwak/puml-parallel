@@ -471,12 +471,9 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 	leanEdits := lean.Edits{
 		Types: types,
 		Proofs: map[string]string{"initialisable_S": strings.Join([]string{
-			"have canon : csdf_canon [] = [] := by",
-			"    have h := Classical.epsilon_spec (p := fun l => csdf_same l []) ⟨[], fun _ => Iff.rfl⟩",
-			"    exact List.eq_nil_iff_forall_not_mem.mpr (fun p hp => by simpa using (h p).mp hp)",
-			"  refine ⟨.ValRecord (.ValInt 0) [], .ValMap [], trivial, ?_, trivial, ?_, rfl, trivial, ?_⟩",
+			"refine ⟨.ValRecord (.ValInt 0) [], .ValMap [], trivial, ?_, trivial, ?_, rfl, trivial, ?_⟩",
 			"  · exact csdf_wf.record _ _ (csdf_wf.int 0) (by simp)",
-			"  · exact csdf_wf.map [] List.nodup_nil canon.symm (by simp) (by simp)",
+			"  · exact csdf_wf.map [] List.nodup_nil List.Pairwise.nil.sortedLE (by simp) (by simp)",
 			"  · intro k ⟨v, hv⟩; simp at hv"}, "\n")},
 		Lemmas: []string{"theorem frame0_keeps (n m : Val) (wn : csdf_wf n) (wm : csdf_wf m) (h : csdf_frame0 n m) : n = m :=\n" +
 			"  csdf_map_ext n m wn wm (And.left h) (And.left (And.right h)) (fun k =>\n" +

@@ -49,7 +49,7 @@ func livelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "-- Livelock freedom holds structurally: no reachable tau-cycle. No proof obligation.\n", nil
 	}
 	side := obligationir.SideSingle
-	io.WriteString(&w, ValPrelude+"\n\n"+InhabitedVal+"\n\n")
+	io.WriteString(&w, LibraryImports+"\n\n"+nameCheckOff+"\n\n"+ValPrelude+"\n\n"+InhabitedVal+"\n\n")
 	ds, err := ir.Declarations(PredicateTODO)
 	if err != nil {
 		return "", err
