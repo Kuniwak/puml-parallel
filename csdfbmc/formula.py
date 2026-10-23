@@ -307,9 +307,11 @@ def _assemble(a: dict, names, frames, mentioned, domain, where) -> list[dict]:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
             afters = [dict(f, **{x: v}) for f in afters for v in typed(x, f"{x}'")]
             continue
-        (base, keys), *others = frames[x]
-        open_keys = [k for k in keys if all(any(same_value(k, j) for j in ks) for _, ks in others)]
-        choices: list[dict] = [{k: v for k, v in base.items() if not any(same_value(k, j) for j in open_keys)}]
+        kept = _kept(frames[x])
+        if kept is None:
+            return []
+        choices: list[dict] = [kept]
+        open_keys = [k for k in frames[x][0][1] if all(_among(k, ks) for _, ks in frames[x])]
         for k in open_keys:
             entry, state = a.get(("entry", x, k)), a.get(("state", x, k))
             given = {loc[3]: v for loc, v in a.items() if loc[0] == "field" and loc[1] == x and same_value(loc[2], k)}
@@ -332,3 +334,26 @@ def _assemble(a: dict, names, frames, mentioned, domain, where) -> list[dict]:
             choices = [{**c, k: Rec(state, FrozenMap(r))} for c in choices for r in records]
         afters = [dict(f, **{x: FrozenMap(c)}) for f in afters for c in choices]
     return afters
+
+
+def _among(k, keys) -> bool:
+    return any(same_value(k, j) for j in keys)
+
+
+def _kept(frames: list[tuple]) -> dict | None:
+    """The entries the frames of one map fix: each key a frame does not open
+    has the value its base gives it, or none when its base has no entry for
+    it. None when two bases disagree on a key both fix: no map is both."""
+    kept: dict = {}
+    keys = [k for base, _ in frames for k in base]
+    for k in keys:
+        fixing = [base for base, ks in frames if not _among(k, ks)]
+        if not fixing:
+            continue
+        first = fixing[0]
+        for base in fixing[1:]:
+            if (k in first) != (k in base) or (k in first and not same_value(first[k], base[k])):
+                return None
+        if k in first:
+            kept[k] = first[k]
+    return kept

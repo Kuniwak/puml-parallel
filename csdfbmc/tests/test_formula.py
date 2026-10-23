@@ -12,6 +12,11 @@ from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx
 from csdfbmc.values import FrozenMap, Rec, same_value
 
 TYPES = {"T": [1, 2], "n": [0, 1, 2], "p": [0, 1], "k": ["a", "b"], "bal": [0, 1]}
+# Every map from the keys "a" and "b" to an instance open or closed with a
+# balance of 0 or 1, each entry possibly absent.
+TYPES["m"] = [FrozenMap({k: v for k, v in zip(("a", "b"), entries) if v is not None})
+              for entries in itertools.product([None] + [Rec(s, FrozenMap(bal=b)) for s in ("open", "closed") for b in TYPES["bal"]],
+                                               repeat=2)]
 
 
 def evaluator(env=environment.NONE, given=None):
@@ -171,6 +176,49 @@ class SolveIsTheMeaningTest(unittest.TestCase):
 
                 # Execute
                 got = solve(ev, clause, names, before, lambda n: TYPES[n], "the edge")
+
+                # Assert
+                self.assertTrue(_same(want, got), f"want {want}, got {got}")
+
+
+    def test_solve_finds_the_maps_the_post_holds_of(self):
+        # Setup
+        a0, a1, b0 = inst("open", bal=0), inst("open", bal=1), inst("closed", bal=0)
+        tests = {
+            "@update": ([builtin("update", "m'", "m", "k", "v")], {"m": FrozenMap({"a": a0}), "k": "b", "v": b0}),
+            "@frame with an entry equal to a value": ([builtin("frame", "m'", "m", "k"), eq(idx("m'", "k"), "v")],
+                                                      {"m": FrozenMap({"a": a0}), "k": "b", "v": b0}),
+            "@frame with @at and a field fixed": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
+                                                   eq(fld(idx("m'", "k"), "bal"), "x")], {"m": FrozenMap({"a": a0}), "k": "a", "x": 1}),
+            "@frame with @at and a field over TYPES": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="open"),
+                                                        builtin("ne", fld(idx("m'", "k"), "bal"), "x")],
+                                                       {"m": FrozenMap({"b": b0}), "k": "a", "x": 0}),
+            "@frame with @notin": ([builtin("frame", "m'", "m", "k"), builtin("notin", "k", "m'")],
+                                   {"m": FrozenMap({"a": a0, "b": b0}), "k": "a"}),
+            "@notin of a key no frame opens": ([builtin("frame", "m'", "m", "k"), builtin("notin", "k", "m'"),
+                                                builtin("notin", "j", "m'")],
+                                               {"m": FrozenMap({"a": a0, "b": b0}), "k": "a", "j": "b"}),
+            "two frames of one base": ([builtin("frame", "m'", "m", "k"), builtin("frame", "m'", "m", "k", "j"),
+                                        builtin("notin", "k", "m'")], {"m": FrozenMap({"a": a0, "b": b0}), "k": "a", "j": "b"}),
+            "two frames each keeping what the other opens": ([builtin("frame", "m'", "m", "k"), builtin("frame", "m'", "w", "j")],
+                                                             {"m": FrozenMap({"a": a0, "b": b0}), "w": FrozenMap({"a": a1, "b": a0}),
+                                                              "k": "a", "j": "b"}),
+            "two frames whose bases disagree on what both keep": ([builtin("frame", "m'", "m", "k"), builtin("frame", "m'", "w", "k"),
+                                                                   builtin("notin", "k", "m'")], {"m": FrozenMap({"b": b0}), "w": FrozenMap({"b": a0}), "k": "a"}),
+            "two frames whose bases agree on what both keep": ([builtin("frame", "m'", "m", "k"), builtin("frame", "m'", "w", "k"),
+                                                                builtin("notin", "k", "m'")],
+                                                               {"m": FrozenMap({"a": a0, "b": b0}), "w": FrozenMap({"b": b0}), "k": "a"}),
+            "a map nothing constrains": ([], {}),
+        }
+        ev = evaluator()
+        for name, (post, before) in tests.items():
+            with self.subTest(name):
+                # Setup
+                clause = formula_of(post)
+                want = [{"m": m} for m in TYPES["m"] if ev.holds(clause, before, {"m": m})]
+
+                # Execute
+                got = solve(ev, clause, ("m",), before, lambda n: TYPES[n], "the edge")
 
                 # Assert
                 self.assertTrue(_same(want, got), f"want {want}, got {got}")
