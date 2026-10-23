@@ -9,27 +9,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// ValPrelude declares Val, the type of every value, as the Isabelle back end
-// does (isabelle.ValPrelude): a scalar, or a map, a function from scalars to
-// scalars where it is defined, so that equality of maps is extensional.
-// Floats are folded into SInt for now.
-const ValPrelude = `inductive Scalar where
-  | SInt (i : Int)
-  | SString (s : String)
-  | SBool (b : Bool)
-  | SArray (xs : List Scalar)
-  | SDict (kvs : List (String × Scalar))
-  | SRecord (state : Scalar) (fields : List (String × Scalar))
-deriving Inhabited
-
-inductive Val where
-  | ValScalar (s : Scalar)
-  | ValMap (f : Scalar → Option Scalar)`
-
-// InhabitedVal lets a function into Val be declared opaque, which Lean
-// allows only of an inhabited type.
-const InhabitedVal = `instance : Inhabited Val := ⟨.ValScalar (.SBool false)⟩`
-
 // mapPrelude defines what a map holds, and proves that two maps holding
 // the same entries are one.
 const mapPrelude = `def csdf_is_map : Val → Prop
