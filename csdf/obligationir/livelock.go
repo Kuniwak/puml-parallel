@@ -232,7 +232,7 @@ func BuildLivelockFree(d *core.Diagram) (LivelockFree, error) {
 	for _, a := range d.Assumes {
 		assumptions = append(assumptions, Assumption{ID: a.ID, Text: a.Text})
 	}
-	return LivelockFree{
+	ir := LivelockFree{
 		Version:      IRVersion,
 		Structurally: !d.TauCycleReachable(),
 		States:       states,
@@ -242,7 +242,12 @@ func BuildLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		Ends:         ends,
 		Lemmas:       logic.Trees(obligation.Lemmas(clauses...)),
 		Assumptions:  assumptions,
-	}, nil
+	}
+	// The lemmas name their own variables, which are no diagram's.
+	if err := checkMaps(ir.Formulas()[:len(ir.Formulas())-len(ir.Lemmas)]); err != nil {
+		return LivelockFree{}, fmt.Errorf("obligationir.BuildLivelockFree: %w", err)
+	}
+	return ir, nil
 }
 
 // endGuard is the guard of an end edge, which reads only the values of the
