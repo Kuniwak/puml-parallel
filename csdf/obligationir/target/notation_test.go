@@ -23,12 +23,12 @@ func TestSpellFormulaParenthesisesWhatAProverWouldReadOtherwise(t *testing.T) {
 	want := map[string]map[string]string{
 		"isabelle": {
 			"¬(=)":            `\<not> (v_x = v_y)`,
-			"∃ as an operand": `(\<exists>(v_y::val). type_T v_y \<and> (atom_p v_x)) \<and> atom_p v_x`,
+			"∃ as an operand": `(\<exists>(v_y::val). type_T v_y \<and> csdf_wf v_y \<and> (atom_p v_x)) \<and> atom_p v_x`,
 			"→ inside ∧":      `(atom_p v_x \<longrightarrow> atom_p v_x) \<and> atom_p v_x`,
 		},
 		"lean": {
 			"¬(=)":            `¬(v_x = v_y)`,
-			"∃ as an operand": `(∃ (v_y : Val), type_T v_y ∧ (atom_p v_x)) ∧ atom_p v_x`,
+			"∃ as an operand": `(∃ (v_y : Val), type_T v_y ∧ csdf_wf v_y ∧ (atom_p v_x)) ∧ atom_p v_x`,
 			"→ inside ∧":      `(atom_p v_x → atom_p v_x) ∧ atom_p v_x`,
 		},
 	}

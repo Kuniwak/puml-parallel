@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestTheAxiomsOfTheSymbolsClausesUse(t *testing.T) {
+func TestTheLemmasOfTheSymbolsClausesUse(t *testing.T) {
 	type testCase struct {
 		Clauses []string
 		Want    []string
@@ -55,7 +55,7 @@ func TestTheAxiomsOfTheSymbolsClausesUse(t *testing.T) {
 			}
 
 			// Execute
-			got := obligation.Axioms(cs...)
+			got := obligation.Lemmas(cs...)
 
 			// Assert
 			var spelled []string
@@ -100,7 +100,7 @@ func TestEveryVariableOfAnAxiomHasAType(t *testing.T) {
 			c := mustParse(t, tc.Clause)
 
 			// Execute
-			got := obligation.Axioms(c)
+			got := obligation.Lemmas(c)
 
 			// Assert
 			var types [][]string

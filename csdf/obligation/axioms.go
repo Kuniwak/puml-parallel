@@ -9,7 +9,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
-// Axioms are what the predicate symbols the map builtins become mean, for
+// Lemmas are what the predicate symbols the map builtins become mean, for
 // those the clauses fs use: an empty map has no key; an update maps its key to
 // its value and keeps every other entry; a frame keeps every entry but at its
 // keys, one axiom for each number of keys; an instance is at one state at a
@@ -24,7 +24,7 @@ import (
 // that a formula is valid stays sound without them, though some valid claims
 // are then unprovable; a claim that a formula can be satisfied, such as that
 // an edge can be taken (Enabled) in some state, is sound only with them.
-func Axioms(fs ...clause.Formula) []logic.Formula {
+func Lemmas(fs ...clause.Formula) []logic.Formula {
 	var empty, update bool
 	var frames []int
 	states := map[string][]string{}
@@ -127,24 +127,52 @@ func keptBut(keys ...logic.Term) logic.Formula {
 }
 
 func updateAxiom() logic.Formula {
-	return logic.ForallTyped([]logic.Var{axN, axM, axK, axV}, []string{TypeMap, TypeMap, TypeKey, TypeValue},
-		logic.Implies(logic.Pred(PredUpdate, false, axN, axM, axK, axV),
-			logic.And(in(axK, axN), logic.Eq(logic.Index(axN, axK), axV), keptBut(axK))))
+	params, meaning := UpdateMeaning()
+	return logic.ForallTyped(params, []string{TypeMap, TypeMap, TypeKey, TypeValue},
+		logic.Implies(logic.Pred(PredUpdate, false, varTerms(params)...), meaning))
 }
 
-func frameAxiom(n int) logic.Formula {
-	vars := []logic.Var{axN, axM}
-	types := []string{TypeMap, TypeMap}
-	args := []logic.Term{axN, axM}
+// The meanings of the builtins: what each holds of its parameters, and so
+// what its axiom says it implies. A target may define a builtin as its
+// meaning, and its axiom is then a lemma of the definition.
+
+// EmptyMeaning is that the map m has no key.
+func EmptyMeaning() ([]logic.Var, logic.Formula) {
+	return []logic.Var{axM}, logic.ForallTyped([]logic.Var{axK}, []string{TypeKey}, logic.Not(in(axK, axM)))
+}
+
+// UpdateMeaning is that n is m with k mapped to v.
+func UpdateMeaning() ([]logic.Var, logic.Formula) {
+	return []logic.Var{axN, axM, axK, axV}, logic.And(in(axK, axN), logic.Eq(logic.Index(axN, axK), axV), keptBut(axK))
+}
+
+// FrameMeaning is that n and m agree everywhere but at the n keys.
+func FrameMeaning(n int) ([]logic.Var, logic.Formula) {
+	params := []logic.Var{axN, axM}
 	keys := make([]logic.Term, n)
 	for i := range n {
 		k := logic.Var(fmt.Sprintf("k%d", i+1))
-		vars = append(vars, k)
-		types = append(types, TypeKey)
-		args = append(args, k)
+		params = append(params, k)
 		keys[i] = k
 	}
-	return logic.ForallTyped(vars, types, logic.Implies(logic.Pred(PredFrame, false, args...), keptBut(keys...)))
+	return params, keptBut(keys...)
+}
+
+func varTerms(vs []logic.Var) []logic.Term {
+	ts := make([]logic.Term, len(vs))
+	for i, v := range vs {
+		ts[i] = v
+	}
+	return ts
+}
+
+func frameAxiom(n int) logic.Formula {
+	params, meaning := FrameMeaning(n)
+	types := []string{TypeMap, TypeMap}
+	for range n {
+		types = append(types, TypeKey)
+	}
+	return logic.ForallTyped(params, types, logic.Implies(logic.Pred(PredFrame, false, varTerms(params)...), meaning))
 }
 
 func atAxiom(s, t string) logic.Formula {

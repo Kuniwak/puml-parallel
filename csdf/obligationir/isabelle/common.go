@@ -7,12 +7,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-const ValPrelude = `datatype val = ValInt int
-  | ValString string
-  | ValBool bool
-  | ValArray "val list"
-  | ValDict "(string \<times> val) list"`
-
 // PredicateTODO marks a declaration standing for a predicate nobody has
 // formalised. It is spelled identically by every backend so that a checker can
 // refuse to call an obligation discharged while any marker remains.

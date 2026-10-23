@@ -2,11 +2,11 @@
 // formulas has to satisfy, as formulas of csdf/logic (docs/CLAUSE_DESIGN.md,
 // O8). An atom is an uninterpreted predicate, named by its text without its
 // holes and applied to its holes (P15, P9); a builtin is an equality, or a
-// predicate symbol whose meaning Axioms states (see the Pred* constants); an
+// predicate symbol whose meaning Lemmas states (see the Pred* constants); an
 // ∃ a tool wrote is an existential of its type.
 //
 // Step is a relation, a hypothesis of the claims built on it. Enabled is
-// that an edge can be taken: proven valid, it is sound without Axioms; used
+// that an edge can be taken: proven valid, it is sound without the Lemmas; used
 // to show that some state can take the edge, it is sound only with them.
 package obligation
 
@@ -19,7 +19,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 )
 
-// The predicate symbols the map builtins become, which Axioms gives their
+// The predicate symbols the map builtins become, which Lemmas gives their
 // meaning:
 //
 //	csdf_in(k, m)             k is in the domain of m

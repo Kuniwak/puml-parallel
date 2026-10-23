@@ -15,7 +15,7 @@ import (
 // admits an infinite run of tau steps. Each clause is the formula of
 // csdf/logic that csdf/obligation states, so a back end spells it rather than
 // leaving it opaque: an atom is an uninterpreted predicate applied to its
-// holes, a builtin an equality or a csdf_* predicate whose meaning Axioms
+// holes, a builtin an equality or a csdf_* predicate whose meaning Lemmas
 // states, and an ∃ a quantifier of its type.
 type LivelockFree struct {
 	// Version is the version of this encoding, IRVersion; a reader refuses
@@ -36,9 +36,10 @@ type LivelockFree struct {
 	// holds of its values. Termination is no tau step, so the livelock
 	// obligation reads none of them; a refinement does.
 	Ends []End `json:"ends"`
-	// Axioms are what the csdf_* predicates of the clauses mean
-	// (obligation.Axioms); a back end states the theorem under them.
-	Axioms []logic.Tree `json:"axioms"`
+	// Lemmas are what the csdf_* predicates of the clauses mean
+	// (obligation.Lemmas). A back end defines the builtins and proves them,
+	// so no theorem rests on them as hypotheses.
+	Lemmas []logic.Tree `json:"lemmas"`
 	// Assumptions are the diagram's assume notes, hypotheses of the theorem
 	// like the axioms. Never null, only empty.
 	Assumptions []Assumption `json:"assumptions"`
@@ -47,7 +48,7 @@ type LivelockFree struct {
 // IRVersion is the version of the encoding of LivelockFree. It changes
 // whenever a field changes meaning, so that an IR stored by another release
 // is refused rather than misread.
-const IRVersion = 1
+const IRVersion = 2
 
 // Validate reports, as an error, what makes ir no obligation of a diagram: an
 // encoding of another version, a state named twice or by no name, a start
@@ -239,7 +240,7 @@ func BuildLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		InitPost:     logic.TreeOf(post),
 		Edges:        edges,
 		Ends:         ends,
-		Axioms:       logic.Trees(obligation.Axioms(clauses...)),
+		Lemmas:       logic.Trees(obligation.Lemmas(clauses...)),
 		Assumptions:  assumptions,
 	}, nil
 }

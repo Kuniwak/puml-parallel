@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
@@ -14,8 +13,9 @@ import (
 // of the type val.
 var Notation = obligationir.Notation{
 	And: ` \<and> `, Or: ` \<or> `, Not: `\<not> `, Implies: ` \<longrightarrow> `, True: `True`, False: `False`,
-	Exists: func(vars []string, body string) string { return `\<exists>` + binders(vars) + `. ` + body },
-	Forall: func(vars []string, body string) string { return `\<forall>` + binders(vars) + `. ` + body },
+	Exists:     func(vars []string, body string) string { return `\<exists>` + binders(vars) + `. ` + body },
+	Forall:     func(vars []string, body string) string { return `\<forall>` + binders(vars) + `. ` + body },
+	Wellformed: "csdf_wf",
 }
 
 func binders(vars []string) string {
@@ -30,8 +30,8 @@ func binders(vars []string) string {
 // diagram whose clauses are formulas. The clauses are spelled, not left
 // opaque: what stays uninterpreted is the environment, each atom, function
 // and type a constant under a TODO(csdf) marker beside the text it was named
-// by, and the theorem is stated under the axioms of the csdf_* predicates and
-// the diagram's assumptions.
+// by; the builtins are defined, what they mean proved as lemmas, and the
+// theorem is stated under the diagram's assumptions alone.
 func WriteLivelockFree(w io.Writer, ir obligationir.LivelockFree) error {
 	text, err := livelockFree(ir)
 	if err != nil {
@@ -61,15 +61,18 @@ func livelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "", err
 	}
 	writeStates(&w, side, ir.States)
-	writeSymbols(&w, ds)
-	hypotheses, err := writeAxioms(&w, ir.Axioms)
-	if err != nil {
+	writeSymbols(&w, ds, nil)
+	builtins := obligationir.BuiltinsOf(ds)
+	if err := WriteBuiltins(&w, builtins); err != nil {
+		return "", err
+	}
+	if err := WriteLemmas(&w, builtins, ir.Lemmas); err != nil {
 		return "", err
 	}
 	if err := WriteAssumptions(&w, side, ir.Assumptions); err != nil {
 		return "", err
 	}
-	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
+	hypotheses := AssumptionNames(side, ir.Assumptions)
 	if err := writeTransitionSystem(&w, side, ir); err != nil {
 		return "", err
 	}
@@ -120,8 +123,15 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "\n\n")
 }
 
-func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
+func writeSymbols(w io.Writer, ds []obligationir.Declaration, types map[string]string) {
 	for _, d := range ds {
+		if obligationir.Defined(d.Symbol) {
+			continue
+		}
+		if body, ok := types[d.Name]; ok && d.Kind == obligationir.KindType {
+			fmt.Fprintf(w, "definition %s :: \"val \\<Rightarrow> bool\"\n  where \"%s v \\<equiv> %s\"\n\n", d.Name, d.Name, body)
+			continue
+		}
 		for _, c := range d.Comments {
 			io.WriteString(w, comment(c)+"\n")
 		}
@@ -131,19 +141,6 @@ func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
 		}
 		io.WriteString(w, "consts "+d.Name+" :: \""+strings.Repeat("val \\<Rightarrow> ", d.Arity)+result+"\"\n\n")
 	}
-}
-
-func writeAxioms(w io.Writer, axioms []logic.Tree) ([]string, error) {
-	names := make([]string, len(axioms))
-	for i, a := range axioms {
-		names[i] = obligationir.AxiomName(i + 1)
-		f, err := Notation.SpellFormula(a)
-		if err != nil {
-			return nil, fmt.Errorf("the axiom %s: %w", names[i], err)
-		}
-		fmt.Fprintf(w, "definition %s :: bool\n  where \"%s \\<equiv> %s\"\n\n", names[i], names[i], f)
-	}
-	return names, nil
 }
 
 func writeRelation(w io.Writer, side obligationir.Side, name string, states map[string]obligationir.State, edges []obligationir.Edge) error {

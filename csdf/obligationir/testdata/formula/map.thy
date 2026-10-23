@@ -7,6 +7,8 @@ datatype val = ValInt int
   | ValBool bool
   | ValArray "val list"
   | ValDict "(string \<times> val) list"
+  | ValRecord val "(string \<times> val) list"
+  | ValMap "(val \<times> val) list"
 
 datatype st = St_s val (* s (m) *)
 
@@ -26,39 +28,101 @@ consts type_k :: "val \<Rightarrow> bool"
 (* m *)
 consts type_m :: "val \<Rightarrow> bool"
 
-consts csdf_index :: "val \<Rightarrow> val \<Rightarrow> val"
+(* A map is the list of its entries csdf_canon chooses among the lists of them,
+   so that two maps holding the same entries are one. *)
+definition csdf_canon :: "(val \<times> val) list \<Rightarrow> (val \<times> val) list"
+  where "csdf_canon kvs \<equiv> SOME l. set l = set kvs"
 
-consts csdf_empty :: "val \<Rightarrow> bool"
+(* A value is well formed when every map in it is canonical, of distinct keys. *)
+inductive csdf_wf :: "val \<Rightarrow> bool"
+  where "csdf_wf (ValInt i)"
+  | "csdf_wf (ValString s)"
+  | "csdf_wf (ValBool b)"
+  | "\<forall>x\<in>set xs. csdf_wf x \<Longrightarrow> csdf_wf (ValArray xs)"
+  | "\<forall>p\<in>set kvs. csdf_wf (snd p) \<Longrightarrow> csdf_wf (ValDict kvs)"
+  | "csdf_wf st \<Longrightarrow> \<forall>p\<in>set fs. csdf_wf (snd p) \<Longrightarrow> csdf_wf (ValRecord st fs)"
+  | "distinct (map fst kvs) \<Longrightarrow> kvs = csdf_canon kvs \<Longrightarrow> \<forall>p\<in>set kvs. csdf_wf (fst p)
+      \<Longrightarrow> \<forall>p\<in>set kvs. csdf_wf (snd p) \<Longrightarrow> csdf_wf (ValMap kvs)"
 
-consts csdf_frame1 :: "val \<Rightarrow> val \<Rightarrow> val \<Rightarrow> bool"
+definition csdf_is_map :: "val \<Rightarrow> bool"
+  where "csdf_is_map m \<equiv> (case m of ValMap kvs \<Rightarrow> True | _ \<Rightarrow> False)"
 
-consts csdf_in :: "val \<Rightarrow> val \<Rightarrow> bool"
+definition csdf_in :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "csdf_in k m \<equiv> (case m of ValMap kvs \<Rightarrow> k \<in> set (map fst kvs) | _ \<Rightarrow> False)"
 
-definition csdf_axiom_1 :: bool
-  where "csdf_axiom_1 \<equiv> \<forall>(v_m::val) (v_k::val). csdf_empty v_m \<longrightarrow> (\<not> csdf_in v_k v_m)"
+definition csdf_index :: "val \<Rightarrow> val \<Rightarrow> val"
+  where "csdf_index m k \<equiv> (case m of ValMap kvs \<Rightarrow> (case map_of kvs k of Some v \<Rightarrow> v | None \<Rightarrow> ValBool False) | _ \<Rightarrow> ValBool False)"
 
-definition csdf_axiom_2 :: bool
-  where "csdf_axiom_2 \<equiv> \<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n v_m v_k1 \<longrightarrow> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
+(* Two well-formed maps holding the same entries are one. *)
+lemma csdf_map_ext:
+  assumes "csdf_wf n" "csdf_wf m" "csdf_is_map n" "csdf_is_map m"
+    and h: "\<forall>k. (csdf_in k n \<longleftrightarrow> csdf_in k m) \<and> (csdf_in k n \<longrightarrow> csdf_index n k = csdf_index m k)"
+  shows "n = m"
+proof -
+  obtain a b where ab: "n = ValMap a" "m = ValMap b"
+    using assms(3,4) by (cases n; cases m; simp add: csdf_is_map_def)
+  have wa: "distinct (map fst a)" "a = csdf_canon a"
+    using assms(1) unfolding ab by (auto elim: csdf_wf.cases)
+  have wb: "distinct (map fst b)" "b = csdf_canon b"
+    using assms(2) unfolding ab by (auto elim: csdf_wf.cases)
+  have "map_of a k = map_of b k" for k
+  proof (cases "k \<in> set (map fst a)")
+    case False
+    then have "k \<notin> set (map fst b)"
+      using spec[OF h, of k] unfolding ab by (simp add: csdf_in_def)
+    then have "map_of b k = None" by (simp add: map_of_eq_None_iff)
+    moreover have "map_of a k = None" using False by (simp add: map_of_eq_None_iff)
+    ultimately show ?thesis by simp
+  next
+    case True
+    then obtain v where va: "map_of a k = Some v"
+      by (metis map_of_eq_None_iff not_None_eq)
+    from True have "k \<in> set (map fst b)"
+      using spec[OF h, of k] unfolding ab by (simp add: csdf_in_def)
+    then obtain w where wb: "map_of b k = Some w"
+      by (metis map_of_eq_None_iff not_None_eq)
+    have "csdf_index n k = csdf_index m k"
+      using spec[OF h, of k] True unfolding ab by (simp add: csdf_in_def)
+    then have "v = w" using va wb unfolding ab by (simp add: csdf_index_def)
+    then show ?thesis using va wb by simp
+  qed
+  then have "map_of a = map_of b" by (rule ext)
+  then have "set a = set b" using wa(1) wb(1) by (simp add: map_of_inject_set)
+  then have "csdf_canon a = csdf_canon b" by (simp add: csdf_canon_def)
+  then show ?thesis using ab wa(2) wb(2) by simp
+qed
+
+definition csdf_empty :: "val \<Rightarrow> bool"
+  where "csdf_empty v_m \<equiv> csdf_is_map v_m \<and> (\<forall>(v_k::val). \<not> csdf_in v_k v_m)"
+
+definition csdf_frame1 :: "val \<Rightarrow> val \<Rightarrow> val \<Rightarrow> bool"
+  where "csdf_frame1 v_n v_m v_k1 \<equiv> csdf_is_map v_n \<and> csdf_is_map v_m \<and> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
+
+lemma csdf_lemma_1: "\<forall>(v_m::val) (v_k::val). csdf_empty v_m \<longrightarrow> (\<not> csdf_in v_k v_m)"
+  by (auto simp: csdf_empty_def csdf_frame1_def split: val.splits)
+
+lemma csdf_lemma_2: "\<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n v_m v_k1 \<longrightarrow> (\<forall>(v_j::val). (\<not> (v_j = v_k1)) \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
+  by (auto simp: csdf_empty_def csdf_frame1_def split: val.splits)
 
 (* TODO(csdf): not formalised; this assumption is uninterpreted. *)
 (* PUT は無限に起きない *)
 consts assume_fair :: "bool"
 
 definition init :: "st \<Rightarrow> bool"
-  where "init s' \<equiv> \<exists>(v_m_u27u::val). s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> (csdf_empty v_m_u27u)"
+  where "init s' \<equiv> \<exists>(v_m_u27u::val). s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (csdf_empty v_m_u27u)"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> (\<exists>(v_k::val). type_k v_k \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u))) \<or> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
+  where "step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (\<exists>(v_k::val). type_k v_k \<and> csdf_wf v_k \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u))) \<or> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
 
 inductive reachable :: "st \<Rightarrow> bool"
   where base: "init s \<Longrightarrow> reachable s"
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
+  where "tau_step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
 
 theorem livelock_free:
-  assumes "csdf_axiom_1" and "csdf_axiom_2" and "assume_fair"
+  assumes "assume_fair"
   shows "wf_on {s. reachable s} {(s', s). tau_step s s'}"
   oops
 

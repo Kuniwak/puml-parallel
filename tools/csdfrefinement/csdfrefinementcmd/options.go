@@ -87,8 +87,9 @@ two events. Each edge of a state is an external choice of the events it can
 perform - its received fields of their types, for which some values after it
 pass its guard and post - followed by an internal choice of those values after
 it; an end edge is SKIP when its guard holds. A channel with one number of
-fields in one place and another elsewhere is refused. The refinement is stated
-under the axioms of the csdf_* predicates, as csdf_axiom_<i>, alone, and so is
+fields in one place and another elsewhere is refused. The builtins are defined
+and what they mean proved, as for csdflivelockfree. The refinement is stated
+under no hypothesis, and so is
 initialisable_S/_I, stated in every model: of the Impl it is what keeps the
 refinement from holding vacuously, since an Impl that cannot start is DIV, and it
 must not rest on what the Impl assumes; of the Spec it is a sanity check, which

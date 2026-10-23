@@ -33,7 +33,7 @@ const (
 	FieldPrefix = "field_"
 	TypePrefix  = "type_"
 	IndexSymbol = "csdf_index"
-	AxiomPrefix = "csdf_axiom_"
+	LemmaPrefix = "csdf_lemma_"
 )
 
 // AtomName is the predicate the atom of text is.
@@ -62,8 +62,8 @@ func isState(fn string) bool {
 	return strings.HasPrefix(fn, obligation.StatePrefix) && strings.Contains(fn, ".")
 }
 
-// AxiomName is the proposition the i-th axiom of an obligation is, from 1.
-func AxiomName(i int) string { return fmt.Sprintf("%s%d", AxiomPrefix, i) }
+// LemmaName is the lemma the i-th meaning of the builtins an obligation proves is, from 1.
+func LemmaName(i int) string { return fmt.Sprintf("%s%d", LemmaPrefix, i) }
 
 // PredName is the predicate a csdf_* predicate of n arguments is.
 func PredName(name string, n int) string {
@@ -193,6 +193,10 @@ type Notation struct {
 	// Exists and Forall spell a quantifier binding vars, each of the type
 	// the prover gives every value, over body.
 	Exists, Forall func(vars []string, body string) string
+	// Wellformed, when set, is the predicate that a value is in the form
+	// the model holds it in, a map canonical (docs/CLAUSE_DESIGN.md); a
+	// quantifier over a type is restricted to such values, as to the type.
+	Wellformed string
 }
 
 // SpellFormula writes f in the notation n. Every operand that is no atom, no
@@ -219,6 +223,9 @@ func (n Notation) Relativize(forall bool, vars []string, types []string, body st
 		}
 		if relativized(types[i]) {
 			guards = append(guards, TypeName(types[i])+" "+v)
+			if n.Wellformed != "" {
+				guards = append(guards, n.Wellformed+" "+v)
+			}
 		}
 	}
 	if len(guards) == 0 {
@@ -395,7 +402,7 @@ func (ir LivelockFree) Formulas() []logic.Tree {
 	for _, e := range ir.Ends {
 		fs = append(fs, e.Guard)
 	}
-	return append(fs, ir.Axioms...)
+	return append(fs, ir.Lemmas...)
 }
 
 // Symbols are the constants ir reads, the types of its state variables and
@@ -572,4 +579,145 @@ func declarations(syms []Symbol, todo string) []Declaration {
 		ds[i] = Declaration{Comments: comments, Symbol: s}
 	}
 	return ds
+}
+
+// Builtins are the builtins an obligation reads, which a back end defines
+// rather than declares: a builtin is no assumption of the obligation but a
+// definition over the maps of ValMap (docs/CLAUSE_DESIGN.md).
+type Builtins struct {
+	// Maps is whether any map builtin, or an entry of a map, is read; the
+	// definitions of csdf_is_map, csdf_lookup, csdf_in and csdf_index then
+	// come first.
+	Maps              bool
+	Empty, Update, At bool
+	Frames            []int    // the numbers of keys of the csdf_frame read
+	States            []string // the state constants csdf_at reads, sorted
+}
+
+// BuiltinsOf are the builtins the declarations ds read.
+func BuiltinsOf(ds []Declaration) Builtins {
+	var b Builtins
+	for _, d := range ds {
+		switch d.Kind {
+		case KindIndex:
+			b.Maps = true
+		case KindState:
+			b.States = append(b.States, d.Name)
+		case KindBuiltin:
+			b.Maps = true
+			switch {
+			case d.Name == obligation.PredEmpty:
+				b.Empty = true
+			case d.Name == obligation.PredUpdate:
+				b.Update = true
+			case d.Name == obligation.PredAt:
+				b.At = true
+			case strings.HasPrefix(d.Name, obligation.PredFrame):
+				b.Frames = append(b.Frames, d.Arity-2)
+			}
+		}
+	}
+	slices.Sort(b.Frames)
+	slices.Sort(b.States)
+	return b
+}
+
+// Defined reports whether s is defined by a back end, as a builtin, the
+// entry of a map or a state constant, rather than declared.
+func Defined(s Symbol) bool {
+	return s.Kind == KindBuiltin || s.Kind == KindIndex || s.Kind == KindState
+}
+
+// IsMapPred is the predicate that a value is a map: a ValMap of a back end.
+const IsMapPred = "csdf_is_map"
+
+// BuiltinDef is the definition of a builtin a back end writes: Name of
+// Params, spelled, is Body, spelled: that its maps are maps, and the
+// meaning of the builtin (obligation.EmptyMeaning and the like), so that
+// what the builtin's lemma says follows from it by projection.
+type BuiltinDef struct {
+	Name   string
+	Params []string
+	Body   string
+}
+
+// BuiltinDefs are the definitions of the map builtins b reads, csdf_empty,
+// csdf_update and each csdf_frame, spelled in n.
+func BuiltinDefs(n Notation, b Builtins) ([]BuiltinDef, error) {
+	type def struct {
+		name   string
+		maps   int
+		params []logic.Var
+		body   logic.Formula
+	}
+	var defs []def
+	if b.Empty {
+		ps, body := obligation.EmptyMeaning()
+		defs = append(defs, def{obligation.PredEmpty, 1, ps, body})
+	}
+	if b.Update {
+		ps, body := obligation.UpdateMeaning()
+		defs = append(defs, def{obligation.PredUpdate, 2, ps, body})
+	}
+	for _, k := range b.Frames {
+		ps, body := obligation.FrameMeaning(k)
+		defs = append(defs, def{PredName(obligation.PredFrame, k+2), 2, ps, body})
+	}
+	out := make([]BuiltinDef, len(defs))
+	for i, d := range defs {
+		conj := make([]logic.Formula, 0, d.maps+1)
+		for _, p := range d.params[:d.maps] {
+			conj = append(conj, logic.Pred(IsMapPred, false, p))
+		}
+		body, err := n.SpellFormula(logic.TreeOf(logic.And(append(conj, d.body)...)))
+		if err != nil {
+			return nil, fmt.Errorf("obligationir.BuiltinDefs: %w", err)
+		}
+		params := make([]string, len(d.params))
+		for j, p := range d.params {
+			params[j] = SpellVar(p)
+		}
+		out[i] = BuiltinDef{Name: d.name, Params: params, Body: body}
+	}
+	return out, nil
+}
+
+// LemmaKind is the shape of a lemma of the builtins, which says how it
+// follows from their definitions.
+type LemmaKind int
+
+const (
+	// LemmaEmpty is that an empty map has no key: ∀m k. csdf_empty m → ¬ k ∈ m.
+	LemmaEmpty LemmaKind = iota
+	// LemmaMeaning is that a builtin implies its meaning, the last conjunct
+	// of its definition: ∀params. b params → meaning.
+	LemmaMeaning
+	// LemmaApart is that an instance is at one state at a time:
+	// ∀t. ¬(csdf_at t A ∧ csdf_at t B), A and B two state constants.
+	LemmaApart
+)
+
+// LemmaShape is the kind of the lemma t, the number of variables it binds,
+// and for LemmaApart the two state constants, as spelled.
+func LemmaShape(t logic.Tree) (LemmaKind, int, [2]string, error) {
+	if t.Op != logic.OpForall || len(t.Operands) != 1 {
+		return 0, 0, [2]string{}, fmt.Errorf("obligationir.LemmaShape: %s is no lemma of the builtins", t.Op)
+	}
+	body := t.Operands[0]
+	switch {
+	case body.Op == logic.OpImplies && body.Operands[0].Op == logic.OpAtom && body.Operands[0].Name == obligation.PredEmpty:
+		return LemmaEmpty, len(t.Vars), [2]string{}, nil
+	case body.Op == logic.OpImplies:
+		return LemmaMeaning, len(t.Vars), [2]string{}, nil
+	case body.Op == logic.OpNot && body.Operands[0].Op == logic.OpAnd && len(body.Operands[0].Operands) == 2:
+		var states [2]string
+		for i, at := range body.Operands[0].Operands {
+			if at.Op != logic.OpAtom || len(at.Terms) != 2 {
+				return 0, 0, states, fmt.Errorf("obligationir.LemmaShape: no csdf_at")
+			}
+			states[i] = FunctionName(at.Terms[1].Name)
+		}
+		return LemmaApart, len(t.Vars), states, nil
+	}
+	return 0, 0, [2]string{}, fmt.Errorf("obligationir.LemmaShape: no lemma of the builtins")
 }

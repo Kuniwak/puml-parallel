@@ -199,13 +199,40 @@ narrows none: the expansion carries it, and the analyses that take
 hypotheses read it. A local diagram has none, an assumption being about the
 whole system.
 
+No obligation rests on an axiom. A set of axioms can contradict itself, and
+an obligation under a contradiction holds of every diagram (ex falso), so
+the builtins are defined in a model instead and what they mean is proved
+there, as lemmas a prover checks. The model tells a map from every other
+value and makes equality of maps extensional. A map is a ValMap, a list of
+its entries, and maps nest: a key or an entry may be a map. A value is well
+formed (csdf_wf) when every map in it has distinct keys (the library's
+distinct / Nodup) and is the one list of its entries csdf_canon chooses, by
+Hilbert's choice, among the lists of the same entries; every quantifier over
+a type is restricted to well-formed values, as to the type, so no axiom
+says it. Two well-formed maps holding the same entries are then one, which
+both provers prove (csdf_map_ext), so an equality, an event field or an
+atom reading a map reads its entries and nothing else, and @update and
+@frame admit exactly the maps the meaning describes. The order of the
+chosen list is no order of the keys: only that it is the one chosen
+matters. csdf_is_map holds of a value just when it is a map; csdf_in and
+csdf_index read its entries. The entry csdf_index gives of a key a map
+lacks is a value no obligation observes: a clause reading an entry that is
+not there is false, so obligation.Formula conjoins csdf_in of every key a
+clause reads, and the read stands only where the key is there. @empty,
+@update and @frame are defined as their maps being maps and their meaning
+holding (obligation.EmptyMeaning and the like), so each lemma follows from
+its definition by projection. An instance is a record whose first component
+is its state; @at is that it is the state constant, each a number of its
+own, so an instance is at one state at a time, and a diagram starting at a
+state can be shown to start. A value that is no record is at no state.
+
 Which hypotheses an obligation takes is part of what it claims. A
-refinement is stated under the axioms of the builtins alone, never under an
-assumption of either side: an assumption of the impl could make it hold
+refinement is stated under no hypothesis, never under an assumption of
+either side: an assumption of the impl could make it hold
 vacuously (an impl assumed never to run refines anything), and an
 assumption of the spec is typically a liveness assumption, which no trace
 and no stable failure can state, so it would license a claim the model does
-not make. That a side can start is stated under the axioms alone too: of
+not make. That a side can start is stated under no hypothesis too: of
 the impl it is what keeps the refinement from holding vacuously, an impl
 that cannot start being DIV, and it must not rest on what the impl assumes
 of its runs; of the spec it is a sanity check, and may fail to prove when

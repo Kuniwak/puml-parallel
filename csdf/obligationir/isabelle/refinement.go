@@ -17,7 +17,24 @@ import (
 // edge none of whose events is enabled is STOP. The environment is declared
 // as for the livelock-freedom obligation, once for both sides.
 func WriteRefinement(w io.Writer, r obligationir.Refinement) error {
-	text, err := refinement(r)
+	return WriteRefinementEdited(w, r, Edits{})
+}
+
+// Edits are what a reader formalising an obligation supplies, written in
+// place of what the generator leaves open: Types gives the body of each
+// type predicate it names, over v, in place of its declaration; Proofs
+// gives the proof of each theorem it names in place of the open one; and
+// Lemmas are written before the end.
+type Edits struct {
+	Types  map[string]string
+	Proofs map[string]string
+	Lemmas []string
+}
+
+// WriteRefinementEdited writes the refinement obligation of r as
+// WriteRefinement does, with e.
+func WriteRefinementEdited(w io.Writer, r obligationir.Refinement, e Edits) error {
+	text, err := refinement(r, e)
 	if err != nil {
 		return fmt.Errorf("isabelle.WriteRefinement: %w", err)
 	}
@@ -41,7 +58,7 @@ func sidesOf(r obligationir.Refinement) []side {
 	}
 }
 
-func refinement(r obligationir.Refinement) (string, error) {
+func refinement(r obligationir.Refinement, e Edits) (string, error) {
 	if err := r.Validate(); err != nil {
 		return "", err
 	}
@@ -53,9 +70,12 @@ func refinement(r obligationir.Refinement) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	writeSymbols(&w, ds)
-	axioms, err := writeAxioms(&w, r.Axioms())
-	if err != nil {
+	writeSymbols(&w, ds, e.Types)
+	builtins := obligationir.BuiltinsOf(ds)
+	if err := WriteBuiltins(&w, builtins); err != nil {
+		return "", err
+	}
+	if err := WriteLemmas(&w, builtins, r.Lemmas()); err != nil {
 		return "", err
 	}
 	sides := sidesOf(r)
@@ -77,15 +97,19 @@ func refinement(r obligationir.Refinement) (string, error) {
 		}
 	}
 	for _, s := range sides {
-		if err := writeSideLemmas(&w, s, r.Mode, axioms); err != nil {
+		if err := writeSideLemmas(&w, s, r.Mode, e.Proofs); err != nil {
 			return "", err
 		}
 	}
-	// The refinement is stated under the axioms alone: an assumption of the
+	// The refinement is stated under no hypothesis: an assumption of the
 	// impl could make it hold vacuously, and one of the spec, of liveness, is
 	// no claim traces or stable failures can state (docs/CLAUSE_DESIGN.md).
-	WriteRefinementTheorem(&w, r.Mode, axioms)
-	io.WriteString(&w, "\n\nend\n")
+	WriteRefinementTheorem(&w, r.Mode, nil)
+	io.WriteString(&w, "\n\n")
+	for _, l := range e.Lemmas {
+		io.WriteString(&w, l+"\n\n")
+	}
+	io.WriteString(&w, "end\n")
 	return w.String(), nil
 }
 
@@ -249,15 +273,15 @@ func writeProc(w io.Writer, s side) error {
 }
 
 // writeSideLemmas writes the lemmas of a side. That it can start at all is
-// stated under the axioms alone, since it must not rest on what the side
+// stated under no hypothesis, since it must not rest on what the side
 // assumes of its runs: of the impl it is what keeps the refinement from
 // holding vacuously, as an impl that cannot start is DIV; of the spec it is
 // a sanity check. In FD, that no reachable state starts an infinite run of
-// tau steps is stated under the axioms and the side's own assumptions, so
+// tau steps is stated under the side's own assumptions, so
 // the FD conclusion is conditional on them; with the first it licenses
 // reading the F refinement as FD refinement.
-func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, axioms []string) error {
-	assumed := append(append([]string{}, axioms...), AssumptionNames(s.names, s.ir.Assumptions)...)
+func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, proofs map[string]string) error {
+	assumed := AssumptionNames(s.names, s.ir.Assumptions)
 	if mode == obligationir.IRRefinementModeFailuresDivergence && s.ir.Structurally {
 		fmt.Fprintf(w, "(* %s is livelock free structurally: no reachable tau-cycle. *)\n\n", s.label)
 	} else if mode == obligationir.IRRefinementModeFailuresDivergence {
@@ -277,9 +301,13 @@ func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, ax
 	}
 	fmt.Fprintf(w, `(* %s admits an initial valuation, so it does not denote DIV, which
    diverges on the empty trace and, as the Impl, would make the refinement
-   vacuous. Stated under the axioms alone: it must not rest on an assumption. *)
+   vacuous. Stated under no hypothesis: it must not rest on an assumption. *)
 theorem %s:`, s.label, s.names.Qualify("initialisable"))
-	WriteAssumesShows(w, axioms)
-	fmt.Fprintf(w, "\"%s\"\n  oops\n\n", body)
+	WriteAssumesShows(w, nil)
+	proof, ok := proofs[s.names.Qualify("initialisable")]
+	if !ok {
+		proof = "oops"
+	}
+	fmt.Fprintf(w, "\"%s\"\n  %s\n\n", body, proof)
 	return nil
 }

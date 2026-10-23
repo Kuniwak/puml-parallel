@@ -53,10 +53,10 @@ func TestNewMainFuncCompilesTheIR(t *testing.T) {
 
 func TestNewMainFuncRefusesAnIRItDoesNotRead(t *testing.T) {
 	testCases := map[string]string{
-		"an unknown field": `{"version":1,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[],"predicates":{}}`,
-		"another version":  `{"version":0,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[]}`,
-		"an unknown state": `{"version":1,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"b","init_post":{"op":"true"},"edges":[],"axioms":[],"assumptions":[]}`,
-		"an unknown op":    `{"version":1,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"xor"},"edges":[],"axioms":[],"assumptions":[]}`,
+		"an unknown field": `{"version":2,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"lemmas":[],"assumptions":[],"predicates":{}}`,
+		"another version":  `{"version":0,"structurally":true,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"true"},"edges":[],"lemmas":[],"assumptions":[]}`,
+		"an unknown state": `{"version":2,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"b","init_post":{"op":"true"},"edges":[],"lemmas":[],"assumptions":[]}`,
+		"an unknown op":    `{"version":2,"structurally":false,"states":[{"name":"a","vars":[]}],"init":"a","init_post":{"op":"xor"},"edges":[],"lemmas":[],"assumptions":[]}`,
 	}
 
 	for name, input := range testCases {

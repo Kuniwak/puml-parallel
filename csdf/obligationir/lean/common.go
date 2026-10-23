@@ -8,14 +8,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// ValPrelude declares ValType. Floats are folded into ValInt for now.
-const ValPrelude = `inductive Val where
-  | ValInt (i : Int)
-  | ValString (s : String)
-  | ValBool (b : Bool)
-  | ValArray (xs : List Val)
-  | ValDict (kvs : List (String × Val))`
-
 // PredicateTODO marks a declaration standing for a predicate nobody has
 // formalised. It is spelled identically by every backend so that a checker can
 // refuse to call an obligation discharged while any marker remains.

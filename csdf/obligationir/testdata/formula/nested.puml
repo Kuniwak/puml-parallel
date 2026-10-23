@@ -1,0 +1,10 @@
+@startuml
+' A map of maps: each entry of m is a map of its own, updated in place by a
+' tau, so the model's maps hold maps.
+state "s" as s
+s : m
+s : n
+[*] --> s : @empty(m') ∧ @empty(n')
+s --> s : put?k ; ; @update(m', m, k, n) ∧ @eq(n', n)
+s --> s : tau ; @exists(k : 鍵) (@in(k, m)) ; @exists(k : 鍵) (@update(m', m, k, n) ∧ @eq(n', n))
+@enduml

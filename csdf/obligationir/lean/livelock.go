@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
@@ -14,8 +13,9 @@ import (
 // the type Val.
 var Notation = obligationir.Notation{
 	And: ` ∧ `, Or: ` ∨ `, Not: `¬`, Implies: ` → `, True: `True`, False: `False`,
-	Exists: func(vars []string, body string) string { return `∃ ` + binders(vars) + `, ` + body },
-	Forall: func(vars []string, body string) string { return `∀ ` + binders(vars) + `, ` + body },
+	Exists:     func(vars []string, body string) string { return `∃ ` + binders(vars) + `, ` + body },
+	Forall:     func(vars []string, body string) string { return `∀ ` + binders(vars) + `, ` + body },
+	Wellformed: "csdf_wf",
 }
 
 func binders(vars []string) string {
@@ -25,10 +25,6 @@ func binders(vars []string) string {
 	}
 	return strings.Join(bs, ` `)
 }
-
-// InhabitedVal lets a function into Val be declared opaque, which Lean
-// allows only of an inhabited type.
-const InhabitedVal = `instance : Inhabited Val := ⟨.ValBool false⟩`
 
 // WriteLivelockFree writes the livelock-freedom obligation of a
 // diagram whose clauses are formulas, as the Isabelle back end does
@@ -59,15 +55,17 @@ func livelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "", err
 	}
 	writeStates(&w, side, ir.States)
-	writeSymbols(&w, ds)
-	hypotheses, err := writeAxioms(&w, ir.Axioms)
-	if err != nil {
+	writeSymbols(&w, ds, nil)
+	if err := WriteBuiltins(&w, obligationir.BuiltinsOf(ds)); err != nil {
+		return "", err
+	}
+	if err := WriteLemmas(&w, ir.Lemmas); err != nil {
 		return "", err
 	}
 	if err := WriteAssumptions(&w, side, ir.Assumptions); err != nil {
 		return "", err
 	}
-	hypotheses = append(hypotheses, AssumptionNames(side, ir.Assumptions)...)
+	hypotheses := AssumptionNames(side, ir.Assumptions)
 	if err := writeTransitionSystem(&w, side, ir); err != nil {
 		return "", err
 	}
@@ -116,8 +114,15 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "\n")
 }
 
-func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
+func writeSymbols(w io.Writer, ds []obligationir.Declaration, types map[string]string) {
 	for _, d := range ds {
+		if obligationir.Defined(d.Symbol) {
+			continue
+		}
+		if body, ok := types[d.Name]; ok && d.Kind == obligationir.KindType {
+			fmt.Fprintf(w, "def %s (v : Val) : Prop := %s\n\n", d.Name, body)
+			continue
+		}
 		for _, c := range d.Comments {
 			io.WriteString(w, "-- "+SanitizeComment(c)+"\n")
 		}
@@ -127,19 +132,6 @@ func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
 		}
 		io.WriteString(w, "opaque "+d.Name+" : "+strings.Repeat("Val → ", d.Arity)+result+"\n\n")
 	}
-}
-
-func writeAxioms(w io.Writer, axioms []logic.Tree) ([]string, error) {
-	names := make([]string, len(axioms))
-	for i, a := range axioms {
-		names[i] = obligationir.AxiomName(i + 1)
-		f, err := Notation.SpellFormula(a)
-		if err != nil {
-			return nil, fmt.Errorf("the axiom %s: %w", names[i], err)
-		}
-		fmt.Fprintf(w, "def %s : Prop :=\n  %s\n\n", names[i], f)
-	}
-	return names, nil
 }
 
 func writeRelation(w io.Writer, side obligationir.Side, name string, states map[string]obligationir.State, edges []obligationir.Edge) error {
