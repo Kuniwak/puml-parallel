@@ -79,6 +79,24 @@ class LoadChecksTest(unittest.TestCase):
         # Assert
         self.assertEqual(["a1", "a2"], checks.domain("相手ID"))
 
+    def test_a_type_given_as_a_sample_ranges_over_its_values_and_is_known_as_a_sample(self):
+        tests = {
+            "a sample": ('TYPES = {"ID": sample(["a1", "a2"]), "額": [1]}\n', {"ID"}),
+            "plain values only": ('TYPES = {"ID": ["a1", "a2"], "額": [1]}\n', set()),
+            "a record over a sample": ('IDS = sample(["a1", "a2"])\nTYPES = {"ID": IDS, "額": [r.id for r in record(id=IDS)]}\n', {"ID"}),
+        }
+        for name, (body, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                path = self.write("from csdfbmc.values import record, sample\n" + body)
+
+                # Execute
+                checks = load_checks(path)
+
+                # Assert
+                self.assertEqual(["a1", "a2"], checks.domain("ID"))
+                self.assertEqual(want, set(checks.samples))
+
     def test_loads_the_environment_of_a_module(self):
         # Setup
         path = self.write('''

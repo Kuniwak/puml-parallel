@@ -140,6 +140,19 @@ def encode(value):
     return value
 
 
+class Sample(tuple):
+    """The values of a type that are a sample of it: the type has more
+    values than these, which the walk ranges over. A Sample is the tuple
+    of its values, so it is written wherever the values are."""
+
+
+def sample(values: Iterable) -> Sample:
+    """The values of a type of TYPES given as a sample of the type: at a
+    state with no way out, csdfbmc asks whether a value of the type that
+    occurs nowhere would give one (README, Bounded model checking)."""
+    return Sample(values)
+
+
 def record(**fields: Iterable) -> list[FrozenMap]:
     """Every record whose fields range over the given domains."""
     names = list(fields)

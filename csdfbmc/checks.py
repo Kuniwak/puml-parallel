@@ -2,7 +2,8 @@
 checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
-TYPES (a type -> iterable of its values, its carrier set) and, when wanted,
+TYPES (a type -> iterable of its values, its carrier set, or a sample of
+them, csdfbmc.values.sample) and, when wanted,
 TYPEOF (a name -> its type; a name it does not list has the type of its own
 name), ENVIRONMENT (declares the atoms that are functions of the
 environment, and gives them; see csdfbmc.environment),
@@ -28,6 +29,8 @@ import importlib.util
 import inspect
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Iterable
+
+from csdfbmc.values import Sample
 
 if TYPE_CHECKING:
     from csdfbmc.environment import Given
@@ -93,6 +96,9 @@ class Checks:
     # of its arguments in order, or None to leave it to --env or --seed
     # (csdfbmc.environment).
     environment: dict[str, "Given | None"] = field(default_factory=dict)
+    # samples: the types whose values are a sample of the type, which has
+    # more (csdfbmc.values.sample).
+    samples: frozenset[str] = frozenset()
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
@@ -177,7 +183,7 @@ def load_checks(path: str) -> Checks:
             raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
                               "or None to leave it to --env or --seed")
     return Checks(
-        types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
+        types=dict(module.TYPES), samples=frozenset(t for t, vs in module.TYPES.items() if isinstance(vs, Sample)), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         sources=[(path, source)],
     )
