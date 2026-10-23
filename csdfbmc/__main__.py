@@ -22,6 +22,7 @@ import sys
 
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
 from csdfbmc.explore import Explorer
+from csdfbmc.independence import check_independent
 
 
 # Why a state where the bound was reached is no deadlock.
@@ -94,6 +95,7 @@ def main(argv=None) -> int:
 
     try:
         with opened(a) as (diagram, checks, client, environment):
+            check_independent(diagram, checks, client, environment)
             result = Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
                               within=a.within, first=a.first).run()
     except LOADING_ERRORS as e:

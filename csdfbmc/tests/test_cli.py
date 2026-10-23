@@ -24,9 +24,9 @@ def walk(test, *args, d=COUNTER, checks="TYPES = {}\n"):
     return fixture.run_main(test, main, d, *args, checks=checks)
 
 
-def ask_next(test, *args, d=COUNTER):
+def ask_next(test, *args, d=COUNTER, checks="TYPES = {}\n"):
     from csdfbmc.next import main
-    return fixture.run_main(test, main, d, "--evaluator-module", "csdfbmc.python_glue", *args)
+    return fixture.run_main(test, main, d, "--evaluator-module", "csdfbmc.python_glue", *args, checks=checks)
 
 
 class GlueTest(unittest.TestCase):
@@ -200,6 +200,17 @@ class NextCommandTest(unittest.TestCase):
 
         # Assert
         self.assertEqual((0, {"candidates": [{"params": {}, "values": [2]}]}), (code, json.loads(out)))
+
+    def test_a_sample_type_the_diagram_orders_is_answered_since_next_tries_no_value_beyond_it(self):
+        # Setup
+        e = OPENING["edges"][0]
+        d = dict(OPENING, edges=[dict(e, guard=e["guard"] + [atom("$k > 'a'")])])
+
+        # Execute
+        code, out, err = ask_next(self, "--initial", d=d, checks=SampleReportTest.SAMPLE)
+
+        # Assert
+        self.assertEqual((0, {"candidates": [{"params": {}, "values": [{}]}]}), (code, json.loads(out)), err)
 
     def test_edge_prints_the_values_after_the_edge_from_a_runtime_state(self):
         # Setup

@@ -3,6 +3,7 @@ import unittest
 
 from csdfbmc import environment
 from csdfbmc.checks import Checks
+from csdfbmc.independence import check_independent
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
 from csdfbmc.values import FrozenMap, Rec, Sample, sample
@@ -379,7 +380,7 @@ class DataIndependenceTest(unittest.TestCase):
 
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, rf"OPEN\?k \(line 0\), guard: .*{said}"):
-                    fixture.explorer(self.opening(*guard), checks, environment=env)
+                    check_independent(fixture.load(self.opening(*guard)), checks, fixture.glue(), env)
 
     def test_a_sample_type_told_apart_by_equality_and_keys_only_is_walked(self):
         tick = edge("r", "r", "TICK?n", guard=[atom("$n > 0")], post=[eq("m'", "m")])
@@ -395,6 +396,7 @@ class DataIndependenceTest(unittest.TestCase):
                 checks = Checks(types={"k": sample(["a"]), "n": [1]}, samples=frozenset({"k"}))
 
                 # Execute
+                check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
                 result = fixture.explorer(d, checks).run()
 
                 # Assert
