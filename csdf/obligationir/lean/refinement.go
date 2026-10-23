@@ -64,7 +64,7 @@ func refinement(r obligationir.Refinement, e Edits) (string, error) {
 
 -- Every name is mangled behind a prefix of its kind, and a mangled name holds
 -- "__", which Mathlib's naming linter warns of.
-set_option linter.style.nameCheck false
+%s
 
 -- The guards below are propositions, so the Prop-valued procIte is used rather
 -- than the Bool-valued proc.IF.
@@ -77,7 +77,7 @@ namespace %s
 %s
 deriving Inhabited
 
-`, refinementImport(r.Mode), LibraryImports, Namespace, ValPrelude)
+`, refinementImport(r.Mode), LibraryImports, nameCheckOff, Namespace, ValPrelude)
 	writeAlphabet(&w, r.Alphabet)
 
 	ds, err := r.Declarations(PredicateTODO)
