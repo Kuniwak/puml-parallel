@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
@@ -68,5 +69,32 @@ func TestSameShape(t *testing.T) {
 				t.Errorf("SameShape = %v, want %v", got, tc.Want)
 			}
 		})
+	}
+}
+
+func TestFieldOfDirReadsWhatDirWrites(t *testing.T) {
+	for _, f := range []core.Field{{Name: "x"}, {Send: true, Name: "y"}} {
+		t.Run(f.Dir()+f.Name, func(t *testing.T) {
+			// Execute
+			got, err := core.FieldOfDir(f.Dir(), f.Name)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != f {
+				t.Errorf("FieldOfDir = %+v, want %+v", got, f)
+			}
+		})
+	}
+}
+
+func TestFieldOfDirRefusesAnotherDirection(t *testing.T) {
+	// Execute
+	_, err := core.FieldOfDir("=", "x")
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), `direction "="`) {
+		t.Errorf("FieldOfDir error = %v, want one naming the direction", err)
 	}
 }

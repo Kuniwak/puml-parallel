@@ -21,6 +21,25 @@ type Field struct {
 	Name string
 }
 
+// Dir is how a label writes f's direction: "!" for a field sent, "?" for
+// one received.
+func (f Field) Dir() string {
+	if f.Send {
+		return "!"
+	}
+	return "?"
+}
+
+// FieldOfDir is the field named name whose direction dir writes, as Dir
+// does; any other dir is an error.
+func FieldOfDir(dir, name string) (Field, error) {
+	switch dir {
+	case "?", "!":
+		return Field{Send: dir == "!", Name: name}, nil
+	}
+	return Field{}, fmt.Errorf("core.FieldOfDir: the field %s has the direction %q, neither ? nor !", name, dir)
+}
+
 // Event is a channel with its fields.
 type Event struct {
 	Channel string
@@ -204,11 +223,7 @@ func (e Event) Label() string {
 	var sb strings.Builder
 	sb.WriteString(e.Channel)
 	for _, f := range e.Fields {
-		if f.Send {
-			sb.WriteString("!")
-		} else {
-			sb.WriteString("?")
-		}
+		sb.WriteString(f.Dir())
 		sb.WriteString(f.Name)
 	}
 	return sb.String()
