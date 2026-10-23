@@ -189,6 +189,9 @@ func TestAtomOfRefuses(t *testing.T) {
 	}{
 		"pieces not one more than holes": {pieces: []string{"a"}, holes: []int{0}, args: []Term{Free{Name: "x"}}, want: "one piece more"},
 		"a hole of no argument":          {pieces: []string{"", ""}, holes: []int{1}, args: []Term{Free{Name: "x"}}, want: "reads argument 1"},
+		"an argument no hole reads":      {pieces: []string{"", ""}, holes: []int{0}, args: []Term{Free{Name: "x"}, Free{Name: "y"}}, want: "argument 1 is read by no hole"},
+		"arguments out of the order of the holes": {pieces: []string{"", " ", ""}, holes: []int{1, 0}, args: []Term{Free{Name: "x"}, Free{Name: "y"}},
+			want: "hole 0 reads argument 1 before argument 0"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
