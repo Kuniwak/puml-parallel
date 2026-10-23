@@ -229,6 +229,29 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 				Guard: clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: "x"}}}}}}}},
 			want: "eq",
 		},
+		"a family of a map no state holds": {
+			d:    &Diagram{States: []string{"s0"}, Init: "s0", Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none"}}}},
+			want: "the family of m: m is no variable of any state",
+		},
+		"two families of one map": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
+				{Map: "m", Init: "none", States: []string{"none"}}, {Map: "m", Init: "none", States: []string{"none"}}}},
+			want: "two families of m",
+		},
+		"a family whose start state is none of its states": {
+			d:    &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"open"}}}},
+			want: "the family of m: its start state none is none of its states",
+		},
+		"a family with the variables of no state of it": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
+				{Map: "m", Init: "none", States: []string{"none"}, Vars: map[string][]string{"open": {"bal"}}}}},
+			want: "the family of m: variables of open, which is none of its states",
+		},
+		"a family whose start state holds variables": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
+				{Map: "m", Init: "none", States: []string{"none"}, Vars: map[string][]string{"none": {"bal"}}}}},
+			want: "the family of m: its start state none, which is absence, holds variables",
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

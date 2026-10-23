@@ -1078,3 +1078,25 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		})
 	}
 }
+
+func TestPromoteWritesTheLocalStatesOfEachFamily(t *testing.T) {
+	// Setup
+	p := Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{
+		{Map: "locations", ID: "loc", Local: location(t)}, {Map: "doors", ID: "d", Local: door()},
+	}}
+
+	// Execute
+	d, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []FamilyStates{
+		{Map: "locations", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
+		{Map: "doors", Init: "none", States: []string{"none", "shut", "wide"}, Vars: map[string][]string{}},
+	}
+	if diff := cmp.Diff(want, d.Families); diff != "" {
+		t.Errorf("Families (-want +got):\n%s", diff)
+	}
+}

@@ -6,6 +6,7 @@ package core
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -105,6 +106,53 @@ type Diagram struct {
 	Edges    []Edge
 	Ends     []End
 	Assumes  []Assumption
+	// Families are, for a promoted diagram, the local states of the family
+	// whose instances each map holds: what an instance in the map may be
+	// (docs/PROMOTION.md). A diagram no promotion made has none.
+	Families []FamilyStates
+}
+
+// FamilyStates is what an instance in the map Map may be: at one of
+// States other than Init, holding that state's Vars as its fields. Init,
+// the local start state, is absence: an instance there has no entry in
+// the map, and it holds no variables.
+type FamilyStates struct {
+	Map    string
+	Init   string
+	States []string
+	Vars   map[string][]string
+}
+
+// familiesWellFormed reports, as an error, a family of d of a map no state
+// of d holds, two families of one map, or a family whose start state or
+// variables are of no state of it, or whose start state holds variables.
+func (d *Diagram) familiesWellFormed() error {
+	seen := map[string]bool{}
+	for _, f := range d.Families {
+		if seen[f.Map] {
+			return fmt.Errorf("two families of %s", f.Map)
+		}
+		seen[f.Map] = true
+		held := false
+		for _, vs := range d.Vars {
+			held = held || slices.Contains(vs, f.Map)
+		}
+		if !held {
+			return fmt.Errorf("the family of %s: %s is no variable of any state", f.Map, f.Map)
+		}
+		if !slices.Contains(f.States, f.Init) {
+			return fmt.Errorf("the family of %s: its start state %s is none of its states", f.Map, f.Init)
+		}
+		for _, s := range slices.Sorted(maps.Keys(f.Vars)) {
+			if !slices.Contains(f.States, s) {
+				return fmt.Errorf("the family of %s: variables of %s, which is none of its states", f.Map, s)
+			}
+		}
+		if len(f.Vars[f.Init]) > 0 {
+			return fmt.Errorf("the family of %s: its start state %s, which is absence, holds variables", f.Map, f.Init)
+		}
+	}
+	return nil
 }
 
 // Assumption is one assume note: ID names the note, Text is what it
@@ -151,6 +199,9 @@ func (d *Diagram) declared() error {
 // a clause of d that is not well formed (clause.WellFormed).
 func (d *Diagram) wellFormed() error {
 	if err := d.declared(); err != nil {
+		return err
+	}
+	if err := d.familiesWellFormed(); err != nil {
 		return err
 	}
 	if err := clause.WellFormed(d.InitPost); err != nil {

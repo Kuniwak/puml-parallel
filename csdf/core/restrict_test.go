@@ -254,3 +254,26 @@ func TestRestrictKeepsTheControllerVariables(t *testing.T) {
 		}
 	}
 }
+
+func TestRestrictKeepsTheLocalStatesOfTheKeptFamiliesOnly(t *testing.T) {
+	// Setup
+	full, _, err := Promote(fitting(plainDoor()))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	restricted, _, err := Restrict(full, []string{"doors", "keys"}, []string{"keys"})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range restricted.Families {
+		got = append(got, f.Map)
+	}
+	if diff := cmp.Diff([]string{"keys"}, got); diff != "" {
+		t.Errorf("the maps of Families (-want +got):\n%s", diff)
+	}
+}

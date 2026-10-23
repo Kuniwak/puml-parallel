@@ -22,6 +22,17 @@ type Family struct {
 	Frozen  []string
 }
 
+// familyStatesOf is what an instance of f may be.
+func familyStatesOf(f Family) FamilyStates {
+	vars := map[string][]string{}
+	for _, s := range f.Local.States {
+		if vs := f.Local.Vars[s]; len(vs) > 0 {
+			vars[s] = slices.Clone(vs)
+		}
+	}
+	return FamilyStates{Map: f.Map, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars}
+}
+
 // movesIn says whether f takes its events in mode.
 func (f Family) movesIn(mode string) bool { return !slices.Contains(f.Frozen, mode) }
 
@@ -104,6 +115,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		}
 		warnings = append(warnings, dropped(f)...)
 		maps = append(maps, f.Map)
+		out.Families = append(out.Families, familyStatesOf(f))
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
 	if err := controllerVars(p, maps); err != nil {
