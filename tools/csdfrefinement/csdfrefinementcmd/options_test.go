@@ -192,11 +192,11 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 }
 
 func TestUsageShouldShowTheIsabelleRoot(t *testing.T) {
-	// Arrange
+	// Setup
 	parseOptions := NewParseOptionsFunc()
 	spy := cli.SpyProcInout()
 
-	// Act
+	// Execute
 	if _, err := parseOptions([]string{"-h"}, spy.New()); err != nil {
 		t.Fatalf("want nil, got %#v", err)
 	}
