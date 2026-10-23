@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
-from csdfbmc.meaning import AtomMeaning
+from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
 from csdfbmc.values import encode, freeze, visible
@@ -164,7 +164,7 @@ class Explorer:
         self.checks = checks
         self.environment = environment
         self.meaning = AtomMeaning(client, environment, checks.domain)
-        self.ev = Evaluator(self.meaning, checks.carrier)
+        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(checks.environment))
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
@@ -173,16 +173,21 @@ class Explorer:
         self.first = first
         self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
-        self._check_sent()
+        self._check_fields()
         self._check_environment()
 
     # -- before the walk ----------------------------------------------------------
 
-    def _check_sent(self) -> None:
-        """Refuses an edge that sends a name its step does not bind: c!y sends
-        a state variable before the step or a field the event receives."""
+    def _check_fields(self) -> None:
+        """Refuses an edge that receives a field named like a variable of its
+        states, over which it would bind, and one that sends a name its step
+        does not bind: c!y sends a state variable before the step or a field
+        the event receives."""
         for e in self.d.edges:
-            bound = set(self.d.vars.get(e.src, ())) | set(e.params)
+            for n in e.params:
+                if n in self.d.vars[e.src] or n in self.d.vars[e.dst]:
+                    raise KeyError(f"{e.event} at line {e.line} receives {n!r}, which names a state variable of {e.src} or {e.dst}")
+            bound = set(self.d.vars[e.src]) | set(e.params)
             for n in e.sent:
                 if n not in bound:
                     raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
@@ -210,10 +215,7 @@ class Explorer:
 
     def _before(self, state: State, params: dict | None = None) -> dict:
         sid, values, _ = state
-        before = dict(zip(self.d.vars[sid], values))
-        if params:
-            before.update(params)
-        return before
+        return {**dict(zip(self.d.vars[sid], values)), **(params or {})}
 
     def _ghost_env(self, state: State, params: dict | None = None) -> dict:
         env = dict(zip(self.ghost_names, state[2]))
@@ -303,7 +305,9 @@ class Explorer:
         return out
 
     def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
-        """(event name, event as taken, next state, edge) for every enabled transition."""
+        """(event name, event as taken, next state, edge) for every enabled
+        transition. A transition of an edge whose post admits no successor is
+        kept among the empty posts."""
         out = []
         for e in self.d.out_edges(state[0]):
             for _, label, nexts in self._edge_successors(state, e):
@@ -341,6 +345,8 @@ class Explorer:
     # -- the walk ----------------------------------------------------------------
 
     def run(self) -> Result:
+        self.empty_posts = []
+        self.meaning.decided.clear()
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         order: list[State] = []
         queue: list[State] = []
@@ -385,7 +391,7 @@ class Explorer:
                     continue
                 parents[t] = (s, label, edge)
                 visit(t)
-            tau_next[s] = [t for name, _, t, _ in succ if name == "tau"]
+            tau_next[s] = [t for _, _, t, edge in succ if edge.is_tau]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
                 avoid_next[s] = [t for name, _, t, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
 

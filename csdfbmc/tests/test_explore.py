@@ -100,6 +100,19 @@ class WalkTest(unittest.TestCase):
         self.assertEqual([(("a", (0,), ()), "go")], result.empty_posts)
         self.assertEqual([("a", (0,), ())], result.deadlocks)
 
+    def test_a_second_run_reports_what_the_first_did(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[edge("a", "a", "go", post=[atom("$n' in ()")])])
+        explorer = fixture.explorer(d)
+        first = explorer.run()
+
+        # Execute
+        again = explorer.run()
+
+        # Assert
+        self.assertEqual(first.empty_posts, again.empty_posts)
+        self.assertEqual(1, len(again.empty_posts))
+
 
 class FieldTest(unittest.TestCase):
     def test_a_received_field_ranges_over_its_type(self):
@@ -133,13 +146,17 @@ class FieldTest(unittest.TestCase):
         # Assert
         self.assertEqual(["show(n=3)"], labels)
 
-    def test_a_sent_field_the_step_does_not_bind_is_refused(self):
-        # Setup
-        d = diagram({"a": []}, "a", edges=[edge("a", "a", "show!y")])
-
-        # Execute, Assert
-        with self.assertRaisesRegex(KeyError, "sends 'y'"):
-            fixture.explorer(d)
+    def test_a_field_the_step_cannot_take_is_refused(self):
+        tests = {
+            "a sent field the step does not bind": (diagram({"a": []}, "a", edges=[edge("a", "a", "show!y")]), "sends 'y'"),
+            "a received field named like a state variable": (diagram({"a": ["n"]}, "a", edges=[edge("a", "a", "set?n")]),
+                                                             "receives 'n', which names a state variable"),
+        }
+        for name, (d, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(KeyError, said):
+                    fixture.explorer(d)
 
     def test_a_hidden_field_is_chosen_under_its_exists(self):
         # Setup: hiding c?x leaves ∃x in the guard and the post.
@@ -190,7 +207,7 @@ class EnvironmentTest(unittest.TestCase):
         for name, (given, states) in tests.items():
             with self.subTest(name):
                 # Setup
-                env = environment.over({"$n が凍結されていない": given}, {}, None)
+                env = environment.over({"$_0 が凍結されていない": given}, {}, None)
 
                 # Execute
                 result = fixture.explorer(self.FROZEN, environment=env).run()
@@ -205,7 +222,7 @@ class EnvironmentTest(unittest.TestCase):
 
     def test_a_seed_chooses_only_what_is_declared_and_walks_the_same_states_again(self):
         # Setup
-        env = environment.over({"$n が凍結されていない": None}, {}, 7)
+        env = environment.over({"$_0 が凍結されていない": None}, {}, 7)
 
         # Execute
         first, again = fixture.explorer(self.FROZEN, environment=env).run(), fixture.explorer(self.FROZEN, environment=env).run()
@@ -216,9 +233,9 @@ class EnvironmentTest(unittest.TestCase):
 
     def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
         tests = {
-            "a declared function nothing gives, with no seed": ({"$n が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
-            "a declared name of no atom": ({"$n が凍結されていない": True, "$x が赤い": True}, "names no atom of the diagram"),
-            "a function of other arguments": ({"$n が凍結されていない": lambda a, b: True}, "has 1 argument"),
+            "a declared function nothing gives, with no seed": ({"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
+            "a declared name of no atom": ({"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no atom of the diagram"),
+            "a function of other arguments": ({"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
         }
         for name, (module, said) in tests.items():
             with self.subTest(name):

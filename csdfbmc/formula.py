@@ -21,7 +21,7 @@ from collections.abc import Mapping
 from typing import Callable, Protocol
 
 from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Field, Free, Index, is_primed
-from csdfbmc.values import FrozenMap, Rec
+from csdfbmc.values import FrozenMap, Rec, same_value
 
 
 class Missing(Exception):
@@ -34,26 +34,12 @@ class Atoms(Protocol):
     def post_holds(self, atom: Atom, args: list) -> bool: ...
 
 
-def same_value(a, b) -> bool:
-    """Whether two values are one value: of one kind as well as equal, so
-    that 1 is not True, all the way into containers."""
-    if type(a) is not type(b):
-        return False
-    if isinstance(a, tuple):
-        return len(a) == len(b) and all(same_value(x, y) for x, y in zip(a, b))
-    if isinstance(a, Mapping):
-        return a.keys() == b.keys() and all(same_value(a[k], b[k]) for k in a)
-    if isinstance(a, Rec):
-        return a.state == b.state and same_value(a.fields, b.fields)
-    return a == b
-
-
 class Evaluator:
     """Evaluates clauses: atoms says what an atom means; carrier gives the
     values of a type, which an ∃ ranges over; apply gives the value of an
-    environment function applied to values."""
+    environment function of a term (App) applied to values."""
 
-    def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object] | None = None):
+    def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object]):
         self.atoms = atoms
         self.carrier = carrier
         self.apply = apply
@@ -85,8 +71,6 @@ class Evaluator:
                 raise ValueError(f"{r!r} has no field {t.name}")
             return fields[t.name]
         if isinstance(t, App):
-            if self.apply is None:
-                raise ValueError(f"no environment function {t.fn} is given")
             return self.apply(t.fn, tuple(self.value(a, before, after, bound) for a in t.args))
         raise ValueError(f"unknown term {t!r}")
 
@@ -147,7 +131,15 @@ def _map(b: Builtin, v) -> Mapping:
 
 # -- posts --------------------------------------------------------------------
 
-ABSENT = object()  # an entry a post says is not in its map
+
+class _Absent:
+    """What a post says an entry is when its key is not in its map."""
+
+    def __repr__(self):
+        return "absent"
+
+
+ABSENT = _Absent()
 
 
 class PostError(ValueError):
@@ -155,9 +147,13 @@ class PostError(ValueError):
     way the walk cannot enumerate."""
 
 
+# A location is what a primed term names: ("var", x) for x'; ("entry", m, k)
+# for the entry m'[k], an instance or ABSENT; ("state", m, k) for the state
+# @at says the instance m'[k] is at; ("field", m, k, f) for m'[k].f.
+
+
 def _loc(t, ev: Evaluator, before, bound):
-    """The location a primed term names: ("var", x) for x', ("entry", m, k)
-    for m'[k], ("field", m, k, f) for m'[k].f; None for another shape."""
+    """The location a primed term names; None for another shape."""
     if isinstance(t, Free) and t.primed:
         return ("var", t.name)
     if isinstance(t, Index) and isinstance(t.map, Free) and t.map.primed and not is_primed(t.key):
@@ -166,6 +162,15 @@ def _loc(t, ev: Evaluator, before, bound):
             and not is_primed(t.of.key):
         return ("field", t.of.map.name, ev.value(t.of.key, before, {}, bound), t.name)
     return None
+
+
+def _primed_terms(t):
+    """The primed terms t is or holds, outermost first."""
+    if is_primed(t):
+        yield t
+    elif isinstance(t, App):
+        for a in t.args:
+            yield from _primed_terms(a)
 
 
 def _branches(clause: tuple, bound: tuple, carrier) -> list[list[tuple]]:
@@ -206,36 +211,36 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
 
 def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, where) -> list[dict]:
     options: list[list[dict]] = []
-    frames: dict[str, tuple] = {}
-    mentioned: set[str] = set()
-    for f, bound in branch:
-        for t in getattr(f, "args", ()):
-            if is_primed(t):
-                r = t
-                while not isinstance(r, Free):
-                    r = r.map if isinstance(r, Index) else r.of
-                mentioned.add(r.name)
-        try:
-            got = _determines(ev, f, before, bound, domain, frames)
-        except Missing:
-            return []  # the branch reads an entry its map does not have: false
-        if got is not None:
-            options.append(got)
+    frames: dict[str, list[tuple]] = {}
+    mentioned: set[tuple] = set()
+    try:
+        for f, bound in branch:
+            for t in (u for a in getattr(f, "args", ()) for u in _primed_terms(a)):
+                loc = _loc(t, ev, before, bound)
+                if loc is None:
+                    raise PostError(f"{where}: the post reads a value after the step as {t!r}, which is neither a variable, "
+                                    "an entry of a map nor a field of an entry")
+                mentioned.add(loc)
+            got = _determines(ev, f, before, bound, frames, where)
+            if got is not None:
+                options.append(got)
+    except Missing:
+        return []  # the branch reads an entry its map does not have: false
+    for loc in mentioned:
+        if loc[1] not in names:
+            raise PostError(f"{where}: the post gives {loc[1]}' a value, but {loc[1]} is no variable of the state after the step")
     joined: list[dict] = [{}]
     for o in options:
         joined = _join(joined, o)
         if not joined:
             return []
-    for x in mentioned:
-        if x not in names:
-            raise PostError(f"{where}: the post gives {x}' a value, but {x} is no variable of the state after the step")
     out = []
     for a in joined:
-        out.extend(_assemble(a, names, frames, domain, where))
+        out.extend(_assemble(a, names, frames, mentioned, domain, where))
     return out
 
 
-def _determines(ev: Evaluator, f, before, bound, domain, frames) -> list[dict] | None:
+def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | None:
     """The values after the step f determines, as options of assignments to
     locations; None when it determines none and is only checked."""
     def val(t):
@@ -246,22 +251,19 @@ def _determines(ev: Evaluator, f, before, bound, domain, frames) -> list[dict] |
         if f.op == "eq":
             for x, y in ((a[0], a[1]), (a[1], a[0])):
                 if is_primed(x) and not is_primed(y):
-                    loc = _loc(x, ev, before, bound)
-                    if loc is not None:
-                        return [{loc: val(y)}]
+                    return [{_loc(x, ev, before, bound): val(y)}]
             return None
         if f.op == "empty" and isinstance(a[0], Free) and a[0].primed:
             return [{("var", a[0].name): FrozenMap()}]
         if f.op == "update" and isinstance(a[0], Free) and a[0].primed and not any(is_primed(t) for t in a[1:]):
-            m0 = val(a[1])
-            return [{("var", a[0].name): FrozenMap(m0).set(val(a[2]), val(a[3]))}]
+            return [{("var", a[0].name): FrozenMap(val(a[1])).set(val(a[2]), val(a[3]))}]
         if f.op == "frame" and isinstance(a[0], Free) and a[0].primed and not any(is_primed(t) for t in a[1:]):
-            frames.setdefault(a[0].name, (val(a[1]), [val(k) for k in a[2:]]))
+            frames.setdefault(a[0].name, []).append((val(a[1]), [val(k) for k in a[2:]]))
             return None
         if f.op == "at":
             loc = _loc(a[0], ev, before, bound)
             if loc is not None and loc[0] == "entry":
-                return [{loc: ("at", f.state)}]
+                return [{("state",) + loc[1:]: f.state}]
             return None
         if f.op == "notin" and isinstance(a[1], Free) and a[1].primed and not is_primed(a[0]):
             return [{("entry", a[1].name, val(a[0])): ABSENT}]
@@ -270,51 +272,63 @@ def _determines(ev: Evaluator, f, before, bound, domain, frames) -> list[dict] |
         locs, before_args = [], []
         for t, p in zip(f.args, f.primed):
             if p:
-                loc = _loc(t, ev, before, bound)
-                if loc is None or loc[0] == "entry":
-                    raise PostError(f"the post atom {f.function!r} reads a value after the step as {t!r}, "
-                                    "which is neither a variable nor a field of an entry")
-                locs.append(loc)
+                locs.append(_loc(t, ev, before, bound))
             else:
                 before_args.append(val(t))
-        names = [loc[1] if loc[0] == "var" else loc[3] for loc in locs]
-        return [dict(zip(locs, after)) for after in ev.atoms.post(f, before_args, names)]
+        types = [loc[1] if loc[0] in ("var", "entry") else loc[3] for loc in locs]
+        options = ev.atoms.post(f, before_args, types)
+        for after in options:
+            if len(after) != len(locs):
+                raise PostError(f"{where}: the post atom {f.function!r} gave {after!r}, not one value for each of its {len(locs)} values after the step")
+        return [dict(zip(locs, after)) for after in options]
     return None
 
 
-def _assemble(a: dict, names, frames, domain, where) -> list[dict]:
+def _assemble(a: dict, names, frames, mentioned, domain, where) -> list[dict]:
     """The valuations after the step that the assignment a to locations
     makes: none when a contradicts itself, and one per value of its type for
-    a variable nothing determines."""
+    a variable or a field of an instance nothing determines."""
     afters: list[dict] = [{}]
+
+    def typed(name: str, what: str) -> list:
+        try:
+            return domain(name)
+        except KeyError:
+            raise PostError(f"{where}: nothing in the post determines {what}, so it ranges over its type, and {name} has none "
+                            "in TYPES; constrain it, or declare its type") from None
+
     for x in names:
-        parts = [loc for loc in a if loc[0] != "var" and loc[1] == x]
         if ("var", x) in a:
             afters = [dict(f, **{x: a[("var", x)]}) for f in afters]
             continue
+        parts = [loc for loc in set(a) | mentioned if loc[0] != "var" and loc[1] == x]
         if x not in frames:
             if parts:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
-            try:
-                values = domain(x)
-            except KeyError:
-                raise PostError(f"{where}: nothing in the post determines {x}', so it ranges over its type, and {x} has none "
-                                "in TYPES; constrain it, or declare its type") from None
-            afters = [dict(f, **{x: v}) for f in afters for v in values]
+            afters = [dict(f, **{x: v}) for f in afters for v in typed(x, f"{x}'")]
             continue
-        base, keys = frames[x]
-        entries = {k: v for k, v in base.items() if not any(same_value(k, j) for j in keys)}
-        for k in keys:
-            entry = a.get(("entry", x, k))
-            fields = {loc[3]: v for loc, v in a.items() if loc[0] == "field" and loc[1] == x and same_value(loc[2], k)}
-            if entry is None:
+        (base, keys), *others = frames[x]
+        open_keys = [k for k in keys if all(any(same_value(k, j) for j in ks) for _, ks in others)]
+        choices: list[dict] = [{k: v for k, v in base.items() if not any(same_value(k, j) for j in open_keys)}]
+        for k in open_keys:
+            entry, state = a.get(("entry", x, k)), a.get(("state", x, k))
+            given = {loc[3]: v for loc, v in a.items() if loc[0] == "field" and loc[1] == x and same_value(loc[2], k)}
+            fields = sorted({loc[3] for loc in mentioned if loc[0] == "field" and loc[1] == x and same_value(loc[2], k)} | set(given))
+            if entry is ABSENT:
+                if state is not None or fields:
+                    return []
+                continue
+            if entry is not None:
+                choices = [{**c, k: entry} for c in choices]
+                continue
+            if state is None:
                 if fields:
                     raise PostError(f"{where}: the post gives fields of {x}'[{k!r}] but not its state; say @at({x}'[…], STATE)")
                 raise PostError(f"{where}: the post leaves {x}'[{k!r}] unconstrained; say @notin(…, {x}') or @at({x}'[…], STATE)")
-            if entry is ABSENT:
-                if fields:
-                    return []
-                continue
-            entries[k] = Rec(entry[1], FrozenMap(fields))
-        afters = [dict(f, **{x: FrozenMap(entries)}) for f in afters]
+            records: list[dict] = [dict(given)]
+            for name in fields:
+                if name not in given:
+                    records = [dict(r, **{name: v}) for r in records for v in typed(name, f"{x}'[{k!r}].{name}")]
+            choices = [{**c, k: Rec(state, FrozenMap(r))} for c in choices for r in records]
+        afters = [dict(f, **{x: FrozenMap(c)}) for f in afters for c in choices]
     return afters

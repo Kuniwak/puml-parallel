@@ -4,7 +4,6 @@ seed."""
 import unittest
 
 from csdfbmc import environment
-from csdfbmc.atoms import function_of
 from csdfbmc.environment import given_over, nothing, over, recording, seeded
 from csdfbmc.values import FrozenMap
 
@@ -13,11 +12,10 @@ class GivenTest(unittest.TestCase):
     def test_a_given_function_decides_its_name(self):
         # Setup
         cases = [
-            ("a value is the function that is always it", {"$在庫 が 十分": False}, "$_0 が 十分", [(n,) for n in range(3)], [False, False, False]),
-            ("a function takes the arguments in order", {"$在庫 が $額 以上": lambda 在庫, 額: 在庫 >= 額}, "$_0 が $_1 以上",
+            ("a value is the function that is always it", {"$_0 が 十分": False}, "$_0 が 十分", [(n,) for n in range(3)], [False, False, False]),
+            ("a function takes the arguments in order", {"$_0 が $_1 以上": lambda 在庫, 額: 在庫 >= 額}, "$_0 が $_1 以上",
              [(n, 1) for n in range(3)], [False, True, True]),
-            ("a given value wins over the seed", {"$在庫 が 十分": True}, "$_0 が 十分", [(n,) for n in range(16)], [True] * 16),
-            ("any atom of the function names it", {"$残り が 十分": False}, function_of("$在庫 が 十分").name, [(1,)], [False]),
+            ("a given value wins over the seed", {"$_0 が 十分": True}, "$_0 が 十分", [(n,) for n in range(16)], [True] * 16),
         ]
         for name, given, asked, args, want in cases:
             with self.subTest(name):
@@ -124,9 +122,9 @@ class OverTest(unittest.TestCase):
         # Assert
         self.assertEqual([True, False, seeded(5)("r", ())], got)
 
-    def test_the_module_declares_the_functions_by_name_whatever_atom_names_them(self):
+    def test_the_module_declares_the_functions_by_name(self):
         # Execute
-        env = over({"$x が凍結されていない": None, "q": True}, {}, None)
+        env = over({"$_0 が凍結されていない": None, "q": True}, {}, None)
 
         # Assert
         self.assertEqual(frozenset({"$_0 が凍結されていない", "q"}), env.declared)

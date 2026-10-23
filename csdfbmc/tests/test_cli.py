@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 
 # COUNTER with dec's guard not formalised yet.
 UNKNOWN_GUARD = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard=[atom("$n が 正")]), COUNTER["edges"][1]])
-DECLARED = 'TYPES = {}\nENVIRONMENT = {"$n が 正": None}\n'
+DECLARED = 'TYPES = {}\nENVIRONMENT = {"$_0 が 正": None}\n'
 
 
 def walk(test, *args, d=COUNTER, checks="TYPES = {}\n"):
@@ -90,10 +90,10 @@ class EnvironmentCommandTest(unittest.TestCase):
         self.assertIn("decided by the environment: $_0 が 正\n", first)
 
     def test_env_gives_a_declared_function_its_value_over_the_checks_module(self):
-        for name, checks in {"declared and left open": DECLARED, "given by the module": 'TYPES = {}\nENVIRONMENT = {"$n が 正": True}\n'}.items():
+        for name, checks in {"declared and left open": DECLARED, "given by the module": 'TYPES = {}\nENVIRONMENT = {"$_0 が 正": True}\n'}.items():
             with self.subTest(name):
                 # Execute
-                _, out, _ = self.run_main("--env", "$n が 正=false", checks=checks)
+                _, out, _ = self.run_main("--env", "$_0 が 正=false", checks=checks)
 
                 # Assert
                 self.assertIn("states: 1\n", out)
@@ -101,12 +101,12 @@ class EnvironmentCommandTest(unittest.TestCase):
 
     def test_what_the_environment_cannot_decide_is_a_usage_error(self):
         cases = {
-            "a malformed --env": (("--env", "$n が 正=maybe"), DECLARED, "--env expects NAME=true or NAME=false"),
+            "a malformed --env": (("--env", "$_0 が 正=maybe"), DECLARED, "--env expects NAME=true or NAME=false"),
             "a function nothing decides": ((), DECLARED, "nothing decides the environment's functions '$_0 が 正'"),
-            "--env of a function not declared": (("--env", "$n が 零=true"), DECLARED, "ENVIRONMENT does not declare"),
+            "--env of a function not declared": (("--env", "$_0 が 零=true"), DECLARED, "ENVIRONMENT does not declare"),
             "an atom not declared, which the glue cannot read": ((), "TYPES = {}\n", "SyntaxError"),
-            "a function of other arguments": ((), 'TYPES = {}\nENVIRONMENT = {"$n が 正": lambda: True}\n', "has 1 argument"),
-            "a function giving other than a truth value": ((), 'TYPES = {}\nENVIRONMENT = {"$n が 正": lambda n: n}\n', "it gives True or False"),
+            "a function of other arguments": ((), 'TYPES = {}\nENVIRONMENT = {"$_0 が 正": lambda: True}\n', "has 1 argument"),
+            "a function giving other than a truth value": ((), 'TYPES = {}\nENVIRONMENT = {"$_0 が 正": lambda n: n}\n', "it gives True or False"),
         }
         for name, (args, checks, message) in cases.items():
             with self.subTest(name):

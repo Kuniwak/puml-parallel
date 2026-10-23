@@ -130,8 +130,36 @@ def free_names(t, primed: bool | None = None) -> set[str]:
     return out
 
 
+def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str, ...] = ()) -> dict:
+    """doc, refused unless it has every key required and no key beyond
+    those and optional: the JSON is what csdfparse writes, and nothing else
+    is read."""
+    if not isinstance(doc, dict):
+        raise ValueError(f"{what} is {doc!r}, not an object")
+    missing = [k for k in required if k not in doc]
+    unknown = sorted(set(doc) - set(required) - set(optional))
+    if missing or unknown:
+        raise ValueError(f"{what} {doc!r} lacks {missing} or has keys it does not read, {unknown}")
+    return doc
+
+
+_TERMS = {"free": (("name",), ("primed",)), "bound": (("index",), ()), "index": (("map", "key"), ()),
+          "field": (("of", "name"), ()), "app": (("fn", "args"), ())}
+_CONJUNCTS = {"atom": (("pieces", "holes", "args", "text", "primed", "function"), ()),
+              "builtin": (("op", "args"), ("state",)), "exists": (("type", "body"), ())}
+
+
+def _kind(doc: dict, kinds: dict, what: str) -> str:
+    kind = doc.get("kind") if isinstance(doc, dict) else None
+    if kind not in kinds:
+        raise ValueError(f"{what} of the kind {kind!r}, which is none of {', '.join(kinds)}")
+    required, optional = kinds[kind]
+    _fields(doc, f"{what} of the kind {kind}", ("kind",) + required, optional)
+    return kind
+
+
 def term_of(doc: dict) -> Term:
-    kind = doc.get("kind")
+    kind = _kind(doc, _TERMS, "a term")
     if kind == "free":
         return Free(doc["name"], doc.get("primed", False))
     if kind == "bound":
@@ -140,9 +168,7 @@ def term_of(doc: dict) -> Term:
         return Index(term_of(doc["map"]), term_of(doc["key"]))
     if kind == "field":
         return Field(term_of(doc["of"]), doc["name"])
-    if kind == "app":
-        return App(doc["fn"], tuple(term_of(a) for a in doc["args"]))
-    raise ValueError(f"a term of the kind {kind!r}, which is none of free, bound, index, field and app")
+    return App(doc["fn"], tuple(term_of(a) for a in doc["args"]))
 
 
 def formula_of(docs: list) -> tuple:
@@ -151,15 +177,13 @@ def formula_of(docs: list) -> tuple:
 
 
 def _conjunct(doc: dict) -> Formula:
-    kind = doc.get("kind")
+    kind = _kind(doc, _CONJUNCTS, "a conjunct")
     if kind == "atom":
         return Atom(text=tuple(doc["text"]), holes=tuple(doc["holes"]), primed=tuple(doc["primed"]),
                     function=doc["function"], args=tuple(term_of(a) for a in doc["args"]))
     if kind == "builtin":
         return Builtin(doc["op"], tuple(term_of(a) for a in doc["args"]), doc.get("state", ""))
-    if kind == "exists":
-        return Exists(doc["type"], formula_of(doc["body"]))
-    raise ValueError(f"a conjunct of the kind {kind!r}, which is none of atom, builtin and exists")
+    return Exists(doc["type"], formula_of(doc["body"]))
 
 
 @dataclass(frozen=True)
@@ -208,22 +232,20 @@ class Diagram:
 
     @classmethod
     def from_json(cls, d: dict) -> "Diagram":
-        if d.get("version") != VERSION:
-            raise ValueError(f"the diagram JSON is version {d.get('version')!r}, but csdfbmc reads version {VERSION}; "
-                             "write it with csdfparse (or csdfpromote -format json) of this release")
+        if not isinstance(d, dict) or d.get("version") != VERSION:
+            raise ValueError(f"the diagram JSON is version {d.get('version') if isinstance(d, dict) else None!r}, but csdfbmc reads "
+                             f"version {VERSION}; write it with csdfparse (or csdfpromote -format json) of this release")
+        _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "init", "init_post", "init_line", "edges", "ends", "assumes"))
         edges = []
         for e in d["edges"]:
-            fields = tuple((f["dir"], f["name"]) for f in e["fields"])
-            for direction, name in fields:
-                if direction not in (RECEIVED, SENT):
-                    raise ValueError(f"the field {name!r} of {e['label']!r} has the direction {direction!r}, which is neither ? nor !")
+            _fields(e, "an edge", ("src", "dst", "channel", "fields", "label", "guard", "post", "line"))
+            fields = tuple((f["dir"], f["name"]) for f in (_fields(f, "a field", ("dir", "name")) for f in e["fields"]))
             edges.append(Edge(src=e["src"], dst=e["dst"], name=e["channel"], fields=fields, event=e["label"],
-                              guard=formula_of(e["guard"]), post=formula_of(e["post"]), line=e.get("line", 0)))
-        vars_ = {s: tuple(d["vars"].get(s, ())) for s in d["states"]}
-        return cls(name=d.get("name", ""), states=list(d["states"]), labels=dict(d.get("labels", {})), vars=vars_,
-                   start=d["init"], start_post=formula_of(d["init_post"]), edges=edges,
-                   ends=[End(e["src"], formula_of(e["guard"])) for e in d["ends"]],
-                   assumptions=list(d.get("assumes", [])))
+                              guard=formula_of(e["guard"]), post=formula_of(e["post"]), line=e["line"]))
+        ends = [End(x["src"], formula_of(x["guard"])) for x in (_fields(x, "an end edge", ("src", "guard")) for x in d["ends"])]
+        return cls(name=d["name"], states=list(d["states"]), labels=dict(d["labels"]),
+                   vars={s: tuple(d["vars"][s]) for s in d["states"]}, start=d["init"], start_post=formula_of(d["init_post"]),
+                   edges=edges, ends=ends, assumptions=[_fields(a, "an assume note", ("id", "text")) for a in d["assumes"]])
 
     @classmethod
     def load(cls, path: str) -> "Diagram":

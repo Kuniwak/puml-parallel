@@ -6,8 +6,12 @@ takes the next of the terms given."""
 from __future__ import annotations
 
 import re
+import unicodedata
 
-from csdfbmc.atoms import continues_name
+
+def continues_name(c: str) -> bool:
+    """Whether c may appear in an identifier (csdf/ident)."""
+    return c == "_" or unicodedata.category(c)[0] in "LN"
 
 
 def term(t):

@@ -8,9 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// functionNames are the cases of testdata/function_names.json, which the
-// Python tests read too (csdfbmc/tests/test_atoms.py), so that Go and the walk
-// name an environment function alike.
+// functionNames are the cases of testdata/function_names.json.
 type functionNames struct {
 	Named []struct {
 		Case string   `json:"case"`

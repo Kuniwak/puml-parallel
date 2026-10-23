@@ -18,10 +18,6 @@ TYPES = {
     "置換Tx": record(置換元=IDS, 手数料=[2, 3]),
 }
 
-# The attempts are interchangeable: no clause names one or orders them, so
-# --symmetry may store one state per renaming of their IDs.
-SYMMETRIC = ["試行ID"]
-
 INVARIANTS = {
     # A replacement pays more than what it replaces, so fees never go down
     # along a chain of replacements; every attempt's fee is at least the base.

@@ -20,7 +20,7 @@ LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError, Po
 
 def add_inputs(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output, or csdfpromote -format json's)")
-    ap.add_argument("checks", help="the Python module holding TYPES and, when wanted, TYPEOF, ENVIRONMENT, GHOSTS, INVARIANTS and SYMMETRIC")
+    ap.add_argument("checks", help="the Python module holding TYPES and, when wanted, TYPEOF, ENVIRONMENT, GHOSTS and INVARIANTS")
     ap.add_argument("--seed", type=int, metavar="N", help="choose from this seed the functions of the environment the checks module declares and nothing gives; without it such a function is refused (csdfbmc.environment)")
     ap.add_argument("--env", action="append", default=[], metavar="NAME=true|false",
                     help="give the function of the environment NAME, which the checks module's ENVIRONMENT declares, the value true or false (repeatable)")

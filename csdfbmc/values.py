@@ -78,6 +78,20 @@ class Rec:
     fields: "FrozenMap"
 
 
+def same_value(a, b) -> bool:
+    """Whether two values are one value: of one kind as well as equal, so
+    that 1 is not True, all the way into containers."""
+    if type(a) is not type(b):
+        return False
+    if isinstance(a, tuple):
+        return len(a) == len(b) and all(same_value(x, y) for x, y in zip(a, b))
+    if isinstance(a, Mapping):
+        return a.keys() == b.keys() and all(same_value(a[k], b[k]) for k in a)
+    if isinstance(a, Rec):
+        return a.state == b.state and same_value(a.fields, b.fields)
+    return a == b
+
+
 def visible(value):
     """value as a glue, a ghost update or an invariant sees it: each
     instance as the map of its fields, without its state."""

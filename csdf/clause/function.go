@@ -26,7 +26,7 @@ type Function struct {
 // would start a hole escaped; its arguments are the atom's arguments, the
 // distinct terms its holes read in order of first appearance (P9). Atoms
 // with the same text denote the same function, whatever their holes read.
-// csdfbmc names the function alike (csdfbmc/atoms.py).
+// csdfbmc reads the name from the diagram's JSON (core.AtomDoc).
 func FunctionOf(a Atom) (Function, error) {
 	w, terms, err := Wire(a)
 	if err != nil {

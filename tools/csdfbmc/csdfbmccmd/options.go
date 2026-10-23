@@ -63,7 +63,7 @@ Checker options (the checker's --help lists them in full):
 The checks module defines TYPES (a type -> its finite values) and, when
 wanted, TYPEOF (a name -> its type), ENVIRONMENT (declares the atoms that
 are functions of the environment, each named by its atom's text with its
-holes as $_0, $_1, ... or by any of its atoms -> True, False, a pure
+holes as $_0, $_1, ... -> True, False, a pure
 function of its arguments in order, or None to leave it to --env or
 --seed), GHOSTS and INVARIANTS. A variable no post determines ranges over
 its type. A run reports its seed and the given functions, which reproduce

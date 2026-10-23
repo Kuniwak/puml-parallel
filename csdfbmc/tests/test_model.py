@@ -4,10 +4,9 @@ import json
 import unittest
 from pathlib import Path
 
-from csdfbmc.atoms import continues_name
 from csdfbmc.model import Atom, Bound, Builtin, Diagram, Exists, Free, Index
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, exists, idx
+from csdfbmc.tests.fixture import continues_name, atom, builtin, diagram, edge, end, exists, idx
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -39,7 +38,9 @@ class DiagramTest(unittest.TestCase):
             "another version": (lambda d: d.update(version=2), "version 2"),
             "a conjunct of an unknown kind": (lambda d: d["init_post"].append({"kind": "or"}), "kind 'or'"),
             "a term of an unknown kind": (lambda d: d["init_post"].append(builtin("empty", {"kind": "var"})), "kind 'var'"),
-            "a field of no direction": (lambda d: d["edges"].append(dict(edge("s0", "s0", "c"), fields=[{"dir": "=", "name": "x"}])), "direction '='"),
+            "an unknown key": (lambda d: d.update(promotes=[]), "keys it does not read, \\['promotes'\\]"),
+            "a missing key": (lambda d: d.pop("labels"), "lacks \\['labels'\\]"),
+            "a key of another kind": (lambda d: d["init_post"].append(dict(builtin("empty", "m'"), type="T")), "keys it does not read, \\['type'\\]"),
         }
         for name, (edit, said) in tests.items():
             with self.subTest(name):

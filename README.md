@@ -804,23 +804,27 @@ keys. A module that defines `DOMAINS` or `CLAUSES`, which an earlier
 
 Which atoms are functions of the environment (docs/CLAUSE_DESIGN.md, P15 and
 P16) is declared by the checks module alone: every key of `ENVIRONMENT`
-declares one, and every other atom is the glue's. A function is named by
-its atom's text with each hole written as the position of the argument it
-reads: `$口座 が凍結されていない` is the function `$_0 が凍結されていない` of
-the value of `口座`, and every atom with that text, on any edge and in a
-guard or a post alike, is the same function; a key may be written as any of
-its atoms. A key gives the function `True`, `False` or a pure function
-taking the arguments in order, or `None`, which declares it and leaves it to
-`--env NAME=true|false` or to `--seed N`. `--env` may name only a declared
-function, and `--seed` chooses, deterministically by hashing the seed, the
-name and the values of the arguments, only the declared functions nothing
-gives, so that one seed walks the same states again and several seeds widen
-what the bound covers. A post atom the environment decides is decided for
-each value of its types after the step. Before the walk, csdfbmc refuses a
-declared function nothing gives and no seed chooses, listing every one, and
-a declared name that names no atom of the diagram; nothing is approximated.
-The report names the seed, the given functions and the ones an atom was
-decided by (`environment` in `--json`), which is what reproduces a run.
+declares one, and every other atom is the glue's. A function is named as
+the diagram's JSON names it (an atom's `function`): the atom's text with
+each hole written as the position of the argument it reads, so
+`$口座 が凍結されていない` is the function `$_0 が凍結されていない` of the
+value of `口座`, and every atom with that text, on any edge and in a guard
+or a post alike, is the same function. A key names a function so, and
+`csdfbmc` never reads an atom's text itself. A key gives the function `True`,
+`False` or a pure function taking the arguments in order, or `None`, which
+declares it and leaves it to `--env NAME=true|false` or to `--seed N`.
+`--env` may name only a declared function, and `--seed` chooses,
+deterministically by hashing the seed, the name and the values of the
+arguments, only the declared functions nothing gives, so that one seed walks
+the same states again and several seeds widen what the bound covers. A post
+atom the environment decides is decided for each value of its types after
+the step. A key of `ENVIRONMENT` may also give an environment function a
+term applies (`${f(x)}`), by its name, as a pure function of the values.
+Before the walk, csdfbmc refuses a declared function nothing gives and no
+seed chooses, listing every one, and a declared name that names no atom of
+the diagram; nothing is approximated. The report names the seed, the given
+functions and the ones an atom was decided by (`environment` in `--json`),
+which is what reproduces a run.
 
 Three more tables are optional. `INVARIANTS` maps a name to a predicate over
 the state variables and ghosts it reads; it is checked at every reachable
@@ -832,8 +836,8 @@ variables before the step and returns the new value; a ghost with no update
 for an event keeps its value. Ghosts are part of the state the walk tells
 states apart by, so a total that grows without bound is cut by
 `--max-states`. A ghost update and an invariant see an instance as the map
-of its fields. `SYMMETRIC` lists the instance-ID types whose values are
-interchangeable, for `--symmetry`.
+of its fields. `SYMMETRIC`, which `--symmetry` read, is refused until
+symmetry reduction walks the formulas.
 
 The walk is breadth-first over (control state, valuation, ghosts) triples, up to
 `--max-states`. It reports every reachable state with no enabled transition and
@@ -940,7 +944,7 @@ With `-replay`, the session first walks the path `csdfbmc --json` recorded
 under one of its findings and the prompt opens at the state the finding is at,
 with the path in the history; `-finding N` picks the finding, numbered from 0
 in the order the output lists them (deadlocks, tau cycles, broken invariants,
-avoiding cycles, empty posts, unconstrained posts). A step that cannot be
+avoiding cycles, empty posts). A step that cannot be
 taken, for instance because the diagram changed since the check, is an error.
 
 ```console

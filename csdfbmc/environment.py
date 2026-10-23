@@ -13,10 +13,12 @@ function, and --seed chooses only declared functions nothing gives; a
 declared function nothing gives and no seed chooses is refused before the
 walk, and so is a declared name that names no atom of the diagram.
 
-A function is named by its atom: the atom's text with each hole written
-$_N, N the position of the argument it reads (csdfbmc.atoms); atoms with
-the same text are the same function. A name may be written as any atom of
-the function, `$在庫 が 十分` as well as `$_0 が 十分`.
+A function is named as the diagram's JSON names it (an atom's "function",
+clause.FunctionOf): the atom's text with each hole written $_N, N the
+position of the argument it reads, so `$在庫 が 十分` is the function
+`$_0 が 十分`; atoms with the same text are the same function. A checks
+module and --env name a function so, and csdfbmc never reads an atom's
+text itself.
 
 A seed picks one function deterministically, by hashing the seed, the
 function's name and the values of its arguments, and nothing else, so that
@@ -35,7 +37,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Callable
 
-from csdfbmc.atoms import function_of
 
 Given = bool | Callable[..., bool]
 # A key of ENVIRONMENT whose value is None declares the function and gives
@@ -60,17 +61,10 @@ def seeded(seed: int) -> Decide:
     return decide
 
 
-def named(given: Mapping[str, Given]) -> dict[str, Given]:
-    """given keyed by the name of each function, whatever atom of it a key
-    is written as."""
-    return {function_of(n).name: g for n, g in given.items()}
-
-
 def given_over(given: Mapping[str, Given], inner: Decide) -> Decide:
-    """The functions given, a truth value or a pure function of the
-    arguments in order, each under any atom of its function, and inner for
-    the rest."""
-    return _given_over_named(named(given), inner)
+    """The functions given by name, a truth value or a pure function of the
+    arguments in order, and inner for the rest."""
+    return _given_over_named(given, inner)
 
 
 def _given_over_named(given: Mapping[str, Given], inner: Decide) -> Decide:
@@ -119,9 +113,9 @@ def over(module: Mapping[str, "Given | None"], given: Mapping[str, Given], seed:
     ENVIRONMENT (module) declares, given by it or by given (--env) where
     either gives one, and chosen from the seed, when there is one, for the
     rest. given may name only a declared function."""
-    declared = named(module)
-    cli = named(given)
-    undeclared = [n for n in given if function_of(n).name not in declared]
+    declared = dict(module)
+    cli = dict(given)
+    undeclared = [n for n in given if n not in declared]
     if undeclared:
         raise ValueError(f"--env names {', '.join(map(repr, undeclared))}, which the checks module's ENVIRONMENT does not declare; "
                          "declare it there (None leaves it to --env or --seed)")

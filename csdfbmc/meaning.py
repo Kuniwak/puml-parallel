@@ -9,12 +9,25 @@ of a family as the map of its fields (csdfbmc.values.visible).
 from __future__ import annotations
 
 import itertools
+from collections.abc import Mapping
 from typing import Callable
 
 from csdfbmc.environment import Environment
 from csdfbmc.model import Atom
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import freeze, visible
+from csdfbmc.values import freeze, same_value, visible
+
+
+def apply_given(given: Mapping[str, object]) -> Callable[[str, tuple], object]:
+    """The apply of an Evaluator: the environment function of a term (App)
+    named fn, as the checks module's ENVIRONMENT gives it, applied to the
+    values of its arguments as a glue sees them."""
+    def apply(fn: str, args: tuple):
+        g = given.get(fn)
+        if not callable(g):
+            raise ValueError(f"no environment function {fn}, which a term applies, is given in ENVIRONMENT")
+        return freeze(g(*(visible(a) for a in args)))
+    return apply
 
 
 class AtomMeaning:
@@ -65,7 +78,7 @@ class AtomMeaning:
             return self._decide(atom, tuple(visible(a) for a in args))
         before = [a for a, p in zip(args, atom.primed) if not p]
         after = tuple(visible(a) for a, p in zip(args, atom.primed) if p)
-        return after in [tuple(visible(v) for v in t) for t in self.post(atom, before, [])]
+        return any(same_value(after, tuple(visible(v) for v in t)) for t in self.post(atom, before, []))
 
     @staticmethod
     def merge(atom: Atom, before: list, after: list) -> list:
