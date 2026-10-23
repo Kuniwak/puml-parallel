@@ -33,11 +33,19 @@ func (f Field) Dir() string {
 // FieldOfDir is the field named name whose direction dir writes, as Dir
 // does; any other dir is an error.
 func FieldOfDir(dir, name string) (Field, error) {
+	f, err := fieldOfDir(dir, name)
+	if err != nil {
+		return Field{}, fmt.Errorf("core.FieldOfDir: %w", err)
+	}
+	return f, nil
+}
+
+func fieldOfDir(dir, name string) (Field, error) {
 	switch dir {
 	case "?", "!":
 		return Field{Send: dir == "!", Name: name}, nil
 	}
-	return Field{}, fmt.Errorf("core.FieldOfDir: the field %s has the direction %q, neither ? nor !", name, dir)
+	return Field{}, fmt.Errorf("the field %s has the direction %q, neither ? nor !", name, dir)
 }
 
 // Event is a channel with its fields.

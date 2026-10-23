@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -35,8 +37,8 @@ type DiagramDoc struct {
 
 // EdgeDoc is an edge: its event as its channel and its fields in order,
 // its guard and post, and its line. Label is derived from the channel and
-// the fields (Event.Label) for a reader of the JSON; a reader in Go ignores
-// it.
+// the fields (Event.Label) for a reader of the JSON; a reader in Go refuses
+// one that is not.
 type EdgeDoc struct {
 	Src     string       `json:"src"`
 	Dst     string       `json:"dst"`
@@ -302,7 +304,7 @@ func strict(raw []byte, v any) error {
 // MarshalDiagram is d as JSON (DiagramDoc). A diagram that is not well
 // formed is an error.
 func MarshalDiagram(d *Diagram) ([]byte, error) {
-	doc, err := DiagramDocOf(d)
+	doc, err := diagramDocOf(d)
 	if err != nil {
 		return nil, fmt.Errorf("core.MarshalDiagram: %w", err)
 	}
@@ -316,14 +318,15 @@ func MarshalDiagram(d *Diagram) ([]byte, error) {
 // UnmarshalDiagram reads the diagram MarshalDiagram wrote. Another version,
 // an unknown key, a conjunct or term of no kind it knows or with a key of
 // another kind, a field of no direction, an atom whose pieces and holes do
-// not fit, and a diagram that is not well formed are errors. What a document
-// derives (an edge's label, an atom's text, primed and function) is not read.
+// not fit, what a document derives (an edge's label, an atom's text,
+// primed and function) other than what the rest makes, and a diagram that
+// is not well formed are errors.
 func UnmarshalDiagram(raw []byte) (*Diagram, error) {
 	var doc DiagramDoc
 	if err := strict(raw, &doc); err != nil {
 		return nil, fmt.Errorf("core.UnmarshalDiagram: %w", err)
 	}
-	d, err := doc.Diagram()
+	d, err := doc.diagram()
 	if err != nil {
 		return nil, fmt.Errorf("core.UnmarshalDiagram: %w", err)
 	}
@@ -333,6 +336,14 @@ func UnmarshalDiagram(raw []byte) (*Diagram, error) {
 // DiagramDocOf is d as a DiagramDoc. A diagram that is not well formed is
 // an error.
 func DiagramDocOf(d *Diagram) (DiagramDoc, error) {
+	doc, err := diagramDocOf(d)
+	if err != nil {
+		return DiagramDoc{}, fmt.Errorf("core.DiagramDocOf: %w", err)
+	}
+	return doc, nil
+}
+
+func diagramDocOf(d *Diagram) (DiagramDoc, error) {
 	if err := d.wellFormed(); err != nil {
 		return DiagramDoc{}, err
 	}
@@ -349,7 +360,7 @@ func DiagramDocOf(d *Diagram) (DiagramDoc, error) {
 		doc.Vars[s] = append([]string{}, d.Vars[s]...)
 	}
 	var err error
-	if doc.InitPost, err = FormulaDocOf(d.InitPost); err != nil {
+	if doc.InitPost, err = formulaDocsOf(d.InitPost); err != nil {
 		return DiagramDoc{}, fmt.Errorf("the start edge: %w", err)
 	}
 	for _, e := range d.Edges {
@@ -357,16 +368,16 @@ func DiagramDocOf(d *Diagram) (DiagramDoc, error) {
 		for _, f := range e.Event.Fields {
 			ed.Fields = append(ed.Fields, FieldDoc{Dir: f.Dir(), Name: f.Name})
 		}
-		if ed.Guard, err = FormulaDocOf(e.Guard); err != nil {
+		if ed.Guard, err = formulaDocsOf(e.Guard); err != nil {
 			return DiagramDoc{}, fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, ed.Label, err)
 		}
-		if ed.Post, err = FormulaDocOf(e.Post); err != nil {
+		if ed.Post, err = formulaDocsOf(e.Post); err != nil {
 			return DiagramDoc{}, fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, ed.Label, err)
 		}
 		doc.Edges = append(doc.Edges, ed)
 	}
 	for _, e := range d.Ends {
-		guard, err := FormulaDocOf(e.Guard)
+		guard, err := formulaDocsOf(e.Guard)
 		if err != nil {
 			return DiagramDoc{}, fmt.Errorf("the end edge from %s: %w", e.Src, err)
 		}
@@ -378,8 +389,17 @@ func DiagramDocOf(d *Diagram) (DiagramDoc, error) {
 	return doc, nil
 }
 
-// Diagram is the diagram doc writes.
+// Diagram is the diagram doc writes. What doc derives (an edge's label, an
+// atom's text, primed and function) must be what the rest makes.
 func (doc DiagramDoc) Diagram() (*Diagram, error) {
+	d, err := doc.diagram()
+	if err != nil {
+		return nil, fmt.Errorf("core.DiagramDoc.Diagram: %w", err)
+	}
+	return d, nil
+}
+
+func (doc DiagramDoc) diagram() (*Diagram, error) {
 	if doc.Version != DiagramJSONVersion {
 		return nil, fmt.Errorf("version %d, but this reads version %d", doc.Version, DiagramJSONVersion)
 	}
@@ -403,11 +423,14 @@ func (doc DiagramDoc) Diagram() (*Diagram, error) {
 	for _, ed := range doc.Edges {
 		e := Edge{Src: ed.Src, Dst: ed.Dst, Event: Event{Channel: ed.Channel}, Line: ed.Line}
 		for _, fd := range ed.Fields {
-			f, err := FieldOfDir(fd.Dir, fd.Name)
+			f, err := fieldOfDir(fd.Dir, fd.Name)
 			if err != nil {
 				return nil, fmt.Errorf("the edge on %s: %w", ed.Channel, err)
 			}
 			e.Event.Fields = append(e.Event.Fields, f)
+		}
+		if ed.Label != e.Event.Label() {
+			return nil, fmt.Errorf("the edge on %s is labelled %q, but its channel and fields make %q", ed.Channel, ed.Label, e.Event.Label())
 		}
 		if e.Guard, err = formulaOfDocs(ed.Guard); err != nil {
 			return nil, fmt.Errorf("%s --> %s : %s: %w", ed.Src, ed.Dst, e.Event.Label(), err)
@@ -437,8 +460,16 @@ func (doc DiagramDoc) Diagram() (*Diagram, error) {
 // (clause.Normalize). It is never nil; a formula that is not well formed
 // (clause.WellFormed) is an error.
 func FormulaDocOf(f clause.And) ([]FormulaDoc, error) {
-	if err := clause.WellFormed(f); err != nil {
+	docs, err := formulaDocsOf(f)
+	if err != nil {
 		return nil, fmt.Errorf("core.FormulaDocOf: %w", err)
+	}
+	return docs, nil
+}
+
+func formulaDocsOf(f clause.And) ([]FormulaDoc, error) {
+	if err := clause.WellFormed(f); err != nil {
+		return nil, err
 	}
 	return formulaDocs(clause.Normalize(f))
 }
@@ -492,7 +523,26 @@ func (doc FormulaDoc) formula() (clause.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		return clause.AtomOf(doc.Atom.Pieces, doc.Atom.Holes, args)
+		a, err := clause.AtomOf(doc.Atom.Pieces, doc.Atom.Holes, args)
+		if err != nil {
+			return nil, err
+		}
+		w, terms, err := clause.Wire(a)
+		if err != nil {
+			return nil, err
+		}
+		fn, err := clause.FunctionOf(a)
+		if err != nil {
+			return nil, err
+		}
+		if !reflect.DeepEqual(w.Holes, doc.Atom.Holes) || !reflect.DeepEqual(terms, args) {
+			return nil, fmt.Errorf("the atom %s: its holes and arguments are not those it reads", fn.Name)
+		}
+		if !slices.Equal(w.Text, doc.Atom.Text) || !slices.Equal(w.Primed, doc.Atom.Primed) || fn.Name != doc.Atom.Function {
+			return nil, fmt.Errorf("the atom %s: its text, primed or function is not what its pieces, holes and arguments make (%q, %v, %q)",
+				fn.Name, doc.Atom.Text, doc.Atom.Primed, doc.Atom.Function)
+		}
+		return a, nil
 	case doc.Builtin != nil:
 		args, err := termsOfDocs(doc.Builtin.Args)
 		if err != nil {

@@ -212,34 +212,6 @@ func TestUnmarshalDiagram(t *testing.T) {
 	}
 }
 
-func TestUnmarshalDiagramIgnoresWhatADocumentDerives(t *testing.T) {
-	// Setup
-	doc := validDoc(t)
-	doc.Edges[0].Label = "something else"
-	doc.Edges[0].Guard[0].Atom.Text = []string{"other"}
-	doc.Edges[0].Guard[0].Atom.Primed = []bool{true}
-	doc.Edges[0].Guard[0].Atom.Function = "other"
-	raw, err := json.Marshal(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Execute
-	got, err := UnmarshalDiagram(raw)
-
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := mustParse(t, "$n > 0")
-	if d := cmp.Diff(want, got.Edges[0].Guard, sameClause); d != "" {
-		t.Errorf("guard mismatch (-want +got):\n%s", d)
-	}
-	if got.Edges[0].Event.Label() != "c?x" {
-		t.Errorf("label = %q, want c?x", got.Edges[0].Event.Label())
-	}
-}
-
 func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 	tests := map[string]struct {
 		d    *Diagram
@@ -262,7 +234,10 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("MarshalDiagram error = %v, want one mentioning %q", err, tt.want)
+				t.Fatalf("MarshalDiagram error = %v, want one mentioning %q", err, tt.want)
+			}
+			if n := strings.Count(err.Error(), "core."); n != 1 {
+				t.Errorf("MarshalDiagram error = %v, want the package named once, not %d times", err, n)
 			}
 		})
 	}
@@ -360,6 +335,30 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 			edit: func(v map[string]any) { v["init"] = "s9" },
 			want: "no state s9",
 		},
+		"a label its channel and fields do not make": {
+			edit: func(v map[string]any) { v["edges"].([]any)[0].(map[string]any)["label"] = "c?y" },
+			want: `labelled "c?y", but its channel and fields make "c?x"`,
+		},
+		"an atom's text its pieces do not make": {
+			edit: func(v map[string]any) { guard(v)["text"] = []any{"", " > 1"} },
+			want: "the atom $_0 > 0: its text, primed or function is not what its pieces, holes and arguments make",
+		},
+		"an atom's primed its arguments do not make": {
+			edit: func(v map[string]any) { guard(v)["primed"] = []any{true} },
+			want: "the atom $_0 > 0: its text, primed or function",
+		},
+		"an atom's function its pieces do not make": {
+			edit: func(v map[string]any) { guard(v)["function"] = "$_0 > 1" },
+			want: "the atom $_0 > 0: its text, primed or function",
+		},
+		"an atom of one argument twice": {
+			edit: func(v map[string]any) {
+				g := guard(v)
+				g["pieces"], g["holes"], g["args"] = []any{"", " > ", ""}, []any{0, 1}, []any{g["args"].([]any)[0], g["args"].([]any)[0]}
+				g["text"], g["primed"], g["function"] = []any{"", " > ", ""}, []any{false, false}, "$_0 > $_1"
+			},
+			want: "its holes and arguments are not those it reads",
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -371,7 +370,10 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Errorf("UnmarshalDiagram error = %v, want one mentioning %q", err, tt.want)
+				t.Fatalf("UnmarshalDiagram error = %v, want one mentioning %q", err, tt.want)
+			}
+			if n := strings.Count(err.Error(), "core."); n != 1 {
+				t.Errorf("UnmarshalDiagram error = %v, want the package named once, not %d times", err, n)
 			}
 		})
 	}
