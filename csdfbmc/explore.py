@@ -1,7 +1,6 @@
 """The walk over the product of control states and valuations."""
 from __future__ import annotations
 
-import copy
 import dataclasses
 import inspect
 import itertools
@@ -332,16 +331,19 @@ class Explorer:
         return any(self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where)
                    for before in (self._before(state, params) for params in self._offers(state, e)))
 
+    def with_types(self, types: dict) -> "Explorer":
+        """This walk with the types ranging over other values: the same
+        diagram, glue, environment and options."""
+        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client,
+                        environment=self.environment, max_states=self.max_states, avoid=self.avoid,
+                        within=sorted(self.within) if self.within is not None else None, first=self.first)
+
     def _wider(self, state: State) -> "Explorer":
         """This walk with one more value in each sample type, a value that
         occurs nowhere in state or the type."""
         avoid = set().union(*(scalars(v) for v in state[1])) if state[1] else set()
-        types = {t: list(vs) + ([fresh(vs, avoid)] if t in self.checks.samples else []) for t, vs in self.checks.types.items()}
-        wider = copy.copy(self)
-        wider.checks = dataclasses.replace(self.checks, types=types)
-        wider.meaning = AtomMeaning(self.meaning.client, self.environment, wider.checks.domain)
-        wider.ev = Evaluator(wider.meaning, wider.checks.carrier, apply_given(self.checks.environment))
-        return wider
+        return self.with_types({t: list(vs) + ([fresh(vs, avoid)] if t in self.checks.samples else [])
+                                for t, vs in self.checks.types.items()})
 
     def bound_ends(self, state: State) -> bool:
         """Whether a state with no way out has one once each sample type has
