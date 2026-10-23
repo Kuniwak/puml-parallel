@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import inspect
 import itertools
 import sys
@@ -342,10 +343,12 @@ class Explorer:
                         within=sorted(self.within) if self.within is not None else None, first=self.first,
                         symmetric=self.symmetric)
 
+    @functools.cached_property
     def _wider(self) -> "Explorer":
         """This walk with one more value in each sample, a Fresh: equal to
         nothing but itself, it occurs nowhere in a state or any type. A type
-        built of a sample takes it too (csdfbmc.values.beyond_samples)."""
+        built of a sample takes it too (csdfbmc.values.beyond_samples).
+        Built once, at the first state with no way out."""
         return self.with_types(beyond_samples(self.checks.types))
 
     def bound_ends(self, state: State) -> bool:
@@ -354,7 +357,7 @@ class Explorer:
         diagram. The value is only tried; no state is added for it."""
         if not self.checks.samples:
             return False
-        wider = self._wider()
+        wider = self._wider
         return wider.can_end(state) or any(wider._enabled(state, e) for e in self.d.out_edges(state[0]))
 
     def can_end(self, state: State) -> bool:
