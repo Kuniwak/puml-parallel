@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -13,14 +14,15 @@ import (
 
 // DiagramJSONVersion is the version of the shape DiagramDoc writes; a
 // reader refuses another.
-const DiagramJSONVersion = 1
+const DiagramJSONVersion = 2
 
 // DiagramDoc is a diagram in JSON, for a program such as csdfbmc: its
 // states in order, the labels of those labelled apart from their IDs, and
 // the variables of every state (an empty list for one with none); the start
 // state, its post and the line of the start edge; the edges; the end edges;
-// and the assume notes. Every clause is a list of its conjuncts
-// (FormulaDoc).
+// the assume notes; and, for a promoted diagram, the family of each map
+// (FamilyDoc), none for another. Every clause is a list of its conjuncts
+// (FormulaDoc). Version 2 added the families.
 type DiagramDoc struct {
 	Version  int                 `json:"version"`
 	Name     string              `json:"name"`
@@ -33,6 +35,18 @@ type DiagramDoc struct {
 	Edges    []EdgeDoc           `json:"edges"`
 	Ends     []EndDoc            `json:"ends"`
 	Assumes  []AssumptionDoc     `json:"assumes"`
+	Families []FamilyDoc         `json:"families"`
+}
+
+// FamilyDoc is the family of the map Map (FamilyStates): its local states
+// in order, the start state among them, which is absence, and the
+// variables of every local state, an instance's fields there (an empty
+// list for one with none).
+type FamilyDoc struct {
+	Map    string              `json:"map"`
+	Init   string              `json:"init"`
+	States []string            `json:"states"`
+	Vars   map[string][]string `json:"vars"`
 }
 
 // EdgeDoc is an edge: its event as its channel and its fields in order,
@@ -350,7 +364,14 @@ func diagramDocOf(d *Diagram) (DiagramDoc, error) {
 		Version: DiagramJSONVersion, Name: d.Name, States: append([]string{}, d.States...),
 		Labels: map[string]string{}, Vars: map[string][]string{},
 		Init: d.Init, InitLine: d.InitLine,
-		Edges: []EdgeDoc{}, Ends: []EndDoc{}, Assumes: []AssumptionDoc{},
+		Edges: []EdgeDoc{}, Ends: []EndDoc{}, Assumes: []AssumptionDoc{}, Families: []FamilyDoc{},
+	}
+	for _, f := range d.Families {
+		fd := FamilyDoc{Map: f.Map, Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]string{}}
+		for _, s := range f.States {
+			fd.Vars[s] = append([]string{}, f.Vars[s]...)
+		}
+		doc.Families = append(doc.Families, fd)
 	}
 	for _, s := range d.States {
 		if l, ok := d.Labels[s]; ok {
@@ -448,6 +469,18 @@ func (doc DiagramDoc) diagram() (*Diagram, error) {
 	}
 	for _, a := range doc.Assumes {
 		d.Assumes = append(d.Assumes, Assumption{ID: a.ID, Text: a.Text})
+	}
+	for _, fd := range doc.Families {
+		f := FamilyStates{Map: fd.Map, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}}
+		if !slices.Equal(slices.Sorted(maps.Keys(fd.Vars)), slices.Sorted(slices.Values(fd.States))) {
+			return nil, fmt.Errorf("the family of %s: its variables are of the states %v, not of each of its states %v", fd.Map, slices.Sorted(maps.Keys(fd.Vars)), fd.States)
+		}
+		for s, vs := range fd.Vars {
+			if len(vs) > 0 {
+				f.Vars[s] = append([]string{}, vs...)
+			}
+		}
+		d.Families = append(d.Families, f)
 	}
 	if err := d.wellFormed(); err != nil {
 		return nil, err

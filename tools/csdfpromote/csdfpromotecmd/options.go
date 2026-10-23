@@ -66,7 +66,9 @@ it, by templates named after the builtin words (see
 examples/promote/templates/ja.tmpl).
 
 -format json prints the expansion as JSON, as csdfparse prints a diagram
-(core.DiagramDoc): the shape csdfbmc reads. -template is refused with it.
+(core.DiagramDoc, version 2), with the local states of each family and the
+variables each holds, which an instance in the map is: the shape csdfbmc
+reads. -template is refused with it.
 -json prints the directives as parsed.
 
 Options:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from csdfbmc.model import Atom, Bound, Builtin, Diagram, Exists, Free, Index
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import continues_name, atom, builtin, diagram, edge, end, exists, idx
+from csdfbmc.tests.fixture import continues_name, atom, builtin, diagram, edge, end, exists, family, idx
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -33,9 +33,47 @@ class DiagramTest(unittest.TestCase):
         self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), "open"),)), e.post[0])
         self.assertEqual("s1", d.ends[0].src)
 
+    def test_reads_the_local_states_of_each_family(self):
+        # Setup
+        doc = diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": [], "open": ["bal", "fee"]})])
+
+        # Execute
+        d = Diagram.from_json(doc)
+
+        # Assert
+        f = d.families["m"]
+        self.assertEqual(("none", ("none", "open"), {"none": (), "open": ("bal", "fee")}), (f.init, f.states, f.vars))
+
+    def test_refuses_families_that_do_not_fit_the_diagram(self):
+        at = lambda state: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state=state)])
+        tests = {
+            "a family of a map no state holds": (diagram({"G": []}, "G", families=[family("m", "none", {"none": []})]),
+                                                 "m is no variable of any state"),
+            "two families of one map": (diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": []})] * 2),
+                                        "two families of m"),
+            "a start state that is none of its states": (diagram({"G": ["m"]}, "G", families=[family("m", "gone", {"none": []})]),
+                                                         "its start state gone is none of its states"),
+            "a start state that holds variables": (diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": ["bal"]})]),
+                                                   "its start state none, which is absence, holds variables"),
+            "variables of a state not its own": (diagram({"G": ["m"]}, "G", families=[dict(family("m", "none", {"none": []}), vars={"none": [], "x": []})]),
+                                                 "its variables are of the states"),
+            "a key a family does not have": (diagram({"G": ["m"]}, "G", families=[dict(family("m", "none", {"none": []}), ids="k")]),
+                                             "keys it does not read, \\['ids'\\]"),
+            "@at of a state of no family's": (diagram({"G": ["m"]}, "G", edges=[at("shut")], families=[family("m", "none", {"none": [], "open": []})]),
+                                              "@at\\(m'\\[…\\], shut\\), but shut is no state of the family of m"),
+            "@at of the start state, which is absence": (diagram({"G": ["m"]}, "G", edges=[at("none")],
+                                                                 families=[family("m", "none", {"none": [], "open": []})]),
+                                                         "none is the start state of the family of m, which is absence; say @notin"),
+        }
+        for name, (doc, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    Diagram.from_json(doc)
+
     def test_refuses_what_it_cannot_read(self):
         tests = {
-            "another version": (lambda d: d.update(version=2), "version 2"),
+            "another version": (lambda d: d.update(version=1), "version 1"),
             "a conjunct of an unknown kind": (lambda d: d["init_post"].append({"kind": "or"}), "kind 'or'"),
             "a term of an unknown kind": (lambda d: d["init_post"].append(builtin("empty", {"kind": "var"})), "kind 'var'"),
             "an unknown key": (lambda d: d.update(promotes=[]), "keys it does not read, \\['promotes'\\]"),

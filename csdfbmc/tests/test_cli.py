@@ -63,7 +63,7 @@ class GlueTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(2, code)
-        self.assertIn("csdfbmc reads version 1", err)
+        self.assertIn("csdfbmc reads version 2", err)
 
     def test_the_options_of_reductions_not_back_yet_and_both_glues_are_refused(self):
         for name, args in {"both forms": ("--evaluator", "x", "--evaluator-module", "y"),
