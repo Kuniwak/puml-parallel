@@ -106,20 +106,23 @@ func TestFormulaDocOfRefuses(t *testing.T) {
 }
 
 func TestDocsOfMoreThanOneKindAreNotWritten(t *testing.T) {
-	tests := map[string]any{
-		"a conjunct of two kinds": FormulaDoc{Builtin: &BuiltinDoc{Op: "empty"}, Exists: &ExistsDoc{Type: "T"}},
-		"a conjunct of no kind":   FormulaDoc{},
-		"a term of two kinds":     TermDoc{Free: &FreeDoc{Name: "x"}, Bound: &BoundDoc{}},
-		"a term of no kind":       TermDoc{},
+	tests := map[string]struct {
+		doc  any
+		want string
+	}{
+		"a conjunct of two kinds": {FormulaDoc{Builtin: &BuiltinDoc{Op: "empty"}, Exists: &ExistsDoc{Type: "T"}}, "more than one is set"},
+		"a conjunct of no kind":   {FormulaDoc{}, "not one is set"},
+		"a term of two kinds":     {TermDoc{Free: &FreeDoc{Name: "x"}, Bound: &BoundDoc{}}, "more than one is set"},
+		"a term of no kind":       {TermDoc{}, "not one is set"},
 	}
-	for name, doc := range tests {
+	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			_, err := json.Marshal(doc)
+			_, err := json.Marshal(tt.doc)
 
 			// Assert
-			if err == nil || !strings.Contains(err.Error(), "exactly one") {
-				t.Errorf("json.Marshal error = %v, want one saying exactly one kind is set", err)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("json.Marshal error = %v, want one saying %q", err, tt.want)
 			}
 		})
 	}

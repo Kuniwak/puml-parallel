@@ -229,8 +229,7 @@ func marshalTagged(what string, variants []variant) ([]byte, error) {
 	for i := range variants {
 		if variants[i].set {
 			if chosen != nil {
-				chosen = nil
-				break
+				return nil, fmt.Errorf("a %s is exactly one of %s; more than one is set", what, kindNames(variants))
 			}
 			chosen = &variants[i]
 		}
