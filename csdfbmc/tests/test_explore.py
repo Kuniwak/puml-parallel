@@ -4,7 +4,7 @@ import unittest
 from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, exists, family, fld, idx
+from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
 from csdfbmc.values import FrozenMap, Rec, Sample, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
@@ -350,6 +350,55 @@ class SampleTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(9, len(result.states))
+
+
+class DataIndependenceTest(unittest.TestCase):
+    """One value occurring nowhere stands for every value beyond the sample
+    only if the diagram tells the values of a sample type apart by nothing
+    but =, ≠ and the keys of maps: anything else is refused before the walk."""
+
+    def opening(self, *guard):
+        e = OPENING["edges"][0]
+        return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard))] + OPENING["edges"][1:2])
+
+    def test_a_sample_type_told_apart_by_more_than_equality_is_refused(self):
+        tests = {
+            "ordered by an atom": ([atom("$k > 'a'")], {}, "argument 0 is ordered"),
+            "compared with a constant by an atom": ([atom("$k != 'a'")], {}, "the constant 'a'"),
+            "a map keyed by it sorted by an atom": ([atom("sorted($m) == sorted($m)")], {}, "sorted orders"),
+            "bound by an exists and ordered": ([exists("k", atom("${} > 'a'", bound(0)))], {}, "argument 0 is ordered"),
+            "applied by an environment function": ([eq({"kind": "app", "fn": "f", "args": [{"kind": "free", "name": "k"}]}, "k")],
+                                                   {"f": lambda k: k}, "the environment function f"),
+            "read by an atom of the environment": ([atom("$k が赤い")], {"$_0 が赤い": True}, "a function of the environment"),
+        }
+        for name, (guard, given, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                checks = Checks(types={"k": sample(["a"])}, samples=frozenset({"k"}), environment=given)
+                env = environment.over({n: g for n, g in given.items() if n.startswith("$")}, {}, None)
+
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, rf"OPEN\?k \(line 0\), guard: .*{said}"):
+                    fixture.explorer(self.opening(*guard), checks, environment=env)
+
+    def test_a_sample_type_told_apart_by_equality_and_keys_only_is_walked(self):
+        tick = edge("r", "r", "TICK?n", guard=[atom("$n > 0")], post=[eq("m'", "m")])
+        tests = {
+            "the builtins": self.opening(builtin("eq", "k", "k"), builtin("notin", "k", "m")),
+            "an atom equating it": self.opening(atom("$k == $k")),
+            "an atom counting the map keyed by it": self.opening(atom("len($m) < 3")),
+            "an atom ordering a value of no sample type": dict(OPENING, edges=OPENING["edges"][:2] + [tick]),
+        }
+        for name, d in tests.items():
+            with self.subTest(name):
+                # Setup
+                checks = Checks(types={"k": sample(["a"]), "n": [1]}, samples=frozenset({"k"}))
+
+                # Execute
+                result = fixture.explorer(d, checks).run()
+
+                # Assert
+                self.assertEqual([], result.deadlocks)
 
 
 class ReplayTest(unittest.TestCase):

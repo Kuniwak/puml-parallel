@@ -108,21 +108,22 @@ func TestTheWithdrawExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 
 // The expansion of a promoted diagram is walked through the reference glue,
 // local clauses and all. With no end edge, the walk stops only when every ID
-// of the bound is confirmed, which it reports as a deadlock; no cycle avoids
-// CONFIRMED.
+// of the bound is confirmed; the IDs are a sample, so that is the bound
+// reached, not a deadlock. No cycle avoids CONFIRMED.
 func TestThePromotedExampleStopsOnlyWhenEveryIDIsConfirmed(t *testing.T) {
 	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
 		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "CONFIRMED")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
-	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
-		t.Fatalf("want exit status 1 (the deadlocks), got %v\n%s", err, out)
+	if err != nil {
+		t.Fatalf("want exit status 0 (the bound reached is no finding), got %v\n%s", err, out)
 	}
 	text := string(out)
-	for _, want := range []string{"states: 496\n", "deadlock ×19 at running after CONFIRMED"} {
-		if !strings.Contains(text, want) {
-			t.Errorf("want %q in the report, got:\n%s", want, text)
-		}
+	if !strings.Contains(text, "states: 496\n") {
+		t.Errorf("want %q in the report, got:\n%s", "states: 496\n", text)
+	}
+	if strings.Contains(text, "deadlock") {
+		t.Errorf("want no deadlock, got:\n%s", text)
 	}
 	if strings.Contains(text, "cycle") {
 		t.Errorf("want no cycle, got:\n%s", text)

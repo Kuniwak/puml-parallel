@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
+from csdfbmc.independence import check_independent
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
@@ -181,6 +182,7 @@ class Explorer:
         self.empty_posts: list[tuple[State, str]] = []
         self._check_fields()
         self._check_environment()
+        check_independent(diagram, checks, client, environment)
 
     # -- before the walk ----------------------------------------------------------
 
