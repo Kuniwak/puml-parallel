@@ -320,7 +320,8 @@ The builtins are no assumption: each is defined, and what it means is proved. A 
 `ValMap`, a list of its entries, and maps nest. A value is well formed (`csdf_wf`) when every
 map in it has distinct keys, sorted in a linear order of every value the library gives, and
 every quantifier over a type is restricted to well-formed values, so that two maps are
-equal just when they hold the same entries (`csdf_map_ext`, proved in the file).
+equal just when they hold the same entries (`csdf_map_ext`, proved in the file): a map is
+represented by exactly one well-formed list, as the prover checks prove.
 `csdf_is_map` holds of a map, `csdf_in` and `csdf_index` read its entries, and
 `csdf_empty`, `csdf_update` and each `csdf_frame<n>` are defined as their maps being maps
 and their meaning holding. An instance is a record whose first component is its state,

@@ -458,8 +458,8 @@ func TestTheProversDoNotDischargeAFalseRefinement(t *testing.T) {
 // TestTheBuiltinsAreAModel holds the definitions of the builtins to the
 // meaning a refinement needs of them, by proofs a prover checks: a frame of
 // no key leaves a well-formed map as it was, so an edge whose post is
-// @frame(m', m) ∧ m' ≠ m is disabled; a map whose keys are out of order is
-// not well formed, as of two orderings of distinct keys at most one is; an
+// @frame(m', m) ∧ m' ≠ m is disabled; a map is represented by exactly one
+// well-formed list, so the entries of distinct keys say which map it is; an
 // update by a key, and a frame of a key dropping it, has exactly one
 // well-formed successor, so a post of either neither disables an edge nor
 // lets it branch, while a bare frame of a key is deliberately
@@ -481,17 +481,45 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 				"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)",
 			"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
 				"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
-		{"of two orderings of distinct keys at most one is well formed", "unsorted_ill_formed",
-			`theorem unsorted_ill_formed (a b x y : Val) (hab : a ≠ b) :
-    csdf_wf (.ValMap [(a, x), (b, y)]) → ¬csdf_wf (.ValMap [(b, y), (a, x)]) := by
-  intro h1 h2
-  cases h1 with
-  | map _ _ s1 _ _ => cases h2 with
-    | map _ _ s2 _ _ =>
-      simp [List.sortedLE_iff_pairwise] at s1 s2
-      exact hab (le_antisymm s1 s2)`,
-			`lemma unsorted_ill_formed: "a \<noteq> b \<Longrightarrow> csdf_wf (ValMap [(a, x), (b, y)]) \<Longrightarrow> \<not> csdf_wf (ValMap [(b, y), (a, x)])"
-  by (auto elim!: csdf_wf_map)`},
+		{"a map is represented by exactly one well-formed list", "canonical_unique",
+			`theorem canonical_unique (kvs : List (Val × Val)) (n : (kvs.map Prod.fst).Nodup)
+    (w1 : ∀ p ∈ kvs, csdf_wf p.1) (w2 : ∀ p ∈ kvs, csdf_wf p.2) :
+    ∃! l : List (Val × Val), csdf_wf (.ValMap l) ∧ ∀ p, p ∈ l ↔ p ∈ kvs := by
+  let le : Val × Val → Val × Val → Bool := fun p q => decide (p.1 ≤ q.1)
+  have perm : (kvs.mergeSort le).Perm kvs := List.mergeSort_perm kvs le
+  have mem : ∀ p, p ∈ kvs.mergeSort le ↔ p ∈ kvs := fun p => perm.mem_iff
+  have so : (kvs.mergeSort le).Pairwise (fun p q => le p q) :=
+    List.pairwise_mergeSort (fun a b c h1 h2 => by simp [le] at *; exact le_trans h1 h2)
+      (fun a b => by simp [le]; exact le_total _ _) kvs
+  have wf : csdf_wf (.ValMap (kvs.mergeSort le)) :=
+    csdf_wf.map _ ((perm.map Prod.fst).nodup_iff.mpr n)
+      (List.sortedLE_iff_pairwise.mpr (List.pairwise_map.mpr (so.imp (by simp [le]))))
+      (fun p hp => w1 p ((mem p).mp hp)) (fun p hp => w2 p ((mem p).mp hp))
+  refine ⟨kvs.mergeSort le, ⟨wf, mem⟩, ?_⟩
+  rintro l ⟨wl, hl⟩
+  have e := csdf_map_ext (.ValMap l) (.ValMap (kvs.mergeSort le)) wl wf trivial trivial
+    (fun k => by simp [csdf_in, csdf_index, hl, mem])
+  injection e`,
+			`lemma canonical_unique:
+  assumes "distinct (map fst kvs)" "\<forall>p\<in>set kvs. csdf_wf (fst p)" "\<forall>p\<in>set kvs. csdf_wf (snd p)"
+  shows "\<exists>!l. csdf_wf (ValMap l) \<and> set l = set kvs"
+proof -
+  have d: "distinct (map fst (sort_key fst kvs))"
+    using assms(1) by (metis distinct_card card_distinct length_map length_sort set_map set_sort)
+  have w: "csdf_wf (ValMap (sort_key fst kvs))"
+    using d assms(2,3) by (auto intro!: csdf_wf.intros simp: sorted_sort_key)
+  show ?thesis
+  proof (rule ex1I[of _ "sort_key fst kvs"])
+    show "csdf_wf (ValMap (sort_key fst kvs)) \<and> set (sort_key fst kvs) = set kvs" using w by simp
+  next
+    fix l assume l: "csdf_wf (ValMap l) \<and> set l = set kvs"
+    have dl: "distinct (map fst l)" using l by (auto elim: csdf_wf_map)
+    have "map_of l = map_of (sort_key fst kvs)" using map_of_inject_set[OF dl d] l by simp
+    then have "ValMap l = ValMap (sort_key fst kvs)"
+      using l by (intro csdf_map_ext[OF conjunct1[OF l] w]) (auto simp: csdf_is_map_def csdf_in_def csdf_index_def)
+    then show "l = sort_key fst kvs" by simp
+  qed
+qed`},
 		{"an update has a well-formed successor", "update_exists",
 			`-- The entries of a map but those of a key.
 open Classical in
