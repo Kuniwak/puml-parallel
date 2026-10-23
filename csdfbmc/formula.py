@@ -29,6 +29,7 @@ class Missing(Exception):
 
 
 class Atoms(Protocol):
+    def of_environment(self, atom: Atom) -> bool: ...
     def guard(self, atom: Atom, args: list) -> bool: ...
     def post(self, atom: Atom, before: list, names: list[str]) -> list[tuple]: ...
     def post_holds(self, atom: Atom, args: list) -> bool: ...
@@ -275,7 +276,12 @@ def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | 
                 locs.append(_loc(t, ev, before, bound))
             else:
                 before_args.append(val(t))
-        types = [loc[1] if loc[0] in ("var", "entry") else loc[3] for loc in locs]
+        if ev.atoms.of_environment(f):
+            for loc in locs:
+                if loc[0] == "entry":
+                    raise PostError(f"{where}: the environment decides {f.function!r} over the types of its values after the step, "
+                                    f"but {loc[1]}'[{loc[2]!r}], an entry, has no type; give its state with @at and its fields instead")
+        types = [loc[1] if loc[0] == "var" else loc[3] for loc in locs]
         options = ev.atoms.post(f, before_args, types)
         for after in options:
             if len(after) != len(locs):

@@ -149,6 +149,15 @@ class SolveTest(unittest.TestCase):
         # Assert
         self.assertEqual([{"n": 1}, {"n": 2}], got)
 
+    def test_the_environment_does_not_decide_an_entry_after_the_step(self):
+        # Setup
+        env = environment.over({"$_0 は $_1 以上": lambda e, x: True}, {}, None)
+        post = [builtin("frame", "m'", "m", "k"), atom("${} は $x 以上", idx("m'", "k"))]
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, "the edge: .*m'\\['a'\\], an entry, .*no type"):
+            self.solve(post, ["m"], {"m": M, "k": "a", "x": 1}, env)
+
 
 class SolveIsTheMeaningTest(unittest.TestCase):
     """What solve finds is what checking the whole post against every
