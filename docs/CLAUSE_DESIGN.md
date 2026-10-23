@@ -206,15 +206,17 @@ there, as lemmas a prover checks. The model tells a map from every other
 value and makes equality of maps extensional. A map is a ValMap, a list of
 its entries, and maps nest: a key or an entry may be a map. A value is well
 formed (csdf_wf) when every map in it has distinct keys (the library's
-distinct / Nodup) and is the one list of its entries csdf_canon chooses, by
-Hilbert's choice, among the lists of the same entries; every quantifier over
+distinct / Nodup), sorted (sorted / SortedLE) in a linear order of every
+value the library gives: Isabelle orders val by its injection into the
+naturals (HOL-Library.Countable), Lean by Mathlib's WellOrderingRel. The
+sorted list of distinct keys is the one list of its entries, so every
+quantifier over
 a type is restricted to well-formed values, as to the type, so no axiom
 says it. Two well-formed maps holding the same entries are then one, which
 both provers prove (csdf_map_ext), so an equality, an event field or an
 atom reading a map reads its entries and nothing else, and @update and
-@frame admit exactly the maps the meaning describes. The order of the
-chosen list is no order of the keys: only that it is the one chosen
-matters. csdf_is_map holds of a value just when it is a map; csdf_in and
+@frame admit exactly the maps the meaning describes. Which order it is
+matters to no obligation: only that there is one. csdf_is_map holds of a value just when it is a map; csdf_in and
 csdf_index read its entries. The entry csdf_index gives of a key a map
 lacks is a value no obligation observes: a clause reading an entry that is
 not there is false, so obligation.Formula conjoins csdf_in of every key a
