@@ -912,9 +912,19 @@ walk, csdfbmc refuses, naming the clause, an environment function a term
 applies (`${f(k)}`) or an atom of `ENVIRONMENT` that reads a value of a
 sample type, and an atom of the glue that reads one unless the glue answers
 `symmetric` and says the atom tells no two values of the sample apart.
-A value of a sample type is any value of a name of that type, of a type
-some value of which holds one (a record of them), bound by an `∃` over it,
-or of a map keyed by one; the reference glue refuses an atom that orders
+Which names may hold a value of a sample type follows from how the types
+are declared, not from the values they share: a name of the sample type, of
+a type `record(…)` or `partial_map(…)` built of it, bound by an `∃` over
+one of those, or of a map some clause keys by one (`@in`, `@notin`,
+`@update`, `@frame`, `m[k]`). A name with no type in `TYPES`, an instance's
+field included, and a name of a type of maps listed by hand, whose keys are
+not known, are taken to hold one, since nothing says they do not; declare
+their type to let an atom order them (`"手数料": [1, 2, 3]` in
+`examples/bmc/attempts/checks.py`). A type that only lists the same values as
+a sample, declared apart, is another type. While the step is tried, an atom
+is refused a value beyond the sample in any argument but those the glue was
+asked about, so a value a clause copies where no declaration says it may go
+stops the walk with an error rather than passing unchecked. The reference glue refuses an atom that orders
 such a value (`<`, `sorted`, `min`, `max`) or names one of the sample's
 values as a constant. One value is tried, not two: a step that needs two
 fresh values at once is still reported as a deadlock.

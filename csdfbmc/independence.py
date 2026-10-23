@@ -4,11 +4,16 @@ by nothing but =, ≠ and the keys of maps. Only then does one value that
 occurs nowhere stand for every value beyond the sample, which is what the
 walk asks at a state with no way out (Explorer.bound_ends).
 
-A term carries a value of a sample type when it is a name of a sample type
-or of a type some value of which holds one (a record of them, a map keyed by
-them), a name an ∃ over a sample type binds, a map some clause keys by such
-a term, an entry of a map that carries one, or a field of a term that does
-(of an instance, a field of a sample type). The builtins tell such values
+A term carries a value of a sample type when it is a name whose type is a
+sample or is built of one by record or partial_map (csdfbmc.values.samples_in),
+a name an ∃ over such a type binds, a map some clause keys by such a term,
+an entry of a map that carries one, or a field of a term that does (of an
+instance, a field that does). It is how the types are declared that says
+so, not which values they share: a name with no type, an instance's field
+included, and a name of a type of maps listed by hand, whose keys are not
+known, are taken to carry one. The walk refuses a value beyond a sample in
+any other argument of an atom (csdfbmc.meaning.AtomMeaning), so what this
+check misses stops the walk instead of passing unchecked. The builtins tell such values
 apart only by equality and membership, so every builtin may read them. An
 environment function a term applies, and an atom the environment declares,
 may tell them apart in any way, so a term carrying one is refused as their
@@ -21,11 +26,13 @@ sound as the glue's answer: csdfbmc.python_glue's is syntactic
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
 from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, conjuncts, root, subterms
 from csdfbmc.protocol import ClientLike, answers, shown_atom
-from csdfbmc.values import scalars
+from csdfbmc.values import Built, Sample, samples_in
 
 
 class _Carrying:
@@ -34,13 +41,14 @@ class _Carrying:
     def __init__(self, diagram: Diagram, checks: Checks):
         self.d = diagram
         self.checks = checks
-        values = set().union(*(scalars(v) for t in checks.samples for v in checks.types[t]))
-        self.types = set(checks.samples) | {t for t, vs in checks.types.items()
-                                            if any(scalars(v) & values for v in vs)}
+        self.types = {t for t, vs in checks.types.items() if samples_in(vs) or _unknown_map(vs)}
         self.keyed: set[str] = set()
 
     def named(self, name: str) -> bool:
-        return self.checks.type_of(name) in self.types or name in self.keyed
+        """Whether a name may hold a value of a sample type: its type is
+        built of a sample or is maps listed by hand, it has no type, so that
+        it may hold anything, or a clause keys it by such a value."""
+        return not self.checks.declares(name) or self.checks.type_of(name) in self.types or name in self.keyed
 
     def term(self, t, bound: tuple[bool, ...]) -> bool:
         if isinstance(t, Free):
@@ -69,6 +77,12 @@ class _Carrying:
         return False
 
 
+def _unknown_map(values) -> bool:
+    """Whether values, a type's, are maps listed by hand, whose keys may
+    be any values, those of a sample too."""
+    return not isinstance(values, (Sample, Built)) and any(isinstance(v, Mapping) for v in values)
+
+
 def _conjuncts(clause: tuple, types: set):
     """(formula, bound) for every conjunct of clause, inside its ∃s too;
     bound says, per bound index, whether it ranges over a sample type."""
@@ -95,19 +109,20 @@ def _keys(c: _Carrying) -> None:
                         grown |= c.key(f.args[1], k, bound)
 
 
-def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> frozenset[Atom]:
+def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> dict[Atom, frozenset[int]]:
     """Refuses, naming the clause, a diagram that may tell two values of a
-    sample type apart by more than =, ≠ and the keys of maps; otherwise
-    the atoms that read a value of a sample type, which the glue said tell
-    no two of them apart, and which alone may read a value beyond a sample
+    sample type apart by more than =, ≠ and the keys of maps; otherwise,
+    per atom that reads a value of a sample type, the indices of the
+    arguments that carry one, which the glue said it tells no two values
+    apart by: the only arguments that may hold a value beyond a sample
     (csdfbmc.meaning.AtomMeaning)."""
-    symmetric: set[Atom] = set()
+    symmetric: dict[Atom, frozenset[int]] = {}
     if not checks.samples:
-        return frozenset()
+        return symmetric
     c = _Carrying(diagram, checks)
     _keys(c)
     samples = ", ".join(sorted(checks.samples))
-    groups = [[v for v in checks.types[t]] for t in sorted(checks.samples)]
+    groups = [list(x) for x in {id(x): x for vs in checks.types.values() for x in samples_in(vs)}.values()]
     for clause, where, role in diagram.clauses():
         def refuse(why: str):
             raise ValueError(f"{where}, {role}: {why}; a sample type ({samples}) may be told apart only by =, ≠ and "
@@ -133,5 +148,5 @@ def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, envi
             why = client.symmetric(f.wire, params, maps, groups)
             if why is not None:
                 refuse(f"the atom {shown_atom(f.wire)} tells the values apart: {why}")
-            symmetric.add(f)
-    return frozenset(symmetric)
+            symmetric[f] = symmetric.get(f, frozenset()) | frozenset(carrying)
+    return symmetric

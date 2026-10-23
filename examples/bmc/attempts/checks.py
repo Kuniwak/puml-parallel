@@ -20,6 +20,9 @@ TYPES = {
     # attempt it replaces.
     "未署名Tx": record(手数料=[1]),
     "置換Tx": record(置換元=IDS, 手数料=[2, 3]),
+    # The fee an attempt holds. Declared, so that the walk knows it holds no
+    # 試行ID, and an atom may compare fees while the IDs are a sample.
+    "手数料": [1, 2, 3],
 }
 
 INVARIANTS = {

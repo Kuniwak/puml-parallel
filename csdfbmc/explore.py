@@ -5,13 +5,14 @@ import dataclasses
 import inspect
 import itertools
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
+from csdfbmc.model import Atom, Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
 from csdfbmc.values import Fresh, encode, freeze, visible
 
@@ -153,9 +154,9 @@ class Explorer:
     decides the others (csdfbmc.environment). Before the walk, a declared
     function nothing gives and no seed chooses is refused, listing every
     one, and so is a declared name that names no atom of the diagram.
-    symmetric are the atoms the glue said tell no two values of a sample
-    apart (csdfbmc.independence.check_independent gives them), the only
-    ones a value beyond a sample is shown to.
+    symmetric gives, per atom, the arguments the glue said it tells no two
+    values of a sample apart by (csdfbmc.independence.check_independent
+    gives them), the only ones a value beyond a sample is shown in.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -170,7 +171,7 @@ class Explorer:
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
-                 first: bool = False, symmetric: frozenset = frozenset()):
+                 first: bool = False, symmetric: Mapping[Atom, frozenset[int]] | None = None):
         self.d = diagram
         self.checks = checks
         self.environment = environment

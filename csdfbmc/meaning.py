@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import itertools
 from collections.abc import Mapping
-from typing import Callable
+from typing import Callable, Iterable
 
 from csdfbmc.environment import Environment
 from csdfbmc.model import Atom
@@ -36,25 +36,28 @@ class AtomMeaning:
     """The meaning of the atoms: environment decides the declared ones, the
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
     domain gives the values a name ranges over, for the values after the
-    step of a post atom the environment decides. symmetric are the atoms
-    the glue said tell no two values of a sample apart
-    (csdfbmc.independence), the only ones that may read a value beyond a
-    sample (csdfbmc.values.Fresh)."""
+    step of a post atom the environment decides. symmetric gives, per
+    atom, the indices of the arguments the glue said it tells no two values
+    of a sample apart by (csdfbmc.independence), the only arguments that
+    may hold a value beyond a sample (csdfbmc.values.Fresh)."""
 
     def __init__(self, client: ClientLike, environment: Environment, domain: Callable[[str], list],
-                 symmetric: frozenset[Atom] = frozenset()):
+                 symmetric: Mapping[Atom, frozenset[int]] | None = None):
         self.client = client
         self.environment = environment
         self.domain = domain
-        self.symmetric = symmetric
+        self.symmetric = dict(symmetric or {})
         self.decided: dict[str, None] = {}
 
-    def _beyond(self, atom: Atom, args: list) -> None:
-        """Refuses to show atom a value beyond a sample unless it is known
-        to tell no two values of the sample apart."""
-        if (self.of_environment(atom) or atom not in self.symmetric) and any(holds_fresh(a) for a in args):
-            raise ValueError(f"the atom {atom.function} would read a value beyond a sample, but is not known to tell "
-                             "no two values of the sample apart")
+    def _beyond(self, atom: Atom, indices: Iterable[int], args: list) -> None:
+        """Refuses to show atom a value beyond a sample in an argument (of
+        the indices, in order) not known to tell no two values of the sample
+        apart."""
+        asked = frozenset() if self.of_environment(atom) else self.symmetric.get(atom, frozenset())
+        for i, a in zip(indices, args):
+            if i not in asked and holds_fresh(a):
+                raise ValueError(f"the atom {atom.function} would read a value beyond a sample in argument {i}, which "
+                                 "is not known to tell no two values of the sample apart")
 
     def of_environment(self, atom: Atom) -> bool:
         return atom.function in self.environment.declared
@@ -69,7 +72,7 @@ class AtomMeaning:
     def guard(self, atom: Atom, args: list) -> bool:
         """Whether an atom that reads no value after the step holds of the
         values of its arguments."""
-        self._beyond(atom, args)
+        self._beyond(atom, range(len(args)), args)
         if self.of_environment(atom):
             return self._decide(atom, tuple(visible(a) for a in args))
         return self.client.guard(atom.wire, [[visible(a) for a in args]])[0]
@@ -78,7 +81,7 @@ class AtomMeaning:
         """The values after the step of the primed arguments, in order, that
         an atom allows from the values before it of the others. names name
         the primed arguments' types, over which the environment chooses."""
-        self._beyond(atom, before)
+        self._beyond(atom, (i for i, p in enumerate(atom.primed) if not p), before)
         if not self.of_environment(atom):
             return [tuple(freeze(v) for v in after) for after in self.client.post(atom.wire, [[visible(a) for a in before]])[0]]
         out = []
@@ -90,7 +93,7 @@ class AtomMeaning:
     def post_holds(self, atom: Atom, args: list) -> bool:
         """Whether an atom that reads values after the step holds of the
         values of all its arguments."""
-        self._beyond(atom, args)
+        self._beyond(atom, range(len(args)), args)
         if self.of_environment(atom):
             return self._decide(atom, tuple(visible(a) for a in args))
         before = [a for a, p in zip(args, atom.primed) if not p]

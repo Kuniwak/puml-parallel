@@ -2,7 +2,7 @@
 that enumerate their domains from the domains of their fields."""
 import unittest
 
-from csdfbmc.values import FrozenMap, Rec, encode, freeze, record, partial_map, visible
+from csdfbmc.values import FrozenMap, Rec, encode, freeze, partial_map, record, sample, samples_in, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -58,3 +58,17 @@ class DomainBuilderTest(unittest.TestCase):
         full = partial_map(["t1", "t2"], ["x", "y"])
         self.assertEqual(1 + 4 + 4, len(full))
         self.assertIn(FrozenMap({"t1": "x", "t2": "y"}), full)
+
+    def test_a_type_is_built_of_the_samples_record_and_partial_map_were_given(self):
+        ids, other = sample(["t1"]), sample([1])
+        tests = {
+            "a sample": (ids, [ids]),
+            "a record of a field of a sample": (record(id=ids, 額=[1]), [ids]),
+            "a record of a record of a sample": (record(r=record(id=ids)), [ids]),
+            "a map keyed by a sample, its values of another": (partial_map(ids, other), [ids, other]),
+            "the same values listed by hand": ([FrozenMap({"id": "t1"})], []),
+            "a record of values of no sample": (record(id=["t1"]), []),
+        }
+        for name, (values, want) in tests.items():
+            with self.subTest(name):
+                self.assertEqual([id(x) for x in want], [id(x) for x in samples_in(values)])
