@@ -1,6 +1,8 @@
 """The walk over the product of control states and valuations."""
 from __future__ import annotations
 
+import copy
+import dataclasses
 import inspect
 import itertools
 import sys
@@ -12,7 +14,7 @@ from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import encode, freeze, visible
+from csdfbmc.values import encode, freeze, fresh, scalars, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -42,6 +44,10 @@ class Result:
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
     # stopped_early: the walk stopped at the first finding (first=True).
     stopped_early: bool = False
+    # bound_reached: states with no way out that a value of each sample type
+    # occurring nowhere would give one: the bound, not the diagram, ends
+    # them, so they are not deadlocks.
+    bound_reached: list[State] = field(default_factory=list)
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -315,6 +321,32 @@ class Explorer:
                     out.append((e.name, label, t, e))
         return out
 
+    def _enabled(self, state: State, e: Edge) -> bool:
+        """Whether e has a transition from state, its ghosts left aside."""
+        where = f"{e.src} --> {e.dst} : {e.event} (line {e.line})"
+        return any(self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where)
+                   for before in (self._before(state, params) for params in self._offers(state, e)))
+
+    def _wider(self, state: State) -> "Explorer":
+        """This walk with one more value in each sample type, a value that
+        occurs nowhere in state or the type."""
+        avoid = set().union(*(scalars(v) for v in state[1])) if state[1] else set()
+        types = {t: list(vs) + ([fresh(vs, avoid)] if t in self.checks.samples else []) for t, vs in self.checks.types.items()}
+        wider = copy.copy(self)
+        wider.checks = dataclasses.replace(self.checks, types=types)
+        wider.meaning = AtomMeaning(self.meaning.client, self.environment, wider.checks.domain)
+        wider.ev = Evaluator(wider.meaning, wider.checks.carrier, apply_given(self.checks.environment))
+        return wider
+
+    def bound_ends(self, state: State) -> bool:
+        """Whether a state with no way out has one once each sample type has
+        one more value, occurring nowhere: the bound ends it, not the
+        diagram. The value is only tried; no state is added for it."""
+        if not self.checks.samples:
+            return False
+        wider = self._wider(state)
+        return wider.can_end(state) or any(wider._enabled(state, e) for e in self.d.out_edges(state[0]))
+
     def can_end(self, state: State) -> bool:
         return any(end.src == state[0] and self.ev.holds(end.guard, self._before(state)) for end in self.d.ends)
 
@@ -353,6 +385,7 @@ class Explorer:
         tau_next: dict[State, list[State]] = {}
         avoid_next: dict[State, list[State]] = {}
         deadlocks: list[State] = []
+        bound_reached: list[State] = []
         violations: list[tuple[str, State]] = []
         truncated = False
         seen: set[State] = set()
@@ -379,10 +412,13 @@ class Explorer:
                 break
             succ = self.successors(s)
             if not succ and not self.can_end(s):
-                deadlocks.append(s)
-                if self.first:
-                    stopped = True
-                    break
+                if self.bound_ends(s):
+                    bound_reached.append(s)
+                else:
+                    deadlocks.append(s)
+                    if self.first:
+                        stopped = True
+                        break
             for _, label, t, edge in succ:
                 if t in seen:
                     continue
@@ -403,7 +439,7 @@ class Explorer:
             violations=violations,
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
-            empty_posts=self.empty_posts, stopped_early=stopped,
+            empty_posts=self.empty_posts, stopped_early=stopped, bound_reached=bound_reached,
         )
 
 

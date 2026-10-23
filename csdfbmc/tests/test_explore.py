@@ -5,7 +5,7 @@ from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, exists, family, fld, idx
-from csdfbmc.values import FrozenMap, Rec
+from csdfbmc.values import FrozenMap, Rec, Sample, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -304,6 +304,52 @@ class PropertyTest(unittest.TestCase):
         self.assertTrue(result.stopped_early)
         self.assertEqual(("残高は 1 未満", ("a", (1,), ())), result.violations[0])
         self.assertEqual(3, len(result.states))
+
+
+# ACCOUNTS without DROP, so an ID once opened is never given back; and a STOP
+# out of the map, after which nothing happens whatever the IDs.
+OPENING = dict(ACCOUNTS, states=["r", "s"], vars={"r": ["m"], "s": []}, edges=ACCOUNTS["edges"][:2] + [
+    edge("r", "s", "STOP", guard=[builtin("at", idx("m", "k"), state="closed")]) | {"fields": [{"dir": "?", "name": "k"}]},
+])
+
+
+class SampleTest(unittest.TestCase):
+    """A type given as a sample has more values than the walk ranges over: a
+    state with no way out that a value occurring nowhere would give one is
+    where the bound was reached, not a deadlock."""
+
+    def test_a_dead_end_is_told_from_a_deadlock_by_a_value_of_the_sample_occurring_nowhere(self):
+        closed = ("r", (FrozenMap({"a": inst("closed", bal=0)}),), ())
+        tests = {
+            "the bound reached when every ID is used up": (["r"], sample(["a"]), [], [closed]),
+            "a deadlock however many IDs there are": (["r", "s"], sample(["a"]), [("s", (), ())], []),
+            "a deadlock when the type is not a sample": (["r"], ["a"], [closed], []),
+        }
+        for name, (states, keys, deadlocks, reached) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = dict(OPENING, edges=[e for e in OPENING["edges"] if e["dst"] in states])
+                checks = Checks(types={"k": keys}, samples=frozenset({"k"}) if isinstance(keys, Sample) else frozenset())
+
+                # Execute
+                result = fixture.explorer(d, checks).run()
+
+                # Assert
+                self.assertEqual(deadlocks, result.deadlocks)
+                self.assertEqual(reached, result.bound_reached)
+
+    def test_a_value_of_the_sample_occurring_nowhere_adds_no_state(self):
+        tests = {"a sample": (sample(["a", "b"]), {"k"}), "the same values, not a sample": (["a", "b"], set())}
+        for name, (keys, samples) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = dict(OPENING, edges=OPENING["edges"][:2])
+
+                # Execute
+                result = fixture.explorer(d, Checks(types={"k": keys}, samples=frozenset(samples))).run()
+
+                # Assert
+                self.assertEqual(9, len(result.states))
 
 
 class ReplayTest(unittest.TestCase):

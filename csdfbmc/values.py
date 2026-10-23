@@ -153,6 +153,32 @@ def sample(values: Iterable) -> Sample:
     return Sample(values)
 
 
+def scalars(value) -> set:
+    """The values value holds that hold no other: itself for a scalar, and
+    those of every key, entry, field and element of a container."""
+    if isinstance(value, Rec):
+        return scalars(value.fields)
+    if isinstance(value, Mapping):
+        return set().union(*(scalars(k) | scalars(v) for k, v in value.items()))
+    if isinstance(value, (tuple, frozenset)):
+        return set().union(*(scalars(v) for v in value))
+    return {value}
+
+
+def fresh(values: Iterable, avoid: set):
+    """A value of the kind of values that is none of them and is not in
+    avoid: the next integer after every one for integers, a new text
+    otherwise."""
+    values = list(values)
+    taken = set(avoid) | set(values)
+    if values and all(type(v) is int for v in values):
+        return max(v for v in taken if type(v) is int) + 1
+    n = 0
+    while f"new{n}" in taken:
+        n += 1
+    return f"new{n}"
+
+
 def record(**fields: Iterable) -> list[FrozenMap]:
     """Every record whose fields range over the given domains."""
     names = list(fields)
