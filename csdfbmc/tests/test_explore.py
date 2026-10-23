@@ -376,10 +376,10 @@ class SampleTest(unittest.TestCase):
             with self.subTest(name):
                 # Setup
                 checks = Checks(types={"k": keys, "j": others}, samples=frozenset({"k"}))
-                symmetric = check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
+                explorer = fixture.checked_explorer(d, checks)
 
                 # Execute
-                result = fixture.explorer(d, checks, symmetric=symmetric).run()
+                result = explorer.run()
 
                 # Assert
                 self.assertEqual(([("r", (FrozenMap(),), ())], []), (result.deadlocks, result.bound_reached))
@@ -434,45 +434,56 @@ class DataIndependenceTest(unittest.TestCase):
         orders = edge("r", "r", "TICK?n", guard=[atom("$n > $n")], post=[eq("m'", "m")])
         sorts = edge("r", "r", "LOOK", guard=[atom("sorted($m) == sorted($m)")], post=[eq("m'", "m")])
         adds = edge("r", "r", "ADD?k", guard=[atom("$k not in $m")], post=[atom("$m' == {**$m, $k: 1}")])
-        tests = {
-            "a type sharing the sample's values, declared apart": ({"n": ["a"]}, [orders], None),
+        accepted = {
+            "a type sharing the sample's values, declared apart": ({"n": ["a"]}, [orders]),
+            "a map of a type built over keys of no sample": ({"m": partial_map([1], [0])}, [sorts]),
+        }
+        refused = {
             "a record built of the sample": ({"n": record(id=ids)}, [orders], "argument 0 is ordered"),
             "a map keyed by the sample in an atom's text alone": ({}, [adds, sorts], "sorted orders"),
             "a map of a type listed by hand, its keys not known": ({"m": [FrozenMap()]}, [sorts], "sorted orders"),
-            "a map of a type built over keys of no sample": ({"m": partial_map([1], [0])}, [sorts], None),
         }
-        for name, (types, edges, said) in tests.items():
+
+        def setup(types, edges):
+            d = fixture.load(diagram({"r": ["m"]}, "r", init_post=[atom("$m' == {}")], edges=edges))
+            return d, Checks(types={"k": ids, **types}, samples=frozenset({"k"}))
+
+        for name, (types, edges) in accepted.items():
             with self.subTest(name):
                 # Setup
-                d = fixture.load(diagram({"r": ["m"]}, "r", init_post=[atom("$m' == {}")], edges=edges))
-                checks = Checks(types={"k": ids, **types}, samples=frozenset({"k"}))
+                d, checks = setup(types, edges)
 
                 # Execute, Assert
-                if said is None:
+                check_independent(d, checks, fixture.glue(), environment.NONE)
+        for name, (types, edges, said) in refused.items():
+            with self.subTest(name):
+                # Setup
+                d, checks = setup(types, edges)
+
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
                     check_independent(d, checks, fixture.glue(), environment.NONE)
-                else:
-                    with self.assertRaisesRegex(ValueError, said):
-                        check_independent(d, checks, fixture.glue(), environment.NONE)
 
     def test_a_value_beyond_the_sample_is_shown_only_to_an_atom_the_glue_said_symmetric_of(self):
         e = OPENING["edges"][0]
         copied = dict(OPENING, edges=[dict(e, label="OPEN?k?j", fields=e["fields"] + [{"dir": "?", "name": "j"}],
                                            guard=e["guard"] + [builtin("eq", "j", "k"), atom("$j == $k")])])
         tests = {
-            "an atom not asked": (self.opening(atom("$k == $k")), {"k": sample(["a"])}),
+            # The glue was never asked of the atom: no symmetry is told.
+            "an atom not asked": (self.opening(atom("$k == $k")), {"k": sample(["a"])}, False),
             # j is declared of a type of no sample, so only k was asked of,
             # but the guard copies the value beyond the sample into j.
-            "an argument not asked of": (copied, {"k": sample(["a"]), "j": ["b"]}),
+            "an argument not asked of": (copied, {"k": sample(["a"]), "j": ["b"]}, True),
         }
-        for name, (d, types) in tests.items():
+        for name, (d, types, asked) in tests.items():
             with self.subTest(name):
                 # Setup
                 checks = Checks(types=types, samples=frozenset({"k"}))
-                symmetric = check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
+                symmetric = check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE) if asked else {}
 
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, r"would read a value beyond a sample"):
-                    fixture.explorer(d, checks, symmetric=symmetric if name != "an atom not asked" else {}).run()
+                    fixture.explorer(d, checks, symmetric=symmetric).run()
 
     def test_a_sample_type_told_apart_by_equality_and_keys_only_is_walked(self):
         tick = edge("r", "r", "TICK?n", guard=[atom("$n > 0")], post=[eq("m'", "m")])
@@ -488,10 +499,10 @@ class DataIndependenceTest(unittest.TestCase):
             with self.subTest(name):
                 # Setup
                 checks = Checks(types={"k": sample(["a"]), "n": [1]}, samples=frozenset({"k"}))
+                explorer = fixture.checked_explorer(d, checks)
 
                 # Execute
-                symmetric = check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
-                result = fixture.explorer(d, checks, symmetric=symmetric).run()
+                result = explorer.run()
 
                 # Assert
                 self.assertEqual(([], reached), (result.deadlocks, result.bound_reached))
