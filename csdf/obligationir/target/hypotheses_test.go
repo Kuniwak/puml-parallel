@@ -34,12 +34,16 @@ func theorems(t *testing.T, out string) map[string][]string {
 			end = locs[i+1][0]
 		}
 		stmt := out[loc[0]:end]
+		name := out[loc[2]:loc[3]]
+		if strings.HasPrefix(name, "csdf_") {
+			continue // the model's own, proved
+		}
 		if k := strings.Index(stmt, "\n  oops"); k >= 0 {
 			stmt = stmt[:k]
 		} else if k := strings.Index(stmt, ":="); k >= 0 {
 			stmt = stmt[:k]
 		} else {
-			t.Fatalf("the theorem %s ends neither by oops nor by := by: %s", out[loc[2]:loc[3]], stmt)
+			t.Fatalf("the theorem %s ends neither by oops nor by := by: %s", name, stmt)
 		}
 		hs := []string{}
 		for _, id := range identifier.FindAllString(stmt, -1) {
@@ -48,9 +52,7 @@ func theorems(t *testing.T, out string) map[string][]string {
 			}
 		}
 		slices.Sort(hs)
-		if name := out[loc[2]:loc[3]]; !strings.HasPrefix(name, "csdf_") {
-			ts[name] = hs
-		}
+		ts[name] = hs
 	}
 	return ts
 }

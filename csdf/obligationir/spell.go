@@ -193,6 +193,10 @@ type Notation struct {
 	// Exists and Forall spell a quantifier binding vars, each of the type
 	// the prover gives every value, over body.
 	Exists, Forall func(vars []string, body string) string
+	// Wellformed, when set, is the predicate that a value is in the form
+	// the model holds it in, a map canonical (docs/CLAUSE_DESIGN.md); a
+	// quantifier over a type is restricted to such values, as to the type.
+	Wellformed string
 }
 
 // SpellFormula writes f in the notation n. Every operand that is no atom, no
@@ -219,6 +223,9 @@ func (n Notation) Relativize(forall bool, vars []string, types []string, body st
 		}
 		if relativized(types[i]) {
 			guards = append(guards, TypeName(types[i])+" "+v)
+			if n.Wellformed != "" {
+				guards = append(guards, n.Wellformed+" "+v)
+			}
 		}
 	}
 	if len(guards) == 0 {

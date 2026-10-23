@@ -13,8 +13,9 @@ import (
 // the type Val.
 var Notation = obligationir.Notation{
 	And: ` ∧ `, Or: ` ∨ `, Not: `¬`, Implies: ` → `, True: `True`, False: `False`,
-	Exists: func(vars []string, body string) string { return `∃ ` + binders(vars) + `, ` + body },
-	Forall: func(vars []string, body string) string { return `∀ ` + binders(vars) + `, ` + body },
+	Exists:     func(vars []string, body string) string { return `∃ ` + binders(vars) + `, ` + body },
+	Forall:     func(vars []string, body string) string { return `∀ ` + binders(vars) + `, ` + body },
+	Wellformed: "csdf_wf",
 }
 
 func binders(vars []string) string {
@@ -54,7 +55,7 @@ func livelockFree(ir obligationir.LivelockFree) (string, error) {
 		return "", err
 	}
 	writeStates(&w, side, ir.States)
-	writeSymbols(&w, ds)
+	writeSymbols(&w, ds, nil)
 	if err := WriteBuiltins(&w, obligationir.BuiltinsOf(ds)); err != nil {
 		return "", err
 	}
@@ -113,9 +114,13 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "\n")
 }
 
-func writeSymbols(w io.Writer, ds []obligationir.Declaration) {
+func writeSymbols(w io.Writer, ds []obligationir.Declaration, types map[string]string) {
 	for _, d := range ds {
 		if obligationir.Defined(d.Symbol) {
+			continue
+		}
+		if body, ok := types[d.Name]; ok && d.Kind == obligationir.KindType {
+			fmt.Fprintf(w, "def %s (v : Val) : Prop := %s\n\n", d.Name, body)
 			continue
 		}
 		for _, c := range d.Comments {

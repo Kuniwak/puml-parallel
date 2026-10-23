@@ -7,21 +7,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// ValPrelude declares val, the type of every value (docs/CLAUSE_DESIGN.md):
-// a scalar, or a map, a function from scalars to scalars where it is
-// defined. Equality of maps is the equality of functions, so two maps are
-// equal just when they hold the same entries. An instance is a record, its
-// state the first component.
-const ValPrelude = `datatype scalar = SInt int
-  | SString string
-  | SBool bool
-  | SArray "scalar list"
-  | SDict "(string \<times> scalar) list"
-  | SRecord scalar "(string \<times> scalar) list"
-
-datatype val = ValScalar scalar
-  | ValMap "scalar \<Rightarrow> scalar option"`
-
 // PredicateTODO marks a declaration standing for a predicate nobody has
 // formalised. It is spelled identically by every backend so that a checker can
 // refuse to call an obligation discharged while any marker remains.

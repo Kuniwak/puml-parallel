@@ -13,7 +13,24 @@ import (
 // whose clauses are formulas, for lean-csp-prover, as the Isabelle back end
 // does (isabelle.WriteRefinement).
 func WriteRefinement(w io.Writer, r obligationir.Refinement) error {
-	text, err := refinement(r)
+	return WriteRefinementEdited(w, r, Edits{})
+}
+
+// Edits are what a reader formalising an obligation supplies, written in
+// place of what the generator leaves open: Types gives the body of each
+// type predicate it names, over v, in place of its declaration; Proofs
+// gives the proof of each theorem it names in place of the open one; and
+// Lemmas are written before the end.
+type Edits struct {
+	Types  map[string]string
+	Proofs map[string]string
+	Lemmas []string
+}
+
+// WriteRefinementEdited writes the refinement obligation of r as
+// WriteRefinement does, with e.
+func WriteRefinementEdited(w io.Writer, r obligationir.Refinement, e Edits) error {
+	text, err := refinement(r, e)
 	if err != nil {
 		return fmt.Errorf("lean.WriteRefinement: %w", err)
 	}
@@ -37,7 +54,7 @@ func sidesOf(r obligationir.Refinement) []side {
 	}
 }
 
-func refinement(r obligationir.Refinement) (string, error) {
+func refinement(r obligationir.Refinement, e Edits) (string, error) {
 	if err := r.Validate(); err != nil {
 		return "", err
 	}
@@ -66,7 +83,7 @@ deriving Inhabited
 	if err != nil {
 		return "", err
 	}
-	writeSymbols(&w, ds)
+	writeSymbols(&w, ds, e.Types)
 	if err := WriteBuiltins(&w, obligationir.BuiltinsOf(ds)); err != nil {
 		return "", err
 	}
@@ -92,7 +109,7 @@ deriving Inhabited
 		}
 	}
 	for _, s := range sides {
-		if err := writeSideLemmas(&w, s, r.Mode); err != nil {
+		if err := writeSideLemmas(&w, s, r.Mode, e.Proofs); err != nil {
 			return "", err
 		}
 	}
@@ -100,7 +117,11 @@ deriving Inhabited
 	// impl could make it hold vacuously, and one of the spec, of liveness, is
 	// no claim traces or stable failures can state (docs/CLAUSE_DESIGN.md).
 	WriteRefinementTheorem(&w, r.Mode, nil)
-	fmt.Fprintf(&w, "\n\nend %s\n\nend\n", Namespace)
+	io.WriteString(&w, "\n\n")
+	for _, l := range e.Lemmas {
+		io.WriteString(&w, l+"\n\n")
+	}
+	fmt.Fprintf(&w, "end %s\n\nend\n", Namespace)
 	return w.String(), nil
 }
 
@@ -263,7 +284,7 @@ func writeProc(w io.Writer, s side) error {
 // tau steps is stated under the side's own assumptions, so
 // the FD conclusion is conditional on them; with the first it licenses
 // reading the F refinement as FD refinement.
-func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode) error {
+func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode, proofs map[string]string) error {
 	assumed := AssumptionNames(s.names, s.ir.Assumptions)
 	if mode == obligationir.IRRefinementModeFailuresDivergence && s.ir.Structurally {
 		fmt.Fprintf(w, "-- %s is livelock free structurally: no reachable tau-cycle.\n\n", s.label)
@@ -287,6 +308,10 @@ func writeSideLemmas(w io.Writer, s side, mode obligationir.IRRefinementMode) er
 -- under no hypothesis: it must not rest on an assumption.
 theorem %s`, s.label, s.names.Qualify("initialisable"))
 	WriteHypotheses(w, nil)
-	fmt.Fprintf(w, " : %s := by\n  sorry\n\n", body)
+	proof, ok := proofs[s.names.Qualify("initialisable")]
+	if !ok {
+		proof = "sorry"
+	}
+	fmt.Fprintf(w, " : %s := by\n  %s\n\n", body, proof)
 	return nil
 }

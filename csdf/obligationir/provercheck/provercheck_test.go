@@ -152,6 +152,7 @@ func obligations(t *testing.T) []obligation {
 		livelockObligation(t, "livelock_countdown", countdown),
 		livelockObligation(t, "livelock_maps_and_lemmas", maps),
 		livelockObligation(t, "livelock_every_builtin", "../testdata/formula/builtins.puml"),
+		livelockObligation(t, "livelock_nested_maps", "../testdata/formula/nested.puml"),
 		livelockObligation(t, "livelock_hostile_names", hostileSpec),
 		refinementObligation(t, "refinement_ground_f", obligationir.IRRefinementModeStableFailure, groundSpec, groundImpl),
 		refinementObligation(t, "refinement_values_t", obligationir.IRRefinementModeTrace, counter, countdown),
@@ -170,12 +171,16 @@ func TestLeanAcceptsTheGeneratedObligations(t *testing.T) {
 	leanDir := requireEnv(t, proverLean, envLean)
 	for _, o := range obligations(t) {
 		t.Run(o.name, func(t *testing.T) {
-			out, err := runLean(t, leanDir, o.name+".lean", o.leanSrc)
+			src := o.leanSrc + printAxioms(o.leanSrc)
+			out, err := runLean(t, leanDir, o.name+".lean", src)
 			if err != nil {
-				t.Fatalf("lean rejected the obligation: %v\n%s\n--- source ---\n%s", err, out, o.leanSrc)
+				t.Fatalf("lean rejected the obligation: %v\n%s\n--- source ---\n%s", err, out, src)
 			}
 			if diags := unexpectedLeanDiagnostics(out); len(diags) > 0 {
-				t.Errorf("lean reported %v\n--- source ---\n%s", diags, o.leanSrc)
+				t.Errorf("lean reported %v\n--- source ---\n%s", diags, src)
+			}
+			if bad := foreignAxioms(out); len(bad) > 0 {
+				t.Errorf("the model rests on %v\n%s", bad, out)
 			}
 		})
 	}
@@ -452,55 +457,123 @@ func TestTheProversDoNotDischargeAFalseRefinement(t *testing.T) {
 
 // TestTheBuiltinsAreAModel holds the definitions of the builtins to the
 // meaning a refinement needs of them, by proofs a prover checks: a frame of
-// no key leaves a map as it was, so an edge whose post is @frame(m', m) ∧
-// m' ≠ m is disabled; and a diagram starting at a state of its local
-// diagram, its types formalised, can start.
+// no key leaves a well-formed map as it was, so an edge whose post is
+// @frame(m', m) ∧ m' ≠ m is disabled; and a diagram starting at a state of
+// its local diagram with an empty map, its types formalised, can start.
 func TestTheBuiltinsAreAModel(t *testing.T) {
-	const builtins = "../testdata/formula/builtins.puml"
-	o := refinementObligation(t, "builtins_model", obligationir.IRRefinementModeTrace, builtins, "../testdata/formula/countdown.puml")
-	start := "∃ (v_t_u27u : Val) (v_m_u27u : Val), type_t v_t_u27u ∧ type_m v_m_u27u ∧ (csdf_at v_t_u27u state__u2euA ∧ csdf_empty v_m_u27u) := by\n  sorry"
-	isaStart := "theorem initialisable_S: \"\\<exists>(v_t_u27u::val) (v_m_u27u::val). type_t v_t_u27u \\<and> type_m v_m_u27u \\<and> (csdf_at v_t_u27u state__u2euA \\<and> csdf_empty v_m_u27u)\"\n  oops"
+	// Setup
+	ir, err := obligationir.BuildRefinement(obligationir.IRRefinementModeTrace,
+		load(t, "../testdata/formula/builtins.puml"), load(t, "../testdata/formula/countdown.puml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	types := map[string]string{"type_t": "True", "type_m": "True"}
+	leanEdits := lean.Edits{
+		Types: types,
+		Proofs: map[string]string{"initialisable_S": strings.Join([]string{
+			"have canon : csdf_canon [] = [] := by",
+			"    have h := Classical.epsilon_spec (p := fun l => csdf_same l []) ⟨[], fun _ => Iff.rfl⟩",
+			"    exact List.eq_nil_iff_forall_not_mem.mpr (fun p hp => by simpa using (h p).mp hp)",
+			"  refine ⟨.ValRecord (.ValInt 0) [], .ValMap [], trivial, ?_, trivial, ?_, rfl, trivial, ?_⟩",
+			"  · exact csdf_wf.record _ _ (csdf_wf.int 0) (by simp)",
+			"  · exact csdf_wf.map [] List.nodup_nil canon.symm (by simp) (by simp)",
+			"  · intro k ⟨v, hv⟩; simp at hv"}, "\n")},
+		Lemmas: []string{"theorem frame0_keeps (n m : Val) (wn : csdf_wf n) (wm : csdf_wf m) (h : csdf_frame0 n m) : n = m :=\n" +
+			"  csdf_map_ext n m wn wm (And.left h) (And.left (And.right h)) (fun k =>\n" +
+			"    ⟨⟨(And.right (And.right h) k trivial).1, fun hm => ((And.right (And.right h) k trivial).2 hm).1⟩,\n" +
+			"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)"},
+	}
+	isaEdits := isabelle.Edits{
+		Types: types,
+		Proofs: map[string]string{"initialisable_S": "apply (rule exI[of _ \"ValRecord (ValInt 0) []\"], rule exI[of _ \"ValMap []\"])\n" +
+			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def csdf_canon_def intro: csdf_wf.intros)\n  done"},
+		Lemmas: []string{"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
+			"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
+	}
+	var leanSrc, isaSrc strings.Builder
+	if err := lean.WriteRefinementEdited(&leanSrc, ir, leanEdits); err != nil {
+		t.Fatal(err)
+	}
+	if err := isabelle.WriteRefinementEdited(&isaSrc, ir, isaEdits); err != nil {
+		t.Fatal(err)
+	}
+	o := obligation{name: "builtins_model", theory: "Refinement_Obligation", parent: "CSP_T"}
 
 	t.Run("lean", func(t *testing.T) {
 		leanDir := requireEnv(t, proverLean, envLean)
-		src := o.leanSrc
-		for _, typ := range []string{"type_t", "type_m"} {
-			src = strings.Replace(src, "opaque "+typ+" : Val → Prop", "def "+typ+" (_ : Val) : Prop := True", 1)
-		}
-		proved := strings.Replace(src, start, strings.TrimSuffix(start, "sorry")+
-			"refine ⟨.ValScalar (.SRecord (.SInt 0) []), .ValMap (fun _ => none), trivial, trivial, rfl, trivial, ?_⟩\n  intro k\n  cases k <;> simp [csdf_in]", 1)
-		if proved == src {
-			t.Fatal("the obligation no longer states initialisable_S as this control expects")
-		}
-		disabled := "\nexample (n m : Val) (h : csdf_frame0 n m) : n = m :=\n  csdf_map_ext n m (And.left h) (And.left (And.right h)) (fun k =>\n" +
-			"    ⟨⟨(And.right (And.right h) k trivial).1, fun hm => ((And.right (And.right h) k trivial).2 hm).1⟩,\n" +
-			"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)\n"
-		proved = strings.Replace(proved, "\nend Refinement_Obligation", disabled+"\nend Refinement_Obligation", 1)
-		out, err := runLean(t, leanDir, "builtins_model.lean", proved)
+
+		// Execute
+		src := leanSrc.String() + "\n#print axioms Refinement_Obligation.frame0_keeps\n#print axioms Refinement_Obligation.initialisable_S\n"
+		out, err := runLean(t, leanDir, "builtins_model.lean", src)
+
+		// Assert
 		if err != nil {
-			t.Fatalf("lean rejected the model: %v\n%s\n--- source ---\n%s", err, out, proved)
+			t.Fatalf("lean rejected the model: %v\n%s\n--- source ---\n%s", err, out, src)
 		}
 		if diags := unexpectedLeanDiagnostics(out); len(diags) > 0 {
 			t.Errorf("lean reported %v", diags)
 		}
+		if bad := foreignAxioms(out); len(bad) > 0 {
+			t.Errorf("the model rests on %v\n%s", bad, out)
+		}
 	})
 	t.Run("isabelle", func(t *testing.T) {
 		cspDir := requireEnv(t, proverIsabelle, envCSP)
-		src := o.isaSrc
-		for _, typ := range []string{"type_t", "type_m"} {
-			src = strings.Replace(src, "consts "+typ+" :: \"val \\<Rightarrow> bool\"", "definition "+typ+" :: \"val \\<Rightarrow> bool\"\n  where \""+typ+" v \\<equiv> True\"", 1)
-		}
-		proved := strings.Replace(src, isaStart, strings.TrimSuffix(isaStart, "oops")+
-			"apply (rule exI[of _ \"ValScalar (SRecord (SInt 0) [])\"], rule exI[of _ \"ValMap (\\<lambda>_. None)\"])\n"+
-			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def split: val.splits)\n  done", 1)
-		if proved == src {
-			t.Fatal("the obligation no longer states initialisable_S as this control expects")
-		}
-		disabled := "lemma frame0_keeps: \"csdf_frame0 n m \\<Longrightarrow> n = m\"\n  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)\n\n"
-		i := strings.LastIndex(proved, "\nend\n")
-		proved = proved[:i] + "\n" + disabled + proved[i+1:]
-		if out, err := runIsabelle(t, cspDir, o, proved); err != nil {
-			t.Fatalf("isabelle rejected the model: %v\n%s\n--- source ---\n%s", err, out, proved)
+
+		// Execute
+		out, err := runIsabelle(t, cspDir, o, isaSrc.String())
+
+		// Assert
+		if err != nil {
+			t.Fatalf("isabelle rejected the model: %v\n%s\n--- source ---\n%s", err, out, isaSrc.String())
 		}
 	})
+}
+
+// modelTheorem is a theorem of the model a generated file proves.
+var modelTheorem = regexp.MustCompile(`(?m)^theorem (csdf_\w+)`)
+
+// printAxioms asks Lean what each theorem of the model in src rests on.
+func printAxioms(src string) string {
+	prefix := ""
+	if strings.Contains(src, "namespace Refinement_Obligation") {
+		prefix = "Refinement_Obligation."
+	}
+	var sb strings.Builder
+	for _, m := range modelTheorem.FindAllStringSubmatch(src, -1) {
+		sb.WriteString("\n#print axioms " + prefix + m[1])
+	}
+	return sb.String() + "\n"
+}
+
+// TestNoObligationDeclaresAnAxiom holds every generated file to defining
+// what it assumes of the builtins rather than declaring it: an axiom that
+// contradicted another would prove anything.
+func TestNoObligationDeclaresAnAxiom(t *testing.T) {
+	for _, o := range obligations(t) {
+		t.Run(o.name, func(t *testing.T) {
+			if regexp.MustCompile(`(?m)^axiomatization|^axiom `).MatchString(o.isaSrc + o.leanSrc) {
+				t.Errorf("%s declares an axiom", o.name)
+			}
+		})
+	}
+}
+
+// axiomsLine is what #print axioms says of a declaration.
+var axiomsLine = regexp.MustCompile(`depends on axioms: \[([^\]]*)\]`)
+
+// foreignAxioms are the axioms out says a declaration rests on beyond Lean's
+// own: propext, Quot.sound and Classical.choice.
+func foreignAxioms(out string) []string {
+	var bad []string
+	for _, m := range axiomsLine.FindAllStringSubmatch(out, -1) {
+		for _, a := range strings.Split(m[1], ",") {
+			switch a = strings.TrimSpace(a); a {
+			case "propext", "Quot.sound", "Classical.choice":
+			default:
+				bad = append(bad, a)
+			}
+		}
+	}
+	return bad
 }

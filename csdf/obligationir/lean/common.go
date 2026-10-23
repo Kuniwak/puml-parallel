@@ -8,27 +8,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
 )
 
-// ValPrelude declares Val, the type of every value, as the Isabelle back end
-// does (isabelle.ValPrelude): a scalar, or a map, a function from scalars to
-// scalars where it is defined, so that equality of maps is extensional.
-// Floats are folded into SInt for now.
-const ValPrelude = `inductive Scalar where
-  | SInt (i : Int)
-  | SString (s : String)
-  | SBool (b : Bool)
-  | SArray (xs : List Scalar)
-  | SDict (kvs : List (String × Scalar))
-  | SRecord (state : Scalar) (fields : List (String × Scalar))
-deriving Inhabited
-
-inductive Val where
-  | ValScalar (s : Scalar)
-  | ValMap (f : Scalar → Option Scalar)`
-
-// InhabitedVal lets a function into Val be declared opaque, which Lean
-// allows only of an inhabited type.
-const InhabitedVal = `instance : Inhabited Val := ⟨.ValScalar (.SBool false)⟩`
-
 // PredicateTODO marks a declaration standing for a predicate nobody has
 // formalised. It is spelled identically by every backend so that a checker can
 // refuse to call an obligation discharged while any marker remains.
