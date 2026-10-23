@@ -103,3 +103,48 @@ func hasPrimed(t Term) bool {
 	})
 	return found
 }
+
+// Pieces are the text of a in normal form as a holds it, without escapes:
+// one piece before its first hole and one after each, so one more than its
+// holes. Unlike the text of Wire, a piece after a hole is not spaced.
+func Pieces(a Atom) []string {
+	pieces := []string{""}
+	for _, p := range normalAtom(a).Parts {
+		switch p := p.(type) {
+		case Text:
+			pieces[len(pieces)-1] += string(p)
+		case Hole:
+			pieces = append(pieces, "")
+		}
+	}
+	return pieces
+}
+
+// AtomOf is the atom whose text is pieces, the hole between pieces[i] and
+// pieces[i+1] reading args[holes[i]]: the inverse of Pieces with the holes
+// and terms of Wire. pieces must be one more than holes; the holes read the
+// arguments in the order Wire numbers them, by first appearance, and every
+// argument is read by a hole.
+func AtomOf(pieces []string, holes []int, args []Term) (Atom, error) {
+	if len(pieces) != len(holes)+1 {
+		return Atom{}, fmt.Errorf("clause.AtomOf: an atom has one piece more than holes, not %d pieces for %d holes", len(pieces), len(holes))
+	}
+	parts := []Part{Text(pieces[0])}
+	next := 0
+	for i, h := range holes {
+		if h < 0 || h >= len(args) {
+			return Atom{}, fmt.Errorf("clause.AtomOf: hole %d reads argument %d, but the atom has %d", i, h, len(args))
+		}
+		if h > next {
+			return Atom{}, fmt.Errorf("clause.AtomOf: hole %d reads argument %d before argument %d", i, h, next)
+		}
+		if h == next {
+			next++
+		}
+		parts = append(parts, Hole{Term: args[h]}, Text(pieces[i+1]))
+	}
+	if next < len(args) {
+		return Atom{}, fmt.Errorf("clause.AtomOf: argument %d is read by no hole", next)
+	}
+	return normalAtom(Atom{Parts: parts}), nil
+}

@@ -2,6 +2,7 @@ package clause
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -136,4 +137,71 @@ func firstAtom(f And) Atom {
 		}
 	}
 	return Atom{}
+}
+
+func TestPiecesAndAtomOfAreInverse(t *testing.T) {
+	tests := map[string]struct {
+		text       string
+		wantPieces []string
+	}{
+		"no hole":                          {text: "a < b", wantPieces: []string{"a < b"}},
+		"holes reading one argument twice": {text: "$a と $b と $a", wantPieces: []string{"", "と ", "と ", ""}},
+		"text after a hole, not spaced":    {text: "$x が多い", wantPieces: []string{"", "が多い"}},
+		"a hole of a term":                 {text: "${m[k].f'} = $n", wantPieces: []string{"", " = ", ""}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			f, err := Parse(tt.text)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a := f.Conjuncts[0].(Atom)
+			w, args, err := Wire(a)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			pieces := Pieces(a)
+			back, err := AtomOf(pieces, w.Holes, args)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if d := cmp.Diff(tt.wantPieces, pieces); d != "" {
+				t.Errorf("Pieces mismatch (-want +got):\n%s", d)
+			}
+			if d := cmp.Diff(normalAtom(a), back); d != "" {
+				t.Errorf("AtomOf mismatch (-want +got):\n%s", d)
+			}
+		})
+	}
+}
+
+func TestAtomOfRefuses(t *testing.T) {
+	tests := map[string]struct {
+		pieces []string
+		holes  []int
+		args   []Term
+		want   string
+	}{
+		"pieces not one more than holes": {pieces: []string{"a"}, holes: []int{0}, args: []Term{Free{Name: "x"}}, want: "one piece more"},
+		"a hole of no argument":          {pieces: []string{"", ""}, holes: []int{1}, args: []Term{Free{Name: "x"}}, want: "reads argument 1"},
+		"an argument no hole reads":      {pieces: []string{"", ""}, holes: []int{0}, args: []Term{Free{Name: "x"}, Free{Name: "y"}}, want: "argument 1 is read by no hole"},
+		"arguments out of the order of the holes": {pieces: []string{"", " ", ""}, holes: []int{1, 0}, args: []Term{Free{Name: "x"}, Free{Name: "y"}},
+			want: "hole 0 reads argument 1 before argument 0"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := AtomOf(tt.pieces, tt.holes, tt.args)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("AtomOf error = %v, want one mentioning %q", err, tt.want)
+			}
+		})
+	}
 }
