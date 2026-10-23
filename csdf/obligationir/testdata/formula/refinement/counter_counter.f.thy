@@ -79,9 +79,26 @@ proof -
   have wb: "distinct (map fst b)" "b = csdf_canon b"
     using assms(2) unfolding ab by (auto elim: csdf_wf.cases)
   have "map_of a k = map_of b k" for k
-    using spec[OF h, of k] unfolding ab
-    by (cases "map_of a k"; cases "map_of b k";
-        auto simp: csdf_in_def csdf_index_def map_of_eq_None_iff dest: map_of_SomeD)
+  proof (cases "k \<in> set (map fst a)")
+    case False
+    then have "k \<notin> set (map fst b)"
+      using spec[OF h, of k] unfolding ab by (simp add: csdf_in_def)
+    then have "map_of b k = None" by (simp add: map_of_eq_None_iff)
+    moreover have "map_of a k = None" using False by (simp add: map_of_eq_None_iff)
+    ultimately show ?thesis by simp
+  next
+    case True
+    then obtain v where va: "map_of a k = Some v"
+      by (metis map_of_eq_None_iff not_None_eq)
+    from True have "k \<in> set (map fst b)"
+      using spec[OF h, of k] unfolding ab by (simp add: csdf_in_def)
+    then obtain w where wb: "map_of b k = Some w"
+      by (metis map_of_eq_None_iff not_None_eq)
+    have "csdf_index n k = csdf_index m k"
+      using spec[OF h, of k] True unfolding ab by (simp add: csdf_in_def)
+    then have "v = w" using va wb unfolding ab by (simp add: csdf_index_def)
+    then show ?thesis using va wb by simp
+  qed
   then have "map_of a = map_of b" by (rule ext)
   then have "set a = set b" using wa(1) wb(1) by (simp add: map_of_inject_set)
   then have "csdf_canon a = csdf_canon b" by (simp add: csdf_canon_def)
