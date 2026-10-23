@@ -217,6 +217,31 @@ def holds_fresh(value) -> bool:
     return False
 
 
+def _widened(values: Iterable, beyond: dict[int, Sample]) -> Iterable:
+    """values with each sample they are, or are built of, replaced by
+    beyond's (by identity), and built again."""
+    if isinstance(values, Sample):
+        return beyond.get(id(values), values)
+    if isinstance(values, Built) and samples_in(values):
+        return values.build(**{k: _widened(v, beyond) for k, v in values.parts.items()})
+    return values
+
+
+def beyond_samples(types: dict[str, Iterable]) -> dict[str, Iterable]:
+    """types with one value more in each sample, a Fresh, and every type
+    built of a sample built again of the wider one, so that a record of a
+    sample also takes the value beyond it. A sample's Fresh is named by the
+    first type, in order, that is the sample, or else that is built of it."""
+    beyond: dict[int, Sample] = {}
+    for t in sorted(types):
+        if isinstance(types[t], Sample):
+            beyond.setdefault(id(types[t]), Sample(tuple(types[t]) + (Fresh(t),)))
+    for t in sorted(types):
+        for n, x in enumerate(samples_in(types[t])):
+            beyond.setdefault(id(x), Sample(tuple(x) + (Fresh(t, n),)))
+    return {t: _widened(vs, beyond) for t, vs in types.items()}
+
+
 def record(**fields: Iterable) -> Built:
     """Every record whose fields range over the given domains."""
     fields = {n: _kept(vs) for n, vs in fields.items()}

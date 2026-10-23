@@ -355,7 +355,11 @@ way out, csdfbmc adds one value beyond the sample and asks whether a step
 is then enabled. The value is opaque, equal to nothing but itself, so it is
 distinct by construction from every value of every type, ghost and trace;
 csdfbmc does not guess one of the type's kind, which could equal a value
-already there and enable a step no value beyond the sample would. One value stands for all the others only when every clause
+already there and enable a step no value beyond the sample would. A type
+built of the sample by record or partial_map is built again of the wider
+sample, so that the value reaches every type declared to hold it; a type
+derived otherwise keeps its values, which can only leave a step disabled
+and so report a deadlock, never hide one. One value stands for all the others only when every clause
 is invariant under permutation of the type's values and names none of them
 (data independence), which the builtins are by construction, an atom is when
 its glue says so (Q2), and an environment function is not known to be; a

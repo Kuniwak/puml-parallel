@@ -84,6 +84,7 @@ class LoadChecksTest(unittest.TestCase):
             "a sample": ('TYPES = {"ID": sample(["a1", "a2"]), "額": [1]}\n', {"ID"}),
             "plain values only": ('TYPES = {"ID": ["a1", "a2"], "額": [1]}\n', set()),
             "a record over a sample": ('IDS = sample(["a1", "a2"])\nTYPES = {"ID": IDS, "額": [r.id for r in record(id=IDS)]}\n', {"ID"}),
+            "a record built of a sample": ('IDS = sample(["a1", "a2"])\nTYPES = {"ID": IDS, "Tx": record(id=IDS)}\n', {"ID", "Tx"}),
         }
         for name, (body, want) in tests.items():
             with self.subTest(name):

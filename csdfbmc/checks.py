@@ -30,7 +30,7 @@ import inspect
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Iterable
 
-from csdfbmc.values import Sample
+from csdfbmc.values import samples_in
 
 if TYPE_CHECKING:
     from csdfbmc.environment import Given
@@ -97,7 +97,8 @@ class Checks:
     # (csdfbmc.environment).
     environment: dict[str, "Given | None"] = field(default_factory=dict)
     # samples: the types whose values are a sample of the type, which has
-    # more (csdfbmc.values.sample).
+    # more (csdfbmc.values.sample), or are built of one by record or
+    # partial_map (csdfbmc.values.samples_in).
     samples: frozenset[str] = frozenset()
 
     def type_of(self, name: str) -> str:
@@ -183,7 +184,7 @@ def load_checks(path: str) -> Checks:
             raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
                               "or None to leave it to --env or --seed")
     return Checks(
-        types=dict(module.TYPES), samples=frozenset(t for t, vs in module.TYPES.items() if isinstance(vs, Sample)), typeof=dict(typeof), environment=environment,
+        types=dict(module.TYPES), samples=frozenset(t for t, vs in module.TYPES.items() if samples_in(vs)), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         sources=[(path, source)],
     )

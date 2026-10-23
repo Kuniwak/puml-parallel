@@ -6,7 +6,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.independence import check_independent
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
-from csdfbmc.values import FrozenMap, Rec, Sample, partial_map, record, sample
+from csdfbmc.values import FrozenMap, Rec, Sample, partial_map, record, sample, samples_in
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -338,6 +338,29 @@ class SampleTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(deadlocks, result.deadlocks)
                 self.assertEqual(reached, result.bound_reached)
+
+    def test_a_type_built_of_a_sample_takes_the_value_beyond_it(self):
+        # OPEN receives a record whose id is the key, not the key itself.
+        rid = fld("r", "id")
+        opens = edge("r", "r", "OPEN?r", guard=[builtin("notin", rid, "m")],
+                     post=[builtin("frame", "m'", "m", rid), builtin("at", idx("m'", rid), state="open"),
+                           atom("${} == 0", fld(idx("m'", rid), "bal"))])
+        ids = sample(["a"])
+        tests = {
+            "a record of the sample": (ids, [], [("r", (FrozenMap({"a": inst("open", bal=0)}),), ())]),
+            "a record of values listed by hand": (["a"], [("r", (FrozenMap({"a": inst("open", bal=0)}),), ())], []),
+        }
+        for name, (keys, deadlocks, reached) in tests.items():
+            with self.subTest(name):
+                # Setup
+                types = {"k": ids, "r": record(id=keys), "bal": [0]}
+                checks = Checks(types=types, samples=frozenset(t for t, vs in types.items() if samples_in(vs)))
+
+                # Execute
+                result = fixture.explorer(dict(OPENING, edges=[opens]), checks).run()
+
+                # Assert
+                self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
 
     def test_the_value_beyond_the_sample_equals_no_value_of_another_type(self):
         # OPEN takes a fresh k only together with a j equal to it; j's type

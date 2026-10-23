@@ -893,7 +893,12 @@ A finite bound can end a run the diagram would go on with: once every ID of
 a finite type is used up, nothing is enabled, though a fresh ID would be.
 For a type given as a sample, a state with no enabled transition and no end
 edge whose guard holds is tried once more, with one value added to each
-sample type beyond its sample. That value is opaque: it equals nothing but
+sample beyond it, and every type `record(…)` or `partial_map(…)` built of the
+sample built again of the wider one, so that a record whose field is of the
+sample also takes the value. A type derived some other way, a comprehension
+over a sample say, is not widened: a step only it would enable is still
+reported as a deadlock, so the limit errs toward a deadlock, never away
+from one. That value is opaque: it equals nothing but
 itself, so it is none of the values of any type, of a ghost or of the state,
 and it has no order and no text. A glue receives it as `{"fresh": [TYPE,
 N]}` (csdfbmc.protocol), and only an atom the glue said `symmetric` of, below,

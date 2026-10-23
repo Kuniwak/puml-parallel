@@ -14,7 +14,7 @@ from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Atom, Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import Fresh, encode, freeze, visible
+from csdfbmc.values import beyond_samples, encode, freeze, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -343,10 +343,10 @@ class Explorer:
                         symmetric=self.symmetric)
 
     def _wider(self) -> "Explorer":
-        """This walk with one more value in each sample type, a Fresh: equal
-        to nothing but itself, it occurs nowhere in state or any type."""
-        return self.with_types({t: list(vs) + ([Fresh(t)] if t in self.checks.samples else [])
-                                for t, vs in self.checks.types.items()})
+        """This walk with one more value in each sample, a Fresh: equal to
+        nothing but itself, it occurs nowhere in a state or any type. A type
+        built of a sample takes it too (csdfbmc.values.beyond_samples)."""
+        return self.with_types(beyond_samples(self.checks.types))
 
     def bound_ends(self, state: State) -> bool:
         """Whether a state with no way out has one once each sample type has
