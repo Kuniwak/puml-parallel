@@ -13,7 +13,7 @@ from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import encode, freeze, fresh, scalars, visible
+from csdfbmc.values import Fresh, encode, freeze, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -153,6 +153,9 @@ class Explorer:
     decides the others (csdfbmc.environment). Before the walk, a declared
     function nothing gives and no seed chooses is refused, listing every
     one, and so is a declared name that names no atom of the diagram.
+    symmetric are the atoms the glue said tell no two values of a sample
+    apart (csdfbmc.independence.check_independent gives them), the only
+    ones a value beyond a sample is shown to.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -167,11 +170,12 @@ class Explorer:
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
-                 first: bool = False):
+                 first: bool = False, symmetric: frozenset = frozenset()):
         self.d = diagram
         self.checks = checks
         self.environment = environment
-        self.meaning = AtomMeaning(client, environment, checks.domain)
+        self.symmetric = symmetric
+        self.meaning = AtomMeaning(client, environment, checks.domain, symmetric)
         self.ev = Evaluator(self.meaning, checks.carrier, apply_given(checks.environment))
         self.max_states = max_states
         self.avoid = avoid
@@ -334,13 +338,13 @@ class Explorer:
         diagram, glue, environment and options."""
         return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client,
                         environment=self.environment, max_states=self.max_states, avoid=self.avoid,
-                        within=sorted(self.within) if self.within is not None else None, first=self.first)
+                        within=sorted(self.within) if self.within is not None else None, first=self.first,
+                        symmetric=self.symmetric)
 
-    def _wider(self, state: State) -> "Explorer":
-        """This walk with one more value in each sample type, a value that
-        occurs nowhere in state or the type."""
-        avoid = set().union(*(scalars(v) for v in state[1])) if state[1] else set()
-        return self.with_types({t: list(vs) + ([fresh(vs, avoid)] if t in self.checks.samples else [])
+    def _wider(self) -> "Explorer":
+        """This walk with one more value in each sample type, a Fresh: equal
+        to nothing but itself, it occurs nowhere in state or any type."""
+        return self.with_types({t: list(vs) + ([Fresh(t)] if t in self.checks.samples else [])
                                 for t, vs in self.checks.types.items()})
 
     def bound_ends(self, state: State) -> bool:
@@ -349,7 +353,7 @@ class Explorer:
         diagram. The value is only tried; no state is added for it."""
         if not self.checks.samples:
             return False
-        wider = self._wider(state)
+        wider = self._wider()
         return wider.can_end(state) or any(wider._enabled(state, e) for e in self.d.out_edges(state[0]))
 
     def can_end(self, state: State) -> bool:

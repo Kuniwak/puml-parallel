@@ -95,9 +95,9 @@ def main(argv=None) -> int:
 
     try:
         with opened(a) as (diagram, checks, client, environment):
-            check_independent(diagram, checks, client, environment)
+            symmetric = check_independent(diagram, checks, client, environment)
             result = Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
-                              within=a.within, first=a.first).run()
+                              within=a.within, first=a.first, symmetric=symmetric).run()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

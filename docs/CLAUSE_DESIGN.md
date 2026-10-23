@@ -351,8 +351,11 @@ Q1 and Q3 follow from P2 without asking a glue.
 
 Q2 also lets bounded checking tell the bound from the diagram. A type given
 as a sample has more values than the walk ranges over; at a state with no
-way out, csdfbmc adds one value that occurs nowhere and asks whether a step
-is then enabled. One value stands for all the others only when every clause
+way out, csdfbmc adds one value beyond the sample and asks whether a step
+is then enabled. The value is opaque, equal to nothing but itself, so it is
+distinct by construction from every value of every type, ghost and trace;
+csdfbmc does not guess one of the type's kind, which could equal a value
+already there and enable a step no value beyond the sample would. One value stands for all the others only when every clause
 is invariant under permutation of the type's values and names none of them
 (data independence), which the builtins are by construction, an atom is when
 its glue says so (Q2), and an environment function is not known to be; a

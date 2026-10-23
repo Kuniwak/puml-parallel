@@ -95,11 +95,15 @@ def _keys(c: _Carrying) -> None:
                         grown |= c.key(f.args[1], k, bound)
 
 
-def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> None:
+def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> frozenset[Atom]:
     """Refuses, naming the clause, a diagram that may tell two values of a
-    sample type apart by more than =, ≠ and the keys of maps."""
+    sample type apart by more than =, ≠ and the keys of maps; otherwise
+    the atoms that read a value of a sample type, which the glue said tell
+    no two of them apart, and which alone may read a value beyond a sample
+    (csdfbmc.meaning.AtomMeaning)."""
+    symmetric: set[Atom] = set()
     if not checks.samples:
-        return
+        return frozenset()
     c = _Carrying(diagram, checks)
     _keys(c)
     samples = ", ".join(sorted(checks.samples))
@@ -129,3 +133,5 @@ def check_independent(diagram: Diagram, checks: Checks, client: ClientLike, envi
             why = client.symmetric(f.wire, params, maps, groups)
             if why is not None:
                 refuse(f"the atom {shown_atom(f.wire)} tells the values apart: {why}")
+            symmetric.add(f)
+    return frozenset(symmetric)

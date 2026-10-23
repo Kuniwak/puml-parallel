@@ -15,7 +15,7 @@ from typing import Callable
 from csdfbmc.environment import Environment
 from csdfbmc.model import Atom
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import freeze, same_value, visible
+from csdfbmc.values import freeze, holds_fresh, same_value, visible
 
 
 def apply_given(given: Mapping[str, object]) -> Callable[[str, tuple], object]:
@@ -23,6 +23,8 @@ def apply_given(given: Mapping[str, object]) -> Callable[[str, tuple], object]:
     named fn, as the checks module's ENVIRONMENT gives it, applied to the
     values of its arguments as a glue sees them."""
     def apply(fn: str, args: tuple):
+        if any(holds_fresh(a) for a in args):
+            raise ValueError(f"the environment function {fn} was given a value beyond a sample, which it may tell apart from the others")
         g = given.get(fn)
         if not callable(g):
             raise ValueError(f"no environment function {fn}, which a term applies, is given in ENVIRONMENT")
@@ -34,13 +36,25 @@ class AtomMeaning:
     """The meaning of the atoms: environment decides the declared ones, the
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
     domain gives the values a name ranges over, for the values after the
-    step of a post atom the environment decides."""
+    step of a post atom the environment decides. symmetric are the atoms
+    the glue said tell no two values of a sample apart
+    (csdfbmc.independence), the only ones that may read a value beyond a
+    sample (csdfbmc.values.Fresh)."""
 
-    def __init__(self, client: ClientLike, environment: Environment, domain: Callable[[str], list]):
+    def __init__(self, client: ClientLike, environment: Environment, domain: Callable[[str], list],
+                 symmetric: frozenset[Atom] = frozenset()):
         self.client = client
         self.environment = environment
         self.domain = domain
+        self.symmetric = symmetric
         self.decided: dict[str, None] = {}
+
+    def _beyond(self, atom: Atom, args: list) -> None:
+        """Refuses to show atom a value beyond a sample unless it is known
+        to tell no two values of the sample apart."""
+        if (self.of_environment(atom) or atom not in self.symmetric) and any(holds_fresh(a) for a in args):
+            raise ValueError(f"the atom {atom.function} would read a value beyond a sample, but is not known to tell "
+                             "no two values of the sample apart")
 
     def of_environment(self, atom: Atom) -> bool:
         return atom.function in self.environment.declared
@@ -55,6 +69,7 @@ class AtomMeaning:
     def guard(self, atom: Atom, args: list) -> bool:
         """Whether an atom that reads no value after the step holds of the
         values of its arguments."""
+        self._beyond(atom, args)
         if self.of_environment(atom):
             return self._decide(atom, tuple(visible(a) for a in args))
         return self.client.guard(atom.wire, [[visible(a) for a in args]])[0]
@@ -63,6 +78,7 @@ class AtomMeaning:
         """The values after the step of the primed arguments, in order, that
         an atom allows from the values before it of the others. names name
         the primed arguments' types, over which the environment chooses."""
+        self._beyond(atom, before)
         if not self.of_environment(atom):
             return [tuple(freeze(v) for v in after) for after in self.client.post(atom.wire, [[visible(a) for a in before]])[0]]
         out = []
@@ -74,6 +90,7 @@ class AtomMeaning:
     def post_holds(self, atom: Atom, args: list) -> bool:
         """Whether an atom that reads values after the step holds of the
         values of all its arguments."""
+        self._beyond(atom, args)
         if self.of_environment(atom):
             return self._decide(atom, tuple(visible(a) for a in args))
         before = [a for a, p in zip(args, atom.primed) if not p]

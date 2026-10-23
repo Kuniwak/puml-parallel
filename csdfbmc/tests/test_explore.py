@@ -339,6 +339,28 @@ class SampleTest(unittest.TestCase):
                 self.assertEqual(deadlocks, result.deadlocks)
                 self.assertEqual(reached, result.bound_reached)
 
+    def test_the_value_beyond_the_sample_equals_no_value_of_another_type(self):
+        # OPEN takes a fresh k only together with a j equal to it; j's type
+        # is no sample, so no value beyond k's sample is a value of j's.
+        d = dict(OPENING, edges=[dict(OPENING["edges"][0], label="OPEN?k?j",
+                                      fields=[{"dir": "?", "name": "k"}, {"dir": "?", "name": "j"}],
+                                      guard=OPENING["edges"][0]["guard"] + [atom("$k == $j")])])
+        tests = {
+            "integers": (sample([1]), [2]),
+            "texts": (sample(["a"]), ["new0"]),
+        }
+        for name, (keys, others) in tests.items():
+            with self.subTest(name):
+                # Setup
+                checks = Checks(types={"k": keys, "j": others}, samples=frozenset({"k"}))
+                symmetric = check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
+
+                # Execute
+                result = fixture.explorer(d, checks, symmetric=symmetric).run()
+
+                # Assert
+                self.assertEqual(([("r", (FrozenMap(),), ())], []), (result.deadlocks, result.bound_reached))
+
     def test_a_value_of_the_sample_occurring_nowhere_adds_no_state(self):
         tests = {"a sample": (sample(["a", "b"]), {"k"}), "the same values, not a sample": (["a", "b"], set())}
         for name, (keys, samples) in tests.items():
@@ -382,6 +404,14 @@ class DataIndependenceTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, rf"OPEN\?k \(line 0\), guard: .*{said}"):
                     check_independent(fixture.load(self.opening(*guard)), checks, fixture.glue(), env)
 
+    def test_a_value_beyond_the_sample_is_shown_only_to_an_atom_the_glue_said_symmetric_of(self):
+        # Setup
+        checks = Checks(types={"k": sample(["a"])}, samples=frozenset({"k"}))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, r"would read a value beyond a sample"):
+            fixture.explorer(self.opening(atom("$k == $k")), checks).run()
+
     def test_a_sample_type_told_apart_by_equality_and_keys_only_is_walked(self):
         tick = edge("r", "r", "TICK?n", guard=[atom("$n > 0")], post=[eq("m'", "m")])
         tests = {
@@ -396,8 +426,8 @@ class DataIndependenceTest(unittest.TestCase):
                 checks = Checks(types={"k": sample(["a"]), "n": [1]}, samples=frozenset({"k"}))
 
                 # Execute
-                check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
-                result = fixture.explorer(d, checks).run()
+                symmetric = check_independent(fixture.load(d), checks, fixture.glue(), environment.NONE)
+                result = fixture.explorer(d, checks, symmetric=symmetric).run()
 
                 # Assert
                 self.assertEqual([], result.deadlocks)

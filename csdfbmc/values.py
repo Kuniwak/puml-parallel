@@ -124,9 +124,12 @@ def freeze(value):
 def encode(value):
     """value as JSON would carry it: FrozenMaps as objects, tuples and
     frozensets as arrays (a frozenset sorted when it can be), an instance as
-    {"at": its state, "fields": its fields}."""
+    {"at": its state, "fields": its fields}, and a value beyond a sample as
+{"fresh": [its type, n]}."""
     if isinstance(value, Rec):
         return {"at": value.state, "fields": encode(value.fields)}
+    if isinstance(value, Fresh):
+        return {"fresh": [value.type, value.n]}
     if isinstance(value, Mapping):
         return {str(k): encode(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -165,18 +168,32 @@ def scalars(value) -> set:
     return {value}
 
 
-def fresh(values: Iterable, avoid: set):
-    """A value of the kind of values that is none of them and is not in
-    avoid: the next integer after every one for integers, a new text
-    otherwise."""
-    values = list(values)
-    taken = set(avoid) | set(values)
-    if values and all(type(v) is int for v in values):
-        return max(v for v in taken if type(v) is int) + 1
-    n = 0
-    while f"new{n}" in taken:
-        n += 1
-    return f"new{n}"
+@dataclass(frozen=True)
+class Fresh:
+    """A value of the sample type type beyond its sample, the n-th: equal to
+    nothing but itself, so distinct by construction from every value of
+    every type, of a ghost or in a trace, and from every other Fresh. It
+    has no order and no text; csdfbmc makes it, and a checks module never
+    holds one."""
+    type: str
+    n: int = 0
+
+    def __repr__(self):
+        return f"<{self.type} beyond the sample #{self.n}>"
+
+
+def holds_fresh(value) -> bool:
+    """Whether value is a Fresh or holds one, as a key, an entry, a field or
+    an element."""
+    if isinstance(value, Fresh):
+        return True
+    if isinstance(value, Rec):
+        return holds_fresh(value.fields)
+    if isinstance(value, Mapping):
+        return any(holds_fresh(k) or holds_fresh(v) for k, v in value.items())
+    if isinstance(value, (tuple, frozenset)):
+        return any(holds_fresh(v) for v in value)
+    return False
 
 
 def record(**fields: Iterable) -> list[FrozenMap]:

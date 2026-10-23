@@ -893,7 +893,12 @@ A finite bound can end a run the diagram would go on with: once every ID of
 a finite type is used up, nothing is enabled, though a fresh ID would be.
 For a type given as a sample, a state with no enabled transition and no end
 edge whose guard holds is tried once more, with one value added to each
-sample type that occurs nowhere in the state or the type. If an edge or an
+sample type beyond its sample. That value is opaque: it equals nothing but
+itself, so it is none of the values of any type, of a ghost or of the state,
+and it has no order and no text. A glue receives it as `{"fresh": [TYPE,
+N]}` (csdfbmc.protocol), and only an atom the glue said `symmetric` of, below,
+is shown one; an atom, an environment function or a function of the
+environment that would read it otherwise stops the walk with an error. If an edge or an
 end edge is then enabled, the state is reported as `bound reached … (a
 sample type has more values)` — `bound_reached` in `--json`, and a group
 of kind `bound_reached` — and not as a deadlock; it is no finding, so
