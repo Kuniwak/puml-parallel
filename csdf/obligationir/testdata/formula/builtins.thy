@@ -57,11 +57,8 @@ definition csdf_update :: "val \<Rightarrow> val \<Rightarrow> val \<Rightarrow>
 definition csdf_frame0 :: "val \<Rightarrow> val \<Rightarrow> bool"
   where "csdf_frame0 v_n v_m \<equiv> csdf_is_map v_n \<and> csdf_is_map v_m \<and> (\<forall>(v_j::val). True \<longrightarrow> ((csdf_in v_j v_n \<longrightarrow> csdf_in v_j v_m) \<and> (csdf_in v_j v_m \<longrightarrow> (csdf_in v_j v_n \<and> csdf_index v_n v_j = csdf_index v_m v_j))))"
 
-definition csdf_state :: "val \<Rightarrow> val"
-  where "csdf_state t \<equiv> (case t of ValScalar (SRecord s fs) \<Rightarrow> ValScalar s | _ \<Rightarrow> ValScalar (SBool False))"
-
 definition csdf_at :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "csdf_at t s \<equiv> csdf_state t = s"
+  where "csdf_at t s \<equiv> (case t of ValScalar (SRecord st fs) \<Rightarrow> ValScalar st = s | _ \<Rightarrow> False)"
 
 definition state__u2euA :: val
   where "state__u2euA \<equiv> ValScalar (SInt 0)"

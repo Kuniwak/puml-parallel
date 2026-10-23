@@ -209,14 +209,22 @@ defined, so two maps are equal just when they hold the same entries, which
 both provers prove (csdf_map_ext); an equality, an event field or an atom
 reading a map so reads its entries and nothing else, and @update and @frame
 admit exactly the maps the meaning describes. csdf_is_map holds of a value
-just when it is a map; csdf_in and csdf_index read its entries. @empty,
+just when it is a map; csdf_in and csdf_index read its entries. The entry
+csdf_index gives of a key a map lacks is a value no obligation observes: a
+clause reading an entry that is not there is false, so obligation.Formula
+conjoins csdf_in of every key a clause reads (P8), and the read stands only
+where the key is there. @empty,
 @update and @frame are defined as their maps being maps and their meaning
 holding (obligation.EmptyMeaning and the like), so each lemma follows from
 its definition by projection. An instance is a record whose first component
 is its state; @at is that it is the state constant, each a number of its
 own, so an instance is at one state at a time, and a diagram starting at a
-state can be shown to start. The keys and entries of a map are scalars, so a
-map holds no map: a builtin reading one as an entry holds of nothing.
+state can be shown to start. A value that is no record is at no state. The
+keys and entries of a map are scalars, so a map holds no map: an obligation
+reading a map as the key or the entry of a map, or reading as a map an
+entry or a field of an instance, which the model has no map for, is refused
+rather than stated, since a builtin over it would hold of nothing and the
+obligation hold vacuously.
 
 Which hypotheses an obligation takes is part of what it claims. A
 refinement is stated under no hypothesis, never under an assumption of

@@ -35,11 +35,10 @@ qed
 
 `
 
-const atDef = `definition csdf_state :: "val \<Rightarrow> val"
-  where "csdf_state t \<equiv> (case t of ValScalar (SRecord s fs) \<Rightarrow> ValScalar s | _ \<Rightarrow> ValScalar (SBool False))"
-
-definition csdf_at :: "val \<Rightarrow> val \<Rightarrow> bool"
-  where "csdf_at t s \<equiv> csdf_state t = s"
+// atDef defines that an instance, a record, is at a state: its state is it.
+// A value that is no record is at no state.
+const atDef = `definition csdf_at :: "val \<Rightarrow> val \<Rightarrow> bool"
+  where "csdf_at t s \<equiv> (case t of ValScalar (SRecord st fs) \<Rightarrow> ValScalar st = s | _ \<Rightarrow> False)"
 
 `
 

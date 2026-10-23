@@ -63,11 +63,9 @@ def csdf_update (v_n v_m v_k v_v : Val) : Prop :=
 def csdf_frame0 (v_n v_m : Val) : Prop :=
   csdf_is_map v_n ∧ csdf_is_map v_m ∧ (∀ (v_j : Val), True → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j))))
 
-def csdf_state : Val → Val
-  | .ValScalar (.SRecord s _) => .ValScalar s
-  | _ => .ValScalar (.SBool false)
-
-def csdf_at (t s : Val) : Prop := csdf_state t = s
+def csdf_at : Val → Val → Prop
+  | .ValScalar (.SRecord st _), s => .ValScalar st = s
+  | _, _ => False
 
 def state__u2euA : Val := .ValScalar (.SInt 0)
 
@@ -83,7 +81,11 @@ theorem csdf_lemma_3 : ∀ (v_n : Val) (v_m : Val), csdf_frame0 v_n v_m → (∀
   fun _ _ h => And.right (And.right h)
 
 theorem csdf_lemma_4 : ∀ (v_t : Val), ¬(csdf_at v_t state__u2euA ∧ csdf_at v_t state__u2euB) :=
-  fun _ h => absurd (Eq.trans (Eq.symm h.1) h.2) (by simp [state__u2euA, state__u2euB])
+  by
+    intro t h
+    cases t with
+    | ValScalar s => cases s <;> simp_all [csdf_at, state__u2euA, state__u2euB]
+    | ValMap _ => exact h.1
 
 def init (s' : St) : Prop :=
   ∃ (v_t_u27u : Val) (v_m_u27u : Val), s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ type_m v_m_u27u ∧ (csdf_at v_t_u27u state__u2euA ∧ csdf_empty v_m_u27u)

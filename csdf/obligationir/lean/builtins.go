@@ -39,11 +39,11 @@ theorem csdf_map_ext : ∀ (n m : Val), csdf_is_map n → csdf_is_map m →
 
 `
 
-const atDef = `def csdf_state : Val → Val
-  | .ValScalar (.SRecord s _) => .ValScalar s
-  | _ => .ValScalar (.SBool false)
-
-def csdf_at (t s : Val) : Prop := csdf_state t = s
+// atDef defines that an instance, a record, is at a state: its state is it.
+// A value that is no record is at no state.
+const atDef = `def csdf_at : Val → Val → Prop
+  | .ValScalar (.SRecord st _), s => .ValScalar st = s
+  | _, _ => False
 
 `
 
@@ -89,7 +89,7 @@ func WriteLemmas(w io.Writer, lemmas []logic.Tree) error {
 		case obligationir.LemmaMeaning:
 			proof = "fun" + strings.Repeat(" _", n) + " h => And.right (And.right h)"
 		case obligationir.LemmaApart:
-			proof = fmt.Sprintf("fun _ h => absurd (Eq.trans (Eq.symm h.1) h.2) (by simp [%s, %s])", states[0], states[1])
+			proof = fmt.Sprintf("by\n    intro t h\n    cases t with\n    | ValScalar s => cases s <;> simp_all [csdf_at, %s, %s]\n    | ValMap _ => exact h.1", states[0], states[1])
 		}
 		fmt.Fprintf(w, "theorem %s : %s :=\n  %s\n\n", obligationir.LemmaName(i+1), f, proof)
 	}

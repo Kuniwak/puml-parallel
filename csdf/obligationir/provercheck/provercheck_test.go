@@ -492,7 +492,7 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 		}
 		proved := strings.Replace(src, isaStart, strings.TrimSuffix(isaStart, "oops")+
 			"apply (rule exI[of _ \"ValScalar (SRecord (SInt 0) [])\"], rule exI[of _ \"ValMap (\\<lambda>_. None)\"])\n"+
-			"  apply (auto simp: type_t_def type_m_def csdf_at_def csdf_state_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def split: val.splits)\n  done", 1)
+			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def split: val.splits)\n  done", 1)
 		if proved == src {
 			t.Fatal("the obligation no longer states initialisable_S as this control expects")
 		}
