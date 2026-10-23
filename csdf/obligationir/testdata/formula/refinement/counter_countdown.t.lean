@@ -1,5 +1,6 @@
 import LeanCspProver.CSP_T.CSP_T_Main
 import Mathlib.Data.List.Sort
+import Mathlib.Order.RelClasses
 import Mathlib.SetTheory.Cardinal.Order
 
 -- Every name is mangled behind a prefix of its kind, and a mangled name holds

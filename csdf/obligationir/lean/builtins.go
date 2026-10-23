@@ -25,9 +25,10 @@ const ValPrelude = `inductive Val where
 const InhabitedVal = `instance : Inhabited Val := ⟨.ValInt 0⟩`
 
 // LibraryImports are the modules of Mathlib the model of the builtins rests
-// on: Cardinal.Order for a well order of every value, List.Sort for maps
-// sorted in it.
-const LibraryImports = "import Mathlib.Data.List.Sort\nimport Mathlib.SetTheory.Cardinal.Order"
+// on, each the narrowest that defines what the model uses: List.Sort for
+// List.SortedLE, Order.RelClasses for IsWellOrder.linearOrder, and
+// Cardinal.Order for WellOrderingRel, a well order of every type.
+const LibraryImports = "import Mathlib.Data.List.Sort\nimport Mathlib.Order.RelClasses\nimport Mathlib.SetTheory.Cardinal.Order"
 
 // nameCheckOff silences Mathlib's naming linter: every name is mangled
 // behind a prefix of its kind, and a mangled name holds "__".

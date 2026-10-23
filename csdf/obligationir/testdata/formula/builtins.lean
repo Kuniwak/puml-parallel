@@ -1,4 +1,5 @@
 import Mathlib.Data.List.Sort
+import Mathlib.Order.RelClasses
 import Mathlib.SetTheory.Cardinal.Order
 
 set_option linter.style.nameCheck false
@@ -112,6 +113,9 @@ def csdf_update (v_n v_m v_k v_v : Val) : Prop :=
 def csdf_frame0 (v_n v_m : Val) : Prop :=
   csdf_is_map v_n ∧ csdf_is_map v_m ∧ (∀ (v_j : Val), True → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j))))
 
+def csdf_frame1 (v_n v_m v_k1 : Val) : Prop :=
+  csdf_is_map v_n ∧ csdf_is_map v_m ∧ (∀ (v_j : Val), (¬(v_j = v_k1)) → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j))))
+
 def csdf_at : Val → Val → Prop
   | .ValRecord st _, s => st = s
   | _, _ => False
@@ -129,7 +133,10 @@ theorem csdf_lemma_2 : ∀ (v_n : Val) (v_m : Val) (v_k : Val) (v_v : Val), csdf
 theorem csdf_lemma_3 : ∀ (v_n : Val) (v_m : Val), csdf_frame0 v_n v_m → (∀ (v_j : Val), True → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j)))) :=
   fun _ _ h => And.right (And.right h)
 
-theorem csdf_lemma_4 : ∀ (v_t : Val), ¬(csdf_at v_t state__u2euA ∧ csdf_at v_t state__u2euB) :=
+theorem csdf_lemma_4 : ∀ (v_n : Val) (v_m : Val) (v_k1 : Val), csdf_frame1 v_n v_m v_k1 → (∀ (v_j : Val), (¬(v_j = v_k1)) → ((csdf_in v_j v_n → csdf_in v_j v_m) ∧ (csdf_in v_j v_m → (csdf_in v_j v_n ∧ csdf_index v_n v_j = csdf_index v_m v_j)))) :=
+  fun _ _ _ h => And.right (And.right h)
+
+theorem csdf_lemma_5 : ∀ (v_t : Val), ¬(csdf_at v_t state__u2euA ∧ csdf_at v_t state__u2euB) :=
   by
     intro t h
     cases t <;> simp_all [csdf_at, state__u2euA, state__u2euB]
@@ -139,14 +146,14 @@ def init (s' : St) : Prop :=
   ∃ (v_t_u27u : Val) (v_m_u27u : Val), s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t_u27u state__u2euA ∧ csdf_empty v_m_u27u)
 
 def step (s s' : St) : Prop :=
-  (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euA ∧ csdf_at v_t_u27u state__u2euB ∧ csdf_frame0 v_m_u27u v_m)) ∨ (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euB ∧ csdf_at v_t_u27u state__u2euA ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_update v_m_u27u v_m v_k v_t))))
+  (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euA ∧ csdf_at v_t_u27u state__u2euB ∧ csdf_frame0 v_m_u27u v_m)) ∨ (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euB ∧ csdf_at v_t_u27u state__u2euA ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_update v_m_u27u v_m v_k v_t)))) ∨ (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euB ∧ csdf_at v_t_u27u state__u2euB ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_frame1 v_m_u27u v_m v_k ∧ (¬csdf_in v_k v_m_u27u)))))
 
 inductive Reachable : St → Prop where
   | base (s : St) : init s → Reachable s
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 def tauStep (s s' : St) : Prop :=
-  (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euA ∧ csdf_at v_t_u27u state__u2euB ∧ csdf_frame0 v_m_u27u v_m)) ∨ (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euB ∧ csdf_at v_t_u27u state__u2euA ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_update v_m_u27u v_m v_k v_t))))
+  (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euA ∧ csdf_at v_t_u27u state__u2euB ∧ csdf_frame0 v_m_u27u v_m)) ∨ (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euB ∧ csdf_at v_t_u27u state__u2euA ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_update v_m_u27u v_m v_k v_t)))) ∨ (∃ (v_t : Val) (v_m : Val) (v_t_u27u : Val) (v_m_u27u : Val), s = .St_s v_t v_m ∧ s' = .St_s v_t_u27u v_m_u27u ∧ type_t v_t_u27u ∧ csdf_wf v_t_u27u ∧ type_m v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_at v_t state__u2euB ∧ csdf_at v_t_u27u state__u2euB ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_frame1 v_m_u27u v_m v_k ∧ (¬csdf_in v_k v_m_u27u)))))
 
 theorem livelock_free :
     WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by

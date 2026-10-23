@@ -320,17 +320,23 @@ The builtins are no assumption: each is defined, and what it means is proved. A 
 `ValMap`, a list of its entries, and maps nest. A value is well formed (`csdf_wf`) when every
 map in it has distinct keys, sorted in a linear order of every value the library gives, and
 every quantifier over a type is restricted to well-formed values, so that two maps are
-equal just when they hold the same entries (`csdf_map_ext`, proved in the file).
+equal just when they hold the same entries (`csdf_map_ext`, proved in the file): a map is
+represented by exactly one well-formed list, as the prover checks prove.
 `csdf_is_map` holds of a map, `csdf_in` and `csdf_index` read its entries, and
 `csdf_empty`, `csdf_update` and each `csdf_frame<n>` are defined as their maps being maps
 and their meaning holding. An instance is a record whose first component is its state,
 and `csdf_at` is that it is the state constant, each a number of its own. What the
 builtins mean is then a lemma `csdf_lemma_<i>`, proved in the file from the definitions
 (`auto` in Isabelle, a projection of the definition in Lean), which the prover checks: no
-theorem rests on an axiom, so none holds by a contradiction among axioms. The model rests on
+theorem rests on an axiom, so none holds by a contradiction among axioms. A bare
+`@frame(m', m, k)` says nothing of `k` in `m'`, so it is deliberately nondeterministic on `k`:
+`m'` may hold `k` at any value or not at all (two different well-formed successors exist, as
+the prover checks prove); a post pins `k` down with `@notin(k, m')` or uses `@update`. The model rests on
 the libraries: an Isabelle theory imports `HOL-Library.Countable`, so a session building it
-declares `sessions "HOL-Library"` in its ROOT, and a Lean file imports
-`Mathlib.Data.List.Sort` and `Mathlib.SetTheory.Cardinal.Order`. An assume note of the
+declares `sessions "HOL-Library"` in its ROOT (the ROOT is shown by `csdflivelockfree -h`
+and `csdfrefinement -h`), and a Lean file imports
+`Mathlib.Data.List.Sort`, `Mathlib.Order.RelClasses` and `Mathlib.SetTheory.Cardinal.Order`,
+which need Mathlib `v4.29.0-rc4` (Lean `v4.29.0-rc4`, the version lean-csp-prover pins) or later. An assume note of the
 diagram (see [SYNTAX.md](./docs/SYNTAX.md)) — what it assumes of its runs as a whole, such as
 "a transaction whose fee keeps being raised is eventually confirmed", which no guard can
 state — is listed under `assumptions` in the IR and becomes an uninterpreted proposition

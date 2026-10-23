@@ -4,9 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/csdf/obligationir/isabelle"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
@@ -52,7 +54,7 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 		flags.SetOutput(inout.Stderr)
 		flags.Usage = func() {
 			w := flags.Output()
-			fmt.Fprintf(w, `Usage: csdfrefinement -m <model> [options] abs.puml detail.puml
+			io.WriteString(w, `Usage: csdfrefinement -m <model> [options] abs.puml detail.puml
 
 Compiles a refinement proof obligation for two Composable State Diagrams to the
 target selected by -target and exits 0. The first diagram is the Spec (the
@@ -115,7 +117,11 @@ isabelle (the Isabelle2025 fork at github.com/Kuniwak/CSP-Prover; build its
 CSP_F session, then extend it from the obligation's ROOT), and lean-csp-prover
 for lean (github.com/Kuniwak/lean-csp-prover). The two skeletons mirror
 each other declaration for declaration, so they can be read side by side.
+The theory imports the libraries the builtins rest on, so the ROOT of the
+session building it, saved as Refinement_Obligation.thy, declares their
+sessions (on CSP_T for -m t):
 
+`+isabelle.Root("Csdf_Obligation", "CSP_F", "Refinement_Obligation")+`
 At most one argument may be "-", which reads that diagram from standard input.
 
 Options:

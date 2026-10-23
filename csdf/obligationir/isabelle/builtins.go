@@ -22,8 +22,21 @@ const ValPrelude = `datatype val = ValInt int
 
 // LibraryImports are the theories of the library the model of the builtins
 // rests on: Countable, to order every value. A session building an
-// obligation declares sessions "HOL-Library".
+// obligation declares LibrarySession, as Root does.
 const LibraryImports = `"HOL-Library.Countable"`
+
+// LibrarySession is the session holding LibraryImports.
+const LibrarySession = "HOL-Library"
+
+// Root is the ROOT of a session building theory on parent: it declares
+// LibrarySession, without which the theory cannot import LibraryImports.
+func Root(session, parent, theory string) string {
+	var w strings.Builder
+	w.WriteString("session " + session + " = " + parent + " +\n  sessions\n")
+	w.WriteString("    \"" + LibrarySession + "\"\n")
+	w.WriteString("  theories\n    " + theory + "\n")
+	return w.String()
+}
 
 // mapPrelude says what a map is - a list of its entries, of distinct keys
 // sorted in a linear order of every value - and what it holds, and proves
