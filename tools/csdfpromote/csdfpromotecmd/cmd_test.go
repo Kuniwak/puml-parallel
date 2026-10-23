@@ -89,14 +89,10 @@ func TestNewMainFunc(t *testing.T) {
 			args:       []string{"-json", accountsPath},
 			wantStdout: []string{`"map":"accounts"`},
 		},
-		"-format json prints the expansion with its clauses": {
+		"-format json prints the expansion as csdfparse prints a diagram": {
 			args:         []string{"-format", "json", accountsPath},
-			wantStdout:   []string{`"kind":"in_dom"`, `"origin":"promote:`},
-			wantNoStdout: []string{"@startuml"},
-		},
-		"-format json with -no-comments leaves the origins out": {
-			args:         []string{"-format", "json", "-no-comments", accountsPath},
-			wantNoStdout: []string{`"origin"`},
+			wantStdout:   []string{`"version":1`, `"kind":"builtin","op":"notin"`},
+			wantNoStdout: []string{"@startuml", `"origin"`},
 		},
 		"an unknown -format is refused": {
 			args:            []string{"-format", "tsv", accountsPath},
@@ -126,10 +122,11 @@ func TestNewMainFunc(t *testing.T) {
 			wantStdoutEmpty: true,
 			wantStderr:      "Buy is no promoted map",
 		},
-		"-only lists what it drops on stderr and in the JSON": {
-			args:       []string{"-only", "buys", "-format", "json", "../../../examples/promote/TRADES.puml"},
-			wantStdout: []string{`"kind":"dropped"`, `"maps":["cycles"]`},
-			wantStderr: "-only leaves out",
+		"-only with -format json drops what reads a left-out map, and says so": {
+			args:         []string{"-only", "buys", "-format", "json", "../../../examples/promote/TRADES.puml"},
+			wantStdout:   []string{`"version":1`},
+			wantNoStdout: []string{"cycles"},
+			wantStderr:   "dropped, as it reads a left-out map",
 		},
 		"-only refuses an unknown family": {
 			args:            []string{"-only", "sells", "../../../examples/promote/TRADES.puml"},

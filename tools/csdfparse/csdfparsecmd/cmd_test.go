@@ -1,6 +1,7 @@
 package csdfparsecmd
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -10,56 +11,83 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestNewMainFuncPrintsJSON(t *testing.T) {
-	// Arrange
-	input := `@startuml
+func TestNewMainFuncPrintsTheDiagramAsJSON(t *testing.T) {
+	tests := map[string]struct {
+		args  []string
+		stdin string
+		want  string
+	}{
+		"a diagram on standard input, its clauses as formulas": {
+			stdin: `@startuml
 state "Initial" as s0
-s0: ready ; bool
-s0: count
+s0: n
 state "Done" as s1
-[*] --> s0 : initialize
-s0 --> s1 : finish?result ; ready ; done
-s1 --> [*] : complete
+[*] --> s0 : $n' == 0
+s0 --> s1 : finish?result ; $n < $result
+s1 --> [*]
 @enduml
-`
-	want := `{"states":{"s0":{"name":"Initial","vars":[{"name":"ready","type":"bool"},{"name":"count"}],"line":2},"s1":{"name":"Done","vars":[],"line":5}},"start_edge":{"dst":"s0","post":"initialize","post_clauses":[{"form":"text","text":"initialize"}],"line":6},"edges":[{"src":"s0","dst":"s1","event":"finish?result","channel":"finish","fields":[{"dir":"?","name":"result"}],"guard":"ready","guard_clauses":[{"form":"text","text":"ready"}],"post":"done","post_clauses":[{"form":"text","text":"done"}],"line":7}],"end_edge":{"src":"s1","guard":"complete","guard_clauses":[{"form":"text","text":"complete"}],"line":8},"assumptions":[]}` + "\n"
-
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(input))
-
-	// Act
-	exitStatus := cmdFunc([]string{}, spy.New())
-
-	// Assert
-	if exitStatus != 0 {
-		t.Log(spy.Stderr.String())
-		t.Errorf("want 0, got %d", exitStatus)
+`,
+			want: `{"version": 1, "name": "", "states": ["s0", "s1"], "labels": {"s0": "Initial", "s1": "Done"},
+"vars": {"s0": ["n"], "s1": []}, "init": "s0", "init_line": 5,
+"init_post": [{"kind": "atom", "pieces": ["", " == 0"], "holes": [0], "args": [{"kind": "free", "name": "n", "primed": true}],
+  "text": ["", " == 0"], "primed": [true], "function": "$_0 == 0"}],
+"edges": [{"src": "s0", "dst": "s1", "channel": "finish", "fields": [{"dir": "?", "name": "result"}], "label": "finish?result",
+  "guard": [{"kind": "atom", "pieces": ["", " < ", ""], "holes": [0, 1], "args": [{"kind": "free", "name": "n"}, {"kind": "free", "name": "result"}],
+    "text": ["", " < ", ""], "primed": [false, false], "function": "$_0 < $_1"}],
+  "post": [], "line": 6}],
+"ends": [{"src": "s1", "guard": []}], "assumes": []}`,
+		},
+		"a file argument, as standard input": {
+			args: []string{"../../../examples/valid/skip.puml"},
+			want: `{"version": 1, "name": "", "states": ["s0"], "labels": {"s0": "SKIP"}, "vars": {"s0": []}, "init": "s0", "init_post": [], "init_line": 5,
+"edges": [], "ends": [{"src": "s0", "guard": []}], "assumes": []}`,
+		},
 	}
-	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
-		t.Error(diff)
-	}
-	if spy.Stderr.Len() != 0 {
-		t.Errorf("want empty stderr, got %q", spy.Stderr.String())
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+			spy := cli.SpyProcInout()
+			spy.Stdin = cli.StubStdin(strings.NewReader(tt.stdin))
+
+			// Execute
+			exitStatus := cmdFunc(tt.args, spy.New())
+
+			// Assert
+			if exitStatus != 0 {
+				t.Fatalf("want 0, got %d: %s", exitStatus, spy.Stderr.String())
+			}
+			var got, want any
+			if err := json.Unmarshal([]byte(spy.Stdout.String()), &got); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(tt.want), &want); err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Error(diff)
+			}
+			if spy.Stderr.Len() != 0 {
+				t.Errorf("want empty stderr, got %q", spy.Stderr.String())
+			}
+		})
 	}
 }
 
-func TestNewMainFuncReadsFileArgument(t *testing.T) {
-	// Arrange: `csdfparse <file>` must be equivalent to reading from stdin.
-	want := `{"states":{"s0":{"name":"SKIP","vars":[],"line":3}},"start_edge":{"dst":"s0","post":"","post_clauses":[],"line":5},"edges":[],"end_edge":{"src":"s0","guard":"","guard_clauses":[],"line":6},"assumptions":[]}` + "\n"
+func TestNewMainFuncRefusesADiagramThatStillHoldsDirectives(t *testing.T) {
+	// Setup
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
-	// Act
-	exitStatus := cmdFunc([]string{"../../../examples/valid/skip.puml"}, spy.New())
+	// Execute
+	exitStatus := cmdFunc([]string{"../../../examples/promote/TRADES.puml"}, spy.New())
 
 	// Assert
-	if exitStatus != 0 {
-		t.Log(spy.Stderr.String())
-		t.Errorf("want 0, got %d", exitStatus)
+	if exitStatus == 0 {
+		t.Fatal("want a nonzero exit status")
 	}
-	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
-		t.Error(diff)
+	if !strings.Contains(spy.Stderr.String(), "csdfpromote") {
+		t.Errorf("want a hint to run csdfpromote first, got %q", spy.Stderr.String())
 	}
 }
 

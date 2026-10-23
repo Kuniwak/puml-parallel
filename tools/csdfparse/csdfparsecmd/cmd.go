@@ -1,11 +1,11 @@
 package csdfparsecmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -19,14 +19,15 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseBytes(opts.Bytes)
+		d, err := coreio.ReadBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}
-
-		if err := json.NewEncoder(inout.Stdout).Encode(diagram); err != nil {
-			return fmt.Errorf("csdfparsecmd.NewMainFunc: writing JSON: %w", err)
+		raw, err := core.MarshalDiagram(d)
+		if err != nil {
+			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}
+		fmt.Fprintln(inout.Stdout, string(raw))
 		return nil
 	}
 }

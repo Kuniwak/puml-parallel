@@ -24,9 +24,8 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			fmt.Fprintln(inout.Stdout, version.Version)
 			return nil
 		}
-		// The JSON outputs are read by csdfbmc, which reads the text clauses
-		// of csdf/promote until it moves onto csdf/core (#76, step 6).
-		if opts.JSON || opts.Output == promote.OutputJSON {
+		// -json prints the directives as csdf/promote parses them.
+		if opts.JSON {
 			return mainJSON(opts, inout)
 		}
 		return mainFormula(opts, inout)
@@ -40,6 +39,9 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
 	var templates *coreio.Templates
+	if opts.Template != "" && opts.Output == promote.OutputJSON {
+		return errors.New("csdfpromotecmd.NewMainFunc: -template glosses the PUML output; -format json takes none")
+	}
 	if opts.Template != "" {
 		text, err := os.ReadFile(opts.Template)
 		if err != nil {
@@ -68,6 +70,14 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
+	if opts.Output == promote.OutputJSON {
+		raw, err := core.MarshalDiagram(canonical)
+		if err != nil {
+			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
+		}
+		fmt.Fprintln(inout.Stdout, string(raw))
+		return nil
+	}
 	var text string
 	if templates != nil {
 		text, err = coreio.WriteGlossed(canonical, *templates)
@@ -95,51 +105,14 @@ func report(w io.Writer, warnings []core.Warning, werror bool) error {
 	return nil
 }
 
-// mainJSON is csdfpromote as it was before csdf/core: -json and -format
-// json, read by csdfbmc.
+// mainJSON prints the directives as csdf/promote parses them (-json).
 func mainJSON(opts *Options, inout *cli.ProcInout) error {
 	global, err := promote.ParseGlobalBytes(opts.Bytes)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
-
-	if opts.JSON {
-		if err := json.NewEncoder(inout.Stdout).Encode(global); err != nil {
-			return fmt.Errorf("csdfpromotecmd.NewMainFunc: writing JSON: %w", err)
-		}
-		return nil
-	}
-
-	if opts.Template != "" {
-		return errors.New("csdfpromotecmd.NewMainFunc: -template glosses the PUML output; -format json takes none")
-	}
-
-	expansion, diags := promote.Expand(global, promote.FileLoader(opts.Base), promote.DefaultTemplates())
-	for _, d := range diags {
-		fmt.Fprintln(inout.Stderr, d)
-	}
-	// An error leaves the diagram unprinted, so an unsound expansion never
-	// reaches the tools downstream.
-	if err := promote.Refusal(diags, opts.Werror); err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-	}
-	if len(opts.Only) > 0 {
-		restricted, rdiags := promote.Restrict(expansion, opts.Only)
-		for _, d := range rdiags {
-			fmt.Fprintln(inout.Stderr, d)
-		}
-		if err := promote.Refusal(rdiags, opts.Werror); err != nil {
-			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-		}
-		expansion = restricted
-	}
-	if opts.LintOnly {
-		return nil
-	}
-
-	expansion.Diagram.Name = tools.GeneratedBy("csdfpromote", opts.Args)
-	if err := promote.Write(inout.Stdout, expansion, opts.Output, !opts.NoComments); err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
+	if err := json.NewEncoder(inout.Stdout).Encode(global); err != nil {
+		return fmt.Errorf("csdfpromotecmd.NewMainFunc: writing JSON: %w", err)
 	}
 	return nil
 }

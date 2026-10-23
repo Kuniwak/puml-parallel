@@ -363,7 +363,7 @@ func (f fakeSuggester) Next(csdf.RuntimeState, int) ([]animation.Suggestion, err
 func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
 	service := NewService("test-version", false)
 	cleaned := false
-	service.SetSuggesters(func(d *csdf.Diagram, diagramJSON string) (animation.Suggester, func(), error) {
+	service.SetSuggesters(func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
 		return fakeSuggester{values: `[0]`}, func() { cleaned = true }, nil
 	})
 	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})

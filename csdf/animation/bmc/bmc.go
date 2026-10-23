@@ -14,6 +14,8 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 )
 
 // Checker is what csdfbmc reads besides the diagram: the checks module of the
@@ -64,18 +66,27 @@ type Suggester struct {
 	Command string
 }
 
-// ForDiagram writes d as csdfparse would print it to a temporary file and
-// returns a Suggester reading it, so a REPL started on a .puml needs no JSON
-// of its own. The caller removes the file with the returned function.
-func ForDiagram(d *csdf.Diagram, checker Checker) (*Suggester, func(), error) {
+// ForSource writes the diagram whose PlantUML source (or PNG) is src as
+// csdfparse prints it to a temporary file, and returns a Suggester reading
+// it, so a REPL started on a .puml needs no JSON of its own. The caller
+// removes the file with the returned function.
+func ForSource(src []byte, checker Checker) (*Suggester, func(), error) {
+	d, err := coreio.ReadBytes(src)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
+	}
+	raw, err := core.MarshalDiagram(d)
+	if err != nil {
+		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
+	}
 	f, err := os.CreateTemp("", "csdfrepl-*.json")
 	if err != nil {
-		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
+		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
 	}
-	if err := json.NewEncoder(f).Encode(d); err != nil {
+	if _, err := f.Write(raw); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
-		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
+		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
 	}
 	_ = f.Close()
 	return &Suggester{Diagram: f.Name(), Checker: checker}, func() { _ = os.Remove(f.Name()) }, nil

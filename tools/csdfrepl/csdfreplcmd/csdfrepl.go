@@ -19,12 +19,12 @@ import (
 type HistoryEntry = animation.HistoryEntry
 
 // runOptions is what a run may start with: a replay to walk first, and a
-// suggester for the value prompts, given directly or built from the parsed
-// diagram (which may hand back a cleanup).
+// suggester for the value prompts, given directly or built from the
+// diagram's source (which may hand back a cleanup).
 type runOptions struct {
-	Replay              *animation.Replay
-	Suggester           animation.Suggester
-	SuggesterForDiagram func(*csdf.Diagram) (animation.Suggester, func(), error)
+	Replay             *animation.Replay
+	Suggester          animation.Suggester
+	SuggesterForSource func(source []byte) (animation.Suggester, func(), error)
 }
 
 // runWithSolver runs the REPL on file. With a replay, the session first walks
@@ -53,8 +53,8 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		lines = newLineReader(inout.Stdin)
 	}
 	suggester := run.Suggester
-	if suggester == nil && run.SuggesterForDiagram != nil {
-		built, cleanup, err := run.SuggesterForDiagram(diagram)
+	if suggester == nil && run.SuggesterForSource != nil {
+		built, cleanup, err := run.SuggesterForSource(bs)
 		if err != nil {
 			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
 		}
