@@ -64,19 +64,27 @@ $ csdfparallel diagram1.png diagram2.puml
 $ csdfrepl diagram.png
 ```
 
-`csdfparse` writes one JSON object followed by a newline. Its keys use
-`snake_case`, and optional end edges are represented by `null` when absent.
-State variables are objects with a `name` and an optional `type`. An edge's `event` is
-written whole and also taken apart into its `channel` and `fields` (each a `dir`,
-`?` or `!`, and a `name`). Each guard and post is likewise written whole and
-taken apart into its clauses, `guard_clauses` and `post_clauses`, each
-saying its `form`: `{"form": "text", "text": …}` with its escapes removed,
-`{"form": "opaque"}` or `{"form": "eq", "eq": [a, b]}`. `assumptions` lists the diagram's assume notes (see
-[SYNTAX.md](./docs/SYNTAX.md)); like `edges` it is a list, never `null`.
+`csdfparse` writes one JSON object followed by a newline, `"version": 1`
+of the shape `core.DiagramDoc` (`csdf/core/json.go`): the `states` in order,
+their `labels` (only those labelled apart from their ID) and `vars`; the
+start state `init`, its post `init_post` and `init_line`; the `edges`, each
+with its `channel`, its `fields` (each a `dir`, `?` or `!`, and a `name`), its
+`guard`, its `post` and its `line`; the end edges `ends`; and the assume notes
+`assumes`. A clause is a list of its conjuncts, each a tagged union with a
+`kind`: an `atom`, its text as it holds it (`pieces`), the argument each hole
+reads (`holes`) and the terms they stand for (`args`); a `builtin`, its `op`
+and `args`; or `exists`, the `type` it ranges over and its `body`, where the
+variable it binds is the term `{"kind": "bound", "index": 0}`. A term is
+`free` (`name`, `primed`), `bound`, `index` (`map`, `key`), `field` (`of`,
+`name`) or `app` (`fn`, `args`). An edge's `label` and an atom's `text`,
+`primed` and `function` (the name of the environment function it denotes)
+are derived from the rest, for a program that hands atoms to a glue. A
+diagram that still holds promotion directives is refused; run `csdfpromote`
+first.
 
 ```console
 $ csdfparse < examples/valid/skip.puml
-{"states":{"s0":{"id":"s0","name":"SKIP","vars":[]}},"start_edge":{"dst":"s0","post":"true"},"edges":[],"end_edge":{"src":"s0","guard":"true"},"assumptions":[]}
+{"version":1,"name":"","states":["s0"],"labels":{"s0":"SKIP"},"vars":{"s0":[]},"init":"s0","init_post":[],"init_line":5,"edges":[],"ends":[{"src":"s0","guard":[]}],"assumes":[]}
 ```
 
 ## Hiding
@@ -121,10 +129,8 @@ Every predicate of the expansion is its clauses joined by the connective ` ∧ `
 (`@in`, `@at`, `@frame`, …), and the author's are copied with a local
 variable `v` of the instance `x` of the map `m` written into their holes as
 `${m[x].v}`. `-template` glosses the builtins in a line comment above each
-edge. `-format json` writes the expansion as JSON instead, with every
-generated edge's clauses one by one and each clause's kind; it is the
-expansion of the tools before `csdf/core`, which `csdfbmc` reads until it
-moves onto the clause syntax.
+edge. `-format json` writes the expansion as JSON instead, as `csdfparse`
+prints a diagram, its clauses as formulas: the shape `csdfbmc` reads.
 
 The PUML expansion is read by `csdflivelockfree`, `csdfrefinement`,
 `csdftracechk` and `csdftranstable`.
@@ -721,16 +727,17 @@ argument, and stdin are all equivalent.
 
 `csdfbmc` decides the properties the other tools can only state as
 obligations, by walking the reachable states of a diagram over *finite*
-domains. The checker is a Python package (standard library only, Python 3.11
+types. The checker is a Python package (standard library only, Python 3.11
 or later); the `csdfbmc` binary of a release carries its sources and runs them
 with the `python3` on the PATH (or the one named by `-python` or
 `$CSDFBMC_PYTHON`), unpacking them once per version under `$CSDFBMC_CACHE` or
 the user cache directory, so nothing has to be checked out. The Go tools own
-the structure: `csdfparse` prints the diagram as JSON, and
-`csdfpromote -format json` prints an expansion with the clauses of every edge.
-The checker owns the values: every clause is written in a formal language
-and read through a *glue* of that language, and a *checks module* gives the
-domains the event parameters range over and what to check besides.
+the structure: `csdfparse` prints a diagram as JSON with its clauses as
+formulas, and `csdfpromote -format json` prints an expansion the same way.
+The checker owns the values: it evaluates the builtins and `∃` itself, reads
+every atom through a *glue* of the atom's language, and takes the types, the
+functions of the environment and what to check besides from a *checks
+module*.
 
 ```console
 $ csdfparse examples/bmc/withdraw_formal.puml > withdraw_formal.json
@@ -740,67 +747,50 @@ states: 22
 deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
 ```
 
-The checker knows no language by name: it reads every clause through a glue,
+The checker knows no language by name: it reads every atom through a glue,
 a long-running program that speaks the evaluator protocol on its standard
-input and output, one JSON request and one JSON answer per line. A glue
-answers `hello` (its language and protocol version); `analyse`, the names a
-clause reads and, for a post, the variables it gives a value to, without
-evaluating it, or `{"opaque": true}` for a clause not yet formalised, which
-the environment decides; and `guard` and `post`, the clause's value under each of
-a batch of bindings. Two more requests are optional, and a glue lists the
-ones it answers in its `hello`: `beyond`, the names a clause reads except a
-map it reads only at its own instance's ID, and `symmetric`, whether a clause
-tells two symmetric instance IDs apart. They are what `--por` and
-`--symmetry` need of a clause, and only its language can tell; with a glue
-that answers neither, `--por` takes a clause to read every instance of a map
-it reads, and `--symmetry` is refused. Values are tagged JSON (`{"tuple": …}`,
-`{"set": …}`, `{"map": [[k, v], …]}`), since JSON has none of them. Clauses
-must be pure: the checker asks about a clause once per value of the names it
-reads, and about a guard once per edge for every parameter valuation still
-enabled. A clause not formalised yet is written as an atom whose holes are
-what it reads; the Python glue answers that it cannot read a clause with a
-hole, and the environment decides it (below).
+input and output, one JSON request and one JSON answer per line. A request
+carries an atom as the glue receives it — `{"text": [...], "holes": [...],
+"primed": [...]}`, the text without its holes, the argument each hole reads,
+and which arguments are values after the step — and the values of the
+arguments by index, never a name. A glue answers `hello` (its language and
+protocol version, 2), and `guard` and `post`: a guard atom's truth value per
+list of values, and a post atom's lists of values after the step per list
+of values before it, one value per primed argument. An optional `symmetric`
+request is listed in `hello` by a glue that answers it. Values are tagged
+JSON (`{"tuple": …}`, `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has
+none of them. An instance of a family reaches a glue as the map of its
+fields: its local state is a position, which only the builtin `@at` reads.
+Atoms must be pure: the checker asks about an atom once per list of values.
 `csdfbmc/protocol.py` states the protocol in full. Anyone may add a language
 by writing a glue; `--evaluator CMD` starts it, and `--evaluator-module
 MODULE` loads a glue written in Python in-process, with no round trip. One of
-the two is needed: without a glue there is nothing to read the clauses with.
-A round trip over a pipe costs about 12 µs for a Python glue and 25 µs for a
-Ruby one.
+the two is needed. Protocol 1, which named clauses and asked `analyse` and
+`beyond`, is no longer spoken.
 
-Protocol 2 is the protocol of atoms (`docs/CLAUSE_DESIGN.md`), which the
-walk moves to in a later step of #76. A checker asking for it says
-`{"op": "hello", "protocol": 2}`. A request then carries an atom as the glue
-receives it — `{"text": [...], "holes": [...], "primed": [...]}`, the text
-without its holes, the argument each hole reads, and which arguments are
-values after the step — and the values of the arguments by index, never a
-name: `guard` and `post` take a list of values per evaluation (a post only
-those before the step, and answers lists of values after it, one per primed
-argument), and the optional `symmetric` takes the indices of the arguments
-that range over IDs and of the maps keyed by them. There is no `analyse` and
-no `beyond`: what an atom reads is its holes, which the tools know. hello
-agrees on one protocol for the session: a glue refuses a request before it,
-a hello asking a protocol it does not speak, and a request of the other
-protocol. The
-reference glue reads each hole as a name of its own; a post atom is
-`$x' == e`, `$x' in e`, or a tuple of every value after the step on the left.
+The reference glue, `csdfbmc.python_glue`, reads an atom as a pure subset of
+Python — an expression; no assignment inside a function, no loop statement,
+no exception, no I/O, no randomness, no float — whose holes are names of
+their own, so that evaluating an atom is deterministic. A guard atom is any
+expression (`$残高 >= $数量`); a post atom is `$x' == e`, `$x' in e`, or a
+tuple of every value after the step on the left, where `e` reads none of
+them (`$残高' == $残高 + $額`). An atom that is not Python of the subset is
+an error. The glue's arguments are modules whose public names every atom
+may use, checked against the same pure subset.
 
-The reference glue, `csdfbmc.python_glue`, reads a pure subset of Python —
-an expression; no assignment inside a function, no loop statement, no
-exception, no I/O, no randomness, no float — so that evaluating a clause is
-deterministic. A guard is an expression; a post is a list or set of dict
-displays whose keys are the variables, written as strings (`[{'残高': 残高 + 額}]`,
-`[{'y': v} for v in (y, y + 1)]`), one for a deterministic clause and several
-for a nondeterministic one. The successors of an edge are the natural join of
-what its post clauses give, so two clauses constraining one variable must
-agree, and a variable of the next state that no clause gives a value is
-reported as a finding — a missing post clause — rather than taken to be
-anything. The start edge's post is a post like any other, so no state
-variable needs a domain. Values must be hashable; a dict, list or set a post
-gives is frozen (`csdfbmc.values.freeze`) into a `FrozenMap`, tuple or
-frozenset, and a record or a finite partial function is a `FrozenMap`. The
-glue's arguments are modules whose public names every clause may use, checked
-against the same pure subset. A clause written `OPAQUE` or `opaque`, as before
-atoms, is refused with a pointer to writing it as an atom.
+A post is solved, not searched. The values after the step come from what
+determines them: an equality builtin with a value after the step on one side
+(`@eq(残高', 残高)`), `@empty`, `@update`, `@frame` with `@at` and `@notin`
+for its keys, and the values a post atom allows. A variable nothing in the
+post determines ranges over its type in `TYPES`, and is refused without one;
+every valuation is then checked against the whole post, so two clauses that
+disagree admit no successor. A clause that reads an entry its map does not
+have (`m[k]` with `k` not in `m`) is false, never a default value. A field
+an event receives ranges over its type, except one an equality of the guard
+determines from the state and the fields before it (`@eq(x, n)`), which is
+computed, whatever its type holds. A sent field (`c!y`) sends the value `y`
+has at the step. A field hidden by `csdfhide` is bound by `∃` in the guard
+and the post, and ranges over the type the `∃` names.
 
 The checks module is Python too, checked against the same subset before it is
 imported. `TYPES` maps a type to the finite set of its values (its carrier
@@ -809,68 +799,59 @@ to another type, so that `相手ID` can range over `口座ID`
 (`TYPEOF = {"相手ID": "口座ID"}`). `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
-keys. A module that defines `DOMAINS`, which an earlier `csdfbmc` read, is
-refused: declare the values as `TYPES`. A sent field
-(`c!y`) has no domain: it sends the value `y` has at the step, and a name the
-step does not bind is an error. A `tau` chooses from the domains too: a name
-a `tau`'s clauses read that is neither a state variable nor a field, as
-hiding `c?x` leaves `x`, is chosen nondeterministically from its domain, and
-a name with no domain is an error. A `tau` the author wrote is read by the
-same rule, and names what it chose in its label (`tau(x=1)`), as a promoted
-`tau` names its instance. A field a composition renamed another side's field
-onto (`@[y := x]`) ranges over the values both domains hold: `ch?x ‖ ch?y`
-synchronises only on a value both sides can take.
+keys. A module that defines `DOMAINS` or `CLAUSES`, which an earlier
+`csdfbmc` read, is refused.
+
+Which atoms are functions of the environment (docs/CLAUSE_DESIGN.md, P15 and
+P16) is declared by the checks module alone: every key of `ENVIRONMENT`
+declares one, and every other atom is the glue's. A function is named by
+its atom's text with each hole written as the position of the argument it
+reads: `$口座 が凍結されていない` is the function `$_0 が凍結されていない` of
+the value of `口座`, and every atom with that text, on any edge and in a
+guard or a post alike, is the same function; a key may be written as any of
+its atoms. A key gives the function `True`, `False` or a pure function
+taking the arguments in order, or `None`, which declares it and leaves it to
+`--env NAME=true|false` or to `--seed N`. `--env` may name only a declared
+function, and `--seed` chooses, deterministically by hashing the seed, the
+name and the values of the arguments, only the declared functions nothing
+gives, so that one seed walks the same states again and several seeds widen
+what the bound covers. A post atom the environment decides is decided for
+each value of its types after the step. Before the walk, csdfbmc refuses a
+declared function nothing gives and no seed chooses, listing every one, and
+a declared name that names no atom of the diagram; nothing is approximated.
+The report names the seed, the given functions and the ones an atom was
+decided by (`environment` in `--json`), which is what reproduces a run.
 
 Three more tables are optional. `INVARIANTS` maps a name to a predicate over
 the state variables and ghosts it reads; it is checked at every reachable
 state that binds all of them, and a state that breaks it is reported with
 its trace. `GHOSTS` maps a name to `(initial value, {event name: update})`: a
 value the diagram does not keep — a running total, a count — that follows
-the events. An update reads the ghosts, the event's parameters and the state
+the events. An update reads the ghosts, the event's fields and the state
 variables before the step and returns the new value; a ghost with no update
 for an event keeps its value. Ghosts are part of the state the walk tells
 states apart by, so a total that grows without bound is cut by
-`--max-states`. `SYMMETRIC` lists the instance-ID parameters whose values are
-interchangeable, for `--symmetry`. A module that defines `CLAUSES`, which an
-earlier `csdfbmc` read, is refused: write the clauses in the glue's language
-instead.
+`--max-states`. A ghost update and an invariant see an instance as the map
+of its fields. `SYMMETRIC` lists the instance-ID types whose values are
+interchangeable, for `--symmetry`.
 
 The walk is breadth-first over (control state, valuation, ghosts) triples, up to
 `--max-states`. It reports every reachable state with no enabled transition and
-no end edge as a deadlock, with the trace that reached it, and every cycle of
-`tau` transitions among the reachable states as a tau cycle. With
-`--avoid EVENT` it also reports every cycle among the reachable states that
-never performs that event: under a fairness assumption written as a finite
-bound (a resend count in the domains), such a cycle is a run that never gets to
-the event, which is the livelock the `assume` note was about.
-
-A guard clause not formalised yet — a clause the glue cannot read, written
-as an atom whose holes are what it reads, such as `$口座 が凍結されていない` —
-is a pure function, which the environment gives (docs/CLAUSE_DESIGN.md, P15
-and P16). The function is named by the atom's text without its holes, and
-its arguments are the holes, in order: `$口座 が凍結されていない` is the
-function `$_0 が凍結されていない` of the value of `口座`, and every atom with
-that text, on any edge, is the same function. The tool word `@opaque` is
-refused: write the clause as such an atom. The checks module's
-`ENVIRONMENT` maps a function, written as its name or as any of its atoms,
-to `True`, `False` or a pure function taking the arguments in order;
-`--env NAME=true|false` gives a value over it, and `--seed N` chooses every
-function nothing gives, deterministically, by hashing the seed, the name and
-the values of the arguments, and nothing else, so that one seed walks the same states again and several
-seeds widen what the bound covers. The report names the seed, the given
-functions and the ones a clause was decided by (`environment` in `--json`),
-which is what reproduces a run. Before the walk, csdfbmc refuses a function
-that nothing gives and no seed chooses, listing every such function, and a
-given name that names no function of the diagram; nothing is approximated.
-A post clause not formalised is not decided by the environment yet, and is
-refused: which values it writes is known only once the walk reads atoms
-(a later step of #76). Findings of one shape are reported once, with their count and the
-shortest trace: deadlocks by control state and the event that led there,
-broken invariants by invariant and control state, cycles by the control
-states they run through, empty and unconstrained posts by event. `--all`
-lists every finding; `--first` stops the walk at the first deadlock, broken
-invariant or unconstrained post (cycles need the whole space and are then not
-looked for).
+no end edge whose guard holds as a deadlock, with the trace that reached it,
+and every cycle of `tau` transitions among the reachable states as a tau
+cycle. With `--avoid EVENT` it also reports every cycle among the reachable
+states that never performs that event: under a fairness assumption written
+as a finite bound (a resend count in the types), such a cycle is a run that
+never gets to the event, which is the livelock the `assume` note was about.
+It also reports every (state, event) where the guard held but the post
+admitted no successor ("post admits no successor"), which counts for the
+exit status only as a deadlock it leaves. Findings of one shape are reported
+once, with their count and the shortest trace: deadlocks by control state
+and the event that led there, broken invariants by invariant and control
+state, cycles by the control states they run through, empty posts by event.
+`--all` lists every finding; `--first` stops the walk at the first deadlock
+or broken invariant (cycles need the whole space and are then not looked
+for).
 
 `csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)` answers what a REPL asks at a
@@ -880,21 +861,16 @@ N-th outgoing edge of a runtime state — which `csdfrepl -checks` and
 finding a `replay`: the initial values and, per step, the edge taken (event,
 source, destination, line) and the values of the state it leads to, which
 `csdfrepl -replay` and `csdfreplcmd replay` walk so the finding can be looked
-at in the REPL. The exit status is 1 when something was found, 2 when the
-inputs could not be read.
-
-The walk also reports every (state, event) where the guard held but the post
-clauses admitted no successor ("post admits no successor"): a clause that
-cannot be met from that state, or post clauses that disagree. A variable left
-without a value ("post leaves … without a value") counts as a finding for the
-exit status; an empty post does not, since the edge is simply disabled there.
+at in the REPL; an instance is written `{"at": STATE, "fields": {…}}`. The
+exit status is 1 when something was found, 2 when the inputs could not be
+read.
 
 The first worked example, `examples/bmc/withdraw_formal.puml`, is a two-state
 ledger: a transfer is accepted when the balance covers it and completes when
 the balance also covers the fee. The explorer reports the states with no way
 out and the trace to each; change a clause and the report changes with it.
 `withdraw_formal_defs.py` is both its checks module and the module of the
-constants its clauses name, given to the glue as an argument.
+constants its atoms name, given to the glue as an argument.
 
 The second, `examples/bmc/wallet_formal.puml`, is a toy ledger with deposits,
 one transfer at a time with a retry, and a fee refund from outside the
@@ -913,70 +889,27 @@ $ csdfbmc wallet_formal.json examples/bmc/wallet_formal_checks.py \
     --avoid 確定 --within sending
 ```
 
-An expansion of a promoted diagram (`csdfpromote -format json`) is walked the
-same way. A map variable then holds, per instance ID, a record of the local
-state's name (under `state`) and the local variables, so a clause reads
-`attempts[試行ID].手数料` and may use `at(m, id, state)`, `exists(m, pred)` and
-`count(m, pred)`. The generated clauses — the instance exists, is in a local
-state, moves, is created or removed, a variable is unchanged, a map starts
-empty — have their meaning built in. A local clause, written in the local
-diagram, is evaluated over the event's parameters and the instance's own
-variables; a local post gives the instance's variables after the step, and one
-it leaves without a value is a finding, as a missing post clause in the local
-diagram. Instance IDs range over the domain of the ID parameter, which is the
-bound of the scenario; a promoted `tau` ranges over them too. The third
-example, `examples/bmc/attempts/`, is the fee-bumping diagram of
-`examples/promote/ATTEMPTS.puml` with its clauses written in Python:
+An expansion of a promoted diagram is walked the same way. A map variable
+holds, per instance ID, an instance: its local state, which `@at` reads, and
+its local variables, which an atom reads as `${attempts'[試行ID].手数料}`.
+Instance IDs range over the type of the ID field, which is the bound of the
+scenario. The third example, `examples/bmc/attempts/`, is the fee-bumping
+diagram of `examples/promote/ATTEMPTS.puml` with its atoms written in Python.
+A global diagram has no end edge, so the walk stops only once every ID of
+the bound is confirmed, which it reports as deadlocks; no cycle avoids
+`CONFIRMED`:
 
 ```console
 $ csdfpromote -format json examples/bmc/attempts/ATTEMPTS.puml > attempts.json
 $ csdfbmc attempts.json examples/bmc/attempts/checks.py \
     --evaluator-module csdfbmc.python_glue --avoid CONFIRMED
 states: 496
+deadlock ×19 at running after CONFIRMED; …
 ```
 
-Two opt-in reductions shrink the walk of an expansion without changing what
-it finds, so a finding can always be confirmed without them. `--por` is
-partial-order reduction: at a state it takes the moves of one instance in
-place of every enabled move, when that instance's family is independent in
-the control state — every edge there is a self-loop and none is `tau`; the
-family's edges move it alone, update no ghost and read nothing but its own
-map; no other edge, ghost update or invariant reads its map — and none of
-those moves is the `--avoid` event or leads to a state already met. What a
-clause reads, and whether it reads a map beyond its own instance, is what the
-glue says (`analyse`, `beyond`). `--symmetry` stores a state by one
-representative of its renamings of the instance IDs the checks module lists
-in `SYMMETRIC` (`SYMMETRIC = ["試行ID"]`); the walk expands the state it met
-first, so every trace it reports is a run of the diagram. The declaration is
-refused when a clause, a ghost update or an invariant could tell two IDs
-apart: an ID written as a constant (a literal that lists every ID, as the
-domain does, names none), an ID ordered by `<`, `<=`, `>`, `>=`, `sorted`,
-`min` or `max`, or a domain holding IDs that is not closed under renaming
-them. The glue answers it for the clauses (`symmetric`), and the checker reads
-the checks module's source for the rest; the check is syntactic and does not
-follow a value through a helper. Under either reduction an empty or
-unconstrained post is reported only at the states the walk still meets. The
-third example walks 104 states instead of 496 with `--symmetry --por`.
-
-`--cone` leaves out the state variables outside the *cone of influence*:
-those that nothing deciding a step or a property reads. A step can be taken
-when its guard holds and its post clauses admit a successor, so the cone is
-every variable read by a guard (the end edge's included), by a post clause
-the author wrote, by an invariant or by a ghost update. The built-in clauses
-of an expansion - a frame, an instance created, moved or removed - always
-admit one successor and only carry a value across, so they decide nothing.
-A variable outside the cone is then only ever given a value or carried
-across: one set from an event's parameters, such as who approved or when a
-notice went out, while a log appended to its own value stays in. The walk
-projected onto the control states and the cone is bisimilar to the full
-one, and finds the same deadlocks, cycles, broken invariants, empty posts
-and variables left without a value. Every post clause is still evaluated;
-a left-out variable just has no value in the state (null in `--json`). The
-report lists the kept variables and each left-out one with the edges that
-set it. A clause whose reads are unknown (one the glue cannot read), or an invariant or
-ghost update that takes any keyword, keeps the cone from being computed,
-and the report says so. A replay from such a walk carries nulls, so walk
-without `--cone` to replay a finding in the REPL.
+The reductions `--por`, `--symmetry` and `--cone` of earlier releases read
+what a glue said a clause reads; they come back on the formulas, whose free
+variables the tools know, in a later change of #76.
 
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,

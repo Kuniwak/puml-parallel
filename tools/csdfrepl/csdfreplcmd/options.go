@@ -46,7 +46,7 @@ With -checks and a glue (-evaluator or -evaluator-module), every value prompt
 also shows the values the clauses admit for the pending transition, as
 csdfbmc reads them through the glue, numbered, and "#N" enters the N-th;
 csdfbmc must be on the PATH or beside this binary. -diagram-json names the
-expansion JSON (csdfpromote -format json) the checker reads instead of the
+JSON (csdfpromote -format json, for an expansion) the checker reads instead of the
 file's own parse.
 
 Options:

@@ -331,6 +331,13 @@ without a glue is an uninterpreted predicate of its arguments. There is no
 separate tool word for a clause not formalised: it is written as an atom
 whose holes are what it reads, such as `$口座 が凍結されていない`.
 
+Which atoms are without a glue is declared, never inferred: the checks
+module lists them (its `ENVIRONMENT`), and every other atom is the glue's,
+so an atom the glue cannot read is an error, not a function of the
+environment. A guess from a failure would let a typo in a formal atom pass
+as a free parameter and widen what the check allows; a declaration keeps
+the meaning in what the author wrote (P12).
+
 An environment function is named by its atom, nothing else (P12): its name
 is the atom's text with each hole replaced by the position of the argument
 it reads, `$_0`, `$_1` and so on, and its arguments are the distinct terms
@@ -339,10 +346,11 @@ evaluator protocol). So `$a と $b と $a` is `$_0 と $_1 と $_0` of (a, b),
 and `$a と $b と $b` is the other function `$_0 と $_1 と $_1`; one name has
 one arity. Atoms with the same such text denote the same function, on every edge
 and in every component, whatever their holes are called; no position,
-numbering or table outside the diagram names one. A function is given, by
-the checks module or the command line, or chosen from a seed; one that is
-neither is refused, never approximated, and the refusal lists every such
-function. A given name that names no function is refused too.
+numbering or table outside the diagram names one. A declared function is
+given, by the checks module or the command line, or chosen from a seed; one
+that is neither is refused, never approximated, and the refusal lists every
+such function. A seed chooses only declared functions, and a declared or
+given name that names no function of the diagram is refused too.
 
 A seed chooses a function by hashing the seed, the function's name and the
 values of its arguments, and nothing else, so a change elsewhere in the
