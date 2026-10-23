@@ -459,9 +459,11 @@ func TestTheProversDoNotDischargeAFalseRefinement(t *testing.T) {
 // meaning a refinement needs of them, by proofs a prover checks: a frame of
 // no key leaves a well-formed map as it was, so an edge whose post is
 // @frame(m', m) ∧ m' ≠ m is disabled; a map whose keys are out of order is
-// not well formed; an update by a key, and a frame of a key dropping it, has
-// exactly one well-formed successor, so a post of either neither disables an
-// edge nor lets it branch; and a diagram starting at a state of
+// not well formed, as of two orderings of distinct keys at most one is; an
+// update by a key, and a frame of a key dropping it, has exactly one
+// well-formed successor, so a post of either neither disables an edge nor
+// lets it branch, while a bare frame of a key is deliberately
+// nondeterministic on it, having two; and a diagram starting at a state of
 // its local diagram with an empty map, its types formalised, can start.
 func TestTheBuiltinsAreAModel(t *testing.T) {
 	// Setup
@@ -479,16 +481,16 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 				"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)",
 			"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
 				"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
-		{"an unsorted map is ill formed", "unsorted_ill_formed",
+		{"of two orderings of distinct keys at most one is well formed", "unsorted_ill_formed",
 			`theorem unsorted_ill_formed (a b x y : Val) (hab : a ≠ b) :
-    ¬(csdf_wf (.ValMap [(a, x), (b, y)]) ∧ csdf_wf (.ValMap [(b, y), (a, x)])) := by
-  rintro ⟨h1, h2⟩
+    csdf_wf (.ValMap [(a, x), (b, y)]) → ¬csdf_wf (.ValMap [(b, y), (a, x)]) := by
+  intro h1 h2
   cases h1 with
   | map _ _ s1 _ _ => cases h2 with
     | map _ _ s2 _ _ =>
       simp [List.sortedLE_iff_pairwise] at s1 s2
       exact hab (le_antisymm s1 s2)`,
-			`lemma unsorted_ill_formed: "a \<noteq> b \<Longrightarrow> \<not> (csdf_wf (ValMap [(a, x), (b, y)]) \<and> csdf_wf (ValMap [(b, y), (a, x)]))"
+			`lemma unsorted_ill_formed: "a \<noteq> b \<Longrightarrow> csdf_wf (ValMap [(a, x), (b, y)]) \<Longrightarrow> \<not> csdf_wf (ValMap [(b, y), (a, x)])"
   by (auto elim!: csdf_wf_map)`},
 		{"an update has a well-formed successor", "update_exists",
 			`-- The entries of a map but those of a key.
@@ -600,6 +602,25 @@ proof -
   moreover have "csdf_frame1 (ValMap ?l) m k \<and> \<not> csdf_in k (ValMap ?l)"
     using w(1) d by (auto simp: m csdf_frame1_def csdf_is_map_def csdf_in_def csdf_index_of)
   ultimately show ?thesis by blast
+qed`},
+		// A bare @frame(m', m, k) says nothing of k in m', so it is
+		// deliberately nondeterministic on k: m' may hold k at any value or
+		// not at all. A post pins k down with @frame and @notin, or @update.
+		{"a bare frame of a key has two different well-formed successors", "frame1_branches",
+			`theorem frame1_branches (m k v : Val) (wm : csdf_wf m) (im : csdf_is_map m) (wk : csdf_wf k) (wv : csdf_wf v) :
+    ∃ n₁ n₂, csdf_wf n₁ ∧ csdf_wf n₂ ∧ csdf_frame1 n₁ m k ∧ csdf_frame1 n₂ m k ∧ n₁ ≠ n₂ := by
+  obtain ⟨n₁, w₁, i₁, i₁', hk₁, _, hj₁⟩ := update_exists m k v wm im wk wv
+  obtain ⟨n₂, w₂, f₂, hk₂⟩ := frame1_exists m k wm im
+  exact ⟨n₁, n₂, w₁, w₂, ⟨i₁, i₁', hj₁⟩, f₂, fun e => hk₂ (e ▸ hk₁)⟩`,
+			`lemma frame1_branches:
+  assumes "csdf_wf m" "csdf_is_map m" "csdf_wf k" "csdf_wf v"
+  shows "\<exists>n1 n2. csdf_wf n1 \<and> csdf_wf n2 \<and> csdf_frame1 n1 m k \<and> csdf_frame1 n2 m k \<and> n1 \<noteq> n2"
+proof -
+  obtain n1 where n1: "csdf_wf n1" "csdf_update n1 m k v" using update_exists[OF assms] by blast
+  obtain n2 where n2: "csdf_wf n2" "csdf_frame1 n2 m k" "\<not> csdf_in k n2" using frame1_exists[OF assms(1,2)] by blast
+  have "csdf_frame1 n1 m k" using n1(2) by (simp add: csdf_update_def csdf_frame1_def)
+  moreover have "n1 \<noteq> n2" using n1(2) n2(3) by (auto simp: csdf_update_def)
+  ultimately show ?thesis using n1(1) n2(1,2) by blast
 qed`},
 		{"a frame of a key, dropping it, has at most one well-formed successor", "frame1_unique",
 			`theorem frame1_unique (m k : Val) : ∀ n₁ n₂, csdf_wf n₁ → csdf_wf n₂ →

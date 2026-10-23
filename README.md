@@ -327,7 +327,10 @@ and their meaning holding. An instance is a record whose first component is its 
 and `csdf_at` is that it is the state constant, each a number of its own. What the
 builtins mean is then a lemma `csdf_lemma_<i>`, proved in the file from the definitions
 (`auto` in Isabelle, a projection of the definition in Lean), which the prover checks: no
-theorem rests on an axiom, so none holds by a contradiction among axioms. The model rests on
+theorem rests on an axiom, so none holds by a contradiction among axioms. A bare
+`@frame(m', m, k)` says nothing of `k` in `m'`, so it is deliberately nondeterministic on `k`:
+`m'` may hold `k` at any value or not at all (two different well-formed successors exist, as
+the prover checks prove); a post pins `k` down with `@notin(k, m')` or uses `@update`. The model rests on
 the libraries: an Isabelle theory imports `HOL-Library.Countable`, so a session building it
 declares `sessions "HOL-Library"` in its ROOT (the ROOT is shown by `csdflivelockfree -h`
 and `csdfrefinement -h`), and a Lean file imports
