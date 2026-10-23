@@ -458,7 +458,10 @@ func TestTheProversDoNotDischargeAFalseRefinement(t *testing.T) {
 // TestTheBuiltinsAreAModel holds the definitions of the builtins to the
 // meaning a refinement needs of them, by proofs a prover checks: a frame of
 // no key leaves a well-formed map as it was, so an edge whose post is
-// @frame(m', m) ∧ m' ≠ m is disabled; and a diagram starting at a state of
+// @frame(m', m) ∧ m' ≠ m is disabled; a map whose keys are out of order is
+// not well formed; an update by a key, and a frame of a key dropping it, has
+// exactly one well-formed successor, so a post of either neither disables an
+// edge nor lets it branch; and a diagram starting at a state of
 // its local diagram with an empty map, its types formalised, can start.
 func TestTheBuiltinsAreAModel(t *testing.T) {
 	// Setup
@@ -467,7 +470,160 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	types := map[string]string{"type_t": "True", "type_m": "True"}
+	// The lemmas the model is held to, each proved in both provers.
+	lemmas := []struct{ desc, name, lean, isa string }{
+		{"a frame of no key keeps a map", "frame0_keeps",
+			"theorem frame0_keeps (n m : Val) (wn : csdf_wf n) (wm : csdf_wf m) (h : csdf_frame0 n m) : n = m :=\n" +
+				"  csdf_map_ext n m wn wm (And.left h) (And.left (And.right h)) (fun k =>\n" +
+				"    ⟨⟨(And.right (And.right h) k trivial).1, fun hm => ((And.right (And.right h) k trivial).2 hm).1⟩,\n" +
+				"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)",
+			"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
+				"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
+		{"an unsorted map is ill formed", "unsorted_ill_formed",
+			`theorem unsorted_ill_formed (a b x y : Val) (hab : a ≠ b) :
+    ¬(csdf_wf (.ValMap [(a, x), (b, y)]) ∧ csdf_wf (.ValMap [(b, y), (a, x)])) := by
+  rintro ⟨h1, h2⟩
+  cases h1 with
+  | map _ _ s1 _ _ => cases h2 with
+    | map _ _ s2 _ _ =>
+      simp [List.sortedLE_iff_pairwise] at s1 s2
+      exact hab (le_antisymm s1 s2)`,
+			`lemma unsorted_ill_formed: "a \<noteq> b \<Longrightarrow> \<not> (csdf_wf (ValMap [(a, x), (b, y)]) \<and> csdf_wf (ValMap [(b, y), (a, x)]))"
+  by (auto elim!: csdf_wf_map)`},
+		{"an update has a well-formed successor", "update_exists",
+			`-- The entries of a map but those of a key.
+open Classical in
+noncomputable abbrev without (k : Val) (ms : List (Val × Val)) : List (Val × Val) :=
+  ms.filter (fun p => decide (p.1 ≠ k))
+
+theorem mem_without {k : Val} {ms : List (Val × Val)} {p : Val × Val} :
+    p ∈ without k ms ↔ p ∈ ms ∧ p.1 ≠ k := by
+  simp [without]
+
+theorem index_of (l : List (Val × Val)) (n : (l.map Prod.fst).Nodup) (k v : Val) (h : (k, v) ∈ l) :
+    csdf_index (.ValMap l) k = v := by
+  have e : ∃ v, (k, v) ∈ l := ⟨v, h⟩
+  simp only [csdf_index, dif_pos e]
+  exact csdf_unique l n k _ _ (Classical.choose_spec e) h
+
+theorem update_exists (m k v : Val) (wm : csdf_wf m) (im : csdf_is_map m) (wk : csdf_wf k) (wv : csdf_wf v) :
+    ∃ n, csdf_wf n ∧ csdf_update n m k v := by
+  cases wm with
+  | map ms nd so w1 w2 => ?_
+  | _ => simp [csdf_is_map] at im
+  classical
+  let r : Val × Val → Val × Val → Prop := fun p q => p.1 ≤ q.1
+  haveI : Std.Total r := ⟨fun a b => le_total a.1 b.1⟩
+  haveI : IsTrans (Val × Val) r := ⟨fun _ _ _ => le_trans⟩
+  let l := (without k ms).orderedInsert r (k, v)
+  have lt : (without k ms).Pairwise (fun p q => p.1 < q.1) := (csdf_sorted_entries ms nd so).filter _
+  have le : l.Pairwise r := (lt.imp le_of_lt).orderedInsert _ _
+  have st0 := List.sortedLT_iff_nodup_and_sortedLE.mp (List.sortedLT_iff_pairwise.mpr (List.pairwise_map.mpr lt))
+  have nd' : (l.map Prod.fst).Nodup := by
+    refine ((List.perm_orderedInsert r (k, v) _).map Prod.fst).nodup_iff.mpr ?_
+    refine List.nodup_cons.mpr ⟨?_, st0.1⟩
+    simp only [List.mem_map]
+    rintro ⟨p, hp, e⟩; exact (mem_without.mp hp).2 e
+  have mem : ∀ p, p ∈ l ↔ p = (k, v) ∨ p ∈ without k ms := fun p => List.mem_orderedInsert r
+  refine ⟨.ValMap l, csdf_wf.map _ nd' (List.sortedLE_iff_pairwise.mpr (List.pairwise_map.mpr le)) ?_ ?_,
+    trivial, trivial, ⟨v, (mem _).mpr (.inl rfl)⟩, index_of _ nd' k v ((mem _).mpr (.inl rfl)), fun j e => ⟨?_, ?_⟩⟩
+  · intro p hp; rcases (mem p).mp hp with rfl | hp; exacts [wk, w1 p (mem_without.mp hp).1]
+  · intro p hp; rcases (mem p).mp hp with rfl | hp; exacts [wv, w2 p (mem_without.mp hp).1]
+  · rintro ⟨w, hw⟩
+    rcases (mem _).mp hw with h | h
+    · exact absurd (Prod.mk.inj h).1 e
+    · exact ⟨w, (mem_without.mp h).1⟩
+  · rintro ⟨w, hw⟩
+    have hn : (j, w) ∈ l := (mem _).mpr (.inr (mem_without.mpr ⟨hw, e⟩))
+    exact ⟨⟨w, hn⟩, (index_of _ nd' j w hn).trans (index_of ms nd j w hw).symm⟩`,
+			`lemma csdf_index_of: "distinct (map fst l) \<Longrightarrow> (j, w) \<in> set l \<Longrightarrow> csdf_index (ValMap l) j = w"
+  by (simp add: csdf_index_def)
+
+lemma update_exists:
+  assumes "csdf_wf m" "csdf_is_map m" "csdf_wf k" "csdf_wf v"
+  shows "\<exists>n. csdf_wf n \<and> csdf_update n m k v"
+proof -
+  obtain ms where m: "m = ValMap ms" using assms(2) by (cases m) (auto simp: csdf_is_map_def)
+  have w: "distinct (map fst ms)" "sorted (map fst ms)" "\<forall>p\<in>set ms. csdf_wf (fst p)" "\<forall>p\<in>set ms. csdf_wf (snd p)"
+    using assms(1) unfolding m by (auto elim: csdf_wf_map)
+  let ?r = "filter (\<lambda>p. fst p \<noteq> k) ms"
+  let ?l = "insort_key fst (k, v) ?r"
+  have dr: "distinct (map fst ?r)" using w(1) by (simp add: distinct_map_filter)
+  have mi: "\<And>xs. map fst (insort_key fst (k, v) xs) = insort k (map fst xs)" by (induct_tac xs) auto
+  have ml: "map fst ?l = insort k (map fst ?r)" by (rule mi)
+  have d: "distinct (map fst ?l)" unfolding ml using dr by (auto simp: distinct_insort)
+  have "csdf_wf (ValMap ?l)"
+    by (rule csdf_wf.intros(7)) (use w d assms(3,4) in \<open>auto simp: ml sorted_insort sorted_filter set_insort_key\<close>)
+  moreover have "csdf_update (ValMap ?l) m k v"
+    using w(1) d by (auto simp: m csdf_update_def csdf_is_map_def csdf_in_def csdf_index_of set_insort_key)
+  ultimately show ?thesis by blast
+qed`},
+		{"an update has at most one well-formed successor", "update_unique",
+			`theorem update_unique (m k v : Val) : ∀ n₁ n₂, csdf_wf n₁ → csdf_wf n₂ →
+    csdf_update n₁ m k v → csdf_update n₂ m k v → n₁ = n₂ := by
+  intro n₁ n₂ w₁ w₂ ⟨i₁, _, hk₁, hv₁, hj₁⟩ ⟨i₂, _, hk₂, hv₂, hj₂⟩
+  refine csdf_map_ext n₁ n₂ w₁ w₂ i₁ i₂ fun j => ?_
+  by_cases e : j = k
+  · subst e; exact ⟨⟨fun _ => hk₂, fun _ => hk₁⟩, fun _ => hv₁.trans hv₂.symm⟩
+  · have a := hj₁ j e; have b := hj₂ j e
+    exact ⟨⟨fun h => (b.2 (a.1 h)).1, fun h => (a.2 (b.1 h)).1⟩,
+      fun h => (a.2 (a.1 h)).2.trans (b.2 (a.1 h)).2.symm⟩`,
+			`lemma update_unique: "csdf_wf n1 \<Longrightarrow> csdf_wf n2 \<Longrightarrow> csdf_update n1 m k v \<Longrightarrow> csdf_update n2 m k v \<Longrightarrow> n1 = n2"
+  apply (rule csdf_map_ext, assumption+)
+    apply (auto simp: csdf_update_def)
+  by metis+`},
+		{"a frame of a key, dropping it, has a well-formed successor", "frame1_exists",
+			`theorem frame1_exists (m k : Val) (wm : csdf_wf m) (im : csdf_is_map m) :
+    ∃ n, csdf_wf n ∧ csdf_frame1 n m k ∧ ¬csdf_in k n := by
+  cases wm with
+  | map ms nd so w1 w2 => ?_
+  | _ => simp [csdf_is_map] at im
+  have lt : (without k ms).Pairwise (fun p q => p.1 < q.1) := (csdf_sorted_entries ms nd so).filter _
+  have st := List.sortedLT_iff_nodup_and_sortedLE.mp (List.sortedLT_iff_pairwise.mpr (List.pairwise_map.mpr lt))
+  refine ⟨.ValMap (without k ms), csdf_wf.map _ st.1 st.2
+    (fun p hp => w1 p (mem_without.mp hp).1) (fun p hp => w2 p (mem_without.mp hp).1),
+    ⟨trivial, trivial, fun j e => ⟨fun ⟨v, hv⟩ => ⟨v, (mem_without.mp hv).1⟩, fun ⟨v, hv⟩ => ?_⟩⟩, ?_⟩
+  · have hn : (j, v) ∈ without k ms := mem_without.mpr ⟨hv, e⟩
+    exact ⟨⟨v, hn⟩, (index_of _ st.1 j v hn).trans (index_of ms nd j v hv).symm⟩
+  · rintro ⟨v, hv⟩; exact (mem_without.mp hv).2 rfl`,
+			`lemma frame1_exists:
+  assumes "csdf_wf m" "csdf_is_map m"
+  shows "\<exists>n. csdf_wf n \<and> csdf_frame1 n m k \<and> \<not> csdf_in k n"
+proof -
+  obtain ms where m: "m = ValMap ms" using assms(2) by (cases m) (auto simp: csdf_is_map_def)
+  have w: "distinct (map fst ms)" "sorted (map fst ms)" "\<forall>p\<in>set ms. csdf_wf (fst p)" "\<forall>p\<in>set ms. csdf_wf (snd p)"
+    using assms(1) unfolding m by (auto elim: csdf_wf_map)
+  let ?l = "filter (\<lambda>p. fst p \<noteq> k) ms"
+  have d: "distinct (map fst ?l)" using w(1) by (simp add: distinct_map_filter)
+  have "csdf_wf (ValMap ?l)"
+    by (rule csdf_wf.intros(7)) (use w d in \<open>auto simp: sorted_filter\<close>)
+  moreover have "csdf_frame1 (ValMap ?l) m k \<and> \<not> csdf_in k (ValMap ?l)"
+    using w(1) d by (auto simp: m csdf_frame1_def csdf_is_map_def csdf_in_def csdf_index_of)
+  ultimately show ?thesis by blast
+qed`},
+		{"a frame of a key, dropping it, has at most one well-formed successor", "frame1_unique",
+			`theorem frame1_unique (m k : Val) : ∀ n₁ n₂, csdf_wf n₁ → csdf_wf n₂ →
+    (csdf_frame1 n₁ m k ∧ ¬csdf_in k n₁) → (csdf_frame1 n₂ m k ∧ ¬csdf_in k n₂) → n₁ = n₂ := by
+  intro n₁ n₂ w₁ w₂ ⟨⟨i₁, _, hj₁⟩, hk₁⟩ ⟨⟨i₂, _, hj₂⟩, hk₂⟩
+  refine csdf_map_ext n₁ n₂ w₁ w₂ i₁ i₂ fun j => ?_
+  by_cases e : j = k
+  · subst e; exact ⟨⟨fun h => absurd h hk₁, fun h => absurd h hk₂⟩, fun h => absurd h hk₁⟩
+  · have a := hj₁ j e; have b := hj₂ j e
+    exact ⟨⟨fun h => (b.2 (a.1 h)).1, fun h => (a.2 (b.1 h)).1⟩,
+      fun h => (a.2 (a.1 h)).2.trans (b.2 (a.1 h)).2.symm⟩`,
+			`lemma frame1_unique: "csdf_wf n1 \<Longrightarrow> csdf_wf n2 \<Longrightarrow> csdf_frame1 n1 m k \<and> \<not> csdf_in k n1 \<Longrightarrow> csdf_frame1 n2 m k \<and> \<not> csdf_in k n2 \<Longrightarrow> n1 = n2"
+  apply (rule csdf_map_ext, assumption+)
+    apply (auto simp: csdf_frame1_def)
+  by metis+`},
+	}
+	var leanLemmas, isaLemmas []string
+	var printAxioms strings.Builder
+	for _, l := range lemmas {
+		leanLemmas = append(leanLemmas, l.lean)
+		isaLemmas = append(isaLemmas, l.isa)
+		printAxioms.WriteString("#print axioms Refinement_Obligation." + l.name + "\n")
+	}
+	types := map[string]string{"type_t": "True", "type_m": "True", "type__u9375u": "True"}
 	leanEdits := lean.Edits{
 		Types: types,
 		Proofs: map[string]string{"initialisable_S": strings.Join([]string{
@@ -475,17 +631,13 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 			"  · exact csdf_wf.record _ _ (csdf_wf.int 0) (by simp)",
 			"  · exact csdf_wf.map [] List.nodup_nil List.Pairwise.nil.sortedLE (by simp) (by simp)",
 			"  · intro k ⟨v, hv⟩; simp at hv"}, "\n")},
-		Lemmas: []string{"theorem frame0_keeps (n m : Val) (wn : csdf_wf n) (wm : csdf_wf m) (h : csdf_frame0 n m) : n = m :=\n" +
-			"  csdf_map_ext n m wn wm (And.left h) (And.left (And.right h)) (fun k =>\n" +
-			"    ⟨⟨(And.right (And.right h) k trivial).1, fun hm => ((And.right (And.right h) k trivial).2 hm).1⟩,\n" +
-			"     fun hn => ((And.right (And.right h) k trivial).2 ((And.right (And.right h) k trivial).1 hn)).2⟩)"},
+		Lemmas: leanLemmas,
 	}
 	isaEdits := isabelle.Edits{
 		Types: types,
 		Proofs: map[string]string{"initialisable_S": "apply (rule exI[of _ \"ValRecord (ValInt 0) []\"], rule exI[of _ \"ValMap []\"])\n" +
 			"  apply (auto simp: type_t_def type_m_def csdf_at_def state__u2euA_def csdf_empty_def csdf_is_map_def csdf_in_def intro: csdf_wf.intros)\n  done"},
-		Lemmas: []string{"lemma frame0_keeps: \"csdf_wf n \\<Longrightarrow> csdf_wf m \\<Longrightarrow> csdf_frame0 n m \\<Longrightarrow> n = m\"\n" +
-			"  by (rule csdf_map_ext) (auto simp: csdf_frame0_def)"},
+		Lemmas: isaLemmas,
 	}
 	var leanSrc, isaSrc strings.Builder
 	if err := lean.WriteRefinementEdited(&leanSrc, ir, leanEdits); err != nil {
@@ -500,7 +652,7 @@ func TestTheBuiltinsAreAModel(t *testing.T) {
 		leanDir := requireEnv(t, proverLean, envLean)
 
 		// Execute
-		src := leanSrc.String() + "\n#print axioms Refinement_Obligation.frame0_keeps\n#print axioms Refinement_Obligation.initialisable_S\n"
+		src := leanSrc.String() + "\n" + printAxioms.String() + "#print axioms Refinement_Obligation.initialisable_S\n"
 		out, err := runLean(t, leanDir, "builtins_model.lean", src)
 
 		// Assert

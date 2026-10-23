@@ -1,11 +1,13 @@
 @startuml
 ' An instance moving between two states of its local diagram, and a map
 ' updated by a received key, each tau, so the obligation reads every lemma:
-' of csdf_at at two states, of csdf_update and of csdf_frame of no key.
+' of csdf_at at two states, of csdf_update and of csdf_frame of no key and
+' of a key.
 state "s" as s
 s : t
 s : m
 [*] --> s : @at(t', A) ∧ @empty(m')
 s --> s : tau ; @at(t, A) ; @at(t', B) ∧ @frame(m', m)
 s --> s : tau ; @at(t, B) ; @at(t', A) ∧ @exists(k : 鍵) (@update(m', m, k, t))
+s --> s : tau ; @at(t, B) ; @at(t', B) ∧ @exists(k : 鍵) (@frame(m', m, k) ∧ @notin(k, m'))
 @enduml
