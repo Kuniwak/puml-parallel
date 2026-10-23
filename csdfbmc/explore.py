@@ -241,7 +241,7 @@ class Explorer:
 
     def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
         names = self.d.vars[dst]
-        return [tuple(freeze(a[n]) for n in names) for a in solve(self.ev, post, names, before, self.checks.domain, where)]
+        return [tuple(freeze(a[n]) for n in names) for a in solve(self.ev, post, names, before, self.checks.domain, where, self.d.families)]
 
     def initial(self) -> list[State]:
         ghosts = tuple(init for init, _ in self.checks.ghosts.values())

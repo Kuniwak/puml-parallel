@@ -31,7 +31,11 @@ independent maps, which says almost nothing.
 `csdf/core` gives. Its `-json` and `-format json` outputs still come from the
 reader before it, which reads clauses as text and which this document
 describes where the two differ; `csdfbmc` reads that JSON until it moves onto
-the clause syntax (#76). The formula promotion keeps the local-diagram
+the clause syntax (#76). The diagram JSON of an expansion (version 2) writes
+the family of each map as well (`families`): its local states, its start
+state, which is absence, and the variables each local state holds, so that
+csdfbmc gives an instance at a local state exactly that state's variables.
+The formula promotion keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
 families and hand-written global edges, variables of the global state that
 are no family's map, a post on the global start edge, global `assume`

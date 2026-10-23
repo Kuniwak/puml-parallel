@@ -919,6 +919,11 @@ $ csdfbmc wallet_formal.json examples/bmc/wallet_formal_checks.py \
 An expansion of a promoted diagram is walked the same way. A map variable
 holds, per instance ID, an instance: its local state, which `@at` reads, and
 its local variables, which an atom reads as `${attempts'[試行ID].手数料}`.
+Which variables an instance holds at each local state is the family the JSON
+writes (`families`): after `@at(m'[k], S)` the instance holds exactly the
+variables of `S`, each one the post leaves open ranging over its type in
+`TYPES` (refused without one), and a post that gives a field `S` does not
+hold, or puts an entry of a map of no family at a state, is refused.
 Instance IDs range over the type of the ID field, which is the bound of the
 scenario. The third example, `examples/bmc/attempts/`, is the fee-bumping
 diagram of `examples/promote/ATTEMPTS.puml` with its atoms written in Python.
