@@ -1,10 +1,6 @@
-package lint
+package clause
 
-import (
-	"reflect"
-
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
-)
+import "reflect"
 
 // Contradictory reports whether f is false on its face: whether its
 // builtins alone, read as the skeleton defines them, exclude every
@@ -20,21 +16,21 @@ import (
 // Terms are the same when they are written the same, up to the names of
 // bound variables; two terms written differently may still be equal, and
 // then nothing is concluded.
-func Contradictory(f clause.And) bool {
-	f = clause.Normalize(f)
-	var bs []clause.Builtin
+func Contradictory(f And) bool {
+	f = Normalize(f)
+	var bs []Builtin
 	for _, c := range f.Conjuncts {
 		switch c := c.(type) {
-		case clause.Builtin:
+		case Builtin:
 			bs = append(bs, c)
-		case clause.Exists:
+		case Exists:
 			if Contradictory(c.Body) {
 				return true
 			}
 		}
 	}
 	for _, b := range bs {
-		if b.Op == clause.OpNe && same(b.Args[0], b.Args[1]) {
+		if b.Op == OpNe && same(b.Args[0], b.Args[1]) {
 			return true
 		}
 		for _, o := range bs {
@@ -48,17 +44,17 @@ func Contradictory(f clause.And) bool {
 
 // excludes reports whether the builtins b and o cannot hold together, by
 // the facts Contradictory lists.
-func excludes(b, o clause.Builtin) bool {
+func excludes(b, o Builtin) bool {
 	switch {
-	case b.Op == clause.OpEq && o.Op == clause.OpNe:
+	case b.Op == OpEq && o.Op == OpNe:
 		return same(b.Args[0], o.Args[0]) && same(b.Args[1], o.Args[1]) ||
 			same(b.Args[0], o.Args[1]) && same(b.Args[1], o.Args[0])
-	case b.Op == clause.OpIn && o.Op == clause.OpNotIn:
+	case b.Op == OpIn && o.Op == OpNotIn:
 		return same(b.Args[0], o.Args[0]) && same(b.Args[1], o.Args[1])
-	case b.Op == clause.OpEmpty && o.Op == clause.OpIn:
+	case b.Op == OpEmpty && o.Op == OpIn:
 		return same(b.Args[0], o.Args[1])
 	}
 	return false
 }
 
-func same(a, b clause.Term) bool { return reflect.DeepEqual(a, b) }
+func same(a, b Term) bool { return reflect.DeepEqual(a, b) }

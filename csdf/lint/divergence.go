@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
@@ -15,7 +16,7 @@ import (
 //
 // Whether a cycle can run forever depends on its guards, and an atom is
 // never evaluated here: a guard is set aside only when it is false on its
-// face (Contradictory), and an edge so guarded breaks every cycle through it.
+// face (clause.Contradictory), and an edge so guarded breaks every cycle through it.
 // Any other cycle is a WARN, a question that csdflivelockfree settles.
 //
 // A self-loop on an observable event is not divergence and is not reported.
@@ -33,7 +34,7 @@ func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
 	}
 	d := in.Diagram
 
-	keep := func(e core.Edge) bool { return !Contradictory(e.Guard) }
+	keep := func(e core.Edge) bool { return !clause.Contradictory(e.Guard) }
 	reached := d.ReachableStates()
 
 	var findings []Finding

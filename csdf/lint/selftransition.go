@@ -2,11 +2,9 @@ package lint
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
 // SelfTransitionPostBreaksGuardRule reports a transition from a state back
@@ -41,7 +39,7 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 		if edge.Src != edge.Dst {
 			continue
 		}
-		loose := notKept(edge, in.Diagram.Vars[edge.Src])
+		loose := edge.NotKept(in.Diagram.Vars[edge.Src])
 		if len(loose) == 0 {
 			continue
 		}
@@ -58,52 +56,6 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 		})
 	}
 	return findings
-}
-
-// notKept are the state variables vars that e's guard reads and e's post
-// does not keep, in the order the guard reads them. Any other name the
-// guard reads is not the state's: a field of the event takes whatever value
-// the next event carries, so the same event is enabled again when the
-// state is kept, and a constant cannot change.
-func notKept(e core.Edge, vars []string) []string {
-	mutable := map[string]bool{}
-	for _, v := range vars {
-		mutable[v] = true
-	}
-	kept := map[string]bool{}
-	for _, c := range clause.Normalize(e.Post).Conjuncts {
-		if b, ok := c.(clause.Builtin); ok {
-			if v, ok := keeps(b); ok {
-				kept[v] = true
-			}
-		}
-	}
-	var loose []string
-	for _, v := range clause.FreeVars(e.Guard) {
-		if mutable[v.Name] && !kept[v.Name] && !slices.Contains(loose, v.Name) {
-			loose = append(loose, v.Name)
-		}
-	}
-	return loose
-}
-
-// keeps is the variable b says is unchanged by the step, if it says so:
-// @eq(v', v), @eq(v, v') or @frame(v', v).
-func keeps(b clause.Builtin) (string, bool) {
-	switch {
-	case b.Op == clause.OpEq, b.Op == clause.OpFrame && len(b.Args) == 2:
-	default:
-		return "", false
-	}
-	x, okX := b.Args[0].(clause.Free)
-	y, okY := b.Args[1].(clause.Free)
-	if !okX || !okY || x.Name != y.Name || x.Primed == y.Primed {
-		return "", false
-	}
-	if b.Op == clause.OpFrame && !x.Primed {
-		return "", false
-	}
-	return x.Name, true
 }
 
 func quotedList(names []string) string {
