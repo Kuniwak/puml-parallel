@@ -31,7 +31,7 @@ func TestEnterValuesTakesInstancesOfAFamily(t *testing.T) {
 	// Setup
 	session, err := NewSession(promotedDiagram(), NoSuggester{})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Setup: NewSession() error = %v", err)
 	}
 
 	// Execute
@@ -92,7 +92,7 @@ func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 			// Setup
 			session, err := NewSession(promotedDiagram(), NoSuggester{})
 			if err != nil {
-				t.Fatal(err)
+				t.Fatalf("Setup: NewSession() error = %v", err)
 			}
 
 			// Execute

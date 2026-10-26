@@ -71,8 +71,11 @@ func TestNewSessionStartsInValuesModeAtInitial(t *testing.T) {
 }
 
 func TestNewSessionMissingInitialStateErrors(t *testing.T) {
+	// Setup
+	diagram := &core.Diagram{Init: "missing"}
+
 	// Execute
-	_, err := NewSession(&core.Diagram{Init: "missing"}, NoSuggester{})
+	_, err := NewSession(diagram, NoSuggester{})
 
 	// Assert
 	if err == nil {
@@ -138,23 +141,6 @@ func TestEnterValuesRefusesValuesThatDoNotFitTheTarget(t *testing.T) {
 	}
 }
 
-func TestEnterValuesInCommandModeErrors(t *testing.T) {
-	// Setup
-	session := newSession(t, twoStateDiagram)
-	if _, err := session.EnterValues("[0]"); err != nil {
-		t.Fatalf("EnterValues() error = %v", err)
-	}
-
-	// Execute
-	_, err := session.EnterValues("[1]")
-
-	// Assert
-	var refused *RefusedValuesError
-	if err == nil || errors.As(err, &refused) {
-		t.Errorf("EnterValues() in command mode error = %v, want an error that is no refusal", err)
-	}
-}
-
 func TestSelectThenEnterValuesRecordsEventTrace(t *testing.T) {
 	// Setup
 	session := newSession(t, twoStateDiagram)
@@ -206,35 +192,6 @@ func TestADiagramWithTheNewBuiltinsSteps(t *testing.T) {
 	}
 }
 
-func TestSelectOutOfRangeErrors(t *testing.T) {
-	// Setup
-	session := newSession(t, twoStateDiagram)
-	if _, err := session.EnterValues("[0]"); err != nil {
-		t.Fatalf("EnterValues() error = %v", err)
-	}
-
-	// Execute
-	err := session.Select(5)
-
-	// Assert
-	if !errors.Is(err, ErrIndexOutOfRange) {
-		t.Errorf("Select(5) error = %v, want ErrIndexOutOfRange", err)
-	}
-}
-
-func TestSelectInValuesModeErrors(t *testing.T) {
-	// Setup
-	session := newSession(t, twoStateDiagram)
-
-	// Execute
-	err := session.Select(0)
-
-	// Assert
-	if err == nil {
-		t.Error("Select() in values mode error = nil, want error")
-	}
-}
-
 func TestJumpClonesHistoryEntry(t *testing.T) {
 	// Setup
 	session := newSession(t, twoStateDiagram)
@@ -264,22 +221,6 @@ func TestJumpClonesHistoryEntry(t *testing.T) {
 	}
 }
 
-func TestJumpOutOfRangeErrors(t *testing.T) {
-	// Setup
-	session := newSession(t, twoStateDiagram)
-	if _, err := session.EnterValues("[0]"); err != nil {
-		t.Fatalf("EnterValues() error = %v", err)
-	}
-
-	// Execute
-	err := session.Jump(9)
-
-	// Assert
-	if !errors.Is(err, ErrIndexOutOfRange) {
-		t.Errorf("Jump(9) error = %v, want ErrIndexOutOfRange", err)
-	}
-}
-
 func TestBackReturnsToLastHistoryState(t *testing.T) {
 	// Setup
 	session := newSession(t, twoStateDiagram)
@@ -302,19 +243,6 @@ func TestBackReturnsToLastHistoryState(t *testing.T) {
 	}
 }
 
-func TestBackWithoutHistoryErrors(t *testing.T) {
-	// Setup
-	session := newSession(t, twoStateDiagram)
-
-	// Execute
-	err := session.Back()
-
-	// Assert
-	if err == nil {
-		t.Error("Back() with no history error = nil, want error")
-	}
-}
-
 func TestTransitionsListsOutgoingEdges(t *testing.T) {
 	// Setup
 	session := newSession(t, twoStateDiagram)
@@ -328,5 +256,98 @@ func TestTransitionsListsOutgoingEdges(t *testing.T) {
 	// Assert
 	if len(edges) != 1 || edges[0].Event.Label() != "insert?coin" {
 		t.Errorf("Transitions() = %v, want one insert?coin edge", edges)
+	}
+}
+
+// atInitial is a session of twoStateDiagram at its initial state, in
+// command mode.
+func atInitial(t *testing.T) *Session {
+	t.Helper()
+	session := newSession(t, twoStateDiagram)
+	if _, err := session.EnterValues("[0]"); err != nil {
+		t.Fatalf("Setup: EnterValues() error = %v", err)
+	}
+	return session
+}
+
+func TestSelectOutOfRangeErrors(t *testing.T) {
+	tests := map[string]int{
+		"a negative index":       -1,
+		"one past the last edge": 1,
+		"far past the last edge": 5,
+	}
+	for name, idx := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := atInitial(t)
+
+			// Execute
+			err := session.Select(idx)
+
+			// Assert
+			if !errors.Is(err, ErrIndexOutOfRange) {
+				t.Errorf("Select(%d) error = %v, want ErrIndexOutOfRange", idx, err)
+			}
+		})
+	}
+}
+
+func TestJumpOutOfRangeErrors(t *testing.T) {
+	tests := map[string]int{
+		"a negative index":        -1,
+		"one past the last entry": 1,
+		"far past the last entry": 9,
+	}
+	for name, idx := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := atInitial(t)
+
+			// Execute
+			err := session.Jump(idx)
+
+			// Assert
+			if !errors.Is(err, ErrIndexOutOfRange) {
+				t.Errorf("Jump(%d) error = %v, want ErrIndexOutOfRange", idx, err)
+			}
+		})
+	}
+}
+
+func TestOperationsOutOfTheirModeError(t *testing.T) {
+	tests := map[string]struct {
+		session func(*testing.T) *Session
+		op      func(*Session) error
+	}{
+		"select while awaiting values": {
+			session: func(t *testing.T) *Session { return newSession(t, twoStateDiagram) },
+			op:      func(s *Session) error { return s.Select(0) },
+		},
+		"enter values in command mode": {
+			session: atInitial,
+			op: func(s *Session) error {
+				_, err := s.EnterValues("[1]")
+				return err
+			},
+		},
+		"back with no history": {
+			session: func(t *testing.T) *Session { return newSession(t, twoStateDiagram) },
+			op:      func(s *Session) error { return s.Back() },
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := tt.session(t)
+
+			// Execute
+			err := tt.op(session)
+
+			// Assert
+			var refused *RefusedValuesError
+			if err == nil || errors.As(err, &refused) || errors.Is(err, ErrIndexOutOfRange) {
+				t.Errorf("error = %v, want an error that is neither a refusal nor an index out of range", err)
+			}
+		})
 	}
 }

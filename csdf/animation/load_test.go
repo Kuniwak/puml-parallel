@@ -8,16 +8,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestReadDiagramReadsTheSourceOrTheJSONInItsPlace(t *testing.T) {
+func TestReadDiagram(t *testing.T) {
+	// Setup
 	promoted, err := core.MarshalDiagram(promotedDiagram())
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Setup: core.MarshalDiagram() error = %v", err)
 	}
 	tests := map[string]struct {
 		source       string
 		diagramJSON  []byte
 		wantStates   []string
 		wantFamilies int
+		wantErr      string
 	}{
 		"a diagram of the new builtins": {
 			source:     builtinsDiagram,
@@ -29,6 +31,19 @@ func TestReadDiagramReadsTheSourceOrTheJSONInItsPlace(t *testing.T) {
 			wantStates:   []string{"G"},
 			wantFamilies: 1,
 		},
+		"a tool word of the old vocabulary is refused as coreio refuses it": {
+			source:  "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n",
+			wantErr: "coreio.ReadBytes: coreio.Read:",
+		},
+		"a renaming of the old syntax is refused as coreio refuses it": {
+			source:  "@startuml\nstate \"S\" as s\ns : n\n[*] --> s : @[y := n] y = 0\n@enduml\n",
+			wantErr: "coreio.ReadBytes: coreio.Read:",
+		},
+		"JSON that is no diagram is refused": {
+			source:      builtinsDiagram,
+			diagramJSON: []byte(`{"version": 0}`),
+			wantErr:     "core.UnmarshalDiagram:",
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -36,6 +51,12 @@ func TestReadDiagramReadsTheSourceOrTheJSONInItsPlace(t *testing.T) {
 			d, err := ReadDiagram([]byte(tt.source), tt.diagramJSON)
 
 			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("ReadDiagram() error = %v, want one containing %q", err, tt.wantErr)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("ReadDiagram() error = %v", err)
 			}
@@ -44,39 +65,6 @@ func TestReadDiagramReadsTheSourceOrTheJSONInItsPlace(t *testing.T) {
 			}
 			if len(d.Families) != tt.wantFamilies {
 				t.Errorf("families = %d, want %d", len(d.Families), tt.wantFamilies)
-			}
-		})
-	}
-}
-
-func TestReadDiagramRefusesWhatCoreioRefuses(t *testing.T) {
-	tests := map[string]struct {
-		source      string
-		diagramJSON []byte
-		want        string
-	}{
-		"a tool word of the old vocabulary": {
-			source: "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n",
-			want:   "coreio.ReadBytes: coreio.Read:",
-		},
-		"a renaming of the old syntax": {
-			source: "@startuml\nstate \"S\" as s\ns : n\n[*] --> s : @[y := n] y = 0\n@enduml\n",
-			want:   "coreio.ReadBytes: coreio.Read:",
-		},
-		"JSON that is no diagram": {
-			source:      builtinsDiagram,
-			diagramJSON: []byte(`{"version": 0}`),
-			want:        "core.UnmarshalDiagram:",
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Execute
-			_, err := ReadDiagram([]byte(tt.source), tt.diagramJSON)
-
-			// Assert
-			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("ReadDiagram() error = %v, want one containing %q", err, tt.want)
 			}
 		})
 	}
