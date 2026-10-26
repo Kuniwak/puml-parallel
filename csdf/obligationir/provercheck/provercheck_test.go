@@ -152,6 +152,7 @@ func obligations(t *testing.T) []obligation {
 		livelockObligation(t, "livelock_countdown", countdown),
 		livelockObligation(t, "livelock_maps_and_lemmas", maps),
 		livelockObligation(t, "livelock_every_builtin", "../testdata/formula/builtins.puml"),
+		livelockObligation(t, "livelock_literals", "../testdata/formula/literals.puml"),
 		livelockObligation(t, "livelock_nested_maps", "../testdata/formula/nested.puml"),
 		livelockObligation(t, "livelock_hostile_names", hostileSpec),
 		refinementObligation(t, "refinement_ground_f", obligationir.IRRefinementModeStableFailure, groundSpec, groundImpl),

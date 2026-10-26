@@ -31,6 +31,23 @@ type apply struct {
 	args []Term
 }
 
+// lit is a literal, its canonical text (clause.Lit).
+type lit struct{ text string }
+
+// Literal is the value whose canonical text is text, a literal of a
+// clause; a back end spells it as the value it is.
+func Literal(text string) Term {
+	if text == "" {
+		panic("logic.Literal: a literal needs its text")
+	}
+	return lit{text: text}
+}
+
+func (l lit) vars(func(Var))                {}
+func (l lit) spellTerm(sb *strings.Builder) { sb.WriteString(l.text) }
+func (l lit) equalTerm(u Term) bool         { m, ok := u.(lit); return ok && l == m }
+func (l lit) termTree() TermTree            { return TermTree{Op: TermLit, Name: l.text} }
+
 // Index is the entry of the map m under key.
 func Index(m, key Term) Term {
 	mustBeTerm("logic.Index", m)
@@ -156,6 +173,7 @@ func spellArgs(sb *strings.Builder, args []Term) {
 //	index   the entry of the map Args[0] under the key Args[1]
 //	field   the field Name of the record Args[0]
 //	apply   the function Name applied to Args
+//	lit     the literal whose canonical text is Name
 type TermTree struct {
 	Op   TermOp     `json:"op"`
 	Name string     `json:"name,omitempty"`
@@ -171,6 +189,7 @@ const (
 	TermIndex TermOp = "index"
 	TermField TermOp = "field"
 	TermApply TermOp = "apply"
+	TermLit   TermOp = "lit"
 )
 
 func termTrees(ts []Term) []TermTree {
