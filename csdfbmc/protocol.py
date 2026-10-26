@@ -424,13 +424,6 @@ class Validating:
         self.inner.close()
 
 
-def _typed_key(values: list) -> str:
-    """values as a memo key that tells them apart as the protocol does: in
-    Python, True == 1 and they hash alike, but a glue may answer differently
-    for them."""
-    return json.dumps([to_wire(v) for v in values], sort_keys=True, ensure_ascii=False)
-
-
 class Memoising:
     """A Client that asks about an atom once per list of values, which a
     pure atom allows, and asks about the lists of one batch it was not asked
@@ -444,7 +437,7 @@ class Memoising:
 
     def _ask(self, op: str, atom: dict, values: list[list]) -> list:
         shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
-        keys = [(op, shape, _typed_key(vs)) for vs in values]
+        keys = [(op, shape, kind_key(tuple(vs))) for vs in values]
         asked: dict[tuple, list] = {}
         for key, vs in zip(keys, values):
             if key not in self._answers:
