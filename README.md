@@ -64,18 +64,21 @@ $ csdfparallel diagram1.png diagram2.puml
 $ csdfrepl diagram.png
 ```
 
-`csdfparse` writes one JSON object followed by a newline, `"version": 2`
+`csdfparse` writes one JSON object followed by a newline, `"version": 3`
 of the shape `core.DiagramDoc` (`csdf/core/json.go`): the `states` in order,
 their `labels` (only those labelled apart from their ID) and `vars`; the
 start state `init`, its post `init_post` and `init_line`; the `edges`, each
 with its `channel`, its `fields` (each a `dir`, `?` or `!`, and a `name`), its
 `guard`, its `post` and its `line`; the end edges `ends`; the assume notes
 `assumes`; and `families`, for a diagram `csdfpromote -format json` writes
-the family of each map: the `map`, the local `states` in order, the local
+the family of each map: the `map`, its `key` (the ID parameter of the
+promote directive, whose type, named like it or through `TYPEOF`, keys the
+map), the local `states` in order, the local
 start state `init` among them, which is absence, and the `vars` of each local
 state, the fields an instance there holds (empty for a diagram `csdfparse`
-reads, which no promotion made). Version 2 added `families`; a reader
-refuses version 1, so a JSON written by an older release is written again. A clause is a list of its conjuncts, each a tagged union with a
+reads, which no promotion made). Version 2 added `families` and version 3
+the `key` of each; a reader refuses any other version, so a JSON written by
+an older release is written again. A clause is a list of its conjuncts, each a tagged union with a
 `kind`: an `atom`, its text as it holds it (`pieces`), the argument each hole
 reads (`holes`) and the terms they stand for (`args`); a `builtin`, its `op`
 and `args`; or `exists`, the `type` it ranges over and its `body`, where the
@@ -89,7 +92,7 @@ first.
 
 ```console
 $ csdfparse < examples/valid/skip.puml
-{"version":2,"name":"","states":["s0"],"labels":{"s0":"SKIP"},"vars":{"s0":[]},"init":"s0","init_post":[],"init_line":5,"edges":[],"ends":[{"src":"s0","guard":[]}],"assumes":[],"families":[]}
+{"version":3,"name":"","states":["s0"],"labels":{"s0":"SKIP"},"vars":{"s0":[]},"init":"s0","init_post":[],"init_line":5,"edges":[],"ends":[{"src":"s0","guard":[]}],"assumes":[],"families":[]}
 ```
 
 ## Hiding

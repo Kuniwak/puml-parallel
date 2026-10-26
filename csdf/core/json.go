@@ -14,7 +14,7 @@ import (
 
 // DiagramJSONVersion is the version of the shape DiagramDoc writes; a
 // reader refuses another.
-const DiagramJSONVersion = 2
+const DiagramJSONVersion = 3
 
 // DiagramDoc is a diagram in JSON, for a program such as csdfbmc: its
 // states in order, the labels of those labelled apart from their IDs, and
@@ -22,7 +22,7 @@ const DiagramJSONVersion = 2
 // state, its post and the line of the start edge; the edges; the end edges;
 // the assume notes; and, for a promoted diagram, the family of each map
 // (FamilyDoc), none for another. Every clause is a list of its conjuncts
-// (FormulaDoc). Version 2 added the families.
+// (FormulaDoc). Version 2 added the families; version 3, the key of each.
 type DiagramDoc struct {
 	Version  int                 `json:"version"`
 	Name     string              `json:"name"`
@@ -38,12 +38,14 @@ type DiagramDoc struct {
 	Families []FamilyDoc         `json:"families"`
 }
 
-// FamilyDoc is the family of the map Map (FamilyStates): its local states
+// FamilyDoc is the family of the map Map (FamilyStates): the ID
+// parameter Key whose type keys the map, its local states
 // in order, the start state among them, which is absence, and the
 // variables of every local state, an instance's fields there (an empty
 // list for one with none).
 type FamilyDoc struct {
 	Map    string              `json:"map"`
+	Key    string              `json:"key"`
 	Init   string              `json:"init"`
 	States []string            `json:"states"`
 	Vars   map[string][]string `json:"vars"`
@@ -367,7 +369,7 @@ func diagramDocOf(d *Diagram) (DiagramDoc, error) {
 		Edges: []EdgeDoc{}, Ends: []EndDoc{}, Assumes: []AssumptionDoc{}, Families: []FamilyDoc{},
 	}
 	for _, f := range d.Families {
-		fd := FamilyDoc{Map: f.Map, Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]string{}}
+		fd := FamilyDoc{Map: f.Map, Key: f.Key, Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]string{}}
 		for _, s := range f.States {
 			fd.Vars[s] = append([]string{}, f.Vars[s]...)
 		}
@@ -471,7 +473,7 @@ func (doc DiagramDoc) diagram() (*Diagram, error) {
 		d.Assumes = append(d.Assumes, Assumption{ID: a.ID, Text: a.Text})
 	}
 	for _, fd := range doc.Families {
-		f := FamilyStates{Map: fd.Map, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}}
+		f := FamilyStates{Map: fd.Map, Key: fd.Key, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}}
 		if !slices.Equal(slices.Sorted(maps.Keys(fd.Vars)), slices.Sorted(slices.Values(fd.States))) {
 			return nil, fmt.Errorf("the family of %s: its variables are of the states %v, not of each of its states %v", fd.Map, slices.Sorted(maps.Keys(fd.Vars)), fd.States)
 		}

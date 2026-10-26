@@ -29,10 +29,14 @@ independent maps, which says almost nothing.
 `csdfpromote` reads this syntax with clauses that are formulas
 (docs/CLAUSE_DESIGN.md), through `csdf/coreio`, and prints the expansion
 `csdf/core` gives, as PlantUML or, with `-format json`, as the diagram JSON
-`csdfbmc` reads. The diagram JSON of an expansion (version 2) writes
-the family of each map as well (`families`): its local states, its start
+`csdfbmc` reads. The diagram JSON of an expansion (version 3) writes
+the family of each map as well (`families`): its `key`, the ID parameter of
+the promote directive (`<map> : <ID> ⇸ <Type>`), whose type, named like it or
+through `TYPEOF`, is the domain of the map; its local states, its start
 state, which is absence, and the variables each local state holds, so that
-csdfbmc gives an instance at a local state exactly that state's variables.
+csdfbmc gives an instance at a local state exactly that state's variables,
+and `--symmetry` knows a map keyed by the IDs of a symmetric type from its
+key. Version 3 added the key; a reader refuses another version.
 The formula promotion keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
 families and hand-written global edges, variables of the global state that

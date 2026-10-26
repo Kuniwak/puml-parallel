@@ -149,7 +149,7 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 				Assumes: []Assumption{{ID: "fair", Text: "いつか確定する"}},
 			},
 			want: `{
-"version": 2, "name": "D", "states": ["s0", "s1"], "labels": {}, "vars": {"s0": [], "s1": ["n", "m"]},
+"version": 3, "name": "D", "states": ["s0", "s1"], "labels": {}, "vars": {"s0": [], "s1": ["n", "m"]},
 "init": "s0", "init_post": [], "init_line": 3,
 "edges": [{"src": "s0", "dst": "s1", "channel": "c",
   "fields": [{"dir": "?", "name": "x"}, {"dir": "!", "name": "y"}], "label": "c?x!y",
@@ -161,28 +161,28 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 		},
 		"a start edge with a post": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", InitPost: mustParse(t, "@empty(m')")},
-			want: `{"version": 2, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": ["m"]},
+			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": ["m"]},
 "init": "s0", "init_post": [{"kind": "builtin", "op": "empty", "args": [{"kind": "free", "name": "m", "primed": true}]}], "init_line": 0,
 "edges": [], "ends": [], "assumes": [], "families": []}`,
 		},
 		"an end edge with a guard": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0", InitPost: clause.And{},
 				Ends: []End{{Src: "s0", Guard: mustParse(t, "$n == 0")}}},
-			want: `{"version": 2, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": ["n"]},
+			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": ["n"]},
 "init": "s0", "init_post": [], "init_line": 0, "edges": [],
 "ends": [{"src": "s0", "guard": [{"kind": "atom", "pieces": ["", " == 0"], "holes": [0], "args": [{"kind": "free", "name": "n"}], "text": ["", " == 0"], "primed": [false], "function": "$_0 == 0"}]}],
 "assumes": [], "families": []}`,
 		},
 		"a promoted diagram with the local states of its family": {
 			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m"}}, Init: "G", InitPost: clause.And{},
-				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"bal"}}}}},
-			want: `{"version": 2, "name": "", "states": ["G"], "labels": {}, "vars": {"G": ["m"]},
+				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"bal"}}}}},
+			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": ["m"]},
 "init": "G", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [],
-"families": [{"map": "m", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": ["bal"]}}]}`,
+"families": [{"map": "m", "key": "k", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": ["bal"]}}]}`,
 		},
 		"labels only of the states labelled apart from their IDs": {
 			d: &Diagram{States: []string{"s0", "s1"}, Labels: map[string]string{"s1": "完了"}, Vars: map[string][]string{}, Init: "s0", InitPost: clause.And{}},
-			want: `{"version": 2, "name": "", "states": ["s0", "s1"], "labels": {"s1": "完了"}, "vars": {"s0": [], "s1": []},
+			want: `{"version": 3, "name": "", "states": ["s0", "s1"], "labels": {"s1": "完了"}, "vars": {"s0": [], "s1": []},
 "init": "s0", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [], "families": []}`,
 		},
 	}
@@ -237,45 +237,49 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 			want: "eq",
 		},
 		"a family of a map no state holds": {
-			d:    &Diagram{States: []string{"s0"}, Init: "s0", Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none"}}}},
+			d:    &Diagram{States: []string{"s0"}, Init: "s0", Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none"}}}},
 			want: "the family of m: m is no variable of any state",
+		},
+		"a family without its key": {
+			d:    &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none"}}}},
+			want: "the family of m: no key names the IDs of its map",
 		},
 		"two families of one map": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
-				{Map: "m", Init: "none", States: []string{"none"}}, {Map: "m", Init: "none", States: []string{"none"}}}},
+				{Map: "m", Key: "k", Init: "none", States: []string{"none"}}, {Map: "m", Key: "k", Init: "none", States: []string{"none"}}}},
 			want: "two families of m",
 		},
 		"a family whose start state is none of its states": {
-			d:    &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"open"}}}},
+			d:    &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"open"}}}},
 			want: "the family of m: its start state none is none of its states",
 		},
 		"a family with the variables of no state of it": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
-				{Map: "m", Init: "none", States: []string{"none"}, Vars: map[string][]string{"open": {"bal"}}}}},
+				{Map: "m", Key: "k", Init: "none", States: []string{"none"}, Vars: map[string][]string{"open": {"bal"}}}}},
 			want: "the family of m: variables of open, which is none of its states",
 		},
 		"a family whose start state holds variables": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
-				{Map: "m", Init: "none", States: []string{"none"}, Vars: map[string][]string{"none": {"bal"}}}}},
+				{Map: "m", Key: "k", Init: "none", States: []string{"none"}, Vars: map[string][]string{"none": {"bal"}}}}},
 			want: "the family of m: its start state none, which is absence, holds variables",
 		},
 		"an @at of an entry at no state of its family": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
 				Edges:    []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c"}, Post: mustParse(t, "@at(m'[k], gone)")}},
-				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}}}},
+				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "s0 --> s0 : c: @at(m'[…], gone), but gone is no state of the family of m",
 		},
 		"an @at of an entry at the start state of its family": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0",
 				InitPost: clause.And{Conjuncts: []clause.Formula{clause.Exists{Hint: "k", Type: "K", Body: clause.And{Conjuncts: []clause.Formula{
 					clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: clause.Free{Name: "m", Primed: true}, Key: clause.Bound{Index: 0}}}, State: "none"}}}}}},
-				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}}}},
+				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "the start edge: none is the start state of the family of m, which is absence; say @notin",
 		},
 		"an @at in a guard at no state of its family": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
 				Ends:     []End{{Src: "s0", Guard: mustParse(t, "@at(m[k], gone)")}},
-				Families: []FamilyStates{{Map: "m", Init: "none", States: []string{"none", "open"}}}},
+				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "the end edge from s0: @at(m[…], gone), but gone is no state of the family of m",
 		},
 	}
@@ -343,24 +347,31 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 	}{
 		"another version": {
 			edit: func(v map[string]any) { v["version"] = 1 },
-			want: "version 1, but this reads version 2",
+			want: "version 1, but this reads version 3",
 		},
 		"an unknown key of a family": {
 			edit: func(v map[string]any) {
-				v["families"] = []any{map[string]any{"map": "m", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}, "ids": "k"}}
+				v["families"] = []any{map[string]any{"map": "m", "key": "k", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}, "ids": "k"}}
 			},
 			want: `unknown field "ids"`,
 		},
+		"a family without its key": {
+			edit: func(v map[string]any) {
+				v["vars"] = map[string]any{"s0": []any{"n", "m"}}
+				v["families"] = []any{map[string]any{"map": "m", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
+			},
+			want: "the family of m: no key names the IDs of its map",
+		},
 		"a family of a map no state holds": {
 			edit: func(v map[string]any) {
-				v["families"] = []any{map[string]any{"map": "m", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
+				v["families"] = []any{map[string]any{"map": "m", "key": "k", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
 			},
 			want: "the family of m: m is no variable of any state",
 		},
 		"a family without the variables of one of its states": {
 			edit: func(v map[string]any) {
 				v["vars"] = map[string]any{"s0": []any{"n", "m"}}
-				v["families"] = []any{map[string]any{"map": "m", "init": "none", "states": []any{"none", "open"}, "vars": map[string]any{"none": []any{}}}}
+				v["families"] = []any{map[string]any{"map": "m", "key": "k", "init": "none", "states": []any{"none", "open"}, "vars": map[string]any{"none": []any{}}}}
 			},
 			want: "the family of m: its variables are of the states [none], not of each of its states [none open]",
 		},

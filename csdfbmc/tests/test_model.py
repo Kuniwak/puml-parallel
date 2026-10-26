@@ -35,14 +35,14 @@ class DiagramTest(unittest.TestCase):
 
     def test_reads_the_local_states_of_each_family(self):
         # Setup
-        doc = diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": [], "open": ["bal", "fee"]})])
+        doc = diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": [], "open": ["bal", "fee"]}, key="acct")])
 
         # Execute
         d = Diagram.from_json(doc)
 
         # Assert
         f = d.families["m"]
-        self.assertEqual(("none", ("none", "open"), {"none": (), "open": ("bal", "fee")}), (f.init, f.states, f.vars))
+        self.assertEqual(("acct", "none", ("none", "open"), {"none": (), "open": ("bal", "fee")}), (f.key, f.init, f.states, f.vars))
 
     def test_refuses_families_that_do_not_fit_the_diagram(self):
         at = lambda state: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state=state)])
@@ -57,6 +57,10 @@ class DiagramTest(unittest.TestCase):
                                                    "its start state none, which is absence, holds variables"),
             "variables of a state not its own": (diagram({"G": ["m"]}, "G", families=[dict(family("m", "none", {"none": []}), vars={"none": [], "x": []})]),
                                                  "its variables are of the states"),
+            "a family without its key": (diagram({"G": ["m"]}, "G", families=[{k: v for k, v in family("m", "none", {"none": []}).items() if k != "key"}]),
+                                         "lacks \\['key'\\]"),
+            "a key that names nothing": (diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": []}, key="")]),
+                                         "no key names the IDs of its map"),
             "a key a family does not have": (diagram({"G": ["m"]}, "G", families=[dict(family("m", "none", {"none": []}), ids="k")]),
                                              "keys it does not read, \\['ids'\\]"),
             "@at of a state of no family's": (diagram({"G": ["m"]}, "G", edges=[at("shut")], families=[family("m", "none", {"none": [], "open": []})]),

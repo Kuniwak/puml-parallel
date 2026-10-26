@@ -23,7 +23,7 @@ type Family struct {
 }
 
 // States is what an instance of f may be: the local states of f.Local and
-// the variables of each, under the map f.Map.
+// the variables of each, under the map f.Map keyed by f.ID.
 func (f Family) States() FamilyStates {
 	vars := map[string][]string{}
 	for _, s := range f.Local.States {
@@ -31,7 +31,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars}
+	return FamilyStates{Map: f.Map, Key: f.ID, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars}
 }
 
 // movesIn says whether f takes its events in mode.

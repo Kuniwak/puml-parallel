@@ -24,8 +24,8 @@ TYPES["w"] = [FrozenMap({k: v for k, v in zip(("a", "b"), entries) if v is not N
                                                [Rec("open", FrozenMap(bal=b, p=q)) for b in TYPES["bal"] for q in TYPES["p"]], repeat=2)]
 # The families of the maps: what an instance in each may be. An instance of
 # m is dear only in a refusal, fee having no type.
-FAMILIES = {"m": Family("none", ("none", "open", "closed", "dear"), FrozenMap({"none": (), "open": ("bal",), "closed": ("bal",), "dear": ("fee",)})),
-            "w": Family("none", ("none", "open", "shut"), FrozenMap({"none": (), "open": ("bal", "p"), "shut": ()}))}
+FAMILIES = {"m": Family("none", ("none", "open", "closed", "dear"), FrozenMap({"none": (), "open": ("bal",), "closed": ("bal",), "dear": ("fee",)}), "k"),
+            "w": Family("none", ("none", "open", "shut"), FrozenMap({"none": (), "open": ("bal", "p"), "shut": ()}), "k")}
 
 
 def evaluator(env=environment.NONE, given=None):

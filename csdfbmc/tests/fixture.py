@@ -108,15 +108,16 @@ def end(src, guard=()):
     return {"src": src, "guard": list(guard)}
 
 
-def family(m, init, states):
-    """The family of the map m: states maps each local state to its
-    variables, in order; init is the start state, which is absence."""
-    return {"map": m, "init": init, "states": list(states), "vars": {s: list(vs) for s, vs in states.items()}}
+def family(m, init, states, key="k"):
+    """The family of the map m keyed by the IDs of key's type: states maps
+    each local state to its variables, in order; init is the start state,
+    which is absence."""
+    return {"map": m, "key": key, "init": init, "states": list(states), "vars": {s: list(vs) for s, vs in states.items()}}
 
 
 def diagram(states, init, init_post=(), edges=(), ends=(), name="D", assumes=(), families=()):
     """A diagram: states maps each state to its variables, in order."""
-    return {"version": 2, "name": name, "states": list(states), "labels": {},
+    return {"version": 3, "name": name, "states": list(states), "labels": {},
             "vars": {s: list(vs) for s, vs in states.items()}, "init": init, "init_post": list(init_post),
             "init_line": 0, "edges": list(edges), "ends": list(ends), "assumes": list(assumes),
             "families": list(families)}

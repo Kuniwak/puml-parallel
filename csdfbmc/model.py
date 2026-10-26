@@ -1,4 +1,4 @@
-"""The diagram as csdfparse prints it (core.DiagramDoc, version 2): its
+"""The diagram as csdfparse prints it (core.DiagramDoc, version 3): its
 clauses are formulas, a skeleton of ∧, ∃ and builtins over terms, with
 atoms a glue or the environment gives the meaning of (docs/CLAUSE_DESIGN.md);
 and, for a promoted diagram, the family of each map: what an instance in the
@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.values import FrozenMap
 
-VERSION = 2
+VERSION = 3
 
 RECEIVED, SENT = "?", "!"
 TAU = "tau"
@@ -268,15 +268,19 @@ class End:
 class Family:
     """The family of a map: an instance in it is at one of states other
     than init, the start state, which is absence, and holds the vars of
-    that state as its fields."""
+    that state as its fields. key is the ID parameter of the promote
+    directive: the name whose type keys the map."""
     init: str
     states: tuple[str, ...]
     vars: FrozenMap   # local state -> the tuple of its variables, in declaration order
+    key: str
 
 
 def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
-    _fields(doc, "a family", ("map", "init", "states", "vars"))
+    _fields(doc, "a family", ("map", "key", "init", "states", "vars"))
     m, states = doc["map"], tuple(doc["states"])
+    if not isinstance(doc["key"], str) or not doc["key"]:
+        raise ValueError(f"the family of {m}: no key names the IDs of its map")
     if m not in held:
         raise ValueError(f"the family of {m}: {m} is no variable of any state")
     if doc["init"] not in states:
@@ -285,7 +289,7 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
         raise ValueError(f"the family of {m}: its variables are of the states {sorted(doc['vars'])}, not of each of its states {list(states)}")
     if doc["vars"][doc["init"]]:
         raise ValueError(f"the family of {m}: its start state {doc['init']}, which is absence, holds variables")
-    return m, Family(doc["init"], states, FrozenMap({s: tuple(doc["vars"][s]) for s in states}))
+    return m, Family(doc["init"], states, FrozenMap({s: tuple(doc["vars"][s]) for s in states}), doc["key"])
 
 
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
