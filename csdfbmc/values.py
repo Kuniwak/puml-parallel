@@ -9,6 +9,7 @@ so a clause may give them as it finds natural.
 from __future__ import annotations
 
 import itertools
+import struct
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Callable, Iterable
@@ -91,9 +92,13 @@ LEFT_OUT = _LeftOut()
 
 def same_value(a, b) -> bool:
     """Whether two values are one value: of one kind as well as equal, so
-    that 1 is not True, all the way into containers."""
+    that 1 is not True nor 1.0, all the way into containers; floats are
+    compared by their bits, so that 0.0 is not -0.0 (docs/CLAUSE_DESIGN.md,
+    Literals)."""
     if type(a) is not type(b):
         return False
+    if isinstance(a, float):
+        return struct.pack(">d", a) == struct.pack(">d", b)
     if isinstance(a, tuple):
         return len(a) == len(b) and all(same_value(x, y) for x, y in zip(a, b))
     if isinstance(a, Mapping):

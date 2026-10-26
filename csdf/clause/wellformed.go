@@ -30,6 +30,9 @@ func wellFormed(f Formula) error {
 		if !ident.Is(f.Hint) {
 			return fmt.Errorf("the hint %q of an ∃ is no identifier", f.Hint)
 		}
+		if err := checkName(f.Hint); err != nil {
+			return err
+		}
 		if !ident.Is(f.Type) {
 			return fmt.Errorf("the type %q of the ∃ %s is no identifier", f.Type, f.Hint)
 		}
@@ -96,6 +99,15 @@ func wellFormedTerm(t Term) error {
 		if !ident.Is(t.Name) {
 			return fmt.Errorf("the variable %q is no identifier", t.Name)
 		}
+		return checkName(t.Name)
+	case Lit:
+		lit, err := ParseLiteral(t.Text)
+		if err != nil {
+			return err
+		}
+		if lit.Text != t.Text {
+			return fmt.Errorf("the literal %s is not in its canonical form %s", t.Text, lit.Text)
+		}
 	case Bound:
 		if t.Index < 0 {
 			return fmt.Errorf("a negative index %d", t.Index)
@@ -109,10 +121,16 @@ func wellFormedTerm(t Term) error {
 		if !ident.Is(t.Name) {
 			return fmt.Errorf("the field %q is no identifier", t.Name)
 		}
+		if err := checkName(t.Name); err != nil {
+			return err
+		}
 		return wellFormedTerm(t.Of)
 	case App:
 		if !ident.Is(t.Fn) {
 			return fmt.Errorf("the function %q is no identifier", t.Fn)
+		}
+		if err := checkName(t.Fn); err != nil {
+			return err
 		}
 		for _, a := range t.Args {
 			if err := wellFormedTerm(a); err != nil {
@@ -165,7 +183,7 @@ func shaped(f Formula) error {
 
 func shapedTerm(t Term) error {
 	switch t := t.(type) {
-	case Free, Bound:
+	case Free, Bound, Lit:
 		return nil
 	case Index:
 		if err := shapedTerm(t.Map); err != nil {

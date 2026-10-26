@@ -244,6 +244,12 @@ func (ev evaluator) term(t clause.Term, bound []Value) (Value, error) {
 			return nil, fmt.Errorf("core: %s has no field %s", Key(r), t.Name)
 		}
 		return v, nil
+	case clause.Lit:
+		v, err := t.Decode()
+		if err != nil {
+			return nil, err
+		}
+		return JSONValue(v), nil
 	case clause.App:
 		fn, ok := ev.env.Funcs[t.Fn]
 		if !ok {

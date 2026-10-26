@@ -8,7 +8,7 @@ from csdfbmc.formula import Evaluator, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Family, formula_of
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx
+from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx, lit
 from csdfbmc.values import FrozenMap, Rec, same_value
 
 TYPES = {"T": [1, 2], "n": [0, 1, 2], "p": [0, 1], "k": ["a", "b"], "bal": [0, 1]}
@@ -62,6 +62,17 @@ class GuardTest(unittest.TestCase):
             "an absent entry under ∃ is false": ([exists("T", atom("${} > 0", fld(idx("m", "k"), "bal")))], {"m": FrozenMap(), "k": "a"}, False),
             "a glue sees an instance as its fields": ([atom("${} == {'bal': 1}", idx("m", "k"))], {"m": M, "k": "a"}, True),
             "true": ([], {}, True),
+            "a literal integer": ([eq("x", lit(0))], {"x": 0}, True),
+            "a literal integer is not the float": ([eq("x", lit(1.0))], {"x": 1}, False),
+            "a literal float is not the integer": ([eq("x", lit(1))], {"x": 1.0}, False),
+            "a literal 0.0 is not -0.0": ([eq("x", lit(0.0))], {"x": -0.0}, False),
+            "a literal -0.0 is -0.0": ([eq("x", lit(-0.0))], {"x": -0.0}, True),
+            "a literal truth value is not the number it equals": ([eq("x", lit(True))], {"x": 1}, False),
+            "a literal string is not the number it spells": ([builtin("ne", "x", lit("1"))], {"x": 1}, True),
+            "a literal array is a tuple": ([eq("x", lit([1, "a"]))], {"x": (1, "a")}, True),
+            "a literal object is a map": ([eq("x", lit({"b": 2, "a": 1}))], {"x": FrozenMap(a=1, b=2)}, True),
+            "a literal key": ([builtin("in", lit("a"), "m")], {"m": M}, True),
+            "a literal in an atom": ([atom("${} > $x", lit(2))], {"x": 1}, True),
         }
         for name, (clause, before, want) in tests.items():
             with self.subTest(name):

@@ -50,6 +50,12 @@ func TestFormulaDocOf(t *testing.T) {
 			text: "$x が多い",
 			want: `[{"kind":"atom","pieces":["","が多い"],"holes":[0],"args":[{"kind":"free","name":"x"}],"text":[""," が多い"],"primed":[false],"function":"$_0 が多い"}]`,
 		},
+		"literals, each its JSON value": {
+			text: `@eq(n', 0) ∧ @ne(x, -0.0) ∧ @eq(r, {"b": [1.5, true], "a": "x;y"})`,
+			want: `[{"kind":"builtin","op":"eq","args":[{"kind":"free","name":"n","primed":true},{"kind":"lit","value":0}]},
+{"kind":"builtin","op":"ne","args":[{"kind":"free","name":"x"},{"kind":"lit","value":-0.0}]},
+{"kind":"builtin","op":"eq","args":[{"kind":"free","name":"r"},{"kind":"lit","value":{"a":"x;y","b":[1.5,true]}}]}]`,
+		},
 		"an atom with no hole": {
 			text: "a < b",
 			want: `[{"kind":"atom","pieces":["a < b"],"holes":[],"args":[],"text":["a < b"],"primed":[],"function":"a < b"}]`,
@@ -393,11 +399,21 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 		},
 		"a term of a kind it does not know": {
 			edit: func(v map[string]any) { initPost(v)["args"].([]any)[0].(map[string]any)["kind"] = "var" },
-			want: `the kind "var" is none of free, bound, index, field and app`,
+			want: `the kind "var" is none of free, bound, index, field, app and lit`,
 		},
 		"a term with a key of another kind": {
 			edit: func(v map[string]any) { initPost(v)["args"].([]any)[0].(map[string]any)["index"] = 0 },
 			want: `a term of kind free: json: unknown field "index"`,
+		},
+		"a literal that is null": {
+			edit: func(v map[string]any) { initPost(v)["args"].([]any)[0] = map[string]any{"kind": "lit", "value": nil} },
+			want: "null is no value",
+		},
+		"a literal float beyond binary64": {
+			edit: func(v map[string]any) {
+				initPost(v)["args"].([]any)[0] = map[string]any{"kind": "lit", "value": json.Number("1e400")}
+			},
+			want: "beyond the floats",
 		},
 		"a field of no direction": {
 			edit: func(v map[string]any) {

@@ -73,7 +73,8 @@ func TestParseOfPrintIsTheFormula(t *testing.T) {
 		"a backslash before a hole":                                    and(atom(Text(`a\`), hole(pre("x")))),
 		"a backslash before a reserved character":                      and(atom(Text(`\;`))),
 		"∧ and ; in text":                                              and(atom(Text("a ∧ b; c"))),
-		"a name that starts with a digit":                              and(atom(hole(pre("1st")), Text(" > 0"))),
+		"a literal in a hole":                                          and(atom(hole(Lit{Text: `{"a":[1,-0.0,"x\u003by"]}`}), Text(" > 0"))),
+		"literals in a builtin":                                        and(eq(post("n"), Lit{Text: "0"}), eq(App{Fn: "f", Args: []Term{Lit{Text: "true"}}}, Lit{Text: `"\/'"`})),
 		"parentheses in an ∃ body":                                     Exists{Hint: "v", Type: "T", Body: and(atom(Text(") f("), hole(Bound{0}), Text("(")))},
 		"a backslash at the end of an ∃ body":                          Exists{Hint: "v", Type: "T", Body: and(atom(hole(Bound{0}), Text(`\`)))},
 		"nested binders with one hint":                                 Exists{Hint: "v", Type: "T", Body: and(Exists{Hint: "v", Type: "T", Body: and(eq(Bound{0}, Bound{1}))})},
@@ -123,9 +124,16 @@ func TestPrintRefusesAFormulaThatIsNotWellFormed(t *testing.T) {
 		f    Formula
 		want string
 	}{
-		"a dangling index":             {f: and(eq(Bound{0}, pre("x"))), want: "clause.Print: clause.LocallyClosed: the index 0 is under 0 binders"},
-		"a name that is no identifier": {f: and(atom(hole(pre("a b")))), want: `clause.Print: clause.WellFormed: the variable "a b" is no identifier`},
-		"a hint that is no name":       {f: Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint "" of an ∃ is no identifier`},
+		"a dangling index":                   {f: and(eq(Bound{0}, pre("x"))), want: "clause.Print: clause.LocallyClosed: the index 0 is under 0 binders"},
+		"a name that is no identifier":       {f: and(atom(hole(pre("a b")))), want: `clause.Print: clause.WellFormed: the variable "a b" is no identifier`},
+		"a hint that is no name":             {f: Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint "" of an ∃ is no identifier`},
+		"a name that starts with a digit":    {f: and(atom(hole(pre("1st")))), want: "a name does not start with a digit, as 1st does"},
+		"a name that is a reserved word":     {f: and(eq(pre("true"), pre("x"))), want: "true is a reserved word"},
+		"a field that is a reserved word":    {f: and(eq(Field{Of: pre("r"), Name: "false"}, pre("x"))), want: "false is a reserved word"},
+		"a function that is a reserved word": {f: and(eq(App{Fn: "null"}, pre("x"))), want: "null is a reserved word"},
+		"a literal not in canonical form":    {f: and(eq(pre("x"), Lit{Text: "1.00"})), want: "the literal 1.00 is not in its canonical form 1.0"},
+		"a literal that is none":             {f: and(eq(pre("x"), Lit{Text: "nope"})), want: "expected a literal"},
+		"a path from a literal":              {f: and(eq(Field{Of: Lit{Text: "{}"}, Name: "a"}, pre("x"))), want: "a path starts from a variable"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

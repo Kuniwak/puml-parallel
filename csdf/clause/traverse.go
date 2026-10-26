@@ -1,13 +1,15 @@
 package clause
 
 // MapTerm rebuilds t bottom-up, replacing each variable (Free or Bound) by
-// what leaf gives for it. depth is the number of binders t sits under, and
+// what leaf gives for it; a literal is no variable and stays. depth is the number of binders t sits under, and
 // leaf is told it, so that it can tell a Bound that points outside from one
 // that does not.
 func MapTerm(t Term, depth int, leaf func(v Term, depth int) Term) Term {
 	switch t := t.(type) {
 	case Free, Bound:
 		return leaf(t, depth)
+	case Lit:
+		return t
 	case Index:
 		return Index{Map: MapTerm(t.Map, depth, leaf), Key: MapTerm(t.Key, depth, leaf)}
 	case Field:

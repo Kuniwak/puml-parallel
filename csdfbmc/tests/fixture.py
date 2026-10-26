@@ -24,6 +24,11 @@ def term(t):
     return {"kind": "free", "name": t}
 
 
+def lit(value):
+    """A literal: the JSON value it is."""
+    return {"kind": "lit", "value": value}
+
+
 def idx(m, k):
     return {"kind": "index", "map": term(m), "key": term(k)}
 

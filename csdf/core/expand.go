@@ -155,9 +155,18 @@ func (x *expander) label(e Event, vals map[string]Value) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%s sends %s, which is bound neither by the state nor by the event", e.Channel, f.Name)
 		}
-		parts = append(parts, Key(v))
+		parts = append(parts, labelOf(v))
 	}
 	return strings.Join(parts, "."), nil
+}
+
+// labelOf is v as an event's label writes it: a string as it is, as an
+// ID reads, and any other value by its Key.
+func labelOf(v Value) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return Key(v)
 }
 
 // posts are the values of dst's variables that post allows after a step

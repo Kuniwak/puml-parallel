@@ -58,8 +58,7 @@ func builtins(c clause.And) []clause.Builtin {
 }
 
 // coreValue is v as core evaluates it: a map of a family's instances a
-// core.Map of core.Recs, any other JSON object a core.Map, the rest as JSON
-// decodes it.
+// core.Map of core.Recs, the rest as core.JSONValue makes it.
 func coreValue(d *core.Diagram, v Value) core.Value {
 	if _, ok := family(d, v.Name); ok {
 		if entries, ok := v.Value.(map[string]any); ok {
@@ -68,26 +67,14 @@ func coreValue(d *core.Diagram, v Value) core.Value {
 				at, fields, _ := instance(e)
 				rec := core.Rec{State: at, Fields: map[string]core.Value{}}
 				for name, f := range fields {
-					rec.Fields[name] = jsonValue(f)
+					rec.Fields[name] = core.JSONValue(f)
 				}
-				m[id] = rec
+				m[core.Key(id)] = rec
 			}
 			return m
 		}
 	}
-	return jsonValue(v.Value)
-}
-
-func jsonValue(v any) core.Value {
-	obj, ok := v.(map[string]any)
-	if !ok {
-		return v
-	}
-	m := core.Map{}
-	for k, x := range obj {
-		m[k] = jsonValue(x)
-	}
-	return m
+	return core.JSONValue(v.Value)
 }
 
 // AmongSuggestions refuses values unless they are, as JSON values, those

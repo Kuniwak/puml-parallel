@@ -27,7 +27,7 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
-from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, is_primed
+from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, is_primed
 from csdfbmc.values import FrozenMap, Rec, same_value
 
 
@@ -80,6 +80,8 @@ class Evaluator:
             return fields[t.name]
         if isinstance(t, App):
             return self.apply(t.fn, tuple(self.value(a, before, after, bound) for a in t.args))
+        if isinstance(t, Lit):
+            return t.value
         raise ValueError(f"unknown term {t!r}")
 
     # -- formulas ----------------------------------------------------------------
