@@ -108,7 +108,7 @@ class EnvironmentTest(unittest.TestCase):
         # Execute / Assert: an environment that does not say what --env gave
         # would be reported as if --env gave nothing.
         with self.assertRaises(TypeError):
-            environment.Environment(decide=nothing, declared=frozenset(), seed=None, given={})
+            environment.Environment(decide=nothing, declared=frozenset(), given={})
 
 
 if __name__ == "__main__":
