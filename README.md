@@ -1111,8 +1111,10 @@ as csdfbmc refuses it. With `-replay`, the prompt walks the environment
 the report was made in: its `environment` gives the seed and the values its
 `--env` gave where `-seed` and `-env` say nothing, and a `-seed` or an `-env`
 value other than the report's, or an `-env` of a function the report's
-`--env` did not give, is refused. A report with no `environment` (from a
-csdfbmc before 3.0.0) is refused; make it again. `csdfrepld` cannot take a
+`--env` did not give, is refused. A report with no `environment`, or whose
+`environment` records no `env` (both written by csdfbmc v1.8.0 and earlier,
+whose `given` does not tell the checks module's functions from `--env`'s),
+is refused; make it again with this release's `csdfbmc --json`. `csdfrepld` cannot take a
 report's environment, so it refuses a replay of a report whose seed and
 values are not exactly its own `-seed` and `-env`.
 

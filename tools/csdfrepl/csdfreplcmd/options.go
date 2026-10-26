@@ -55,8 +55,8 @@ default; a function the checks module declares that nothing decides is
 refused, as csdfbmc refuses it. With -replay, the report's seed and the
 values its --env gave are taken where -seed and -env say nothing; a -seed
 or an -env value other than the report's, an -env of a function the
-report's --env did not give, or a report that records no environment, is
-refused.
+report's --env did not give, or a report that records no environment or
+no env (one csdfbmc v1.8.0 and earlier wrote), is refused; make it again.
 
 Options:
 `)

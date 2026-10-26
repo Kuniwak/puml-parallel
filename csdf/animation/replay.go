@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -220,15 +222,38 @@ type Environment struct {
 }
 
 // LoadEnvironment reads the environment csdfbmc's JSON output reports, or
-// nil when the output has none.
+// nil when the output has none. An environment that records no env (one
+// csdfbmc v1.8.0 and earlier wrote, whose given mixes the checks module's
+// functions with --env's) is refused, for it does not say which values
+// --env gave; so is an env of a function given does not list.
 func LoadEnvironment(bs []byte) (*Environment, error) {
 	var out struct {
-		Environment *Environment `json:"environment"`
+		Environment *struct {
+			Seed  *int             `json:"seed"`
+			Given []string         `json:"given"`
+			Env   *map[string]bool `json:"env"`
+		} `json:"environment"`
 	}
 	if err := json.Unmarshal(bs, &out); err != nil {
 		return nil, fmt.Errorf("animation.LoadEnvironment: not csdfbmc --json output: %w", err)
 	}
-	return out.Environment, nil
+	e := out.Environment
+	if e == nil {
+		return nil, nil
+	}
+	if e.Env == nil {
+		return nil, errors.New("animation.LoadEnvironment: the report's environment records no env; make it again with this release's csdfbmc --json")
+	}
+	given := make(map[string]bool, len(e.Given))
+	for _, name := range e.Given {
+		given[name] = true
+	}
+	for _, name := range slices.Sorted(maps.Keys(*e.Env)) {
+		if !given[name] {
+			return nil, fmt.Errorf("animation.LoadEnvironment: the report's environment gives %q a value, but does not list it as given", name)
+		}
+	}
+	return &Environment{Seed: e.Seed, Given: e.Given, Env: *e.Env}, nil
 }
 
 // LoadFinding reads csdfbmc's JSON output and returns its n-th finding, as

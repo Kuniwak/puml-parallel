@@ -178,7 +178,7 @@ func TestLoadEnvironmentRefusesWhatIsNotAReport(t *testing.T) {
 
 func TestLoadFindingPicksOneFindingAndTheEnvironment(t *testing.T) {
 	seven := 7
-	two := `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}},{"replay":{"initial":[1],"steps":[]}}],"environment":{"seed":7,"given":[],"decided":[]}}`
+	two := `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}},{"replay":{"initial":[1],"steps":[]}}],"environment":{"seed":7,"given":[],"env":{},"decided":[]}}`
 	tests := map[string]struct {
 		report      string
 		n           int
@@ -186,13 +186,21 @@ func TestLoadFindingPicksOneFindingAndTheEnvironment(t *testing.T) {
 		wantEnv     *Environment
 		wantErr     string
 	}{
-		"the first":          {report: two, n: 0, wantInitial: "[0]", wantEnv: &Environment{Seed: &seven, Given: []string{}}},
-		"the second":         {report: two, n: 1, wantInitial: "[1]", wantEnv: &Environment{Seed: &seven, Given: []string{}}},
+		"the first":          {report: two, n: 0, wantInitial: "[0]", wantEnv: &Environment{Seed: &seven, Given: []string{}, Env: map[string]bool{}}},
+		"the second":         {report: two, n: 1, wantInitial: "[1]", wantEnv: &Environment{Seed: &seven, Given: []string{}, Env: map[string]bool{}}},
 		"no environment":     {report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}]}`, wantInitial: "[0]"},
 		"past the last":      {report: two, n: 2, wantErr: "no finding 2; the report records 2 (0 to 1)"},
 		"a negative index":   {report: two, n: -1, wantErr: "no finding -1"},
 		"no finding":         {report: `{"deadlocks":[]}`, wantErr: "the report records no finding"},
 		"not csdfbmc's JSON": {report: "not json", wantErr: "not csdfbmc --json output"},
+		"an environment of no env": {
+			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":["f"],"decided":[]}}`,
+			wantErr: "records no env; make it again with this release's csdfbmc --json",
+		},
+		"an env of a function not given": {
+			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":[],"env":{"f":true},"decided":[]}}`,
+			wantErr: `gives "f" a value, but does not list it as given`,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
