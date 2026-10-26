@@ -332,16 +332,21 @@ class Explorer:
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
 
-    def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
-        """(event name, event as taken, next state, edge) for every enabled
-        transition. A transition of an edge whose post admits no successor is
-        kept among the empty posts."""
+    def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
+        """(event name, event as taken, next state, edge, the values of its
+        received fields) for every enabled transition. A transition of an
+        edge whose post admits no successor is kept among the empty posts."""
         out = []
         for e in self.d.out_edges(state[0]):
-            for _, label, nexts in self._edge_successors(state, e):
+            for params, label, nexts in self._edge_successors(state, e):
                 for t in nexts:
-                    out.append((e.name, label, t, e))
+                    out.append((e.name, label, t, e, params))
         return out
+
+    def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
+        """(event name, event as taken, next state, edge) for every enabled
+        transition (transitions, without the fields)."""
+        return [tr[:4] for tr in self.transitions(state)]
 
     def _enabling(self, state: State, e: Edge) -> str | None:
         """The first transition of e from state, as taken, its ghosts left
