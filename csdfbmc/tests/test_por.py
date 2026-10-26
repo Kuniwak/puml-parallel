@@ -5,7 +5,7 @@ import unittest
 
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, family, fld, idx
+from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
 from csdfbmc.tests.test_explore import ACCOUNTS
 from csdfbmc.values import sample
 
@@ -58,6 +58,9 @@ class IndependenceTest(unittest.TestCase):
             "a guard reading the whole map": (dict(ONE_WAY, edges=[with_guard(OPEN, atom("len($m) < 2")), CLOSE]), Checks(types=IDS)),
             "a guard reading another instance": (dict(ONE_WAY, edges=[with_guard(edge("r", "r", "OPEN?k?j", guard=OPEN["guard"], post=OPEN["post"]), builtin("notin", "j", "m")), CLOSE]),
                                                  Checks(types=IDS, typeof={"j": "k"})),
+            # ∃ k binds its own k, an index, not the field k it shadows.
+            "a guard reading another instance under an ∃ that shadows the field": (
+                dict(ONE_WAY, edges=[with_guard(OPEN, exists("k", builtin("notin", bound(0), "m"))), CLOSE]), Checks(types=IDS)),
             "an invariant reading the map": (ONE_WAY, Checks(types=IDS, invariants={"few": lambda m: len(m) < 3})),
             "a ghost update on its event": (ONE_WAY, Checks(types=IDS, ghosts={"opened": (0, {"OPEN": lambda opened: opened + 1})})),
             "a ghost update reading the map": (ONE_WAY, Checks(types=IDS, ghosts={"size": (0, {"CLOSE": lambda m: len(m)})})),

@@ -44,7 +44,9 @@ from csdfbmc.checks import Checks, property_reads
 
 def _only_at(clause, m: str, p: str) -> bool:
     """Whether every m clause names, before or after the step, is the entry
-    at p, its membership or its frame at p."""
+    at p, its membership or its frame at p. Under an ∃ that binds a name
+    like p, the name is the ∃'s index (Bound), never Free(p), so a key
+    under it is compared as the index it is and is no entry at p."""
     key = Free(p)
 
     def term(t) -> bool:
