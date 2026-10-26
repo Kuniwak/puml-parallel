@@ -29,7 +29,7 @@ def main(argv=None) -> int:
 
     try:
         with opened(a) as (diagram, checks, client, environment):
-            candidates = _candidates(Explorer(diagram, checks, client, environment=environment), a)
+            candidates = _candidates(Explorer(diagram, checks, client, environment=environment, left_out=()), a)
     except (*LOADING_ERRORS, IndexError, TypeError) as e:
         print(f"csdfbmc next: {e}", file=sys.stderr)
         return 2

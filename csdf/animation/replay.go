@@ -46,6 +46,9 @@ func (s *Session) Replay(r Replay) error {
 	if s.Mode() != ModeValues || len(s.history) != 0 {
 		return errors.New("animation.Session.Replay: a replay starts from a fresh session")
 	}
+	if err := r.checkNothingLeftOut(); err != nil {
+		return err
+	}
 	if err := s.enterReplayValues(r.Initial, "the initial state"); err != nil {
 		return err
 	}
@@ -63,6 +66,55 @@ func (s *Session) Replay(r Replay) error {
 		}
 	}
 	return nil
+}
+
+// checkNothingLeftOut refuses a replay holding a value csdfbmc --cone left
+// out, {"left_out": true}: no value of the variable stands for it, so the
+// session could not enter it.
+func (r Replay) checkNothingLeftOut() error {
+	values := []json.RawMessage{r.Initial}
+	for _, step := range r.Steps {
+		values = append(values, step.Values)
+	}
+	for i, raw := range values {
+		if len(raw) == 0 {
+			continue
+		}
+		var v any
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return fmt.Errorf("animation.Session.Replay: the values %s are no JSON: %w", raw, err)
+		}
+		if leftOut(v) {
+			what := "the initial state"
+			if i > 0 {
+				what = fmt.Sprintf("step %d (%s)", i, r.Steps[i-1].Event)
+			}
+			return fmt.Errorf("animation.Session.Replay: %s holds a value csdfbmc --cone left out, which a replay cannot enter; "+
+				"run csdfbmc without --cone to replay this finding", what)
+		}
+	}
+	return nil
+}
+
+func leftOut(v any) bool {
+	switch x := v.(type) {
+	case map[string]any:
+		if b, ok := x["left_out"].(bool); ok && b && len(x) == 1 {
+			return true
+		}
+		for _, y := range x {
+			if leftOut(y) {
+				return true
+			}
+		}
+	case []any:
+		for _, y := range x {
+			if leftOut(y) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *Session) enterReplayValues(values json.RawMessage, what string) error {

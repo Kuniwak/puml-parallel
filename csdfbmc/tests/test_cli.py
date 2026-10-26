@@ -75,6 +75,54 @@ class GlueTest(unittest.TestCase):
                 self.assertEqual(2, raised.exception.code)
 
 
+REDUCED_BY = "reduced by {}: the findings are those of the full walk; the counts and --all list the states of the reduced one\n"
+
+
+class ReductionCommandTest(unittest.TestCase):
+    def test_cone_reports_what_it_leaves_out(self):
+        # Setup
+        from csdfbmc.tests.test_cone import MEMO
+
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--cone", d=MEMO, checks='TYPES = {"x": [1, 2, 3]}\n')
+
+        # Assert
+        self.assertEqual(1, code, err)
+        self.assertEqual("states: 4\n" + REDUCED_BY.format("--cone") + "cone of influence leaves out: memo\n", out.split("deadlock")[0])
+
+    def test_a_reduced_walk_finds_the_shapes_of_the_full_one_and_says_its_counts_are_its_own(self):
+        # Setup
+        from csdfbmc.tests.test_cone import MEMO
+        args = ("--evaluator-module", "csdfbmc.python_glue", "--json")
+        checks = 'TYPES = {"x": [1, 2, 3]}\n'
+
+        # Execute
+        _, full, _ = walk(self, *args, d=MEMO, checks=checks)
+        _, reduced, _ = walk(self, *args, "--cone", d=MEMO, checks=checks)
+        _, text, _ = walk(self, *args[:2], "--cone", "--all", d=MEMO, checks=checks)
+
+        # Assert
+        def shapes(report):
+            return [{k: v for k, v in g.items() if k not in ("count", "trace", "example")} for g in report["groups"]]
+        self.assertEqual(shapes(json.loads(full)), shapes(json.loads(reduced)))
+        self.assertEqual([], json.loads(full)["reductions"])
+        self.assertEqual(["cone"], json.loads(reduced)["reductions"])
+        self.assertIn(REDUCED_BY.format("--cone"), text)
+
+    def test_cone_reports_a_value_left_out_in_json(self):
+        # Setup
+        from csdfbmc.tests.test_cone import MEMO
+
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--cone", "--json", d=MEMO, checks='TYPES = {"x": [1, 2, 3]}\n')
+
+        # Assert
+        self.assertEqual(1, code, err)
+        report = json.loads(out)
+        self.assertEqual(["memo"], report["left_out"])
+        self.assertEqual([0, {"left_out": True}], report["deadlocks"][0]["replay"]["steps"][-2]["values"])
+
+
 class EnvironmentCommandTest(unittest.TestCase):
     def run_main(self, *args, checks=DECLARED):
         return walk(self, "--evaluator-module", "csdfbmc.python_glue", "--max-states", "10", *args, d=UNKNOWN_GUARD, checks=checks)

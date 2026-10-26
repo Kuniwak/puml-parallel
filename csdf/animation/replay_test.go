@@ -118,3 +118,14 @@ func TestLoadReplaysListsTheBoundReachedLast(t *testing.T) {
 		t.Errorf("findings = %+v, want the deadlock, then the bound reached with its replay", findings)
 	}
 }
+
+func TestReplayRefusesAValueTheConeLeftOut(t *testing.T) {
+	sess, _ := NewSession(csdf.MustParse(counterSource), csdf.SolveJSON)
+	err := sess.Replay(Replay{Initial: []byte(`[2]`), Steps: []ReplayStep{{Event: "dec", Src: "a", Dst: "a", Line: 6, Values: []byte(`[{"left_out": true}]`)}}})
+	if err == nil || !strings.Contains(err.Error(), "without --cone") {
+		t.Fatalf("Replay() error = %v, want one suggesting a run without --cone", err)
+	}
+	if len(sess.History()) != 0 {
+		t.Errorf("history has %d entries, want none: nothing is replayed", len(sess.History()))
+	}
+}

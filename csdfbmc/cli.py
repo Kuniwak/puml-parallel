@@ -7,6 +7,7 @@ import shlex
 from contextlib import contextmanager
 from typing import Iterator
 
+from csdfbmc import cone as cones
 from csdfbmc.model import Diagram
 from csdfbmc.formula import PostError
 from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
@@ -62,3 +63,10 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Checks, object, Env
         yield diagram, checks, checked(client), environment(a, checks)
     finally:
         client.close()
+
+
+def reductions(diagram: Diagram, checks: Checks, *, cone: bool) -> dict:
+    """The options of a walk (csdfbmc.explore.Explorer) the reductions asked
+    for give: with cone, the variables outside the cone of influence to
+    leave out (csdfbmc.cone); none without."""
+    return {"left_out": cones.left_out(diagram, checks) if cone else ()}

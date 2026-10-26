@@ -982,9 +982,32 @@ states: 496
 bound reached ×19 at running after CONFIRMED; first after […] (SEND(試行ID=t4, 未署名Tx={'手数料': 1}) is enabled by a value beyond a sample)
 ```
 
-The reductions `--por`, `--symmetry` and `--cone` of earlier releases read
-what a glue said a clause reads; they come back on the formulas, whose free
-variables the tools know, in a later change of #76.
+`--cone` walks fewer states and finds the same. It leaves out every state
+variable outside the cone of influence, which nothing that decides a step
+or a property reads: what a clause reads is its free names, the holes of its
+atoms and the terms of its builtins, so no glue is asked. A variable is kept
+when a guard or an end guard reads it, an invariant or a ghost update names
+it as a parameter, an event sends it, it is the map of a family, or a
+conjunct of a post reads it before the step; a copy `@eq(x', y)` that is the
+only conjunct of its post giving `x` a value reads `y` only if `x` is kept.
+A left-out variable is kept at one value, printed `{"left_out": true}` in
+`--json`, and the variables left out are listed (`cone of influence leaves
+out: …`, `left_out` in `--json`). `csdfrepl -replay` refuses a finding holding a
+value left out, since no value of the variable stands for it; run csdfbmc
+without `--cone` to replay it. An invariant or a ghost update that takes
+any keyword is refused with `--cone`, since what it reads cannot be told.
+
+A reduction keeps the findings, not their counts: the walk reports the
+same shapes (a deadlock at a control state after an event, an invariant
+broken at a control state, a cycle through control states, …) as without
+it, but the number of states, the count of each shape, its shortest trace
+and the list `--all` prints are those of the reduced walk. The output says
+so in a line naming the reductions used (`reduced by --cone: …`, and
+`reductions` in `--json`).
+
+The reductions `--por` and `--symmetry` of earlier releases read what a
+glue said a clause reads; they come back on the formulas in a later change
+of #76.
 
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
