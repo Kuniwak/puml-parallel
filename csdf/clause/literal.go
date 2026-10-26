@@ -205,6 +205,35 @@ func CanonicalFloat(f float64) string {
 	return s
 }
 
+// FloatParts is the canonical form of the finite float f, which is not negative
+// zero: f = (-1)^neg · sig · 2^exp with sig odd, or sig and exp 0 for zero.
+// Every such float has one, so two floats are one exactly when their forms
+// are.
+func FloatParts(f float64) (neg bool, sig uint64, exp int) {
+	if f == 0 {
+		return false, 0, 0
+	}
+	bits := math.Float64bits(f)
+	neg = bits>>63 == 1
+	e := int(bits>>52) & 0x7ff
+	sig = bits & (1<<52 - 1)
+	if e == 0 {
+		exp = -1074
+	} else {
+		sig |= 1 << 52
+		exp = e - 1075
+	}
+	for sig%2 == 0 {
+		sig /= 2
+		exp++
+	}
+	return neg, sig, exp
+}
+
+// IsFloatText reports whether the number text is a float: it has a point
+// or an exponent; any other number is an integer.
+func IsFloatText(text string) bool { return strings.ContainsAny(text, ".eE") }
+
 func (l *lexer) str() (string, error) {
 	start := l.pos
 	l.pos++ // "

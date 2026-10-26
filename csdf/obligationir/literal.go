@@ -3,11 +3,9 @@ package obligationir
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"math/big"
 	"slices"
 	"strconv"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
@@ -20,7 +18,7 @@ type LiteralSpeller struct {
 	// Int spells an integer, given in decimal.
 	Int func(decimal string) string
 	// Float spells a float as (-1)^neg · sig · 2^exp in its canonical
-	// form (Float): sig odd, or the zero, sig 0, exp 0 and neg false.
+	// form (clause.FloatParts): sig odd, or the zero, sig 0, exp 0 and neg false.
 	Float func(neg bool, sig uint64, exp int) string
 	// String spells a string.
 	String func(s string) string
@@ -30,31 +28,6 @@ type LiteralSpeller struct {
 	Array func(items []string) string
 	// Object spells an object of the keys, sorted, and their values.
 	Object func(keys []string, values []string) string
-}
-
-// Float is the canonical form of the finite float f, which is not negative
-// zero: f = (-1)^neg · sig · 2^exp with sig odd, or sig and exp 0 for zero.
-// Every such float has one, so two floats are one exactly when their forms
-// are.
-func Float(f float64) (neg bool, sig uint64, exp int) {
-	if f == 0 {
-		return false, 0, 0
-	}
-	bits := math.Float64bits(f)
-	neg = bits>>63 == 1
-	e := int(bits>>52) & 0x7ff
-	sig = bits & (1<<52 - 1)
-	if e == 0 {
-		exp = -1074
-	} else {
-		sig |= 1 << 52
-		exp = e - 1075
-	}
-	for sig%2 == 0 {
-		sig /= 2
-		exp++
-	}
-	return neg, sig, exp
 }
 
 // spellLiteral spells the literal whose canonical text is text by s.
@@ -76,7 +49,7 @@ func (s LiteralSpeller) spellLiteral(text string) (string, error) {
 func (s LiteralSpeller) value(v any) (string, error) {
 	switch v := v.(type) {
 	case json.Number:
-		if !strings.ContainsAny(string(v), ".eE") {
+		if !clause.IsFloatText(string(v)) {
 			n, ok := new(big.Int).SetString(string(v), 10)
 			if !ok {
 				return "", fmt.Errorf("obligationir: %s is no integer", v)
@@ -87,7 +60,7 @@ func (s LiteralSpeller) value(v any) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("obligationir: %s is no float: %w", v, err)
 		}
-		return s.Float(Float(f)), nil
+		return s.Float(clause.FloatParts(f)), nil
 	case string:
 		return s.String(v), nil
 	case bool:

@@ -14,7 +14,7 @@ import (
 // state the first component. A float is ValFloat neg sig exp, the value
 // (-1)^neg · sig · 2^exp, pure data with no arithmetic of IEEE 754: in its
 // canonical form, sig odd or the zero ValFloat False 0 0, so two floats are
-// one exactly when they are equal (obligationir.Float).
+// one exactly when they are equal (clause.FloatParts).
 const ValPrelude = `datatype val = ValInt int
   | ValFloat bool nat int
   | ValString string
