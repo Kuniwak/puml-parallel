@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
-
-	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 // Suggestion is one set of values a checker says the pending post admits:
 // the parameters of the event it assumed, and the values as the JSON array
-// SolveJSON reads.
+// EnterValues reads.
 type Suggestion struct {
 	Params map[string]any  `json:"params"`
 	Values json.RawMessage `json:"values"`
@@ -23,7 +21,7 @@ type Suggestion struct {
 // without suggestions.
 type Suggester interface {
 	Initial() ([]Suggestion, error)
-	Next(from csdf.RuntimeState, idx int) ([]Suggestion, error)
+	Next(from State, idx int) ([]Suggestion, error)
 }
 
 // Suggest asks the suggester about the session's pending transition: the
@@ -33,16 +31,10 @@ func (s *Session) Suggest(sg Suggester) ([]Suggestion, error) {
 	if s.mode != ModeValues {
 		return nil, nil
 	}
-	if s.pending.prev == nil {
+	if s.pending.Prev == nil {
 		return sg.Initial()
 	}
-	edges := Outgoing(s.diagram, s.pending.prev.ID)
-	for i, e := range edges {
-		if e.Event == s.pending.event && e.Dst == s.pending.group.ID && e.Guard == s.pending.guard && e.Post == s.pending.post {
-			return sg.Next(*s.pending.prev, i)
-		}
-	}
-	return nil, fmt.Errorf("animation.Session.Suggest: the pending transition is not among the outgoing ones")
+	return sg.Next(*s.pending.Prev, s.pending.edge)
 }
 
 // RenderSuggestions renders what the checker admits, numbered so that a

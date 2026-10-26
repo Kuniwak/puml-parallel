@@ -10,39 +10,49 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"golang.org/x/term"
 )
 
 // HistoryEntry is the explored-state record; the engine owns the type.
 type HistoryEntry = animation.HistoryEntry
 
-// runOptions is what a run may start with: a replay to walk first, and a
-// suggester for the value prompts, given directly or built from the
-// diagram's source (which may hand back a cleanup).
+// runOptions is what a run may start with: the JSON to explore in place of
+// the file (an expansion's, which holds its families), a replay to walk
+// first, and a suggester for the value prompts, given directly or built from
+// the diagram's source (which may hand back a cleanup).
 type runOptions struct {
+	DiagramJSON        string
 	Replay             *animation.Replay
 	Suggester          animation.Suggester
 	SuggesterForSource func(source []byte) (animation.Suggester, func(), error)
 }
 
-// runWithSolver runs the REPL on file. With a replay, the session first walks
-// the recorded path and the prompt opens at the state it reaches.
-func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver, run runOptions) error {
+// runREPL runs the REPL on file, or on run.DiagramJSON when it is given.
+// With a replay, the session first walks the recorded path and the prompt
+// opens at the state it reaches.
+func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run runOptions) error {
 	bs, err := os.ReadFile(file)
 	if err != nil {
-		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot read the file: %w: %q", err, file)
+		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the file: %w: %q", err, file)
+	}
+	var diagramJSON []byte
+	if run.DiagramJSON != "" {
+		diagramJSON, err = os.ReadFile(run.DiagramJSON)
+		if err != nil {
+			return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram JSON: %w: %q", err, run.DiagramJSON)
+		}
 	}
 
-	diagram, err := csdf.ParseBytes(bs)
+	diagram, err := animation.ReadDiagram(bs, diagramJSON)
 	if err != nil {
-		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot parse the file: %w: %q", err, file)
+		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram: %w: %q", err, file)
 	}
 
-	session, err := animation.NewSession(diagram, solver)
+	session, err := animation.NewSession(diagram)
 	if err != nil {
-		return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 	}
 
 	var terminal *terminalLineReader
@@ -56,7 +66,7 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 	if suggester == nil && run.SuggesterForSource != nil {
 		built, cleanup, err := run.SuggesterForSource(bs)
 		if err != nil {
-			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+			return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 		}
 		defer cleanup()
 		suggester = built
@@ -72,7 +82,7 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 	}
 	if run.Replay != nil {
 		if err := session.Replay(*run.Replay); err != nil {
-			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+			return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 		}
 		_, _ = fmt.Fprintf(inout.Stdout, "Replayed %d step(s); the path is in the history.\n\n", len(run.Replay.Steps))
 		repl.replayed = true
@@ -171,7 +181,7 @@ func newLineReader(reader io.Reader) <-chan lineResult {
 // repl is the terminal front-end: it reads lines and renders, delegating all
 // exploration state to the animation engine.
 type repl struct {
-	diagram    *csdf.Diagram
+	diagram    *core.Diagram
 	session    *animation.Session
 	stdout     io.Writer
 	interrupts <-chan os.Signal
@@ -277,8 +287,7 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 		}
 	}
 	for {
-		group, guard, post, _, prev := r.session.Pending()
-		r.displayStateValuePrompt(prev, group, guard, post)
+		r.displayStateValuePrompt(r.session.Pending())
 		if r.suggester != nil && suggestions != nil {
 			animation.RenderSuggestions(r.stdout, suggestions)
 		}
@@ -306,30 +315,16 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 			return inputBack, nil
 		}
 
-		result, err := r.session.EnterValues(line)
+		_, err = r.session.EnterValues(line)
+		var refused *animation.RefusedValuesError
+		if errors.As(err, &refused) {
+			r.displayError(refused.Error())
+			continue
+		}
 		if err != nil {
 			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
 		}
-		switch result.Kind {
-		case csdf.PostSolverResultOK:
-			return inputLine, nil
-		case csdf.PostSolverResultNoSolutions:
-			r.displayError("No solutions")
-		case csdf.PostSolverResultInvalidStateVarValuesLength:
-			if result.Err == nil {
-				r.displayError("state variable values length mismatch")
-			} else {
-				r.displayError(result.Err.Error())
-			}
-		case csdf.PostSolverResultSyntaxError:
-			if result.Err == nil {
-				r.displayError("invalid state variable values")
-			} else {
-				r.displayError(result.Err.Error())
-			}
-		default:
-			return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: post solver returned an unknown result")
-		}
+		return inputLine, nil
 	}
 }
 
@@ -384,15 +379,15 @@ func (r *repl) displayError(message string) { animation.RenderError(r.stdout, me
 
 func (r *repl) displayEmptyLine() { animation.RenderEmptyLine(r.stdout) }
 
-func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group csdf.StateWithID, guard, post csdf.Predicate) {
-	animation.RenderStateValuePrompt(r.stdout, previous, group, guard, post)
+func (r *repl) displayStateValuePrompt(pending animation.Pending) {
+	animation.RenderStateValuePrompt(r.stdout, r.diagram, pending)
 }
 
-func (r *repl) displayState(state csdf.RuntimeState) {
+func (r *repl) displayState(state animation.State) {
 	animation.RenderState(r.stdout, r.diagram, state)
 }
 
-func (r *repl) displayTrace(trace []csdf.Event) { animation.RenderTrace(r.stdout, trace) }
+func (r *repl) displayTrace(trace []string) { animation.RenderTrace(r.stdout, trace) }
 
 func (r *repl) displayHistory(history []HistoryEntry) { animation.RenderHistory(r.stdout, history) }
 

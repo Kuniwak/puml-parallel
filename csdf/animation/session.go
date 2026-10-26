@@ -3,8 +3,10 @@ package animation
 import (
 	"errors"
 	"fmt"
+	"slices"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
 // ErrIndexOutOfRange is returned by Select and Jump when the given index is not
@@ -22,111 +24,103 @@ const (
 	ModeCommand
 )
 
-// pendingTransition is the transition whose post state group is awaiting values.
-type pendingTransition struct {
-	group csdf.StateWithID
-	guard csdf.Predicate
-	post  csdf.Predicate
-	event csdf.Event
-	prev  *csdf.RuntimeState
+// Pending is the transition whose target state awaits values: the start
+// edge (Prev nil, Event tau, no guard) or the edge last selected.
+type Pending struct {
+	Target Target
+	Guard  clause.And
+	Post   clause.And
+	Event  core.Event
+	Prev   *State
+	// edge is the index of the edge among Prev's outgoing ones; -1 for
+	// the start edge.
+	edge int
 }
 
 // Session is a single in-memory exploration of a diagram. It is not safe for
 // concurrent use; callers that share a session must serialize access.
 type Session struct {
-	diagram *csdf.Diagram
-	solver  csdf.PostSolver
+	diagram *core.Diagram
 	history []HistoryEntry
 	mode    Mode
-	pending pendingTransition
-	current csdf.RuntimeState
+	pending Pending
+	current State
 }
 
 // NewSession starts an exploration at the diagram's initial state. The returned
-// session is in ModeValues, awaiting the initial state group's values.
-func NewSession(diagram *csdf.Diagram, solver csdf.PostSolver) (*Session, error) {
-	initial, ok := diagram.States[diagram.StartEdge.Dst]
-	if !ok {
-		return nil, fmt.Errorf("animation.NewSession: initial state %q does not exist", diagram.StartEdge.Dst)
+// session is in ModeValues, awaiting the initial state's values.
+func NewSession(diagram *core.Diagram) (*Session, error) {
+	if !slices.Contains(diagram.States, diagram.Init) {
+		return nil, fmt.Errorf("animation.NewSession: initial state %q does not exist", diagram.Init)
 	}
 	return &Session{
 		diagram: diagram,
-		solver:  solver,
 		mode:    ModeValues,
-		pending: pendingTransition{
-			group: csdf.StateWithID{State: initial, ID: diagram.StartEdge.Dst},
-			guard: "",
-			post:  diagram.StartEdge.Post,
-			event: csdf.Tau,
-			prev:  nil,
+		pending: Pending{
+			Target: targetOf(diagram, diagram.Init),
+			Post:   diagram.InitPost,
+			Event:  core.Event{Channel: core.Tau},
+			edge:   -1,
 		},
 	}, nil
 }
 
 // Diagram returns the diagram being explored.
-func (s *Session) Diagram() *csdf.Diagram { return s.diagram }
+func (s *Session) Diagram() *core.Diagram { return s.diagram }
 
 // Mode reports the current mode.
 func (s *Session) Mode() Mode { return s.mode }
 
-// Pending returns the post state group awaiting values together with its guard,
-// post condition, triggering event, and the previous state. Meaningful only in
+// Pending returns the transition awaiting values. Meaningful only in
 // ModeValues.
-func (s *Session) Pending() (group csdf.StateWithID, guard, post csdf.Predicate, event csdf.Event, prev *csdf.RuntimeState) {
-	p := s.pending
-	return p.group, p.guard, p.post, p.event, p.prev
-}
+func (s *Session) Pending() Pending { return s.pending }
 
 // Current returns the current state and whether the session is in ModeCommand.
-func (s *Session) Current() (csdf.RuntimeState, bool) {
+func (s *Session) Current() (State, bool) {
 	return s.current, s.mode == ModeCommand
 }
 
 // Transitions returns the outgoing transitions from the current state.
-func (s *Session) Transitions() []csdf.Edge {
+func (s *Session) Transitions() []core.Edge {
 	return Outgoing(s.diagram, s.current.ID)
 }
 
 // History returns the explored history entries.
 func (s *Session) History() []HistoryEntry { return s.history }
 
-// Trace returns the event trace of the current path.
-func (s *Session) Trace() []csdf.Event { return s.currentTrace() }
+// Trace returns the event labels of the current path, taus left out.
+func (s *Session) Trace() []string { return s.currentTrace() }
 
-// EnterValues resolves the entered values against the pending post state group.
-// On PostSolverResultOK it appends a history entry, sets the current state, and
-// switches to ModeCommand; otherwise the session is unchanged. The returned
-// PostSolverResult carries the kind, the new state, and any syntax error for the
-// caller to report. The error is non-nil only when the session is not awaiting
-// values; callers should check it before inspecting the result.
-func (s *Session) EnterValues(encoded string) (csdf.PostSolverResult, error) {
+// EnterValues binds the entered values, a JSON array in declaration order,
+// to the pending target's variables. On success it appends a history entry,
+// sets the current state, and switches to ModeCommand. Values that do not
+// fit the target are a *RefusedValuesError, and the session is unchanged;
+// any other error says the session is not awaiting values.
+func (s *Session) EnterValues(encoded string) (State, error) {
 	if s.mode != ModeValues {
-		return csdf.PostSolverResult{}, errors.New("animation.Session.EnterValues: not awaiting values")
+		return State{}, errors.New("animation.Session.EnterValues: not awaiting values")
 	}
+	values, err := decodeValues(s.diagram, s.pending.Target, encoded)
+	if err != nil {
+		return State{}, err
+	}
+	state := State{ID: s.pending.Target.ID, Name: s.pending.Target.Name, Values: values}
 
-	result := s.solver(csdf.PostSolverInput{
-		StateGroup:    s.pending.group,
-		Previous:      s.pending.prev,
-		Guard:         s.pending.guard,
-		Post:          s.pending.post,
-		EncodedValues: encoded,
-	})
-	if result.Kind != csdf.PostSolverResultOK {
-		return result, nil
+	trace := slices.Clone(s.currentTrace())
+	if s.pending.Event.Channel != core.Tau {
+		trace = append(trace, s.pending.Event.Label())
 	}
-
-	trace := append([]csdf.Event{}, s.currentTrace()...)
-	if s.pending.event != csdf.Tau {
-		trace = append(trace, s.pending.event)
+	if trace == nil {
+		trace = []string{}
 	}
-	s.history = append(s.history, HistoryEntry{State: result.State, Trace: trace})
-	s.current = result.State
+	s.history = append(s.history, HistoryEntry{State: state, Trace: trace})
+	s.current = state
 	s.mode = ModeCommand
-	return result, nil
+	return state, nil
 }
 
 // Select chooses the idx-th outgoing transition of the current state and
-// switches to ModeValues, awaiting the destination group's values.
+// switches to ModeValues, awaiting the destination's values.
 func (s *Session) Select(idx int) error {
 	if s.mode != ModeCommand {
 		return errors.New("animation.Session.Select: not in command mode")
@@ -136,17 +130,14 @@ func (s *Session) Select(idx int) error {
 		return ErrIndexOutOfRange
 	}
 	edge := edges[idx]
-	next, ok := s.diagram.States[edge.Dst]
-	if !ok {
-		return fmt.Errorf("animation.Session.Select: destination state %q does not exist", edge.Dst)
-	}
 	prev := s.current
-	s.pending = pendingTransition{
-		group: csdf.StateWithID{State: next, ID: edge.Dst},
-		guard: edge.Guard,
-		post:  edge.Post,
-		event: edge.Event,
-		prev:  &prev,
+	s.pending = Pending{
+		Target: targetOf(s.diagram, edge.Dst),
+		Guard:  edge.Guard,
+		Post:   edge.Post,
+		Event:  edge.Event,
+		Prev:   &prev,
+		edge:   idx,
 	}
 	s.mode = ModeValues
 	return nil
@@ -178,17 +169,17 @@ func (s *Session) Back() error {
 	return nil
 }
 
-func (s *Session) currentTrace() []csdf.Event {
+func (s *Session) currentTrace() []string {
 	if len(s.history) == 0 {
 		return nil
 	}
 	return s.history[len(s.history)-1].Trace
 }
 
-// Outgoing returns the diagram's edges whose source is stateID, in declaration
-// order.
-func Outgoing(diagram *csdf.Diagram, stateID csdf.StateID) []csdf.Edge {
-	var edges []csdf.Edge
+// Outgoing returns the diagram's edges whose source is stateID, in the
+// diagram's order, which csdfbmc numbers them in too.
+func Outgoing(diagram *core.Diagram, stateID string) []core.Edge {
+	var edges []core.Edge
 	for _, edge := range diagram.Edges {
 		if edge.Src == stateID {
 			edges = append(edges, edge)
@@ -198,7 +189,7 @@ func Outgoing(diagram *csdf.Diagram, stateID csdf.StateID) []csdf.Edge {
 }
 
 func cloneHistoryEntry(entry HistoryEntry) HistoryEntry {
-	entry.State.Values = append([]csdf.StateValue{}, entry.State.Values...)
-	entry.Trace = append([]csdf.Event{}, entry.Trace...)
+	entry.State.Values = slices.Clone(entry.State.Values)
+	entry.Trace = slices.Clone(entry.Trace)
 	return entry
 }

@@ -6,7 +6,6 @@ import (
 	"os/signal"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/version"
@@ -30,7 +29,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return err
 		}
-		run := runOptions{Replay: replay}
+		run := runOptions{Replay: replay, DiagramJSON: opts.DiagramJSON}
 		if checker.Asks() {
 			if opts.DiagramJSON != "" {
 				run.Suggester = &bmc.Suggester{Diagram: opts.DiagramJSON, Checker: checker}
@@ -40,7 +39,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 				}
 			}
 		}
-		return runWithSolver(opts.File, inout, interrupts, csdf.SolveJSON, run)
+		return runREPL(opts.File, inout, interrupts, run)
 	}
 }
 

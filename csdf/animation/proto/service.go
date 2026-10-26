@@ -5,11 +5,12 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -31,7 +32,6 @@ type Service struct {
 	order    []string // session ids in creation order, for stable listing
 	nextID   int
 	version  string
-	solver   csdf.PostSolver
 	debug    bool
 	// suggesters builds, per new session, what its value prompts ask; nil
 	// when the daemon has no checker.
@@ -60,8 +60,7 @@ type EnvironmentCheck func(*animation.Environment) error
 // nothing, for which every environment is alike.
 func AnyEnvironment(*animation.Environment) error { return nil }
 
-// NewService returns a Service that reports the given version and resolves
-// state-variable values with csdf.SolveJSON. When debug is false, errors are
+// NewService returns a Service that reports the given version. When debug is false, errors are
 // surfaced as their deepest (prefix-free) message; when true, the full wrapped
 // chain is surfaced. environmentCheck refuses a replay of a report made in
 // another environment; AnyEnvironment refuses none.
@@ -69,7 +68,6 @@ func NewService(version string, debug bool, environmentCheck EnvironmentCheck) *
 	return &Service{
 		sessions:         map[string]*entry{},
 		version:          version,
-		solver:           csdf.SolveJSON,
 		debug:            debug,
 		environmentCheck: environmentCheck,
 	}
@@ -109,11 +107,19 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	diagram, err := csdf.ParseBytes(req.Content)
+	var diagramJSON []byte
+	if req.DiagramJSON != "" {
+		bs, err := os.ReadFile(req.DiagramJSON)
+		if err != nil {
+			return s.errorFromErr(fmt.Errorf("proto.Service: cannot read the diagram JSON: %w", err))
+		}
+		diagramJSON = bs
+	}
+	diagram, err := animation.ReadDiagram(req.Content, diagramJSON)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
-	session, err := animation.NewSession(diagram, s.solver)
+	session, err := animation.NewSession(diagram)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
@@ -200,28 +206,10 @@ func (s *Service) handleStatevar(req Request) Response {
 		}
 		values = picked
 	}
-	result, err := e.session.EnterValues(values)
-	if err != nil {
+	if _, err := e.session.EnterValues(values); err != nil {
 		return s.errorFromErr(err)
 	}
-	switch result.Kind {
-	case csdf.PostSolverResultOK:
-		return viewResponse(e)
-	case csdf.PostSolverResultNoSolutions:
-		return errorResponse("No solutions")
-	case csdf.PostSolverResultInvalidStateVarValuesLength:
-		if result.Err == nil {
-			return errorResponse("state variable values length mismatch")
-		}
-		return s.errorFromErr(result.Err)
-	case csdf.PostSolverResultSyntaxError:
-		if result.Err == nil {
-			return errorResponse("invalid state variable values")
-		}
-		return s.errorFromErr(result.Err)
-	default:
-		return errorResponse("post solver returned an unknown result")
-	}
+	return viewResponse(e)
 }
 
 func (s *Service) handleTrace(req Request) Response {
@@ -317,10 +305,10 @@ func viewResponse(e *entry) Response {
 	var buf bytes.Buffer
 	view := View{}
 	if sess.Mode() == animation.ModeValues {
-		group, guard, post, _, prev := sess.Pending()
-		animation.RenderStateValuePrompt(&buf, prev, group, guard, post)
+		pending := sess.Pending()
+		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
-		view.Pending = &Pending{Previous: prev, Group: group, Guard: guard, Post: post}
+		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: clauseText(pending.Guard), Post: clauseText(pending.Post)}
 		if e.suggester != nil {
 			suggestions, err := sess.Suggest(e.suggester)
 			if err != nil {
@@ -346,23 +334,32 @@ func transitionsOf(sess *animation.Session) []Transition {
 	for i, edge := range edges {
 		out[i] = Transition{
 			Index:   i,
-			Event:   edge.Event,
+			Event:   edge.Event.Label(),
 			Dst:     edge.Dst,
-			DstName: sess.Diagram().States[edge.Dst].Name,
-			Guard:   edge.Guard,
-			Post:    edge.Post,
+			DstName: animation.StateName(sess.Diagram(), edge.Dst),
+			Guard:   clauseText(edge.Guard),
+			Post:    clauseText(edge.Post),
 		}
 	}
 	return out
 }
 
+// clauseText is c as the canonical clause printer writes it, or "" for a
+// clause of no conjunct.
+func clauseText(c clause.And) string {
+	if len(c.Conjuncts) == 0 {
+		return ""
+	}
+	return animation.ClauseText(c)
+}
+
 func sessionInfo(e *entry) SessionInfo {
 	info := SessionInfo{Session: e.id, Path: e.path}
 	if e.session.Mode() == animation.ModeValues {
-		group, _, _, _, _ := e.session.Pending()
+		target := e.session.Pending().Target
 		info.Mode = "values"
-		info.StateID = group.ID
-		info.StateName = group.Name
+		info.StateID = target.ID
+		info.StateName = target.Name
 	} else {
 		current, _ := e.session.Current()
 		info.Mode = "command"

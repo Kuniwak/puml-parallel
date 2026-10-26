@@ -6,7 +6,7 @@ History:
           count = 1
 
   [1] Trace:
-        submit(order)
+        submit?order
         approve
 
       State:

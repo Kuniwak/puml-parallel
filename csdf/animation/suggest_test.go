@@ -3,8 +3,6 @@ package animation
 import (
 	"strings"
 	"testing"
-
-	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 type fakeSuggester struct {
@@ -17,13 +15,13 @@ func (f *fakeSuggester) Initial() ([]Suggestion, error) {
 	f.asked = append(f.asked, -1)
 	return f.initial, nil
 }
-func (f *fakeSuggester) Next(from csdf.RuntimeState, idx int) ([]Suggestion, error) {
+func (f *fakeSuggester) Next(from State, idx int) ([]Suggestion, error) {
 	f.asked = append(f.asked, idx)
 	return f.next[idx], nil
 }
 
 func TestSuggestAsksForTheInitialStateThenForTheSelectedTransition(t *testing.T) {
-	sess, _ := NewSession(csdf.MustParse(counterSource), csdf.SolveJSON)
+	sess := newSession(t, counterSource)
 	fake := &fakeSuggester{initial: []Suggestion{{Values: []byte(`[2]`)}}, next: map[int][]Suggestion{1: {{Values: []byte(`[]`)}}}}
 
 	got, err := sess.Suggest(fake)

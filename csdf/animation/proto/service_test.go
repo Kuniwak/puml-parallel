@@ -3,20 +3,23 @@ package proto
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/google/go-cmp/cmp"
 )
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count ; number
+s0: count
 state "Done" as s1
-s1: result ; string
-[*] --> s0 : count starts at zero
-s0 --> s1 : insert?coin ; count >= 0 ; result is done
+s1: result
+[*] --> s0 : $count' = 0
+s0 --> s1 : insert?coin ; @ne(count, 9) ∧ $count >= 0 ; $result' is done
 @enduml
 `
 
@@ -125,6 +128,7 @@ func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 		wantError string
 	}{
 		{name: "syntax", values: "null", wantError: "top-level value must be an array"},
+		{name: "not JSON", values: "[", wantError: "invalid JSON array"},
 		{name: "length", values: "[]", wantError: "expected 1 value(s) for [count], got 0"},
 	}
 	for _, tt := range tests {
@@ -141,29 +145,79 @@ func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 	}
 }
 
-func TestHandleStatevarErrorDebugSurfacesChain(t *testing.T) {
-	newAt := func(debug bool) (*Service, string) {
-		t.Helper()
-		s := NewService("dev", debug, AnyEnvironment)
-		resp := s.Handle(Request{Command: CommandSessionNew, Path: "d.puml", Content: []byte(twoStateDiagram)})
-		if !resp.OK {
-			t.Fatalf("session_new failed: %s", resp.Error)
-		}
-		return s, resp.Session
+func TestHandleSessionNewErrorDebugSurfacesChain(t *testing.T) {
+	oldSyntax := "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n"
+	tests := map[string]struct {
+		debug    bool
+		wantPart string
+		wantLeak bool
+	}{
+		"default: the deepest message": {debug: false, wantPart: "@opaque", wantLeak: false},
+		"debug: the full chain":        {debug: true, wantPart: "animation.ReadDiagram: coreio.ReadBytes:", wantLeak: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			service := NewService("dev", tt.debug, AnyEnvironment)
+
+			// Execute
+			resp := service.Handle(Request{Command: CommandSessionNew, Path: "d.puml", Content: []byte(oldSyntax)})
+
+			// Assert
+			if resp.OK || !strings.Contains(resp.Error, tt.wantPart) {
+				t.Fatalf("session_new = %+v, want an error containing %q", resp, tt.wantPart)
+			}
+			if leaks := strings.Contains(resp.Error, "animation.ReadDiagram"); leaks != tt.wantLeak {
+				t.Errorf("session_new error %q: shows the chain %t, want %t", resp.Error, leaks, tt.wantLeak)
+			}
+		})
+	}
+}
+
+func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
+	// Setup
+	service, id := advance(t)
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandRead, Session: id})
+
+	// Assert
+	want := []Transition{{Index: 0, Event: "insert?coin", Dst: "s1", DstName: "Done",
+		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done"}}
+	if diff := cmp.Diff(want, decodeView(t, resp).Transitions); diff != "" {
+		t.Errorf("transitions mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestHandleSessionNewExploresTheDiagramJSONInPlaceOfTheContent(t *testing.T) {
+	// Setup
+	raw, err := core.MarshalDiagram(&core.Diagram{
+		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
+		Families: []core.FamilyStates{{Map: "accounts", Init: "none", States: []string{"none", "opened"}, Vars: map[string][]string{}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := t.TempDir() + "/expansion.json"
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	service := NewService("dev", false, AnyEnvironment)
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "e.puml", Content: []byte(twoStateDiagram), DiagramJSON: path})
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
 	}
 
-	// Default: deepest, prefix-free message.
-	s, id := newAt(false)
-	resp := s.Handle(Request{Command: CommandStatevar, Session: id, Values: "null"})
-	if strings.Contains(resp.Error, "csdf.SolveJSON") {
-		t.Errorf("default error %q leaks internal prefix", resp.Error)
-	}
+	// Execute
+	refused := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{"a": {"at": "none", "fields": {}}}]`})
+	taken := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{"a": {"at": "opened", "fields": {}}}]`})
 
-	// Debug: the full wrapped chain including the package-qualified context.
-	sd, idd := newAt(true)
-	respd := sd.Handle(Request{Command: CommandStatevar, Session: idd, Values: "null"})
-	if !strings.Contains(respd.Error, "csdf.SolveJSON") {
-		t.Errorf("debug error %q does not include the full chain", respd.Error)
+	// Assert
+	if refused.OK || !strings.Contains(refused.Error, "which is absence") {
+		t.Errorf("statevar of an instance at the start state = %+v, want it refused", refused)
+	}
+	if !taken.OK || !strings.Contains(taken.Output, "State: G") {
+		t.Errorf("statevar of an instance = %+v, want the session at G", taken)
 	}
 }
 
@@ -364,7 +418,7 @@ type fakeSuggester struct{ values string }
 func (f fakeSuggester) Initial() ([]animation.Suggestion, error) {
 	return []animation.Suggestion{{Values: []byte(f.values)}}, nil
 }
-func (f fakeSuggester) Next(csdf.RuntimeState, int) ([]animation.Suggestion, error) {
+func (f fakeSuggester) Next(animation.State, int) ([]animation.Suggestion, error) {
 	return []animation.Suggestion{{Values: []byte(`["picked"]`)}}, nil
 }
 

@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/google/go-cmp/cmp"
@@ -82,7 +81,7 @@ func (c checker) next(t *testing.T, diagram string, args ...string) []animation.
 	return got.Candidates
 }
 
-var zero = csdf.RuntimeState{ID: "s0", Values: []csdf.StateValue{{Name: "n", Value: 0}}}
+var zero = animation.State{ID: "s0", Values: []animation.Value{{Name: "n", Value: 0}}}
 
 func TestSuggesterGivenAFunctionSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 	c := newChecker(t)

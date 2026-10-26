@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
@@ -103,7 +102,7 @@ func (s *Suggester) Initial() ([]animation.Suggestion, error) {
 	return s.run("--initial")
 }
 
-func (s *Suggester) Next(from csdf.RuntimeState, idx int) ([]animation.Suggestion, error) {
+func (s *Suggester) Next(from animation.State, idx int) ([]animation.Suggestion, error) {
 	state, err := json.Marshal(from)
 	if err != nil {
 		return nil, fmt.Errorf("bmc.Suggester.Next: %w", err)

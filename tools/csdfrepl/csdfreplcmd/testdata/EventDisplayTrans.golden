@@ -6,11 +6,11 @@ Values:
 
 Transitions:
   [0] approve -> Approved
-      Guard: count > 0
-      Post: status' = "approved"
+      Guard: $count > 0
+      Post: $status' = "approved"
 
-  [1] reject(reason) -> Rejected
-      Guard: true
-      Post: true
+  [1] reject?reason -> Rejected
+      Guard: (none)
+      Post: (none)
 
 command> 

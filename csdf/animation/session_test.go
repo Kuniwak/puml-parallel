@@ -1,89 +1,102 @@
 package animation
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/google/go-cmp/cmp"
 )
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count ; number
+s0: count
 state "Done" as s1
-s1: result ; string
-[*] --> s0 : count starts at zero
-s0 --> s1 : insert?coin ; count >= 0 ; result is done
+s1: result
+[*] --> s0 : $count' = 0
+s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
 @enduml
 `
 
-func mustParse(t *testing.T, content string) *csdf.Diagram {
+// builtinsDiagram uses the builtins of the clause representation, which the
+// old reader did not know.
+const builtinsDiagram = `@startuml
+state "Open" as s0
+s0: m
+s0: k
+[*] --> s0 : @empty(m') ∧ @eq(k', 0)
+s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k', x)
+@enduml
+`
+
+func mustRead(t *testing.T, content string) *core.Diagram {
 	t.Helper()
-	diagram, err := csdf.ParseBytes([]byte(content))
+	diagram, err := coreio.ReadBytes([]byte(content))
 	if err != nil {
-		t.Fatalf("ParseBytes() error = %v", err)
+		t.Fatalf("coreio.ReadBytes() error = %v", err)
 	}
 	return diagram
 }
 
-func newTwoStateSession(t *testing.T) *Session {
+func newSession(t *testing.T, content string) *Session {
 	t.Helper()
-	session, err := NewSession(mustParse(t, twoStateDiagram), csdf.SolveJSON)
+	session, err := NewSession(mustRead(t, content))
 	if err != nil {
 		t.Fatalf("NewSession() error = %v", err)
 	}
 	return session
 }
 
-// sequenceSolver yields the given results in order, plus a call counter.
-func sequenceSolver(results ...csdf.PostSolverResult) (csdf.PostSolver, *int) {
-	calls := 0
-	return func(csdf.PostSolverInput) csdf.PostSolverResult {
-		result := results[calls]
-		calls++
-		return result
-	}, &calls
-}
-
 func TestNewSessionStartsInValuesModeAtInitial(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 
+	// Execute
+	pending := session.Pending()
+
+	// Assert
 	if session.Mode() != ModeValues {
 		t.Errorf("Mode() = %v, want ModeValues", session.Mode())
 	}
-	group, guard, _, _, prev := session.Pending()
-	if group.ID != "s0" {
-		t.Errorf("pending group = %q, want s0", group.ID)
+	if diff := cmp.Diff(Target{ID: "s0", Name: "Initial", Vars: []string{"count"}}, pending.Target); diff != "" {
+		t.Errorf("pending target mismatch (-want +got):\n%s", diff)
 	}
-	if guard != "" {
-		t.Errorf("pending guard = %q, want %q", guard, "")
+	if len(pending.Guard.Conjuncts) != 0 || pending.Prev != nil {
+		t.Errorf("pending = %+v, want no guard and no previous state", pending)
 	}
-	if prev != nil {
-		t.Errorf("pending prev = %v, want nil", prev)
+	if got := ClauseText(pending.Post); got != "$count' = 0" {
+		t.Errorf("pending post = %q, want %q", got, "$count' = 0")
 	}
 }
 
 func TestNewSessionMissingInitialStateErrors(t *testing.T) {
-	_, err := NewSession(&csdf.Diagram{StartEdge: csdf.StartEdge{Dst: "missing"}}, csdf.SolveJSON)
+	// Execute
+	_, err := NewSession(&core.Diagram{Init: "missing"})
+
+	// Assert
 	if err == nil {
 		t.Fatal("NewSession() error = nil, want error")
 	}
 }
 
 func TestEnterValuesInitialAdvancesToCommand(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 
-	result, err := session.EnterValues("[0]")
+	// Execute
+	state, err := session.EnterValues("[0]")
+
+	// Assert
 	if err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	if result.Kind != csdf.PostSolverResultOK {
-		t.Fatalf("EnterValues() kind = %v, want OK", result.Kind)
+	want := State{ID: "s0", Name: "Initial", Values: []Value{{Name: "count", Value: jsonNumber("0")}}}
+	if diff := cmp.Diff(want, state); diff != "" {
+		t.Errorf("EnterValues() mismatch (-want +got):\n%s", diff)
 	}
 	if session.Mode() != ModeCommand {
 		t.Errorf("Mode() = %v, want ModeCommand", session.Mode())
-	}
-	if state := result.State; state.ID != "s0" || len(state.Values) != 1 || state.Values[0].Name != "count" {
-		t.Errorf("state = %+v, want s0 with count", state)
 	}
 	if got := session.Trace(); len(got) != 0 {
 		t.Errorf("Trace() = %v, want empty (tau is not recorded)", got)
@@ -93,101 +106,150 @@ func TestEnterValuesInitialAdvancesToCommand(t *testing.T) {
 	}
 }
 
-func TestEnterValuesNonOKKeepsValuesMode(t *testing.T) {
-	tests := []struct {
-		name     string
-		encoded  string
-		wantKind csdf.PostSolverResultKind
+func TestEnterValuesRefusesValuesThatDoNotFitTheTarget(t *testing.T) {
+	tests := map[string]struct {
+		encoded string
+		want    string
 	}{
-		{name: "syntax error", encoded: "null", wantKind: csdf.PostSolverResultSyntaxError},
-		{name: "length mismatch", encoded: "[]", wantKind: csdf.PostSolverResultInvalidStateVarValuesLength},
+		"not JSON":        {encoded: "[", want: "invalid JSON array: unexpected EOF"},
+		"not an array":    {encoded: "{}", want: "invalid JSON array: top-level value must be an array"},
+		"a null":          {encoded: "[null]", want: "null is not a valid state variable value"},
+		"too few values":  {encoded: "[]", want: "expected 1 value(s) for [count], got 0"},
+		"too many values": {encoded: "[1, 2]", want: "expected 1 value(s) for [count], got 2"},
+		"trailing data":   {encoded: "[1] [2]", want: "unexpected trailing data after JSON array"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			session := newTwoStateSession(t)
-			result, _ := session.EnterValues(tt.encoded)
-			if result.Kind != tt.wantKind {
-				t.Errorf("EnterValues() kind = %v, want %v", result.Kind, tt.wantKind)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := newSession(t, twoStateDiagram)
+
+			// Execute
+			_, err := session.EnterValues(tt.encoded)
+
+			// Assert
+			var refused *RefusedValuesError
+			if !errors.As(err, &refused) || refused.Error() != tt.want {
+				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.want)
 			}
-			if session.Mode() != ModeValues {
-				t.Errorf("Mode() = %v, want ModeValues", session.Mode())
-			}
-			if len(session.History()) != 0 {
-				t.Errorf("len(History()) = %d, want 0", len(session.History()))
+			if session.Mode() != ModeValues || len(session.History()) != 0 {
+				t.Errorf("the session moved: mode %v, %d history entries", session.Mode(), len(session.History()))
 			}
 		})
 	}
 }
 
 func TestEnterValuesInCommandModeErrors(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	if _, err := session.EnterValues("[1]"); err == nil {
-		t.Error("EnterValues() in command mode error = nil, want error")
+
+	// Execute
+	_, err := session.EnterValues("[1]")
+
+	// Assert
+	var refused *RefusedValuesError
+	if err == nil || errors.As(err, &refused) {
+		t.Errorf("EnterValues() in command mode error = %v, want an error that is no refusal", err)
 	}
 }
 
 func TestSelectThenEnterValuesRecordsEventTrace(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 
+	// Execute
 	if err := session.Select(0); err != nil {
 		t.Fatalf("Select() error = %v", err)
 	}
-	if session.Mode() != ModeValues {
-		t.Errorf("Mode() = %v, want ModeValues", session.Mode())
-	}
-	group, _, _, _, prev := session.Pending()
-	if group.ID != "s1" {
-		t.Errorf("pending group = %q, want s1", group.ID)
-	}
-	if prev == nil || prev.ID != "s0" {
-		t.Errorf("pending prev = %v, want s0", prev)
-	}
-
+	pending := session.Pending()
 	if _, err := session.EnterValues(`["ok"]`); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	trace := session.Trace()
-	if len(trace) != 1 || trace[0] != "insert?coin" {
-		t.Errorf("Trace() = %v, want [insert?coin]", trace)
+
+	// Assert
+	if pending.Target.ID != "s1" || pending.Prev == nil || pending.Prev.ID != "s0" || pending.Event.Label() != "insert?coin" {
+		t.Errorf("pending = %+v, want s0 --insert?coin--> s1", pending)
+	}
+	if diff := cmp.Diff([]string{"insert?coin"}, session.Trace()); diff != "" {
+		t.Errorf("Trace() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestADiagramWithTheNewBuiltinsSteps(t *testing.T) {
+	// Setup
+	session := newSession(t, builtinsDiagram)
+
+	// Execute
+	_, err1 := session.EnterValues(`[{}, 0]`)
+	err2 := session.Select(0)
+	pending := session.Pending()
+	state, err3 := session.EnterValues(`[{"1": 1}, 1]`)
+
+	// Assert
+	if err := errors.Join(err1, err2, err3); err != nil {
+		t.Fatal(err)
+	}
+	if got := ClauseText(pending.Post); got != "@update(m', m, x, 1) ∧ @eq(k', x)" {
+		t.Errorf("pending post = %q", got)
+	}
+	want := State{ID: "s0", Name: "Open", Values: []Value{
+		{Name: "m", Value: map[string]any{"1": jsonNumber("1")}},
+		{Name: "k", Value: jsonNumber("1")},
+	}}
+	if diff := cmp.Diff(want, state); diff != "" {
+		t.Errorf("EnterValues() mismatch (-want +got):\n%s", diff)
 	}
 }
 
 func TestSelectOutOfRangeErrors(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	if err := session.Select(5); err == nil || err.Error() != "Index out of range" {
-		t.Errorf("Select(5) error = %v, want \"Index out of range\"", err)
+
+	// Execute
+	err := session.Select(5)
+
+	// Assert
+	if !errors.Is(err, ErrIndexOutOfRange) {
+		t.Errorf("Select(5) error = %v, want ErrIndexOutOfRange", err)
 	}
 }
 
 func TestSelectInValuesModeErrors(t *testing.T) {
-	session := newTwoStateSession(t)
-	if err := session.Select(0); err == nil {
+	// Setup
+	session := newSession(t, twoStateDiagram)
+
+	// Execute
+	err := session.Select(0)
+
+	// Assert
+	if err == nil {
 		t.Error("Select() in values mode error = nil, want error")
 	}
 }
 
 func TestJumpClonesHistoryEntry(t *testing.T) {
-	session := newTwoStateSession(t)
-	if _, err := session.EnterValues("[0]"); err != nil {
-		t.Fatalf("EnterValues() error = %v", err)
-	}
-	if err := session.Select(0); err != nil {
-		t.Fatalf("Select() error = %v", err)
-	}
-	if _, err := session.EnterValues(`["ok"]`); err != nil {
-		t.Fatalf("EnterValues() error = %v", err)
+	// Setup
+	session := newSession(t, twoStateDiagram)
+	_, err1 := session.EnterValues("[0]")
+	err2 := session.Select(0)
+	_, err3 := session.EnterValues(`["ok"]`)
+	if err := errors.Join(err1, err2, err3); err != nil {
+		t.Fatal(err)
 	}
 
-	if err := session.Jump(0); err != nil {
+	// Execute
+	err := session.Jump(0)
+
+	// Assert
+	if err != nil {
 		t.Fatalf("Jump() error = %v", err)
 	}
 	if len(session.History()) != 3 {
@@ -203,68 +265,68 @@ func TestJumpClonesHistoryEntry(t *testing.T) {
 }
 
 func TestJumpOutOfRangeErrors(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
-	if err := session.Jump(9); err == nil || err.Error() != "Index out of range" {
-		t.Errorf("Jump(9) error = %v, want \"Index out of range\"", err)
+
+	// Execute
+	err := session.Jump(9)
+
+	// Assert
+	if !errors.Is(err, ErrIndexOutOfRange) {
+		t.Errorf("Jump(9) error = %v, want ErrIndexOutOfRange", err)
 	}
 }
 
 func TestBackReturnsToLastHistoryState(t *testing.T) {
-	session := newTwoStateSession(t)
-	if _, err := session.EnterValues("[0]"); err != nil {
-		t.Fatalf("EnterValues() error = %v", err)
-	}
-	if err := session.Select(0); err != nil {
-		t.Fatalf("Select() error = %v", err)
+	// Setup
+	session := newSession(t, twoStateDiagram)
+	_, err1 := session.EnterValues("[0]")
+	err2 := session.Select(0)
+	if err := errors.Join(err1, err2); err != nil {
+		t.Fatal(err)
 	}
 
-	if err := session.Back(); err != nil {
+	// Execute
+	err := session.Back()
+
+	// Assert
+	if err != nil {
 		t.Fatalf("Back() error = %v", err)
 	}
-	if session.Mode() != ModeCommand {
-		t.Errorf("Mode() = %v, want ModeCommand", session.Mode())
-	}
-	current, _ := session.Current()
-	if current.ID != "s0" {
-		t.Errorf("Current() = %q, want s0", current.ID)
+	current, ok := session.Current()
+	if !ok || current.ID != "s0" {
+		t.Errorf("Current() = (%v, %v), want s0 in command mode", current, ok)
 	}
 }
 
 func TestBackWithoutHistoryErrors(t *testing.T) {
-	session := newTwoStateSession(t)
-	if err := session.Back(); err == nil {
+	// Setup
+	session := newSession(t, twoStateDiagram)
+
+	// Execute
+	err := session.Back()
+
+	// Assert
+	if err == nil {
 		t.Error("Back() with no history error = nil, want error")
 	}
 }
 
-func TestEnterValuesNoSolutionsUsesSolverKind(t *testing.T) {
-	solver, calls := sequenceSolver(csdf.PostSolverResult{Kind: csdf.PostSolverResultNoSolutions})
-	session, err := NewSession(mustParse(t, twoStateDiagram), solver)
-	if err != nil {
-		t.Fatalf("NewSession() error = %v", err)
-	}
-	result, _ := session.EnterValues("[0]")
-	if result.Kind != csdf.PostSolverResultNoSolutions {
-		t.Errorf("EnterValues() kind = %v, want NoSolutions", result.Kind)
-	}
-	if *calls != 1 {
-		t.Errorf("solver calls = %d, want 1", *calls)
-	}
-	if session.Mode() != ModeValues {
-		t.Errorf("Mode() = %v, want ModeValues", session.Mode())
-	}
-}
-
 func TestTransitionsListsOutgoingEdges(t *testing.T) {
-	session := newTwoStateSession(t)
+	// Setup
+	session := newSession(t, twoStateDiagram)
 	if _, err := session.EnterValues("[0]"); err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
+
+	// Execute
 	edges := session.Transitions()
-	if len(edges) != 1 || edges[0].Event != "insert?coin" {
+
+	// Assert
+	if len(edges) != 1 || edges[0].Event.Label() != "insert?coin" {
 		t.Errorf("Transitions() = %v, want one insert?coin edge", edges)
 	}
 }

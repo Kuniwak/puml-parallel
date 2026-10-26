@@ -14,11 +14,11 @@ import (
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count ; number
+s0: count
 state "Done" as s1
-s1: result ; string
-[*] --> s0 : count starts at zero
-s0 --> s1 : insert?coin ; count >= 0 ; result is done
+s1: result
+[*] --> s0 : $count' = 0
+s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
 @enduml
 `
 

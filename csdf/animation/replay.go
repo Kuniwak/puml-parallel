@@ -7,25 +7,23 @@ import (
 	"maps"
 	"slices"
 	"strings"
-
-	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 // Replay is a path through a diagram as csdfbmc records it under a finding:
 // the values of the initial state and, per step, the edge taken and the
-// values of the state it leads to, each as the JSON array SolveJSON reads.
+// values of the state it leads to, each as the JSON array EnterValues reads.
 type Replay struct {
 	Initial json.RawMessage `json:"initial"`
 	Steps   []ReplayStep    `json:"steps"`
 }
 
-// ReplayStep names an edge by its event text, source, destination and source
+// ReplayStep names an edge by its event's label (core.Event.Label), source, destination and source
 // line (0 when the edge has none, as in an expansion), which together pick
 // it out among the outgoing transitions, and carries the values entered after it.
 type ReplayStep struct {
-	Event  csdf.Event      `json:"event"`
-	Src    csdf.StateID    `json:"src"`
-	Dst    csdf.StateID    `json:"dst"`
+	Event  string          `json:"event"`
+	Src    string          `json:"src"`
+	Dst    string          `json:"dst"`
 	Line   int             `json:"line"`
 	Values json.RawMessage `json:"values"`
 }
@@ -124,15 +122,12 @@ func (s *Session) enterReplayValues(values json.RawMessage, what string) error {
 	if strings.TrimSpace(encoded) == "" {
 		encoded = "[]"
 	}
-	result, err := s.EnterValues(encoded)
-	if err != nil {
-		return fmt.Errorf("animation.Session.Replay: %s: %w", what, err)
-	}
-	if result.Kind != csdf.PostSolverResultOK {
-		if result.Err != nil {
-			return fmt.Errorf("animation.Session.Replay: %s: the values %s were refused: %w", what, encoded, result.Err)
+	if _, err := s.EnterValues(encoded); err != nil {
+		var refused *RefusedValuesError
+		if errors.As(err, &refused) {
+			return fmt.Errorf("animation.Session.Replay: %s: the values %s were refused: %w", what, encoded, err)
 		}
-		return fmt.Errorf("animation.Session.Replay: %s: the values %s were refused", what, encoded)
+		return fmt.Errorf("animation.Session.Replay: %s: %w", what, err)
 	}
 	return nil
 }
@@ -143,7 +138,7 @@ func (s *Session) matchStep(step ReplayStep) (int, error) {
 	edges := s.Transitions()
 	var candidates []int
 	for i, e := range edges {
-		if e.Event == step.Event && e.Dst == step.Dst && (step.Src == "" || e.Src == step.Src) {
+		if e.Event.Label() == step.Event && e.Dst == step.Dst && (step.Src == "" || e.Src == step.Src) {
 			candidates = append(candidates, i)
 		}
 	}
