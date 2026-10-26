@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -171,49 +172,78 @@ func executable() (string, error) {
 	return "", errors.New("bmc.Suggester: csdfbmc is not on the PATH nor beside this binary")
 }
 
+// errNoEnvironment refuses a report from a csdfbmc that did not yet report
+// its environment: what its run walked cannot be told.
+var errNoEnvironment = errors.New("the report records no environment, so the run that made it cannot be reproduced; make it again with this release's csdfbmc --json")
+
 // Reproduce is c walking the environment of the csdfbmc run that made a
 // report (animation.LoadEnvironment), so that a replayed finding is
 // explored further in the environment it was found in: the report's seed
-// when c has none. A seed other than the report's, or a function -env gives
-// that the report's run did not give, is refused, for c would walk another
-// environment. The report does not record the values of the functions it
-// gave, so those are the user's to give again with -env. A nil report (an
-// output from before csdfbmc reported its environment) leaves c as it is.
+// and the values its run gave the functions, which c takes where it says
+// nothing. A seed other than the report's, a value other than the report's,
+// or a function c gives a value the report's run did not give one (its
+// checks module did, or nothing did) is refused, for c would walk another
+// environment.
 func (c Checker) Reproduce(report *animation.Environment) (Checker, error) {
 	if report == nil {
-		return c, nil
+		return Checker{}, errNoEnvironment
 	}
 	if c.Seed != nil {
 		switch {
 		case report.Seed == nil:
-			return Checker{}, fmt.Errorf("the report was made with no seed, not -seed %d", *c.Seed)
+			return Checker{}, fmt.Errorf("the report was made with no seed, not seed %d", *c.Seed)
 		case *report.Seed != *c.Seed:
-			return Checker{}, fmt.Errorf("the report was made with --seed %d, not -seed %d", *report.Seed, *c.Seed)
+			return Checker{}, fmt.Errorf("the report was made with seed %d, not seed %d", *report.Seed, *c.Seed)
 		}
 	}
-	given := map[string]bool{}
-	for _, name := range report.Given {
-		given[name] = true
-	}
 	for _, b := range c.Env {
-		if !given[b.Name] {
-			return Checker{}, fmt.Errorf("-env gives %q, which the report's run did not give", b.Name)
+		v, ok := report.Env[b.Name]
+		if !ok {
+			return Checker{}, fmt.Errorf("the checker gives %q %t, but the report's run gave it no value", b.Name, b.Value)
+		}
+		if v != b.Value {
+			return Checker{}, fmt.Errorf("the report's run gave %q %t, not %t", b.Name, v, b.Value)
 		}
 	}
 	out := c
 	out.Seed = report.Seed
+	out.Env = bindings(report.Env)
 	return out, nil
 }
 
+// bindings are the values env gives, ordered by name.
+func bindings(env map[string]bool) []Binding {
+	names := make([]string, 0, len(env))
+	for name := range env {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var out []Binding
+	for _, name := range names {
+		out = append(out, Binding{Name: name, Value: env[name]})
+	}
+	return out
+}
+
 // Agrees refuses a report whose environment c does not already walk: what
-// Reproduce refuses, and a seed c was not given. A daemon's checker is fixed
-// when it starts, so it cannot take the report's seed as csdfrepl does.
+// Reproduce refuses, a seed c was not given, and a value c does not give. A
+// daemon's checker is fixed when it starts, so it cannot take the report's
+// environment as csdfrepl does.
 func (c Checker) Agrees(report *animation.Environment) error {
 	if _, err := c.Reproduce(report); err != nil {
 		return err
 	}
-	if report != nil && report.Seed != nil && c.Seed == nil {
-		return fmt.Errorf("the report was made with --seed %d; give -seed %d", *report.Seed, *report.Seed)
+	if report.Seed != nil && c.Seed == nil {
+		return fmt.Errorf("the report was made with seed %d, which the checker does not walk", *report.Seed)
+	}
+	given := map[string]bool{}
+	for _, b := range c.Env {
+		given[b.Name] = true
+	}
+	for _, b := range bindings(report.Env) {
+		if !given[b.Name] {
+			return fmt.Errorf("the report's run gave %q %t, which the checker does not give", b.Name, b.Value)
+		}
 	}
 	return nil
 }

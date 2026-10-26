@@ -138,12 +138,12 @@ func TestLoadEnvironmentReadsWhatReproducesTheRun(t *testing.T) {
 		want   *Environment
 	}{
 		"a seed and given functions": {
-			report: `{"environment": {"seed": 7, "given": ["$_0 が 正", "f"], "decided": ["f"]}}`,
-			want:   &Environment{Seed: &seven, Given: []string{"$_0 が 正", "f"}},
+			report: `{"environment": {"seed": 7, "given": ["$_0 が 正", "f"], "env": {"f": false}, "decided": ["f"]}}`,
+			want:   &Environment{Seed: &seven, Given: []string{"$_0 が 正", "f"}, Env: map[string]bool{"f": false}},
 		},
 		"no seed": {
-			report: `{"environment": {"seed": null, "given": [], "decided": []}}`,
-			want:   &Environment{Given: []string{}},
+			report: `{"environment": {"seed": null, "given": [], "env": {}, "decided": []}}`,
+			want:   &Environment{Given: []string{}, Env: map[string]bool{}},
 		},
 		"a report of no environment": {
 			report: `{"deadlocks": []}`,

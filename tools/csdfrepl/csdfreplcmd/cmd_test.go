@@ -10,7 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const seededReport = `{"deadlocks": [{"replay": {"initial": [0], "steps": []}}], "environment": {"seed": 7, "given": ["f"], "decided": []}}`
+const seededReport = `{"deadlocks": [{"replay": {"initial": [0], "steps": []}}], "environment": {"seed": 7, "given": ["f"], "env": {"f": false}, "decided": []}}`
 
 func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
@@ -26,11 +26,11 @@ func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 		want    bmc.Checker
 		wantErr string
 	}{
-		"the report's seed":                  {report: true, checker: glue, want: with(seed(7))},
 		"the same seed and a given function": {report: true, checker: with(seed(7), f), want: with(seed(7), f)},
-		"another seed":                       {report: true, checker: with(seed(1)), wantErr: "not -seed 1"},
+		"the report's function":              {report: true, checker: glue, want: with(seed(7), f)},
+		"another seed":                       {report: true, checker: with(seed(1)), wantErr: "not seed 1"},
 		"a function the run did not give": {
-			report: true, checker: with(nil, bmc.Binding{Name: "g", Value: true}), wantErr: `-env gives "g"`,
+			report: true, checker: with(nil, bmc.Binding{Name: "g", Value: true}), wantErr: `the checker gives "g" true`,
 		},
 		"no checker, which asks nothing":     {report: true, checker: bmc.Checker{}, want: bmc.Checker{}},
 		"no report, which keeps the checker": {checker: with(seed(1)), want: with(seed(1))},

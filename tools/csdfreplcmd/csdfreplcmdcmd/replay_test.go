@@ -19,8 +19,8 @@ func TestParseReplaySendsTheEnvironmentOfTheReport(t *testing.T) {
 		wantErr string
 	}{
 		"a seeded run": {
-			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":["f"],"decided":[]}}`,
-			want:   &animation.Environment{Seed: &seven, Given: []string{"f"}},
+			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":["f"],"env":{"f":true},"decided":[]}}`,
+			want:   &animation.Environment{Seed: &seven, Given: []string{"f"}, Env: map[string]bool{"f": true}},
 		},
 		"a report of no environment": {
 			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}]}`,

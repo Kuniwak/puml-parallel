@@ -210,12 +210,13 @@ func LoadReplays(bs []byte) ([]Finding, error) {
 }
 
 // Environment is what csdfbmc --json reports under "environment" to
-// reproduce its run: the seed (nil when the run had none) and the names of
-// the functions given, by the checks module or by --env. The report names
-// the functions given but not their values.
+// reproduce its run: the seed (nil when the run had none), the names of the
+// functions given, by the checks module or by --env, and the values --env
+// gave. The checks module gives the rest again.
 type Environment struct {
-	Seed  *int     `json:"seed"`
-	Given []string `json:"given"`
+	Seed  *int            `json:"seed"`
+	Given []string        `json:"given"`
+	Env   map[string]bool `json:"env"`
 }
 
 // LoadEnvironment reads the environment csdfbmc's JSON output reports, or
