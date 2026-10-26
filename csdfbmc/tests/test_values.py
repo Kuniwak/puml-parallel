@@ -60,7 +60,7 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertIn(FrozenMap({"t1": "x", "t2": "y"}), full)
 
     def test_a_type_is_built_of_the_samples_record_and_partial_map_were_given(self):
-        ids, other = sample(["t1"]), sample([1])
+        ids, other = sample(["t1"], beyond=["t2"]), sample([1], beyond=[2])
         tests = {
             "a sample": (ids, [ids]),
             "a record of a field of a sample": (record(id=ids, 額=[1]), [ids]),
@@ -72,3 +72,19 @@ class DomainBuilderTest(unittest.TestCase):
         for name, (values, want) in tests.items():
             with self.subTest(name):
                 self.assertEqual([id(x) for x in want], [id(x) for x in samples_in(values)])
+
+    def test_a_sample_takes_values_beyond_it_that_are_not_in_it(self):
+        tests = {
+            "a value beyond": ((["t1"], ["t2"]), None),
+            "values beyond, of records": (([FrozenMap({"id": "t1"})], [FrozenMap({"id": "t2"})]), None),
+            "1 beyond a sample of True": (([True], [1]), None),
+            "no value beyond": ((["t1"], []), "at least one value beyond"),
+            "a value beyond that is in the sample": ((["t1", "t2"], ["t3", "t2"]), "'t2' beyond the sample, which is a value of it"),
+        }
+        for name, ((values, beyond), refused) in tests.items():
+            with self.subTest(name):
+                if refused is None:
+                    self.assertEqual(tuple(beyond), sample(values, beyond=beyond).beyond)
+                else:
+                    with self.assertRaisesRegex(ValueError, refused):
+                        sample(values, beyond=beyond)

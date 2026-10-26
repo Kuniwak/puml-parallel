@@ -119,7 +119,7 @@ func TestThePromotedExampleStopsOnlyWhenEveryIDIsConfirmed(t *testing.T) {
 		t.Fatalf("want exit status 0 (the bound reached is no finding), got %v\n%s", err, out)
 	}
 	text := string(out)
-	for _, want := range []string{"states: 496\n", "bound reached ×19 at running after CONFIRMED", "(a sample type has more values)"} {
+	for _, want := range []string{"states: 496\n", "bound reached ×19 at running after CONFIRMED", "(SEND(試行ID=t4, 未署名Tx={'手数料': 1}) is enabled by a value beyond a sample)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("want %q in the report, got:\n%s", want, text)
 		}

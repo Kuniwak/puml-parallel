@@ -124,12 +124,9 @@ def freeze(value):
 def encode(value):
     """value as JSON would carry it: FrozenMaps as objects, tuples and
     frozensets as arrays (a frozenset sorted when it can be), an instance as
-    {"at": its state, "fields": its fields}, and a value beyond a sample as
-{"fresh": [its type, n]}."""
+    {"at": its state, "fields": its fields}."""
     if isinstance(value, Rec):
         return {"at": value.state, "fields": encode(value.fields)}
-    if isinstance(value, Fresh):
-        return {"fresh": [value.type, value.n]}
     if isinstance(value, Mapping):
         return {str(k): encode(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -145,23 +142,35 @@ def encode(value):
 
 class Sample(tuple):
     """The values of a type that are a sample of it: the type has more
-    values than these, which the walk ranges over. A Sample is the tuple
-    of its values, so it is written wherever the values are."""
+    values than these, which the walk ranges over, and beyond gives some of
+    them. A Sample is the tuple of its values, so it is written wherever
+    the values are."""
+
+    def __new__(cls, values: Iterable, beyond: tuple):
+        self = super().__new__(cls, values)
+        self.beyond = beyond
+        return self
 
 
-def sample(values: Iterable) -> Sample:
-    """The values of a type of TYPES given as a sample of the type: at a
-    state with no way out, csdfbmc asks whether a value of the type that
-    occurs nowhere would give one (README, Bounded model checking)."""
-    return Sample(values)
+def sample(values: Iterable, beyond: Iterable) -> Sample:
+    """The values of a type of TYPES given as a sample of the type, and
+    beyond, values of the type that are not in the sample, at least one: at
+    a state with no way out, csdfbmc tries them (README, Bounded model
+    checking). They must be values of the type; csdfbmc cannot tell."""
+    values, beyond = tuple(values), tuple(beyond)
+    if not beyond:
+        raise ValueError("sample(values, beyond) needs at least one value beyond the sample")
+    for b in beyond:
+        if any(same_value(b, v) for v in values):
+            raise ValueError(f"sample(values, beyond) is given {b!r} beyond the sample, which is a value of it")
+    return Sample(values, beyond)
 
 
 class Built(list):
     """The values of a type record or partial_map built from the values of
     other types, parts (a parameter of the builder -> the values it was
-    given), which build makes them from again. What a type is built of is
-    what it may carry: a sample among its parts makes its values hold
-    values of the sample."""
+    given), which build makes them from again: a type built of a sample is
+    built again of the sample with the values beyond it."""
 
     def __init__(self, values: Iterable, build: Callable[..., "Built"], parts: dict):
         super().__init__(values)
@@ -177,8 +186,7 @@ def _kept(values: Iterable):
 
 def samples_in(values: Iterable) -> list[Sample]:
     """The samples the values of a type are, or are built of by record and
-    partial_map, each once: what a value of the type may hold a value of.
-    Values listed by hand are built of nothing."""
+    partial_map, each once. Values listed by hand are built of nothing."""
     if isinstance(values, Sample):
         return [values]
     if isinstance(values, Built):
@@ -189,57 +197,21 @@ def samples_in(values: Iterable) -> list[Sample]:
     return []
 
 
-@dataclass(frozen=True)
-class Fresh:
-    """A value of the sample type type beyond its sample, the n-th: equal to
-    nothing but itself, so distinct by construction from every value of
-    every type, of a ghost or in a trace, and from every other Fresh. It
-    has no order and no text; csdfbmc makes it, and a checks module never
-    holds one."""
-    type: str
-    n: int = 0
-
-    def __repr__(self):
-        return f"<{self.type} beyond the sample #{self.n}>"
-
-
-def holds_fresh(value) -> bool:
-    """Whether value is a Fresh or holds one, as a key, an entry, a field or
-    an element."""
-    if isinstance(value, Fresh):
-        return True
-    if isinstance(value, Rec):
-        return holds_fresh(value.fields)
-    if isinstance(value, Mapping):
-        return any(holds_fresh(k) or holds_fresh(v) for k, v in value.items())
-    if isinstance(value, (tuple, frozenset)):
-        return any(holds_fresh(v) for v in value)
-    return False
-
-
-def _widened(values: Iterable, beyond: dict[int, Sample]) -> Iterable:
-    """values with each sample they are, or are built of, replaced by
-    beyond's (by identity), and built again."""
+def _widened(values: Iterable) -> Iterable:
+    """values with each sample they are, or are built of, extended by the
+    values beyond it, and built again."""
     if isinstance(values, Sample):
-        return beyond.get(id(values), values)
+        return tuple(values) + values.beyond
     if isinstance(values, Built) and samples_in(values):
-        return values.build(**{k: _widened(v, beyond) for k, v in values.parts.items()})
+        return values.build(**{k: _widened(v) for k, v in values.parts.items()})
     return values
 
 
 def beyond_samples(types: dict[str, Iterable]) -> dict[str, Iterable]:
-    """types with one value more in each sample, a Fresh, and every type
-    built of a sample built again of the wider one, so that a record of a
-    sample also takes the value beyond it. A sample's Fresh is named by the
-    first type, in order, that is the sample, or else that is built of it."""
-    beyond: dict[int, Sample] = {}
-    for t in sorted(types):
-        if isinstance(types[t], Sample):
-            beyond.setdefault(id(types[t]), Sample(tuple(types[t]) + (Fresh(t),)))
-    for t in sorted(types):
-        for n, x in enumerate(samples_in(types[t])):
-            beyond.setdefault(id(x), Sample(tuple(x) + (Fresh(t, n),)))
-    return {t: _widened(vs, beyond) for t, vs in types.items()}
+    """types with each sample extended by all the values beyond it at once,
+    and every type built of a sample built again of the wider one, so that
+    a record of a sample also takes the values beyond it."""
+    return {t: _widened(vs) for t, vs in types.items()}
 
 
 def record(**fields: Iterable) -> Built:

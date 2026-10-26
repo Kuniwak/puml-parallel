@@ -81,10 +81,10 @@ class LoadChecksTest(unittest.TestCase):
 
     def test_a_type_given_as_a_sample_ranges_over_its_values_and_is_known_as_a_sample(self):
         tests = {
-            "a sample": ('TYPES = {"ID": sample(["a1", "a2"]), "額": [1]}\n', {"ID"}),
+            "a sample": ('TYPES = {"ID": sample(["a1", "a2"], beyond=["a3"]), "額": [1]}\n', {"ID"}),
             "plain values only": ('TYPES = {"ID": ["a1", "a2"], "額": [1]}\n', set()),
-            "a record over a sample": ('IDS = sample(["a1", "a2"])\nTYPES = {"ID": IDS, "額": [r.id for r in record(id=IDS)]}\n', {"ID"}),
-            "a record built of a sample": ('IDS = sample(["a1", "a2"])\nTYPES = {"ID": IDS, "Tx": record(id=IDS)}\n', {"ID", "Tx"}),
+            "a record over a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "額": [r.id for r in record(id=IDS)]}\n', {"ID"}),
+            "a record built of a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "Tx": record(id=IDS)}\n', {"ID", "Tx"}),
         }
         for name, (body, want) in tests.items():
             with self.subTest(name):
@@ -97,6 +97,20 @@ class LoadChecksTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(["a1", "a2"], checks.domain("ID"))
                 self.assertEqual(want, set(checks.samples))
+
+    def test_a_sample_with_no_value_beyond_it_or_one_of_its_own_is_refused(self):
+        tests = {
+            "no value beyond": ('TYPES = {"ID": sample(["a1"], beyond=[])}\n', "at least one value beyond"),
+            "a value of the sample beyond it": ('TYPES = {"ID": sample(["a1"], beyond=["a1"])}\n', "which is a value of it"),
+        }
+        for name, (body, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                path = self.write("from csdfbmc.values import sample\n" + body)
+
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    load_checks(path)
 
     def test_loads_the_environment_of_a_module(self):
         # Setup

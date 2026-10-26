@@ -6,14 +6,13 @@ import functools
 import inspect
 import itertools
 import sys
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Atom, Builtin, Diagram, Edge, Free, free_names
+from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
 from csdfbmc.values import beyond_samples, encode, freeze, visible
 
@@ -45,10 +44,11 @@ class Result:
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
     # stopped_early: the walk stopped at the first finding (first=True).
     stopped_early: bool = False
-    # bound_reached: states with no way out that a value of each sample type
-    # occurring nowhere would give one: the bound, not the diagram, ends
-    # them, so they are not deadlocks.
-    bound_reached: list[State] = field(default_factory=list)
+    # bound_reached: states with no way out that a value beyond a sample
+    # (csdfbmc.values.sample) gives one, with the witness, the step it
+    # enables or "the end edge": the bound, not the diagram, ends them, so
+    # they are not deadlocks.
+    bound_reached: list[tuple[State, str]] = field(default_factory=list)
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -85,7 +85,7 @@ class Result:
             "truncated": self.truncated,
             "bound": self.bound,
             "deadlocks": [at(s) for s in self.deadlocks],
-            "bound_reached": [at(s) for s in self.bound_reached],
+            "bound_reached": [{"witness": w, **at(s)} for s, w in self.bound_reached],
             "tau_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.tau_cycles],
             "violations": [{"invariant": name, **at(s)} for name, s in self.violations],
             "avoid": self.avoid,
@@ -118,8 +118,9 @@ class Result:
 
         for s in self.deadlocks:
             add(("deadlock", s[0], last_event(s)), lambda s=s: {"kind": "deadlock", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s)})
-        for s in self.bound_reached:
-            add(("bound_reached", s[0], last_event(s)), lambda s=s: {"kind": "bound_reached", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s)})
+        for s, w in self.bound_reached:
+            add(("bound_reached", s[0], last_event(s)), lambda s=s, w=w: {"kind": "bound_reached", "at": s[0], "after": last_event(s), "witness": w,
+                                                                          "trace": self.trace_to(s), "example": self.describe(s)})
         for name, s in self.violations:
             add(("violation", name, s[0]), lambda name=name, s=s: {"kind": "violation", "invariant": name, "at": s[0], "trace": self.trace_to(s), "example": self.describe(s)})
         for cycle in self.tau_cycles:
@@ -155,9 +156,6 @@ class Explorer:
     decides the others (csdfbmc.environment). Before the walk, a declared
     function nothing gives and no seed chooses is refused, listing every
     one, and so is a declared name that names no atom of the diagram.
-    symmetric gives, per atom, the arguments the glue said it tells no two
-    values of a sample apart by (csdfbmc.independence.check_independent
-    gives them), the only ones a value beyond a sample is shown in.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -171,13 +169,12 @@ class Explorer:
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
-                 symmetric: Mapping[Atom, frozenset[int]], max_states: int = 100_000, avoid: str | None = None,
-                 within: list[str] | None = None, first: bool = False):
+                 max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
+                 first: bool = False):
         self.d = diagram
         self.checks = checks
         self.environment = environment
-        self.symmetric = symmetric
-        self.meaning = AtomMeaning(client, environment, checks.domain, symmetric)
+        self.meaning = AtomMeaning(client, environment, checks.domain)
         self.ev = Evaluator(self.meaning, checks.carrier, apply_given(checks.environment))
         self.max_states = max_states
         self.avoid = avoid
@@ -329,36 +326,44 @@ class Explorer:
                     out.append((e.name, label, t, e))
         return out
 
-    def _enabled(self, state: State, e: Edge) -> bool:
-        """Whether e has a transition from state, its ghosts left aside."""
+    def _enabling(self, state: State, e: Edge) -> str | None:
+        """The first transition of e from state, as taken, its ghosts left
+        aside; None when it has none."""
         where = e.describe()
-        return any(self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where)
-                   for before in (self._before(state, params) for params in self._offers(state, e)))
+        for params in self._offers(state, e):
+            before = self._before(state, params)
+            if self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where):
+                return self._label(e, before)
+        return None
 
     def with_types(self, types: dict) -> "Explorer":
         """This walk with the types ranging over other values: the same
         diagram, glue, environment and options."""
         return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client,
                         environment=self.environment, max_states=self.max_states, avoid=self.avoid,
-                        within=sorted(self.within) if self.within is not None else None, first=self.first,
-                        symmetric=self.symmetric)
+                        within=sorted(self.within) if self.within is not None else None, first=self.first)
 
     @functools.cached_property
     def _wider(self) -> "Explorer":
-        """This walk with one more value in each sample, a Fresh: equal to
-        nothing but itself, it occurs nowhere in a state or any type. A type
-        built of a sample takes it too (csdfbmc.values.beyond_samples).
-        Built once, at the first state with no way out."""
+        """This walk with each sample extended by the values beyond it, all
+        at once; a type built of a sample takes them too
+        (csdfbmc.values.beyond_samples). Built once, at the first state with
+        no way out."""
         return self.with_types(beyond_samples(self.checks.types))
 
-    def bound_ends(self, state: State) -> bool:
-        """Whether a state with no way out has one once each sample type has
-        one more value, occurring nowhere: the bound ends it, not the
-        diagram. The value is only tried; no state is added for it."""
+    def bound_witness(self, state: State) -> str | None:
+        """For a state with no way out, the step the values beyond the
+        samples enable, as taken, or "the end edge" when they enable it:
+        a witness that a value of the real type gives the state a way out,
+        so the bound ends it, not the diagram. None when they enable
+        nothing, and the state is a deadlock. The values are only tried; no
+        state is added for them."""
         if not self.checks.samples:
-            return False
+            return None
         wider = self._wider
-        return wider.can_end(state) or any(wider._enabled(state, e) for e in self.d.out_edges(state[0]))
+        if wider.can_end(state):
+            return "the end edge"
+        return next(filter(None, (wider._enabling(state, e) for e in self.d.out_edges(state[0]))), None)
 
     def can_end(self, state: State) -> bool:
         return any(end.src == state[0] and self.ev.holds(end.guard, self._before(state)) for end in self.d.ends)
@@ -398,7 +403,7 @@ class Explorer:
         tau_next: dict[State, list[State]] = {}
         avoid_next: dict[State, list[State]] = {}
         deadlocks: list[State] = []
-        bound_reached: list[State] = []
+        bound_reached: list[tuple[State, str]] = []
         violations: list[tuple[str, State]] = []
         truncated = False
         seen: set[State] = set()
@@ -425,8 +430,9 @@ class Explorer:
                 break
             succ = self.successors(s)
             if not succ and not self.can_end(s):
-                if self.bound_ends(s):
-                    bound_reached.append(s)
+                witness = self.bound_witness(s)
+                if witness is not None:
+                    bound_reached.append((s, witness))
                 else:
                     deadlocks.append(s)
                     if self.first:

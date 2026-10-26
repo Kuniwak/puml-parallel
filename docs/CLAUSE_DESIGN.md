@@ -342,29 +342,26 @@ result:
 | # | Information | Used by |
 |---|---|---|
 | Q1 | The variables a clause reads and writes | partial-order reduction, cone of influence (O9) |
-| Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10); telling a state where the bound of a sample type was reached from a deadlock (O7) |
+| Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
 | Q4 | Narrowed types for values | approximating the environment and bounded checking (O7) |
 | Q5 | The fields an equality builtin determines: `f = t` where f is a field of the event and t a term over the state and other determined fields | computing f instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
 
-Q2 also lets bounded checking tell the bound from the diagram. A type given
-as a sample has more values than the walk ranges over; at a state with no
-way out, csdfbmc adds one value beyond the sample and asks whether a step
-is then enabled. The value is opaque, equal to nothing but itself, so it is
-distinct by construction from every value of every type, ghost and trace;
-csdfbmc does not guess one of the type's kind, which could equal a value
-already there and enable a step no value beyond the sample would. A type
-built of the sample by record or partial_map is built again of the wider
-sample, so that the value reaches every type declared to hold it; a type
-derived otherwise keeps its values, which can only leave a step disabled
-and so report a deadlock, never hide one. One value stands for all the others only when every clause
-is invariant under permutation of the type's values and names none of them
-(data independence), which the builtins are by construction, an atom is when
-its glue says so (Q2), and an environment function is not known to be; a
-state the added value gives a way out of is reported as the bound reached,
-not as a deadlock, and every other is a deadlock still.
+Bounded checking tells the bound from the diagram without Q2. A type given
+as a sample has more values than the walk ranges over, and the checks
+module writes some of them, the values beyond the sample, like any value of
+a type. At a state with no way out, csdfbmc tries them all at once, a type
+built of the sample by record or partial_map built again with them, and
+asks whether a step or an end edge is then enabled; no state is added for
+them. If one is, the state is reported as the bound reached, with that step
+as the witness; otherwise it is a deadlock. An enabling value beyond the
+sample is itself a witness that a value of the real type enables a step, so
+no data independence is needed, however the clauses tell the values apart;
+and a state no value beyond gives a way out is a deadlock as before, so a
+real deadlock is never hidden. That the values beyond are values of the
+real type is the user's responsibility, as the sample is.
 
 Q5 is read only from builtins, never from atoms, whose text the tools do not
 interpret. It is more than speed: a field computed from its equality does

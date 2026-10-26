@@ -828,9 +828,12 @@ to another type, so that `相手ID` can range over `口座ID`
 (`TYPEOF = {"相手ID": "口座ID"}`). `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
-keys. `csdfbmc.values.sample(values)` gives a type as a sample of a larger
-one (`TYPES = {"試行ID": sample(["t1", "t2", "t3"])}`): the walk ranges over
-the values listed, and the type has more; a plain list is the whole type.
+keys. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
+of a larger one (`TYPES = {"試行ID": sample(["t1", "t2", "t3"],
+beyond=["t4"])}`): the walk ranges over the values listed, and the type has
+more, of which `beyond` lists at least one, written like any value of
+`TYPES`; a plain list is the whole type. Loading refuses an empty `beyond`
+and a value of `beyond` that is one of the sample's.
 A module that defines `DOMAINS` or `CLAUSES`, which an earlier
 `csdfbmc` read, is refused.
 
@@ -892,47 +895,28 @@ for).
 A finite bound can end a run the diagram would go on with: once every ID of
 a finite type is used up, nothing is enabled, though a fresh ID would be.
 For a type given as a sample, a state with no enabled transition and no end
-edge whose guard holds is tried once more, with one value added to each
-sample beyond it, and every type `record(…)` or `partial_map(…)` built of the
-sample built again of the wider one, so that a record whose field is of the
-sample also takes the value. A type derived some other way, a comprehension
-over a sample say, is not widened: a step only it would enable is still
-reported as a deadlock, so the limit errs toward a deadlock, never away
-from one. That value is opaque: it equals nothing but
-itself, so it is none of the values of any type, of a ghost or of the state,
-and it has no order and no text. A glue receives it as `{"fresh": [TYPE,
-N]}` (csdfbmc.protocol), and only an atom the glue said `symmetric` of, below,
-is shown one; any other atom, an atom of `ENVIRONMENT` or an environment
-function a term applies that would read it stops the walk with an error. If an edge or an
-end edge is then enabled, the state is reported as `bound reached … (a
-sample type has more values)` — `bound_reached` in `--json`, and a group
-of kind `bound_reached` — and not as a deadlock; it is no finding, so
-it does not set the exit status. Otherwise it is a deadlock. The value is
-only tried: the walk adds no state for it, so the state count is the same.
-One value stands for every value beyond the sample only when the diagram is
-data independent in the type: it tells the values apart by `=` and `≠`
-(`@eq`, `@ne`) and as the keys of maps (`@in`, `@notin`, `@update`,
-`@frame`, `m[k]`) alone, and passes them through fields. So, before the
-walk, csdfbmc refuses, naming the clause, an environment function a term
-applies (`${f(k)}`) or an atom of `ENVIRONMENT` that reads a value of a
-sample type, and an atom of the glue that reads one unless the glue answers
-`symmetric` and says the atom tells no two values of the sample apart.
-Which names may hold a value of a sample type follows from how the types
-are declared, not from the values they share: a name of the sample type, of
-a type `record(…)` or `partial_map(…)` built of it, bound by an `∃` over
-one of those, or of a map some clause keys by one (`@in`, `@notin`,
-`@update`, `@frame`, `m[k]`). A name with no type in `TYPES`, an instance's
-field included, and a name of a type of maps listed by hand, whose keys are
-not known, are taken to hold one, since nothing says they do not; declare
-their type to let an atom order them (`"手数料": [1, 2, 3]` in
-`examples/bmc/attempts/checks.py`). A type that only lists the same values as
-a sample, declared apart, is another type. While the step is tried, an atom
-is refused a value beyond the sample in any argument but those the glue was
-asked about, so a value a clause copies where no declaration says it may go
-stops the walk with an error rather than passing unchecked. The reference glue refuses an atom that orders
-such a value (`<`, `sorted`, `min`, `max`) or names one of the sample's
-values as a constant. One value is tried, not two: a step that needs two
-fresh values at once is still reported as a deadlock.
+edge whose guard holds is tried once more, with each sample extended by all
+its values `beyond` at once, and every type `record(…)` or `partial_map(…)`
+built of the sample built again of the wider one, so that a record whose
+field is of the sample also takes them. A type derived some other way, a
+comprehension over a sample say, is not widened. If an end edge or an edge
+is then enabled, the state is reported as `bound reached … (W is enabled by
+a value beyond a sample)`, W the witness: `the end edge`, or the first step
+enabled, as taken, with the value beyond it bound — `bound_reached` in
+`--json`, each with its `witness`, and a group of kind `bound_reached`. It
+is no finding, so it does not set the exit status. Otherwise it is a
+deadlock. The values are only tried: the walk adds no state for them, so
+the state count is the same.
+
+This is sound with no restriction on how the diagram tells values apart. A
+state reported as the bound reached comes with a witness: a value of the
+real type that gives the state a way out, so it is not a deadlock of the
+real type. A state none of the values beyond gives a way out is reported as
+a deadlock, as without the sample, so a real deadlock is never hidden. An
+atom may order the values or compare them with constants; a witness it
+allows is still a witness. What csdfbmc cannot check is that the values
+`beyond` are values of the real type: that is the user's to keep, as it is
+that the sample is.
 
 `csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)` answers what a REPL asks at a
@@ -982,8 +966,9 @@ Instance IDs range over the type of the ID field, which is the bound of the
 scenario. The third example, `examples/bmc/attempts/`, is the fee-bumping
 diagram of `examples/promote/ATTEMPTS.puml` with its atoms written in Python.
 A global diagram has no end edge, so the walk stops only once every ID of
-the bound is confirmed. The IDs are a sample (`checks.py`), so those states
-are the bound reached, not deadlocks, and the walk exits 0; no cycle avoids
+the bound is confirmed. The IDs are a sample with `t4` beyond it
+(`checks.py`), which lets a new attempt register, so those states are the
+bound reached, not deadlocks, and the walk exits 0; no cycle avoids
 `CONFIRMED`:
 
 ```console
@@ -991,7 +976,7 @@ $ csdfpromote -format json examples/bmc/attempts/ATTEMPTS.puml > attempts.json
 $ csdfbmc attempts.json examples/bmc/attempts/checks.py \
     --evaluator-module csdfbmc.python_glue --avoid CONFIRMED
 states: 496
-bound reached ×19 at running after CONFIRMED; first after […] (a sample type has more values)
+bound reached ×19 at running after CONFIRMED; first after […] (SEND(試行ID=t4, 未署名Tx={'手数料': 1}) is enabled by a value beyond a sample)
 ```
 
 The reductions `--por`, `--symmetry` and `--cone` of earlier releases read

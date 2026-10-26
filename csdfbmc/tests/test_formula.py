@@ -29,7 +29,7 @@ FAMILIES = {"m": Family("none", ("none", "open", "closed", "dear"), FrozenMap({"
 
 
 def evaluator(env=environment.NONE, given=None):
-    return Evaluator(AtomMeaning(fixture.glue(), env, lambda n: TYPES[n], {}), lambda t: TYPES[t], apply_given(given or {}))
+    return Evaluator(AtomMeaning(fixture.glue(), env, lambda n: TYPES[n]), lambda t: TYPES[t], apply_given(given or {}))
 
 
 def inst(state, **fields):

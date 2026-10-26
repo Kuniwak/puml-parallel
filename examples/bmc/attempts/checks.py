@@ -10,9 +10,10 @@ every ID is used up is told from a deadlock.
 """
 from csdfbmc.values import record, sample
 
-# The IDs are a sample of the attempts a run may register: once all three
-# are used up the walk reports the bound reached, not a deadlock.
-IDS = sample(["t1", "t2", "t3"])
+# The IDs are a sample of the attempts a run may register, and t4 is one
+# more: once all three are used up the walk tries t4, which lets a new
+# attempt register, and reports the bound reached, not a deadlock.
+IDS = sample(["t1", "t2", "t3"], beyond=["t4"])
 
 TYPES = {
     "試行ID": IDS,
@@ -20,9 +21,6 @@ TYPES = {
     # attempt it replaces.
     "未署名Tx": record(手数料=[1]),
     "置換Tx": record(置換元=IDS, 手数料=[2, 3]),
-    # The fee an attempt holds. Declared, so that the walk knows it holds no
-    # 試行ID, and an atom may compare fees while the IDs are a sample.
-    "手数料": [1, 2, 3],
 }
 
 INVARIANTS = {

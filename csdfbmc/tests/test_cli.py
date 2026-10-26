@@ -24,9 +24,9 @@ def walk(test, *args, d=COUNTER, checks="TYPES = {}\n"):
     return fixture.run_main(test, main, d, *args, checks=checks)
 
 
-def ask_next(test, *args, d=COUNTER, checks="TYPES = {}\n"):
+def ask_next(test, *args, d=COUNTER):
     from csdfbmc.next import main
-    return fixture.run_main(test, main, d, "--evaluator-module", "csdfbmc.python_glue", *args, checks=checks)
+    return fixture.run_main(test, main, d, "--evaluator-module", "csdfbmc.python_glue", *args)
 
 
 class GlueTest(unittest.TestCase):
@@ -153,7 +153,7 @@ class SampleReportTest(unittest.TestCase):
     """Where the bound was reached is reported apart from the deadlocks, and
     is no finding for the exit status."""
 
-    SAMPLE = 'from csdfbmc.values import sample\nTYPES = {"k": sample(["a"])}\n'
+    SAMPLE = 'from csdfbmc.values import sample\nTYPES = {"k": sample(["a"], beyond=["b"])}\n'
 
     def opening(self, *guard):
         """OPENING without STOP, OPEN guarded by guard too and opening an
@@ -164,14 +164,14 @@ class SampleReportTest(unittest.TestCase):
         return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard), post=post)] + OPENING["edges"][1:2])
 
     def test_the_bound_reached_is_reported_and_is_no_finding(self):
-        closed = "r [{'a': {'at': 'closed', 'fields': {'bal': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)'] (a sample type has more values)"
+        why = " (OPEN(k=b) is enabled by a value beyond a sample)"
+        closed = "r [{'a': {'at': 'closed', 'fields': {'bal': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)']" + why
         tests = {
-            "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']"
-                                   " (a sample type has more values)\n"),
+            "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']" + why + "\n"),
             "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),
-            "as JSON": (("--json",), (), 0, {"deadlocks": [], "bound_reached": [["OPEN(k=a)", "CLOSE(k=a)"]] * 2,
+            "as JSON": (("--json",), (), 0, {"deadlocks": [], "bound_reached": [[["OPEN(k=a)", "CLOSE(k=a)"], "OPEN(k=b)"]] * 2,
                                              "groups": [["bound_reached", "r", "CLOSE", 2]]}),
-            "a sample type the diagram orders": ((), (atom("$k > 'a'"),), 2, "argument 0 is ordered"),
+            "a deadlock when no value beyond enables a step": ((), (atom("$k != 'b'"),), 1, "states: 5\ndeadlock ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']\n"),
         }
         for name, (args, guard, want_code, want) in tests.items():
             with self.subTest(name):
@@ -180,12 +180,10 @@ class SampleReportTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(want_code, code, err)
-                if want_code == 2:
-                    self.assertIn(want, err)
-                elif isinstance(want, dict):
+                if isinstance(want, dict):
                     report = json.loads(out)
                     self.assertEqual(want, {"deadlocks": report["deadlocks"],
-                                            "bound_reached": [r["trace"] for r in report["bound_reached"]],
+                                            "bound_reached": [[r["trace"], r["witness"]] for r in report["bound_reached"]],
                                             "groups": [[g["kind"], g["at"], g["after"], g["count"]] for g in report["groups"]]})
                 else:
                     self.assertEqual(want, out)
@@ -198,17 +196,6 @@ class NextCommandTest(unittest.TestCase):
 
         # Assert
         self.assertEqual((0, {"candidates": [{"params": {}, "values": [2]}]}), (code, json.loads(out)))
-
-    def test_a_sample_type_the_diagram_orders_is_answered_since_next_tries_no_value_beyond_it(self):
-        # Setup
-        e = OPENING["edges"][0]
-        d = dict(OPENING, edges=[dict(e, guard=e["guard"] + [atom("$k > 'a'")])])
-
-        # Execute
-        code, out, err = ask_next(self, "--initial", d=d, checks=SampleReportTest.SAMPLE)
-
-        # Assert
-        self.assertEqual((0, {"candidates": [{"params": {}, "values": [{}]}]}), (code, json.loads(out)), err)
 
     def test_edge_prints_the_values_after_the_edge_from_a_runtime_state(self):
         # Setup
