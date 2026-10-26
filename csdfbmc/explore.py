@@ -193,7 +193,7 @@ class Explorer:
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
                  first: bool = False, left_out: tuple[str, ...],
-                 ample: Ample = every_transition):
+                 ample: Ample):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}

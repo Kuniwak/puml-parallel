@@ -67,7 +67,7 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Checks, object, Env
         client.close()
 
 
-def reductions(diagram: Diagram, checks: Checks, *, cone: bool, por: bool = False, avoid: str | None = None) -> dict:
+def reductions(diagram: Diagram, checks: Checks, *, cone: bool, por: bool, avoid: str | None) -> dict:
     """The options of a walk (csdfbmc.explore.Explorer) the reductions asked
     for give: with cone, the variables outside the cone of influence to
     leave out (csdfbmc.cone), none without; with por, the ample sets of
