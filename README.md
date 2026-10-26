@@ -1159,7 +1159,11 @@ asks `csdfbmc` at every value prompt what values the clauses admit:
 `read` lists them under `suggestions`, `statevar -pick N` enters the N-th, and
 `session new -diagram-json FILE` names the expansion JSON the checker reads for
 that session. `-seed N` and `-env NAME=true|false` give every session the
-environment csdfbmc walks with `--seed N` and `--env NAME=true|false`. Run `csdfreplcmd help` for the full command list.
+environment csdfbmc walks with `--seed N` and `--env NAME=true|false`. The
+daemon's environment is fixed when it starts, so `replay` refuses a report
+whose `environment` it does not walk: one made with a seed the daemon was not
+given, with another seed, or without giving a function the daemon's `-env`
+gives. Run `csdfreplcmd help` for the full command list.
 
 ## Documentation
 

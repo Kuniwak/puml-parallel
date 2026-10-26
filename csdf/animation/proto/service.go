@@ -36,6 +36,9 @@ type Service struct {
 	// suggesters builds, per new session, what its value prompts ask; nil
 	// when the daemon has no checker.
 	suggesters SuggesterFactory
+	// environmentCheck refuses a replay whose report was made in an
+	// environment the suggesters do not walk; nil checks nothing.
+	environmentCheck func(*animation.Environment) error
 }
 
 // SuggesterFactory builds a session's suggester from its diagram's source
@@ -46,6 +49,14 @@ type SuggesterFactory func(source []byte, diagramJSON string) (animation.Suggest
 // SetSuggesters gives the daemon a checker: every session created afterwards
 // suggests values at its prompts and accepts statevar picks.
 func (s *Service) SetSuggesters(f SuggesterFactory) { s.suggesters = f }
+
+// SetEnvironmentCheck makes replay refuse, before walking, a path whose
+// report's environment check refuses: the daemon's checker is fixed when it
+// starts, and its suggestions after the path would otherwise not be what
+// csdfbmc saw there.
+func (s *Service) SetEnvironmentCheck(check func(*animation.Environment) error) {
+	s.environmentCheck = check
+}
 
 // NewService returns a Service that reports the given version and resolves
 // state-variable values with csdf.SolveJSON. When debug is false, errors are
@@ -255,6 +266,11 @@ func (s *Service) handleReplay(req Request) Response {
 	}
 	if req.Replay == nil {
 		return errorResponse("replay requires a recorded path")
+	}
+	if s.environmentCheck != nil {
+		if err := s.environmentCheck(req.Environment); err != nil {
+			return s.errorFromErr(err)
+		}
 	}
 	if err := e.session.Replay(*req.Replay); err != nil {
 		return s.errorFromErr(err)

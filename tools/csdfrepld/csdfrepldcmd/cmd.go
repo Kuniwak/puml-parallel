@@ -33,6 +33,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 				}
 				return bmc.ForSource(source, opts.Checker)
 			})
+			service.SetEnvironmentCheck(opts.Checker.Agrees)
 		}
 
 		interrupts := make(chan os.Signal, 1)

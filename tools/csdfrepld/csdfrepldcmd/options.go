@@ -46,7 +46,9 @@ Examples:
 
 With -checks and a glue, value prompts suggest the values the clauses admit,
 as csdfbmc reads them, and statevar -pick enters one. -seed and -env are
-csdfbmc's --seed and --env, for every session; neither has a default.
+csdfbmc's --seed and --env, for every session; neither has a default. A
+replay of a report made with another seed, or with a seed not given here,
+is refused.
 `, tools.SocketEnv, tools.SocketName, tools.SocketName)
 		}
 

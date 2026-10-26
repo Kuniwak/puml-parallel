@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -401,5 +402,46 @@ func TestPickWithoutACheckerIsRefused(t *testing.T) {
 	resp := service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(0)})
 	if resp.OK || !strings.Contains(resp.Error, "-checks") {
 		t.Errorf("statevar -pick without a checker = %+v, want a refusal naming -checks", resp)
+	}
+}
+
+func TestHandleReplayRefusesAnEnvironmentTheDaemonDoesNotWalk(t *testing.T) {
+	seven := 7
+	tests := map[string]struct {
+		check   func(*animation.Environment) error
+		wantErr string
+	}{
+		"no check":        {check: nil},
+		"a check passing": {check: func(*animation.Environment) error { return nil }},
+		"a check refusing": {
+			check:   func(env *animation.Environment) error { return fmt.Errorf("seed %d refused", *env.Seed) },
+			wantErr: "seed 7 refused",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			service, id := newSession(t)
+			service.SetEnvironmentCheck(tt.check)
+			replay := animation.Replay{Initial: []byte(`[0]`)}
+
+			// Execute
+			resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay, Environment: &animation.Environment{Seed: &seven}})
+
+			// Assert
+			if tt.wantErr == "" {
+				if !resp.OK {
+					t.Fatalf("replay failed: %s", resp.Error)
+				}
+				return
+			}
+			if resp.OK || !strings.Contains(resp.Error, tt.wantErr) {
+				t.Fatalf("replay = %+v, want an error saying %q", resp, tt.wantErr)
+			}
+			read := service.Handle(Request{Command: CommandRead, Session: id})
+			if view := decodeView(t, read); view.Mode != "values" {
+				t.Errorf("after a refused replay the session is %+v, want it untouched", view)
+			}
+		})
 	}
 }

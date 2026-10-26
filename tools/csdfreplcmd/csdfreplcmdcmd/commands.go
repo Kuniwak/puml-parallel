@@ -176,7 +176,7 @@ func parseReplay() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd replay", inout)
 		setLeafUsage(flags, "csdfreplcmd replay [-finding <n>] [-s <id>] [-json] <csdfbmc.json>",
-			"Walk a fresh session (just created with \"session new\", no values entered)\nalong the path csdfbmc --json recorded under one of its findings, entering\nthe initial values and every step, and show the state it reaches. The\nfindings are numbered from 0 in the order the output lists them: deadlocks,\ntau cycles, broken invariants, avoiding cycles, empty posts, unconstrained\nposts. A step that cannot be taken is an error, and the session stays at\nthe last state reached.\n\nExample:\n  csdfbmc diagram.json checks.py --evaluator-module csdfbmc.python_glue --json > findings.json\n  SID=$(csdfreplcmd session new diagram.puml)\n  csdfreplcmd replay -finding 0 findings.json")
+			"Walk a fresh session (just created with \"session new\", no values entered)\nalong the path csdfbmc --json recorded under one of its findings, entering\nthe initial values and every step, and show the state it reaches. The\nfindings are numbered from 0 in the order the output lists them: deadlocks,\ntau cycles, broken invariants, avoiding cycles, empty posts, unconstrained\nposts. A step that cannot be taken is an error, and the session stays at\nthe last state reached. A daemon started with -checks refuses a report\nmade in an environment its -seed and -env do not walk.\n\nExample:\n  csdfbmc diagram.json checks.py --evaluator-module csdfbmc.python_glue --json > findings.json\n  SID=$(csdfreplcmd session new diagram.puml)\n  csdfreplcmd replay -finding 0 findings.json")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		declareJSON(flags, cf)
@@ -196,7 +196,11 @@ func parseReplay() cli.ParseOptionsFunc[*clientOptions] {
 		if err != nil {
 			return nil, err
 		}
-		opts.req = proto.Request{Command: proto.CommandReplay, Session: cf.session, Replay: replay}
+		env, err := animation.LoadEnvironment(bs)
+		if err != nil {
+			return nil, err
+		}
+		opts.req = proto.Request{Command: proto.CommandReplay, Session: cf.session, Replay: replay, Environment: env}
 		return opts, nil
 	}
 }

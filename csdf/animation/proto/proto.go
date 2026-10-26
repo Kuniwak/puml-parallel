@@ -43,6 +43,9 @@ type Request struct {
 	// Replay walks a fresh session along a path csdfbmc recorded under a
 	// finding (replay).
 	Replay *animation.Replay `json:"replay,omitempty"`
+	// Environment (replay) is what the report the path comes from says
+	// reproduces its run; nil when it says nothing.
+	Environment *animation.Environment `json:"environment,omitempty"`
 }
 
 // Response is the service's reply. Output is the human-readable rendering; Data
