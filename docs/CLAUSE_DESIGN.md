@@ -427,7 +427,7 @@ that a language interprets.
 clause  ::= atom | builtin | clause ∧ clause | ∃ var : type . clause
 builtin ::= term = term | term ≠ term | term ∈ dom term | term ∉ dom term
           | map update | frame | term at state | term is empty
-term    ::= var | var' | term[term].field | envfn(term, …)
+term    ::= literal | var | var' | term[term].field | envfn(term, …)
 ```
 
 A variable bound by ∃ may stand for any value, a map included; that is how
@@ -468,6 +468,49 @@ name.
 - A glue receives the text without the holes and the values for them (P8).
 - The builtins are what tools state (P7). Two updates of one map in one step
   bind the intermediate map with ∃ (P5, P6).
+
+### Literals
+
+A literal is a value written in a clause, so that `@eq(n', 0)` compares
+with the integer 0 instead of reading a variable named 0. Literals are the
+JSON values without null: integers (any integer, not bounded by a machine
+word), floats, strings (Unicode), the truth values `true` and `false`,
+arrays (ordered lists, not tuples) and objects (records from string keys).
+
+- A float is a finite IEEE 754 binary64 that is not negative zero. NaN and
+  the infinities cannot be written in JSON, and a literal beyond the largest
+  float is refused rather than rounded to one; negative zero is refused too,
+  since telling it from zero would make equality on floats differ from
+  equality of numbers, and identifying it with zero would make one value
+  have two encodings.
+- Equality on values is structural: two values are equal when they are of
+  one kind and their parts are equal. A number with a point or an exponent
+  is a float, any other an integer, so `1` and `1.0` are two values, and a
+  truth value is no number. With negative zero and NaN gone, two floats are
+  equal exactly when they are equal numbers. Python takes `1 == 1.0` and
+  `True == 1`; csdfbmc and every glue compare kinds first.
+- A literal is held as its canonical JSON text (`clause.Lit`), so two
+  literals are one value exactly when their texts are equal, and it reaches
+  a glue in the evaluator protocol as the JSON value it is (P8, P12).
+- `true`, `false` and `null` are reserved words and a name does not start
+  with a digit, so that a literal is never read as a name (P13).
+- A literal adds no free variable (P2), is substituted by nothing (O2, O3)
+  and is no path. Permuting IDs (O10) does not permute a literal, so a
+  literal holding a symmetric ID refuses symmetry reduction (Q2).
+- A literal compared by `@eq` or `@ne` with a variable whose type lists all
+  its values, none of them the literal, is refused (O13): the clause would
+  be constant, which is a slip, not a meaning.
+- A free name that nothing binds - no state variable of the state, no field
+  of the event, no ∃ - is refused, never read as a free parameter: a free
+  parameter is an environment function, declared and given (P16).
+- In the provers (O8) a literal is a constructor of the value type applied
+  to pure data, with no axiom: `ValInt`, `ValString`, `ValBool`,
+  `ValArray`, `ValDict` and `ValFloat neg sig exp`, the float
+  (-1)^neg · sig · 2^exp in its canonical form (sig odd, or the zero
+  `ValFloat false 0 0`), which the well-formedness predicate requires, so
+  structural equality of the datatype is equality of floats without any
+  IEEE 754 library. Isabelle/HOL spells a string as the list of its UTF-8
+  bytes.
 
 ### Control state
 

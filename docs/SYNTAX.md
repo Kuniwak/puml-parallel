@@ -239,10 +239,39 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@empty(" term ")"               ; a map without entries
 exists   = "@exists(" id " : " id ") (" clause ")" ; written by tools only
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
-term     = id ["'"] *("[" term "]" / "." id) ["'"]
-         / id "(" [term *(", " term)] ")" ; an environment function
+term     = literal
+         / name ["'"] *("[" term "]" / "." name) ["'"]
+         / name "(" [term *(", " term)] ")" ; an environment function
+name     = id                            ; not starting with a digit, not true, false or null
+literal  = <a JSON value (RFC 8259) other than null and negative zero>
 holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 ```
+
+- A literal is a JSON value: an integer (`0`, `-7`, of any size), a float
+  (a number with a point or an exponent: `1.0`, `1e2`), a string
+  (`"在庫"`, with JSON's escapes), `true`, `false`, an array (`[1, "a"]`,
+  ordered) or an object (`{"a": 1}`, a record from string keys). `null` is
+  no value. A float is an IEEE 754 binary64: it is rounded to the nearest
+  one, and one beyond the largest (`1e400`), negative zero (`-0.0`, `-0`,
+  `-0e5`, or a negative number rounded to zero) and NaN or the infinities,
+  which JSON cannot write, are refused.
+- Literals are equal when they are the same value: `1` and `1.0` are two
+  values, an integer and a float, and `"1"` and `true` are neither; two
+  floats are equal when they are the same number. An object's key order and
+  the spaces in an array or object do not matter. The tools print a literal
+  in its canonical form: no spaces, an object's keys sorted, a float
+  shortest with a point or an exponent, and a string with its characters as
+  they are but `"`, `\`, control characters, `;` (written `\u003b`, since it
+  ends a clause on an edge) and `/` (written `\/`, since `/'` begins a comment).
+- A literal has no value after the step and is no path: `0'`, `{"a": 1}.a`
+  and `[1][0]` are refused. A literal may be a key (`m["k"]`), an argument
+  (`f(1)`) or a hole (`${[1, 2]}`).
+- `true`, `false` and `null` are reserved, and a name does not start with a
+  digit, so `@eq(n', 0)` compares `n` with the integer 0. A clause using one
+  as a variable, a field, a function or a bound name is refused.
+- A free name must be bound: before the step a state variable of the source
+  or a field of the event, after it (primed) a state variable of the target.
+  A name nothing binds is refused, never read as a parameter.
 
 - A `$name` hole ends where its name ends (`id`): whatever follows, `[`,
   `.`, `-` or anything else, is the atom's language. One space after any
@@ -250,7 +279,7 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   could continue a name or is another space, so `$在庫 が` and `${在庫} が`
   read the hole `在庫` and the text `が`, and `$x  が` the text ` が`.
 - `${term}` holds any term, for indexing, fields, environment functions
-  and names that start with a digit (`${1st}`). A trailing `'` primes the
+  and literals (`${[1, 2]}`). A trailing `'` primes the
   variable the path starts from: `${m[k].f'}` is the entry at `k` of `m`
   after the step. An environment function has no value after the step.
 - Only the variable a term starts from may be primed. A key, `m[k']`, or an
