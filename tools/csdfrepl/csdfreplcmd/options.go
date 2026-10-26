@@ -94,7 +94,7 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if err := checker.Validate(); err != nil {
+		if err := tools.ValidateCheckerOptions(checker); err != nil {
 			return nil, fmt.Errorf("csdfreplcmd.NewParseOptionsFunc: %w", err)
 		}
 		if flags.NArg() != 1 {

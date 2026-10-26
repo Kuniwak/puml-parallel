@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"strconv"
@@ -53,4 +54,23 @@ func parseBinding(word string) (bmc.Binding, error) {
 		return bmc.Binding{}, fmt.Errorf("-env expects NAME=true or NAME=false, not %q", word)
 	}
 	return bmc.Binding{Name: word[:i], Value: word[i+1:] == "true"}, nil
+}
+
+// ValidateCheckerOptions refuses the checker options csdfbmc could not run
+// with: a checks module needs a glue, a glue needs a checks module, the glue
+// has one form, and -seed and -env decide the functions a checks module
+// declares.
+func ValidateCheckerOptions(c bmc.Checker) error {
+	glue := c.Evaluator != "" || c.EvaluatorModule != ""
+	switch {
+	case c.Evaluator != "" && c.EvaluatorModule != "":
+		return errors.New("give -evaluator or -evaluator-module, not both")
+	case c.Checks != "" && !glue:
+		return errors.New("-checks needs a glue: csdfbmc reads every clause through one; pass -evaluator or -evaluator-module (csdfbmc.python_glue reads Python)")
+	case glue && c.Checks == "":
+		return errors.New("-evaluator and -evaluator-module need -checks, the module of the domains")
+	case (c.Seed != nil || len(c.Env) > 0) && c.Checks == "":
+		return errors.New("-seed and -env need -checks, whose ENVIRONMENT declares the functions they decide")
+	}
+	return nil
 }

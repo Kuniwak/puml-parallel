@@ -46,23 +46,6 @@ func (b Binding) String() string { return b.Name + "=" + strconv.FormatBool(b.Va
 // Asks reports whether the Checker is set, so that value prompts suggest.
 func (c Checker) Asks() bool { return c.Checks != "" }
 
-// Validate refuses a Checker that csdfbmc could not run: a checks module
-// needs a glue, a glue needs a checks module, and the glue has one form.
-func (c Checker) Validate() error {
-	glue := c.Evaluator != "" || c.EvaluatorModule != ""
-	switch {
-	case c.Evaluator != "" && c.EvaluatorModule != "":
-		return errors.New("give -evaluator or -evaluator-module, not both")
-	case c.Checks != "" && !glue:
-		return errors.New("-checks needs a glue: csdfbmc reads every clause through one; pass -evaluator or -evaluator-module (csdfbmc.python_glue reads Python)")
-	case glue && c.Checks == "":
-		return errors.New("-evaluator and -evaluator-module need -checks, the module of the domains")
-	case (c.Seed != nil || len(c.Env) > 0) && c.Checks == "":
-		return errors.New("-seed and -env need -checks, whose ENVIRONMENT declares the functions they decide")
-	}
-	return nil
-}
-
 // NextArgs are the arguments of "csdfbmc next" for the diagram JSON at path,
 // before what next is asked.
 func (c Checker) NextArgs(diagram string) []string {

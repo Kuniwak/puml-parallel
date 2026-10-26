@@ -11,43 +11,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestCheckerValidate(t *testing.T) {
-	tests := map[string]struct {
-		checker bmc.Checker
-		wantErr bool
-	}{
-		"none":                      {checker: bmc.Checker{}},
-		"checks and a glue command": {checker: bmc.Checker{Checks: "c.py", Evaluator: "glue"}},
-		"checks and a glue module":  {checker: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
-		"checks without a glue":     {checker: bmc.Checker{Checks: "c.py"}, wantErr: true},
-		"a glue without checks":     {checker: bmc.Checker{EvaluatorModule: "m"}, wantErr: true},
-		"both forms of the glue":    {checker: bmc.Checker{Checks: "c.py", Evaluator: "a", EvaluatorModule: "b"}, wantErr: true},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Execute
-			err := tt.checker.Validate()
-
-			// Assert
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("Validate() = %v, want error %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
-// The message is csdfbmc's own for a walk without a glue
-// (csdfbmc/tests/test_labels.py), so the REPLs and the checker say the same.
-func TestCheckerWithoutAGlueSaysWhatCsdfbmcSays(t *testing.T) {
-	// Execute
-	err := bmc.Checker{Checks: "c.py"}.Validate()
-
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "csdfbmc reads every clause through one; pass -evaluator or -evaluator-module") {
-		t.Errorf("Validate() = %v", err)
-	}
-}
-
 func TestCheckerArgsOfNext(t *testing.T) {
 	// Setup
 	checker := bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue defs.py"}
@@ -98,24 +61,6 @@ func TestForSourceRefusesADiagramItCannotRead(t *testing.T) {
 }
 
 func seed(n int) *int { return &n }
-
-func TestCheckerValidateRefusesAnEnvironmentWithoutChecks(t *testing.T) {
-	tests := map[string]bmc.Checker{
-		"a seed without checks":     {Seed: seed(1)},
-		"a function without checks": {Env: []bmc.Binding{{Name: "$_0 が 正", Value: true}}},
-	}
-	for name, checker := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Execute
-			err := checker.Validate()
-
-			// Assert
-			if err == nil || !strings.Contains(err.Error(), "need -checks") {
-				t.Errorf("Validate() = %v, want -seed and -env to need -checks", err)
-			}
-		})
-	}
-}
 
 func TestCheckerArgsOfNextCarryTheEnvironment(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}

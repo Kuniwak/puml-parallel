@@ -75,7 +75,7 @@ is refused.
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if err := checker.Validate(); err != nil {
+		if err := tools.ValidateCheckerOptions(checker); err != nil {
 			return nil, fmt.Errorf("csdfrepldcmd.NewParseOptionsFunc: %w", err)
 		}
 
