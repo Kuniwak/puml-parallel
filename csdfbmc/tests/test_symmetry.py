@@ -131,6 +131,30 @@ class RefusalTest(unittest.TestCase):
                 self.assertEqual(fixture.findings(full), fixture.findings(reduced))
 
 
+class FamilyKeyTest(unittest.TestCase):
+    def test_a_family_map_is_keyed_by_ids_iff_its_key_is_of_a_symmetric_type(self):
+        from csdfbmc.symmetry import Symmetry
+        look = edge("r", "r", "LOOK?x", guard=[builtin("at", idx("m", fld("x", "id")), state="open")])
+        types = {"k": ["a", "b", "c"], "n": [1, 2], "rec": record(id=["a", "b", "c"])}
+        tests = {
+            "a key of a symmetric type, though no clause indexes the map": ("k", [], True),
+            "a key of a type that is not symmetric, though a field that may hold an ID indexes the map": ("n", [look], False),
+            "a key of no type, and a field that may hold an ID indexes the map": ("x", [look], True),
+            "a key of no type, and no clause indexes the map": ("x", [], False),
+        }
+        for name, (key, edges, keyed) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = fixture.load(fixture.diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], edges=edges,
+                                                 families=[fixture.family("m", "none", {"none": [], "open": []}, key=key)]))
+
+                # Execute
+                sym = Symmetry(d, checks(types=types), fixture.glue(), environment.over({}, {}))
+
+                # Assert
+                self.assertEqual(keyed, "m" in sym.maps)
+
+
 class SameFindingsTest(unittest.TestCase):
     def test_the_attempts_example_finds_the_same_in_fewer_states(self):
         for options in ({}, {"avoid": "CONFIRMED"}, {"por": True, "cone": True}):
