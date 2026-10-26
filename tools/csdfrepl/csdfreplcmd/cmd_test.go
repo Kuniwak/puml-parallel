@@ -21,26 +21,30 @@ func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 	}
 	f := bmc.Binding{Name: "f", Value: false}
 	tests := map[string]struct {
+		report  bool
 		checker bmc.Checker
 		want    bmc.Checker
 		wantErr string
 	}{
-		"the report's seed":                  {checker: glue, want: with(seed(7))},
-		"the same seed and a given function": {checker: with(seed(7), f), want: with(seed(7), f)},
-		"another seed":                       {checker: with(seed(1)), wantErr: "not -seed 1"},
+		"the report's seed":                  {report: true, checker: glue, want: with(seed(7))},
+		"the same seed and a given function": {report: true, checker: with(seed(7), f), want: with(seed(7), f)},
+		"another seed":                       {report: true, checker: with(seed(1)), wantErr: "not -seed 1"},
 		"a function the run did not give": {
-			checker: with(nil, bmc.Binding{Name: "g", Value: true}), wantErr: `-env gives "g"`,
+			report: true, checker: with(nil, bmc.Binding{Name: "g", Value: true}), wantErr: `-env gives "g"`,
 		},
-		"no checker, which asks nothing": {checker: bmc.Checker{}, want: bmc.Checker{}},
+		"no checker, which asks nothing":     {report: true, checker: bmc.Checker{}, want: bmc.Checker{}},
+		"no report, which keeps the checker": {checker: with(seed(1)), want: with(seed(1))},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			path := filepath.Join(t.TempDir(), "findings.json")
-			if err := os.WriteFile(path, []byte(seededReport), 0o644); err != nil {
-				t.Fatal(err)
+			opts := &Options{Checker: tt.checker}
+			if tt.report {
+				opts.Replay = filepath.Join(t.TempDir(), "findings.json")
+				if err := os.WriteFile(opts.Replay, []byte(seededReport), 0o644); err != nil {
+					t.Fatal(err)
+				}
 			}
-			opts := &Options{Replay: path, Checker: tt.checker}
 
 			// Execute
 			replay, got, err := loadReplay(opts)
@@ -55,28 +59,12 @@ func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if replay == nil || string(replay.Initial) != "[0]" {
-				t.Errorf("loadReplay() replay = %+v, want the deadlock's", replay)
+			if tt.report != (replay != nil) || (replay != nil && string(replay.Initial) != "[0]") {
+				t.Errorf("loadReplay() replay = %+v, want the deadlock's, if any", replay)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("loadReplay() checker mismatch (-want +got):\n%s", diff)
 			}
 		})
-	}
-}
-
-func TestLoadReplayWithoutAReportKeepsTheChecker(t *testing.T) {
-	// Setup
-	checker := bmc.Checker{Checks: "c.py", EvaluatorModule: "g", Seed: seed(1)}
-
-	// Execute
-	replay, got, err := loadReplay(&Options{Checker: checker})
-
-	// Assert
-	if err != nil || replay != nil {
-		t.Fatalf("loadReplay() = %v, %v; want no replay", replay, err)
-	}
-	if diff := cmp.Diff(checker, got); diff != "" {
-		t.Errorf("loadReplay() checker mismatch (-want +got):\n%s", diff)
 	}
 }

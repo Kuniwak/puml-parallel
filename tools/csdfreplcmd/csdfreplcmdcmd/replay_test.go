@@ -3,6 +3,7 @@ package csdfreplcmdcmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
@@ -13,8 +14,9 @@ import (
 func TestParseReplaySendsTheEnvironmentOfTheReport(t *testing.T) {
 	seven := 7
 	tests := map[string]struct {
-		report string
-		want   *animation.Environment
+		report  string
+		want    *animation.Environment
+		wantErr string
 	}{
 		"a seeded run": {
 			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":["f"],"decided":[]}}`,
@@ -23,6 +25,10 @@ func TestParseReplaySendsTheEnvironmentOfTheReport(t *testing.T) {
 		"a report of no environment": {
 			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}]}`,
 			want:   nil,
+		},
+		"a report of no finding": {
+			report:  `{"deadlocks":[],"environment":{"seed":7,"given":[],"decided":[]}}`,
+			wantErr: "records no finding",
 		},
 	}
 	for name, tt := range tests {
@@ -38,6 +44,12 @@ func TestParseReplaySendsTheEnvironmentOfTheReport(t *testing.T) {
 			opts, err := parseReplay()([]string{path}, spy.New())
 
 			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("parseReplay() error = %v, want one saying %q", err, tt.wantErr)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}

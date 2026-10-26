@@ -12,8 +12,9 @@ func seed(n int) *int { return &n }
 
 func TestNewParseOptionsFuncTakesTheEnvironment(t *testing.T) {
 	tests := map[string]struct {
-		args []string
-		want bmc.Checker
+		args    []string
+		want    bmc.Checker
+		wantErr bool
 	}{
 		"nothing given": {
 			args: []string{"-checks", "c.py", "-evaluator-module", "g"},
@@ -22,6 +23,10 @@ func TestNewParseOptionsFuncTakesTheEnvironment(t *testing.T) {
 		"a seed and a function": {
 			args: []string{"-checks", "c.py", "-evaluator-module", "g", "-seed", "3", "-env", "f=true"},
 			want: bmc.Checker{Checks: "c.py", EvaluatorModule: "g", Seed: seed(3), Env: []bmc.Binding{{Name: "f", Value: true}}},
+		},
+		"a function without a checks module": {
+			args:    []string{"-env", "f=true"},
+			wantErr: true,
 		},
 	}
 	for name, tt := range tests {
@@ -33,6 +38,12 @@ func TestNewParseOptionsFuncTakesTheEnvironment(t *testing.T) {
 			opts, err := NewParseOptionsFunc()(tt.args, spy.New())
 
 			// Assert
+			if tt.wantErr {
+				if err == nil {
+					t.Error("want an error, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -40,18 +51,5 @@ func TestNewParseOptionsFuncTakesTheEnvironment(t *testing.T) {
 				t.Errorf("Checker mismatch (-want +got):\n%s", diff)
 			}
 		})
-	}
-}
-
-func TestNewParseOptionsFuncRefusesAnEnvironmentWithoutChecks(t *testing.T) {
-	// Setup
-	spy := cli.SpyProcInout()
-
-	// Execute
-	_, err := NewParseOptionsFunc()([]string{"-env", "f=true"}, spy.New())
-
-	// Assert
-	if err == nil {
-		t.Error("want an error, got nil")
 	}
 }
