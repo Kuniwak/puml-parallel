@@ -94,13 +94,16 @@ func (c Checker) NextArgs(diagram string) []string {
 
 // Suggester runs csdfbmc. Diagram is the JSON the checker reads (csdfparse's
 // output, or an expansion from csdfpromote -format json), Checker what it
-// reads besides, and Command the csdfbmc executable (found on the PATH, or
-// beside this binary, when empty).
+// reads besides, and Run what runs csdfbmc (RunCsdfbmc when nil).
 type Suggester struct {
 	Diagram string
 	Checker Checker
-	Command string
+	Run     Runner
 }
+
+// Runner runs csdfbmc with args and returns what it printed on its standard
+// output, or an error saying why it failed.
+type Runner func(args []string) ([]byte, error)
 
 // ForSource writes the diagram whose PlantUML source (or PNG) is src as
 // csdfparse prints it to a temporary file, and returns a Suggester reading
@@ -141,12 +144,35 @@ func (s *Suggester) Next(from csdf.RuntimeState, idx int) ([]animation.Suggestio
 }
 
 func (s *Suggester) run(args ...string) ([]animation.Suggestion, error) {
-	command, err := s.executable()
+	run := s.Run
+	if run == nil {
+		run = RunCsdfbmc
+	}
+	stdout, err := run(append(s.Checker.NextArgs(s.Diagram), args...))
 	if err != nil {
 		return nil, err
 	}
-	full := append(s.Checker.NextArgs(s.Diagram), args...)
-	cmd := exec.Command(command, full...)
+	var out struct {
+		Candidates []animation.Suggestion `json:"candidates"`
+	}
+	if err := json.Unmarshal(stdout, &out); err != nil {
+		return nil, fmt.Errorf("bmc.Suggester: csdfbmc next printed something that is not its JSON: %w", err)
+	}
+	if out.Candidates == nil {
+		out.Candidates = []animation.Suggestion{}
+	}
+	return out.Candidates, nil
+}
+
+// RunCsdfbmc runs the csdfbmc on the PATH, or beside the running binary (a
+// release unpacks every tool together), failing with what it printed on its
+// standard error.
+func RunCsdfbmc(args []string) ([]byte, error) {
+	command, err := executable()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(command, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -157,24 +183,10 @@ func (s *Suggester) run(args ...string) ([]animation.Suggestion, error) {
 		}
 		return nil, fmt.Errorf("bmc.Suggester: %s", msg)
 	}
-	var out struct {
-		Candidates []animation.Suggestion `json:"candidates"`
-	}
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
-		return nil, fmt.Errorf("bmc.Suggester: csdfbmc next printed something that is not its JSON: %w", err)
-	}
-	if out.Candidates == nil {
-		out.Candidates = []animation.Suggestion{}
-	}
-	return out.Candidates, nil
+	return stdout.Bytes(), nil
 }
 
-// executable finds csdfbmc: the configured command, the PATH, or the
-// directory of the running binary (a release unpacks every tool together).
-func (s *Suggester) executable() (string, error) {
-	if s.Command != "" {
-		return s.Command, nil
-	}
+func executable() (string, error) {
 	if path, err := exec.LookPath("csdfbmc"); err == nil {
 		return path, nil
 	}

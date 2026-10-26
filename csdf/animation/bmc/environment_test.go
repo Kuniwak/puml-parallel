@@ -2,6 +2,7 @@ package bmc_test
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,15 +45,23 @@ func newChecker(t *testing.T) checker {
 	return checker{python: python, root: root, checks: checks}
 }
 
-// command writes a csdfbmc that runs "next" from the checkout.
-func (c checker) command(t *testing.T) string {
+// run runs "csdfbmc next" from the checkout.
+func (c checker) run(t *testing.T) bmc.Runner {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "csdfbmc")
-	script := "#!/bin/sh\n[ \"$1\" = next ] || exit 9\nshift\nPYTHONPATH=" + c.root + " exec " + c.python + " -s -B -m csdfbmc.next \"$@\"\n"
-	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
+	return func(args []string) ([]byte, error) {
+		if len(args) == 0 || args[0] != "next" {
+			t.Fatalf("csdfbmc %v, want next", args)
+		}
+		cmd := exec.Command(c.python, append([]string{"-s", "-B", "-m", "csdfbmc.next"}, args[1:]...)...)
+		cmd.Env = append(os.Environ(), "PYTHONPATH="+c.root)
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, errors.New(stderr.String())
+		}
+		return out, nil
 	}
-	return path
 }
 
 // next asks csdfbmc next directly, with the given arguments after the inputs.
@@ -86,7 +95,7 @@ func TestSuggesterWithASeedSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Command = c.command(t)
+			s.Run = c.run(t)
 			state, _ := json.Marshal(zero)
 			want := c.next(t, s.Diagram, "--seed", strconv.Itoa(n), "--state", string(state), "--edge", "0")
 
@@ -121,7 +130,7 @@ func TestSuggesterTakesTheFunctionsGivenOverTheSeed(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Command = c.command(t)
+			s.Run = c.run(t)
 
 			// Execute
 			got, err := s.Next(zero, 0)
@@ -162,7 +171,7 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Command = c.command(t)
+			s.Run = c.run(t)
 
 			// Execute
 			_, err = s.Initial()
