@@ -4,71 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
-
-// SelfTransitionDivergenceRule reports a transition from a state back to
-// itself. Such an edge can be taken any number of times in a row, so the
-// diagram has the infinite trace prefix -> A -> A -> ... : the event repeats
-// without bound and the suffix after A never begins.
-//
-// A diagram written by an AI has far more of these than one written by hand,
-// because a state that should have been split is easier to write as a loop. The
-// loop is nonetheless often what the author meant - polling, retrying, adding
-// one more item - so this is a HINT: it asks for the trace to be read, and does
-// not claim the edge is wrong.
-type SelfTransitionDivergenceRule struct{}
-
-func (SelfTransitionDivergenceRule) ID() string { return "self-transition-divergence" }
-
-func (SelfTransitionDivergenceRule) Description() string {
-	return "A transition back to its own state can repeat without bound; check that the infinite trace is intended."
-}
-
-func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
-	if in.Diagram == nil {
-		return nil
-	}
-
-	var findings []Finding
-	for _, edge := range in.Diagram.Edges {
-		if edge.Src != edge.Dst {
-			continue
-		}
-		findings = append(findings, Finding{
-			File:      in.File,
-			StartLine: edge.Line,
-			EndLine:   edge.Line,
-			RuleID:    r.ID(),
-			Severity:  SeverityHint,
-			Message:   r.message(in.Diagram, edge),
-		})
-	}
-	return findings
-}
-
-func (r SelfTransitionDivergenceRule) message(d *core.Diagram, edge core.Edge) string {
-	// The label is written once, at the first mention: a state label is a
-	// sentence in some diagrams, and repeating it at every mention would bury
-	// the question the message asks.
-	state := fmt.Sprintf("`%s`", edge.Src)
-	intro := state
-	if name := d.Labels[edge.Src]; name != "" && name != edge.Src {
-		intro = fmt.Sprintf("`%s` (%s)", edge.Src, name)
-	}
-
-	if edge.Event.Channel == core.Tau {
-		return fmt.Sprintf(
-			"State %s has a tau self-transition, so the diagram admits the trace prefix -> %[2]s -> %[2]s -> ... in which nothing observable ever happens again: that is divergence, not a loop of work. Check whether this tau was meant to leave %[2]s, and if it was not, prove the diagram livelock-free with csdflivelockfree.",
-			intro, state,
-		)
-	}
-
-	return fmt.Sprintf(
-		"State %s has a self-transition on `%s`, so the diagram admits the trace prefix -> %[3]s -> %[3]s -> ... in which `%[2]s` repeats without bound and no suffix after %[3]s ever begins. Read that trace against the specification and answer: is every number of repetitions of `%[2]s` really allowed here, and does %[3]s really look the same after each one? If the repetitions are bounded, or if the system is in a different situation after `%[2]s` than before it, split %[3]s into the states before and after instead of looping.",
-		intro, edge.Event.Label(), state,
-	)
-}
 
 // SelfTransitionPostBreaksGuardRule reports a transition from a state back to
 // itself that has both a guard and a post. Predicates are natural language and

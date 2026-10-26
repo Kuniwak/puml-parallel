@@ -9,7 +9,7 @@ import (
 
 func TestRunAllKeepsTheInputsInTheOrderTheyWereGiven(t *testing.T) {
 	// Arrange: two files that each trip one rule.
-	first := lint.NewInput("first.puml", []byte("@startuml\nstate \"s0\" as s0\n[*] --> s0\ns0 --> s0 : a\n@enduml\n"))
+	first := lint.NewInput("first.puml", []byte("@startuml\nstate \"s0\" as s0\n[*] --> s0\ns0 --> s0 : tau\n@enduml\n"))
 	second := lint.NewInput("second.puml", []byte("@startuml\nbogus\n@enduml\n"))
 
 	// Act

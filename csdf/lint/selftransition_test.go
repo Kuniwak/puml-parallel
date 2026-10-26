@@ -7,7 +7,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/lint"
 )
 
-func TestSelfTransitionRules(t *testing.T) {
+func TestSelfTransitionPostBreaksGuardRule(t *testing.T) {
 	type testCase struct {
 		Rule           lint.Rule
 		Source         string
@@ -16,8 +16,6 @@ func TestSelfTransitionRules(t *testing.T) {
 		WantInMessages []string
 	}
 
-	// Both rules read the same shape, so they are checked against the same
-	// diagrams: what tells them apart is which edges each one speaks about.
 	both := strings.Join([]string{
 		"@startuml",
 		`state "s0" as s0`,
@@ -39,17 +37,6 @@ func TestSelfTransitionRules(t *testing.T) {
 	}, "\n")
 
 	testCases := map[string]testCase{
-		"divergence reports an edge back to its own state (representative value)": {
-			Rule:           lint.SelfTransitionDivergenceRule{},
-			Source:         bare,
-			WantRuleID:     "self-transition-divergence",
-			WantLine:       5,
-			WantInMessages: []string{"`a`", "`s0`"},
-		},
-		"divergence says nothing about an edge to another state (lower boundary value)": {
-			Rule:   lint.SelfTransitionDivergenceRule{},
-			Source: "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\n[*] --> s0\ns0 --> s1 : b\n@enduml\n",
-		},
 		"post-breaks-guard reports a self-transition with both a guard and a post (representative value)": {
 			Rule:           lint.SelfTransitionPostBreaksGuardRule{},
 			Source:         both,
