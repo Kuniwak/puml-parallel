@@ -8,9 +8,36 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf/promote"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
+
+// Output is what the expansion is written as.
+type Output int
+
+const (
+	// OutputPUML writes the expansion as PlantUML, which every other tool
+	// reads.
+	OutputPUML Output = iota
+	// OutputJSON writes the expansion as csdfparse prints a diagram.
+	OutputJSON
+)
+
+// The names of the Outputs, as -format takes them.
+const (
+	OutputNamePUML = "puml"
+	OutputNameJSON = "json"
+)
+
+// ParseOutput returns the Output named name.
+func ParseOutput(name string) (Output, error) {
+	switch name {
+	case OutputNamePUML:
+		return OutputPUML, nil
+	case OutputNameJSON:
+		return OutputJSON, nil
+	}
+	return 0, fmt.Errorf("unknown output %q (want %s or %s)", name, OutputNamePUML, OutputNameJSON)
+}
 
 type Options struct {
 	Common *tools.CommonOptions
@@ -25,7 +52,7 @@ type Options struct {
 	// Only names the families the expansion keeps, by map; empty keeps them
 	// all.
 	Only   []string
-	Output promote.Output
+	Output Output
 	Args   []string
 	Bytes  []byte
 }
@@ -95,7 +122,7 @@ Examples:
 		asJSON := flags.Bool("json", false, "print the parsed directives as JSON instead of expanding them")
 		only := flags.String("only", "", "comma-separated families to keep, each named by its map (default: all)")
 		var format string
-		flags.StringVar(&format, "format", promote.OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program such as csdfbmc, as csdfparse prints a diagram)")
+		flags.StringVar(&format, "format", OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program such as csdfbmc, as csdfparse prints a diagram)")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -112,7 +139,7 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		output, err := promote.ParseOutput(format)
+		output, err := ParseOutput(format)
 		if err != nil {
 			return nil, fmt.Errorf("csdfpromotecmd.NewParseOptionsFunc: %w", err)
 		}

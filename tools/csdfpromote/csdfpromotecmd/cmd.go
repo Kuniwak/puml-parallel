@@ -39,7 +39,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
 	var templates *coreio.Templates
-	if opts.Template != "" && opts.Output == promote.OutputJSON {
+	if opts.Template != "" && opts.Output == OutputJSON {
 		return errors.New("csdfpromotecmd.NewMainFunc: -template glosses the PUML output; -format json takes none")
 	}
 	if opts.Template != "" {
@@ -70,7 +70,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
-	if opts.Output == promote.OutputJSON {
+	if opts.Output == OutputJSON {
 		raw, err := core.MarshalDiagram(canonical)
 		if err != nil {
 			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
