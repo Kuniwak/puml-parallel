@@ -54,6 +54,31 @@ func TestEnterValuesTakesInstancesOfAFamily(t *testing.T) {
 	}
 }
 
+func TestEnterValuesReadsNegativeZeroAsZero(t *testing.T) {
+	// Setup
+	session, err := NewSession(promotedDiagram(), NoSuggester{})
+	if err != nil {
+		t.Fatalf("Setup: NewSession() error = %v", err)
+	}
+
+	// Execute
+	state, err := session.EnterValues(`[{"a": {"at": "opened", "fields": {"balance": -0}}}, -0.0]`)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("EnterValues() error = %v", err)
+	}
+	want := State{ID: "G", Name: "G", Values: []Value{
+		{Name: "accounts", Value: map[string]any{
+			"a": map[string]any{"at": "opened", "fields": map[string]any{"balance": jsonNumber("0")}},
+		}},
+		{Name: "total", Value: jsonNumber("0.0")},
+	}}
+	if diff := cmp.Diff(want, state); diff != "" {
+		t.Errorf("EnterValues() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 	tests := map[string]struct {
 		accounts string

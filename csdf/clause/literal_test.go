@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"math"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestParseLiteralIsTheCanonicalText(t *testing.T) {
@@ -101,6 +103,35 @@ func TestCanonicalValueReadsNegativeZeroAsZero(t *testing.T) {
 			// Assert
 			if err != nil || got != tt.want {
 				t.Fatalf("CanonicalValue() = %q, %v, want %q", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnsignedZerosWritesEveryNegativeZeroAsZero(t *testing.T) {
+	tests := map[string]struct {
+		value any
+		want  any
+	}{
+		"a float64":                    {value: math.Copysign(0, -1), want: 0.0},
+		"an integer as text":           {value: json.Number("-0"), want: json.Number("0")},
+		"a float as text":              {value: json.Number("-0.0"), want: json.Number("0.0")},
+		"a float with an exponent":     {value: json.Number("-0e5"), want: json.Number("0.0")},
+		"another number kept as typed": {value: json.Number("-1.50"), want: json.Number("-1.50")},
+		"in an array":                  {value: []any{json.Number("-0.0")}, want: []any{json.Number("0.0")}},
+		"in an object":                 {value: map[string]any{"k": json.Number("-0")}, want: map[string]any{"k": json.Number("0")}},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got := UnsignedZeros(tt.value)
+
+			// Assert
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Fatalf("UnsignedZeros() mismatch (-want +got):\n%s", diff)
+			}
+			if f, ok := got.(float64); ok && math.Signbit(f) {
+				t.Fatalf("UnsignedZeros() = -0.0")
 			}
 		})
 	}

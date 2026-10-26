@@ -203,6 +203,41 @@ func CanonicalFloat(f float64) string {
 	return s
 }
 
+// UnsignedZeros is v, a value as encoding/json decodes it (with or
+// without UseNumber), with every negative zero in it written as zero: a
+// float64 -0.0 as 0.0, and a number whose text is a zero with a sign as the
+// canonical text of zero, "0" or "0.0". Nothing in the language can tell
+// negative zero from zero, so a value read from outside passes through it
+// before it is kept, shown or sent on; any other number keeps its text.
+func UnsignedZeros(v any) any {
+	switch v := v.(type) {
+	case float64:
+		if v == 0 {
+			return 0.0
+		}
+	case json.Number:
+		text := string(v)
+		if strings.HasPrefix(text, "-") {
+			if c, err := canonicalNumber(text, IsFloatText(text)); err == nil && (c == "0" || c == "0.0") {
+				return json.Number(c)
+			}
+		}
+	case []any:
+		out := make([]any, len(v))
+		for i, x := range v {
+			out[i] = UnsignedZeros(x)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for k, x := range v {
+			out[k] = UnsignedZeros(x)
+		}
+		return out
+	}
+	return v
+}
+
 // FloatParts is the canonical form of the finite float f: f = (-1)^neg · sig
 // · 2^exp with sig odd, or neg false and sig and exp 0 for either zero.
 // Every such float has one, so two floats are one exactly when their forms

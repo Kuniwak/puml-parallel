@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
 
 // StateValue is a resolved value for a single state variable.
@@ -74,7 +76,7 @@ func SolveJSON(input PostSolverInput) PostSolverResult {
 	if err := ensureJSONEOF(decoder); err != nil {
 		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("csdf.SolveJSON: %w", err)}
 	}
-	values, ok := decoded.([]any)
+	values, ok := clause.UnsignedZeros(decoded).([]any)
 	if !ok {
 		return PostSolverResult{Kind: PostSolverResultSyntaxError, Err: fmt.Errorf("csdf.SolveJSON: invalid JSON array: %w", errValuesNotArray)}
 	}

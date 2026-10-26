@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
@@ -83,7 +84,7 @@ func decodeValues(d *core.Diagram, target Target, encoded string) ([]Value, erro
 	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
 		return nil, refused("unexpected trailing data after JSON array")
 	}
-	values, ok := decoded.([]any)
+	values, ok := clause.UnsignedZeros(decoded).([]any)
 	if !ok {
 		return nil, refused("invalid JSON array: top-level value must be an array")
 	}
