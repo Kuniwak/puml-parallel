@@ -1,7 +1,6 @@
 package csdfpromotecmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,7 +9,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/csdf/promote"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -24,10 +22,6 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			fmt.Fprintln(inout.Stdout, version.Version)
 			return nil
 		}
-		// -json prints the directives as csdf/promote parses them.
-		if opts.JSON {
-			return mainJSON(opts, inout)
-		}
 		return mainFormula(opts, inout)
 	}
 }
@@ -39,7 +33,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
 	var templates *coreio.Templates
-	if opts.Template != "" && opts.Output == promote.OutputJSON {
+	if opts.Template != "" && opts.Output == OutputJSON {
 		return errors.New("csdfpromotecmd.NewMainFunc: -template glosses the PUML output; -format json takes none")
 	}
 	if opts.Template != "" {
@@ -70,7 +64,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
-	if opts.Output == promote.OutputJSON {
+	if opts.Output == OutputJSON {
 		raw, err := core.MarshalDiagram(canonical)
 		if err != nil {
 			return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
@@ -101,18 +95,6 @@ func report(w io.Writer, warnings []core.Warning, werror bool) error {
 	}
 	if werror && warned {
 		return errors.New("the promotion has warnings and -Werror is set")
-	}
-	return nil
-}
-
-// mainJSON prints the directives as csdf/promote parses them (-json).
-func mainJSON(opts *Options, inout *cli.ProcInout) error {
-	global, err := promote.ParseGlobalBytes(opts.Bytes)
-	if err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-	}
-	if err := json.NewEncoder(inout.Stdout).Encode(global); err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: writing JSON: %w", err)
 	}
 	return nil
 }
