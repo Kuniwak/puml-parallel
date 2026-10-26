@@ -216,3 +216,18 @@ func TestReadRefusesAFieldReceivedOverAStateVariable(t *testing.T) {
 		})
 	}
 }
+
+func TestReadTagsARefusedClauseWithTheLineOfItsEdge(t *testing.T) {
+	// Execute: the clause on the fourth line is the old @opaque, which the
+	// formula reader refuses after the parser has read past that line.
+	_, err := Read("@startuml\nstate \"s0\" as s0\n[*] --> s0\ns0 --> s0 : a ; @opaque\n\n@enduml\n")
+
+	// Assert
+	var parseErr *csdf.ParseError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("want a *csdf.ParseError, got %v", err)
+	}
+	if parseErr.Line != 4 {
+		t.Errorf("line = %d, want 4", parseErr.Line)
+	}
+}

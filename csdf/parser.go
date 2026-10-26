@@ -821,10 +821,12 @@ func (p *Parser) parseEndEdge() (EndEdge, error) {
 }
 
 // checkClauses refuses a predicate the parser's check refuses, saying the
-// line it was written on and which predicate of the line it is.
+// line it was written on and which predicate of the line it is. The failure
+// is tagged with that line, not with where the parser stopped, which is past
+// it; the column is 0, since the clause's own position is not the line's.
 func (p *Parser) checkClauses(line int, which string, pred Predicate) error {
 	if err := p.check(pred); err != nil {
-		return fmt.Errorf("line %d, the %s: %w", line, which, err)
+		return &ParseError{Line: line, err: fmt.Errorf("line %d, the %s: %w", line, which, err)}
 	}
 	return nil
 }

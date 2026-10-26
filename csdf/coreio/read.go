@@ -37,7 +37,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		_, err := parse(string(p))
 		return err
 	}
-	src, err := csdf.NewParserCheckingClauses(source, check).Parse()
+	src, err := csdf.NewParserCheckingClauses(source, check).ParseAt()
 	if err != nil {
 		return nil, csdf.WithPromotionHint(err, source)
 	}

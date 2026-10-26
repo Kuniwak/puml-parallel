@@ -1,6 +1,7 @@
 package csdf
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -86,10 +87,15 @@ func parseAt(source string) (*Diagram, error) {
 }
 
 // ParseAt parses as Parse does and tags a failure with the position the
-// parser stopped at, as a *ParseError.
+// parser stopped at, as a *ParseError, unless the failure already says
+// where it is.
 func (p *Parser) ParseAt() (*Diagram, error) {
 	diagram, err := p.Parse()
 	if err != nil {
+		var tagged *ParseError
+		if errors.As(err, &tagged) {
+			return nil, err
+		}
 		return nil, &ParseError{Line: p.line, Col: p.col, err: err}
 	}
 	return diagram, nil
