@@ -215,7 +215,7 @@ class Explorer:
         self.checks = checks
         self.environment = environment
         self.meaning = AtomMeaning(client, environment, checks.domain)
-        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(checks.environment))
+        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given))
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
@@ -248,10 +248,11 @@ class Explorer:
 
     def _check_environment(self) -> None:
         """Refuses what the environment cannot decide: a declared function
-        nothing gives, listing every one; a declared name
-        that names no atom of the diagram; and a function given as Python
+        nothing gives or a term applies, listing every one; a declared name
+        that names no atom or applied function of the diagram; and a function given as Python
         that does not take the atom's arguments."""
-        arity = {a.function: len(a.args) for a, _, _ in self.d.atoms()}
+        applied = self.d.applied()
+        arity = {**applied, **{a.function: len(a.args) for a, _, _ in self.d.atoms()}}
         unknown = [n for n in self.environment.declared if n not in arity]
         if unknown:
             raise ValueError(f"the environment declares {', '.join(map(repr, sorted(unknown)))}, which names no atom of the diagram")
@@ -260,7 +261,7 @@ class Explorer:
                 n = arity[name]
                 raise ValueError(f"{name!r} has {n} argument{'' if n == 1 else 's'}, but the function given takes other arguments; "
                                  "give a function of the arguments, in order")
-        self.environment.check_decided()
+        self.environment.check_decided(applied)
 
     # -- values ----------------------------------------------------------------
 

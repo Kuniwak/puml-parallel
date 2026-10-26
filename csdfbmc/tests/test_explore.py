@@ -220,17 +220,38 @@ class EnvironmentTest(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "が凍結されていない"):
             fixture.explorer(self.FROZEN).run()
 
+    # FROZEN guarded further by a term applying the environment function next.
+    FROZEN_NEXT = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
+        edge("a", "a", "inc", guard=[atom("$n が凍結されていない"), atom("$n < 2"),
+                                     builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("n")]}, "n")],
+             post=[atom("$n' == $n + 1")])])
+
     def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
         tests = {
-            "a declared function nothing gives": ({"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
-            "a declared name of no atom": ({"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no atom of the diagram"),
-            "a function of other arguments": ({"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
+            "a declared function nothing gives": (self.FROZEN, {"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
+            "a declared name of no atom": (self.FROZEN, {"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no atom of the diagram"),
+            "a function of other arguments": (self.FROZEN, {"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
+            "an applied function nothing gives, listed with a declared one": (
+                self.FROZEN_NEXT, {"$_0 が凍結されていない": None},
+                "^nothing decides the environment's functions '\\$_0 が凍結されていない', 'next'; "),
+            "an applied function given a truth value": (
+                self.FROZEN_NEXT, {"$_0 が凍結されていない": True, "next": True}, "^the environment function 'next' is applied in a term, so it needs a function"),
         }
-        for name, (module, said) in tests.items():
+        for name, (d, module, said) in tests.items():
             with self.subTest(name):
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, said):
-                    fixture.explorer(self.FROZEN, environment=environment.over(module, {}))
+                    fixture.explorer(d, environment=environment.over(module, {}))
+
+    def test_an_applied_function_is_given_in_the_environment(self):
+        # Setup
+        env = environment.over({"$_0 が凍結されていない": True, "next": lambda n: n + 1}, {})
+
+        # Execute
+        result = fixture.explorer(self.FROZEN_NEXT, environment=env).run()
+
+        # Assert
+        self.assertEqual(3, len(result.states))
 
 
 class PropertyTest(unittest.TestCase):

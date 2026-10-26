@@ -69,7 +69,16 @@ class RefusalTest(unittest.TestCase):
                 "'\\$_0 が 予約済み'.*tells the symmetric IDs apart"),
             "a function of the environment given as Python whose result is no renaming": (
                 ids_only(ONE_WAY, builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
-                checks(environment={"next": lambda k: {"a": "b", "b": "c", "c": "a"}[k]}), {}, "'next'.*tells the symmetric IDs apart"),
+                checks(), {"environment": environment.over({"next": lambda k: {"a": "b", "b": "c", "c": "a"}[k]}, {})},
+                "'next'.*tells the symmetric IDs apart"),
+            "an applied function nothing gives, listed with a declared one": (
+                ids_only(ONE_WAY, atom("$k が 予約済み"), builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
+                checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})},
+                "^nothing decides the environment's functions '\\$_0 が 予約済み', 'next'; "),
+            "an applied function given a truth value": (
+                ids_only(ONE_WAY, builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
+                checks(), {"environment": environment.over({"next": True}, {})},
+                "^the environment function 'next' is applied in a term, so it needs a function"),
             "an invariant naming an ID": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"x": lambda m: "a" not in m}\n'), {}, "checks.py:3.*'a'"),
             "an invariant sorting a map of IDs": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"x": lambda m: sorted(m) != []}\n'), {}, "sorted orders m"),
         }

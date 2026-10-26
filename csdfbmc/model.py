@@ -360,6 +360,12 @@ class Diagram:
     def out_edges(self, sid: str) -> list[Edge]:
         return [e for e in self.edges if e.src == sid]
 
+    def applied(self) -> dict[str, int]:
+        """The environment functions the terms of the diagram apply (App),
+        each with the number of its arguments."""
+        clauses = [self.start_post] + [c for e in self.edges for c in (e.guard, e.post)] + [x.guard for x in self.ends]
+        return {t.fn: len(t.args) for clause in clauses for t in terms(clause) if isinstance(t, App)}
+
     def atoms(self) -> list[tuple[Atom, Edge | None, str]]:
         """Every atom of the diagram, with its edge (None for the start and
         end edges) and the role of its clause, guard or post."""
