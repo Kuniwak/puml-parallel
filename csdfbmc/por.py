@@ -35,25 +35,8 @@ from __future__ import annotations
 
 from typing import Callable
 
-from csdfbmc.model import Builtin, Diagram, Edge, Exists, Free, Index, free_names, root
+from csdfbmc.model import Builtin, Diagram, Edge, Exists, Free, Index, free_names, primed_roots
 from csdfbmc.checks import Checks, property_reads
-
-
-def _primed_roots(clause) -> set[str]:
-    out: set[str] = set()
-
-    def walk(x):
-        if isinstance(x, Exists):
-            for b in x.body:
-                walk(b)
-        elif hasattr(x, "args"):
-            for a in x.args:
-                r = root(a)
-                if isinstance(r, Free) and r.primed:
-                    out.add(r.name)
-    for c in clause:
-        walk(c)
-    return out
 
 
 def _only_at(clause, m: str, p: str) -> bool:
@@ -91,7 +74,7 @@ def own_key(e: Edge, m: str) -> str | None:
     """The field of e whose instance of m it moves alone; None when it
     moves no instance alone."""
     names = free_names(e.guard) | free_names(e.post)
-    if _primed_roots(e.post) != {m} or not names <= {m} | set(e.params):
+    if primed_roots(e.post) != {m} or not names <= {m} | set(e.params):
         return None
     for p in e.params:
         if _only_at(e.guard, m, p) and _only_at(e.post, m, p):
@@ -115,9 +98,9 @@ class PartialOrder:
         edges = self.d.out_edges(g)
         out: dict[str, dict[str, str]] = {}
         if all(e.dst == g and not e.is_tau for e in edges):
-            for m in set().union(*(_primed_roots(e.post) for e in edges)) - self.property_reads:
-                own = [e for e in edges if m in _primed_roots(e.post)]
-                others = [e for e in edges if m not in _primed_roots(e.post)]
+            for m in set().union(*(primed_roots(e.post) for e in edges)) - self.property_reads:
+                own = [e for e in edges if m in primed_roots(e.post)]
+                others = [e for e in edges if m not in primed_roots(e.post)]
                 keys = {id(e): own_key(e, m) for e in own}
                 if (all(keys[id(e)] is not None and e.name not in self.ghost_events for e in own)
                         and all(m not in free_names(e.guard) | free_names(e.post) for e in others)):
