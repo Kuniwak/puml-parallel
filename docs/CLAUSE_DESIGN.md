@@ -359,8 +359,10 @@ them. If one is, the state is reported as the bound reached, with that step
 as the witness; otherwise it is a deadlock. An enabling value beyond the
 sample is itself a witness that a value of the real type enables a step, so
 no data independence is needed, however the clauses tell the values apart;
-and a state no value beyond gives a way out is a deadlock as before, so a
-real deadlock is never hidden. That the values beyond are values of the
+and a state no value beyond gives a way out is a deadlock as before, so the
+state being judged never hides a real deadlock. This is about that state
+only: no state is explored from a value beyond the sample, so a deadlock
+reachable only through such values is not found; that is the bound. That the values beyond are values of the
 real type is the user's responsibility, as the sample is.
 
 Q5 is read only from builtins, never from atoms, whose text the tools do not

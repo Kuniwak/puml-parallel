@@ -912,7 +912,10 @@ This is sound with no restriction on how the diagram tells values apart. A
 state reported as the bound reached comes with a witness: a value of the
 real type that gives the state a way out, so it is not a deadlock of the
 real type. A state none of the values beyond gives a way out is reported as
-a deadlock, as without the sample, so a real deadlock is never hidden. An
+a deadlock, as without the sample, so the state being judged never hides a
+real deadlock. This is about that state only: the walk does not go on from
+a value beyond the sample, so a deadlock reachable only through such values
+is not explored; that is the bound. An
 atom may order the values or compare them with constants; a witness it
 allows is still a witness. What csdfbmc cannot check is that the values
 `beyond` are values of the real type: that is the user's to keep, as it is
