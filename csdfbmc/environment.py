@@ -10,7 +10,10 @@ an error. A key gives the function True, False or a pure function of the
 arguments in order, or None, which declares it and leaves it to
 --env NAME=true|false. --env may name only a declared function; a declared
 function nothing gives is refused before the walk, listing every one, and
-so is a declared name that names no atom of the diagram. A function is
+so is a declared name that names no function of the diagram. A function a
+term applies (App) is a function of the environment too: given in
+ENVIRONMENT as a pure function of its arguments, refused in the same list
+when nothing gives it, and refused when given a truth value. A function is
 given, never chosen: nothing approximates an undecided one
 (docs/CLAUSE_DESIGN.md, P16). A run that wants a pseudo-random function
 writes it in ENVIRONMENT, where it stays visible and reviewable.
@@ -32,7 +35,7 @@ what it declares and what reproduces it.
 """
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Callable
 
@@ -92,6 +95,22 @@ class Environment:
     declared: frozenset[str]
     given: Mapping[str, Given]
     env: Mapping[str, bool]
+
+    def check_decided(self, applied: Iterable[str]) -> None:
+        """Refuses a function nothing gives, listing every one: a declared
+        one, or one a term applies (applied, csdfbmc.model.Diagram.applied);
+        nothing approximates an undecided function, so the walk does not
+        start. Then refuses a function a term applies given a truth value:
+        a term needs a value of its arguments, not a truth value."""
+        applied = set(applied)
+        undecided = sorted(n for n in self.declared | applied if n not in self.given)
+        if undecided:
+            raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
+                             "give each in ENVIRONMENT or with --env NAME=true|false")
+        for n in sorted(applied):
+            if not callable(self.given[n]):
+                raise ValueError(f"the environment function {n!r} is applied in a term, so it needs a function of its arguments, "
+                                 f"not {self.given[n]!r}; give it as a function in ENVIRONMENT")
 
     def to_json(self) -> dict:
         return {"given": sorted(self.given), "env": dict(sorted(self.env.items()))}

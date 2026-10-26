@@ -179,7 +179,7 @@ class Explorer:
     through (csdfbmc.protocol.checked gives it); environment declares and
     decides the others (csdfbmc.environment). Before the walk, a declared
     function nothing gives is refused, listing every
-    one, and so is a declared name that names no atom of the diagram.
+    one, and so is a declared name that names no function of the diagram.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -215,7 +215,7 @@ class Explorer:
         self.checks = checks
         self.environment = environment
         self.meaning = AtomMeaning(client, environment, checks.domain)
-        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(checks.environment))
+        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given))
         self.max_states = max_states
         self.avoid = avoid
         self.within = set(within) if within else None
@@ -248,22 +248,20 @@ class Explorer:
 
     def _check_environment(self) -> None:
         """Refuses what the environment cannot decide: a declared function
-        nothing gives, listing every one; a declared name
-        that names no atom of the diagram; and a function given as Python
+        nothing gives or a term applies, listing every one; a declared name
+        that names no function of the diagram; and a function given as Python
         that does not take the atom's arguments."""
-        arity = {a.function: len(a.args) for a, _, _ in self.d.atoms()}
+        applied = self.d.applied()
+        arity = {**applied, **{a.function: len(a.args) for a, _, _ in self.d.atoms()}}
         unknown = [n for n in self.environment.declared if n not in arity]
         if unknown:
-            raise ValueError(f"the environment declares {', '.join(map(repr, sorted(unknown)))}, which names no atom of the diagram")
+            raise ValueError(f"the environment declares {', '.join(map(repr, sorted(unknown)))}, which names no function of the diagram")
         for name, g in self.environment.given.items():
             if callable(g) and not _takes(g, arity[name]):
                 n = arity[name]
                 raise ValueError(f"{name!r} has {n} argument{'' if n == 1 else 's'}, but the function given takes other arguments; "
                                  "give a function of the arguments, in order")
-        undecided = sorted(n for n in self.environment.declared if n not in self.environment.given)
-        if undecided:
-            raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
-                             "give each in ENVIRONMENT or with --env NAME=true|false")
+        self.environment.check_decided(applied)
 
     # -- values ----------------------------------------------------------------
 

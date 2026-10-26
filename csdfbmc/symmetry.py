@@ -75,6 +75,7 @@ class Symmetry:
         self._check_types(checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
         self._checked: set = set()
+        environment.check_decided(d.applied())
         self._check_atoms(d, checks, client, environment)
         self._check_sources(checks)
 
@@ -153,14 +154,14 @@ class Symmetry:
             for c, types in conjuncts(clause, ()):
                 for t in terms(c):
                     if isinstance(t, App) and any(self._carries(a, types, self.ids, self.fields) for a in t.args):
-                        self._check_given(t.fn, checks.environment.get(t.fn), t.args, types, checks)
+                        self._check_given(t.fn, environment.given[t.fn], t.args, types, checks)
                 if not isinstance(c, Atom):
                     continue
                 maps = [i for i, a in enumerate(c.args) if isinstance(a, Free) and a.name in self.maps]
                 params = [i for i, a in enumerate(c.args) if i not in maps and self._carries(a, types, self.ids, self.fields)]
                 if c.function in environment.declared:
                     if params or maps:
-                        self._check_given(c.function, environment.given.get(c.function), c.args, types, checks)
+                        self._check_given(c.function, environment.given[c.function], c.args, types, checks)
                     continue
                 key = (c.function, tuple(c.primed), tuple(params), tuple(maps))
                 if key in asked:
@@ -175,13 +176,10 @@ class Symmetry:
         given a constant, or a function that renaming the IDs of its
         arguments renames the IDs of its result: f(π x) = π f(x) for every
         renaming π and every value x of its arguments, so a truth value
-        does not change. One given nothing is refused: nothing can show it
-        renames alike."""
+        does not change. Environment.check_decided has refused one given
+        nothing, and a truth value for one a term applies."""
         if isinstance(given, bool):
             return
-        if not callable(given):
-            raise ValueError(f"the function of the environment {name!r} reads a symmetric ID and is given nothing; "
-                             "give it in ENVIRONMENT, or drop its type from SYMMETRIC")
         key = (name, args, types)
         if key in self._checked:
             return

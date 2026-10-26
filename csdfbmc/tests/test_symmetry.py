@@ -58,13 +58,27 @@ class RefusalTest(unittest.TestCase):
             "an atom comparing an ID with a constant": (ids_only(ONE_WAY, atom("$k != 'a'")), checks(), {}, "tells the symmetric IDs apart.*'a'"),
             "an atom ordering IDs": (ids_only(ONE_WAY, exists("k", atom("${} < $k", fixture.bound(0)))), checks(), {}, "ordered"),
             "a function of the environment nothing gives": (
-                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})}, "nothing decides|given nothing"),
+                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})},
+                "^nothing decides the environment's functions '\\$_0 が 予約済み'; give each in ENVIRONMENT or with --env NAME=true\\|false$"),
+            "two functions of the environment nothing gives": (
+                ids_only(ONE_WAY, atom("$k が 予約済み"), atom("$k が 空き")), checks(),
+                {"environment": environment.over({"$_0 が 予約済み": None, "$_0 が 空き": None}, {})},
+                "^nothing decides the environment's functions '\\$_0 が 予約済み', '\\$_0 が 空き'; "),
             "a function of the environment given as Python that tells IDs apart": (
                 ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k == "a"}, {})},
                 "'\\$_0 が 予約済み'.*tells the symmetric IDs apart"),
             "a function of the environment given as Python whose result is no renaming": (
                 ids_only(ONE_WAY, builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
-                checks(environment={"next": lambda k: {"a": "b", "b": "c", "c": "a"}[k]}), {}, "'next'.*tells the symmetric IDs apart"),
+                checks(), {"environment": environment.over({"next": lambda k: {"a": "b", "b": "c", "c": "a"}[k]}, {})},
+                "'next'.*tells the symmetric IDs apart"),
+            "an applied function nothing gives, listed with a declared one": (
+                ids_only(ONE_WAY, atom("$k が 予約済み"), builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
+                checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})},
+                "^nothing decides the environment's functions '\\$_0 が 予約済み', 'next'; "),
+            "an applied function given a truth value": (
+                ids_only(ONE_WAY, builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
+                checks(), {"environment": environment.over({"next": True}, {})},
+                "^the environment function 'next' is applied in a term, so it needs a function"),
             "an invariant naming an ID": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"x": lambda m: "a" not in m}\n'), {}, "checks.py:3.*'a'"),
             "an invariant sorting a map of IDs": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"x": lambda m: sorted(m) != []}\n'), {}, "sorted orders m"),
         }
@@ -73,6 +87,16 @@ class RefusalTest(unittest.TestCase):
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, said):
                     fixture.explorer(d, c, symmetry=True, **options)
+
+    def test_a_symmetry_built_alone_refuses_every_undecided_function_first(self):
+        # Setup
+        from csdfbmc.symmetry import Symmetry
+        d = fixture.load(ids_only(ONE_WAY, atom("$k が 予約済み"), atom("$k が 空き")))
+        env = environment.over({"$_0 が 予約済み": None, "$_0 が 空き": None}, {})
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "^nothing decides the environment's functions '\\$_0 が 予約済み', '\\$_0 が 空き'; "):
+            Symmetry(d, checks(), fixture.glue(), env)
 
     def test_an_id_an_atom_puts_where_none_was_foreseen_is_refused(self):
         # Setup: last has no type, and only the atom puts an ID in it, so the
