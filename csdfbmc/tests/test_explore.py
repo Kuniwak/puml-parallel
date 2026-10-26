@@ -178,15 +178,19 @@ class FieldTest(unittest.TestCase):
         tests = {
             "a value of the type": ({"n": [0, 1]}, lit(1)),
             "a value beyond the sample of the type": ({"n": sample([0, 1], [2])}, lit(5)),
-            "a type no name has": ({"n": [0, 1]}, lit(0)),
+            "a type TYPES does not declare": ({"m": [0, 1]}, lit(5)),
         }
         for name, (types, value) in tests.items():
             with self.subTest(name):
                 # Setup
                 d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(0))], edges=[edge("a", "a", "c", post=[eq("n'", value)])])
 
-                # Execute, Assert
-                fixture.explorer(d, Checks(types=types))
+                # Execute
+                got = fixture.explorer(d, Checks(types=types))
+
+                # Assert
+                self.assertIs(d["edges"][0]["post"][0]["args"][1], value)
+                self.assertIsNotNone(got)
 
     def test_a_hidden_field_is_chosen_under_its_exists(self):
         # Setup: hiding c?x leaves ∃x in the guard and the post.

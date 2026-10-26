@@ -235,8 +235,10 @@ func (t *TermDoc) UnmarshalJSON(raw []byte) error {
 		t.Field = &fd
 	case "app":
 		t.App = &ap
-	default:
+	case "lit":
 		t.Lit = &lt
+	default:
+		return fmt.Errorf("a term of the kind %q, which no case reads", kind)
 	}
 	return nil
 }

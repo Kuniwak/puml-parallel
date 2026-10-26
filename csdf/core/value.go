@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -57,7 +58,17 @@ func Key(v Value) string {
 		}
 		return "[" + strings.Join(parts, ",") + "]"
 	}
-	if s, err := clause.CanonicalValue(v); err == nil {
+	s, err := clause.CanonicalValue(v)
+	switch v.(type) {
+	case float64, json.Number:
+		if err != nil {
+			// A number with no literal form - NaN, an infinity or
+			// negative zero - is refused where it enters; one here is a
+			// bug, which no key may hide.
+			panic(fmt.Sprintf("core.Key: %v", err))
+		}
+	}
+	if err == nil {
 		return s
 	}
 	return fmt.Sprintf("%v", v)

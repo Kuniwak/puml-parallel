@@ -78,13 +78,16 @@ def literal(value) -> Lit:
             raise ValueError("a literal holds null, which is no value")
         if isinstance(v, float) and not math.isfinite(v):
             raise ValueError(f"a literal holds the float {v!r}, which is not finite")
+        if isinstance(v, str) and any(0xD800 <= ord(c) <= 0xDFFF for c in v):
+            raise ValueError(f"a literal holds {v!r}, a lone surrogate, which is no character")
         if isinstance(v, float) and v == 0 and math.copysign(1, v) < 0:
             raise ValueError("a literal holds negative zero, which is no value")
         if isinstance(v, list):
             for x in v:
                 check(x)
         elif isinstance(v, dict):
-            for x in v.values():
+            for k, x in v.items():
+                check(k)
                 check(x)
         elif not isinstance(v, (bool, int, float, str, dict, list)):
             raise ValueError(f"a literal holds {v!r}, which is no JSON value")

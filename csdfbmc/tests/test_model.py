@@ -127,7 +127,8 @@ class LiteralTest(unittest.TestCase):
     def test_a_literal_that_is_no_value_is_refused(self):
         from csdfbmc.model import term_of
         for name, value, said in [("null", None, "null"), ("negative zero", -0.0, "negative zero"),
-                                  ("negative zero in an array", [1, -0.0], "negative zero"), ("infinity", float("inf"), "not finite")]:
+                                  ("negative zero in an array", [1, -0.0], "negative zero"), ("infinity", float("inf"), "not finite"),
+                                  ("a lone surrogate", "\ud800", "lone surrogate")]:
             with self.subTest(name), self.assertRaisesRegex(ValueError, said):
                 term_of({"kind": "lit", "value": value})
 
