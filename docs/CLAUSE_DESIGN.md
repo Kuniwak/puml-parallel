@@ -24,7 +24,9 @@ syntax.
   rest (README, bounded model checking).
   Until event fields and state variables carry types of their own, each
   has the type named like it (or the one `TYPEOF` gives); an obligation
-  that binds them types them so.
+  that binds them types them so. A family's key (the promote directive's
+  ID parameter) is typed by its name the same way, so composing diagrams
+  whose same-named keys mean different types needs distinct key names.
 
 ## Semantic ground
 

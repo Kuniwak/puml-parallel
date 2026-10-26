@@ -139,8 +139,6 @@ class FamilyKeyTest(unittest.TestCase):
         tests = {
             "a key of a symmetric type, though no clause indexes the map": ("k", [], True),
             "a key of a type that is not symmetric, though a field that may hold an ID indexes the map": ("n", [look], False),
-            "a key of no type, and a field that may hold an ID indexes the map": ("x", [look], True),
-            "a key of no type, and no clause indexes the map": ("x", [], False),
         }
         for name, (key, edges, keyed) in tests.items():
             with self.subTest(name):
@@ -153,6 +151,16 @@ class FamilyKeyTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(keyed, "m" in sym.maps)
+
+    def test_refuses_a_family_whose_key_has_no_type(self):
+        from csdfbmc.symmetry import Symmetry
+        # Setup
+        d = fixture.load(fixture.diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")],
+                                         families=[fixture.family("m", "none", {"none": [], "open": []}, key="x")]))
+
+        # Execute / Assert
+        with self.assertRaisesRegex(ValueError, "^give 'x' a type in TYPES or TYPEOF"):
+            Symmetry(d, checks(types={"k": ["a", "b", "c"]}), fixture.glue(), environment.over({}, {}))
 
 
 class SameFindingsTest(unittest.TestCase):

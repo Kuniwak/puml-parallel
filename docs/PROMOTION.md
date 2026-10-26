@@ -36,7 +36,13 @@ through `TYPEOF`, is the domain of the map; its local states, its start
 state, which is absence, and the variables each local state holds, so that
 csdfbmc gives an instance at a local state exactly that state's variables,
 and `--symmetry` knows a map keyed by the IDs of a symmetric type from its
-key. Version 3 added the key; a reader refuses another version.
+key. The rule: a family's map is keyed by IDs iff its key's type is
+symmetric, and `--symmetry` refuses a key with no type (exit 2: give it a
+type in `TYPES` or `TYPEOF`). A key is typed by its name, like every state
+variable and event field (docs/CLAUSE_DESIGN.md), so two composed families
+whose keys share a name share one type; composing diagrams whose
+same-named keys mean different types needs distinct key names.
+Version 3 added the key; a reader refuses another version.
 The formula promotion keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
 families and hand-written global edges, variables of the global state that

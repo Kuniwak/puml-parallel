@@ -1070,7 +1070,8 @@ all of a group, as a type does, names none), ordering one, or sorting, or
 taking the min or max of, one or a map keyed by them. The builtins and `∃`
 never tell IDs apart. What may hold an ID is read from the types and the
 builtins: a family's map is keyed by IDs exactly when its `key` (the promote
-directive's ID parameter, in the diagram JSON) has a symmetric type, and a
+directive's ID parameter, in the diagram JSON) has a symmetric type, a key
+with no type is refused (give it one in `TYPES` or `TYPEOF`), and a
 map of no such family when a term that may hold an ID indexes it; an atom's output is the glue's, so a state in which a variable,
 a field or a ghost holds an ID where none was foreseen is refused during
 the walk: csdfbmc exits 2 and reports no finding, not even those met

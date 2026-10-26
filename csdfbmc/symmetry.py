@@ -74,11 +74,21 @@ class Symmetry:
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self.d = d
         self._check_types(checks)
+        self._check_keys(d, checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
         self._checked: set = set()
         environment.check_decided(d.applied())
         self._check_atoms(d, checks, client, environment)
         self._check_sources(checks)
+
+    @staticmethod
+    def _check_keys(d: Diagram, checks: Checks) -> None:
+        """A family's map is keyed by IDs iff its key's type is symmetric, so
+        a key with no type is refused rather than guessed from the clauses."""
+        for f in d.families.values():
+            if not checks.declares(f.key):
+                raise ValueError(f"give {f.key!r} a type in TYPES or TYPEOF: --symmetry knows whether the map of its family "
+                                 "is keyed by IDs from the type of its key")
 
     # -- what may hold an ID -------------------------------------------------------
 
@@ -96,9 +106,9 @@ class Symmetry:
     def _holding(self, d: Diagram, checks: Checks) -> tuple[set[str], set[str], set[str]]:
         """The names that may hold an ID, the fields that may, and the maps
         an ID indexes. A family's map is keyed by IDs iff the type of its key
-        (the promote directive's ID parameter) is symmetric; only the map of
-        a family whose key has no type is found from the clauses, as any
-        other map: one a term that may hold an ID indexes."""
+        (the promote directive's ID parameter) is symmetric (a key with no type
+        was refused before); any other map is found from the clauses: one a
+        term that may hold an ID indexes."""
         ids: set[str] = set()
         fields: set[str] = set()
         for name, values in checks.typed_names().items():
@@ -107,7 +117,7 @@ class Symmetry:
                     ids.add(name)
                 if isinstance(v, Mapping):
                     fields |= {f for f, x in v.items() if isinstance(f, str) and self._holds(x)}
-        keyed = {m: checks.type_of(f.key) in checks.symmetric for m, f in d.families.items() if checks.declares(f.key)}
+        keyed = {m: checks.type_of(f.key) in checks.symmetric for m, f in d.families.items()}
         maps: set[str] = {m for m, by_ids in keyed.items() if by_ids}
         ids |= maps
         clauses = [d.start_post] + [c for e in d.edges for c in (e.guard, e.post)] + [x.guard for x in d.ends]
