@@ -65,9 +65,8 @@ class GlueTest(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("csdfbmc reads version 2", err)
 
-    def test_the_options_of_reductions_not_back_yet_and_both_glues_are_refused(self):
-        for name, args in {"both forms": ("--evaluator", "x", "--evaluator-module", "y"),
-                           "--symmetry": ("--evaluator-module", "csdfbmc.python_glue", "--symmetry")}.items():
+    def test_both_glues_are_refused(self):
+        for name, args in {"both forms": ("--evaluator", "x", "--evaluator-module", "y")}.items():
             with self.subTest(name):
                 # Execute, Assert
                 with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
@@ -137,6 +136,31 @@ class ReductionCommandTest(unittest.TestCase):
         self.assertLess(int(reduced.splitlines()[0].split()[1]), 27)
         self.assertEqual(REDUCED_BY.format("--por"), reduced.splitlines(keepends=True)[1])
         self.assertEqual(full.splitlines()[1].split(" ×")[0], reduced.splitlines()[2].split(" ×")[0])
+
+
+    def test_symmetry_walks_fewer_states_and_reports_the_same(self):
+        # Setup
+        from csdfbmc.tests.test_por import ONE_WAY
+        checks = 'TYPES = {"k": ["a", "b", "c"]}\nSYMMETRIC = ["k"]\n'
+
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--symmetry", d=ONE_WAY, checks=checks)
+
+        # Assert
+        self.assertEqual(1, code, err)
+        self.assertEqual("states: 10", out.splitlines()[0])
+
+    def test_symmetry_that_the_checks_refuse_is_a_loading_error(self):
+        # Setup
+        from csdfbmc.tests.test_por import ONE_WAY
+        checks = 'TYPES = {"k": ["a", "b", "c"]}\nSYMMETRIC = ["k"]\nINVARIANTS = {"x": lambda m: "a" not in m}\n'
+
+        # Execute
+        code, _, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--symmetry", d=ONE_WAY, checks=checks)
+
+        # Assert
+        self.assertEqual(2, code)
+        self.assertIn("the constant 'a' names one symmetric ID", err)
 
 
 class EnvironmentCommandTest(unittest.TestCase):

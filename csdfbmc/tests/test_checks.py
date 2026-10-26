@@ -139,6 +139,16 @@ class LoadChecksTest(unittest.TestCase):
         self.assertIsNone(checks.environment["$m が 負"])
         self.assertTrue(checks.environment["在庫 が 十分"](在庫=2))
 
+    def test_loads_the_symmetric_types_of_a_module(self):
+        # Setup
+        path = self.write('TYPES = {"k": ["a", "b"]}\nSYMMETRIC = ["k"]\n')
+
+        # Execute
+        checks = load_checks(path)
+
+        # Assert
+        self.assertEqual(("k",), checks.symmetric)
+
     def test_refuses_a_module_that_would_otherwise_be_misread(self):
         # Setup
         cases = [
@@ -148,6 +158,7 @@ class LoadChecksTest(unittest.TestCase):
             ("the DOMAINS an earlier csdfbmc read, which would be ignored", 'DOMAINS = {"額": [1]}\n', "TYPES"),
             ("a TYPEOF naming no type", 'TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n', "口座ID"),
             ("the CLAUSES an earlier csdfbmc read, which a glue reads now", "TYPES = {}\nCLAUSES = {}\n", "glue"),
+            ("a SYMMETRIC that lists no names", 'TYPES = {}\nSYMMETRIC = "k"\n', "SYMMETRIC must list"),
         ]
         for name, source, message in cases:
             with self.subTest(name):
