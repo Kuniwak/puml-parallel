@@ -144,6 +144,20 @@ def reads(fn: Callable) -> set[str] | None:
     return {p.name for p in params}
 
 
+def property_reads(checks: Checks, why: str) -> set[str]:
+    """The names the invariants and the ghost updates read; refused when one
+    takes any keyword, since what it reads cannot be told."""
+    out: set[str] = set()
+    what = [(f"the invariant {name!r}", fn) for name, fn in checks.invariants.items()]
+    what += [(f"the update of ghost {g!r} on {event}", fn) for g, (_, updates) in checks.ghosts.items() for event, fn in updates.items()]
+    for name, fn in what:
+        names = reads(fn)
+        if names is None:
+            raise ValueError(f"{why} needs to know what {name} reads, but it takes any keyword; name its parameters")
+        out |= names
+    return out
+
+
 def apply(fn: Callable, env: dict, *, what: str):
     """Calls fn with the names its signature asks for, taken from env."""
     params = inspect.signature(fn).parameters

@@ -134,6 +134,34 @@ def free_names(t, primed: bool | None = None) -> set[str]:
     return out
 
 
+def terms(f):
+    """Every term f holds at any depth, f a term, a conjunct or a clause;
+    the conjuncts under ∃ too."""
+    stack = [f]
+    while stack:
+        x = stack.pop()
+        if isinstance(x, tuple):
+            stack += list(x)
+        elif isinstance(x, Exists):
+            stack += list(x.body)
+        elif isinstance(x, (Atom, Builtin)):
+            stack += list(x.args)
+        else:
+            yield x
+            if isinstance(x, Index):
+                stack += [x.map, x.key]
+            elif isinstance(x, Field):
+                stack.append(x.of)
+            elif isinstance(x, App):
+                stack += list(x.args)
+
+
+def primed_roots(f) -> set[str]:
+    """The variables f names after the step, by the roots of its terms: what
+    it may give a value; under ∃ too."""
+    return {root(t).name for t in terms(f) if is_primed(t)}
+
+
 def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str, ...] = ()) -> dict:
     """doc, refused unless it has every key required and no key beyond
     those and optional: the JSON is what csdfparse writes, and nothing else

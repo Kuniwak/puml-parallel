@@ -27,22 +27,8 @@ any keyword, is refused: what it reads cannot be told.
 """
 from __future__ import annotations
 
-from csdfbmc.checks import Checks, reads
-from csdfbmc.model import Builtin, Diagram, Free, free_names, root
-
-
-def property_reads(checks: Checks, why: str) -> set[str]:
-    """The names the invariants and the ghost updates read; refused when one
-    takes any keyword, since what it reads cannot be told."""
-    out: set[str] = set()
-    what = [(f"the invariant {name!r}", fn) for name, fn in checks.invariants.items()]
-    what += [(f"the update of ghost {g!r} on {event}", fn) for g, (_, updates) in checks.ghosts.items() for event, fn in updates.items()]
-    for name, fn in what:
-        names = reads(fn)
-        if names is None:
-            raise ValueError(f"{why} needs to know what {name} reads, but it takes any keyword; name its parameters")
-        out |= names
-    return out
+from csdfbmc.checks import Checks, property_reads
+from csdfbmc.model import Builtin, Diagram, Free, free_names, primed_roots
 
 
 def _copy(c) -> tuple[str, str] | None:
@@ -52,24 +38,6 @@ def _copy(c) -> tuple[str, str] | None:
             if isinstance(x, Free) and x.primed and isinstance(y, Free) and not y.primed:
                 return x.name, y.name
     return None
-
-
-def _written(c) -> set[str]:
-    """The variables a conjunct gives a value after the step, by their roots."""
-    out: set[str] = set()
-
-    def walk(x):
-        if hasattr(x, "args"):
-            for a in x.args:
-                r = root(a)
-                if isinstance(r, Free) and r.primed:
-                    out.add(r.name)
-                walk(a)
-        elif hasattr(x, "body"):
-            for b in x.body:
-                walk(b)
-    walk(c)
-    return out
 
 
 def left_out(d: Diagram, checks: Checks) -> tuple[str, ...]:
@@ -85,7 +53,7 @@ def left_out(d: Diagram, checks: Checks) -> tuple[str, ...]:
     for post in [d.start_post] + [e.post for e in d.edges]:
         writers: dict[str, int] = {}
         for c in post:
-            for x in _written(c):
+            for x in primed_roots(c):
                 writers[x] = writers.get(x, 0) + 1
         for c in post:
             copy = _copy(c)
