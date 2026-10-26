@@ -179,7 +179,7 @@ class Explorer:
     through (csdfbmc.protocol.checked gives it); environment declares and
     decides the others (csdfbmc.environment). Before the walk, a declared
     function nothing gives is refused, listing every
-    one, and so is a declared name that names no atom of the diagram.
+    one, and so is a declared name that names no function of the diagram.
 
     avoid names an event; the walk then also reports every cycle among the
     reachable states that performs no transition of that event. Under a
@@ -249,13 +249,13 @@ class Explorer:
     def _check_environment(self) -> None:
         """Refuses what the environment cannot decide: a declared function
         nothing gives or a term applies, listing every one; a declared name
-        that names no atom or applied function of the diagram; and a function given as Python
+        that names no function of the diagram; and a function given as Python
         that does not take the atom's arguments."""
         applied = self.d.applied()
         arity = {**applied, **{a.function: len(a.args) for a, _, _ in self.d.atoms()}}
         unknown = [n for n in self.environment.declared if n not in arity]
         if unknown:
-            raise ValueError(f"the environment declares {', '.join(map(repr, sorted(unknown)))}, which names no atom of the diagram")
+            raise ValueError(f"the environment declares {', '.join(map(repr, sorted(unknown)))}, which names no function of the diagram")
         for name, g in self.environment.given.items():
             if callable(g) and not _takes(g, arity[name]):
                 n = arity[name]

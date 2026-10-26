@@ -10,7 +10,7 @@ an error. A key gives the function True, False or a pure function of the
 arguments in order, or None, which declares it and leaves it to
 --env NAME=true|false. --env may name only a declared function; a declared
 function nothing gives is refused before the walk, listing every one, and
-so is a declared name that names no atom of the diagram. A function a
+so is a declared name that names no function of the diagram. A function a
 term applies (App) is a function of the environment too: given in
 ENVIRONMENT as a pure function of its arguments, refused in the same list
 when nothing gives it, and refused when given a truth value. A function is

@@ -229,7 +229,7 @@ class EnvironmentTest(unittest.TestCase):
     def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
         tests = {
             "a declared function nothing gives": (self.FROZEN, {"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
-            "a declared name of no atom": (self.FROZEN, {"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no atom of the diagram"),
+            "a declared name of no atom": (self.FROZEN, {"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no function of the diagram"),
             "a function of other arguments": (self.FROZEN, {"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
             "an applied function nothing gives, listed with a declared one": (
                 self.FROZEN_NEXT, {"$_0 が凍結されていない": None},
