@@ -21,6 +21,7 @@ The declaration is refused when anything could tell two IDs apart:
   for every renaming of the IDs and every value of its arguments' types,
   renaming the arguments renames the result, and leaves a truth value as
   it is (tried at load; an argument with no type to list is refused);
+- a literal of a clause holding an ID, which names it as a constant;
 - the checks module's source, the ghosts, the invariants and the functions
   it gives, naming an ID as a constant (a literal listing every ID of its
   group, as a type does, names none), ordering an ID, or sorting, taking
@@ -47,7 +48,7 @@ from collections.abc import Mapping
 from csdfbmc import formal
 from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
-from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, conjuncts, is_primed, root, terms
+from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, Lit, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
 from csdfbmc.values import FrozenMap, Rec, freeze, same_value
 
@@ -73,6 +74,7 @@ class Symmetry:
         self.perms = [dict(itertools.chain.from_iterable(zip(sorted(g), perm) for g, perm in zip(groups, combo)))
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self.d = d
+        self._check_literals(d)
         self._check_types(checks)
         self._check_keys(d, checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
@@ -155,7 +157,26 @@ class Symmetry:
             return any(self._carries(a, types, ids, fields) for a in t.args)
         return False
 
+    def _named(self, v):
+        """An ID v holds, or None."""
+        if isinstance(v, str):
+            return v if v in self.values else None
+        if isinstance(v, Mapping):
+            v = [x for kv in v.items() for x in kv]
+        if isinstance(v, (tuple, list, frozenset)):
+            return next((i for i in map(self._named, v) if i is not None), None)
+        return None
+
     # -- the checks --------------------------------------------------------------
+
+    def _check_literals(self, d: Diagram) -> None:
+        """Refuses a literal of a clause that holds an ID: it names one ID
+        as a constant, which renaming would not follow."""
+        clauses = [d.start_post] + [c for e in d.edges for c in (e.guard, e.post)] + [x.guard for x in d.ends]
+        for t in (t for clause in clauses for t in terms(clause)):
+            if isinstance(t, Lit) and (i := self._named(t.value)) is not None:
+                raise ValueError(f"the literal {t.text} names the symmetric ID {i!r}, which tells the IDs apart; "
+                                 "drop its type from SYMMETRIC or change the clause")
 
     def _check_types(self, checks: Checks) -> None:
         for t, values in checks.types.items():

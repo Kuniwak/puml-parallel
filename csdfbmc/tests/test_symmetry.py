@@ -6,7 +6,7 @@ import unittest
 from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, edge, exists, fld, idx
+from csdfbmc.tests.fixture import atom, builtin, edge, exists, fld, idx, lit
 from csdfbmc.tests.test_explore import ACCOUNTS
 from csdfbmc.tests.test_por import CLOSE, OPEN, ONE_WAY, with_guard
 from csdfbmc.values import record, sample
@@ -79,6 +79,8 @@ class RefusalTest(unittest.TestCase):
                 ids_only(ONE_WAY, builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
                 checks(), {"environment": environment.over({"next": True}, {})},
                 "^the environment function 'next' is applied in a term, so it needs a function"),
+            "a literal naming an ID": (ids_only(ONE_WAY, builtin("ne", "k", lit("a"))), checks(), {}, "the literal \"a\" names the symmetric ID 'a'"),
+            "a literal naming an ID inside an array": (ids_only(ONE_WAY, atom("${} が 空き", lit(["b"]))), checks(), {}, "the literal \\[\"b\"\\] names the symmetric ID 'b'"),
             "an invariant naming an ID": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"x": lambda m: "a" not in m}\n'), {}, "checks.py:3.*'a'"),
             "an invariant sorting a map of IDs": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"x": lambda m: sorted(m) != []}\n'), {}, "sorted orders m"),
         }
