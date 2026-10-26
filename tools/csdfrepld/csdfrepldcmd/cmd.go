@@ -25,7 +25,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		sock := tools.ResolveSocketPath(opts.Sock, inout.Env)
-		service := proto.NewService(version.Version, opts.Common.Debug())
+		check := proto.EnvironmentCheck(proto.AnyEnvironment)
+		if opts.Checker.Asks() {
+			check = opts.Checker.Agrees
+		}
+		service := proto.NewService(version.Version, opts.Common.Debug(), check)
 		if opts.Checker.Asks() {
 			service.SetSuggesters(func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
 				if diagramJSON != "" {
@@ -33,7 +37,6 @@ func NewMainFunc() cli.MainFunc[*Options] {
 				}
 				return bmc.ForSource(source, opts.Checker)
 			})
-			service.SetEnvironmentCheck(opts.Checker.Agrees)
 		}
 
 		interrupts := make(chan os.Signal, 1)

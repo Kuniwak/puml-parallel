@@ -37,8 +37,8 @@ type Service struct {
 	// when the daemon has no checker.
 	suggesters SuggesterFactory
 	// environmentCheck refuses a replay whose report was made in an
-	// environment the suggesters do not walk; nil checks nothing.
-	environmentCheck func(*animation.Environment) error
+	// environment the suggesters do not walk.
+	environmentCheck EnvironmentCheck
 }
 
 // SuggesterFactory builds a session's suggester from its diagram's source
@@ -50,24 +50,28 @@ type SuggesterFactory func(source []byte, diagramJSON string) (animation.Suggest
 // suggests values at its prompts and accepts statevar picks.
 func (s *Service) SetSuggesters(f SuggesterFactory) { s.suggesters = f }
 
-// SetEnvironmentCheck makes replay refuse, before walking, a path whose
-// report's environment check refuses: the daemon's checker is fixed when it
-// starts, and its suggestions after the path would otherwise not be what
-// csdfbmc saw there.
-func (s *Service) SetEnvironmentCheck(check func(*animation.Environment) error) {
-	s.environmentCheck = check
-}
+// EnvironmentCheck refuses, before a replay walks, a path whose report's
+// environment (nil when the report has none) is not the one the daemon's
+// checker walks: the daemon's checker is fixed when it starts, and its
+// suggestions after the path would otherwise not be what csdfbmc saw there.
+type EnvironmentCheck func(*animation.Environment) error
+
+// AnyEnvironment is the EnvironmentCheck of a daemon whose sessions suggest
+// nothing, for which every environment is alike.
+func AnyEnvironment(*animation.Environment) error { return nil }
 
 // NewService returns a Service that reports the given version and resolves
 // state-variable values with csdf.SolveJSON. When debug is false, errors are
 // surfaced as their deepest (prefix-free) message; when true, the full wrapped
-// chain is surfaced.
-func NewService(version string, debug bool) *Service {
+// chain is surfaced. environmentCheck refuses a replay of a report made in
+// another environment; AnyEnvironment refuses none.
+func NewService(version string, debug bool, environmentCheck EnvironmentCheck) *Service {
 	return &Service{
-		sessions: map[string]*entry{},
-		version:  version,
-		solver:   csdf.SolveJSON,
-		debug:    debug,
+		sessions:         map[string]*entry{},
+		version:          version,
+		solver:           csdf.SolveJSON,
+		debug:            debug,
+		environmentCheck: environmentCheck,
 	}
 }
 
@@ -267,10 +271,8 @@ func (s *Service) handleReplay(req Request) Response {
 	if req.Replay == nil {
 		return errorResponse("replay requires a recorded path")
 	}
-	if s.environmentCheck != nil {
-		if err := s.environmentCheck(req.Environment); err != nil {
-			return s.errorFromErr(err)
-		}
+	if err := s.environmentCheck(req.Environment); err != nil {
+		return s.errorFromErr(err)
 	}
 	if err := e.session.Replay(*req.Replay); err != nil {
 		return s.errorFromErr(err)
