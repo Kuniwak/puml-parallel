@@ -47,3 +47,17 @@ func Canonical(d *core.Diagram) (*core.Diagram, error) {
 	}
 	return &out, nil
 }
+
+// WriteCanonical writes d in its canonical order, as Write writes
+// Canonical(d).
+func WriteCanonical(d *core.Diagram) (string, error) {
+	canonical, err := Canonical(d)
+	if err != nil {
+		return "", fmt.Errorf("coreio.WriteCanonical: %w", err)
+	}
+	text, err := Write(canonical)
+	if err != nil {
+		return "", fmt.Errorf("coreio.WriteCanonical: %w", err)
+	}
+	return text, nil
+}
