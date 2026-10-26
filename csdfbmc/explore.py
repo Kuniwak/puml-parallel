@@ -50,7 +50,7 @@ class Result:
     tau_cycles: list[list[State]]
     truncated: bool
     bound: int
-    # environment: the seed and the given functions of the environment, and
+    # environment: the given functions of the environment, and
     # the functions it decided an atom by (csdfbmc.environment); what a run
     # needs to be reproduced.
     environment: dict
@@ -178,7 +178,7 @@ class Explorer:
     client is the glue every atom the environment does not declare is read
     through (csdfbmc.protocol.checked gives it); environment declares and
     decides the others (csdfbmc.environment). Before the walk, a declared
-    function nothing gives and no seed chooses is refused, listing every
+    function nothing gives is refused, listing every
     one, and so is a declared name that names no atom of the diagram.
 
     avoid names an event; the walk then also reports every cycle among the
@@ -248,7 +248,7 @@ class Explorer:
 
     def _check_environment(self) -> None:
         """Refuses what the environment cannot decide: a declared function
-        nothing gives and no seed chooses, listing every one; a declared name
+        nothing gives, listing every one; a declared name
         that names no atom of the diagram; and a function given as Python
         that does not take the atom's arguments."""
         arity = {a.function: len(a.args) for a, _, _ in self.d.atoms()}
@@ -261,9 +261,9 @@ class Explorer:
                 raise ValueError(f"{name!r} has {n} argument{'' if n == 1 else 's'}, but the function given takes other arguments; "
                                  "give a function of the arguments, in order")
         undecided = sorted(n for n in self.environment.declared if n not in self.environment.given)
-        if undecided and self.environment.seed is None:
+        if undecided:
             raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
-                             "give each in ENVIRONMENT or with --env NAME=true|false, or choose them with --seed N")
+                             "give each in ENVIRONMENT or with --env NAME=true|false")
 
     # -- values ----------------------------------------------------------------
 

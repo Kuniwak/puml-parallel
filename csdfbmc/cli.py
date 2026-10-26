@@ -25,7 +25,6 @@ LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError, Po
 def add_inputs(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output, or csdfpromote -format json's)")
     ap.add_argument("checks", help="the Python module holding TYPES and, when wanted, TYPEOF, ENVIRONMENT, GHOSTS and INVARIANTS")
-    ap.add_argument("--seed", type=int, metavar="N", help="choose from this seed the functions of the environment the checks module declares and nothing gives; without it such a function is refused (csdfbmc.environment)")
     ap.add_argument("--env", action="append", default=[], metavar="NAME=true|false",
                     help="give the function of the environment NAME, which the checks module's ENVIRONMENT declares, the value true or false (repeatable)")
     glue = ap.add_mutually_exclusive_group()
@@ -35,14 +34,14 @@ def add_inputs(ap: argparse.ArgumentParser) -> None:
 
 def environment(a: argparse.Namespace, checks: Checks) -> Environment:
     """The environment the arguments and the checks module give: --env over
-    ENVIRONMENT, and --seed for the rest."""
+    ENVIRONMENT; nothing decides the rest."""
     given = {}
     for word in a.env:
         name, sep, value = word.rpartition("=")
         if not sep or not name or value not in ("true", "false"):
             raise ValueError(f"--env expects NAME=true or NAME=false, not {word!r}")
         given[name] = value == "true"
-    return environments.over(checks.environment, given, a.seed)
+    return environments.over(checks.environment, given)
 
 
 @contextmanager

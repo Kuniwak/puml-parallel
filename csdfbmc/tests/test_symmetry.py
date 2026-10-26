@@ -57,10 +57,10 @@ class RefusalTest(unittest.TestCase):
             "a type holding some IDs only": (ONE_WAY, checks(types={"k": ["a", "b", "c"], "j": ["a"]}), {}, "'j' are not closed"),
             "an atom comparing an ID with a constant": (ids_only(ONE_WAY, atom("$k != 'a'")), checks(), {}, "tells the symmetric IDs apart.*'a'"),
             "an atom ordering IDs": (ids_only(ONE_WAY, exists("k", atom("${} < $k", fixture.bound(0)))), checks(), {}, "ordered"),
-            "a function of the environment a seed decides": (
-                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {}, 1)}, "seed"),
+            "a function of the environment nothing gives": (
+                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})}, "nothing decides|given nothing"),
             "a function of the environment given as Python that tells IDs apart": (
-                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k == "a"}, {}, None)},
+                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k == "a"}, {})},
                 "'\\$_0 が 予約済み'.*tells the symmetric IDs apart"),
             "a function of the environment given as Python whose result is no renaming": (
                 ids_only(ONE_WAY, builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("k")]}, "k")),
@@ -91,9 +91,9 @@ class RefusalTest(unittest.TestCase):
             "an atom looking an ID up": (ids_only(ONE_WAY, atom("$k not in $m")), checks(), {}),
             "an atom ordering what an ID indexes": (dict(ONE_WAY, edges=[OPEN, with_guard(CLOSE, atom("${} >= 0", fld(idx("m", "k"), "bal")))]), checks(), {}),
             "a function of the environment given a constant": (
-                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": True}, {}, None)}),
+                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": True}, {})}),
             "a function of the environment given as Python that renames with the IDs": (
-                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k in ("a", "b", "c")}, {}, None)}),
+                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k in ("a", "b", "c")}, {})}),
             "a type of records of IDs": (ONE_WAY, checks(types={"k": ["a", "b", "c"], "r": record(id=["a", "b", "c"])}), {}),
         }
         for name, (d, c, options) in tests.items():

@@ -48,7 +48,7 @@ class AtomMeaning:
     def _decide(self, atom: Atom, args: tuple) -> bool:
         value = self.environment.decide(atom.function, args)
         if value is None:
-            raise ValueError(f"the environment decides nothing for {atom.function!r}; give it in ENVIRONMENT or with --env, or choose it with --seed N")
+            raise ValueError(f"the environment decides nothing for {atom.function!r}; give it in ENVIRONMENT or with --env")
         self.decided.setdefault(atom.function)
         return value
 

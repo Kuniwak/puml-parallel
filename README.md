@@ -847,17 +847,17 @@ value of `口座`, and every atom with that text, on any edge and in a guard
 or a post alike, is the same function. A key names a function so, and
 `csdfbmc` never reads an atom's text itself. A key gives the function `True`,
 `False` or a pure function taking the arguments in order, or `None`, which
-declares it and leaves it to `--env NAME=true|false` or to `--seed N`.
-`--env` may name only a declared function, and `--seed` chooses,
-deterministically by hashing the seed, the name and the values of the
-arguments, only the declared functions nothing gives, so that one seed walks
-the same states again and several seeds widen what the bound covers. A post
+declares it and leaves it to `--env NAME=true|false`. `--env` may name only
+a declared function. A function is given, never chosen: there is no
+`--seed`, for a function chosen at random is a structureless predicate that
+says no more than the guards left unknown; a pseudo-random function, if
+wanted, is written in `ENVIRONMENT` (with `hashlib`, say). A post
 atom the environment decides is decided for each value of its types after
 the step. A key of `ENVIRONMENT` may also give an environment function a
 term applies (`${f(x)}`), by its name, as a pure function of the values.
-Before the walk, csdfbmc refuses a declared function nothing gives and no
-seed chooses, listing every one, and a declared name that names no atom of
-the diagram; nothing is approximated. The report names the seed, the given
+Before the walk, csdfbmc refuses a declared function nothing gives, listing
+every one, and a declared name that names no atom of
+the diagram; nothing is approximated. The report names the given
 functions and the ones an atom was decided by (`environment` in `--json`),
 which is what reproduces a run.
 
@@ -1032,7 +1032,7 @@ refused when anything could tell two IDs apart: a type not closed under
 renaming them; an atom the glue says does, asked of every atom with the
 arguments that may hold an ID and the maps an ID indexes (the evaluator
 protocol's `symmetric` request; a glue that does not answer it is refused);
-a function of the environment reading an ID that a seed would decide, or
+a function of the environment reading an ID that nothing gives, or
 given as Python that does not commute with renaming (tried at load for
 every renaming and every value of its arguments' types: renaming the
 arguments must rename the result, and leave a truth value as it is); or

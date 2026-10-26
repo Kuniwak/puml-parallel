@@ -20,7 +20,7 @@ syntax.
   them the pure functions that atoms without a glue denote (see P15, P16).
   An environment function is written `envfn` below. The environment
   replaced the separate `DOMAINS` csdfbmc read: its checks module declares
-  `TYPES`, `TYPEOF` and `ENVIRONMENT`, and `--env` and `--seed` give the
+  `TYPES`, `TYPEOF` and `ENVIRONMENT`, and `--env` gives the
   rest (README, bounded model checking).
   Until event fields and state variables carry types of their own, each
   has the type named like it (or the one `TYPEOF` gives); an obligation
@@ -334,7 +334,7 @@ Each property names the operators that need it.
 | P13 | Reserved words are told apart from the author's words, with escapes | O12, O13 |
 | P14 | Identifiers may use Unicode | O12 |
 | P15 | Every operator is defined on a diagram whose atoms are not all formalised; such an atom is an uninterpreted function of its arguments | O7, O8, O11 |
-| P16 | The environment consists of types and typed constants, given from outside through one channel; a counterexample is reported with its environment so that it can be reproduced | O7 |
+| P16 | The environment consists of types and typed constants, given from outside through one channel; a counterexample is reported with its environment so that it can be reproduced; a function not given is refused, never chosen (no seed) | O7 |
 
 Optimisations need information but not meaning; they must never change a
 result:
@@ -392,26 +392,29 @@ and `$a と $b と $b` is the other function `$_0 と $_1 と $_1`; one name has
 one arity. Atoms with the same such text denote the same function, on every edge
 and in every component, whatever their holes are called; no position,
 numbering or table outside the diagram names one. A declared function is
-given, by the checks module or the command line, or chosen from a seed; one
-that is neither is refused, never approximated, and the refusal lists every
-such function. A seed chooses only declared functions, and a declared or
-given name that names no function of the diagram is refused too.
+given, by the checks module or the command line; one that is not is
+refused, never approximated, and the refusal lists every such function. A
+declared or given name that names no function of the diagram is refused
+too.
 
-A seed chooses a function by hashing the seed, the function's name and the
-values of its arguments, and nothing else, so a change elsewhere in the
-diagram leaves the choice alone. Values are hashed in a canonical encoding
-that equal values share whatever order a set or a mapping iterates in;
-tuples and lists are encoded alike, as sequences.
+A declared function is never chosen for the user, by a seed or otherwise.
+A seed-chosen function would be an arbitrary, structureless predicate:
+what bounded checking finds under it says no more than the structure of
+the diagram with its guards unknown, and a run under it gives a false
+sense of coverage. A user who wants pseudo-random functions writes them
+in the checks module's `ENVIRONMENT` (with `hashlib`, say), where they
+stay visible and reviewable; an undecided function stays refused, listed,
+never approximated.
 
 Types and constants differ in how long a value lives, and that difference
 is semantic: a field of an event ranges over its type anew at every event
 (the x of `c?x → P`), while a constant is fixed for the whole run, a free
 parameter of the process; that is why an environment function is pure.
 What they share is how they are declared and supplied: one environment,
-given from the checks module, the command line or a seed. Narrowing a type
-(Q4) narrows every field and every function space over it at once; running
-with different seeds widens what bounded checking covers, and the seed
-reproduces a counterexample (P16).
+given from the checks module or the command line. Narrowing a type
+(Q4) narrows every field and every function space over it at once; the given
+functions reproduce a counterexample (P16), and no seed stands in for one
+not given.
 
 ## Sketch of the syntax
 

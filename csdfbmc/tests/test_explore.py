@@ -207,7 +207,7 @@ class EnvironmentTest(unittest.TestCase):
         for name, (given, states) in tests.items():
             with self.subTest(name):
                 # Setup
-                env = environment.over({"$_0 が凍結されていない": given}, {}, None)
+                env = environment.over({"$_0 が凍結されていない": given}, {})
 
                 # Execute
                 result = fixture.explorer(self.FROZEN, environment=env).run()
@@ -220,20 +220,9 @@ class EnvironmentTest(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "が凍結されていない"):
             fixture.explorer(self.FROZEN).run()
 
-    def test_a_seed_chooses_only_what_is_declared_and_walks_the_same_states_again(self):
-        # Setup
-        env = environment.over({"$_0 が凍結されていない": None}, {}, 7)
-
-        # Execute
-        first, again = fixture.explorer(self.FROZEN, environment=env).run(), fixture.explorer(self.FROZEN, environment=env).run()
-
-        # Assert
-        self.assertEqual(first.states, again.states)
-        self.assertEqual(7, first.environment["seed"])
-
     def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
         tests = {
-            "a declared function nothing gives, with no seed": ({"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
+            "a declared function nothing gives": ({"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
             "a declared name of no atom": ({"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no atom of the diagram"),
             "a function of other arguments": ({"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
         }
@@ -241,7 +230,7 @@ class EnvironmentTest(unittest.TestCase):
             with self.subTest(name):
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, said):
-                    fixture.explorer(self.FROZEN, environment=environment.over(module, {}, None))
+                    fixture.explorer(self.FROZEN, environment=environment.over(module, {}))
 
 
 class PropertyTest(unittest.TestCase):
