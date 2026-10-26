@@ -15,7 +15,7 @@ from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import LEFT_OUT, Strict, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Strict, kind_key, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -313,7 +313,7 @@ class Explorer:
         out = []
         for ghost, (_, updates) in self.checks.ghosts.items():
             if name in updates:
-                out.append(apply(updates[name], env, what=f"the update of ghost {ghost!r} on {name}"))
+                out.append(freeze(apply(updates[name], env, what=f"the update of ghost {ghost!r} on {name}")))
             else:
                 out.append(env[ghost])
         return tuple(out)
@@ -327,15 +327,14 @@ class Explorer:
 
     def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
         names = self.d.vars[dst]
-        out: list[tuple] = []
+        out: dict = {}
         for a in solve(self.ev, post, names, before, self.checks.domain, where, self.d.families):
             v = tuple(LEFT_OUT if n in self.left_out else freeze(a[n]) for n in names)
-            if not any(same_value(v, o) for o in out):
-                out.append(v)
-        return out
+            out.setdefault(kind_key(v), v)
+        return list(out.values())
 
     def initial(self) -> list[State]:
-        ghosts = tuple(init for init, _ in self.checks.ghosts.values())
+        ghosts = tuple(freeze(init) for init, _ in self.checks.ghosts.values())
         vals = self._successor_values(self.d.start_post, {}, self.d.start, "the start edge")
         return [Strict((self.d.start, v, ghosts)) for v in vals]
 
@@ -469,7 +468,7 @@ class Explorer:
             raise IndexError(f"state {state_id!r} has {len(edges)} outgoing edge(s); no edge {edge_index}")
         if len(values) != len(self.d.vars[state_id]):
             raise ValueError(f"state {state_id!r} has {len(self.d.vars[state_id])} variable(s), got {len(values)} value(s)")
-        ghosts = tuple(init for init, _ in self.checks.ghosts.values())
+        ghosts = tuple(freeze(init) for init, _ in self.checks.ghosts.values())
         state = Strict((state_id, tuple(freeze(v) for v in values), ghosts))
         out = []
         for params, _, nexts in self._edge_successors(state, edges[edge_index], record=False):

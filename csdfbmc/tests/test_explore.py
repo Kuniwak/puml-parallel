@@ -123,6 +123,17 @@ class WalkTest(unittest.TestCase):
                 self.assertEqual(3, len(result.states))
                 self.assertEqual(3, len(result.parents))
 
+    def test_a_ghost_is_frozen_and_told_apart_by_kind(self):
+        # Setup
+        d = diagram({"a": []}, "a", edges=[edge("a", "a", "go")])
+        checks = Checks(types={}, ghosts={"g": (0, {"go": lambda g: {1} if g == 0 else {True}})})
+
+        # Execute
+        result = fixture.explorer(d, checks).run()
+
+        # Assert
+        self.assertEqual(3, len(result.states))
+
     def test_a_second_run_reports_what_the_first_did(self):
         # Setup
         d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[edge("a", "a", "go", post=[atom("$n' in ()")])])

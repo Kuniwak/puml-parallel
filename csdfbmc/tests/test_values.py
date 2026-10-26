@@ -149,3 +149,26 @@ class KindTest(unittest.TestCase):
     def test_negative_zero_is_zero_in_a_container(self):
         self.assertIn(-0.0, FrozenSet([0.0]))
         self.assertEqual(Strict(("a", (0.0,), ())), Strict(("a", (-0.0,), ())))
+
+    def test_a_container_equal_to_a_plain_one_hashes_alike(self):
+        tests = {
+            "a state and a tuple": (Strict(("a", (1,), ())), ("a", (1,), ())),
+            "a set and a frozenset": (FrozenSet([1, "x"]), frozenset({1, "x"})),
+        }
+        for name, (strict, plain) in tests.items():
+            with self.subTest(name):
+                # Execute
+                found = plain in {strict}
+
+                # Assert
+                self.assertTrue(found)
+
+    def test_the_items_of_a_map_tell_kinds_apart(self):
+        # Setup
+        m = FrozenMap({1: 0})
+
+        # Execute
+        found = (True, 0) in m.items()
+
+        # Assert
+        self.assertFalse(found)

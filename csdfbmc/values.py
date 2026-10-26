@@ -12,7 +12,7 @@ natural.
 from __future__ import annotations
 
 import itertools
-from collections.abc import Mapping, Set as AbstractSet
+from collections.abc import ItemsView, Mapping, Set as AbstractSet
 from dataclasses import dataclass
 from typing import Callable, Iterable
 
@@ -70,10 +70,7 @@ class FrozenMap(Mapping):
         return self._d[kind_key(key)][1]
 
     def __contains__(self, key):
-        try:
-            return kind_key(key) in self._d
-        except TypeError:
-            return False
+        return kind_key(key) in self._d
 
     def __iter__(self):
         return (k for k, _ in self._d.values())
@@ -82,10 +79,12 @@ class FrozenMap(Mapping):
         return len(self._d)
 
     def items(self):
-        return list(self._d.values())
+        return _Items(self)
 
     def __hash__(self):
-        return hash(self._key)
+        # Python's hash of the entries: a map equal to this one has equal
+        # entries, and so this hash, whatever its keys' kinds.
+        return hash(frozenset(self._d.values()))
 
     def __eq__(self, other):
         if isinstance(other, Mapping):
@@ -112,6 +111,18 @@ class FrozenMap(Mapping):
         return FrozenMap(kv for kk, kv in self._d.items() if kk != gone)
 
 
+class _Items(ItemsView):
+    """The entries of a FrozenMap, an entry among them when its key and its
+    value are of their kinds (kind_key)."""
+
+    def __contains__(self, item):
+        k, v = item
+        return k in self._mapping and same_value(self._mapping[k], v)
+
+    def __iter__(self):
+        return iter(self._mapping._d.values())
+
+
 class FrozenSet(AbstractSet):
     """An immutable set, equal and hashable by content, its elements told
     apart by kind (kind_key): {1, True, 1.0} has three elements."""
@@ -128,10 +139,7 @@ class FrozenSet(AbstractSet):
         return cls(it)
 
     def __contains__(self, x):
-        try:
-            return kind_key(x) in self._d
-        except TypeError:
-            return False
+        return kind_key(x) in self._d
 
     def __iter__(self):
         return iter(self._d.values())
@@ -140,7 +148,8 @@ class FrozenSet(AbstractSet):
         return len(self._d)
 
     def __hash__(self):
-        return hash(self._key)
+        # Python's hash of the elements, as a frozenset equal to this set has.
+        return hash(frozenset(self._d.values()))
 
     def __eq__(self, other):
         if isinstance(other, AbstractSet):
@@ -165,7 +174,9 @@ class Strict(tuple):
         return self
 
     def __hash__(self):
-        return hash(self._key)
+        # Python's hash of the tuple: a tuple equal to this one by kind is
+        # equal to it in Python too, and so hashes alike.
+        return tuple.__hash__(self)
 
     def __eq__(self, other):
         if isinstance(other, tuple):
