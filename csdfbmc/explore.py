@@ -8,13 +8,14 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
+from csdfbmc import cone as cones
 from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import beyond_samples, encode, freeze, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, encode, freeze, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -49,6 +50,9 @@ class Result:
     # enables or "the end edge": the bound, not the diagram, ends them, so
     # they are not deadlocks.
     bound_reached: list[tuple[State, str]] = field(default_factory=list)
+    # left_out: the variables the cone of influence left out (cone=True),
+    # each kept at csdfbmc.cone.LEFT_OUT.
+    left_out: tuple[str, ...] = ()
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -94,6 +98,7 @@ class Result:
             "environment": self.environment,
             "groups": self.groups(),
             "stopped_early": self.stopped_early,
+            "left_out": list(self.left_out),
         }
 
     def groups(self) -> list[dict]:
@@ -166,11 +171,15 @@ class Explorer:
     checks is the checks module (csdfbmc.checks): the types, ghosts and
     invariants. A ghost update and an invariant see each instance as the map
     of its fields.
+
+    cone leaves out the variables outside the cone of influence
+    (csdfbmc.cone): the walk keeps each at csdfbmc.values.LEFT_OUT, and finds what it would
+    find without.
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
-                 first: bool = False):
+                 first: bool = False, cone: bool = False):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
@@ -187,6 +196,7 @@ class Explorer:
         self.first = first
         self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
+        self.left_out = cones.left_out(diagram, checks) if cone else ()
         self._check_fields()
         self._check_environment()
 
@@ -255,7 +265,12 @@ class Explorer:
 
     def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
         names = self.d.vars[dst]
-        return [tuple(freeze(a[n]) for n in names) for a in solve(self.ev, post, names, before, self.checks.domain, where, self.d.families)]
+        out: list[tuple] = []
+        for a in solve(self.ev, post, names, before, self.checks.domain, where, self.d.families):
+            v = tuple(LEFT_OUT if n in self.left_out else freeze(a[n]) for n in names)
+            if v not in out:
+                out.append(v)
+        return out
 
     def initial(self) -> list[State]:
         ghosts = tuple(init for init, _ in self.checks.ghosts.values())
@@ -460,6 +475,7 @@ class Explorer:
             avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
             empty_posts=self.empty_posts, stopped_early=stopped, bound_reached=bound_reached,
+            left_out=self.left_out,
         )
 
 

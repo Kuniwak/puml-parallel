@@ -75,6 +75,32 @@ class GlueTest(unittest.TestCase):
                 self.assertEqual(2, raised.exception.code)
 
 
+class ReductionCommandTest(unittest.TestCase):
+    def test_cone_reports_what_it_leaves_out(self):
+        # Setup
+        from csdfbmc.tests.test_cone import MEMO
+
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--cone", d=MEMO, checks='TYPES = {"x": [1, 2, 3]}\n')
+
+        # Assert
+        self.assertEqual(1, code, err)
+        self.assertEqual("states: 4\ncone of influence leaves out: memo\n", out.split("deadlock")[0])
+
+    def test_cone_reports_a_value_left_out_in_json(self):
+        # Setup
+        from csdfbmc.tests.test_cone import MEMO
+
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--cone", "--json", d=MEMO, checks='TYPES = {"x": [1, 2, 3]}\n')
+
+        # Assert
+        self.assertEqual(1, code, err)
+        report = json.loads(out)
+        self.assertEqual(["memo"], report["left_out"])
+        self.assertEqual([0, {"left_out": True}], report["deadlocks"][0]["replay"]["steps"][-2]["values"])
+
+
 class EnvironmentCommandTest(unittest.TestCase):
     def run_main(self, *args, checks=DECLARED):
         return walk(self, "--evaluator-module", "csdfbmc.python_glue", "--max-states", "10", *args, d=UNKNOWN_GUARD, checks=checks)

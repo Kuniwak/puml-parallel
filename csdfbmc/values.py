@@ -78,6 +78,17 @@ class Rec:
     fields: "FrozenMap"
 
 
+class _LeftOut:
+    """The value the walk keeps for a variable the cone of influence leaves
+    out (csdfbmc.cone): one value, whatever the variable held."""
+
+    def __repr__(self):
+        return "left out"
+
+
+LEFT_OUT = _LeftOut()
+
+
 def same_value(a, b) -> bool:
     """Whether two values are one value: of one kind as well as equal, so
     that 1 is not True, all the way into containers."""
@@ -124,7 +135,10 @@ def freeze(value):
 def encode(value):
     """value as JSON would carry it: FrozenMaps as objects, tuples and
     frozensets as arrays (a frozenset sorted when it can be), an instance as
-    {"at": its state, "fields": its fields}."""
+    {"at": its state, "fields": its fields}, and a value left out as
+    {"left_out": true}."""
+    if value is LEFT_OUT:
+        return {"left_out": True}
     if isinstance(value, Rec):
         return {"at": value.state, "fields": encode(value.fields)}
     if isinstance(value, Mapping):

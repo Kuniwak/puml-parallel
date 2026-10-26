@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -13,7 +13,9 @@ A state with no way out that the values beyond a type given as a sample
 the step they enable as its witness, not as a deadlock, and is no finding.
 Findings of one shape are reported once with their count and the shortest
 trace; --all lists every one, and --first stops the walk at the first
-deadlock or broken invariant. Exits 1 when it finds any, 2 on a usage or
+deadlock or broken invariant. --cone leaves out the variables nothing that
+decides a step or a property reads (csdfbmc.cone), and finds the same.
+Exits 1 when it finds any, 2 on a usage or
 loading error.
 """
 import argparse
@@ -91,12 +93,13 @@ def main(argv=None) -> int:
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock or broken invariant (cycles are then not looked for)")
     ap.add_argument("--all", action="store_true", help="list every finding instead of one per shape with a count")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
+    ap.add_argument("--cone", action="store_true", help="leave out the variables outside the cone of influence: fewer states, the same findings")
     a = ap.parse_args(argv)
 
     try:
         with opened(a) as (diagram, checks, client, environment):
             result = Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
-                              within=a.within, first=a.first).run()
+                              within=a.within, first=a.first, cone=a.cone).run()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
@@ -111,6 +114,8 @@ def main(argv=None) -> int:
         if result.stopped_early:
             head += " (stopped at the first finding)"
         print(head)
+        if result.left_out:
+            print(f"cone of influence leaves out: {', '.join(result.left_out)}")
         if a.all:
             print_every(result)
         else:

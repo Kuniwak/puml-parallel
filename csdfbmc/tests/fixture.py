@@ -173,3 +173,32 @@ def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
     with redirect_stdout(out), redirect_stderr(err):
         code = main([path, checks_path, *args])
     return code, out.getvalue(), err.getvalue()
+
+
+def findings(result) -> set:
+    """The findings of a walk by their shape, without their counts, traces
+    or examples: what a reduction must leave as it is."""
+    return {tuple(sorted((k, tuple(v) if isinstance(v, list) else v) for k, v in g.items() if k not in ("count", "trace", "example")))
+            for g in result.groups()}
+
+
+EXAMPLES = {
+    "withdraw": ("withdraw_formal.json", "withdraw_formal_defs.py"),
+    "wallet": ("wallet_formal.json", "wallet_formal_checks.py"),
+    "attempts": ("attempts/attempts.json", "attempts/checks.py"),
+}
+
+
+def example(name, **options):
+    """An Explorer walking the example of examples/bmc named name, its atoms
+    read by the reference Python glue given its checks module."""
+    import os
+    from csdfbmc import environment
+    from csdfbmc.checks import load_checks
+    from csdfbmc.explore import Explorer
+    from csdfbmc.model import Diagram
+    from csdfbmc.protocol import checked, start_module
+    root = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "examples", "bmc")
+    path, checks = (os.path.join(root, p) for p in EXAMPLES[name])
+    options.setdefault("environment", environment.NONE)
+    return Explorer(Diagram.load(path), load_checks(checks), checked(start_module("csdfbmc.python_glue", [checks])), **options)
