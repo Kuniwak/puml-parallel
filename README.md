@@ -1042,8 +1042,11 @@ taking the min or max of, one or a map keyed by them. The builtins and `∃`
 never tell IDs apart. What may hold an ID is read from the types and the
 builtins; an atom's output is the glue's, so a state in which a variable,
 a field or a ghost holds an ID where none was foreseen is refused during
-the walk. The values beyond a sample are tried at the state as met, without
-symmetry. `examples/bmc/attempts/checks.py` declares `SYMMETRIC = ["試行ID"]`:
+the walk: csdfbmc exits 2 and reports no finding, not even those met
+before. Whether the walk meets such a state depends on how far it goes, so
+a run within a smaller `--max-states`, or one that `--first` stops early,
+may finish where a longer one is refused. The values beyond a sample are
+tried at the state as met. `examples/bmc/attempts/checks.py` declares `SYMMETRIC = ["試行ID"]`:
 
 ```console
 $ csdfbmc attempts.json examples/bmc/attempts/checks.py \

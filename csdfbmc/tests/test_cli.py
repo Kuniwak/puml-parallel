@@ -162,6 +162,23 @@ class ReductionCommandTest(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("the constant 'a' names one symmetric ID", err)
 
+    def test_symmetry_refused_during_the_walk_reports_no_finding(self):
+        # Setup: only an atom puts an ID in last, which the walk meets.
+        from csdfbmc.tests.test_por import CLOSE, OPEN, ONE_WAY
+        d = dict(ONE_WAY, vars={"r": ["m", "last"]}, init_post=ONE_WAY["init_post"] + [atom("$last' == ''")],
+                 edges=[dict(OPEN, post=OPEN["post"] + [atom("$last' == $k")]), dict(CLOSE, post=CLOSE["post"] + [fixture.eq("last'", "last")])])
+        checks = 'TYPES = {"k": ["a", "b", "c"]}\nSYMMETRIC = ["k"]\n'
+        args = ("--evaluator-module", "csdfbmc.python_glue", "--symmetry")
+        tests = {"in full": (), "within a bound past the ID": ("--max-states", "2"), "at the first finding": ("--first",)}
+        for name, more in tests.items():
+            with self.subTest(name):
+                # Execute
+                code, out, err = walk(self, *args, *more, d=d, checks=checks)
+
+                # Assert
+                self.assertEqual((2, ""), (code, out))
+                self.assertIn("last holds 'a'", err)
+
 
 class EnvironmentCommandTest(unittest.TestCase):
     def run_main(self, *args, checks=DECLARED):
