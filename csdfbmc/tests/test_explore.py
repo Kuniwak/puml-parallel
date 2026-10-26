@@ -4,7 +4,7 @@ import unittest
 from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
+from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx, lit
 from csdfbmc.values import FrozenMap, Rec, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
@@ -157,6 +157,36 @@ class FieldTest(unittest.TestCase):
                 # Execute, Assert
                 with self.assertRaisesRegex(KeyError, said):
                     fixture.explorer(d)
+
+    def test_a_literal_no_value_of_the_type_it_is_compared_with_is_refused(self):
+        tests = {
+            "a state variable after the step": (edge("a", "a", "c", post=[eq("n'", lit(5))]), {"n": [0, 1]}, "n' with the literal 5"),
+            "a state variable before the step, by @ne": (edge("a", "a", "c", guard=[builtin("ne", lit(1.0), "n")]), {"n": [0, 1]}, "n with the literal 1.0"),
+            "a received field of the type TYPEOF gives": (edge("a", "a", "c?x", guard=[eq("x", lit("1"))]), {"n": [0, 1], "x": [0]}, 'x with the literal "1"'),
+            "a variable ∃ binds": (edge("a", "a", "c", guard=[exists("n", eq(fixture.bound(0), lit(True)))]), {"n": [0, 1]}, "with the literal true"),
+        }
+        for name, (e, types, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(0))], edges=[e])
+
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said + ", which no value of its type"):
+                    fixture.explorer(d, Checks(types=types))
+
+    def test_a_literal_a_value_of_its_type_is_or_may_be_is_kept(self):
+        tests = {
+            "a value of the type": ({"n": [0, 1]}, lit(1)),
+            "a value beyond the sample of the type": ({"n": sample([0, 1], [2])}, lit(5)),
+            "a type no name has": ({"n": [0, 1]}, lit(0)),
+        }
+        for name, (types, value) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(0))], edges=[edge("a", "a", "c", post=[eq("n'", value)])])
+
+                # Execute, Assert
+                fixture.explorer(d, Checks(types=types))
 
     def test_a_hidden_field_is_chosen_under_its_exists(self):
         # Setup: hiding c?x leaves ∃x in the guard and the post.

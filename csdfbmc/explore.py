@@ -13,9 +13,9 @@ from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Builtin, Diagram, Edge, Free, free_names
+from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import LEFT_OUT, beyond_samples, encode, freeze, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
@@ -228,6 +228,7 @@ class Explorer:
         self.ample = ample
         self.canonical = canonical
         self._check_fields()
+        self._check_literals()
         self._check_environment()
 
     # -- before the walk ----------------------------------------------------------
@@ -245,6 +246,38 @@ class Explorer:
             for n in e.sent:
                 if n not in bound:
                     raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
+
+    def _check_literals(self) -> None:
+        """Refuses @eq or @ne of a literal and a variable whose type cannot
+        hold it: a state variable or a field, of the type TYPEOF gives it,
+        or a variable an ∃ binds, of its type, when the type lists every
+        value it has and the literal is none of them. Such a comparison is
+        a slip - 1.0 for 1, "1" for 1 - that would make the clause constant
+        unnoticed. A type that is a sample may hold the literal beyond it,
+        and a type TYPES does not declare is refused where it is needed."""
+        clauses = [("the start edge", self.d.start_post)]
+        clauses += [(e.describe(), c) for e in self.d.edges for c in (e.guard, e.post)]
+        clauses += [(f"the end edge from {x.src}", x.guard) for x in self.d.ends]
+        samples = self.checks.samples
+        for where, clause in clauses:
+            for c, types in conjuncts(clause):
+                if not isinstance(c, Builtin) or c.op not in ("eq", "ne") or len(c.args) != 2:
+                    continue
+                for lit, other in (c.args, c.args[::-1]):
+                    if not isinstance(lit, Lit):
+                        continue
+                    if isinstance(other, Free):
+                        name, t = other.name + ("'" if other.primed else ""), self.checks.type_of(other.name)
+                    elif isinstance(other, Bound):
+                        name, t = "the variable an ∃ binds", types[len(types) - 1 - other.index]
+                    else:
+                        continue
+                    if t not in self.checks.types or t in samples:
+                        continue
+                    value = lit.value
+                    if not any(same_value(freeze(v), value) for v in self.checks.types[t]):
+                        raise ValueError(f"{where}: @{c.op} compares {name} with the literal {lit.text}, which no value of its type "
+                                         f"{t!r} in TYPES is; write a value of the type, or add the value to it")
 
     def _check_environment(self) -> None:
         """Refuses what the environment cannot decide: a declared function
