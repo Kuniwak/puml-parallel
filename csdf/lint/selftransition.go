@@ -3,7 +3,8 @@ package lint
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
 // SelfTransitionDivergenceRule reports a transition from a state back to
@@ -46,17 +47,17 @@ func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
 	return findings
 }
 
-func (r SelfTransitionDivergenceRule) message(d *csdf.Diagram, edge csdf.Edge) string {
+func (r SelfTransitionDivergenceRule) message(d *core.Diagram, edge core.Edge) string {
 	// The label is written once, at the first mention: a state label is a
 	// sentence in some diagrams, and repeating it at every mention would bury
 	// the question the message asks.
 	state := fmt.Sprintf("`%s`", edge.Src)
 	intro := state
-	if name := d.States[edge.Src].Name; name != "" && csdf.StateID(name) != edge.Src {
+	if name := d.Labels[edge.Src]; name != "" && name != edge.Src {
 		intro = fmt.Sprintf("`%s` (%s)", edge.Src, name)
 	}
 
-	if edge.Event == csdf.Tau {
+	if edge.Event.Channel == core.Tau {
 		return fmt.Sprintf(
 			"State %s has a tau self-transition, so the diagram admits the trace prefix -> %[2]s -> %[2]s -> ... in which nothing observable ever happens again: that is divergence, not a loop of work. Check whether this tau was meant to leave %[2]s, and if it was not, prove the diagram livelock-free with csdflivelockfree.",
 			intro, state,
@@ -65,7 +66,7 @@ func (r SelfTransitionDivergenceRule) message(d *csdf.Diagram, edge csdf.Edge) s
 
 	return fmt.Sprintf(
 		"State %s has a self-transition on `%s`, so the diagram admits the trace prefix -> %[3]s -> %[3]s -> ... in which `%[2]s` repeats without bound and no suffix after %[3]s ever begins. Read that trace against the specification and answer: is every number of repetitions of `%[2]s` really allowed here, and does %[3]s really look the same after each one? If the repetitions are bounded, or if the system is in a different situation after `%[2]s` than before it, split %[3]s into the states before and after instead of looping.",
-		intro, string(edge.Event), state,
+		intro, edge.Event.Label(), state,
 	)
 }
 
@@ -96,7 +97,7 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 		if edge.Src != edge.Dst {
 			continue
 		}
-		if csdf.IsTrue(edge.Guard) || csdf.IsTrue(edge.Post) {
+		if len(edge.Guard.Conjuncts) == 0 || len(edge.Post.Conjuncts) == 0 {
 			continue
 		}
 		findings = append(findings, Finding{
@@ -107,9 +108,19 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 			Severity:  SeverityHint,
 			Message: fmt.Sprintf(
 				"State `%s` has a self-transition on `%s` guarded by `%s` whose post is `%s`. Decide whether the post can make the guard false: assume the guard holds, apply the post, and evaluate the guard again in the resulting state. If it can be false, `%[1]s` is not one state but two - the one where `%[3]s` holds and the one after `%[4]s` - and the edge should go to a second state instead of back to `%[1]s`. If the guard still holds afterwards, say so and leave the loop alone.",
-				string(edge.Src), string(edge.Event), string(edge.Guard), string(edge.Post),
+				edge.Src, edge.Event.Label(), printed(edge.Guard), printed(edge.Post),
 			),
 		})
 	}
 	return findings
+}
+
+// printed is f as the clause syntax writes it. A formula the reader read
+// prints; should one not, the finding still names the edge by its line.
+func printed(f clause.And) string {
+	s, err := clause.Print(f)
+	if err != nil {
+		return "(unprintable)"
+	}
+	return s
 }
