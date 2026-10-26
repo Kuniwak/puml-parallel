@@ -115,9 +115,12 @@ type Diagram struct {
 // FamilyStates is what an instance in the map Map may be: at one of
 // States other than Init, holding that state's Vars as its fields. Init,
 // the local start state, is absence: an instance there has no entry in
-// the map, and it holds no variables.
+// the map, and it holds no variables. Key is the ID parameter of the
+// promote directive (Family.ID): the name whose type is the domain of the
+// map, the type of the IDs that key it.
 type FamilyStates struct {
 	Map    string
+	Key    string
 	Init   string
 	States []string
 	Vars   map[string][]string
@@ -129,7 +132,7 @@ func (f FamilyStates) clone() FamilyStates {
 	for s, vs := range f.Vars {
 		vars[s] = slices.Clone(vs)
 	}
-	return FamilyStates{Map: f.Map, Init: f.Init, States: slices.Clone(f.States), Vars: vars}
+	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars}
 }
 
 // cloneFamilies are fs, each cloned.
@@ -151,6 +154,9 @@ func (d *Diagram) familiesWellFormed() error {
 			return fmt.Errorf("two families of %s", f.Map)
 		}
 		seen[f.Map] = true
+		if f.Key == "" {
+			return fmt.Errorf("the family of %s: no key names the IDs of its map", f.Map)
+		}
 		held := false
 		for _, vs := range d.Vars {
 			held = held || slices.Contains(vs, f.Map)

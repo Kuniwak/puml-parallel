@@ -17,8 +17,8 @@ func promoted(t *testing.T, p Promotion) *Diagram {
 }
 
 func TestEachOperationCarriesTheLocalStatesOfTheFamilies(t *testing.T) {
-	doors := FamilyStates{Map: "doors", Init: "none", States: []string{"none", "shut"}, Vars: map[string][]string{}}
-	keys := FamilyStates{Map: "keys", Init: "none", States: []string{"none", "held"}, Vars: map[string][]string{}}
+	doors := FamilyStates{Map: "doors", Key: "loc", Init: "none", States: []string{"none", "shut"}, Vars: map[string][]string{}}
+	keys := FamilyStates{Map: "keys", Key: "s", Init: "none", States: []string{"none", "held"}, Vars: map[string][]string{}}
 	tests := map[string]struct {
 		do   func(t *testing.T) (*Diagram, error)
 		want []FamilyStates
@@ -31,8 +31,8 @@ func TestEachOperationCarriesTheLocalStatesOfTheFamilies(t *testing.T) {
 				return d, err
 			},
 			want: []FamilyStates{
-				{Map: "locations", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
-				{Map: "doors", Init: "none", States: []string{"none", "shut", "wide"}, Vars: map[string][]string{}},
+				{Map: "locations", Key: "loc", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
+				{Map: "doors", Key: "d", Init: "none", States: []string{"none", "shut", "wide"}, Vars: map[string][]string{}},
 			},
 		},
 		"Restrict keeps those of the kept families only": {
@@ -63,8 +63,8 @@ func TestEachOperationCarriesTheLocalStatesOfTheFamilies(t *testing.T) {
 				}, nil)
 			},
 			want: []FamilyStates{doors, keys,
-				{Map: "locations", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
-				{Map: "shut", Init: "none", States: []string{"none", "shut", "wide"}, Vars: map[string][]string{}}},
+				{Map: "locations", Key: "loc", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
+				{Map: "shut", Key: "d", Init: "none", States: []string{"none", "shut", "wide"}, Vars: map[string][]string{}}},
 		},
 	}
 	for name, tt := range tests {

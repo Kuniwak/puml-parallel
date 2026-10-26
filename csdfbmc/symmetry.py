@@ -29,8 +29,9 @@ The declaration is refused when anything could tell two IDs apart:
 The builtins and ∃ are the checker's and never tell IDs apart: @eq and @ne
 compare, @in, @notin, @at, @frame and @update look up, and ∃ ranges over a
 whole type. What may hold an ID is read from the types and the builtins: a
-name whose type holds one, a field of a record that does, a map an ID
-indexes, and what a builtin of a post gives from any of them, followed to a
+name whose type holds one, a field of a record that does, the map of a
+family whose key (the promote directive's ID parameter) is of a symmetric
+type, another map an ID indexes, and what a builtin of a post gives from any of them, followed to a
 fixed point. What an atom gives is the glue's, which the tools do not read,
 so every state the walk meets is checked instead: a variable, a field of an
 instance or a ghost that holds an ID where none was foreseen is refused,
@@ -73,11 +74,21 @@ class Symmetry:
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self.d = d
         self._check_types(checks)
+        self._check_keys(d, checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
         self._checked: set = set()
         environment.check_decided(d.applied())
         self._check_atoms(d, checks, client, environment)
         self._check_sources(checks)
+
+    @staticmethod
+    def _check_keys(d: Diagram, checks: Checks) -> None:
+        """A family's map is keyed by IDs iff its key's type is symmetric, so
+        a key with no type is refused rather than guessed from the clauses."""
+        for f in d.families.values():
+            if not checks.declares(f.key):
+                raise ValueError(f"give {f.key!r} a type in TYPES or TYPEOF: --symmetry knows whether the map of its family "
+                                 "is keyed by IDs from the type of its key")
 
     # -- what may hold an ID -------------------------------------------------------
 
@@ -94,7 +105,10 @@ class Symmetry:
 
     def _holding(self, d: Diagram, checks: Checks) -> tuple[set[str], set[str], set[str]]:
         """The names that may hold an ID, the fields that may, and the maps
-        an ID indexes."""
+        an ID indexes. A family's map is keyed by IDs iff the type of its key
+        (the promote directive's ID parameter) is symmetric (a key with no type
+        was refused before); any other map is found from the clauses: one a
+        term that may hold an ID indexes."""
         ids: set[str] = set()
         fields: set[str] = set()
         for name, values in checks.typed_names().items():
@@ -103,7 +117,9 @@ class Symmetry:
                     ids.add(name)
                 if isinstance(v, Mapping):
                     fields |= {f for f, x in v.items() if isinstance(f, str) and self._holds(x)}
-        maps: set[str] = set()
+        keyed = {m: checks.type_of(f.key) in checks.symmetric for m, f in d.families.items()}
+        maps: set[str] = {m for m, by_ids in keyed.items() if by_ids}
+        ids |= maps
         clauses = [d.start_post] + [c for e in d.edges for c in (e.guard, e.post)] + [x.guard for x in d.ends]
         grown = True
         while grown:
@@ -111,7 +127,8 @@ class Symmetry:
             for clause in clauses:
                 for c, types in conjuncts(clause, ()):
                     for t in terms(c):
-                        if isinstance(t, Index) and isinstance(t.map, Free) and self._carries(t.key, types, ids, fields):
+                        if (isinstance(t, Index) and isinstance(t.map, Free) and t.map.name not in keyed
+                                and self._carries(t.key, types, ids, fields)):
                             maps.add(t.map.name)
                     ids |= maps
                     if isinstance(c, Builtin) and any(self._carries(a, types, ids, fields) for a in c.args if not is_primed(a)):

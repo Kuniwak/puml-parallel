@@ -29,10 +29,20 @@ independent maps, which says almost nothing.
 `csdfpromote` reads this syntax with clauses that are formulas
 (docs/CLAUSE_DESIGN.md), through `csdf/coreio`, and prints the expansion
 `csdf/core` gives, as PlantUML or, with `-format json`, as the diagram JSON
-`csdfbmc` reads. The diagram JSON of an expansion (version 2) writes
-the family of each map as well (`families`): its local states, its start
+`csdfbmc` reads. The diagram JSON of an expansion (version 3) writes
+the family of each map as well (`families`): its `key`, the ID parameter of
+the promote directive (`<map> : <ID> ⇸ <Type>`), whose type, named like it or
+through `TYPEOF`, is the domain of the map; its local states, its start
 state, which is absence, and the variables each local state holds, so that
-csdfbmc gives an instance at a local state exactly that state's variables.
+csdfbmc gives an instance at a local state exactly that state's variables,
+and `--symmetry` knows a map keyed by the IDs of a symmetric type from its
+key. The rule: a family's map is keyed by IDs iff its key's type is
+symmetric, and `--symmetry` refuses a key with no type (exit 2: give it a
+type in `TYPES` or `TYPEOF`). A key is typed by its name, like every state
+variable and event field (docs/CLAUSE_DESIGN.md), so two composed families
+whose keys share a name share one type; composing diagrams whose
+same-named keys mean different types needs distinct key names.
+Version 3 added the key; a reader refuses another version.
 The formula promotion keeps the local-diagram
 contract below; it reads `constrain`, several global states with frozen
 families and hand-written global edges, variables of the global state that
@@ -49,7 +59,7 @@ expansion.
 `-format json` is not a drop-in replacement for the removed `-json`. `-json`
 printed the parsed directives (core, promotes, syncs, constrains, diagnostics)
 before expansion; `-format json` prints the expanded diagram as diagram JSON
-(version 2), and the warnings go to standard error. To check the directives,
+(version 3), and the warnings go to standard error. To check the directives,
 use `-lint-only`.
 
 

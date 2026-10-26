@@ -479,7 +479,7 @@ func TestRunExploresTheDiagramJSONOfAnExpansion(t *testing.T) {
 	// Setup
 	raw, err := core.MarshalDiagram(&core.Diagram{
 		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
-		Families: []core.FamilyStates{{Map: "accounts", Init: "none", States: []string{"none", "opened"},
+		Families: []core.FamilyStates{{Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened"},
 			Vars: map[string][]string{"opened": {"balance"}}}},
 	})
 	if err != nil {
