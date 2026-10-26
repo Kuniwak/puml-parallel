@@ -93,6 +93,15 @@ class Environment:
     given: Mapping[str, Given]
     env: Mapping[str, bool]
 
+    def check_decided(self) -> None:
+        """Refuses a declared function nothing gives, listing every one:
+        nothing approximates an undecided function, so the walk does not
+        start."""
+        undecided = sorted(n for n in self.declared if n not in self.given)
+        if undecided:
+            raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
+                             "give each in ENVIRONMENT or with --env NAME=true|false")
+
     def to_json(self) -> dict:
         return {"given": sorted(self.given), "env": dict(sorted(self.env.items()))}
 

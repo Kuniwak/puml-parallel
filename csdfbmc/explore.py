@@ -260,10 +260,7 @@ class Explorer:
                 n = arity[name]
                 raise ValueError(f"{name!r} has {n} argument{'' if n == 1 else 's'}, but the function given takes other arguments; "
                                  "give a function of the arguments, in order")
-        undecided = sorted(n for n in self.environment.declared if n not in self.environment.given)
-        if undecided:
-            raise ValueError(f"nothing decides the environment's functions {', '.join(map(repr, undecided))}; "
-                             "give each in ENVIRONMENT or with --env NAME=true|false")
+        self.environment.check_decided()
 
     # -- values ----------------------------------------------------------------
 
