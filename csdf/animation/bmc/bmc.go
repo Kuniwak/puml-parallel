@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
@@ -21,11 +22,36 @@ import (
 // Checker is what csdfbmc reads besides the diagram: the checks module of the
 // domains, ghosts and invariants, and the glue every clause is read through,
 // as a command line (Evaluator) or a Python module and its arguments
-// (EvaluatorModule). The zero Checker asks nothing.
+// (EvaluatorModule); and the environment, as csdfbmc takes it: Seed (--seed,
+// nil when none is given) and Env (--env, in the order given). The zero
+// Checker asks nothing.
 type Checker struct {
 	Checks          string
 	Evaluator       string
 	EvaluatorModule string
+	Seed            *int
+	Env             []Binding
+}
+
+// Binding gives a function of the environment, named as csdfbmc names it
+// (the atom's text with its holes as $_0, $_1, ...), a truth value: what
+// "--env NAME=true|false" says.
+type Binding struct {
+	Name  string
+	Value bool
+}
+
+// String is the binding as --env takes it.
+func (b Binding) String() string { return b.Name + "=" + strconv.FormatBool(b.Value) }
+
+// ParseBinding reads NAME=true or NAME=false as csdfbmc reads --env: the
+// name is everything before the last "=", and must not be empty.
+func ParseBinding(word string) (Binding, error) {
+	i := strings.LastIndex(word, "=")
+	if i <= 0 || (word[i+1:] != "true" && word[i+1:] != "false") {
+		return Binding{}, fmt.Errorf("-env expects NAME=true or NAME=false, not %q", word)
+	}
+	return Binding{Name: word[:i], Value: word[i+1:] == "true"}, nil
 }
 
 // Asks reports whether the Checker is set, so that value prompts suggest.
@@ -42,6 +68,8 @@ func (c Checker) Validate() error {
 		return errors.New("-checks needs a glue: csdfbmc reads every clause through one; pass -evaluator or -evaluator-module (csdfbmc.python_glue reads Python)")
 	case glue && c.Checks == "":
 		return errors.New("-evaluator and -evaluator-module need -checks, the module of the domains")
+	case (c.Seed != nil || len(c.Env) > 0) && c.Checks == "":
+		return errors.New("-seed and -env need -checks, whose ENVIRONMENT declares the functions they decide")
 	}
 	return nil
 }
@@ -51,9 +79,17 @@ func (c Checker) Validate() error {
 func (c Checker) NextArgs(diagram string) []string {
 	args := []string{"next", diagram, c.Checks}
 	if c.Evaluator != "" {
-		return append(args, "--evaluator", c.Evaluator)
+		args = append(args, "--evaluator", c.Evaluator)
+	} else {
+		args = append(args, "--evaluator-module", c.EvaluatorModule)
 	}
-	return append(args, "--evaluator-module", c.EvaluatorModule)
+	if c.Seed != nil {
+		args = append(args, "--seed", strconv.Itoa(*c.Seed))
+	}
+	for _, b := range c.Env {
+		args = append(args, "--env", b.String())
+	}
+	return args
 }
 
 // Suggester runs csdfbmc. Diagram is the JSON the checker reads (csdfparse's

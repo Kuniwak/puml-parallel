@@ -95,3 +95,95 @@ func TestForSourceRefusesADiagramItCannotRead(t *testing.T) {
 		t.Errorf("ForSource error = %v, want one of ForSource", err)
 	}
 }
+
+func seed(n int) *int { return &n }
+
+func TestCheckerValidateRefusesAnEnvironmentWithoutChecks(t *testing.T) {
+	tests := map[string]bmc.Checker{
+		"a seed without checks":     {Seed: seed(1)},
+		"a function without checks": {Env: []bmc.Binding{{Name: "$_0 が 正", Value: true}}},
+	}
+	for name, checker := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := checker.Validate()
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), "need -checks") {
+				t.Errorf("Validate() = %v, want -seed and -env to need -checks", err)
+			}
+		})
+	}
+}
+
+func TestCheckerArgsOfNextCarryTheEnvironment(t *testing.T) {
+	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
+	base := []string{"next", "d.json", "c.py", "--evaluator-module", "g"}
+	tests := map[string]struct {
+		seed *int
+		env  []bmc.Binding
+		want []string
+	}{
+		"nothing given":  {want: base},
+		"a seed of zero": {seed: seed(0), want: append(append([]string{}, base...), "--seed", "0")},
+		"functions in the order given": {
+			env:  []bmc.Binding{{Name: "$_0 が 正", Value: true}, {Name: "a=b", Value: false}},
+			want: append(append([]string{}, base...), "--env", "$_0 が 正=true", "--env", "a=b=false"),
+		},
+		"a seed and a function": {
+			seed: seed(7), env: []bmc.Binding{{Name: "f", Value: false}},
+			want: append(append([]string{}, base...), "--seed", "7", "--env", "f=false"),
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			checker := glue
+			checker.Seed, checker.Env = tt.seed, tt.env
+
+			// Execute
+			got := checker.NextArgs("d.json")
+
+			// Assert
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("NextArgs() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestParseBinding(t *testing.T) {
+	tests := map[string]struct {
+		word    string
+		want    bmc.Binding
+		wantErr bool
+	}{
+		"true":                {word: "$_0 が 正=true", want: bmc.Binding{Name: "$_0 が 正", Value: true}},
+		"false":               {word: "f=false", want: bmc.Binding{Name: "f", Value: false}},
+		"a name holding =":    {word: "a=b=true", want: bmc.Binding{Name: "a=b", Value: true}},
+		"no value":            {word: "f", wantErr: true},
+		"no name":             {word: "=true", wantErr: true},
+		"not a truth value":   {word: "f=maybe", wantErr: true},
+		"a capitalised value": {word: "f=True", wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := bmc.ParseBinding(tt.word)
+
+			// Assert
+			if tt.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "expects NAME=true or NAME=false") {
+					t.Fatalf("ParseBinding(%q) = %v, %v; want csdfbmc's refusal", tt.word, got, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("ParseBinding(%q) = %+v, want %+v", tt.word, got, tt.want)
+			}
+		})
+	}
+}

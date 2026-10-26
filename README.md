@@ -1102,6 +1102,13 @@ binary) what values the clauses admit for the pending transition, shows them
 numbered, and takes `#N` in place of the values. `-diagram-json FILE` names the
 expansion JSON the checker reads instead of the file's own parse.
 
+The environment is csdfbmc's: `-seed N` and `-env NAME=true|false`
+(repeatable) are passed to `csdfbmc next` as `--seed` and `--env`, so the
+prompt suggests what csdfbmc walks with the same seed and the same given
+functions. Neither has a default: without `-seed`, a function the checks
+module's `ENVIRONMENT` declares and nothing gives is refused at the prompt,
+as csdfbmc refuses it.
+
 ```console
 $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
     -evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" examples/bmc/withdraw_formal.puml
@@ -1147,7 +1154,8 @@ started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`
 asks `csdfbmc` at every value prompt what values the clauses admit:
 `read` lists them under `suggestions`, `statevar -pick N` enters the N-th, and
 `session new -diagram-json FILE` names the expansion JSON the checker reads for
-that session. Run `csdfreplcmd help` for the full command list.
+that session. `-seed N` and `-env NAME=true|false` give every session the
+environment csdfbmc walks with `--seed N` and `--env NAME=true|false`. Run `csdfreplcmd help` for the full command list.
 
 ## Documentation
 

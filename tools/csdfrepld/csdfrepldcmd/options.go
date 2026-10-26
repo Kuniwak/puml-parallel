@@ -42,9 +42,11 @@ Examples:
   $ csdfrepld
   $ csdfrepld -sock /tmp/csdfrepld.sock
   $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue
+  $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue -seed 7
 
 With -checks and a glue, value prompts suggest the values the clauses admit,
-as csdfbmc reads them, and statevar -pick enters one.
+as csdfbmc reads them, and statevar -pick enters one. -seed and -env are
+csdfbmc's --seed and --env, for every session; neither has a default.
 `, tools.SocketEnv, tools.SocketName, tools.SocketName)
 		}
 

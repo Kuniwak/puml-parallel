@@ -49,6 +49,11 @@ csdfbmc must be on the PATH or beside this binary. -diagram-json names the
 JSON (csdfpromote -format json, for an expansion) the checker reads instead of the
 file's own parse.
 
+-seed and -env are csdfbmc's --seed and --env: the prompt suggests what
+csdfbmc walks with the same seed and the same given functions. Neither has a
+default; a function the checks module declares that nothing decides is
+refused, as csdfbmc refuses it.
+
 Options:
 `)
 			flags.PrintDefaults()
@@ -59,6 +64,7 @@ Examples:
   $ csdfrepl -replay findings.json -finding 0 diagram.puml
   $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
       -evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" examples/bmc/withdraw_formal.puml
+  $ csdfrepl -checks checks.py -evaluator-module csdfbmc.python_glue -seed 7 -env '$_0 が 正=true' diagram.puml
 `)
 		}
 
