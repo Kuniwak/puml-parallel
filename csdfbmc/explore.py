@@ -171,6 +171,9 @@ class Explorer:
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
                  first: bool = False):
+        # Every keyword option as given, so that with_types passes each on,
+        # one added later too.
+        self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
         self.d = diagram
         self.checks = checks
         self.environment = environment
@@ -339,9 +342,7 @@ class Explorer:
     def with_types(self, types: dict) -> "Explorer":
         """This walk with the types ranging over other values: the same
         diagram, glue, environment and options."""
-        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client,
-                        environment=self.environment, max_states=self.max_states, avoid=self.avoid,
-                        within=sorted(self.within) if self.within is not None else None, first=self.first)
+        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client, **self._options)
 
     @functools.cached_property
     def _wider(self) -> "Explorer":
