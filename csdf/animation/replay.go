@@ -222,8 +222,8 @@ type Environment struct {
 }
 
 // LoadEnvironment reads the environment csdfbmc's JSON output reports, or
-// nil when the output has none. An environment that records no env (one
-// csdfbmc v1.8.0 and earlier wrote, whose given mixes the checks module's
+// nil when the output has none. An environment that records no env (one that
+// a csdfbmc before 3.0.0 wrote, whose given mixes the checks module's
 // functions with --env's) is refused, for it does not say which values
 // --env gave; so is an env of a function given does not list.
 func LoadEnvironment(bs []byte) (*Environment, error) {
