@@ -1032,7 +1032,10 @@ refused when anything could tell two IDs apart: a type not closed under
 renaming them; an atom the glue says does, asked of every atom with the
 arguments that may hold an ID and the maps an ID indexes (the evaluator
 protocol's `symmetric` request; a glue that does not answer it is refused);
-a function of the environment reading an ID that a seed would decide; or
+a function of the environment reading an ID that a seed would decide, or
+given as Python that does not commute with renaming (tried at load for
+every renaming and every value of its arguments' types: renaming the
+arguments must rename the result, and leave a truth value as it is); or
 the checks module's source naming an ID as a constant (a literal listing
 all of a group, as a type does, names none), ordering one, or sorting, or
 taking the min or max of, one or a map keyed by them. The builtins and `∃`

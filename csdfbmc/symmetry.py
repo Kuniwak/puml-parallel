@@ -17,8 +17,10 @@ The declaration is refused when anything could tell two IDs apart:
   (the evaluator protocol's symmetric request); a glue that does not answer
   it is refused;
 - a function of the environment one of whose arguments may hold an ID,
-  unless it is given a constant or as Python in the checks module, which is
-  read as the ghosts and invariants are;
+  unless it is given a constant, or as Python that commutes with renaming:
+  for every renaming of the IDs and every value of its arguments' types,
+  renaming the arguments renames the result, and leaves a truth value as
+  it is (tried at load; an argument with no type to list is refused);
 - the checks module's source, the ghosts, the invariants and the functions
   it gives, naming an ID as a constant (a literal listing every ID of its
   group, as a type does, names none), ordering an ID, or sorting, taking
@@ -46,7 +48,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
 from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import FrozenMap, Rec
+from csdfbmc.values import FrozenMap, Rec, freeze, same_value
 
 
 class Symmetry:
@@ -72,7 +74,8 @@ class Symmetry:
         self.d = d
         self._check_types(checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
-        self._check_atoms(d, client, environment)
+        self._checked: set = set()
+        self._check_atoms(d, checks, client, environment)
         self._check_sources(checks)
 
     # -- what may hold an ID -------------------------------------------------------
@@ -143,21 +146,21 @@ class Symmetry:
                 if {rename(v, perm) for v in held} != held:
                     raise ValueError(f"the values of {t!r} are not closed under renaming the symmetric IDs, so they are not interchangeable")
 
-    def _check_atoms(self, d: Diagram, client: ClientLike, environment: Environment) -> None:
+    def _check_atoms(self, d: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> None:
         asked: set = set()
         groups = [sorted(g) for g in self.groups]
         for clause in [d.start_post] + [c for e in d.edges for c in (e.guard, e.post)] + [x.guard for x in d.ends]:
             for c, types in conjuncts(clause, ()):
                 for t in terms(c):
                     if isinstance(t, App) and any(self._carries(a, types, self.ids, self.fields) for a in t.args):
-                        self._check_environment(t.fn, environment)
+                        self._check_given(t.fn, checks.environment.get(t.fn), t.args, types, checks)
                 if not isinstance(c, Atom):
                     continue
                 maps = [i for i, a in enumerate(c.args) if isinstance(a, Free) and a.name in self.maps]
                 params = [i for i, a in enumerate(c.args) if i not in maps and self._carries(a, types, self.ids, self.fields)]
                 if c.function in environment.declared:
                     if params or maps:
-                        self._check_environment(c.function, environment)
+                        self._check_given(c.function, environment.given.get(c.function), c.args, types, checks)
                     continue
                 key = (c.function, tuple(c.primed), tuple(params), tuple(maps))
                 if key in asked:
@@ -167,11 +170,44 @@ class Symmetry:
                 if why is not None:
                     raise ValueError(f"the atom {c.function!r} tells the symmetric IDs apart: {why}; drop its type from SYMMETRIC or change the atom")
 
-    def _check_environment(self, name: str, environment: Environment) -> None:
-        given = environment.given.get(name)
-        if not isinstance(given, bool) and not callable(given):
+    def _check_given(self, name: str, given, args: tuple, types: tuple, checks: Checks) -> None:
+        """Refuses a function of the environment reading an ID unless it is
+        given a constant, or a function that renaming the IDs of its
+        arguments renames the IDs of its result: f(π x) = π f(x) for every
+        renaming π and every value x of its arguments, so a truth value
+        does not change. A seed would choose it apart for each ID."""
+        if isinstance(given, bool):
+            return
+        if not callable(given):
             raise ValueError(f"the function of the environment {name!r} reads a symmetric ID, and a seed would tell the IDs apart; "
                              "give it in ENVIRONMENT, or drop its type from SYMMETRIC")
+        key = (name, args, types)
+        if key in self._checked:
+            return
+        self._checked.add(key)
+        domains = [self._values(name, a, types, checks) for a in args]
+        for xs in itertools.product(*domains):
+            out = freeze(given(*xs))
+            for perm in self.perms:
+                renamed = tuple(rename(x, perm) for x in xs)
+                if not same_value(freeze(given(*renamed)), rename(out, perm)):
+                    raise ValueError(f"the function of the environment {name!r} given in ENVIRONMENT tells the symmetric IDs apart: "
+                                     f"of {list(xs)!r} it gives {out!r}, of {list(renamed)!r} not {rename(out, perm)!r}; "
+                                     "drop its type from SYMMETRIC or change the function")
+
+    def _values(self, name: str, t, types: tuple, checks: Checks) -> list:
+        """The values the argument t of the function of the environment
+        name ranges over, for checking it: those of its type."""
+        try:
+            if isinstance(t, Free):
+                return [freeze(v) for v in checks.domain(t.name)]
+            if isinstance(t, Bound):
+                return [freeze(v) for v in checks.carrier(types[len(types) - 1 - t.index])]
+        except KeyError:
+            pass
+        raise ValueError(f"the function of the environment {name!r} reads a symmetric ID, and --symmetry checks a function given "
+                         "by trying every value of its arguments, but an argument has no type to list them; give it a constant, "
+                         "pass it a typed name, or drop its type from SYMMETRIC")
 
     def _check_sources(self, checks: Checks) -> None:
         if not checks.sources:
