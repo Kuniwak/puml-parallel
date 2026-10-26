@@ -33,20 +33,15 @@ func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
 	}
 	d := in.Diagram
 
-	var taus []core.Edge
-	for _, e := range d.Edges {
-		if e.Event.Channel == core.Tau && !Contradictory(e.Guard) {
-			taus = append(taus, e)
-		}
-	}
+	keep := func(e core.Edge) bool { return !Contradictory(e.Guard) }
 	reached := d.ReachableStates()
 
 	var findings []Finding
-	for _, e := range taus {
-		if !slices.Contains(reached, e.Src) {
+	for _, e := range d.Edges {
+		if e.Event.Channel != core.Tau || !keep(e) || !slices.Contains(reached, e.Src) {
 			continue
 		}
-		back, ok := tauPath(taus, e.Dst, e.Src)
+		back, ok := d.TauPath(e.Dst, e.Src, keep)
 		if !ok {
 			continue
 		}
@@ -64,33 +59,6 @@ func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
 		})
 	}
 	return findings
-}
-
-// tauPath is a shortest path of states from from to to over the edges taus,
-// both ends included, the edges taken in the order they are written.
-func tauPath(taus []core.Edge, from, to string) ([]string, bool) {
-	parent := map[string]string{from: ""}
-	todo := []string{from}
-	for len(todo) > 0 {
-		s := todo[0]
-		todo = todo[1:]
-		if s == to {
-			var path []string
-			for t := to; t != from; t = parent[t] {
-				path = append(path, t)
-			}
-			path = append(path, from)
-			slices.Reverse(path)
-			return path, true
-		}
-		for _, e := range taus {
-			if _, seen := parent[e.Dst]; e.Src == s && !seen {
-				parent[e.Dst] = s
-				todo = append(todo, e.Dst)
-			}
-		}
-	}
-	return nil, false
 }
 
 func quotedPath(states []string) string {
