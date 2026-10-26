@@ -25,6 +25,16 @@ State = tuple[str, tuple, tuple]
 Ample = Callable[[State, list, Callable[[State], bool]], list]
 
 
+# The state a state is stored by, the same for every state the walk takes
+# as one.
+Canonical = Callable[[State], State]
+
+
+def as_met(state: State) -> State:
+    """The state itself: the walk stores every state apart."""
+    return state
+
+
 def every_transition(state: State, transitions: list, known: Callable[[State], bool]) -> list:
     """Takes every transition: the walk unreduced."""
     return transitions
@@ -188,12 +198,16 @@ class Explorer:
     ample chooses, from the transitions of a state, those the walk takes
     (csdfbmc.por.PartialOrder.ample), or every_transition takes them all;
     it is given the state, its transitions and whether a state was met.
+
+    canonical gives the state a state is stored by: one representative of
+    its renamings of the symmetric IDs (csdfbmc.symmetry.Symmetry.canonical),
+    which may refuse it, or as_met, the state itself.
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
                  first: bool = False, left_out: tuple[str, ...],
-                 ample: Ample):
+                 ample: Ample, canonical: Canonical):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
@@ -212,6 +226,7 @@ class Explorer:
         self.empty_posts: list[tuple[State, str]] = []
         self.left_out = tuple(left_out)
         self.ample = ample
+        self.canonical = canonical
         self._check_fields()
         self._check_environment()
 
@@ -374,17 +389,19 @@ class Explorer:
                 return self._label(e, before)
         return None
 
-    def with_types(self, types: dict) -> "Explorer":
+    def with_types(self, types: dict, **options) -> "Explorer":
         """This walk with the types ranging over other values: the same
-        diagram, glue, environment and options."""
-        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client, **self._options)
+        diagram, glue, environment and options, but those given."""
+        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client, **{**self._options, **options})
 
     @functools.cached_property
     def _wider(self) -> "Explorer":
         """This walk with each sample extended by the values beyond it, all
         at once; a type built of a sample takes them too
         (csdfbmc.values.beyond_samples). Built once, at the first state with
-        no way out."""
+        no way out. It keeps every option: it only tries the state the walk
+        met, a run of the diagram, and stores none, so it neither chooses
+        ample sets nor asks for a representative."""
         return self.with_types(beyond_samples(self.checks.types))
 
     def bound_witness(self, state: State) -> str | None:
@@ -442,10 +459,17 @@ class Explorer:
         bound_reached: list[tuple[State, str]] = []
         violations: list[tuple[str, State]] = []
         truncated = False
-        seen: set[State] = set()
+        # met: a state as stored (its representative under symmetry) -> the
+        # state the walk met first and expands.
+        met: dict[State, State] = {}
+
+        key = self.canonical
+
+        def known(s: State) -> bool:
+            return key(s) in met
 
         def visit(s: State):
-            seen.add(s)
+            met[key(s)] = s
             parents.setdefault(s, None)
             order.append(s)
             queue.append(s)
@@ -453,7 +477,7 @@ class Explorer:
                 violations.append((name, s))
 
         for s in self.initial():
-            if s not in seen:
+            if not known(s):
                 visit(s)
 
         stopped = False
@@ -465,7 +489,7 @@ class Explorer:
                 stopped = True
                 break
             succ = self.transitions(s)
-            succ = self.ample(s, succ, seen.__contains__)
+            succ = self.ample(s, succ, known)
             if not succ and not self.can_end(s):
                 witness = self.bound_witness(s)
                 if witness is not None:
@@ -476,16 +500,16 @@ class Explorer:
                         stopped = True
                         break
             for _, label, t, edge, _ in succ:
-                if t in seen:
+                if known(t):
                     continue
                 if len(order) >= self.max_states:
                     truncated = True
                     continue
                 parents[t] = (s, label, edge)
                 visit(t)
-            tau_next[s] = [t for _, _, t, edge, _ in succ if edge.is_tau]
+            tau_next[s] = [met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
-                avoid_next[s] = [t for name, _, t, _, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
+                avoid_next[s] = [met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,

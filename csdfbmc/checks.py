@@ -19,8 +19,8 @@ variables and ghosts it reads. Values must be hashable (tuples, frozenset,
 FrozenMap); dicts, lists and sets are frozen into those. Nothing in the
 module may assign inside a function, loop with a statement, raise, read or
 write the outside world, or use floats, so that a check is deterministic;
-comprehensions are expressions and are allowed. SYMMETRIC, which
---symmetry read, is refused until symmetry reduction walks the formulas.
+comprehensions are expressions and are allowed. SYMMETRIC lists the types
+whose values --symmetry may rename (csdfbmc.symmetry).
 """
 from __future__ import annotations
 
@@ -96,6 +96,8 @@ class Checks:
     # of its arguments in order, or None to leave it to --env or --seed
     # (csdfbmc.environment).
     environment: dict[str, "Given | None"] = field(default_factory=dict)
+    # symmetric: the types whose values, IDs, --symmetry may rename.
+    symmetric: tuple[str, ...] = ()
 
     @property
     def samples(self) -> frozenset[str]:
@@ -185,9 +187,9 @@ def load_checks(path: str) -> Checks:
     for name, t in typeof.items():
         if t not in module.TYPES:
             raise PurityError(f"{path}: TYPEOF gives {name!r} the type {t!r}, which TYPES does not declare")
-    if hasattr(module, "SYMMETRIC"):
-        raise PurityError(f"{path}: SYMMETRIC is read by --symmetry, which csdfbmc does not walk the formulas with yet "
-                          "(a later change of #76 brings it back); leave it out until then")
+    symmetric = getattr(module, "SYMMETRIC", ())
+    if not isinstance(symmetric, (list, tuple, set, frozenset)) or not all(isinstance(t, str) for t in symmetric):
+        raise PurityError(f"{path}: SYMMETRIC must list the names of types when defined")
     if hasattr(module, "CLAUSES"):
         raise PurityError(f"{path}: CLAUSES is no longer read; write the clauses in the "
                           "language of a glue (csdfbmc.python_glue reads Python) and read them with --evaluator-module")
@@ -204,5 +206,5 @@ def load_checks(path: str) -> Checks:
     return Checks(
         types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
-        sources=[(path, source)],
+        sources=[(path, source)], symmetric=tuple(sorted(symmetric)),
     )

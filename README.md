@@ -871,8 +871,8 @@ variables before the step and returns the new value; a ghost with no update
 for an event keeps its value. Ghosts are part of the state the walk tells
 states apart by, so a total that grows without bound is cut by
 `--max-states`. A ghost update and an invariant see an instance as the map
-of its fields. `SYMMETRIC`, which `--symmetry` read, is refused until
-symmetry reduction walks the formulas.
+of its fields. `SYMMETRIC` lists the types whose values `--symmetry` may
+rename.
 
 The walk is breadth-first over (control state, valuation, ghosts) triples, up to
 `--max-states`. It reports every reachable state with no enabled transition and
@@ -1024,8 +1024,35 @@ that takes any keyword is refused with `--por`. No example of
 `examples/bmc` is reduced: in `attempts`, `RESEND` reads the instance it
 replaces, which ties the attempts together.
 
-The reduction `--symmetry` of earlier releases read what a glue said a
-clause reads; it comes back on the formulas in a later change of #76.
+`--symmetry` walks fewer states and finds the same. It stores a state by
+the least of its renamings of the IDs, the values of each type the checks
+module lists in `SYMMETRIC` (strings, a group per type), and still expands
+the state it met first, so every trace is a run of the diagram. It is
+refused when anything could tell two IDs apart: a type not closed under
+renaming them; an atom the glue says does, asked of every atom with the
+arguments that may hold an ID and the maps an ID indexes (the evaluator
+protocol's `symmetric` request; a glue that does not answer it is refused);
+a function of the environment reading an ID that a seed would decide, or
+given as Python that does not commute with renaming (tried at load for
+every renaming and every value of its arguments' types: renaming the
+arguments must rename the result, and leave a truth value as it is); or
+the checks module's source naming an ID as a constant (a literal listing
+all of a group, as a type does, names none), ordering one, or sorting, or
+taking the min or max of, one or a map keyed by them. The builtins and `∃`
+never tell IDs apart. What may hold an ID is read from the types and the
+builtins; an atom's output is the glue's, so a state in which a variable,
+a field or a ghost holds an ID where none was foreseen is refused during
+the walk: csdfbmc exits 2 and reports no finding, not even those met
+before. Whether the walk meets such a state depends on how far it goes, so
+a run within a smaller `--max-states`, or one that `--first` stops early,
+may finish where a longer one is refused. The values beyond a sample are
+tried at the state as met. `examples/bmc/attempts/checks.py` declares `SYMMETRIC = ["試行ID"]`:
+
+```console
+$ csdfbmc attempts.json examples/bmc/attempts/checks.py \
+    --evaluator-module csdfbmc.python_glue --avoid CONFIRMED --symmetry
+states: 104 (496 without it)
+```
 
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
