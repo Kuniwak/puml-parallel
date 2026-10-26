@@ -30,6 +30,15 @@ s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k'
 @enduml
 `
 
+// endingDiagram has a state whose only exit is an end edge.
+const endingDiagram = `@startuml
+state "Idle" as s0
+s0: a
+[*] --> s0 : $a' == 0
+s0 --> [*] : @eq(a, a)
+@enduml
+`
+
 func mustRead(t *testing.T, content string) *core.Diagram {
 	t.Helper()
 	diagram, err := coreio.ReadBytes([]byte(content))
@@ -349,5 +358,122 @@ func TestOperationsOutOfTheirModeError(t *testing.T) {
 				t.Errorf("error = %v, want an error that is neither a refusal nor an index out of range", err)
 			}
 		})
+	}
+}
+
+// endedAt is a session of endingDiagram whose run ended at its initial state.
+func endedAt(t *testing.T) *Session {
+	t.Helper()
+	session := newSession(t, endingDiagram)
+	if _, err := session.EnterValues("[0]"); err != nil {
+		t.Fatalf("Setup: EnterValues() error = %v", err)
+	}
+	if err := session.End(0); err != nil {
+		t.Fatalf("Setup: End() error = %v", err)
+	}
+	return session
+}
+
+func TestEndTakesAnEndEdgeAndTheRunEnds(t *testing.T) {
+	// Setup
+	session := newSession(t, endingDiagram)
+	if _, err := session.EnterValues("[0]"); err != nil {
+		t.Fatalf("Setup: EnterValues() error = %v", err)
+	}
+
+	// Execute
+	err := session.End(0)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("End() error = %v", err)
+	}
+	if session.Mode() != ModeEnded {
+		t.Errorf("Mode() = %v, want ModeEnded", session.Mode())
+	}
+	if current, ok := session.Current(); ok || current.ID != "s0" {
+		t.Errorf("Current() = (%v, %v), want s0, not in command mode", current, ok)
+	}
+}
+
+func TestEndRefusesAnEndEdgeABuiltinOfWhoseGuardIsFalse(t *testing.T) {
+	// Setup
+	session := newSession(t, "@startuml\nstate \"S\" as s0\ns0: a\ns0: b\n[*] --> s0 : @eq(a', b')\ns0 --> [*] : @ne(a, b)\n@enduml\n")
+	if _, err := session.EnterValues("[1, 1]"); err != nil {
+		t.Fatalf("Setup: EnterValues() error = %v", err)
+	}
+
+	// Execute
+	err := session.End(0)
+
+	// Assert
+	var refused *RefusedValuesError
+	want := "the guard does not hold of these values: @ne(a, b)"
+	if !errors.As(err, &refused) || refused.Error() != want {
+		t.Fatalf("End() error = %v, want a refusal saying %q", err, want)
+	}
+	if session.Mode() != ModeCommand {
+		t.Errorf("Mode() = %v, want ModeCommand still", session.Mode())
+	}
+}
+
+func TestEndOutOfRangeErrors(t *testing.T) {
+	tests := map[string]int{
+		"a negative index":           -1,
+		"one past the last end edge": 1,
+	}
+	for name, idx := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := newSession(t, endingDiagram)
+			if _, err := session.EnterValues("[0]"); err != nil {
+				t.Fatalf("Setup: EnterValues() error = %v", err)
+			}
+
+			// Execute
+			err := session.End(idx)
+
+			// Assert
+			if !errors.Is(err, ErrIndexOutOfRange) {
+				t.Errorf("End(%d) error = %v, want ErrIndexOutOfRange", idx, err)
+			}
+		})
+	}
+}
+
+func TestOperationsAfterTheRunEndedError(t *testing.T) {
+	tests := map[string]func(*Session) error{
+		"select": func(s *Session) error { return s.Select(0) },
+		"end":    func(s *Session) error { return s.End(0) },
+	}
+	for name, op := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := endedAt(t)
+
+			// Execute
+			err := op(session)
+
+			// Assert
+			if !errors.Is(err, ErrEnded) {
+				t.Errorf("error = %v, want ErrEnded", err)
+			}
+		})
+	}
+}
+
+func TestJumpAfterTheRunEndedGoesOn(t *testing.T) {
+	// Setup
+	session := endedAt(t)
+
+	// Execute
+	err := session.Jump(0)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Jump() error = %v", err)
+	}
+	if current, ok := session.Current(); !ok || current.ID != "s0" {
+		t.Errorf("Current() = (%v, %v), want s0 in command mode", current, ok)
 	}
 }

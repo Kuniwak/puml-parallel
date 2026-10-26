@@ -94,12 +94,14 @@ func valuePromptInstruction(vars []string) string {
 	return fmt.Sprintf("Enter %d %s as a JSON array in declaration order: [%s].", len(vars), noun, strings.Join(placeholders, ", "))
 }
 
-// RenderState renders the current state, its values, and its outgoing
-// transitions (numbered for selection), or a deadlock notice if there are none.
+// RenderState renders the current state, its values, its outgoing
+// transitions and its end edges (each numbered for selection), or a
+// deadlock notice if it has neither, as csdfbmc counts a deadlock.
 func RenderState(w io.Writer, diagram *core.Diagram, state State) {
 	edges := Outgoing(diagram, state.ID)
+	ends := EndsFrom(diagram, state.ID)
 	_, _ = fmt.Fprintf(w, "State: %s\n", state.Name)
-	if len(edges) > 0 {
+	if len(edges) > 0 || len(ends) > 0 {
 		_, _ = fmt.Fprintln(w)
 	}
 	_, _ = fmt.Fprintln(w, "Values:")
@@ -109,18 +111,34 @@ func RenderState(w io.Writer, diagram *core.Diagram, state State) {
 	renderStateValues(w, state.Values, "  ")
 	_, _ = fmt.Fprintln(w)
 
-	if len(edges) == 0 {
+	if len(edges) == 0 && len(ends) == 0 {
 		_, _ = fmt.Fprintln(w, "Deadlock: no outgoing transitions.")
 		_, _ = fmt.Fprintln(w)
 		return
 	}
-	_, _ = fmt.Fprintln(w, "Transitions:")
+	if len(edges) > 0 {
+		_, _ = fmt.Fprintln(w, "Transitions:")
+	}
 	for i, edge := range edges {
 		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s\n", i, edge.Event.Label(), StateName(diagram, edge.Dst))
 		_, _ = fmt.Fprintf(w, "      Guard: %s\n", ClauseText(edge.Guard))
 		_, _ = fmt.Fprintf(w, "      Post: %s\n", ClauseText(edge.Post))
 		_, _ = fmt.Fprintln(w)
 	}
+	if len(ends) > 0 {
+		_, _ = fmt.Fprintln(w, "Ends:")
+	}
+	for i, end := range ends {
+		_, _ = fmt.Fprintf(w, "  [%d] end the run\n", i)
+		_, _ = fmt.Fprintf(w, "      Guard: %s\n", ClauseText(end.Guard))
+		_, _ = fmt.Fprintln(w)
+	}
+}
+
+// RenderEnded renders the notice of a run that ended at state by an end
+// edge.
+func RenderEnded(w io.Writer, state State) {
+	_, _ = fmt.Fprintf(w, "Ended: the run terminates at %s. Jump to a history entry (j INDEX) to go on.\n\n", state.Name)
 }
 
 func renderStateValues(w io.Writer, values []Value, indent string) {
@@ -181,6 +199,7 @@ func RenderHelp(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "  t         display the current trace")
 	_, _ = fmt.Fprintln(w, "  h         display history")
 	_, _ = fmt.Fprintln(w, "  s INDEX   select a transition")
+	_, _ = fmt.Fprintln(w, "  e INDEX   take an end edge: the run terminates")
 	_, _ = fmt.Fprintln(w, "  j INDEX   jump to a history entry")
 	_, _ = fmt.Fprintln(w, "  ?, help   display this help")
 	_, _ = fmt.Fprintln(w)

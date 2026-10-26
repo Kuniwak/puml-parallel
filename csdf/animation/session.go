@@ -14,14 +14,19 @@ import (
 // condition from fatal errors with errors.Is.
 var ErrIndexOutOfRange = errors.New("Index out of range")
 
+// ErrEnded is returned by Select and End once the run has ended: only a
+// jump to a history entry goes on.
+var ErrEnded = errors.New("the run has ended; jump to a history entry (j INDEX) to go on")
+
 // Mode reports whether the session is awaiting state-variable values for a
-// pending transition (ModeValues) or ready for a command on the current state
-// (ModeCommand).
+// pending transition (ModeValues), ready for a command on the current state
+// (ModeCommand), or at a state whose run ended by an end edge (ModeEnded).
 type Mode int
 
 const (
 	ModeValues Mode = iota
 	ModeCommand
+	ModeEnded
 )
 
 // Pending is the transition whose target state awaits values: the start
@@ -127,9 +132,40 @@ func (s *Session) EnterValues(encoded string) (State, error) {
 	return state, nil
 }
 
+// Ends returns the end edges from the current state.
+func (s *Session) Ends() []core.End {
+	return EndsFrom(s.diagram, s.current.ID)
+}
+
+// End takes the idx-th end edge from the current state: the run ends there
+// (ModeEnded), as csdfbmc ends it. An end edge a builtin of whose guard is
+// false of the current values (AdmitByBuiltins) is a *RefusedValuesError,
+// and the session is unchanged; the atoms of the guard are not evaluated.
+func (s *Session) End(idx int) error {
+	if s.mode == ModeEnded {
+		return ErrEnded
+	}
+	if s.mode != ModeCommand {
+		return errors.New("animation.Session.End: not in command mode")
+	}
+	ends := s.Ends()
+	if idx < 0 || idx >= len(ends) {
+		return ErrIndexOutOfRange
+	}
+	current := s.current
+	if err := AdmitByBuiltins(s.diagram, Pending{Guard: ends[idx].Guard, Prev: &current}, nil); err != nil {
+		return err
+	}
+	s.mode = ModeEnded
+	return nil
+}
+
 // Select chooses the idx-th outgoing transition of the current state and
 // switches to ModeValues, awaiting the destination's values.
 func (s *Session) Select(idx int) error {
+	if s.mode == ModeEnded {
+		return ErrEnded
+	}
 	if s.mode != ModeCommand {
 		return errors.New("animation.Session.Select: not in command mode")
 	}
@@ -152,9 +188,10 @@ func (s *Session) Select(idx int) error {
 }
 
 // Jump branches from the idx-th history entry: a clone is appended as a new
-// entry and becomes the current state, preserving the linear history.
+// entry and becomes the current state, preserving the linear history. It
+// goes on after the run ended too.
 func (s *Session) Jump(idx int) error {
-	if s.mode != ModeCommand {
+	if s.mode == ModeValues {
 		return errors.New("animation.Session.Jump: not in command mode")
 	}
 	if idx < 0 || idx >= len(s.history) {
@@ -163,6 +200,7 @@ func (s *Session) Jump(idx int) error {
 	entry := cloneHistoryEntry(s.history[idx])
 	s.history = append(s.history, entry)
 	s.current = entry.State
+	s.mode = ModeCommand
 	return nil
 }
 
@@ -194,6 +232,18 @@ func Outgoing(diagram *core.Diagram, stateID string) []core.Edge {
 		}
 	}
 	return edges
+}
+
+// EndsFrom returns the diagram's end edges whose source is stateID, in the
+// diagram's order.
+func EndsFrom(diagram *core.Diagram, stateID string) []core.End {
+	var ends []core.End
+	for _, end := range diagram.Ends {
+		if end.Src == stateID {
+			ends = append(ends, end)
+		}
+	}
+	return ends
 }
 
 func cloneHistoryEntry(entry HistoryEntry) HistoryEntry {

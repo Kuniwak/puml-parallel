@@ -1091,6 +1091,9 @@ Commands use zero-based indexes:
 - `t` displays the current visible trace. The internal event `tau` is hidden.
 - `h` displays the exploration history.
 - `s INDEX` selects an outgoing transition.
+- `e INDEX` takes an end edge (listed under `Ends:`): the run terminates
+  there, and only `j` goes on. A builtin of its guard false of the current
+  values refuses it; the guard's atoms are not evaluated, even with `-checks`.
 - `j INDEX` jumps to a history entry.
 - `?` or `help` displays command help.
 
@@ -1162,6 +1165,7 @@ $ csdfreplcmd select 0                                   # choose a transition, 
 $ csdfreplcmd statevar -json '["done"]'
 $ csdfreplcmd trace
 $ csdfreplcmd jump 0                                     # branch from an earlier history entry
+$ csdfreplcmd end 0                                      # take an end edge: the run terminates
 $ csdfreplcmd replay -finding 0 findings.json            # walk a fresh session to a csdfbmc finding
 $ csdfreplcmd statevar -pick 0                           # enter the first suggestion (daemon started with -checks)
 $ csdfreplcmd read -json                                 # structured output for parsing

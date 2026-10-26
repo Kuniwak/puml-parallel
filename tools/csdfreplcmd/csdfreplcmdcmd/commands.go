@@ -28,6 +28,7 @@ Typical workflow:
   $ csdfreplcmd trace                               # visible event trace
   $ csdfreplcmd history                             # exploration history
   $ csdfreplcmd jump 0                              # branch from an earlier history entry
+  $ csdfreplcmd end 0                               # take an end edge: the run terminates
   $ csdfreplcmd session rm -s "$SID"                # clean up
 
 Every command prints human-readable text by default and structured JSON with
@@ -45,6 +46,7 @@ func Subcommands() []tools.Subcommand {
 		{Name: "trace", Description: "show the current event trace", CommandFunc: tools.NewCommandFunc(parseTrace(), newMainFunc())},
 		{Name: "history", Description: "show the exploration history", CommandFunc: tools.NewCommandFunc(parseHistory(), newMainFunc())},
 		{Name: "jump", Description: "jump to a history entry", CommandFunc: tools.NewCommandFunc(parseJump(), newMainFunc())},
+		{Name: "end", Description: "take an end edge: the run terminates", CommandFunc: tools.NewCommandFunc(parseEnd(), newMainFunc())},
 		{Name: "replay", Description: "walk a fresh session along a finding of csdfbmc --json", CommandFunc: tools.NewCommandFunc(parseReplay(), newMainFunc())},
 		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: tools.NewCommandFunc(parseServerVersion(), newMainFunc())},
 	}
@@ -168,6 +170,30 @@ func parseJump() cli.ParseOptionsFunc[*clientOptions] {
 			return nil, err
 		}
 		opts.req = proto.Request{Command: proto.CommandJump, Session: cf.session, Index: &index}
+		return opts, nil
+	}
+}
+
+func parseEnd() cli.ParseOptionsFunc[*clientOptions] {
+	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
+		flags := newFlagSet("csdfreplcmd end", inout)
+		setLeafUsage(flags, "csdfreplcmd end <index> [-s <id>] [-json]",
+			"Take the zero-based end edge <index> from the current state (\"read\" lists\nthem under Ends): the run terminates there, and only a jump goes on. An end\nedge a builtin of whose guard is false of the current values is refused;\nthe guard's atoms are not evaluated.\n\nExample:\n  csdfreplcmd end 0")
+		cf := declareConnFlags(flags)
+		declareSession(flags, cf)
+		declareJSON(flags, cf)
+		opts, err := parseLeaf(flags, args, cf)
+		if err != nil || opts.help {
+			return opts, err
+		}
+		if flags.NArg() != 1 {
+			return nil, errors.New("end requires an end edge index")
+		}
+		index, err := parseIndex(flags.Arg(0))
+		if err != nil {
+			return nil, err
+		}
+		opts.req = proto.Request{Command: proto.CommandEnd, Session: cf.session, Index: &index}
 		return opts, nil
 	}
 }

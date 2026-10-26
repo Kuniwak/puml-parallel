@@ -3,6 +3,7 @@ Commands:
   t         display the current trace
   h         display history
   s INDEX   select a transition
+  e INDEX   take an end edge: the run terminates
   j INDEX   jump to a history entry
   ?, help   display this help
 

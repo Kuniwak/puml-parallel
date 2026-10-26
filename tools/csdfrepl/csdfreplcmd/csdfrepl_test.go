@@ -513,6 +513,48 @@ func TestRunExploresTheDiagramJSONOfAnExpansion(t *testing.T) {
 	}
 }
 
+func TestRunTakesAnEndEdgeAndGoesOnByAJump(t *testing.T) {
+	// Setup
+	path := writeDiagram(t, `@startuml
+state "Idle" as s0
+s0: a
+[*] --> s0 : $a' == 0
+s0 --> [*] : @eq(a, a)
+@enduml
+`)
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("[0]\ne 3\ne 0\ns 0\nl\nj 0\n"))
+
+	// Execute
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+	out := spy.Stdout.String()
+	if strings.Contains(out, "Deadlock") {
+		t.Errorf("stdout calls a state with an end edge a deadlock:\n%s", out)
+	}
+	ended := "Ended: the run terminates at Idle. Jump to a history entry (j INDEX) to go on.\n"
+	for _, want := range []string{
+		"Ends:\n  [0] end the run\n      Guard: @eq(a, a)\n",
+		"Error: Index out of range\n",
+		ended,
+		"Error: the run has ended; jump to a history entry (j INDEX) to go on\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout does not contain %q:\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, ended); n != 2 {
+		t.Errorf("stdout shows the end %d times, want 2 (after e, after l):\n%s", n, out)
+	}
+	if !strings.HasSuffix(out, "Ends:\n  [0] end the run\n      Guard: @eq(a, a)\n\ncommand> ") {
+		t.Errorf("stdout does not end at the state jumped to:\n%s", out)
+	}
+}
+
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
 		input     string
@@ -525,6 +567,8 @@ func TestParseCommand(t *testing.T) {
 		{input: "help", wantKind: commandHelp},
 		{input: "s 12", wantKind: commandSelect, wantIndex: 12},
 		{input: "j 0", wantKind: commandJump},
+		{input: "e 1", wantKind: commandEnd, wantIndex: 1},
+		{input: "e", wantError: "required an index of end edge"},
 		{input: "s", wantError: "required an index of transition"},
 		{input: "j -1", wantError: "Not a natural number"},
 		{input: "t extra", wantError: "invalid arguments"},

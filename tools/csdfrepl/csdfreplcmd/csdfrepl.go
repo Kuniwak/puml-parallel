@@ -220,8 +220,7 @@ func (r *repl) run() error {
 			case commandEmpty:
 				r.displayEmptyLine()
 			case commandList:
-				current, _ := r.session.Current()
-				r.displayState(current)
+				r.displayPosition()
 			case commandTrace:
 				r.displayTrace(r.session.Trace())
 			case commandHistory:
@@ -230,7 +229,7 @@ func (r *repl) run() error {
 				r.displayHelp()
 			case commandJump:
 				if err := r.session.Jump(index); err != nil {
-					if errors.Is(err, animation.ErrIndexOutOfRange) {
+					if isRecoverable(err) {
 						r.displayError(err.Error())
 						continue
 					}
@@ -240,18 +239,46 @@ func (r *repl) run() error {
 				r.displayState(current)
 			case commandSelect:
 				if err := r.session.Select(index); err != nil {
-					if errors.Is(err, animation.ErrIndexOutOfRange) {
+					if isRecoverable(err) {
 						r.displayError(err.Error())
 						continue
 					}
 					return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 				}
 				goto askValues
+			case commandEnd:
+				if err := r.session.End(index); err != nil {
+					if isRecoverable(err) {
+						r.displayError(err.Error())
+						continue
+					}
+					return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
+				}
+				r.displayPosition()
 			}
 		}
 
 	askValues:
 	}
+}
+
+// isRecoverable says err is the user's to fix at the command prompt: an
+// index out of range, a step after the run ended, or an end edge whose
+// guard does not hold.
+func isRecoverable(err error) bool {
+	var refused *animation.RefusedValuesError
+	return errors.Is(err, animation.ErrIndexOutOfRange) || errors.Is(err, animation.ErrEnded) || errors.As(err, &refused)
+}
+
+// displayPosition renders where the session stands: the current state and
+// its ways out, or the end of the run.
+func (r *repl) displayPosition() {
+	current, _ := r.session.Current()
+	if r.session.Mode() == animation.ModeEnded {
+		animation.RenderEnded(r.stdout, current)
+		return
+	}
+	r.displayState(current)
 }
 
 type inputOutcome int
@@ -391,6 +418,7 @@ const (
 	commandHelp
 	commandSelect
 	commandJump
+	commandEnd
 )
 
 func parseCommand(input string) (commandKind, int, error) {
@@ -409,6 +437,8 @@ func parseCommand(input string) (commandKind, int, error) {
 		return 0, 0, errors.New("required an index of transition")
 	case "j":
 		return 0, 0, errors.New("required an index of history")
+	case "e":
+		return 0, 0, errors.New("required an index of end edge")
 	}
 
 	for _, command := range []string{"l", "t", "h", "?", "help"} {
@@ -423,6 +453,10 @@ func parseCommand(input string) (commandKind, int, error) {
 	if strings.HasPrefix(input, "j ") {
 		index, err := parseNaturalNumber(strings.TrimPrefix(input, "j "))
 		return commandJump, index, err
+	}
+	if strings.HasPrefix(input, "e ") {
+		index, err := parseNaturalNumber(strings.TrimPrefix(input, "e "))
+		return commandEnd, index, err
 	}
 	return 0, 0, errors.New("invalid command")
 }

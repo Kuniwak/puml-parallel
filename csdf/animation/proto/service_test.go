@@ -522,3 +522,37 @@ func TestHandleReplayRefusesAnEnvironmentTheDaemonDoesNotWalk(t *testing.T) {
 		})
 	}
 }
+
+const endingDiagram = "@startuml\nstate \"Idle\" as s0\ns0: a\n[*] --> s0 : $a' == 0\ns0 --> [*] : @eq(a, a)\n@enduml\n"
+
+func TestHandleEndEndsTheRunAtAnEndEdge(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "e.puml", Content: []byte(endingDiagram)})
+	if !resp.OK {
+		t.Fatalf("Setup: session_new failed: %s", resp.Error)
+	}
+	id := resp.Session
+	read := service.Handle(Request{Command: CommandStatevar, Session: id, Values: "[0]"})
+	if !read.OK {
+		t.Fatalf("Setup: statevar failed: %s", read.Error)
+	}
+
+	// Execute
+	ended := service.Handle(Request{Command: CommandEnd, Session: id, Index: intPtr(0)})
+	again := service.Handle(Request{Command: CommandEnd, Session: id, Index: intPtr(0)})
+
+	// Assert
+	if strings.Contains(read.Output, "Deadlock") || !strings.Contains(read.Output, "Ends:\n  [0] end the run\n      Guard: @eq(a, a)\n") {
+		t.Errorf("read output = %q, want the end edge and no deadlock", read.Output)
+	}
+	if diff := cmp.Diff([]End{{Index: 0, Guard: "@eq(a, a)"}}, decodeView(t, read).Ends); diff != "" {
+		t.Errorf("ends mismatch (-want +got):\n%s", diff)
+	}
+	if !ended.OK || decodeView(t, ended).Mode != "ended" || !strings.Contains(ended.Output, "Ended: the run terminates at Idle.") {
+		t.Errorf("end = %+v, want the run ended", ended)
+	}
+	if again.OK || !strings.Contains(again.Error, "the run has ended") {
+		t.Errorf("end after the end = %+v, want a refusal", again)
+	}
+}

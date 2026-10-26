@@ -21,6 +21,7 @@ const (
 	CommandTrace         = "trace"
 	CommandHistory       = "history"
 	CommandJump          = "jump"
+	CommandEnd           = "end"
 	CommandReplay        = "replay"
 	CommandServerVersion = "server_version"
 )
@@ -31,7 +32,7 @@ type Request struct {
 	Session string `json:"session,omitempty"` // "" => resolve the single session
 	Path    string `json:"path,omitempty"`    // session_new: label for listings
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
-	Index   *int   `json:"index,omitempty"`   // select (optional) / jump (required)
+	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
@@ -60,12 +61,21 @@ type Response struct {
 }
 
 // View is the structured current position of a session, returned by read,
-// select, statevar (on success), and jump.
+// select, statevar (on success), jump and end. In "ended" mode, State is
+// where the run ended.
 type View struct {
-	Mode        string           `json:"mode"` // "values" | "command"
+	Mode        string           `json:"mode"` // "values" | "command" | "ended"
 	State       *animation.State `json:"state,omitempty"`
 	Transitions []Transition     `json:"transitions,omitempty"`
+	Ends        []End            `json:"ends,omitempty"`
 	Pending     *Pending         `json:"pending,omitempty"`
+}
+
+// End is one end edge from the current state, which end takes: its guard
+// as Transition writes one.
+type End struct {
+	Index int    `json:"index"`
+	Guard string `json:"guard"`
 }
 
 // Transition is one selectable outgoing edge from the current state: its

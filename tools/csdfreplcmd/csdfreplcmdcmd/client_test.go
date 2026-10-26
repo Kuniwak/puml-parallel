@@ -294,3 +294,26 @@ func TestReplay(t *testing.T) {
 		t.Errorf("replay -finding 3: code %d, stderr %q; want a refusal", code, stderr)
 	}
 }
+
+func TestEndEndsTheRunAtAnEndEdge(t *testing.T) {
+	// Setup
+	sock := startDaemon(t)
+	path := filepath.Join(t.TempDir(), "ending.puml")
+	if err := os.WriteFile(path, []byte("@startuml\nstate \"Idle\" as s0\n[*] --> s0\ns0 --> [*]\n@enduml\n"), 0o600); err != nil {
+		t.Fatalf("Setup: %v", err)
+	}
+	if code, _, stderr := run(t, sock, "session", "new", path); code != 0 {
+		t.Fatalf("Setup: session new exit = %d, stderr = %q", code, stderr)
+	}
+	if code, _, stderr := run(t, sock, "statevar", "-json", "[]"); code != 0 {
+		t.Fatalf("Setup: statevar exit = %d, stderr = %q", code, stderr)
+	}
+
+	// Execute
+	code, stdout, stderr := run(t, sock, "end", "0")
+
+	// Assert
+	if code != 0 || !strings.Contains(stdout, "Ended: the run terminates at Idle.") {
+		t.Errorf("end exit = %d, stdout = %q, stderr = %q; want the run ended", code, stdout, stderr)
+	}
+}

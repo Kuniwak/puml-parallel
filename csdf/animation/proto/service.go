@@ -91,6 +91,8 @@ func (s *Service) Handle(req Request) Response {
 		return s.handleHistory(req)
 	case CommandJump:
 		return s.handleJump(req)
+	case CommandEnd:
+		return s.handleEnd(req)
 	case CommandReplay:
 		return s.handleReplay(req)
 	case CommandServerVersion:
@@ -238,6 +240,21 @@ func (s *Service) handleJump(req Request) Response {
 	return viewResponse(e)
 }
 
+// handleEnd takes an end edge from the current state: the run ends there.
+func (s *Service) handleEnd(req Request) Response {
+	e, err := s.resolve(req.Session)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	if req.Index == nil {
+		return errorResponse("end requires an end edge index")
+	}
+	if err := e.session.End(*req.Index); err != nil {
+		return s.errorFromErr(err)
+	}
+	return viewResponse(e)
+}
+
 // handleReplay walks a fresh session along the recorded path and shows where
 // it got to. A step that cannot be taken is an error, and the session is left
 // at the last state reached, so the user can look at it.
@@ -308,12 +325,18 @@ func viewResponse(e *entry) Response {
 			animation.RenderSuggestions(&buf, suggestions)
 			view.Pending.Suggestions = suggestions
 		}
+	} else if sess.Mode() == animation.ModeEnded {
+		current, _ := sess.Current()
+		animation.RenderEnded(&buf, current)
+		view.Mode = "ended"
+		view.State = &current
 	} else {
 		current, _ := sess.Current()
 		animation.RenderState(&buf, sess.Diagram(), current)
 		view.Mode = "command"
 		view.State = &current
 		view.Transitions = transitionsOf(sess)
+		view.Ends = endsOf(sess)
 	}
 	return Response{OK: true, Session: e.id, Output: buf.String(), Data: mustData(view)}
 }
@@ -334,6 +357,15 @@ func transitionsOf(sess *animation.Session) []Transition {
 	return out
 }
 
+func endsOf(sess *animation.Session) []End {
+	ends := sess.Ends()
+	out := make([]End, len(ends))
+	for i, end := range ends {
+		out[i] = End{Index: i, Guard: animation.ClauseText(end.Guard)}
+	}
+	return out
+}
+
 func sessionInfo(e *entry) SessionInfo {
 	info := SessionInfo{Session: e.id, Path: e.path}
 	if e.session.Mode() == animation.ModeValues {
@@ -344,6 +376,9 @@ func sessionInfo(e *entry) SessionInfo {
 	} else {
 		current, _ := e.session.Current()
 		info.Mode = "command"
+		if e.session.Mode() == animation.ModeEnded {
+			info.Mode = "ended"
+		}
 		info.StateID = current.ID
 		info.StateName = current.Name
 	}

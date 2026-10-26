@@ -137,6 +137,39 @@ func TestRenderState(t *testing.T) {
 				"      Post: $result' is done\n" +
 				"\n",
 		},
+		"a state whose only exit is an end edge, which is no deadlock": {
+			source: endingDiagram,
+			values: "[0]",
+			want: "" +
+				"State: Idle\n" +
+				"\n" +
+				"Values:\n" +
+				"  a = 0\n" +
+				"\n" +
+				"Ends:\n" +
+				"  [0] end the run\n" +
+				"      Guard: @eq(a, a)\n" +
+				"\n",
+		},
+		"a state with a transition and an end edge": {
+			source: "@startuml\nstate \"Idle\" as s0\n[*] --> s0\ns0 --> s0 : tick\ns0 --> [*]\n@enduml\n",
+			values: "[]",
+			want: "" +
+				"State: Idle\n" +
+				"\n" +
+				"Values:\n" +
+				"  (none)\n" +
+				"\n" +
+				"Transitions:\n" +
+				"  [0] tick -> Idle\n" +
+				"      Guard: (none)\n" +
+				"      Post: (none)\n" +
+				"\n" +
+				"Ends:\n" +
+				"  [0] end the run\n" +
+				"      Guard: (none)\n" +
+				"\n",
+		},
 		"a deadlock": {
 			source: "@startuml\nstate \"End\" as e\n[*] --> e\n@enduml\n",
 			values: "[]",
@@ -167,6 +200,20 @@ func TestRenderState(t *testing.T) {
 				t.Errorf("RenderState() mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestRenderEnded(t *testing.T) {
+	// Setup
+	var buf bytes.Buffer
+
+	// Execute
+	RenderEnded(&buf, State{ID: "s0", Name: "Idle"})
+
+	// Assert
+	want := "Ended: the run terminates at Idle. Jump to a history entry (j INDEX) to go on.\n\n"
+	if diff := cmp.Diff(want, buf.String()); diff != "" {
+		t.Error(diff)
 	}
 }
 
@@ -204,6 +251,7 @@ func TestRenderHelp(t *testing.T) {
 		"  t         display the current trace\n" +
 		"  h         display history\n" +
 		"  s INDEX   select a transition\n" +
+		"  e INDEX   take an end edge: the run terminates\n" +
 		"  j INDEX   jump to a history entry\n" +
 		"  ?, help   display this help\n" +
 		"\n"
