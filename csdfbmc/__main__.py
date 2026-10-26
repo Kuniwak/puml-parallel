@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -84,10 +84,8 @@ def print_every(result) -> None:
 
 
 def print_environment(env: dict) -> None:
-    """What reproduces the run: the seed and the functions given, then the
+    """What reproduces the run: the functions given, then the
     functions the environment decided a clause by."""
-    if env["seed"] is not None:
-        print(f"environment: seed {env['seed']}")
     if env["given"]:
         print(f"environment: given {', '.join(env['given'])}")
     for name in env["decided"]:

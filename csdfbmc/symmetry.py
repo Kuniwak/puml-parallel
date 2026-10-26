@@ -175,11 +175,12 @@ class Symmetry:
         given a constant, or a function that renaming the IDs of its
         arguments renames the IDs of its result: f(π x) = π f(x) for every
         renaming π and every value x of its arguments, so a truth value
-        does not change. A seed would choose it apart for each ID."""
+        does not change. One given nothing is refused: nothing can show it
+        renames alike."""
         if isinstance(given, bool):
             return
         if not callable(given):
-            raise ValueError(f"the function of the environment {name!r} reads a symmetric ID, and a seed would tell the IDs apart; "
+            raise ValueError(f"the function of the environment {name!r} reads a symmetric ID and is given nothing; "
                              "give it in ENVIRONMENT, or drop its type from SYMMETRIC")
         key = (name, args, types)
         if key in self._checked:

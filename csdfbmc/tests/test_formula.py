@@ -178,7 +178,7 @@ class SolveTest(unittest.TestCase):
 
     def test_the_environment_decides_a_post_atom_it_declares_over_the_types(self):
         # Setup
-        env = environment.over({"$_0 は $_1 以上": lambda n, x: n >= x}, {}, None)
+        env = environment.over({"$_0 は $_1 以上": lambda n, x: n >= x}, {})
 
         # Execute
         got = self.solve([atom("$n' は $x 以上")], ["n"], {"x": 1}, env)
@@ -188,7 +188,7 @@ class SolveTest(unittest.TestCase):
 
     def test_the_environment_does_not_decide_an_entry_after_the_step(self):
         # Setup
-        env = environment.over({"$_0 は $_1 以上": lambda e, x: True}, {}, None)
+        env = environment.over({"$_0 は $_1 以上": lambda e, x: True}, {})
         post = [builtin("frame", "m'", "m", "k"), atom("${} は $x 以上", idx("m'", "k"))]
 
         # Execute, Assert

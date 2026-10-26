@@ -184,15 +184,19 @@ class EnvironmentCommandTest(unittest.TestCase):
     def run_main(self, *args, checks=DECLARED):
         return walk(self, "--evaluator-module", "csdfbmc.python_glue", "--max-states", "10", *args, d=UNKNOWN_GUARD, checks=checks)
 
-    def test_a_seed_is_reported_and_walks_the_same_states_again(self):
+    def test_seed_is_no_option(self):
+        # Execute, Assert
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            self.run_main("--seed", "7")
+        self.assertEqual(2, raised.exception.code)
+
+    def test_a_given_function_is_reported_and_decided_by(self):
         # Execute
-        _, first, _ = self.run_main("--seed", "7")
-        _, again, _ = self.run_main("--seed", "7")
+        _, out, _ = self.run_main("--env", "$_0 が 正=true")
 
         # Assert
-        self.assertEqual(first, again)
-        self.assertIn("environment: seed 7\n", first)
-        self.assertIn("decided by the environment: $_0 が 正\n", first)
+        self.assertNotIn("seed", out)
+        self.assertIn("decided by the environment: $_0 が 正\n", out)
 
     def test_env_gives_a_declared_function_its_value_over_the_checks_module(self):
         for name, checks in {"declared and left open": DECLARED, "given by the module": 'TYPES = {}\nENVIRONMENT = {"$_0 が 正": True}\n'}.items():
@@ -224,10 +228,10 @@ class EnvironmentCommandTest(unittest.TestCase):
 
     def test_the_json_report_carries_the_environment(self):
         # Execute
-        _, out, _ = self.run_main("--seed", "3", "--json")
+        _, out, _ = self.run_main("--env", "$_0 が 正=true", "--json")
 
         # Assert
-        self.assertEqual({"seed": 3, "given": [], "decided": ["$_0 が 正"]}, json.loads(out)["environment"])
+        self.assertEqual({"given": ["$_0 が 正"], "decided": ["$_0 が 正"]}, json.loads(out)["environment"])
 
 
 class ReportTest(unittest.TestCase):

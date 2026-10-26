@@ -93,7 +93,7 @@ class Checks:
     typeof: dict[str, str] = field(default_factory=dict)
     # environment: the functions of the environment it declares, each by
     # its name or an atom of it -> its value, True or False, a pure function
-    # of its arguments in order, or None to leave it to --env or --seed
+    # of its arguments in order, or None to leave it to --env
     # (csdfbmc.environment).
     environment: dict[str, "Given | None"] = field(default_factory=dict)
     # symmetric: the types whose values, IDs, --symmetry may rename.
@@ -202,7 +202,7 @@ def load_checks(path: str) -> Checks:
             raise PurityError(f"{path}: ENVIRONMENT names a function by {name!r}; name it by an atom of it, as text")
         if value is not None and not isinstance(value, bool) and not callable(value):
             raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
-                              "or None to leave it to --env or --seed")
+                              "or None to leave it to --env")
     return Checks(
         types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),

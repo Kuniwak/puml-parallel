@@ -48,9 +48,6 @@ Checker options (the checker's --help lists them in full):
                        in-process; "csdfbmc.python_glue DEFS.py..." reads
                        atoms written in Python. One of the two is needed.
   --max-states N       stop after this many states (default 100000)
-  --seed N             choose from this seed the functions of the
-                       environment the checks module declares and nothing
-                       gives; without it such a function is refused
   --env NAME=true|false
                        give the declared function NAME the value true or
                        false (repeatable)
@@ -64,10 +61,10 @@ The checks module defines TYPES (a type -> its finite values) and, when
 wanted, TYPEOF (a name -> its type), ENVIRONMENT (declares the atoms that
 are functions of the environment, each named by its atom's text with its
 holes as $_0, $_1, ... -> True, False, a pure
-function of its arguments in order, or None to leave it to --env or
---seed), GHOSTS and INVARIANTS. A variable no post determines ranges over
-its type. A run reports its seed and the given functions, which reproduce
-it.
+function of its arguments in order, or None to leave it to --env),
+GHOSTS and INVARIANTS. A variable no post determines ranges over
+its type. A run reports the given functions, which reproduce it; a
+declared function nothing gives is refused, never chosen.
 
 "csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)" answers what a REPL asks at a
