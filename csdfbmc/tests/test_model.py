@@ -121,5 +121,16 @@ def _hole(t, after):
     return "$" + t["name"] + ("'" if t.get("primed") else "") + (" " if after and continues_name(after[0]) else "")
 
 
+
+
+class LiteralTest(unittest.TestCase):
+    def test_a_literal_that_is_no_value_is_refused(self):
+        from csdfbmc.model import term_of
+        for name, value, said in [("null", None, "null"), ("negative zero", -0.0, "negative zero"),
+                                  ("negative zero in an array", [1, -0.0], "negative zero"), ("infinity", float("inf"), "not finite")]:
+            with self.subTest(name), self.assertRaisesRegex(ValueError, said):
+                term_of({"kind": "lit", "value": value})
+
+
 if __name__ == "__main__":
     unittest.main()

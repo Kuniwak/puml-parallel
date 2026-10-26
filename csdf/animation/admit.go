@@ -80,8 +80,7 @@ func coreValue(d *core.Diagram, v Value) core.Value {
 // AmongSuggestions refuses values unless they are, as JSON values, those
 // of one of suggestions: what a checker admits. Values are compared as
 // literals are (clause.CanonicalValue): a number is told from a truth
-// value, an integer from a float, and a float by its bits, so 0.0 is not
-// -0.0.
+// value and an integer from a float; negative zero is no value.
 func AmongSuggestions(suggestions []Suggestion, values []Value) error {
 	entered := make([]any, len(values))
 	for i, v := range values {

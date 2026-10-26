@@ -73,7 +73,7 @@ func TestParseOfPrintIsTheFormula(t *testing.T) {
 		"a backslash before a hole":                                    and(atom(Text(`a\`), hole(pre("x")))),
 		"a backslash before a reserved character":                      and(atom(Text(`\;`))),
 		"∧ and ; in text":                                              and(atom(Text("a ∧ b; c"))),
-		"a literal in a hole":                                          and(atom(hole(Lit{Text: `{"a":[1,-0.0,"x\u003by"]}`}), Text(" > 0"))),
+		"a literal in a hole":                                          and(atom(hole(Lit{Text: `{"a":[1,-0.5,"x\u003by"]}`}), Text(" > 0"))),
 		"literals in a builtin":                                        and(eq(post("n"), Lit{Text: "0"}), eq(App{Fn: "f", Args: []Term{Lit{Text: "true"}}}, Lit{Text: `"\/'"`})),
 		"parentheses in an ∃ body":                                     Exists{Hint: "v", Type: "T", Body: and(atom(Text(") f("), hole(Bound{0}), Text("(")))},
 		"a backslash at the end of an ∃ body":                          Exists{Hint: "v", Type: "T", Body: and(atom(hole(Bound{0}), Text(`\`)))},

@@ -260,13 +260,13 @@ func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
 	}
 }
 
-func TestAmongSuggestionsTellsFloatsApartByTheirBits(t *testing.T) {
+func TestAmongSuggestionsComparesValuesAsLiterals(t *testing.T) {
 	tests := map[string]struct {
 		suggested, entered string
 		admitted           bool
 	}{
-		"-0.0 is -0.0":                  {suggested: `[-0.0]`, entered: "-0.0", admitted: true},
-		"0.0 is not -0.0":               {suggested: `[-0.0]`, entered: "0.0", admitted: false},
+		"0.0 is 0.0":                    {suggested: `[0.0]`, entered: "0.0", admitted: true},
+		"negative zero is no value":     {suggested: `[0.0]`, entered: "-0.0", admitted: false},
 		"a float written otherwise":     {suggested: `[1.5]`, entered: "15e-1", admitted: true},
 		"an integer beyond the floats":  {suggested: `[12345678901234567890]`, entered: "12345678901234567891", admitted: false},
 		"an object of the same entries": {suggested: `[{"a": 1, "b": 2}]`, entered: `{"b": 2, "a": 1}`, admitted: true},

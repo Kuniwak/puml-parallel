@@ -105,14 +105,12 @@ class DomainBuilderTest(unittest.TestCase):
 
 
 class SameValueTest(unittest.TestCase):
-    def test_tells_values_apart_by_kind_and_bits(self):
+    def test_tells_values_apart_by_kind(self):
         tests = {
             "an integer and the float it equals": (1, 1.0, False),
             "a truth value and the number it equals": (True, 1, False),
-            "0.0 and -0.0": (0.0, -0.0, False),
-            "-0.0 and itself": (-0.0, -0.0, True),
-            "-0.0 and 0.0 in a tuple": ((0.0,), (-0.0,), False),
-            "-0.0 and 0.0 in a map": (FrozenMap(a=0.0), FrozenMap(a=-0.0), False),
+            "an integer and the float it equals in a tuple": ((1,), (1.0,), False),
+            "an integer and the float it equals in a map": (FrozenMap(a=1), FrozenMap(a=1.0), False),
             "a float and itself": (1.5, 1.5, True),
         }
         for name, (a, b, want) in tests.items():

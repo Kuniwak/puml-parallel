@@ -139,7 +139,7 @@ type TermDoc struct {
 
 // LitDoc is a literal: Value is the JSON value it is, in its canonical
 // text (clause.Lit). A reader keeps a float apart from an integer, as the
-// text does by a point or an exponent, and -0.0 apart from 0.0.
+// text does by a point or an exponent.
 type LitDoc struct {
 	Value json.RawMessage `json:"value"`
 }

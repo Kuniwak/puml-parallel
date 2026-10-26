@@ -51,9 +51,9 @@ func TestFormulaDocOf(t *testing.T) {
 			want: `[{"kind":"atom","pieces":["","が多い"],"holes":[0],"args":[{"kind":"free","name":"x"}],"text":[""," が多い"],"primed":[false],"function":"$_0 が多い"}]`,
 		},
 		"literals, each its JSON value": {
-			text: `@eq(n', 0) ∧ @ne(x, -0.0) ∧ @eq(r, {"b": [1.5, true], "a": "x;y"})`,
+			text: `@eq(n', 0) ∧ @ne(x, -2.5) ∧ @eq(r, {"b": [1.5, true], "a": "x;y"})`,
 			want: `[{"kind":"builtin","op":"eq","args":[{"kind":"free","name":"n","primed":true},{"kind":"lit","value":0}]},
-{"kind":"builtin","op":"ne","args":[{"kind":"free","name":"x"},{"kind":"lit","value":-0.0}]},
+{"kind":"builtin","op":"ne","args":[{"kind":"free","name":"x"},{"kind":"lit","value":-2.5}]},
 {"kind":"builtin","op":"eq","args":[{"kind":"free","name":"r"},{"kind":"lit","value":{"a":"x;y","b":[1.5,true]}}]}]`,
 		},
 		"an atom with no hole": {

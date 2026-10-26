@@ -59,8 +59,8 @@ class App:
 class Lit:
     """A literal (docs/CLAUSE_DESIGN.md, Literals), held as its canonical
     JSON text: two literals are one value exactly when their texts are
-    equal, so 1 is not 1.0 nor true, and 0.0 is not -0.0, though Python
-    takes each pair for equal."""
+    equal, so 1 is not 1.0 nor true, though Python takes each pair for
+    equal. No literal is negative zero."""
     text: str
 
     @property
@@ -78,6 +78,8 @@ def literal(value) -> Lit:
             raise ValueError("a literal holds null, which is no value")
         if isinstance(v, float) and not math.isfinite(v):
             raise ValueError(f"a literal holds the float {v!r}, which is not finite")
+        if isinstance(v, float) and v == 0 and math.copysign(1, v) < 0:
+            raise ValueError("a literal holds negative zero, which is no value")
         if isinstance(v, list):
             for x in v:
                 check(x)

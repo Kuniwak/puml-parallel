@@ -43,9 +43,9 @@ floats, strings, booleans and null as themselves, and {"tuple": [...]}, {"set": 
 instance of a family crosses as the map of its fields: its state is a
 position, which a glue never sees (docs/CLAUSE_DESIGN.md, control state).
 A number with a point or an exponent is a float and any other an integer,
-of any size: 1 and 1.0 are two values, and so are 0.0 and -0.0, which a
-glue keeps apart (docs/CLAUSE_DESIGN.md, Literals). NaN and the
-infinities, which JSON cannot write, are no values.
+of any size: 1 and 1.0 are two values, which a glue keeps apart
+(docs/CLAUSE_DESIGN.md, Literals). NaN and the infinities, which JSON
+cannot write, and negative zero are no values.
 
 hello comes first and agrees on the protocol for the rest of the session: a
 glue refuses a request before it and a hello asking a protocol it does not
@@ -73,13 +73,18 @@ _TAGS = ("tuple", "set", "map")
 PROTOCOL = 2
 
 
+def _a_float(f: float) -> bool:
+    """Whether f is a float a value may be: finite, and not negative zero."""
+    return math.isfinite(f) and not (f == 0 and math.copysign(1, f) < 0)
+
+
 def to_wire(value):
     """value, a value of the checker's model, in the tagged encoding."""
     if value is None or isinstance(value, (bool, int, str)):
         return value
     if isinstance(value, float):
-        if not math.isfinite(value):
-            raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite")
+        if not _a_float(value):
+            raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite, and not negative zero")
         return value
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
@@ -95,7 +100,7 @@ def from_wire(wire):
     """The value of the checker's model that wire encodes."""
     if wire is None or isinstance(wire, (bool, int, str)):
         return wire
-    if isinstance(wire, float) and math.isfinite(wire):
+    if isinstance(wire, float) and _a_float(wire):
         return wire
     if isinstance(wire, dict) and len(wire) == 1:
         (tag, items), = wire.items()

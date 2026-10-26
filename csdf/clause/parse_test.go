@@ -109,7 +109,7 @@ func TestParseReadsBuiltins(t *testing.T) {
 		"notin":              {text: "@notin(k, m)", want: Builtin{Op: OpNotIn, Args: []Term{pre("k"), pre("m")}}},
 		"empty":              {text: "@empty(m')", want: Builtin{Op: OpEmpty, Args: []Term{post("m")}}},
 		"an integer":         {text: "@eq(n', 0)", want: Builtin{Op: OpEq, Args: []Term{post("n"), Lit{Text: "0"}}}},
-		"a float":            {text: "@ne(x, -0.0)", want: Builtin{Op: OpNe, Args: []Term{pre("x"), Lit{Text: "-0.0"}}}},
+		"a float":            {text: "@ne(x, -1.5)", want: Builtin{Op: OpNe, Args: []Term{pre("x"), Lit{Text: "-1.5"}}}},
 		"a truth value":      {text: "@eq(x, true)", want: Builtin{Op: OpEq, Args: []Term{pre("x"), Lit{Text: "true"}}}},
 		"a string with a comma and a parenthesis": {text: `@eq(x, "a, b)")`, want: Builtin{Op: OpEq, Args: []Term{pre("x"), Lit{Text: `"a, b)"`}}}},
 		"an object":          {text: `@eq(r, {"a": 1, "b": [false]})`, want: Builtin{Op: OpEq, Args: []Term{pre("r"), Lit{Text: `{"a":1,"b":[false]}`}}}},

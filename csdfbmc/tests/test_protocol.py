@@ -54,7 +54,7 @@ class WireEncodingTest(unittest.TestCase):
         self.assertEqual(json.dumps(to_wire(a)), json.dumps(to_wire(b)))
 
     def test_a_float_is_itself_and_stays_apart_from_the_integer_it_equals(self):
-        for v in (1.5, 1.0, -0.0, 0.0, 1e300):
+        for v in (1.5, 1.0, 0.0, -2.5, 1e300):
             with self.subTest(v=v):
                 got = from_wire(json.loads(json.dumps(to_wire(v))))
                 self.assertIs(float, type(got))
@@ -62,10 +62,10 @@ class WireEncodingTest(unittest.TestCase):
         self.assertIs(int, type(from_wire(json.loads(json.dumps(to_wire(1))))))
 
     def test_a_value_outside_the_model_is_refused(self):
-        for v in (float("nan"), float("inf"), -float("inf"), object()):
+        for v in (float("nan"), float("inf"), -float("inf"), -0.0, object()):
             with self.subTest(v=v), self.assertRaises(TypeError):
                 to_wire(v)
-        for wire in (float("nan"), float("inf")):
+        for wire in (float("nan"), float("inf"), -0.0):
             with self.subTest(wire=wire), self.assertRaises(ValueError):
                 from_wire(wire)
 

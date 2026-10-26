@@ -20,7 +20,8 @@ import (
 // value exactly when their texts are equal. An integer is any integer,
 // written in decimal; a float is a finite IEEE 754 binary64, written
 // shortest with a point or an exponent, so that 1 and 1.0 are two values,
-// and so are 0.0 and -0.0; a string is written with its characters as they
+// and never negative zero, which is refused, so that two floats are one
+// value exactly when they are equal numbers; a string is written with its characters as they
 // are, but for those a clause or its edge reads as syntax, which are
 // escaped; an array keeps its order; an object has its keys sorted.
 type Lit struct{ Text string }
@@ -176,6 +177,9 @@ func canonicalNumber(text string, float bool) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%s is no integer", text)
 		}
+		if n.Sign() == 0 && strings.HasPrefix(text, "-") {
+			return "", fmt.Errorf("%s is negative zero, which is no value; write 0", text)
+		}
 		return n.String(), nil
 	}
 	f, err := strconv.ParseFloat(text, 64)
@@ -185,11 +189,14 @@ func canonicalNumber(text string, float bool) (string, error) {
 	if err != nil && !errors.Is(err, strconv.ErrRange) {
 		return "", fmt.Errorf("%s is no float: %w", text, err)
 	}
+	if f == 0 && math.Signbit(f) {
+		return "", fmt.Errorf("%s is negative zero, which is no value; write 0.0", text)
+	}
 	return CanonicalFloat(f), nil
 }
 
-// CanonicalFloat is the canonical text of the finite float f: shortest,
-// with a point or an exponent, and the sign of a zero kept.
+// CanonicalFloat is the canonical text of the finite float f, which is not
+// negative zero: shortest, with a point or an exponent.
 func CanonicalFloat(f float64) string {
 	s := strconv.FormatFloat(f, 'g', -1, 64)
 	if !strings.ContainsAny(s, ".e") {
@@ -416,6 +423,9 @@ func CanonicalValue(v any) (string, error) {
 	case float64:
 		if math.IsNaN(v) || math.IsInf(v, 0) {
 			return "", fmt.Errorf("clause.CanonicalValue: %v is no finite float", v)
+		}
+		if v == 0 && math.Signbit(v) {
+			return "", fmt.Errorf("clause.CanonicalValue: negative zero is no value")
 		}
 		return CanonicalFloat(v), nil
 	case int:

@@ -2,7 +2,6 @@ package core
 
 import (
 	"encoding/json"
-	"math"
 	"testing"
 )
 
@@ -49,8 +48,7 @@ func TestHoldsComparesLiteralsAsValuesOfTheirKind(t *testing.T) {
 		"an integer is the integer":            {clause: "@eq(x, 0)", x: 0, want: true},
 		"an integer is not the float":          {clause: "@eq(x, 1.0)", x: 1, want: false},
 		"a float is the float":                 {clause: "@eq(x, 1.0)", x: 1.0, want: true},
-		"0.0 is not -0.0":                      {clause: "@eq(x, -0.0)", x: 0.0, want: false},
-		"-0.0 is -0.0":                         {clause: "@eq(x, -0.0)", x: math.Copysign(0, -1), want: true},
+		"a float is compared by its value":     {clause: "@eq(x, 0.0)", x: 0.0, want: true},
 		"a string is not the number it spells": {clause: `@ne(x, "1")`, x: 1, want: true},
 		"a truth value is not its name":        {clause: `@eq(x, "true")`, x: true, want: false},
 		"a truth value is itself":              {clause: "@eq(x, true)", x: true, want: true},

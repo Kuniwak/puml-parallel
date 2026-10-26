@@ -25,7 +25,7 @@ type Map map[string]Value
 // Key is v written canonically: two values are equal when their keys are.
 // A JSON value is written as the literal it is (clause.CanonicalValue), so
 // that a string is told from a number and a truth value, an integer from
-// a float, and 0.0 from -0.0.
+// a float.
 func Key(v Value) string {
 	switch v := v.(type) {
 	case Rec:
