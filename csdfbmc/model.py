@@ -362,9 +362,19 @@ class Diagram:
 
     def applied(self) -> dict[str, int]:
         """The environment functions the terms of the diagram apply (App),
-        each with the number of its arguments."""
+        each with the number of its arguments. One name has one arity: a
+        function applied with two, or named like an atom's function of
+        other arguments, is refused."""
         clauses = [self.start_post] + [c for e in self.edges for c in (e.guard, e.post)] + [x.guard for x in self.ends]
-        return {t.fn: len(t.args) for clause in clauses for t in terms(clause) if isinstance(t, App)}
+        arity = {a.function: len(a.args) for a, _, _ in self.atoms()}
+        applied: dict[str, int] = {}
+        for t in (t for clause in clauses for t in terms(clause) if isinstance(t, App)):
+            n = arity.setdefault(t.fn, len(t.args))
+            if n != len(t.args):
+                low, high = sorted((n, len(t.args)))
+                raise ValueError(f"the function {t.fn!r} is applied with {low} and {high} arguments; one name has one arity")
+            applied[t.fn] = n
+        return applied
 
     def atoms(self) -> list[tuple[Atom, Edge | None, str]]:
         """Every atom of the diagram, with its edge (None for the start and

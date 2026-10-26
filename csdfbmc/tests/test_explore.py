@@ -226,6 +226,29 @@ class EnvironmentTest(unittest.TestCase):
                                      builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("n")]}, "n")],
              post=[atom("$n' == $n + 1")])])
 
+    @staticmethod
+    def frozen_applying(fn, *args):
+        """FROZEN guarded further by a term applying fn to args."""
+        return diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
+            edge("a", "a", "inc", guard=[atom("$n が凍結されていない"), atom("$n < 2"),
+                                         builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("n")]}, "n"),
+                                         builtin("ne", {"kind": "app", "fn": fn, "args": [fixture.term(a) for a in args]}, "n")],
+                 post=[atom("$n' == $n + 1")])])
+
+    def test_a_function_named_with_two_arities_is_refused_before_the_walk(self):
+        tests = {
+            "a function applied with two arities": (
+                self.frozen_applying("next", "n", "n"), "^the function 'next' is applied with 1 and 2 arguments; one name has one arity"),
+            "an applied function named like an atom function of other arguments": (
+                self.frozen_applying("$_0 が凍結されていない", "n", "n"),
+                "^the function '\\$_0 が凍結されていない' is applied with 1 and 2 arguments; one name has one arity"),
+        }
+        for name, (d, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    fixture.explorer(d, environment=environment.over({"$_0 が凍結されていない": True, "next": lambda *a: 0}, {}))
+
     def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
         tests = {
             "a declared function nothing gives": (self.FROZEN, {"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
