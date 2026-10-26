@@ -79,6 +79,16 @@ class RefusalTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, said):
                     fixture.explorer(d, c, symmetry=True, **options)
 
+    def test_a_symmetry_built_alone_refuses_every_undecided_function_first(self):
+        # Setup
+        from csdfbmc.symmetry import Symmetry
+        d = fixture.load(ids_only(ONE_WAY, atom("$k が 予約済み"), atom("$k が 空き")))
+        env = environment.over({"$_0 が 予約済み": None, "$_0 が 空き": None}, {})
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "^nothing decides the environment's functions '\\$_0 が 予約済み', '\\$_0 が 空き'; "):
+            Symmetry(d, checks(), fixture.glue(), env)
+
     def test_an_id_an_atom_puts_where_none_was_foreseen_is_refused(self):
         # Setup: last has no type, and only the atom puts an ID in it, so the
         # atoms reading it were asked without it.
