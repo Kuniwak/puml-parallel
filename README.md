@@ -1107,7 +1107,11 @@ The environment is csdfbmc's: `-seed N` and `-env NAME=true|false`
 prompt suggests what csdfbmc walks with the same seed and the same given
 functions. Neither has a default: without `-seed`, a function the checks
 module's `ENVIRONMENT` declares and nothing gives is refused at the prompt,
-as csdfbmc refuses it.
+as csdfbmc refuses it. With `-replay`, the prompt walks the environment
+the report was made in: its `environment` gives the seed when `-seed` is not
+given, and a `-seed` other than the report's, or an `-env` naming a function
+the report's run did not give, is refused. The report names the functions
+given but not their values, so give them again with `-env`.
 
 ```console
 $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \

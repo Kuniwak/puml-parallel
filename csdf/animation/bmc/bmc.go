@@ -186,3 +186,50 @@ func (s *Suggester) executable() (string, error) {
 	}
 	return "", errors.New("bmc.Suggester: csdfbmc is not on the PATH nor beside this binary")
 }
+
+// Reproduce is c walking the environment of the csdfbmc run that made a
+// report (animation.LoadEnvironment), so that a replayed finding is
+// explored further in the environment it was found in: the report's seed
+// when c has none. A seed other than the report's, or a function -env gives
+// that the report's run did not give, is refused, for c would walk another
+// environment. The report does not record the values of the functions it
+// gave, so those are the user's to give again with -env. A nil report (an
+// output from before csdfbmc reported its environment) leaves c as it is.
+func (c Checker) Reproduce(report *animation.Environment) (Checker, error) {
+	if report == nil {
+		return c, nil
+	}
+	if c.Seed != nil {
+		switch {
+		case report.Seed == nil:
+			return Checker{}, fmt.Errorf("the report was made with no seed, not -seed %d", *c.Seed)
+		case *report.Seed != *c.Seed:
+			return Checker{}, fmt.Errorf("the report was made with --seed %d, not -seed %d", *report.Seed, *c.Seed)
+		}
+	}
+	given := map[string]bool{}
+	for _, name := range report.Given {
+		given[name] = true
+	}
+	for _, b := range c.Env {
+		if !given[b.Name] {
+			return Checker{}, fmt.Errorf("-env gives %q, which the report's run did not give", b.Name)
+		}
+	}
+	out := c
+	out.Seed = report.Seed
+	return out, nil
+}
+
+// Agrees refuses a report whose environment c does not already walk: what
+// Reproduce refuses, and a seed c was not given. A daemon's checker is fixed
+// when it starts, so it cannot take the report's seed as csdfrepl does.
+func (c Checker) Agrees(report *animation.Environment) error {
+	if _, err := c.Reproduce(report); err != nil {
+		return err
+	}
+	if report != nil && report.Seed != nil && c.Seed == nil {
+		return fmt.Errorf("the report was made with --seed %d; give -seed %d", *report.Seed, *report.Seed)
+	}
+	return nil
+}

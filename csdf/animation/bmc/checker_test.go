@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/google/go-cmp/cmp"
@@ -183,6 +184,99 @@ func TestParseBinding(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("ParseBinding(%q) = %+v, want %+v", tt.word, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheckerReproducesTheEnvironmentOfAReport(t *testing.T) {
+	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
+	with := func(s *int, env ...bmc.Binding) bmc.Checker {
+		c := glue
+		c.Seed, c.Env = s, env
+		return c
+	}
+	f := bmc.Binding{Name: "f", Value: true}
+	tests := map[string]struct {
+		checker bmc.Checker
+		report  *animation.Environment
+		want    bmc.Checker
+		wantErr string
+	}{
+		"a report of no environment": {checker: with(seed(1), f), report: nil, want: with(seed(1), f)},
+		"the report's seed when none is given": {
+			checker: glue, report: &animation.Environment{Seed: seed(7)}, want: with(seed(7)),
+		},
+		"no seed when the report had none": {
+			checker: glue, report: &animation.Environment{}, want: glue,
+		},
+		"the same seed": {
+			checker: with(seed(7)), report: &animation.Environment{Seed: seed(7)}, want: with(seed(7)),
+		},
+		"a function the report's run gave": {
+			checker: with(nil, f), report: &animation.Environment{Seed: seed(7), Given: []string{"f"}}, want: with(seed(7), f),
+		},
+		"another seed": {
+			checker: with(seed(1)), report: &animation.Environment{Seed: seed(7)}, wantErr: "the report was made with --seed 7, not -seed 1",
+		},
+		"a seed the report's run had not": {
+			checker: with(seed(1)), report: &animation.Environment{}, wantErr: "the report was made with no seed, not -seed 1",
+		},
+		"a function the report's run did not give": {
+			checker: with(nil, f), report: &animation.Environment{Seed: seed(7)}, wantErr: `-env gives "f", which the report's run did not give`,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := tt.checker.Reproduce(tt.report)
+
+			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Reproduce() = %+v, %v; want an error saying %q", got, err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Reproduce() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestCheckerAgreesOnlyWithTheEnvironmentItAlreadyWalks(t *testing.T) {
+	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
+	seeded := glue
+	seeded.Seed = seed(7)
+	tests := map[string]struct {
+		checker bmc.Checker
+		report  *animation.Environment
+		wantErr string
+	}{
+		"a report of no environment": {checker: glue, report: nil},
+		"the same seed":              {checker: seeded, report: &animation.Environment{Seed: seed(7)}},
+		"no seed on either side":     {checker: glue, report: &animation.Environment{}},
+		"a seed it was not given":    {checker: glue, report: &animation.Environment{Seed: seed(7)}, wantErr: "the report was made with --seed 7; give -seed 7"},
+		"another seed":               {checker: seeded, report: &animation.Environment{Seed: seed(1)}, wantErr: "not -seed 7"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := tt.checker.Agrees(tt.report)
+
+			// Assert
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Agrees() = %v, want an error saying %q", err, tt.wantErr)
 			}
 		})
 	}

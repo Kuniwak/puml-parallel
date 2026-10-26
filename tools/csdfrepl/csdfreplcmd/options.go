@@ -52,7 +52,10 @@ file's own parse.
 -seed and -env are csdfbmc's --seed and --env: the prompt suggests what
 csdfbmc walks with the same seed and the same given functions. Neither has a
 default; a function the checks module declares that nothing decides is
-refused, as csdfbmc refuses it.
+refused, as csdfbmc refuses it. With -replay, the report's seed is taken
+when -seed is not given; a -seed other than the report's, or an -env of a
+function the report's run did not give, is refused. The report does not
+record the values of the functions given; give them again with -env.
 
 Options:
 `)

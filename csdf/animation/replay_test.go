@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/google/go-cmp/cmp"
 )
 
 const counterSource = `@startuml
@@ -127,5 +128,50 @@ func TestReplayRefusesAValueTheConeLeftOut(t *testing.T) {
 	}
 	if len(sess.History()) != 0 {
 		t.Errorf("history has %d entries, want none: nothing is replayed", len(sess.History()))
+	}
+}
+
+func TestLoadEnvironmentReadsWhatReproducesTheRun(t *testing.T) {
+	seven := 7
+	tests := map[string]struct {
+		report string
+		want   *Environment
+	}{
+		"a seed and given functions": {
+			report: `{"environment": {"seed": 7, "given": ["$_0 が 正", "f"], "decided": ["f"]}}`,
+			want:   &Environment{Seed: &seven, Given: []string{"$_0 が 正", "f"}},
+		},
+		"no seed": {
+			report: `{"environment": {"seed": null, "given": [], "decided": []}}`,
+			want:   &Environment{Given: []string{}},
+		},
+		"a report of no environment": {
+			report: `{"deadlocks": []}`,
+			want:   nil,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := LoadEnvironment([]byte(tt.report))
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("LoadEnvironment() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestLoadEnvironmentRefusesWhatIsNotAReport(t *testing.T) {
+	// Execute
+	_, err := LoadEnvironment([]byte("not json"))
+
+	// Assert
+	if err == nil {
+		t.Error("LoadEnvironment() = nil, want an error")
 	}
 }

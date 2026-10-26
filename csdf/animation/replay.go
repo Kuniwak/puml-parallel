@@ -208,3 +208,24 @@ func LoadReplays(bs []byte) ([]Finding, error) {
 	add("bound_reached", out.BoundReached, none)
 	return findings, nil
 }
+
+// Environment is what csdfbmc --json reports under "environment" to
+// reproduce its run: the seed (nil when the run had none) and the names of
+// the functions given, by the checks module or by --env. The report names
+// the functions given but not their values.
+type Environment struct {
+	Seed  *int     `json:"seed"`
+	Given []string `json:"given"`
+}
+
+// LoadEnvironment reads the environment csdfbmc's JSON output reports, or
+// nil when the output has none.
+func LoadEnvironment(bs []byte) (*Environment, error) {
+	var out struct {
+		Environment *Environment `json:"environment"`
+	}
+	if err := json.Unmarshal(bs, &out); err != nil {
+		return nil, fmt.Errorf("animation.LoadEnvironment: not csdfbmc --json output: %w", err)
+	}
+	return out.Environment, nil
+}
