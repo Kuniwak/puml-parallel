@@ -6,6 +6,7 @@ import functools
 import inspect
 import itertools
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from csdfbmc.checks import Checks, apply
@@ -18,6 +19,15 @@ from csdfbmc.values import LEFT_OUT, beyond_samples, encode, freeze, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts)
 State = tuple[str, tuple, tuple]
+
+# The transitions of a state the walk takes, chosen from those enabled:
+# (state, its transitions, whether a state was met) -> the transitions taken.
+Ample = Callable[[State, list, Callable[[State], bool]], list]
+
+
+def every_transition(state: State, transitions: list, known: Callable[[State], bool]) -> list:
+    """Takes every transition: the walk unreduced."""
+    return transitions
 
 
 @dataclass
@@ -174,11 +184,16 @@ class Explorer:
     left_out are the variables to leave out, those outside the cone of
     influence (csdfbmc.cone.left_out) or none: the walk keeps each at
     csdfbmc.values.LEFT_OUT.
+
+    ample chooses, from the transitions of a state, those the walk takes
+    (csdfbmc.por.PartialOrder.ample), or every_transition takes them all;
+    it is given the state, its transitions and whether a state was met.
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
-                 first: bool = False, left_out: tuple[str, ...]):
+                 first: bool = False, left_out: tuple[str, ...],
+                 ample: Ample):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
@@ -196,6 +211,7 @@ class Explorer:
         self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
         self.left_out = tuple(left_out)
+        self.ample = ample
         self._check_fields()
         self._check_environment()
 
@@ -332,16 +348,21 @@ class Explorer:
             out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
         return out
 
-    def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
-        """(event name, event as taken, next state, edge) for every enabled
-        transition. A transition of an edge whose post admits no successor is
-        kept among the empty posts."""
+    def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
+        """(event name, event as taken, next state, edge, the values of its
+        received fields) for every enabled transition. A transition of an
+        edge whose post admits no successor is kept among the empty posts."""
         out = []
         for e in self.d.out_edges(state[0]):
-            for _, label, nexts in self._edge_successors(state, e):
+            for params, label, nexts in self._edge_successors(state, e):
                 for t in nexts:
-                    out.append((e.name, label, t, e))
+                    out.append((e.name, label, t, e, params))
         return out
+
+    def successors(self, state: State) -> list[tuple[str, str, State, Edge]]:
+        """(event name, event as taken, next state, edge) for every enabled
+        transition (transitions, without the fields)."""
+        return [tr[:4] for tr in self.transitions(state)]
 
     def _enabling(self, state: State, e: Edge) -> str | None:
         """The first transition of e from state, as taken, its ghosts left
@@ -443,7 +464,8 @@ class Explorer:
             if self.first and violations:
                 stopped = True
                 break
-            succ = self.successors(s)
+            succ = self.transitions(s)
+            succ = self.ample(s, succ, seen.__contains__)
             if not succ and not self.can_end(s):
                 witness = self.bound_witness(s)
                 if witness is not None:
@@ -453,7 +475,7 @@ class Explorer:
                     if self.first:
                         stopped = True
                         break
-            for _, label, t, edge in succ:
+            for _, label, t, edge, _ in succ:
                 if t in seen:
                     continue
                 if len(order) >= self.max_states:
@@ -461,9 +483,9 @@ class Explorer:
                     continue
                 parents[t] = (s, label, edge)
                 visit(t)
-            tau_next[s] = [t for _, _, t, edge in succ if edge.is_tau]
+            tau_next[s] = [t for _, _, t, edge, _ in succ if edge.is_tau]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
-                avoid_next[s] = [t for name, _, t, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
+                avoid_next[s] = [t for name, _, t, _, _ in succ if name != self.avoid and (self.within is None or t[0] in self.within)]
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,

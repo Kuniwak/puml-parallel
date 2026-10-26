@@ -1005,9 +1005,27 @@ and the list `--all` prints are those of the reduced walk. The output says
 so in a line naming the reductions used (`reduced by --cone: …`, and
 `reductions` in `--json`).
 
-The reductions `--por` and `--symmetry` of earlier releases read what a
-glue said a clause reads; they come back on the formulas in a later change
-of #76.
+`--por` walks fewer states and finds the same, by partial-order
+reduction. An entry `m[k]` of a map is told from the map as a whole, so an
+edge moves the instance of `m` at its field `p` alone when every name it
+reads or writes is `m` or a field it receives, it writes `m` and keeps
+every other variable of its state by a frame `@eq(x', x)` (a variable its
+post does not name ranges over its type, and so is written), and every `m`
+it names is `m[p]`, `m'[p]`, the membership of `p` or
+`@frame(m', m, p)`. In a control state whose edges are all self-loops and
+none `tau`, the instances of `m` move independently when every edge writing
+`m` moves one alone and updates no ghost, and no other edge, invariant or
+ghost update reads `m`. There the walk takes the transitions of one instance
+alone, unless one of them is the `--avoid` event or leads to a state already
+met (the cycle proviso, which in a breadth-first walk expands a state of
+every cycle in full). Deadlocks, the bound reached, broken invariants, empty
+posts and cycles are found as without it, of the same shapes. An invariant or a ghost update
+that takes any keyword is refused with `--por`. No example of
+`examples/bmc` is reduced: in `attempts`, `RESEND` reads the instance it
+replaces, which ties the attempts together.
+
+The reduction `--symmetry` of earlier releases read what a glue said a
+clause reads; it comes back on the formulas in a later change of #76.
 
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,

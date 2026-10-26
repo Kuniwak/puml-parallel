@@ -14,7 +14,7 @@ import json
 import sys
 
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
-from csdfbmc.explore import Explorer
+from csdfbmc.explore import Explorer, every_transition
 
 
 def main(argv=None) -> int:
@@ -29,7 +29,7 @@ def main(argv=None) -> int:
 
     try:
         with opened(a) as (diagram, checks, client, environment):
-            candidates = _candidates(Explorer(diagram, checks, client, environment=environment, left_out=()), a)
+            candidates = _candidates(Explorer(diagram, checks, client, environment=environment, left_out=(), ample=every_transition), a)
     except (*LOADING_ERRORS, IndexError, TypeError) as e:
         print(f"csdfbmc next: {e}", file=sys.stderr)
         return 2

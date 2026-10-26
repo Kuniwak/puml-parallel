@@ -140,7 +140,7 @@ def glue():
     return _GLUE
 
 
-def explorer(d, checks=None, cone=False, **options):
+def explorer(d, checks=None, cone=False, por=False, **options):
     """An Explorer walking d, a diagram written by hand (or a Diagram), its
     atoms read by the reference Python glue, with the reductions asked for
     built as the command builds them (csdfbmc.cli.reductions)."""
@@ -153,7 +153,7 @@ def explorer(d, checks=None, cone=False, **options):
         d = load(d)
     checks = checks if checks is not None else Checks(types={})
     options.setdefault("environment", environment.NONE)
-    return Explorer(d, checks, glue(), **options, **reductions(d, checks, cone=cone))
+    return Explorer(d, checks, glue(), **options, **reductions(d, checks, cone=cone, por=por, avoid=options.get("avoid")))
 
 
 def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
@@ -192,7 +192,7 @@ EXAMPLES = {
 }
 
 
-def example(name, cone=False, **options):
+def example(name, cone=False, por=False, **options):
     """An Explorer walking the example of examples/bmc named name, its atoms
     read by the reference Python glue given its checks module."""
     import os
@@ -206,4 +206,4 @@ def example(name, cone=False, **options):
     path, checks = (os.path.join(root, p) for p in EXAMPLES[name])
     d, loaded = Diagram.load(path), load_checks(checks)
     options.setdefault("environment", environment.NONE)
-    return Explorer(d, loaded, checked(start_module("csdfbmc.python_glue", [checks])), **options, **reductions(d, loaded, cone=cone))
+    return Explorer(d, loaded, checked(start_module("csdfbmc.python_glue", [checks])), **options, **reductions(d, loaded, cone=cone, por=por, avoid=options.get("avoid")))

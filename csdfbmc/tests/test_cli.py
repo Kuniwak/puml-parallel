@@ -67,7 +67,7 @@ class GlueTest(unittest.TestCase):
 
     def test_the_options_of_reductions_not_back_yet_and_both_glues_are_refused(self):
         for name, args in {"both forms": ("--evaluator", "x", "--evaluator-module", "y"),
-                           "--por": ("--evaluator-module", "csdfbmc.python_glue", "--por")}.items():
+                           "--symmetry": ("--evaluator-module", "csdfbmc.python_glue", "--symmetry")}.items():
             with self.subTest(name):
                 # Execute, Assert
                 with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
@@ -121,6 +121,22 @@ class ReductionCommandTest(unittest.TestCase):
         report = json.loads(out)
         self.assertEqual(["memo"], report["left_out"])
         self.assertEqual([0, {"left_out": True}], report["deadlocks"][0]["replay"]["steps"][-2]["values"])
+
+    def test_por_walks_fewer_states_and_reports_the_same(self):
+        # Setup
+        from csdfbmc.tests.test_por import ONE_WAY
+        checks = 'TYPES = {"k": ["a", "b", "c"]}\n'
+
+        # Execute
+        _, full, _ = walk(self, "--evaluator-module", "csdfbmc.python_glue", d=ONE_WAY, checks=checks)
+        code, reduced, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--por", d=ONE_WAY, checks=checks)
+
+        # Assert
+        self.assertEqual(1, code, err)
+        self.assertEqual("states: 27", full.splitlines()[0])
+        self.assertLess(int(reduced.splitlines()[0].split()[1]), 27)
+        self.assertEqual(REDUCED_BY.format("--por"), reduced.splitlines(keepends=True)[1])
+        self.assertEqual(full.splitlines()[1].split(" ×")[0], reduced.splitlines()[2].split(" ×")[0])
 
 
 class EnvironmentCommandTest(unittest.TestCase):
