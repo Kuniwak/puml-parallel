@@ -1,6 +1,7 @@
 package lint
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -43,6 +44,22 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 		if len(loose) == 0 {
 			continue
 		}
+		guard, gErr := clause.Print(edge.Guard)
+		post, pErr := clause.Print(edge.Post)
+		if err := errors.Join(gErr, pErr); err != nil {
+			findings = append(findings, Finding{
+				File:      in.File,
+				StartLine: edge.Line,
+				EndLine:   edge.Line,
+				RuleID:    r.ID(),
+				Severity:  SeverityError,
+				Message: fmt.Sprintf(
+					"The self-transition of state `%s` on `%s` has a clause that cannot be printed: %s. A diagram the reader read always prints, so this is a bug of csdflint; please report it.",
+					edge.Src, edge.Event.Label(), err,
+				),
+			})
+			continue
+		}
 		findings = append(findings, Finding{
 			File:      in.File,
 			StartLine: edge.Line,
@@ -51,7 +68,7 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 			Severity:  SeverityHint,
 			Message: fmt.Sprintf(
 				"State `%s` has a self-transition on `%s` guarded by `%s` whose post `%s` does not keep %s, which the guard reads, so the guard may be false after the step. Assume the guard holds, apply the post, and evaluate the guard again: if it can be false, `%[1]s` is two states - the one where the guard holds and the one after the post - and the edge should go to a second state. If the guard always holds again, keep what it reads with @eq(v', v) in the post, or leave the loop as it is.",
-				edge.Src, edge.Event.Label(), printed(edge.Guard), printed(edge.Post), quoted(loose, ", "),
+				edge.Src, edge.Event.Label(), guard, post, quoted(loose, ", "),
 			),
 		})
 	}
@@ -65,14 +82,4 @@ func quoted(names []string, sep string) string {
 		q[i] = "`" + n + "`"
 	}
 	return strings.Join(q, sep)
-}
-
-// printed is f as the clause syntax writes it. A formula the reader read
-// prints; should one not, the finding still names the edge by its line.
-func printed(f clause.And) string {
-	s, err := clause.Print(f)
-	if err != nil {
-		return "(unprintable)"
-	}
-	return s
 }

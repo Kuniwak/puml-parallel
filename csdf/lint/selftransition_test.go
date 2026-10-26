@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/lint"
 	"github.com/google/go-cmp/cmp"
 )
@@ -85,5 +87,32 @@ func TestSelfTransitionPostBreaksGuardRule(t *testing.T) {
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+func TestSelfTransitionPostBreaksGuardRuleReportsAClauseItCannotPrintAsAnError(t *testing.T) {
+	// Setup: a guard reading n beside a variable bound by no ∃, which no
+	// reader produces and Print refuses.
+	in := &lint.Input{File: "a.puml", Diagram: &core.Diagram{
+		States: []string{"s0"},
+		Vars:   map[string][]string{"s0": {"n"}},
+		Init:   "s0",
+		Edges: []core.Edge{{
+			Src: "s0", Dst: "s0", Event: core.Event{Channel: "a"}, Line: 5,
+			Guard: clause.And{Conjuncts: []clause.Formula{
+				clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: "n"}, clause.Bound{Index: 0}}},
+			}},
+		}},
+	}}
+
+	// Execute
+	findings := lint.SelfTransitionPostBreaksGuardRule{}.Check(in)
+
+	// Assert
+	if len(findings) != 1 || findings[0].Severity != lint.SeverityError || findings[0].StartLine != 5 {
+		t.Fatalf("want one ERROR on line 5, got %+v", findings)
+	}
+	if !strings.Contains(findings[0].Message, "the index 0 is under 0 binders") {
+		t.Errorf("want the reason Print gave, got %q", findings[0].Message)
 	}
 }
