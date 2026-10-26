@@ -208,10 +208,11 @@ class Symmetry:
     def canonical(self, state):
         """The representative of state's renamings: the least under a fixed
         order of values. A state holding an ID where nothing foresaw one is
-        refused (check)."""
+        refused (check), a ghost holding one among them, so the ghosts hold
+        none and are kept as they are."""
         self.check(state)
         sid, values, ghosts = state
-        return min(((sid, rename(values, p), rename(ghosts, p)) for p in self.perms), key=lambda s: _order_key(s[1:]))
+        return min(((sid, rename(values, p), ghosts) for p in self.perms), key=lambda s: _order_key(s[1]))
 
 
 def rename(v, perm: dict):
