@@ -28,10 +28,8 @@ independent maps, which says almost nothing.
 
 `csdfpromote` reads this syntax with clauses that are formulas
 (docs/CLAUSE_DESIGN.md), through `csdf/coreio`, and prints the expansion
-`csdf/core` gives. Its `-json` and `-format json` outputs still come from the
-reader before it, which reads clauses as text and which this document
-describes where the two differ; `csdfbmc` reads that JSON until it moves onto
-the clause syntax (#76). The diagram JSON of an expansion (version 2) writes
+`csdf/core` gives, as PlantUML or, with `-format json`, as the diagram JSON
+`csdfbmc` reads. The diagram JSON of an expansion (version 2) writes
 the family of each map as well (`families`): its local states, its start
 state, which is absence, and the variables each local state holds, so that
 csdfbmc gives an instance at a local state exactly that state's variables.
@@ -47,6 +45,12 @@ start post may say only `@empty(m')` of maps, beside the start mode's own
 variables; and every mode holds every family's map. `csdfpromote` skips a global `assume`
 note as a note for the picture alone; `csdf/coreio` carries it into the
 expansion.
+
+`-format json` is not a drop-in replacement for the removed `-json`. `-json`
+printed the parsed directives (core, promotes, syncs, constrains, diagnostics)
+before expansion; `-format json` prints the expanded diagram as diagram JSON
+(version 2), and the warnings go to standard error. To check the directives,
+use `-lint-only`.
 
 
 Vocabulary
