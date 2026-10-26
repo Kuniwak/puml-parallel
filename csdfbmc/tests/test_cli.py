@@ -169,8 +169,6 @@ class SampleReportTest(unittest.TestCase):
         tests = {
             "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']" + why + "\n"),
             "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),
-            "as JSON": (("--json",), (), 0, {"deadlocks": [], "bound_reached": [[["OPEN(k=a)", "CLOSE(k=a)"], "OPEN(k=b)"]] * 2,
-                                             "groups": [["bound_reached", "r", "CLOSE", 2]]}),
             "a deadlock when no value beyond enables a step": ((), (atom("$k != 'b'"),), 1, "states: 5\ndeadlock ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']\n"),
         }
         for name, (args, guard, want_code, want) in tests.items():
@@ -179,14 +177,20 @@ class SampleReportTest(unittest.TestCase):
                 code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", *args, d=self.opening(*guard), checks=self.SAMPLE)
 
                 # Assert
-                self.assertEqual(want_code, code, err)
-                if isinstance(want, dict):
-                    report = json.loads(out)
-                    self.assertEqual(want, {"deadlocks": report["deadlocks"],
-                                            "bound_reached": [[r["trace"], r["witness"]] for r in report["bound_reached"]],
-                                            "groups": [[g["kind"], g["at"], g["after"], g["count"]] for g in report["groups"]]})
-                else:
-                    self.assertEqual(want, out)
+                self.assertEqual((want_code, want), (code, out), err)
+
+    def test_the_bound_reached_is_reported_in_json_with_its_witness(self):
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--json", d=self.opening(), checks=self.SAMPLE)
+
+        # Assert
+        self.assertEqual(0, code, err)
+        report = json.loads(out)
+        self.assertEqual({"deadlocks": [], "bound_reached": [[["OPEN(k=a)", "CLOSE(k=a)"], "OPEN(k=b)"]] * 2,
+                          "groups": [["bound_reached", "r", "CLOSE", 2]]},
+                         {"deadlocks": report["deadlocks"],
+                          "bound_reached": [[r["trace"], r["witness"]] for r in report["bound_reached"]],
+                          "groups": [[g["kind"], g["at"], g["after"], g["count"]] for g in report["groups"]]})
 
 
 class NextCommandTest(unittest.TestCase):

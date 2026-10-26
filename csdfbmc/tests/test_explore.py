@@ -344,6 +344,7 @@ class SampleTest(unittest.TestCase):
                 self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
 
     def test_an_end_edge_the_values_beyond_enable_is_the_witness(self):
+        # Setup
         # The end edge is open only for a key b not in m, which no value of
         # the sample is.
         d = dict(OPENING, edges=OPENING["edges"][:2], ends=[end("r", guard=[exists("k", builtin("notin", bound(0), "m"), atom("${} == 'b'", bound(0)))])])
