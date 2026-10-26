@@ -89,6 +89,12 @@ class _LeftOut:
 LEFT_OUT = _LeftOut()
 
 
+def unsigned_zero(f: float) -> float:
+    """f, with negative zero read as zero: nothing in the language can tell
+    them apart (docs/CLAUSE_DESIGN.md, Literals)."""
+    return f + 0.0
+
+
 def same_value(a, b) -> bool:
     """Whether two values are one value: of one kind as well as equal, so
     that 1 is not True nor 1.0, all the way into containers. A float's

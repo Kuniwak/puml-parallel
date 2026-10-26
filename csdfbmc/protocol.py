@@ -66,7 +66,7 @@ import subprocess
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap
+from csdfbmc.values import FrozenMap, unsigned_zero
 
 _TAGS = ("tuple", "set", "map")
 
@@ -74,19 +74,14 @@ _TAGS = ("tuple", "set", "map")
 PROTOCOL = 2
 
 
-def _a_float(f: float) -> bool:
-    """Whether f is a float a value may be: finite."""
-    return math.isfinite(f)
-
-
 def to_wire(value):
     """value, a value of the checker's model, in the tagged encoding."""
     if value is None or isinstance(value, (bool, int, str)):
         return value
     if isinstance(value, float):
-        if not _a_float(value):
+        if not math.isfinite(value):
             raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite")
-        return value + 0.0
+        return unsigned_zero(value)
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
@@ -101,8 +96,8 @@ def from_wire(wire):
     """The value of the checker's model that wire encodes."""
     if wire is None or isinstance(wire, (bool, int, str)):
         return wire
-    if isinstance(wire, float) and _a_float(wire):
-        return wire + 0.0
+    if isinstance(wire, float) and math.isfinite(wire):
+        return unsigned_zero(wire)
     if isinstance(wire, dict) and len(wire) == 1:
         (tag, items), = wire.items()
         if tag in _TAGS and isinstance(items, list):

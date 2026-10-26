@@ -126,9 +126,10 @@ def _hole(t, after):
 class LiteralTest(unittest.TestCase):
     def test_negative_zero_is_read_as_zero(self):
         from csdfbmc.model import term_of
-        for value, text in [(-0.0, "0.0"), ([1, -0.0], "[1,0.0]")]:
-            with self.subTest(value=value):
-                self.assertEqual(text, term_of({"kind": "lit", "value": value}).text)
+        for name, value, text in [("a float", -0.0, "0.0"), ("in an array", [1, -0.0], "[1,0.0]")]:
+            with self.subTest(name):
+                got = term_of({"kind": "lit", "value": value}).text
+                self.assertEqual(text, got)
 
     def test_a_literal_that_is_no_value_is_refused(self):
         from csdfbmc.model import term_of

@@ -107,9 +107,14 @@ func TestCanonicalValueReadsNegativeZeroAsZero(t *testing.T) {
 }
 
 func TestCanonicalValueRefusesAFloatThatIsNotFinite(t *testing.T) {
-	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
-		if _, err := CanonicalValue(v); err == nil {
-			t.Fatalf("CanonicalValue(%v) = nil error, want one", v)
-		}
+	tests := map[string]float64{"NaN": math.NaN(), "infinity": math.Inf(1), "negative infinity": math.Inf(-1)}
+	for name, v := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := CanonicalValue(v)
+
+			// Assert
+			assertErrorContains(t, err, "no finite float")
+		})
 	}
 }

@@ -13,7 +13,7 @@ import json
 import math
 from dataclasses import dataclass, field
 
-from csdfbmc.values import FrozenMap, freeze
+from csdfbmc.values import FrozenMap, freeze, unsigned_zero
 
 VERSION = 3
 
@@ -94,10 +94,9 @@ def literal(value) -> Lit:
 
 
 def _positive_zero(v):
-    """v with every negative zero in it read as zero, from which nothing in
-    the language can tell it (docs/CLAUSE_DESIGN.md, Literals)."""
+    """v with every negative zero in it read as zero (unsigned_zero)."""
     if isinstance(v, float):
-        return v + 0.0
+        return unsigned_zero(v)
     if isinstance(v, list):
         return [_positive_zero(x) for x in v]
     if isinstance(v, dict):

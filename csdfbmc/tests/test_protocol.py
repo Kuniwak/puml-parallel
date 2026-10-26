@@ -63,8 +63,14 @@ class WireEncodingTest(unittest.TestCase):
         self.assertIs(int, type(from_wire(json.loads(json.dumps(to_wire(1))))))
 
     def test_negative_zero_is_read_as_zero(self):
-        for got in (from_wire(-0.0), to_wire(-0.0), from_wire({"tuple": [-0.0]})[0]):
-            with self.subTest(got=got):
+        cases = {
+            "from the wire": lambda: from_wire(-0.0),
+            "to the wire": lambda: to_wire(-0.0),
+            "from the wire in a tuple": lambda: from_wire({"tuple": [-0.0]})[0],
+        }
+        for name, read in cases.items():
+            with self.subTest(name):
+                got = read()
                 self.assertIs(float, type(got))
                 self.assertEqual(1.0, math.copysign(1, got))
 
