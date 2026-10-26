@@ -29,15 +29,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return err
 		}
-		run := runOptions{Replay: replay, DiagramJSON: opts.DiagramJSON}
+		run := runOptions{Replay: replay, DiagramJSON: opts.DiagramJSON, Suggesters: animation.NoSuggesters}
 		if checker.Asks() {
-			if opts.DiagramJSON != "" {
-				run.Suggester = &bmc.Suggester{Diagram: opts.DiagramJSON, Checker: checker}
-			} else {
-				run.SuggesterForSource = func(source []byte) (animation.Suggester, func(), error) {
-					return bmc.ForSource(source, checker)
-				}
-			}
+			run.Suggesters = checker.Suggesters(bmc.RunCsdfbmc)
 		}
 		return runREPL(opts.File, inout, interrupts, run)
 	}

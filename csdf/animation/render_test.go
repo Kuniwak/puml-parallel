@@ -83,7 +83,7 @@ func TestRenderStateValuePrompt(t *testing.T) {
 
 func TestRenderStateValuePromptShowsWhatAnInstanceOfAFamilyHolds(t *testing.T) {
 	// Setup
-	session, err := NewSession(promotedDiagram())
+	session, err := NewSession(promotedDiagram(), NoSuggester{})
 	if err != nil {
 		t.Fatal(err)
 	}

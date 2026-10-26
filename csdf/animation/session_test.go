@@ -41,7 +41,7 @@ func mustRead(t *testing.T, content string) *core.Diagram {
 
 func newSession(t *testing.T, content string) *Session {
 	t.Helper()
-	session, err := NewSession(mustRead(t, content))
+	session, err := NewSession(mustRead(t, content), NoSuggester{})
 	if err != nil {
 		t.Fatalf("NewSession() error = %v", err)
 	}
@@ -72,7 +72,7 @@ func TestNewSessionStartsInValuesModeAtInitial(t *testing.T) {
 
 func TestNewSessionMissingInitialStateErrors(t *testing.T) {
 	// Execute
-	_, err := NewSession(&core.Diagram{Init: "missing"})
+	_, err := NewSession(&core.Diagram{Init: "missing"}, NoSuggester{})
 
 	// Assert
 	if err == nil {

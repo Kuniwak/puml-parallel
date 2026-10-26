@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
@@ -31,7 +32,7 @@ func startDaemon(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Listen() error = %v", err)
 	}
-	service := proto.NewService("client-test", false, proto.AnyEnvironment)
+	service := proto.NewService("client-test", false, proto.AnyEnvironment, animation.NoSuggesters)
 	go func() {
 		for {
 			conn, err := listener.Accept()

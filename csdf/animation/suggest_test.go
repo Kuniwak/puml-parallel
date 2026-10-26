@@ -21,23 +21,26 @@ func (f *fakeSuggester) Next(from State, idx int) ([]Suggestion, error) {
 }
 
 func TestSuggestAsksForTheInitialStateThenForTheSelectedTransition(t *testing.T) {
-	sess := newSession(t, counterSource)
 	fake := &fakeSuggester{initial: []Suggestion{{Values: []byte(`[2]`)}}, next: map[int][]Suggestion{1: {{Values: []byte(`[]`)}}}}
+	sess, err := NewSession(mustRead(t, counterSource), fake)
+	if err != nil {
+		t.Fatalf("Setup: NewSession() error = %v", err)
+	}
 
-	got, err := sess.Suggest(fake)
+	got, err := sess.Suggest()
 	if err != nil || len(got) != 1 || string(got[0].Values) != "[2]" {
 		t.Fatalf("Suggest() = %v, %v; want the initial suggestion", got, err)
 	}
 	if _, err := sess.EnterValues("[0]"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := sess.Suggest(fake); got != nil {
+	if got, _ := sess.Suggest(); got != nil {
 		t.Errorf("Suggest() in command mode = %v, want nil", got)
 	}
 	if err := sess.Select(1); err != nil { // stop
 		t.Fatal(err)
 	}
-	got, err = sess.Suggest(fake)
+	got, err = sess.Suggest()
 	if err != nil || len(got) != 1 {
 		t.Fatalf("Suggest() after select = %v, %v", got, err)
 	}

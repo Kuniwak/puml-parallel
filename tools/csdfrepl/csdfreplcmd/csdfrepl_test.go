@@ -205,7 +205,7 @@ s0 --> s1 : insert?coin ; @ne(count, 9) ∧ $count >= 0 ; $result' is done
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n"))
 
-	err := runREPL(path, spy.New(), nil, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
@@ -240,7 +240,7 @@ s0: value
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n"))
 
-	err := runREPL(path, spy.New(), nil, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
@@ -276,7 +276,7 @@ s0 --> s1 : go
 	spy.Stdin = cli.StubStdin(inputReader)
 	done := make(chan error, 1)
 	go func() {
-		done <- runREPL(path, spy.New(), interrupts, runOptions{})
+		done <- runREPL(path, spy.New(), interrupts, runOptions{Suggesters: animation.NoSuggesters})
 	}()
 
 	writeAndWait(t, inputWriter, "[]\n", spy.Stdout, "command> ")
@@ -300,7 +300,7 @@ state "Initial" as s0
 	interrupts <- os.Interrupt
 	spy := cli.SpyProcInout()
 
-	err := runREPL(path, spy.New(), interrupts, runOptions{})
+	err := runREPL(path, spy.New(), interrupts, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err == nil {
 		t.Fatalf("runREPL() error = nil, want error")
@@ -321,7 +321,7 @@ s0: value
 	spy.Stdin = cli.StubStdin(strings.NewReader("[1]"))
 	stdout := &bytes.Buffer{}
 
-	err := runREPL(path, spy.New(), nil, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v, want nil", err)
@@ -432,7 +432,7 @@ func TestRunREPLRejectsBadFiles(t *testing.T) {
 			spy := cli.SpyProcInout()
 
 			// Execute
-			err := runREPL(tt.file, spy.New(), nil, runOptions{})
+			err := runREPL(tt.file, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
@@ -456,7 +456,7 @@ s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k'
 	spy.Stdin = cli.StubStdin(strings.NewReader("[{}, 0]\ns 0\n[{\"1\": 1}, 1]\nt\n"))
 
 	// Execute
-	err := runREPL(path, spy.New(), nil, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	// Assert
 	if err != nil {
@@ -494,7 +494,7 @@ func TestRunExploresTheDiagramJSONOfAnExpansion(t *testing.T) {
 	spy.Stdin = cli.StubStdin(strings.NewReader(`[{"a": {"at": "opened", "fields": {}}}]` + "\n" + `[{"a": {"at": "opened", "fields": {"balance": 1}}}]` + "\n"))
 
 	// Execute
-	err = runREPL(path, spy.New(), nil, runOptions{DiagramJSON: jsonPath})
+	err = runREPL(path, spy.New(), nil, runOptions{DiagramJSON: jsonPath, Suggesters: animation.NoSuggesters})
 
 	// Assert
 	if err != nil {
@@ -609,7 +609,7 @@ a --> b : stop ; $n = 0
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("t\nh\n"))
 
-	err := runREPL(path, spy.New(), nil, runOptions{Replay: &replay})
+	err := runREPL(path, spy.New(), nil, runOptions{Replay: &replay, Suggesters: animation.NoSuggesters})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
@@ -652,7 +652,7 @@ a --> b : stop ; $n = 0
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("#0\ns 0\n#9\n#0\nl\n"))
 
-	err := runREPL(path, spy.New(), nil, runOptions{Suggester: sg})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: func([]byte, string) (animation.Suggester, func(), error) { return sg, animation.NoCleanup, nil }})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())

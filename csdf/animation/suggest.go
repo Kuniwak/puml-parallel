@@ -2,6 +2,7 @@ package animation
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -24,17 +25,41 @@ type Suggester interface {
 	Next(from State, idx int) ([]Suggestion, error)
 }
 
-// Suggest asks the suggester about the session's pending transition: the
+// ErrNoSuggester is what NoSuggester answers: no checker was given to ask.
+// A front end shows no suggestions for it.
+var ErrNoSuggester = errors.New("no checker was given to suggest values")
+
+// NoSuggester is the Suggester of a session no checker was given: it
+// suggests nothing, answering every question with ErrNoSuggester.
+type NoSuggester struct{}
+
+func (NoSuggester) Initial() ([]Suggestion, error)        { return nil, ErrNoSuggester }
+func (NoSuggester) Next(State, int) ([]Suggestion, error) { return nil, ErrNoSuggester }
+
+// SuggesterFactory builds the suggester of a session from its diagram's
+// source and, for an expansion, the path of the JSON the checker reads ("" when
+// none); the cleanup runs when the session is done with the suggester.
+type SuggesterFactory func(source []byte, diagramJSON string) (Suggester, func(), error)
+
+// NoSuggesters is the SuggesterFactory of a front end no checker was given.
+func NoSuggesters([]byte, string) (Suggester, func(), error) {
+	return NoSuggester{}, NoCleanup, nil
+}
+
+// NoCleanup is the cleanup of a suggester that leaves nothing behind.
+func NoCleanup() {}
+
+// Suggest asks the session's suggester about its pending transition: the
 // start state when nothing has been explored yet, otherwise the transition
 // last selected. It returns nil, nil when there is nothing pending.
-func (s *Session) Suggest(sg Suggester) ([]Suggestion, error) {
+func (s *Session) Suggest() ([]Suggestion, error) {
 	if s.mode != ModeValues {
 		return nil, nil
 	}
 	if s.pending.Prev == nil {
-		return sg.Initial()
+		return s.suggester.Initial()
 	}
-	return sg.Next(*s.pending.Prev, s.pending.edge)
+	return s.suggester.Next(*s.pending.Prev, s.pending.edge)
 }
 
 // RenderSuggestions renders what the checker admits, numbered so that a

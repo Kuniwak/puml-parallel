@@ -89,14 +89,13 @@ func TestSuggesterGivenAFunctionSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 		t.Run(v, func(t *testing.T) {
 			// Setup
 			env := []bmc.Binding{{Name: "$_0 が 正", Value: v == "true"}}
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env})
+			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env}, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Run = c.run(t)
 			state, _ := json.Marshal(zero)
-			want := c.next(t, s.Diagram, "--env", env[0].String(), "--state", string(state), "--edge", "0")
+			want := c.next(t, s.Diagram(), "--env", env[0].String(), "--state", string(state), "--edge", "0")
 
 			// Execute
 			got, err := s.Next(zero, 0)
@@ -124,12 +123,11 @@ func TestSuggesterTakesTheFunctionsGiven(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env})
+			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env}, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Run = c.run(t)
 
 			// Execute
 			got, err := s.Next(zero, 0)
@@ -165,12 +163,11 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 			// Setup
 			checker := tt.checker
 			checker.Checks, checker.EvaluatorModule = c.checks, "csdfbmc.python_glue"
-			s, cleanup, err := bmc.ForSource([]byte(guarded), checker)
+			s, cleanup, err := bmc.ForSource([]byte(guarded), checker, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Run = c.run(t)
 
 			// Execute
 			_, err = s.Initial()

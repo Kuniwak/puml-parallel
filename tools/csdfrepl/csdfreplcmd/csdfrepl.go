@@ -15,15 +15,14 @@ import (
 	"golang.org/x/term"
 )
 
-// runOptions is what a run may start with: the JSON to explore in place of
+// runOptions is what a run starts with: the JSON to explore in place of
 // the file (an expansion's, which holds its families), a replay to walk
-// first, and a suggester for the value prompts, given directly or built from
-// the diagram's source (which may hand back a cleanup).
+// first (nil for none), and what builds the suggester of the value prompts
+// (animation.NoSuggesters when no checker was given).
 type runOptions struct {
-	DiagramJSON        string
-	Replay             *animation.Replay
-	Suggester          animation.Suggester
-	SuggesterForSource func(source []byte) (animation.Suggester, func(), error)
+	DiagramJSON string
+	Replay      *animation.Replay
+	Suggesters  animation.SuggesterFactory
 }
 
 // runREPL runs the REPL on file, or on run.DiagramJSON when it is given.
@@ -47,7 +46,12 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram: %w: %q", err, file)
 	}
 
-	session, err := animation.NewSession(diagram)
+	suggester, cleanup, err := run.Suggesters(bs, run.DiagramJSON)
+	if err != nil {
+		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
+	}
+	defer cleanup()
+	session, err := animation.NewSession(diagram, suggester)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 	}
@@ -59,15 +63,6 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 	} else {
 		lines = newLineReader(inout.Stdin)
 	}
-	suggester := run.Suggester
-	if suggester == nil && run.SuggesterForSource != nil {
-		built, cleanup, err := run.SuggesterForSource(bs)
-		if err != nil {
-			return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
-		}
-		defer cleanup()
-		suggester = built
-	}
 	repl := repl{
 		diagram:    diagram,
 		session:    session,
@@ -75,7 +70,6 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 		interrupts: interrupts,
 		lines:      lines,
 		terminal:   terminal,
-		suggester:  suggester,
 	}
 	if run.Replay != nil {
 		if err := session.Replay(*run.Replay); err != nil {
@@ -187,9 +181,6 @@ type repl struct {
 	// replayed says the session already stands at a state when the loop
 	// starts, so the first prompt is a command prompt, not a value prompt.
 	replayed bool
-	// suggester, when set, is asked at every value prompt what values the
-	// pending transition admits; "#N" then enters the N-th.
-	suggester animation.Suggester
 }
 
 func (r *repl) run() error {
@@ -274,18 +265,16 @@ const (
 )
 
 func (r *repl) askStateValues() (inputOutcome, error) {
-	var suggestions []animation.Suggestion
-	if r.suggester != nil {
-		got, err := r.session.Suggest(r.suggester)
-		if err != nil {
-			r.displayError(err.Error())
-		} else {
-			suggestions = got
-		}
+	// The session's suggester is asked once per prompt what values the
+	// pending transition admits; "#N" then enters the N-th. Without a
+	// checker it suggests nothing, and nothing is shown.
+	suggestions, suggestErr := r.session.Suggest()
+	if suggestErr != nil && !errors.Is(suggestErr, animation.ErrNoSuggester) {
+		r.displayError(suggestErr.Error())
 	}
 	for {
 		r.displayStateValuePrompt(r.session.Pending())
-		if r.suggester != nil && suggestions != nil {
+		if suggestErr == nil {
 			animation.RenderSuggestions(r.stdout, suggestions)
 		}
 		line, outcome, err := r.readLine("state> ")

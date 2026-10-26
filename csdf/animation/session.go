@@ -45,17 +45,21 @@ type Session struct {
 	mode    Mode
 	pending Pending
 	current State
+	// suggester is what Suggest asks.
+	suggester Suggester
 }
 
 // NewSession starts an exploration at the diagram's initial state. The returned
-// session is in ModeValues, awaiting the initial state's values.
-func NewSession(diagram *core.Diagram) (*Session, error) {
+// session is in ModeValues, awaiting the initial state's values. Suggest
+// asks suggester; NoSuggester when no checker was given.
+func NewSession(diagram *core.Diagram, suggester Suggester) (*Session, error) {
 	if !slices.Contains(diagram.States, diagram.Init) {
 		return nil, fmt.Errorf("animation.NewSession: initial state %q does not exist", diagram.Init)
 	}
 	return &Session{
-		diagram: diagram,
-		mode:    ModeValues,
+		diagram:   diagram,
+		suggester: suggester,
+		mode:      ModeValues,
 		pending: Pending{
 			Target: targetOf(diagram, diagram.Init),
 			Post:   diagram.InitPost,

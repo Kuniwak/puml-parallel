@@ -16,11 +16,11 @@ import (
 
 // entry is one live session with its origin label.
 type entry struct {
-	id        string
-	path      string
-	session   *animation.Session
-	suggester animation.Suggester
-	cleanup   func()
+	id      string
+	path    string
+	session *animation.Session
+	// cleanup runs when the session is removed, after its suggester.
+	cleanup func()
 }
 
 // Service holds the in-memory animation sessions and maps protocol requests to
@@ -33,22 +33,13 @@ type Service struct {
 	nextID   int
 	version  string
 	debug    bool
-	// suggesters builds, per new session, what its value prompts ask; nil
-	// when the daemon has no checker.
-	suggesters SuggesterFactory
+	// suggesters builds, per new session, what its value prompts ask;
+	// animation.NoSuggesters when the daemon has no checker.
+	suggesters animation.SuggesterFactory
 	// environmentCheck refuses a replay whose report was made in an
 	// environment the suggesters do not walk.
 	environmentCheck EnvironmentCheck
 }
-
-// SuggesterFactory builds a session's suggester from its diagram's source
-// and, for an expansion, the JSON the checker reads; the cleanup, if any,
-// runs when the session is removed.
-type SuggesterFactory func(source []byte, diagramJSON string) (animation.Suggester, func(), error)
-
-// SetSuggesters gives the daemon a checker: every session created afterwards
-// suggests values at its prompts and accepts statevar picks.
-func (s *Service) SetSuggesters(f SuggesterFactory) { s.suggesters = f }
 
 // EnvironmentCheck refuses, before a replay walks, a path whose report's
 // environment (nil when the report has none) is not the one the daemon's
@@ -63,13 +54,17 @@ func AnyEnvironment(*animation.Environment) error { return nil }
 // NewService returns a Service that reports the given version. When debug is false, errors are
 // surfaced as their deepest (prefix-free) message; when true, the full wrapped
 // chain is surfaced. environmentCheck refuses a replay of a report made in
-// another environment; AnyEnvironment refuses none.
-func NewService(version string, debug bool, environmentCheck EnvironmentCheck) *Service {
+// another environment; AnyEnvironment refuses none. suggesters builds the
+// suggester of every session, whose value prompts then suggest values and
+// accept statevar picks; animation.NoSuggesters when the daemon has no
+// checker.
+func NewService(version string, debug bool, environmentCheck EnvironmentCheck, suggesters animation.SuggesterFactory) *Service {
 	return &Service{
 		sessions:         map[string]*entry{},
 		version:          version,
 		debug:            debug,
 		environmentCheck: environmentCheck,
+		suggesters:       suggesters,
 	}
 }
 
@@ -119,18 +114,16 @@ func (s *Service) handleSessionNew(req Request) Response {
 	if err != nil {
 		return s.errorFromErr(err)
 	}
-	session, err := animation.NewSession(diagram)
+	sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
-	e := &entry{path: req.Path, session: session}
-	if s.suggesters != nil {
-		sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
-		if err != nil {
-			return s.errorFromErr(err)
-		}
-		e.suggester, e.cleanup = sg, cleanup
+	session, err := animation.NewSession(diagram, sg)
+	if err != nil {
+		cleanup()
+		return s.errorFromErr(err)
 	}
+	e := &entry{path: req.Path, session: session, cleanup: cleanup}
 	s.nextID++
 	e.id = strconv.Itoa(s.nextID)
 	s.sessions[e.id] = e
@@ -162,9 +155,7 @@ func (s *Service) handleSessionRm(req Request) Response {
 	}
 	delete(s.sessions, e.id)
 	s.order = removeString(s.order, e.id)
-	if e.cleanup != nil {
-		e.cleanup()
-	}
+	e.cleanup()
 	return Response{OK: true, Session: e.id, Output: "removed " + e.id + "\n", Data: mustData(SessionRef{Session: e.id})}
 }
 
@@ -193,10 +184,10 @@ func (s *Service) handleStatevar(req Request) Response {
 	}
 	values := req.Values
 	if req.Pick != nil {
-		if e.suggester == nil {
+		suggestions, err := e.session.Suggest()
+		if errors.Is(err, animation.ErrNoSuggester) {
 			return errorResponse("the daemon has no checker to pick a suggestion from; start csdfrepld with -checks and -evaluator or -evaluator-module")
 		}
-		suggestions, err := e.session.Suggest(e.suggester)
 		if err != nil {
 			return s.errorFromErr(err)
 		}
@@ -309,14 +300,14 @@ func viewResponse(e *entry) Response {
 		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
 		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: clauseText(pending.Guard), Post: clauseText(pending.Post)}
-		if e.suggester != nil {
-			suggestions, err := sess.Suggest(e.suggester)
-			if err != nil {
-				animation.RenderError(&buf, err.Error())
-			} else {
-				animation.RenderSuggestions(&buf, suggestions)
-				view.Pending.Suggestions = suggestions
-			}
+		suggestions, err := sess.Suggest()
+		switch {
+		case errors.Is(err, animation.ErrNoSuggester):
+		case err != nil:
+			animation.RenderError(&buf, err.Error())
+		default:
+			animation.RenderSuggestions(&buf, suggestions)
+			view.Pending.Suggestions = suggestions
 		}
 	} else {
 		current, _ := sess.Current()

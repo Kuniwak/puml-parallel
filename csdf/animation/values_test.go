@@ -29,7 +29,7 @@ func promotedDiagram() *core.Diagram {
 
 func TestEnterValuesTakesInstancesOfAFamily(t *testing.T) {
 	// Setup
-	session, err := NewSession(promotedDiagram())
+	session, err := NewSession(promotedDiagram(), NoSuggester{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			session, err := NewSession(promotedDiagram())
+			session, err := NewSession(promotedDiagram(), NoSuggester{})
 			if err != nil {
 				t.Fatal(err)
 			}
