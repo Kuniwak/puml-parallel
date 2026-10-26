@@ -14,7 +14,9 @@ the step they enable as its witness, not as a deadlock, and is no finding.
 Findings of one shape are reported once with their count and the shortest
 trace; --all lists every one, and --first stops the walk at the first
 deadlock or broken invariant. --cone leaves out the variables nothing that
-decides a step or a property reads (csdfbmc.cone), and finds the same.
+decides a step or a property reads (csdfbmc.cone), and finds the same
+findings; their counts, the states and --all are those of the reduced walk,
+which a line naming the reductions says.
 Exits 1 when it finds any, 2 on a usage or
 loading error.
 """
@@ -24,6 +26,11 @@ import sys
 
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened, reductions
 from csdfbmc.explore import Explorer
+
+
+# The reductions, by their options: each walks fewer states and finds the
+# shapes of the full walk's findings, not their counts.
+REDUCTIONS = ("cone",)
 
 
 def beyond(witness: str) -> str:
@@ -105,8 +112,9 @@ def main(argv=None) -> int:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
 
+    used = [name for name in REDUCTIONS if getattr(a, name)]
     if a.json:
-        json.dump(result.to_json(), sys.stdout, ensure_ascii=False)
+        json.dump({**result.to_json(), "reductions": used}, sys.stdout, ensure_ascii=False)
         print()
     else:
         head = f"states: {len(result.states)}"
@@ -115,6 +123,9 @@ def main(argv=None) -> int:
         if result.stopped_early:
             head += " (stopped at the first finding)"
         print(head)
+        if used:
+            print(f"reduced by {', '.join('--' + name for name in used)}: the findings are those of the full walk; "
+                  "the counts and --all list the states of the reduced one")
         if result.left_out:
             print(f"cone of influence leaves out: {', '.join(result.left_out)}")
         if a.all:

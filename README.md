@@ -995,6 +995,14 @@ A left-out variable is kept at one value, printed `{"left_out": true}` in
 out: …`, `left_out` in `--json`). An invariant or a ghost update that takes
 any keyword is refused with `--cone`, since what it reads cannot be told.
 
+A reduction keeps the findings, not their counts: the walk reports the
+same shapes (a deadlock at a control state after an event, an invariant
+broken at a control state, a cycle through control states, …) as without
+it, but the number of states, the count of each shape, its shortest trace
+and the list `--all` prints are those of the reduced walk. The output says
+so in a line naming the reductions used (`reduced by --cone: …`, and
+`reductions` in `--json`).
+
 The reductions `--por` and `--symmetry` of earlier releases read what a
 glue said a clause reads; they come back on the formulas in a later change
 of #76.
