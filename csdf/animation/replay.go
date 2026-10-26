@@ -212,11 +212,9 @@ func LoadReplays(bs []byte) ([]Finding, error) {
 }
 
 // Environment is what csdfbmc --json reports under "environment" to
-// reproduce its run: the seed (nil when the run had none), the names of the
-// functions given, by the checks module or by --env, and the values --env
+// reproduce its run: the names of the functions given, by the checks module or by --env, and the values --env
 // gave. The checks module gives the rest again.
 type Environment struct {
-	Seed  *int            `json:"seed"`
 	Given []string        `json:"given"`
 	Env   map[string]bool `json:"env"`
 }
@@ -229,7 +227,6 @@ type Environment struct {
 func LoadEnvironment(bs []byte) (*Environment, error) {
 	var out struct {
 		Environment *struct {
-			Seed  *int             `json:"seed"`
 			Given []string         `json:"given"`
 			Env   *map[string]bool `json:"env"`
 		} `json:"environment"`
@@ -253,7 +250,7 @@ func LoadEnvironment(bs []byte) (*Environment, error) {
 			return nil, fmt.Errorf("animation.LoadEnvironment: the report's environment gives %q a value, but does not list it as given", name)
 		}
 	}
-	return &Environment{Seed: e.Seed, Given: e.Given, Env: *e.Env}, nil
+	return &Environment{Given: e.Given, Env: *e.Env}, nil
 }
 
 // LoadFinding reads csdfbmc's JSON output and returns its n-th finding, as

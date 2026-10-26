@@ -8,8 +8,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func seed(n int) *int { return &n }
-
 func TestNewParseOptionsFuncTakesTheEnvironment(t *testing.T) {
 	tests := map[string]struct {
 		args    []string
@@ -20,9 +18,13 @@ func TestNewParseOptionsFuncTakesTheEnvironment(t *testing.T) {
 			args: []string{"-checks", "c.py", "-evaluator-module", "g"},
 			want: bmc.Checker{Checks: "c.py", EvaluatorModule: "g"},
 		},
-		"a seed and a function": {
-			args: []string{"-checks", "c.py", "-evaluator-module", "g", "-seed", "3", "-env", "f=true"},
-			want: bmc.Checker{Checks: "c.py", EvaluatorModule: "g", Seed: seed(3), Env: []bmc.Binding{{Name: "f", Value: true}}},
+		"a function": {
+			args: []string{"-checks", "c.py", "-evaluator-module", "g", "-env", "f=true"},
+			want: bmc.Checker{Checks: "c.py", EvaluatorModule: "g", Env: []bmc.Binding{{Name: "f", Value: true}}},
+		},
+		"a seed, which csdfrepld does not take": {
+			args:    []string{"-checks", "c.py", "-evaluator-module", "g", "-seed", "3"},
+			wantErr: true,
 		},
 		"a function without a checks module": {
 			args:    []string{"-env", "f=true"},

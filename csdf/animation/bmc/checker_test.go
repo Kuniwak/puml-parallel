@@ -60,32 +60,24 @@ func TestForSourceRefusesADiagramItCannotRead(t *testing.T) {
 	}
 }
 
-func seed(n int) *int { return &n }
-
 func TestCheckerArgsOfNextCarryTheEnvironment(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
 	base := []string{"next", "d.json", "c.py", "--evaluator-module", "g"}
 	tests := map[string]struct {
-		seed *int
 		env  []bmc.Binding
 		want []string
 	}{
-		"nothing given":  {want: base},
-		"a seed of zero": {seed: seed(0), want: append(append([]string{}, base...), "--seed", "0")},
+		"nothing given": {want: base},
 		"functions in the order given": {
 			env:  []bmc.Binding{{Name: "$_0 が 正", Value: true}, {Name: "a=b", Value: false}},
 			want: append(append([]string{}, base...), "--env", "$_0 が 正=true", "--env", "a=b=false"),
-		},
-		"a seed and a function": {
-			seed: seed(7), env: []bmc.Binding{{Name: "f", Value: false}},
-			want: append(append([]string{}, base...), "--seed", "7", "--env", "f=false"),
 		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
 			checker := glue
-			checker.Seed, checker.Env = tt.seed, tt.env
+			checker.Env = tt.env
 
 			// Execute
 			got := checker.NextArgs("d.json")
@@ -100,18 +92,18 @@ func TestCheckerArgsOfNextCarryTheEnvironment(t *testing.T) {
 
 func TestCheckerReproducesTheEnvironmentOfAReport(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
-	with := func(s *int, env ...bmc.Binding) bmc.Checker {
+	with := func(env ...bmc.Binding) bmc.Checker {
 		c := glue
-		c.Seed, c.Env = s, env
+		c.Env = env
 		return c
 	}
 	fTrue := bmc.Binding{Name: "f", Value: true}
-	gave := func(s *int, env map[string]bool) *animation.Environment {
+	gave := func(env map[string]bool) *animation.Environment {
 		given := []string{}
 		for name := range env {
 			given = append(given, name)
 		}
-		return &animation.Environment{Seed: s, Given: given, Env: env}
+		return &animation.Environment{Given: given, Env: env}
 	}
 	tests := map[string]struct {
 		checker bmc.Checker
@@ -119,26 +111,18 @@ func TestCheckerReproducesTheEnvironmentOfAReport(t *testing.T) {
 		want    bmc.Checker
 		wantErr string
 	}{
-		"the report's seed when none is given": {checker: glue, report: gave(seed(7), nil), want: with(seed(7))},
-		"no seed when the report had none":     {checker: glue, report: gave(nil, nil), want: glue},
-		"the same seed":                        {checker: with(seed(7)), report: gave(seed(7), nil), want: with(seed(7))},
+		"nothing given on either side": {checker: glue, report: gave(nil), want: glue},
 		"the report gives f, the checker nothing": {
-			checker: glue, report: gave(seed(7), map[string]bool{"f": true}), want: with(seed(7), fTrue),
+			checker: glue, report: gave(map[string]bool{"f": true}), want: with(fTrue),
 		},
 		"the report and the checker give f alike": {
-			checker: with(nil, fTrue), report: gave(seed(7), map[string]bool{"f": true}), want: with(seed(7), fTrue),
+			checker: with(fTrue), report: gave(map[string]bool{"f": true}), want: with(fTrue),
 		},
 		"the report gives f another value": {
-			checker: with(nil, fTrue), report: gave(nil, map[string]bool{"f": false}), wantErr: `the report's run gave "f" false, not true`,
+			checker: with(fTrue), report: gave(map[string]bool{"f": false}), wantErr: `the report's run gave "f" false, not true`,
 		},
 		"the checker gives f, the report nothing": {
-			checker: with(nil, fTrue), report: &animation.Environment{Given: []string{"f"}}, wantErr: `the checker gives "f" true, but the report's run gave it no value`,
-		},
-		"another seed": {
-			checker: with(seed(1)), report: gave(seed(7), nil), wantErr: "the report was made with seed 7, not seed 1",
-		},
-		"a seed the report's run had not": {
-			checker: with(seed(1)), report: gave(nil, nil), wantErr: "the report was made with no seed, not seed 1",
+			checker: with(fTrue), report: &animation.Environment{Given: []string{"f"}}, wantErr: `the checker gives "f" true, but the report's run gave it no value`,
 		},
 		"a report of no environment": {checker: glue, report: nil, wantErr: "the report records no environment"},
 	}
@@ -166,8 +150,6 @@ func TestCheckerReproducesTheEnvironmentOfAReport(t *testing.T) {
 
 func TestCheckerAgreesOnlyWithTheEnvironmentItAlreadyWalks(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
-	seeded := glue
-	seeded.Seed = seed(7)
 	givesF := glue
 	givesF.Env = []bmc.Binding{{Name: "f", Value: true}}
 	tests := map[string]struct {
@@ -175,11 +157,8 @@ func TestCheckerAgreesOnlyWithTheEnvironmentItAlreadyWalks(t *testing.T) {
 		report  *animation.Environment
 		wantErr string
 	}{
-		"the same seed":           {checker: seeded, report: &animation.Environment{Seed: seed(7)}},
-		"no seed on either side":  {checker: glue, report: &animation.Environment{}},
+		"nothing on either side":  {checker: glue, report: &animation.Environment{}},
 		"the same function given": {checker: givesF, report: &animation.Environment{Given: []string{"f"}, Env: map[string]bool{"f": true}}},
-		"a seed it was not given": {checker: glue, report: &animation.Environment{Seed: seed(7)}, wantErr: "the report was made with seed 7, which the checker does not walk"},
-		"another seed":            {checker: seeded, report: &animation.Environment{Seed: seed(1)}, wantErr: "not seed 7"},
 		"a function it does not give": {
 			checker: glue, report: &animation.Environment{Given: []string{"f"}, Env: map[string]bool{"f": true}}, wantErr: `the report's run gave "f" true, which the checker does not give`,
 		},

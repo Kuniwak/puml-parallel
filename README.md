@@ -1102,21 +1102,19 @@ binary) what values the clauses admit for the pending transition, shows them
 numbered, and takes `#N` in place of the values. `-diagram-json FILE` names the
 expansion JSON the checker reads instead of the file's own parse.
 
-The environment is csdfbmc's: `-seed N` and `-env NAME=true|false`
-(repeatable) are passed to `csdfbmc next` as `--seed` and `--env`, so the
-prompt suggests what csdfbmc walks with the same seed and the same given
-functions. Neither has a default: without `-seed`, a function the checks
-module's `ENVIRONMENT` declares and nothing gives is refused at the prompt,
-as csdfbmc refuses it. With `-replay`, the prompt walks the environment
-the report was made in: its `environment` gives the seed and the values its
-`--env` gave where `-seed` and `-env` say nothing, and a `-seed` or an `-env`
-value other than the report's, or an `-env` of a function the report's
+The environment is csdfbmc's: `-env NAME=true|false` (repeatable) is passed
+to `csdfbmc next` as `--env`, so the prompt suggests what csdfbmc walks with
+the same given functions. It has no default: a function the checks module's
+`ENVIRONMENT` declares and nothing gives is refused at the prompt, as
+csdfbmc refuses it. With `-replay`, the prompt walks the environment the
+report was made in: its `environment` gives the values its `--env` gave
+where `-env` says nothing, and an `-env` value other than the report's, or an `-env` of a function the report's
 `--env` did not give, is refused. A report with no `environment`, or whose
 `environment` records no `env` (both written by a csdfbmc before 3.0.0,
 whose `given` does not tell the checks module's functions from `--env`'s),
 is refused; make it again with this release's `csdfbmc --json`. `csdfrepld` cannot take a
-report's environment, so it refuses a replay of a report whose seed and
-values are not exactly its own `-seed` and `-env`.
+report's environment, so it refuses a replay of a report whose `--env`
+values are not exactly its own `-env`.
 
 ```console
 $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
@@ -1163,12 +1161,12 @@ started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`
 asks `csdfbmc` at every value prompt what values the clauses admit:
 `read` lists them under `suggestions`, `statevar -pick N` enters the N-th, and
 `session new -diagram-json FILE` names the expansion JSON the checker reads for
-that session. `-seed N` and `-env NAME=true|false` give every session the
-environment csdfbmc walks with `--seed N` and `--env NAME=true|false`. The
-daemon's environment is fixed when it starts, so `replay` refuses a report
-whose `environment` it does not walk: one made with a seed the daemon was not
-given, with another seed, or without giving a function the daemon's `-env`
-gives. Run `csdfreplcmd help` for the full command list.
+that session. `-env NAME=true|false` gives every session the environment
+csdfbmc walks with `--env NAME=true|false`. The daemon's environment is
+fixed when it starts, so `replay` refuses a report whose `environment` it
+does not walk: one whose `--env` gave a function another value or a value
+the daemon's `-env` does not give, or that did not give a function the
+daemon's `-env` gives. Run `csdfreplcmd help` for the full command list.
 
 ## Documentation
 

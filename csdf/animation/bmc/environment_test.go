@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -85,19 +84,20 @@ func (c checker) next(t *testing.T, diagram string, args ...string) []animation.
 
 var zero = csdf.RuntimeState{ID: "s0", Values: []csdf.StateValue{{Name: "n", Value: 0}}}
 
-func TestSuggesterWithASeedSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
+func TestSuggesterGivenAFunctionSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 	c := newChecker(t)
-	for _, n := range []int{0, 1, 2, 3} {
-		t.Run("seed "+strconv.Itoa(n), func(t *testing.T) {
+	for _, v := range []string{"true", "false"} {
+		t.Run(v, func(t *testing.T) {
 			// Setup
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Seed: seed(n)})
+			env := []bmc.Binding{{Name: "$_0 が 正", Value: v == "true"}}
+			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env})
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
 			s.Run = c.run(t)
 			state, _ := json.Marshal(zero)
-			want := c.next(t, s.Diagram, "--seed", strconv.Itoa(n), "--state", string(state), "--edge", "0")
+			want := c.next(t, s.Diagram, "--env", env[0].String(), "--state", string(state), "--edge", "0")
 
 			// Execute
 			got, err := s.Next(zero, 0)
@@ -113,7 +113,7 @@ func TestSuggesterWithASeedSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 	}
 }
 
-func TestSuggesterTakesTheFunctionsGivenOverTheSeed(t *testing.T) {
+func TestSuggesterTakesTheFunctionsGiven(t *testing.T) {
 	c := newChecker(t)
 	tests := map[string]struct {
 		env       []bmc.Binding
@@ -125,7 +125,7 @@ func TestSuggesterTakesTheFunctionsGivenOverTheSeed(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Seed: seed(1), Env: tt.env})
+			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -157,7 +157,7 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 			want:    "nothing decides the environment's functions '$_0 が 正'",
 		},
 		"a function the checks module does not declare": {
-			checker: bmc.Checker{Seed: seed(1), Env: []bmc.Binding{{Name: "$_0 が 零", Value: true}}},
+			checker: bmc.Checker{Env: []bmc.Binding{{Name: "$_0 が 零", Value: true}}},
 			want:    "ENVIRONMENT does not declare",
 		},
 	}

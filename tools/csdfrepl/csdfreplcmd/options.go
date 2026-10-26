@@ -49,12 +49,11 @@ csdfbmc must be on the PATH or beside this binary. -diagram-json names the
 JSON (csdfpromote -format json, for an expansion) the checker reads instead of the
 file's own parse.
 
--seed and -env are csdfbmc's --seed and --env: the prompt suggests what
-csdfbmc walks with the same seed and the same given functions. Neither has a
-default; a function the checks module declares that nothing decides is
-refused, as csdfbmc refuses it. With -replay, the report's seed and the
-values its --env gave are taken where -seed and -env say nothing; a -seed
-or an -env value other than the report's, an -env of a function the
+-env is csdfbmc's --env: the prompt suggests what csdfbmc walks with the
+same given functions. It has no default; a function the checks module
+declares that nothing gives is refused, as csdfbmc refuses it. With
+-replay, the values the report's --env gave are taken where -env says
+nothing; an -env value other than the report's, an -env of a function the
 report's --env did not give, or a report that records no environment or
 no env (one that a csdfbmc before 3.0.0 wrote), is refused; make it again.
 
@@ -68,7 +67,7 @@ Examples:
   $ csdfrepl -replay findings.json -finding 0 diagram.puml
   $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
       -evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" examples/bmc/withdraw_formal.puml
-  $ csdfrepl -checks checks.py -evaluator-module csdfbmc.python_glue -seed 7 -env '$_0 が 正=true' diagram.puml
+  $ csdfrepl -checks checks.py -evaluator-module csdfbmc.python_glue -env '$_0 が 正=true' diagram.puml
 `)
 		}
 

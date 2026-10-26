@@ -42,13 +42,13 @@ Examples:
   $ csdfrepld
   $ csdfrepld -sock /tmp/csdfrepld.sock
   $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue
-  $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue -seed 7
+  $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue -env '$_0 が 正=true'
 
 With -checks and a glue, value prompts suggest the values the clauses admit,
-as csdfbmc reads them, and statevar -pick enters one. -seed and -env are
-csdfbmc's --seed and --env, for every session; neither has a default. A
-replay of a report made with another seed, or with a seed not given here,
-is refused.
+as csdfbmc reads them, and statevar -pick enters one. -env is
+csdfbmc's --env, for every session; it has no default. A replay of a
+report whose --env gave a function another value, or a value -env does
+not give here, is refused.
 `, tools.SocketEnv, tools.SocketName, tools.SocketName)
 		}
 

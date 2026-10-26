@@ -20,13 +20,12 @@ func TestDeclareCheckerOptions(t *testing.T) {
 		"none":                      {args: nil, want: bmc.Checker{}},
 		"checks and a glue command": {args: []string{"-checks", "c.py", "-evaluator", "glue"}, want: bmc.Checker{Checks: "c.py", Evaluator: "glue"}},
 		"checks and a glue module":  {args: []string{"-checks", "c.py", "-evaluator-module", "csdfbmc.python_glue"}, want: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
-		"a seed of zero":            {args: []string{"-seed", "0"}, want: bmc.Checker{Seed: seed(0)}},
 		"functions in the order given": {
 			args: []string{"-env", "$_0 が 正=true", "-env", "f=false"},
 			want: bmc.Checker{Env: []bmc.Binding{{Name: "$_0 が 正", Value: true}, {Name: "f", Value: false}}},
 		},
 		"a function whose name holds =": {args: []string{"-env", "a=b=true"}, want: bmc.Checker{Env: []bmc.Binding{{Name: "a=b", Value: true}}}},
-		"a seed that is not a number":   {args: []string{"-seed", "x"}, wantErr: "-seed expects an integer"},
+		"a seed, which is no option":    {args: []string{"-seed", "0"}, wantErr: "flag provided but not defined: -seed"},
 		"a function without a value":    {args: []string{"-env", "f"}, wantErr: "-env expects NAME=true or NAME=false"},
 		"a function without a name":     {args: []string{"-env", "=true"}, wantErr: "-env expects NAME=true or NAME=false"},
 		"a function of no truth value":  {args: []string{"-env", "f=maybe"}, wantErr: "-env expects NAME=true or NAME=false"},
@@ -59,8 +58,6 @@ func TestDeclareCheckerOptions(t *testing.T) {
 		})
 	}
 }
-
-func seed(n int) *int { return &n }
 
 func TestValidateCheckerOptions(t *testing.T) {
 	tests := map[string]struct {
@@ -101,7 +98,6 @@ func TestValidateCheckerOptionsWithoutAGlueSaysWhatCsdfbmcSays(t *testing.T) {
 
 func TestValidateCheckerOptionsRefusesAnEnvironmentWithoutChecks(t *testing.T) {
 	tests := map[string]bmc.Checker{
-		"a seed without checks":     {Seed: seed(1)},
 		"a function without checks": {Env: []bmc.Binding{{Name: "$_0 が 正", Value: true}}},
 	}
 	for name, checker := range tests {
@@ -110,8 +106,8 @@ func TestValidateCheckerOptionsRefusesAnEnvironmentWithoutChecks(t *testing.T) {
 			err := tools.ValidateCheckerOptions(checker)
 
 			// Assert
-			if err == nil || !strings.Contains(err.Error(), "need -checks") {
-				t.Errorf("ValidateCheckerOptions() = %v, want -seed and -env to need -checks", err)
+			if err == nil || !strings.Contains(err.Error(), "needs -checks") {
+				t.Errorf("ValidateCheckerOptions() = %v, want -env to need -checks", err)
 			}
 		})
 	}

@@ -22,14 +22,12 @@ import (
 // Checker is what csdfbmc reads besides the diagram: the checks module of the
 // domains, ghosts and invariants, and the glue every clause is read through,
 // as a command line (Evaluator) or a Python module and its arguments
-// (EvaluatorModule); and the environment, as csdfbmc takes it: Seed (--seed,
-// nil when none is given) and Env (--env, in the order given). The zero
-// Checker asks nothing.
+// (EvaluatorModule); and the environment, as csdfbmc takes it: Env (--env, in the
+// order given). The zero Checker asks nothing.
 type Checker struct {
 	Checks          string
 	Evaluator       string
 	EvaluatorModule string
-	Seed            *int
 	Env             []Binding
 }
 
@@ -55,9 +53,6 @@ func (c Checker) NextArgs(diagram string) []string {
 		args = append(args, "--evaluator", c.Evaluator)
 	} else {
 		args = append(args, "--evaluator-module", c.EvaluatorModule)
-	}
-	if c.Seed != nil {
-		args = append(args, "--seed", strconv.Itoa(*c.Seed))
 	}
 	for _, b := range c.Env {
 		args = append(args, "--env", b.String())
@@ -178,23 +173,15 @@ var errNoEnvironment = errors.New("the report records no environment, so the run
 
 // Reproduce is c walking the environment of the csdfbmc run that made a
 // report (animation.LoadEnvironment), so that a replayed finding is
-// explored further in the environment it was found in: the report's seed
-// and the values its run gave the functions, which c takes where it says
-// nothing. A seed other than the report's, a value other than the report's,
+// explored further in the environment it was found in: the values its run
+// gave the functions, which c takes where it says nothing. A value other
+// than the report's,
 // or a function c gives a value the report's run did not give one (its
 // checks module did, or nothing did) is refused, for c would walk another
 // environment.
 func (c Checker) Reproduce(report *animation.Environment) (Checker, error) {
 	if report == nil {
 		return Checker{}, errNoEnvironment
-	}
-	if c.Seed != nil {
-		switch {
-		case report.Seed == nil:
-			return Checker{}, fmt.Errorf("the report was made with no seed, not seed %d", *c.Seed)
-		case *report.Seed != *c.Seed:
-			return Checker{}, fmt.Errorf("the report was made with seed %d, not seed %d", *report.Seed, *c.Seed)
-		}
 	}
 	for _, b := range c.Env {
 		v, ok := report.Env[b.Name]
@@ -206,7 +193,6 @@ func (c Checker) Reproduce(report *animation.Environment) (Checker, error) {
 		}
 	}
 	out := c
-	out.Seed = report.Seed
 	out.Env = bindings(report.Env)
 	return out, nil
 }
@@ -226,15 +212,12 @@ func bindings(env map[string]bool) []Binding {
 }
 
 // Agrees refuses a report whose environment c does not already walk: what
-// Reproduce refuses, a seed c was not given, and a value c does not give. A
+// Reproduce refuses, and a value c does not give. A
 // daemon's checker is fixed when it starts, so it cannot take the report's
 // environment as csdfrepl does.
 func (c Checker) Agrees(report *animation.Environment) error {
 	if _, err := c.Reproduce(report); err != nil {
 		return err
-	}
-	if report.Seed != nil && c.Seed == nil {
-		return fmt.Errorf("the report was made with seed %d, which the checker does not walk", *report.Seed)
 	}
 	given := map[string]bool{}
 	for _, b := range c.Env {

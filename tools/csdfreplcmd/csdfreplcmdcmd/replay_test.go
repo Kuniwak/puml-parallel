@@ -12,22 +12,21 @@ import (
 )
 
 func TestParseReplaySendsTheEnvironmentOfTheReport(t *testing.T) {
-	seven := 7
 	tests := map[string]struct {
 		report  string
 		want    *animation.Environment
 		wantErr string
 	}{
-		"a seeded run": {
-			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":["f"],"env":{"f":true},"decided":[]}}`,
-			want:   &animation.Environment{Seed: &seven, Given: []string{"f"}, Env: map[string]bool{"f": true}},
+		"a run given a function": {
+			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"given":["f"],"env":{"f":true},"decided":[]}}`,
+			want:   &animation.Environment{Given: []string{"f"}, Env: map[string]bool{"f": true}},
 		},
 		"a report of no environment": {
 			report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}]}`,
 			want:   nil,
 		},
 		"a report of no finding": {
-			report:  `{"deadlocks":[],"environment":{"seed":7,"given":[],"decided":[]}}`,
+			report:  `{"deadlocks":[],"environment":{"given":[],"env":{},"decided":[]}}`,
 			wantErr: "records no finding",
 		},
 	}

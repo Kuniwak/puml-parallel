@@ -413,15 +413,14 @@ func TestPickWithoutACheckerIsRefused(t *testing.T) {
 }
 
 func TestHandleReplayRefusesAnEnvironmentTheDaemonDoesNotWalk(t *testing.T) {
-	seven := 7
 	tests := map[string]struct {
 		check   EnvironmentCheck
 		wantErr string
 	}{
 		"any environment": {check: AnyEnvironment},
 		"a check refusing": {
-			check:   func(env *animation.Environment) error { return fmt.Errorf("seed %d refused", *env.Seed) },
-			wantErr: "seed 7 refused",
+			check:   func(env *animation.Environment) error { return fmt.Errorf("%v refused", env.Env) },
+			wantErr: "map[f:true] refused",
 		},
 	}
 	for name, tt := range tests {
@@ -431,7 +430,7 @@ func TestHandleReplayRefusesAnEnvironmentTheDaemonDoesNotWalk(t *testing.T) {
 			replay := animation.Replay{Initial: []byte(`[0]`)}
 
 			// Execute
-			resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay, Environment: &animation.Environment{Seed: &seven}})
+			resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay, Environment: &animation.Environment{Given: []string{"f"}, Env: map[string]bool{"f": true}}})
 
 			// Assert
 			if tt.wantErr == "" {

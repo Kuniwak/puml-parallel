@@ -10,13 +10,13 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const seededReport = `{"deadlocks": [{"replay": {"initial": [0], "steps": []}}], "environment": {"seed": 7, "given": ["f"], "env": {"f": false}, "decided": []}}`
+const givenReport = `{"deadlocks": [{"replay": {"initial": [0], "steps": []}}], "environment": {"given": ["f"], "env": {"f": false}, "decided": []}}`
 
 func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
-	with := func(s *int, env ...bmc.Binding) bmc.Checker {
+	with := func(env ...bmc.Binding) bmc.Checker {
 		c := glue
-		c.Seed, c.Env = s, env
+		c.Env = env
 		return c
 	}
 	f := bmc.Binding{Name: "f", Value: false}
@@ -26,14 +26,16 @@ func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 		want    bmc.Checker
 		wantErr string
 	}{
-		"the same seed and a given function": {report: true, checker: with(seed(7), f), want: with(seed(7), f)},
-		"the report's function":              {report: true, checker: glue, want: with(seed(7), f)},
-		"another seed":                       {report: true, checker: with(seed(1)), wantErr: "not seed 1"},
+		"the same given function": {report: true, checker: with(f), want: with(f)},
+		"the report's function":   {report: true, checker: glue, want: with(f)},
+		"another value": {
+			report: true, checker: with(bmc.Binding{Name: "f", Value: true}), wantErr: `the report's run gave "f" false, not true`,
+		},
 		"a function the run did not give": {
-			report: true, checker: with(nil, bmc.Binding{Name: "g", Value: true}), wantErr: `the checker gives "g" true`,
+			report: true, checker: with(bmc.Binding{Name: "g", Value: true}), wantErr: `the checker gives "g" true`,
 		},
 		"no checker, which asks nothing":     {report: true, checker: bmc.Checker{}, want: bmc.Checker{}},
-		"no report, which keeps the checker": {checker: with(seed(1)), want: with(seed(1))},
+		"no report, which keeps the checker": {checker: with(f), want: with(f)},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -41,7 +43,7 @@ func TestLoadReplayWalksTheEnvironmentOfTheReport(t *testing.T) {
 			opts := &Options{Checker: tt.checker}
 			if tt.report {
 				opts.Replay = filepath.Join(t.TempDir(), "findings.json")
-				if err := os.WriteFile(opts.Replay, []byte(seededReport), 0o644); err != nil {
+				if err := os.WriteFile(opts.Replay, []byte(givenReport), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}

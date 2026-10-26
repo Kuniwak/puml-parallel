@@ -132,17 +132,20 @@ func TestReplayRefusesAValueTheConeLeftOut(t *testing.T) {
 }
 
 func TestLoadEnvironmentReadsWhatReproducesTheRun(t *testing.T) {
-	seven := 7
 	tests := map[string]struct {
 		report string
 		want   *Environment
 	}{
-		"a seed and given functions": {
-			report: `{"environment": {"seed": 7, "given": ["$_0 が 正", "f"], "env": {"f": false}, "decided": ["f"]}}`,
-			want:   &Environment{Seed: &seven, Given: []string{"$_0 が 正", "f"}, Env: map[string]bool{"f": false}},
+		"given functions": {
+			report: `{"environment": {"given": ["$_0 が 正", "f"], "env": {"f": false}, "decided": ["f"]}}`,
+			want:   &Environment{Given: []string{"$_0 が 正", "f"}, Env: map[string]bool{"f": false}},
 		},
-		"no seed": {
-			report: `{"environment": {"seed": null, "given": [], "env": {}, "decided": []}}`,
+		"a seed, which is not read": {
+			report: `{"environment": {"seed": 7, "given": [], "env": {}, "decided": []}}`,
+			want:   &Environment{Given: []string{}, Env: map[string]bool{}},
+		},
+		"nothing given": {
+			report: `{"environment": {"given": [], "env": {}, "decided": []}}`,
 			want:   &Environment{Given: []string{}, Env: map[string]bool{}},
 		},
 		"a report of no environment": {
@@ -177,8 +180,7 @@ func TestLoadEnvironmentRefusesWhatIsNotAReport(t *testing.T) {
 }
 
 func TestLoadFindingPicksOneFindingAndTheEnvironment(t *testing.T) {
-	seven := 7
-	two := `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}},{"replay":{"initial":[1],"steps":[]}}],"environment":{"seed":7,"given":[],"env":{},"decided":[]}}`
+	two := `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}},{"replay":{"initial":[1],"steps":[]}}],"environment":{"given":[],"env":{},"decided":[]}}`
 	tests := map[string]struct {
 		report      string
 		n           int
@@ -186,19 +188,19 @@ func TestLoadFindingPicksOneFindingAndTheEnvironment(t *testing.T) {
 		wantEnv     *Environment
 		wantErr     string
 	}{
-		"the first":          {report: two, n: 0, wantInitial: "[0]", wantEnv: &Environment{Seed: &seven, Given: []string{}, Env: map[string]bool{}}},
-		"the second":         {report: two, n: 1, wantInitial: "[1]", wantEnv: &Environment{Seed: &seven, Given: []string{}, Env: map[string]bool{}}},
+		"the first":          {report: two, n: 0, wantInitial: "[0]", wantEnv: &Environment{Given: []string{}, Env: map[string]bool{}}},
+		"the second":         {report: two, n: 1, wantInitial: "[1]", wantEnv: &Environment{Given: []string{}, Env: map[string]bool{}}},
 		"no environment":     {report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}]}`, wantInitial: "[0]"},
 		"past the last":      {report: two, n: 2, wantErr: "no finding 2; the report records 2 (0 to 1)"},
 		"a negative index":   {report: two, n: -1, wantErr: "no finding -1"},
 		"no finding":         {report: `{"deadlocks":[]}`, wantErr: "the report records no finding"},
 		"not csdfbmc's JSON": {report: "not json", wantErr: "not csdfbmc --json output"},
 		"an environment of no env": {
-			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":["f"],"decided":[]}}`,
+			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"given":["f"],"decided":[]}}`,
 			wantErr: "records no env; make it again with this release's csdfbmc --json",
 		},
 		"an env of a function not given": {
-			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"seed":7,"given":[],"env":{"f":true},"decided":[]}}`,
+			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"given":[],"env":{"f":true},"decided":[]}}`,
 			wantErr: `gives "f" a value, but does not list it as given`,
 		},
 	}
