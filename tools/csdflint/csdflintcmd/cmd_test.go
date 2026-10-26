@@ -1,6 +1,7 @@
 package csdflintcmd_test
 
 import (
+	"encoding/csv"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,30 +46,24 @@ func TestNewMainFuncReportsBothSelfTransitionFindingsAndSucceeds(t *testing.T) {
 		t.Log(spy.Stderr.String())
 		t.Errorf("want 0, got %d", exitStatus)
 	}
-	lines := strings.Split(strings.TrimSuffix(spy.Stdout.String(), "\n"), "\n")
-	if len(lines) != 3 {
-		t.Fatalf("want a header and 2 findings, got %d lines: %q", len(lines), spy.Stdout.String())
+	r := csv.NewReader(strings.NewReader(spy.Stdout.String()))
+	r.Comma = '\t'
+	r.LazyQuotes = true
+	rows, err := r.ReadAll()
+	if err != nil {
+		t.Fatal(err)
 	}
-	for i, line := range lines[1:] {
-		fields := strings.Split(line, "\t")
-		if len(fields) != 6 {
-			t.Fatalf("want 6 fields, got %d: %q", len(fields), line)
-		}
-		if fields[0] != path {
-			t.Errorf("want %q, got %q", path, fields[0])
-		}
-		if fields[1] != "5" || fields[2] != "5" {
-			t.Errorf("want lines 5-5, got %s-%s", fields[1], fields[2])
-		}
-		if want := []string{"WARN", "HINT"}[i]; fields[4] != want {
-			t.Errorf("want %s, got %s", want, fields[4])
-		}
+	var got [][]string
+	for _, row := range rows {
+		got = append(got, row[:5])
 	}
-	if got := strings.Split(lines[1], "\t")[3]; got != "self-transition-divergence" {
-		t.Errorf("want self-transition-divergence first, got %s", got)
+	want := [][]string{
+		{"file", "start_line", "end_line", "rule", "severity"},
+		{path, "5", "5", "self-transition-divergence", "WARN"},
+		{path, "5", "5", "self-transition-post-breaks-guard", "HINT"},
 	}
-	if got := strings.Split(lines[2], "\t")[3]; got != "self-transition-post-breaks-guard" {
-		t.Errorf("want self-transition-post-breaks-guard second, got %s", got)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Error(diff)
 	}
 }
 
