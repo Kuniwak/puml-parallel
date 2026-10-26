@@ -1,0 +1,12 @@
+@startuml
+state "Shop" as shop
+shop : doors
+shop : loc
+state "Door" as door
+door : doors
+door : loc
+[*] --> shop : @empty(doors') ∧ $loc' = 0
+shop --> door : open?k ; @in(k, doors) ∧ @at(doors[k], shut) ; @frame(doors', doors, k) ∧ @at(doors'[k], wide) ∧ @eq(loc', k)
+shop --> shop : add?k ; @notin(k, doors) ; @update(doors', doors, k, k) ∧ @eq(loc', loc)
+door --> shop : close ; @ne(loc, 0) ; @eq(doors', doors) ∧ @eq(loc', loc)
+@enduml

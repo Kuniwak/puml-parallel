@@ -28,7 +28,9 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 Prints a Composable State Diagram in canonical order without changing its
 meaning: states ordered by id, transitions ordered by source, event,
 destination, guard, then post. Use it to keep hand-written diagrams free of
-reordering noise in diffs.
+reordering noise in diffs. The output is what csdfhide and csdfparallel print
+for the same diagram; a clause in the old syntax (@opaque, @[from := to]) is
+refused.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:

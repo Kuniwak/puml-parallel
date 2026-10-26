@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -18,12 +18,19 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := csdf.ParseBytes(opts.Bytes)
+		diagram, err := coreio.ReadBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
 		}
-
-		fmt.Fprint(inout.Stdout, csdf.Sort(diagram).String())
+		canonical, err := coreio.Canonical(diagram)
+		if err != nil {
+			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
+		}
+		text, err := coreio.Write(canonical)
+		if err != nil {
+			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
+		}
+		fmt.Fprint(inout.Stdout, text)
 		return nil
 	}
 }
