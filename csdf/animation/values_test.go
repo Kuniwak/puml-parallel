@@ -3,6 +3,7 @@ package animation
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -228,7 +229,8 @@ func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
 		wantErr string
 	}{
 		"values the suggester admits":                    {values: `[{}, 0]`},
-		"the same values written otherwise":              {values: ` [ {} , 0.0 ] `},
+		"the same values written otherwise":              {values: ` [ {} , 0 ] `},
+		"a float where the suggester has an integer":     {values: `[{}, 0.0]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
 		"values the suggester does not admit":            {values: `[{}, 2]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
 		"a truth value where the suggester has a number": {values: `[{}, false]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
 	}
@@ -253,6 +255,38 @@ func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
 			var refused *RefusedValuesError
 			if !errors.As(err, &refused) || refused.Error() != tt.wantErr {
 				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestAmongSuggestionsTellsFloatsApartByTheirBits(t *testing.T) {
+	tests := map[string]struct {
+		suggested, entered string
+		admitted           bool
+	}{
+		"-0.0 is -0.0":                  {suggested: `[-0.0]`, entered: "-0.0", admitted: true},
+		"0.0 is not -0.0":               {suggested: `[-0.0]`, entered: "0.0", admitted: false},
+		"a float written otherwise":     {suggested: `[1.5]`, entered: "15e-1", admitted: true},
+		"an integer beyond the floats":  {suggested: `[12345678901234567890]`, entered: "12345678901234567891", admitted: false},
+		"an object of the same entries": {suggested: `[{"a": 1, "b": 2}]`, entered: `{"b": 2, "a": 1}`, admitted: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			var v any
+			dec := json.NewDecoder(strings.NewReader(tt.entered))
+			dec.UseNumber()
+			if err := dec.Decode(&v); err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			err := AmongSuggestions([]Suggestion{{Values: json.RawMessage(tt.suggested)}}, []Value{{Name: "x", Value: v}})
+
+			// Assert
+			if got := err == nil; got != tt.admitted {
+				t.Errorf("AmongSuggestions(%s, %s) = %v, want admitted %v", tt.suggested, tt.entered, err, tt.admitted)
 			}
 		})
 	}

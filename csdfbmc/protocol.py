@@ -37,11 +37,15 @@ and deterministic: the checker may answer a request again from what it was
 told for the same atom and the same values.
 
 Values cross the protocol in a tagged JSON encoding, since JSON has no
-tuples, sets or maps with keys other than strings: integers, strings,
-booleans and null as themselves, and {"tuple": [...]}, {"set": [...]},
+tuples, sets or maps with keys other than strings: integers, finite
+floats, strings, booleans and null as themselves, and {"tuple": [...]}, {"set": [...]},
 {"map": [[key, value], ...]} for the containers of csdfbmc.values. An
 instance of a family crosses as the map of its fields: its state is a
 position, which a glue never sees (docs/CLAUSE_DESIGN.md, control state).
+A number with a point or an exponent is a float and any other an integer,
+of any size: 1 and 1.0 are two values, and so are 0.0 and -0.0, which a
+glue keeps apart (docs/CLAUSE_DESIGN.md, Literals). NaN and the
+infinities, which JSON cannot write, are no values.
 
 hello comes first and agrees on the protocol for the rest of the session: a
 glue refuses a request before it and a hello asking a protocol it does not
@@ -56,6 +60,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
 import subprocess
 from collections.abc import Mapping
 from typing import Callable, Protocol
@@ -72,6 +77,10 @@ def to_wire(value):
     """value, a value of the checker's model, in the tagged encoding."""
     if value is None or isinstance(value, (bool, int, str)):
         return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite")
+        return value
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
@@ -79,12 +88,14 @@ def to_wire(value):
     if isinstance(value, (set, frozenset)):
         # One order for any items, so that a set is always sent the same way.
         return {"set": sorted((to_wire(v) for v in value), key=lambda w: json.dumps(w, sort_keys=True, ensure_ascii=False))}
-    raise TypeError(f"{value!r} is not a value the protocol carries: integers, strings, booleans, null, tuples, sets and maps")
+    raise TypeError(f"{value!r} is not a value the protocol carries: integers, finite floats, strings, booleans, null, tuples, sets and maps")
 
 
 def from_wire(wire):
     """The value of the checker's model that wire encodes."""
     if wire is None or isinstance(wire, (bool, int, str)):
+        return wire
+    if isinstance(wire, float) and math.isfinite(wire):
         return wire
     if isinstance(wire, dict) and len(wire) == 1:
         (tag, items), = wire.items()

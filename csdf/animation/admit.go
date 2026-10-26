@@ -1,9 +1,9 @@
 package animation
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
@@ -78,39 +78,33 @@ func coreValue(d *core.Diagram, v Value) core.Value {
 }
 
 // AmongSuggestions refuses values unless they are, as JSON values, those
-// of one of suggestions: what a checker admits. A number and a truth value
-// are told apart; numbers are compared by value.
+// of one of suggestions: what a checker admits. Values are compared as
+// literals are (clause.CanonicalValue): a number is told from a truth
+// value, an integer from a float, and a float by its bits, so 0.0 is not
+// -0.0.
 func AmongSuggestions(suggestions []Suggestion, values []Value) error {
 	entered := make([]any, len(values))
 	for i, v := range values {
 		entered[i] = v.Value
 	}
-	got, err := plainJSON(entered)
+	got, err := clause.CanonicalValue(entered)
 	if err != nil {
 		return refused("the values cannot be compared with the checker's: %v", err)
 	}
 	for _, s := range suggestions {
+		dec := json.NewDecoder(bytes.NewReader(s.Values))
+		dec.UseNumber()
 		var want any
-		if err := json.Unmarshal(s.Values, &want); err != nil {
+		if err := dec.Decode(&want); err != nil {
 			return fmt.Errorf("animation.AmongSuggestions: a suggestion is no JSON: %w", err)
 		}
-		if reflect.DeepEqual(got, want) {
+		w, err := clause.CanonicalValue(want)
+		if err != nil {
+			return fmt.Errorf("animation.AmongSuggestions: a suggestion is no value: %w", err)
+		}
+		if got == w {
 			return nil
 		}
 	}
 	return refused("the checker admits none of these values; enter one of its suggestions")
-}
-
-// plainJSON is v as json.Unmarshal into an any decodes it: numbers as
-// float64.
-func plainJSON(v any) (any, error) {
-	raw, err := json.Marshal(v)
-	if err != nil {
-		return nil, err
-	}
-	var out any
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
 }

@@ -12,7 +12,7 @@ import warnings
 from csdfbmc.protocol import (NO_CLOSE, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
                               start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
-from csdfbmc.values import FrozenMap
+from csdfbmc.values import FrozenMap, same_value
 
 GREATER = {"text": ["", " > ", ""], "holes": [0, 1], "primed": [False, False]}
 NEXT = {"text": ["", " == ", " + 1"], "holes": [0, 1], "primed": [True, False]}
@@ -44,7 +44,7 @@ class WireEncodingTest(unittest.TestCase):
         self.assertIsNot(True, from_wire(to_wire(1)))
 
     def test_an_untagged_array_or_object_is_refused(self):
-        for wire in ([1, 2], {"a": 1}, {"set": [1], "map": []}, 1.5):
+        for wire in ([1, 2], {"a": 1}, {"set": [1], "map": []}):
             with self.subTest(wire=wire), self.assertRaises(ValueError):
                 from_wire(wire)
 
@@ -53,9 +53,21 @@ class WireEncodingTest(unittest.TestCase):
         b = frozenset({(2, 3), "a", 1})
         self.assertEqual(json.dumps(to_wire(a)), json.dumps(to_wire(b)))
 
+    def test_a_float_is_itself_and_stays_apart_from_the_integer_it_equals(self):
+        for v in (1.5, 1.0, -0.0, 0.0, 1e300):
+            with self.subTest(v=v):
+                got = from_wire(json.loads(json.dumps(to_wire(v))))
+                self.assertIs(float, type(got))
+                self.assertTrue(same_value(v, got))
+        self.assertIs(int, type(from_wire(json.loads(json.dumps(to_wire(1))))))
+
     def test_a_value_outside_the_model_is_refused(self):
-        with self.assertRaises(TypeError):
-            to_wire(1.5)
+        for v in (float("nan"), float("inf"), -float("inf"), object()):
+            with self.subTest(v=v), self.assertRaises(TypeError):
+                to_wire(v)
+        for wire in (float("nan"), float("inf")):
+            with self.subTest(wire=wire), self.assertRaises(ValueError):
+                from_wire(wire)
 
 
 def fake(answers: dict):
