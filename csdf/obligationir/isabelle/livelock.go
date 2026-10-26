@@ -3,6 +3,7 @@ package isabelle
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -15,7 +16,51 @@ var Notation = obligationir.Notation{
 	And: ` \<and> `, Or: ` \<or> `, Not: `\<not> `, Implies: ` \<longrightarrow> `, True: `True`, False: `False`,
 	Exists:     func(vars []string, body string) string { return `\<exists>` + binders(vars) + `. ` + body },
 	Forall:     func(vars []string, body string) string { return `\<forall>` + binders(vars) + `. ` + body },
+	Literal:    Literal,
 	Wellformed: "csdf_wf",
+}
+
+// Literal spells a literal as a val: a string as the list of its UTF-8
+// bytes, each a char, since a char of Isabelle/HOL is a byte; an object as
+// a ValDict of its keys, sorted.
+var Literal = obligationir.LiteralSpeller{
+	Int: func(d string) string { return "ValInt " + signed(d) },
+	Float: func(neg bool, sig uint64, exp int) string {
+		return fmt.Sprintf("ValFloat %s %d %s", boolean(neg), sig, signed(strconv.Itoa(exp)))
+	},
+	String: func(s string) string { return "ValString " + chars(s) },
+	Bool:   func(b bool) string { return "ValBool " + boolean(b) },
+	Array:  func(items []string) string { return "ValArray [" + strings.Join(items, ", ") + "]" },
+	Object: func(keys, values []string) string {
+		entries := make([]string, len(keys))
+		for i := range keys {
+			entries[i] = "(" + chars(keys[i]) + ", " + values[i] + ")"
+		}
+		return "ValDict [" + strings.Join(entries, ", ") + "]"
+	},
+}
+
+func signed(d string) string {
+	if strings.HasPrefix(d, "-") {
+		return "(" + d + ")"
+	}
+	return d
+}
+
+func boolean(b bool) string {
+	if b {
+		return "True"
+	}
+	return "False"
+}
+
+// chars is s as a string of Isabelle/HOL, the list of its bytes.
+func chars(s string) string {
+	cs := make([]string, len(s))
+	for i := 0; i < len(s); i++ {
+		cs[i] = fmt.Sprintf("CHR 0x%02X", s[i])
+	}
+	return "[" + strings.Join(cs, ", ") + "]"
 }
 
 func binders(vars []string) string {

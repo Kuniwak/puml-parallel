@@ -577,7 +577,7 @@ func TestMapTypeIsEveryPartialMap(t *testing.T) {
 	for _, v := range got {
 		keys[Key(v)] = true
 	}
-	want := []string{"{}", "{x↦⟨p|⟩}", "{x↦⟨q|bit=0⟩}", "{x↦⟨q|bit=1⟩}"}
+	want := []string{"{}", `{"x"↦⟨p|⟩}`, `{"x"↦⟨q|bit=0⟩}`, `{"x"↦⟨q|bit=1⟩}`}
 	if len(keys) != len(want) {
 		t.Errorf("MapType = %v, want %v", keys, want)
 	}

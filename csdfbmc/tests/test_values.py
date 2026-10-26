@@ -2,7 +2,7 @@
 that enumerate their domains from the domains of their fields."""
 import unittest
 
-from csdfbmc.values import FrozenMap, Rec, encode, freeze, partial_map, record, sample, samples_in, visible
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -102,3 +102,73 @@ class DomainBuilderTest(unittest.TestCase):
                 # Execute / Assert
                 with self.assertRaisesRegex(ValueError, refused):
                     sample(values, beyond=beyond)
+
+
+class SameValueTest(unittest.TestCase):
+    def test_tells_values_apart_by_kind(self):
+        tests = {
+            "an integer and the float it equals": (1, 1.0, False),
+            "a truth value and the number it equals": (True, 1, False),
+            "an integer and the float it equals in a tuple": ((1,), (1.0,), False),
+            "an integer and the float it equals in a map": (FrozenMap(a=1), FrozenMap(a=1.0), False),
+            "a float and itself": (1.5, 1.5, True),
+        }
+        for name, (a, b, want) in tests.items():
+            with self.subTest(name):
+                self.assertEqual(want, same_value(a, b))
+
+
+class KindTest(unittest.TestCase):
+    def test_containers_tell_values_apart_by_kind(self):
+        tests = {
+            "the keys of a map": lambda: len(FrozenMap([(1, "a"), (True, "b"), (1.0, "c")])),
+            "the elements of a set": lambda: len(FrozenSet([1, True, 1.0])),
+            "the elements of a frozen set": lambda: len(freeze([{1}, {True}, {1.0}])[0] | freeze({True}) | freeze({1.0})),
+            "the states in a set": lambda: len({Strict(("a", (1,), ())), Strict(("a", (True,), ())), Strict(("a", (1.0,), ()))}),
+        }
+        for name, count in tests.items():
+            with self.subTest(name):
+                self.assertEqual(3, count())
+
+    def test_a_map_reads_the_entry_of_the_key_of_its_kind(self):
+        m = FrozenMap([(1, "a"), (True, "b")])
+        self.assertEqual("b", m[True])
+        self.assertEqual("a", m[1])
+        self.assertNotIn(1.0, m)
+
+    def test_maps_and_sets_of_other_kinds_are_other_values(self):
+        tests = {
+            "maps": (FrozenMap({1: 0}), FrozenMap({True: 0})),
+            "sets": (FrozenSet([1]), FrozenSet([1.0])),
+            "states": (Strict(("a", (1,), ())), ("a", (True,), ())),
+        }
+        for name, (a, b) in tests.items():
+            with self.subTest(name):
+                self.assertNotEqual(a, b)
+
+    def test_negative_zero_is_zero_in_a_container(self):
+        self.assertIn(-0.0, FrozenSet([0.0]))
+        self.assertEqual(Strict(("a", (0.0,), ())), Strict(("a", (-0.0,), ())))
+
+    def test_a_container_equal_to_a_plain_one_hashes_alike(self):
+        tests = {
+            "a state and a tuple": (Strict(("a", (1,), ())), ("a", (1,), ())),
+            "a set and a frozenset": (FrozenSet([1, "x"]), frozenset({1, "x"})),
+        }
+        for name, (strict, plain) in tests.items():
+            with self.subTest(name):
+                # Execute
+                found = plain in {strict}
+
+                # Assert
+                self.assertTrue(found)
+
+    def test_the_items_of_a_map_tell_kinds_apart(self):
+        # Setup
+        m = FrozenMap({1: 0})
+
+        # Execute
+        found = (True, 0) in m.items()
+
+        # Assert
+        self.assertFalse(found)

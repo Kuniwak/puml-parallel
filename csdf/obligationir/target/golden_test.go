@@ -63,6 +63,7 @@ func TestTheObligationsAreTheExpectedOnes(t *testing.T) {
 		"livelock: a tau countdown spells its clauses":                         {"countdown", []string{"countdown"}, livelock},
 		"livelock: maps, a received field and an ∃ under the axioms they need": {"map", []string{"map"}, livelock},
 		"livelock: every builtin, defined, and its meaning proved":             {"builtins", []string{"builtins"}, livelock},
+		"livelock: literals, each spelled as the value it is":                  {"literals", []string{"literals"}, livelock},
 		"livelock: a diagram with no tau cycle has no obligation":              {"visible", []string{"visible"}, livelock},
 		"refinement: values on events, in traces":                              {"refinement/counter_countdown.t", []string{"counter", "countdown"}, refinement(obligationir.IRRefinementModeTrace)},
 		"refinement: a receive and a send, in stable failures":                 {"refinement/counter_counter.f", []string{"counter", "counter"}, refinement(obligationir.IRRefinementModeStableFailure)},

@@ -135,6 +135,14 @@ func fieldsBound(e Edge, states map[string]State) error {
 var checking = Notation{
 	Exists: func([]string, string) string { return "" },
 	Forall: func([]string, string) string { return "" },
+	Literal: LiteralSpeller{
+		Int:    func(string) string { return "" },
+		Float:  func(bool, uint64, int) string { return "" },
+		String: func(string) string { return "" },
+		Bool:   func(bool) string { return "" },
+		Array:  func([]string) string { return "" },
+		Object: func([]string, []string) string { return "" },
+	},
 }
 
 // Assumption is one assume note of a diagram: what its runs as a whole are

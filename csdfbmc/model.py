@@ -10,9 +10,10 @@ index (Bound): 0 is the nearest enclosing ∃.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 
-from csdfbmc.values import FrozenMap
+from csdfbmc.values import FrozenMap, freeze, unsigned_zero
 
 VERSION = 3
 
@@ -54,7 +55,56 @@ class App:
     args: tuple
 
 
-Term = Free | Bound | Index | Field | App
+@dataclass(frozen=True)
+class Lit:
+    """A literal (docs/CLAUSE_DESIGN.md, Literals), held as its canonical
+    JSON text: two literals are one value exactly when their texts are
+    equal, so 1 is not 1.0 nor true, though Python takes each pair for
+    equal. Negative zero is read as zero."""
+    text: str
+
+    @property
+    def value(self):
+        """The value the literal is: an array a tuple, an object a
+        FrozenMap."""
+        return freeze(json.loads(self.text))
+
+
+def literal(value) -> Lit:
+    """The literal of the JSON value value, refused when it is null or holds
+    a float that is not finite, which no literal is."""
+    def check(v):
+        if v is None:
+            raise ValueError("a literal holds null, which is no value")
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ValueError(f"a literal holds the float {v!r}, which is not finite")
+        if isinstance(v, str) and any(0xD800 <= ord(c) <= 0xDFFF for c in v):
+            raise ValueError(f"a literal holds {v!r}, a lone surrogate, which is no character")
+        if isinstance(v, list):
+            for x in v:
+                check(x)
+        elif isinstance(v, dict):
+            for k, x in v.items():
+                check(k)
+                check(x)
+        elif not isinstance(v, (bool, int, float, str, dict, list)):
+            raise ValueError(f"a literal holds {v!r}, which is no JSON value")
+    check(value)
+    return Lit(json.dumps(_positive_zero(value), sort_keys=True, ensure_ascii=False, separators=(",", ":")))
+
+
+def _positive_zero(v):
+    """v with every negative zero in it read as zero (unsigned_zero)."""
+    if isinstance(v, float):
+        return unsigned_zero(v)
+    if isinstance(v, list):
+        return [_positive_zero(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _positive_zero(x) for k, x in v.items()}
+    return v
+
+
+Term = Free | Bound | Index | Field | App | Lit
 
 
 @dataclass(frozen=True)
@@ -186,7 +236,7 @@ def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str
 
 
 _TERMS = {"free": (("name",), ("primed",)), "bound": (("index",), ()), "index": (("map", "key"), ()),
-          "field": (("of", "name"), ()), "app": (("fn", "args"), ())}
+          "field": (("of", "name"), ()), "app": (("fn", "args"), ()), "lit": (("value",), ())}
 _CONJUNCTS = {"atom": (("pieces", "holes", "args", "text", "primed", "function"), ()),
               "builtin": (("op", "args"), ("state",)), "exists": (("type", "body"), ())}
 
@@ -210,6 +260,8 @@ def term_of(doc: dict) -> Term:
         return Index(term_of(doc["map"]), term_of(doc["key"]))
     if kind == "field":
         return Field(term_of(doc["of"]), doc["name"])
+    if kind == "lit":
+        return literal(doc["value"])
     return App(doc["fn"], tuple(term_of(a) for a in doc["args"]))
 
 

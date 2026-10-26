@@ -249,6 +249,8 @@ func term(t clause.Term) (logic.Term, error) {
 			return nil, err
 		}
 		return logic.Apply(t.Fn, args...), nil
+	case clause.Lit:
+		return logic.Literal(t.Text), nil
 	}
 	return nil, fmt.Errorf("obligation.Formula: %#v reads an index no ∃ binds", t)
 }

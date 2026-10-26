@@ -3,6 +3,7 @@ theory Livelock_Obligation
 begin
 
 datatype val = ValInt int
+  | ValFloat bool nat int
   | ValString string
   | ValBool bool
   | ValArray "val list"
@@ -35,9 +36,11 @@ definition less_val :: "val \<Rightarrow> val \<Rightarrow> bool" where "less_va
 instance by standard (auto simp: less_eq_val_def less_val_def)
 end
 
-(* A value is well formed when every map in it has distinct keys, sorted. *)
+(* A value is well formed when every map in it has distinct keys, sorted,
+   and every float in it is in its canonical form. *)
 inductive csdf_wf :: "val \<Rightarrow> bool"
   where "csdf_wf (ValInt i)"
+  | "odd m \<or> (\<not> s \<and> m = 0 \<and> e = 0) \<Longrightarrow> csdf_wf (ValFloat s m e)"
   | "csdf_wf (ValString s)"
   | "csdf_wf (ValBool b)"
   | "\<forall>x\<in>set xs. csdf_wf x \<Longrightarrow> csdf_wf (ValArray xs)"

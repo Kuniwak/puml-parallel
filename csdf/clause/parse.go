@@ -128,6 +128,9 @@ func (p *parser) exists() (Formula, error) {
 	if hint == "" {
 		return nil, fmt.Errorf("@exists at %d: expected a name", start)
 	}
+	if err := checkName(hint); err != nil {
+		return nil, fmt.Errorf("@exists at %d: %w", start, err)
+	}
 	if err := p.expect(existsType); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)
 	}
@@ -261,9 +264,24 @@ func (p *parser) hole() (Term, error) {
 func (p *parser) nameHole() (Term, error) {
 	p.pos++ // $
 	name := p.name()
+	if err := checkName(name); err != nil {
+		return nil, err
+	}
 	primed := p.prime()
 	p.spaceAfterHole()
 	return p.variable(name, primed)
+}
+
+// checkName refuses a name that is a word a term reads as a literal, or
+// that starts with a digit, as a literal number does.
+func checkName(name string) error {
+	if IsReserved(name) {
+		return fmt.Errorf("%s is a reserved word, a literal; it names no variable, field or function", name)
+	}
+	if r := []rune(name); len(r) > 0 && unicode.IsDigit(r[0]) {
+		return fmt.Errorf("a name does not start with a digit, as %s does", name)
+	}
+	return nil
 }
 
 // variable resolves name against the enclosing binders.
@@ -306,18 +324,24 @@ func (p *parser) spaceAfterHole() {
 	}
 }
 
-// term reads a variable with its path, or an environment function applied
-// to its arguments:
+// term reads a literal, a variable with its path, or an environment
+// function applied to its arguments:
 //
-//	term = id ["'"] *("[" term "]" / "." id) ["'"] / id "(" [term *(", " term)] ")"
+//	term = literal / id ["'"] *("[" term "]" / "." id) ["'"] / id "(" [term *(", " term)] ")"
 //
 // A prime after the path primes the variable the path starts from:
 // m[k].f' is the entry of m after the step, its key read before it.
 func (p *parser) term() (Term, error) {
 	start := p.pos
+	if p.atLiteral() {
+		return p.literal()
+	}
 	name := p.name()
 	if name == "" {
 		return nil, fmt.Errorf("expected a term at %d", p.pos)
+	}
+	if err := checkName(name); err != nil {
+		return nil, fmt.Errorf("at %d: %w", start, err)
 	}
 	if p.hasPrefix("(") {
 		return p.app(name)
@@ -345,6 +369,9 @@ func (p *parser) term() (Term, error) {
 			if f == "" {
 				return nil, fmt.Errorf("expected a field at %d", p.pos)
 			}
+			if err := checkName(f); err != nil {
+				return nil, fmt.Errorf("at %d: %w", p.pos-len([]rune(f)), err)
+			}
 			t, path = Field{Of: t, Name: f}, true
 		} else {
 			break
@@ -364,6 +391,36 @@ func (p *parser) term() (Term, error) {
 		return nil, fmt.Errorf("the term at %d starts from a variable bound by @exists, which has no value after the step", start)
 	}
 	return primedT, nil
+}
+
+// atLiteral reports whether a literal starts here: a word a term reads as
+// one, or what starts no name.
+func (p *parser) atLiteral() bool {
+	if startsLiteral(p.peek()) {
+		return true
+	}
+	save := p.pos
+	w := p.name()
+	p.pos = save
+	return IsReserved(w) && !strings.HasPrefix(string(p.src[p.pos+len([]rune(w)):]), "(")
+}
+
+// literal reads a literal, which is a whole term: nothing is read of it
+// and it has no value after the step.
+func (p *parser) literal() (Term, error) {
+	start := p.pos
+	text, pos, err := readLiteral(p.src, p.pos)
+	if err != nil {
+		return nil, err
+	}
+	p.pos = pos
+	switch p.peek() {
+	case '\'':
+		return nil, fmt.Errorf("a literal at %d has no value after the step", start)
+	case '[', '.':
+		return nil, fmt.Errorf("a path starts from a variable, not from the literal %s at %d", text, start)
+	}
+	return Lit{Text: text}, nil
 }
 
 func (p *parser) app(fn string) (Term, error) {

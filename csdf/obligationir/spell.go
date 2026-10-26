@@ -193,6 +193,8 @@ type Notation struct {
 	// Exists and Forall spell a quantifier binding vars, each of the type
 	// the prover gives every value, over body.
 	Exists, Forall func(vars []string, body string) string
+	// Literal spells the value of a literal of a clause.
+	Literal LiteralSpeller
 	// Wellformed, when set, is the predicate that a value is in the form
 	// the model holds it in, a map canonical (docs/CLAUSE_DESIGN.md); a
 	// quantifier over a type is restricted to such values, as to the type.
@@ -257,16 +259,16 @@ func (n Notation) formula(t logic.Tree) (string, error) {
 		if !t.Quoted {
 			name = PredName(t.Name, len(t.Terms))
 		}
-		return applied(name, t.Terms)
+		return n.applied(name, t.Terms)
 	case logic.OpEq:
 		if len(t.Terms) != 2 {
 			return "", fmt.Errorf("obligationir.Notation: an equality of %d terms", len(t.Terms))
 		}
-		l, err := spellTerm(t.Terms[0])
+		l, err := n.spellTerm(t.Terms[0])
 		if err != nil {
 			return "", err
 		}
-		r, err := spellTerm(t.Terms[1])
+		r, err := n.spellTerm(t.Terms[1])
 		if err != nil {
 			return "", err
 		}
@@ -341,7 +343,7 @@ func (n Notation) operand(t logic.Tree, negated bool) (string, error) {
 	return "(" + s + ")", nil
 }
 
-func spellTerm(t logic.TermTree) (string, error) {
+func (n Notation) spellTerm(t logic.TermTree) (string, error) {
 	args := func(want int) error {
 		if len(t.Args) != want {
 			return fmt.Errorf("obligationir.Notation: %s of %d terms", t.Op, len(t.Args))
@@ -358,29 +360,38 @@ func spellTerm(t logic.TermTree) (string, error) {
 		if err := args(2); err != nil {
 			return "", err
 		}
-		return applied(IndexSymbol, t.Args)
+		return n.applied(IndexSymbol, t.Args)
 	case logic.TermField:
 		if err := args(1); err != nil {
 			return "", err
 		}
-		return applied(FieldName(t.Name), t.Args)
+		return n.applied(FieldName(t.Name), t.Args)
 	case logic.TermApply:
 		if t.Name == "" {
 			return "", fmt.Errorf("obligationir.Notation: a function with no name")
 		}
-		return applied(FunctionName(t.Name), t.Args)
+		return n.applied(FunctionName(t.Name), t.Args)
+	case logic.TermLit:
+		if len(t.Args) > 0 || n.Literal.Int == nil {
+			return "", fmt.Errorf("obligationir.Notation: a literal %q of %d terms, or a notation spelling no literal", t.Name, len(t.Args))
+		}
+		s, err := n.Literal.spellLiteral(t.Name)
+		if err != nil {
+			return "", err
+		}
+		return "(" + s + ")", nil
 	}
 	return "", fmt.Errorf("obligationir.Notation: no term %q", t.Op)
 }
 
 // applied is name applied to args, curried as both provers apply: an
 // argument that is itself applied to something is parenthesised.
-func applied(name string, args []logic.TermTree) (string, error) {
+func (n Notation) applied(name string, args []logic.TermTree) (string, error) {
 	var sb strings.Builder
 	sb.WriteString(name)
 	for _, a := range args {
 		sb.WriteString(" ")
-		s, err := spellTerm(a)
+		s, err := n.spellTerm(a)
 		if err != nil {
 			return "", err
 		}

@@ -79,6 +79,9 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 	if e := src.EndEdge; e != nil {
 		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
 	}
+	if err := d.NamesBound(); err != nil {
+		return nil, err
+	}
 	return d, nil
 }
 

@@ -3,6 +3,7 @@ package animation
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -47,6 +48,31 @@ func TestEnterValuesTakesInstancesOfAFamily(t *testing.T) {
 			"b": map[string]any{"at": "closed", "fields": map[string]any{}},
 		}},
 		{Name: "total", Value: jsonNumber("3")},
+	}}
+	if diff := cmp.Diff(want, state); diff != "" {
+		t.Errorf("EnterValues() mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestEnterValuesReadsNegativeZeroAsZero(t *testing.T) {
+	// Setup
+	session, err := NewSession(promotedDiagram(), NoSuggester{})
+	if err != nil {
+		t.Fatalf("Setup: NewSession() error = %v", err)
+	}
+
+	// Execute
+	state, err := session.EnterValues(`[{"a": {"at": "opened", "fields": {"balance": -0}}}, -0.0]`)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("EnterValues() error = %v", err)
+	}
+	want := State{ID: "G", Name: "G", Values: []Value{
+		{Name: "accounts", Value: map[string]any{
+			"a": map[string]any{"at": "opened", "fields": map[string]any{"balance": jsonNumber("0")}},
+		}},
+		{Name: "total", Value: jsonNumber("0.0")},
 	}}
 	if diff := cmp.Diff(want, state); diff != "" {
 		t.Errorf("EnterValues() mismatch (-want +got):\n%s", diff)
@@ -228,7 +254,8 @@ func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
 		wantErr string
 	}{
 		"values the suggester admits":                    {values: `[{}, 0]`},
-		"the same values written otherwise":              {values: ` [ {} , 0.0 ] `},
+		"the same values written otherwise":              {values: ` [ {} , 0 ] `},
+		"a float where the suggester has an integer":     {values: `[{}, 0.0]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
 		"values the suggester does not admit":            {values: `[{}, 2]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
 		"a truth value where the suggester has a number": {values: `[{}, false]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
 	}
@@ -253,6 +280,38 @@ func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
 			var refused *RefusedValuesError
 			if !errors.As(err, &refused) || refused.Error() != tt.wantErr {
 				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestAmongSuggestionsComparesValuesAsLiterals(t *testing.T) {
+	tests := map[string]struct {
+		suggested, entered string
+		admitted           bool
+	}{
+		"0.0 is 0.0":                    {suggested: `[0.0]`, entered: "0.0", admitted: true},
+		"negative zero is zero":         {suggested: `[0.0]`, entered: "-0.0", admitted: true},
+		"a float written otherwise":     {suggested: `[1.5]`, entered: "15e-1", admitted: true},
+		"an integer beyond the floats":  {suggested: `[12345678901234567890]`, entered: "12345678901234567891", admitted: false},
+		"an object of the same entries": {suggested: `[{"a": 1, "b": 2}]`, entered: `{"b": 2, "a": 1}`, admitted: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			var v any
+			dec := json.NewDecoder(strings.NewReader(tt.entered))
+			dec.UseNumber()
+			if err := dec.Decode(&v); err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			err := AmongSuggestions([]Suggestion{{Values: json.RawMessage(tt.suggested)}}, []Value{{Name: "x", Value: v}})
+
+			// Assert
+			if got := err == nil; got != tt.admitted {
+				t.Errorf("AmongSuggestions(%s, %s) = %v, want admitted %v", tt.suggested, tt.entered, err, tt.admitted)
 			}
 		})
 	}

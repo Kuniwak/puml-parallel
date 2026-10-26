@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
@@ -60,10 +62,11 @@ func TestBuildLivelockFreeTellsAReachableTauCycle(t *testing.T) {
 
 func TestBuildLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testing.T) {
 	// Setup
-	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n = 0\n@enduml\n")
+	post, err := clause.Parse("$n = 0")
 	if err != nil {
 		t.Fatal(err)
 	}
+	d := &core.Diagram{States: []string{"a"}, Vars: map[string][]string{"a": {"n"}}, Init: "a", InitPost: post}
 
 	// Execute
 	_, err = obligationir.BuildLivelockFree(d)

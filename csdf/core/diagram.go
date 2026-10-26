@@ -243,7 +243,68 @@ func (d *Diagram) wellFormed() error {
 			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
 		}
 	}
-	return d.atsWellFormed()
+	if err := d.atsWellFormed(); err != nil {
+		return err
+	}
+	return d.NamesBound()
+}
+
+// NamesBound reports, as an error, a free name a clause of d reads that
+// nothing binds (docs/CLAUSE_DESIGN.md, "Literals"): before the step a
+// state variable of the source or a field of the event, after it a state
+// variable of the target. A variable ∃ binds is no free name, and an
+// environment function is applied, never read as a name; so a name that
+// is none of these is a slip, such as a literal written as a name, never
+// a free parameter.
+func (d *Diagram) NamesBound() error {
+	start := scope{src: "before the start", dst: "of " + d.Init, after: d.Vars[d.Init]}
+	if err := start.check("post", d.InitPost); err != nil {
+		return fmt.Errorf("the start edge: %w", err)
+	}
+	for _, e := range d.Edges {
+		sc := scope{src: "of " + e.Src, before: d.Vars[e.Src], dst: "of " + e.Dst, after: d.Vars[e.Dst]}
+		for _, f := range e.Event.Fields {
+			sc.fields = append(sc.fields, f.Name)
+		}
+		if err := sc.check("guard", e.Guard); err != nil {
+			return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+		}
+		if err := sc.check("post", e.Post); err != nil {
+			return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+		}
+	}
+	for _, e := range d.Ends {
+		sc := scope{src: "of " + e.Src, before: d.Vars[e.Src], dst: "after the end"}
+		if err := sc.check("guard", e.Guard); err != nil {
+			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return nil
+}
+
+// scope is what binds the free names of a clause: before the step the
+// variables before of the state src names and the fields of the event,
+// after it the variables after of the state dst names.
+type scope struct {
+	src, dst      string
+	before, after []string
+	fields        []string
+}
+
+// check is NamesBound of the clause c, what it is.
+func (sc scope) check(what string, c clause.And) error {
+	for _, v := range clause.FreeVars(c) {
+		if v.Primed {
+			if !slices.Contains(sc.after, v.Name) {
+				return fmt.Errorf("the %s reads %s', which is no state variable %s", what, v.Name, sc.dst)
+			}
+			continue
+		}
+		if !slices.Contains(sc.before, v.Name) && !slices.Contains(sc.fields, v.Name) {
+			return fmt.Errorf("the %s reads %s, which is no state variable %s, no field of the event and bound by no ∃", what, v.Name, sc.src)
+		}
+	}
+	return nil
 }
 
 // atsWellFormed reports, as an error, an @at of an entry of a family's map

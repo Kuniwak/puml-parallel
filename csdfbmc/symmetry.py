@@ -21,6 +21,7 @@ The declaration is refused when anything could tell two IDs apart:
   for every renaming of the IDs and every value of its arguments' types,
   renaming the arguments renames the result, and leaves a truth value as
   it is (tried at load; an argument with no type to list is refused);
+- a literal of a clause holding an ID, which names it as a constant;
 - the checks module's source, the ghosts, the invariants and the functions
   it gives, naming an ID as a constant (a literal listing every ID of its
   group, as a type does, names none), ordering an ID, or sorting, taking
@@ -42,14 +43,14 @@ from __future__ import annotations
 
 import ast
 import itertools
-from collections.abc import Mapping
+from collections.abc import Mapping, Set as AbstractSet
 
 from csdfbmc import formal
 from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
-from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, conjuncts, is_primed, root, terms
+from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, Lit, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import FrozenMap, Rec, freeze, same_value
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, freeze, same_value
 
 
 class Symmetry:
@@ -73,6 +74,7 @@ class Symmetry:
         self.perms = [dict(itertools.chain.from_iterable(zip(sorted(g), perm) for g, perm in zip(groups, combo)))
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self.d = d
+        self._check_literals(d)
         self._check_types(checks)
         self._check_keys(d, checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
@@ -99,7 +101,7 @@ class Symmetry:
             return self._holds(v.fields)
         if isinstance(v, Mapping):
             return any(self._holds(k) or self._holds(x) for k, x in v.items())
-        if isinstance(v, (tuple, frozenset)):
+        if isinstance(v, (tuple, AbstractSet)):
             return any(self._holds(x) for x in v)
         return False
 
@@ -155,13 +157,32 @@ class Symmetry:
             return any(self._carries(a, types, ids, fields) for a in t.args)
         return False
 
+    def _named(self, v):
+        """An ID v holds, or None."""
+        if isinstance(v, str):
+            return v if v in self.values else None
+        if isinstance(v, Mapping):
+            v = [x for kv in v.items() for x in kv]
+        if isinstance(v, (tuple, list, AbstractSet)):
+            return next((i for i in map(self._named, v) if i is not None), None)
+        return None
+
     # -- the checks --------------------------------------------------------------
+
+    def _check_literals(self, d: Diagram) -> None:
+        """Refuses a literal of a clause that holds an ID: it names one ID
+        as a constant, which renaming would not follow."""
+        clauses = [d.start_post] + [c for e in d.edges for c in (e.guard, e.post)] + [x.guard for x in d.ends]
+        for t in (t for clause in clauses for t in terms(clause)):
+            if isinstance(t, Lit) and (i := self._named(t.value)) is not None:
+                raise ValueError(f"the literal {t.text} names the symmetric ID {i!r}, which tells the IDs apart; "
+                                 "drop its type from SYMMETRIC or change the clause")
 
     def _check_types(self, checks: Checks) -> None:
         for t, values in checks.types.items():
-            held = set(values)
+            held = FrozenSet(values)
             for perm in self.perms:
-                if {rename(v, perm) for v in held} != held:
+                if FrozenSet(rename(v, perm) for v in held) != held:
                     raise ValueError(f"the values of {t!r} are not closed under renaming the symmetric IDs, so they are not interchangeable")
 
     def _check_atoms(self, d: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> None:
@@ -264,18 +285,18 @@ class Symmetry:
         none and are kept as they are."""
         self.check(state)
         sid, values, ghosts = state
-        return min(((sid, rename(values, p), ghosts) for p in self.perms), key=lambda s: _order_key(s[1]))
+        return min((Strict((sid, rename(values, p), ghosts)) for p in self.perms), key=lambda s: _order_key(s[1]))
 
 
 def rename(v, perm: dict):
     if isinstance(v, Rec):
         return Rec(v.state, rename(v.fields, perm))
     if isinstance(v, FrozenMap):
-        return FrozenMap({rename(k, perm): rename(x, perm) for k, x in v.items()})
+        return FrozenMap((rename(k, perm), rename(x, perm)) for k, x in v.items())
     if isinstance(v, tuple):
         return tuple(rename(x, perm) for x in v)
-    if isinstance(v, frozenset):
-        return frozenset(rename(x, perm) for x in v)
+    if isinstance(v, AbstractSet):
+        return FrozenSet(rename(x, perm) for x in v)
     if isinstance(v, str):
         return perm.get(v, v)
     return v
@@ -288,6 +309,6 @@ def _order_key(v):
         return (3, tuple(sorted((_order_key(k), _order_key(x)) for k, x in v.items())))
     if isinstance(v, tuple):
         return (4, tuple(_order_key(x) for x in v))
-    if isinstance(v, frozenset):
+    if isinstance(v, AbstractSet):
         return (5, tuple(sorted(_order_key(x) for x in v)))
     return (0, type(v).__name__, repr(v))

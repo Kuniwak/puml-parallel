@@ -8,7 +8,7 @@ from csdfbmc.formula import Evaluator, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Family, formula_of
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx
+from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx, lit
 from csdfbmc.values import FrozenMap, Rec, same_value
 
 TYPES = {"T": [1, 2], "n": [0, 1, 2], "p": [0, 1], "k": ["a", "b"], "bal": [0, 1]}
@@ -53,6 +53,9 @@ class GuardTest(unittest.TestCase):
             "update": ([builtin("update", "m2", "m", "k", "v")], {"m2": M.set("b", 3), "m": M, "k": "b", "v": 3}, True),
             "frame, the others kept": ([builtin("frame", "m2", "m", "k")], {"m2": M.set("b", 3), "m": M, "k": "b"}, True),
             "frame, another changed": ([builtin("frame", "m2", "m", "k")], {"m2": M.set("b", 3), "m": M, "k": "a"}, False),
+            "frame, a key of another kind changed": ([builtin("frame", "m2", "m", "k")],
+                                                     {"m2": FrozenMap([(1, 0), (True, 5)]), "m": FrozenMap([(1, 0), (True, 0)]), "k": 1}, False),
+            "notin tells a key from one of another kind": ([builtin("notin", "k", "m")], {"k": True, "m": FrozenMap({1: 0})}, True),
             "∃ over the type it names": ([exists("T", eq(fixture.bound(0), "x"))], {"x": 2}, True),
             "∃ with no value that holds": ([exists("T", eq(fixture.bound(0), "x"))], {"x": 3}, False),
             "an atom, through the glue": ([atom("$x > $y")], {"x": 2, "y": 1}, True),
@@ -62,6 +65,16 @@ class GuardTest(unittest.TestCase):
             "an absent entry under ∃ is false": ([exists("T", atom("${} > 0", fld(idx("m", "k"), "bal")))], {"m": FrozenMap(), "k": "a"}, False),
             "a glue sees an instance as its fields": ([atom("${} == {'bal': 1}", idx("m", "k"))], {"m": M, "k": "a"}, True),
             "true": ([], {}, True),
+            "a literal integer": ([eq("x", lit(0))], {"x": 0}, True),
+            "a literal integer is not the float": ([eq("x", lit(1.0))], {"x": 1}, False),
+            "a literal float is not the integer": ([eq("x", lit(1))], {"x": 1.0}, False),
+            "a literal 0.0 is 0.0": ([eq("x", lit(0.0))], {"x": 0.0}, True),
+            "a literal truth value is not the number it equals": ([eq("x", lit(True))], {"x": 1}, False),
+            "a literal string is not the number it spells": ([builtin("ne", "x", lit("1"))], {"x": 1}, True),
+            "a literal array is a tuple": ([eq("x", lit([1, "a"]))], {"x": (1, "a")}, True),
+            "a literal object is a map": ([eq("x", lit({"b": 2, "a": 1}))], {"x": FrozenMap(a=1, b=2)}, True),
+            "a literal key": ([builtin("in", lit("a"), "m")], {"m": M}, True),
+            "a literal in an atom": ([atom("${} > $x", lit(2))], {"x": 1}, True),
         }
         for name, (clause, before, want) in tests.items():
             with self.subTest(name):

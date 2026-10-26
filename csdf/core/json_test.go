@@ -50,6 +50,12 @@ func TestFormulaDocOf(t *testing.T) {
 			text: "$x が多い",
 			want: `[{"kind":"atom","pieces":["","が多い"],"holes":[0],"args":[{"kind":"free","name":"x"}],"text":[""," が多い"],"primed":[false],"function":"$_0 が多い"}]`,
 		},
+		"literals, each its JSON value": {
+			text: `@eq(n', 0) ∧ @ne(x, -2.5) ∧ @eq(r, {"b": [1.5, true], "a": "x;y"})`,
+			want: `[{"kind":"builtin","op":"eq","args":[{"kind":"free","name":"n","primed":true},{"kind":"lit","value":0}]},
+{"kind":"builtin","op":"ne","args":[{"kind":"free","name":"x"},{"kind":"lit","value":-2.5}]},
+{"kind":"builtin","op":"eq","args":[{"kind":"free","name":"r"},{"kind":"lit","value":{"a":"x;y","b":[1.5,true]}}]}]`,
+		},
 		"an atom with no hole": {
 			text: "a < b",
 			want: `[{"kind":"atom","pieces":["a < b"],"holes":[],"args":[],"text":["a < b"],"primed":[],"function":"a < b"}]`,
@@ -276,6 +282,24 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "the start edge: none is the start state of the family of m, which is absence; say @notin",
 		},
+		"a guard reading a name nothing binds": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0",
+				Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}}}, Guard: mustParse(t, "@eq(n, x) ∧ @eq(n, y)")}}},
+			want: "s0 --> s0 : c: the guard reads y, which is no state variable of s0, no field of the event and bound by no ∃",
+		},
+		"a post giving a value after the step to a name the target does not hold": {
+			d: &Diagram{States: []string{"s0", "s1"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0",
+				Edges: []Edge{{Src: "s0", Dst: "s1", Event: Event{Channel: "c"}, Post: mustParse(t, "@eq(n', 0)")}}},
+			want: "s0 --> s1 : c: the post reads n', which is no state variable of s1",
+		},
+		"the start post reading a name before the step": {
+			d:    &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0", InitPost: mustParse(t, "@eq(n', m)")},
+			want: "the start edge: the post reads m, which is no state variable before the start, no field of the event and bound by no ∃",
+		},
+		"an end guard reading a name its state does not hold": {
+			d:    &Diagram{States: []string{"s0"}, Init: "s0", Ends: []End{{Src: "s0", Guard: mustParse(t, "@eq(z, 0)")}}},
+			want: "the end edge from s0: the guard reads z, which is no state variable of s0, no field of the event and bound by no ∃",
+		},
 		"an @at in a guard at no state of its family": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
 				Ends:     []End{{Src: "s0", Guard: mustParse(t, "@at(m[k], gone)")}},
@@ -304,7 +328,7 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 func validDoc(t *testing.T) DiagramDoc {
 	t.Helper()
 	doc, err := DiagramDocOf(&Diagram{
-		States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0", InitPost: mustParse(t, "@eq(n', n)"),
+		States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0", InitPost: mustParse(t, "@eq(n', 0)"),
 		Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}}}, Guard: mustParse(t, "$n > 0")}},
 		Ends:  []End{{Src: "s0"}},
 	})
@@ -393,11 +417,21 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 		},
 		"a term of a kind it does not know": {
 			edit: func(v map[string]any) { initPost(v)["args"].([]any)[0].(map[string]any)["kind"] = "var" },
-			want: `the kind "var" is none of free, bound, index, field and app`,
+			want: `the kind "var" is none of free, bound, index, field, app and lit`,
 		},
 		"a term with a key of another kind": {
 			edit: func(v map[string]any) { initPost(v)["args"].([]any)[0].(map[string]any)["index"] = 0 },
 			want: `a term of kind free: json: unknown field "index"`,
+		},
+		"a literal that is null": {
+			edit: func(v map[string]any) { initPost(v)["args"].([]any)[0] = map[string]any{"kind": "lit", "value": nil} },
+			want: "null is no value",
+		},
+		"a literal float beyond binary64": {
+			edit: func(v map[string]any) {
+				initPost(v)["args"].([]any)[0] = map[string]any{"kind": "lit", "value": json.Number("1e400")}
+			},
+			want: "beyond the floats",
 		},
 		"a field of no direction": {
 			edit: func(v map[string]any) {

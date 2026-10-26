@@ -201,6 +201,8 @@ func (pr *printer) term(t Term) (string, error) {
 			return "", err
 		}
 		return o + "." + t.Name, nil
+	case Lit:
+		return t.Text, nil
 	case App:
 		args := make([]string, len(t.Args))
 		for i, a := range t.Args {

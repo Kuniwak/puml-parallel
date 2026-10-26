@@ -38,6 +38,10 @@ func TestFormulaOfAClause(t *testing.T) {
 			Clause: "${locations[from].在庫} > 0",
 			Want:   `csdf_in(from, locations) ∧ "$_0 > 0"(locations[from].在庫)`,
 		},
+		"a literal is itself": {
+			Clause: `@eq(n', 0) ∧ @ne(m["k"], [1.5, true])`,
+			Want:   `n' = 0 ∧ (csdf_in("k", m) ∧ ¬(m["k"] = [1.5,true]))`,
+		},
 		"a builtin that reads an entry reads it only where it is": {
 			Clause: "@ne(m[k], v)",
 			Want:   "csdf_in(k, m) ∧ ¬(m[k] = v)",

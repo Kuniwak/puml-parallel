@@ -3,6 +3,7 @@ package lean
 import (
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -15,7 +16,54 @@ var Notation = obligationir.Notation{
 	And: ` ∧ `, Or: ` ∨ `, Not: `¬`, Implies: ` → `, True: `True`, False: `False`,
 	Exists:     func(vars []string, body string) string { return `∃ ` + binders(vars) + `, ` + body },
 	Forall:     func(vars []string, body string) string { return `∀ ` + binders(vars) + `, ` + body },
+	Literal:    Literal,
 	Wellformed: "csdf_wf",
+}
+
+// Literal spells a literal as a Val; an object as a ValDict of its keys,
+// sorted.
+var Literal = obligationir.LiteralSpeller{
+	Int: func(d string) string { return "Val.ValInt " + signed(d) },
+	Float: func(neg bool, sig uint64, exp int) string {
+		return fmt.Sprintf("Val.ValFloat %t %d %s", neg, sig, signed(strconv.Itoa(exp)))
+	},
+	String: func(s string) string { return "Val.ValString " + quoted(s) },
+	Bool:   func(b bool) string { return fmt.Sprintf("Val.ValBool %t", b) },
+	Array:  func(items []string) string { return "Val.ValArray [" + strings.Join(items, ", ") + "]" },
+	Object: func(keys, values []string) string {
+		entries := make([]string, len(keys))
+		for i := range keys {
+			entries[i] = "(" + quoted(keys[i]) + ", " + values[i] + ")"
+		}
+		return "Val.ValDict [" + strings.Join(entries, ", ") + "]"
+	},
+}
+
+func signed(d string) string {
+	if strings.HasPrefix(d, "-") {
+		return "(" + d + ")"
+	}
+	return d
+}
+
+// quoted is s as a string literal of Lean: a quote, a backslash and a
+// control character escaped, any other character as it is.
+func quoted(s string) string {
+	var b strings.Builder
+	b.WriteByte('"')
+	for _, r := range s {
+		switch {
+		case r == '"' || r == '\\':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		case r < 0x20 || r == 0x7f:
+			fmt.Fprintf(&b, "\\x%02x", r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 func binders(vars []string) string {

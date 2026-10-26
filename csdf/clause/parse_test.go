@@ -47,9 +47,9 @@ func TestParseReadsAnAtomWithNameHoles(t *testing.T) {
 			text: "${f(x, y')}",
 			want: and(atom(hole(App{Fn: "f", Args: []Term{pre("x"), post("y")}}))),
 		},
-		"a term hole names a variable starting with a digit": {
-			text: "${1st}",
-			want: and(atom(hole(pre("1st")))),
+		"a term hole holds a literal": {
+			text: "${[1, 2]} は空でない",
+			want: and(atom(hole(Lit{Text: "[1,2]"}), Text("は空でない"))),
 		},
 		"conjuncts are separated by ∧": {
 			text: "$x > 0 ∧ $y > 0",
@@ -108,6 +108,14 @@ func TestParseReadsBuiltins(t *testing.T) {
 		"at":                 {text: "@at(locations[from], 倉庫待ち)", want: Builtin{Op: OpAt, Args: []Term{Index{Map: pre("locations"), Key: pre("from")}}, State: "倉庫待ち"}},
 		"notin":              {text: "@notin(k, m)", want: Builtin{Op: OpNotIn, Args: []Term{pre("k"), pre("m")}}},
 		"empty":              {text: "@empty(m')", want: Builtin{Op: OpEmpty, Args: []Term{post("m")}}},
+		"an integer":         {text: "@eq(n', 0)", want: Builtin{Op: OpEq, Args: []Term{post("n"), Lit{Text: "0"}}}},
+		"a float":            {text: "@ne(x, -1.5)", want: Builtin{Op: OpNe, Args: []Term{pre("x"), Lit{Text: "-1.5"}}}},
+		"a truth value":      {text: "@eq(x, true)", want: Builtin{Op: OpEq, Args: []Term{pre("x"), Lit{Text: "true"}}}},
+		"a string with a comma and a parenthesis": {text: `@eq(x, "a, b)")`, want: Builtin{Op: OpEq, Args: []Term{pre("x"), Lit{Text: `"a, b)"`}}}},
+		"an object":          {text: `@eq(r, {"a": 1, "b": [false]})`, want: Builtin{Op: OpEq, Args: []Term{pre("r"), Lit{Text: `{"a":1,"b":[false]}`}}}},
+		"a literal key":      {text: `@in("k", m)`, want: Builtin{Op: OpIn, Args: []Term{Lit{Text: `"k"`}, pre("m")}}},
+		"a literal argument": {text: "@eq(f(1, x), y)", want: Builtin{Op: OpEq, Args: []Term{App{Fn: "f", Args: []Term{Lit{Text: "1"}, pre("x")}}, pre("y")}}},
+		"a literal index":    {text: "@eq(m[1].f, y)", want: Builtin{Op: OpEq, Args: []Term{Field{Of: Index{Map: pre("m"), Key: Lit{Text: "1"}}, Name: "f"}, pre("y")}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -198,6 +206,15 @@ func TestParseRefuses(t *testing.T) {
 		"an unclosed body":               {text: "@exists(v : T) ($v > 0", want: `expected ")"`},
 		"a binder without its type":      {text: "@exists(v) ($v > 0)", want: `expected " : "`},
 		"an empty body":                  {text: "@exists(v : T) ()", want: "@exists at 0: an empty body"},
+		"a name starting with a digit":   {text: "@eq(1st, x)", want: "a name does not start with a digit"},
+		"a hole named true":              {text: "$true holds", want: "true is a reserved word"},
+		"a term named false":             {text: "${false'}", want: "a literal at 2 has no value after the step"},
+		"a function named true":          {text: "@eq(true(x), y)", want: "true is a reserved word"},
+		"a field named true":             {text: "@eq(r.true, y)", want: "true is a reserved word"},
+		"null":                           {text: "@eq(x, null)", want: "null is no value"},
+		"a path from a literal":          {text: `@eq({"a": 1}.a, y)`, want: "a path starts from a variable"},
+		"a bad literal":                  {text: "@eq(x, 1e400)", want: "beyond the floats"},
+		"a ∃ binding a reserved word":    {text: "@exists(true : T) (@eq(x, y))", want: "true is a reserved word"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

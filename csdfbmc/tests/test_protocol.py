@@ -2,6 +2,7 @@
 in a tagged JSON encoding, since JSON has no tuples, sets or maps with keys
 other than strings."""
 import gc
+import math
 import io
 import json
 import os
@@ -12,7 +13,7 @@ import warnings
 from csdfbmc.protocol import (NO_CLOSE, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
                               start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
-from csdfbmc.values import FrozenMap
+from csdfbmc.values import FrozenMap, same_value
 
 GREATER = {"text": ["", " > ", ""], "holes": [0, 1], "primed": [False, False]}
 NEXT = {"text": ["", " == ", " + 1"], "holes": [0, 1], "primed": [True, False]}
@@ -20,6 +21,15 @@ HELLO = {"language": "fake", "protocol": 2}
 
 
 class WireEncodingTest(unittest.TestCase):
+    def test_a_set_or_map_from_the_wire_keeps_values_of_other_kinds_apart(self):
+        tests = {
+            "a set": ({"set": [1, True, 1.0]}, 3),
+            "a map": ({"map": [[1, "a"], [True, "b"], [1.0, "c"]]}, 3),
+        }
+        for name, (wire, want) in tests.items():
+            with self.subTest(name):
+                self.assertEqual(want, len(from_wire(wire)))
+
     def test_scalars_are_themselves(self):
         for v in (0, -3, "残高", True, False, None):
             with self.subTest(v=v):
@@ -44,7 +54,7 @@ class WireEncodingTest(unittest.TestCase):
         self.assertIsNot(True, from_wire(to_wire(1)))
 
     def test_an_untagged_array_or_object_is_refused(self):
-        for wire in ([1, 2], {"a": 1}, {"set": [1], "map": []}, 1.5):
+        for wire in ([1, 2], {"a": 1}, {"set": [1], "map": []}):
             with self.subTest(wire=wire), self.assertRaises(ValueError):
                 from_wire(wire)
 
@@ -53,9 +63,33 @@ class WireEncodingTest(unittest.TestCase):
         b = frozenset({(2, 3), "a", 1})
         self.assertEqual(json.dumps(to_wire(a)), json.dumps(to_wire(b)))
 
+    def test_a_float_is_itself_and_stays_apart_from_the_integer_it_equals(self):
+        for v in (1.5, 1.0, 0.0, -2.5, 1e300):
+            with self.subTest(v=v):
+                got = from_wire(json.loads(json.dumps(to_wire(v))))
+                self.assertIs(float, type(got))
+                self.assertTrue(same_value(v, got))
+        self.assertIs(int, type(from_wire(json.loads(json.dumps(to_wire(1))))))
+
+    def test_negative_zero_is_read_as_zero(self):
+        cases = {
+            "from the wire": lambda: from_wire(-0.0),
+            "to the wire": lambda: to_wire(-0.0),
+            "from the wire in a tuple": lambda: from_wire({"tuple": [-0.0]})[0],
+        }
+        for name, read in cases.items():
+            with self.subTest(name):
+                got = read()
+                self.assertIs(float, type(got))
+                self.assertEqual(1.0, math.copysign(1, got))
+
     def test_a_value_outside_the_model_is_refused(self):
-        with self.assertRaises(TypeError):
-            to_wire(1.5)
+        for v in (float("nan"), float("inf"), -float("inf"), object()):
+            with self.subTest(v=v), self.assertRaises(TypeError):
+                to_wire(v)
+        for wire in (float("nan"), float("inf"), -float("inf")):
+            with self.subTest(wire=wire), self.assertRaises(ValueError):
+                from_wire(wire)
 
 
 def fake(answers: dict):

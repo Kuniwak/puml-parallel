@@ -152,6 +152,7 @@ func obligations(t *testing.T) []obligation {
 		livelockObligation(t, "livelock_countdown", countdown),
 		livelockObligation(t, "livelock_maps_and_lemmas", maps),
 		livelockObligation(t, "livelock_every_builtin", "../testdata/formula/builtins.puml"),
+		livelockObligation(t, "livelock_literals", "../testdata/formula/literals.puml"),
 		livelockObligation(t, "livelock_nested_maps", "../testdata/formula/nested.puml"),
 		livelockObligation(t, "livelock_hostile_names", hostileSpec),
 		refinementObligation(t, "refinement_ground_f", obligationir.IRRefinementModeStableFailure, groundSpec, groundImpl),
@@ -583,7 +584,7 @@ proof -
   have ml: "map fst ?l = insort k (map fst ?r)" by (rule mi)
   have d: "distinct (map fst ?l)" unfolding ml using dr by (auto simp: distinct_insort)
   have "csdf_wf (ValMap ?l)"
-    by (rule csdf_wf.intros(7)) (use w d assms(3,4) in \<open>auto simp: ml sorted_insort sorted_filter set_insort_key\<close>)
+    by (rule csdf_wf.intros) (use w d assms(3,4) in \<open>auto simp: ml sorted_insort sorted_filter set_insort_key\<close>)
   moreover have "csdf_update (ValMap ?l) m k v"
     using w(1) d by (auto simp: m csdf_update_def csdf_is_map_def csdf_in_def csdf_index_of set_insort_key)
   ultimately show ?thesis by blast
@@ -626,7 +627,7 @@ proof -
   let ?l = "filter (\<lambda>p. fst p \<noteq> k) ms"
   have d: "distinct (map fst ?l)" using w(1) by (simp add: distinct_map_filter)
   have "csdf_wf (ValMap ?l)"
-    by (rule csdf_wf.intros(7)) (use w d in \<open>auto simp: sorted_filter\<close>)
+    by (rule csdf_wf.intros) (use w d in \<open>auto simp: sorted_filter\<close>)
   moreover have "csdf_frame1 (ValMap ?l) m k \<and> \<not> csdf_in k (ValMap ?l)"
     using w(1) d by (auto simp: m csdf_frame1_def csdf_is_map_def csdf_in_def csdf_index_of)
   ultimately show ?thesis by blast

@@ -84,7 +84,10 @@ reads (`holes`) and the terms they stand for (`args`); a `builtin`, its `op`
 and `args`; or `exists`, the `type` it ranges over and its `body`, where the
 variable it binds is the term `{"kind": "bound", "index": 0}`. A term is
 `free` (`name`, `primed`), `bound`, `index` (`map`, `key`), `field` (`of`,
-`name`) or `app` (`fn`, `args`). An edge's `label` and an atom's `text`,
+`name`), `app` (`fn`, `args`) or `lit` (`value`, the JSON value of a literal
+in its canonical form: a number with a point or an exponent is a float, any
+other an integer of any size, no value is null, and negative zero is written as zero;
+docs/SYNTAX.md). An edge's `label` and an atom's `text`,
 `primed` and `function` (the name of the environment function it denotes)
 are derived from the rest, for a program that hands atoms to a glue. A
 diagram that still holds promotion directives is refused; run `csdfpromote`

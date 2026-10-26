@@ -6,6 +6,7 @@ set_option linter.style.nameCheck false
 
 inductive Val where
   | ValInt (i : Int)
+  | ValFloat (neg : Bool) (sig : Nat) (exp : Int)
   | ValString (s : String)
   | ValBool (b : Bool)
   | ValArray (xs : List Val)
@@ -38,9 +39,12 @@ opaque type_m : Val → Prop
 -- a linear order the keys of a map are sorted in.
 noncomputable instance : LinearOrder Val := IsWellOrder.linearOrder WellOrderingRel
 
--- A value is well formed when every map in it has distinct keys, sorted.
+-- A value is well formed when every map in it has distinct keys, sorted,
+-- and every float in it is in its canonical form.
 inductive csdf_wf : Val → Prop where
   | int (i : Int) : csdf_wf (.ValInt i)
+  | float (s : Bool) (m : Nat) (e : Int) : m % 2 = 1 ∨ (s = false ∧ m = 0 ∧ e = 0) →
+      csdf_wf (.ValFloat s m e)
   | string (s : String) : csdf_wf (.ValString s)
   | bool (b : Bool) : csdf_wf (.ValBool b)
   | array (xs : List Val) : (∀ x ∈ xs, csdf_wf x) → csdf_wf (.ValArray xs)

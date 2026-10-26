@@ -126,14 +126,22 @@ type ExistsDoc struct {
 }
 
 // TermDoc is a term, a tagged union written with "kind" "free", "bound",
-// "index", "field" or "app" beside the fields of that kind: exactly one of
-// its fields is set.
+// "index", "field", "app" or "lit" beside the fields of that kind: exactly
+// one of its fields is set.
 type TermDoc struct {
 	Free  *FreeDoc
 	Bound *BoundDoc
 	Index *IndexDoc
 	Field *FieldTermDoc
 	App   *AppDoc
+	Lit   *LitDoc
+}
+
+// LitDoc is a literal: Value is the JSON value it is, in its canonical
+// text (clause.Lit). A reader keeps a float apart from an integer, as the
+// text does by a point or an exponent.
+type LitDoc struct {
+	Value json.RawMessage `json:"value"`
 }
 
 // FreeDoc is a free variable, primed when it is the value after the step.
@@ -198,7 +206,7 @@ func (f *FormulaDoc) UnmarshalJSON(raw []byte) error {
 func (t TermDoc) MarshalJSON() ([]byte, error) {
 	return marshalTagged("term", []variant{
 		{"free", t.Free != nil, t.Free}, {"bound", t.Bound != nil, t.Bound}, {"index", t.Index != nil, t.Index},
-		{"field", t.Field != nil, t.Field}, {"app", t.App != nil, t.App},
+		{"field", t.Field != nil, t.Field}, {"app", t.App != nil, t.App}, {"lit", t.Lit != nil, t.Lit},
 	})
 }
 
@@ -210,7 +218,8 @@ func (t *TermDoc) UnmarshalJSON(raw []byte) error {
 	var ix IndexDoc
 	var fd FieldTermDoc
 	var ap AppDoc
-	kind, err := unmarshalTagged(raw, "term", []variant{{"free", true, &fr}, {"bound", true, &bd}, {"index", true, &ix}, {"field", true, &fd}, {"app", true, &ap}})
+	var lt LitDoc
+	kind, err := unmarshalTagged(raw, "term", []variant{{"free", true, &fr}, {"bound", true, &bd}, {"index", true, &ix}, {"field", true, &fd}, {"app", true, &ap}, {"lit", true, &lt}})
 	if err != nil {
 		return err
 	}
@@ -224,8 +233,12 @@ func (t *TermDoc) UnmarshalJSON(raw []byte) error {
 		t.Index = &ix
 	case "field":
 		t.Field = &fd
-	default:
+	case "app":
 		t.App = &ap
+	case "lit":
+		t.Lit = &lt
+	default:
+		return fmt.Errorf("a term of the kind %q, which no case reads", kind)
 	}
 	return nil
 }
@@ -612,6 +625,8 @@ func termDoc(t clause.Term) TermDoc {
 		return TermDoc{Field: &FieldTermDoc{Of: termDoc(t.Of), Name: t.Name}}
 	case clause.App:
 		return TermDoc{App: &AppDoc{Fn: t.Fn, Args: termDocs(t.Args)}}
+	case clause.Lit:
+		return TermDoc{Lit: &LitDoc{Value: json.RawMessage(t.Text)}}
 	}
 	panic(fmt.Sprintf("core.termDoc: unknown term %#v", t))
 }
@@ -656,6 +671,8 @@ func (doc TermDoc) term() (clause.Term, error) {
 			return nil, err
 		}
 		return clause.App{Fn: doc.App.Fn, Args: args}, nil
+	case doc.Lit != nil:
+		return clause.ParseLiteral(string(doc.Lit.Value))
 	}
 	return nil, fmt.Errorf("a term of no kind")
 }

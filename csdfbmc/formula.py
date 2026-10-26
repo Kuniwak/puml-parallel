@@ -27,8 +27,8 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
-from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, is_primed
-from csdfbmc.values import FrozenMap, Rec, same_value
+from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, is_primed
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, same_value
 
 
 class Missing(Exception):
@@ -80,6 +80,8 @@ class Evaluator:
             return fields[t.name]
         if isinstance(t, App):
             return self.apply(t.fn, tuple(self.value(a, before, after, bound) for a in t.args))
+        if isinstance(t, Lit):
+            return t.value
         raise ValueError(f"unknown term {t!r}")
 
     # -- formulas ----------------------------------------------------------------
@@ -118,8 +120,8 @@ def builtin(b: Builtin, args: list) -> bool:
     if op == "frame":
         m1, m0 = _map(b, args[0]), _map(b, args[1])
         keys = args[2:]
-        for k in set(m0) | set(m1):
-            if k in keys:
+        for k in FrozenSet(m0) | FrozenSet(m1):
+            if _among(k, keys):
                 continue
             if (k in m0) != (k in m1) or not same_value(m0[k], m1[k]):
                 return False
@@ -155,7 +157,8 @@ class PostError(ValueError):
     way the walk cannot enumerate."""
 
 
-# A location is what a primed term names: ("var", x) for x'; ("entry", m, k)
+# A location is what a primed term names, a Strict, so that the entries of
+# the keys 1 and True are two: ("var", x) for x'; ("entry", m, k)
 # for the entry m'[k], an instance or ABSENT; ("state", m, k) for the state
 # @at says the instance m'[k] is at; ("field", m, k, f) for m'[k].f.
 
@@ -163,12 +166,12 @@ class PostError(ValueError):
 def _loc(t, ev: Evaluator, before, bound):
     """The location a primed term names; None for another shape."""
     if isinstance(t, Free) and t.primed:
-        return ("var", t.name)
+        return Strict(("var", t.name))
     if isinstance(t, Index) and isinstance(t.map, Free) and t.map.primed and not is_primed(t.key):
-        return ("entry", t.map.name, ev.value(t.key, before, {}, bound))
+        return Strict(("entry", t.map.name, ev.value(t.key, before, {}, bound)))
     if isinstance(t, Field) and isinstance(t.of, Index) and isinstance(t.of.map, Free) and t.of.map.primed \
             and not is_primed(t.of.key):
-        return ("field", t.of.map.name, ev.value(t.of.key, before, {}, bound), t.name)
+        return Strict(("field", t.of.map.name, ev.value(t.of.key, before, {}, bound), t.name))
     return None
 
 
@@ -265,19 +268,19 @@ def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | 
                     return [{_loc(x, ev, before, bound): val(y)}]
             return None
         if f.op == "empty" and isinstance(a[0], Free) and a[0].primed:
-            return [{("var", a[0].name): FrozenMap()}]
+            return [{Strict(("var", a[0].name)): FrozenMap()}]
         if f.op == "update" and isinstance(a[0], Free) and a[0].primed and not any(is_primed(t) for t in a[1:]):
-            return [{("var", a[0].name): FrozenMap(val(a[1])).set(val(a[2]), val(a[3]))}]
+            return [{Strict(("var", a[0].name)): FrozenMap(val(a[1])).set(val(a[2]), val(a[3]))}]
         if f.op == "frame" and isinstance(a[0], Free) and a[0].primed and not any(is_primed(t) for t in a[1:]):
             frames.setdefault(a[0].name, []).append((val(a[1]), [val(k) for k in a[2:]]))
             return None
         if f.op == "at":
             loc = _loc(a[0], ev, before, bound)
             if loc is not None and loc[0] == "entry":
-                return [{("state",) + loc[1:]: f.state}]
+                return [{Strict(("state",) + loc[1:]): f.state}]
             return None
         if f.op == "notin" and isinstance(a[1], Free) and a[1].primed and not is_primed(a[0]):
-            return [{("entry", a[1].name, val(a[0])): ABSENT}]
+            return [{Strict(("entry", a[1].name, val(a[0]))): ABSENT}]
         return None
     if isinstance(f, Atom) and any(f.primed):
         locs, before_args = [], []
@@ -316,8 +319,8 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
                             "in TYPES; constrain it, or declare its type") from None
 
     for x in names:
-        if ("var", x) in a:
-            afters = [dict(f, **{x: a[("var", x)]}) for f in afters]
+        if Strict(("var", x)) in a:
+            afters = [dict(f, **{x: a[Strict(("var", x))]}) for f in afters]
             continue
         parts = [loc for loc in set(a) | mentioned if loc[0] != "var" and loc[1] == x]
         if x not in frames:
@@ -328,10 +331,10 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
         kept = _kept(frames[x])
         if kept is None:
             return []
-        choices: list[dict] = [kept]
+        choices: list[FrozenMap] = [kept]
         open_keys = [k for k in frames[x][0][1] if all(_among(k, ks) for _, ks in frames[x])]
         for k in open_keys:
-            entry, state = a.get(("entry", x, k)), a.get(("state", x, k))
+            entry, state = a.get(Strict(("entry", x, k))), a.get(Strict(("state", x, k)))
             given = {loc[3]: v for loc, v in a.items() if loc[0] == "field" and loc[1] == x and same_value(loc[2], k)}
             fields = sorted({loc[3] for loc in mentioned if loc[0] == "field" and loc[1] == x and same_value(loc[2], k)} | set(given))
             if entry is ABSENT:
@@ -339,7 +342,7 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
                     return []
                 continue
             if entry is not None:
-                choices = [{**c, k: entry} for c in choices]
+                choices = [c.set(k, entry) for c in choices]
                 continue
             if state is None:
                 if fields:
@@ -354,8 +357,8 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
             for name in own:
                 if name not in given:
                     records = [dict(r, **{name: v}) for r in records for v in typed(name, f"{x}'[{k!r}].{name}")]
-            choices = [{**c, k: Rec(state, FrozenMap(r))} for c in choices for r in records]
-        afters = [dict(f, **{x: FrozenMap(c)}) for f in afters for c in choices]
+            choices = [c.set(k, Rec(state, FrozenMap(r))) for c in choices for r in records]
+        afters = [dict(f, **{x: c}) for f in afters for c in choices]
     return afters
 
 
@@ -408,11 +411,11 @@ def _among(k, keys) -> bool:
     return any(same_value(k, j) for j in keys)
 
 
-def _kept(frames: list[tuple]) -> dict | None:
+def _kept(frames: list[tuple]) -> FrozenMap | None:
     """The entries the frames of one map fix: each key a frame does not open
     has the value its base gives it, or none when its base has no entry for
     it. None when two bases disagree on a key both fix: no map is both."""
-    kept: dict = {}
+    kept = FrozenMap()
     keys = [k for base, _ in frames for k in base]
     for k in keys:
         fixing = [base for base, ks in frames if not _among(k, ks)]
@@ -423,5 +426,5 @@ def _kept(frames: list[tuple]) -> dict | None:
             if (k in first) != (k in base) or (k in first and not same_value(first[k], base[k])):
                 return None
         if k in first:
-            kept[k] = first[k]
+            kept = kept.set(k, first[k])
     return kept

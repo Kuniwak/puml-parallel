@@ -15,8 +15,10 @@ instead.
 
 A ghost is a value the diagram does not keep - a running total, a count -
 that follows the events; an invariant is a predicate over the state
-variables and ghosts it reads. Values must be hashable (tuples, frozenset,
-FrozenMap); dicts, lists and sets are frozen into those. Nothing in the
+variables and ghosts it reads. Values must be hashable (tuples, FrozenSet,
+FrozenMap); dicts, lists and sets are frozen into those, but a dict or set
+Python builds has already taken 1, True and 1.0 for one key, so one that
+holds keys of those kinds is built as a FrozenMap or FrozenSet. Nothing in the
 module may assign inside a function, loop with a statement, raise, read or
 write the outside world, or use floats, so that a check is deterministic;
 comprehensions are expressions and are allowed. SYMMETRIC lists the types
