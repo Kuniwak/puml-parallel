@@ -15,10 +15,11 @@ from csdfbmc.formula import Evaluator, Missing, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import LEFT_OUT, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Strict, beyond_samples, encode, freeze, same_value, visible
 
-# (state id, values of its variables in declaration order, values of the ghosts)
-State = tuple[str, tuple, tuple]
+# (state id, values of its variables in declaration order, values of the ghosts),
+# a Strict, so that states holding 1 and True are two states.
+State = Strict
 
 # The transitions of a state the walk takes, chosen from those enabled:
 # (state, its transitions, whether a state was met) -> the transitions taken.
@@ -329,14 +330,14 @@ class Explorer:
         out: list[tuple] = []
         for a in solve(self.ev, post, names, before, self.checks.domain, where, self.d.families):
             v = tuple(LEFT_OUT if n in self.left_out else freeze(a[n]) for n in names)
-            if v not in out:
+            if not any(same_value(v, o) for o in out):
                 out.append(v)
         return out
 
     def initial(self) -> list[State]:
         ghosts = tuple(init for init, _ in self.checks.ghosts.values())
         vals = self._successor_values(self.d.start_post, {}, self.d.start, "the start edge")
-        return [(self.d.start, v, ghosts) for v in vals]
+        return [Strict((self.d.start, v, ghosts)) for v in vals]
 
     def _determined(self, e: Edge, p: str, known: set[str]):
         """The term an equality builtin of e's guard determines the field p
@@ -391,7 +392,7 @@ class Explorer:
                     self.empty_posts.append((state, label))
                 continue
             ghosts = self._ghosts_after(state, e.name, params)
-            out.append((params, label, [(e.dst, v, ghosts) for v in vals]))
+            out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -469,7 +470,7 @@ class Explorer:
         if len(values) != len(self.d.vars[state_id]):
             raise ValueError(f"state {state_id!r} has {len(self.d.vars[state_id])} variable(s), got {len(values)} value(s)")
         ghosts = tuple(init for init, _ in self.checks.ghosts.values())
-        state: State = (state_id, tuple(freeze(v) for v in values), ghosts)
+        state = Strict((state_id, tuple(freeze(v) for v in values), ghosts))
         out = []
         for params, _, nexts in self._edge_successors(state, edges[edge_index], record=False):
             for t in nexts:

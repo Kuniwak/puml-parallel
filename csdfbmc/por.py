@@ -40,6 +40,7 @@ from typing import Callable
 
 from csdfbmc.model import Builtin, Diagram, Edge, Exists, Free, Index, free_names, primed_roots
 from csdfbmc.checks import Checks, property_reads
+from csdfbmc.values import Strict
 
 
 def _only_at(clause, m: str, p: str) -> bool:
@@ -155,7 +156,7 @@ class PartialOrder:
             edge, params = tr[3], tr[4]
             for m, keys in independent.items():
                 if id(edge) in keys:
-                    groups.setdefault((m, params[keys[id(edge)]]), []).append(tr)
+                    groups.setdefault(Strict((m, params[keys[id(edge)]])), []).append(tr)
         for group in sorted(groups.values(), key=len):
             if len(group) == len(transitions):
                 break

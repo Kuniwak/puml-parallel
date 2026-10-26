@@ -100,6 +100,29 @@ class WalkTest(unittest.TestCase):
         self.assertEqual([(("a", (0,), ()), "go")], result.empty_posts)
         self.assertEqual([("a", (0,), ())], result.deadlocks)
 
+    def test_values_equal_in_python_but_of_other_kinds_are_other_states(self):
+        tests = {
+            "a number and a truth value": (1, True),
+            "an integer and a float": (1, 1.0),
+            "inside a tuple": ((1,), (True,)),
+            "as a key of a map": ({1: 0}, {True: 0}),
+            "inside a set": (frozenset({1}), frozenset({1.0})),
+        }
+        for name, (first, then) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(0))], edges=[
+                    edge("a", "a", "set?x", post=[eq("n'", "x")]),
+                ])
+                checks = Checks(types={"x": [first, then]})
+
+                # Execute
+                result = fixture.explorer(d, checks).run()
+
+                # Assert
+                self.assertEqual(3, len(result.states))
+                self.assertEqual(3, len(result.parents))
+
     def test_a_second_run_reports_what_the_first_did(self):
         # Setup
         d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[edge("a", "a", "go", post=[atom("$n' in ()")])])

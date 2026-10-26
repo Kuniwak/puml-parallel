@@ -15,7 +15,7 @@ instead.
 
 A ghost is a value the diagram does not keep - a running total, a count -
 that follows the events; an invariant is a predicate over the state
-variables and ghosts it reads. Values must be hashable (tuples, frozenset,
+variables and ghosts it reads. Values must be hashable (tuples, FrozenSet,
 FrozenMap); dicts, lists and sets are frozen into those. Nothing in the
 module may assign inside a function, loop with a statement, raise, read or
 write the outside world, or use floats, so that a check is deterministic;

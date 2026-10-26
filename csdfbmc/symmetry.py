@@ -43,14 +43,14 @@ from __future__ import annotations
 
 import ast
 import itertools
-from collections.abc import Mapping
+from collections.abc import Mapping, Set as AbstractSet
 
 from csdfbmc import formal
 from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
 from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, Lit, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import FrozenMap, Rec, freeze, same_value
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, freeze, same_value
 
 
 class Symmetry:
@@ -101,7 +101,7 @@ class Symmetry:
             return self._holds(v.fields)
         if isinstance(v, Mapping):
             return any(self._holds(k) or self._holds(x) for k, x in v.items())
-        if isinstance(v, (tuple, frozenset)):
+        if isinstance(v, (tuple, AbstractSet)):
             return any(self._holds(x) for x in v)
         return False
 
@@ -163,7 +163,7 @@ class Symmetry:
             return v if v in self.values else None
         if isinstance(v, Mapping):
             v = [x for kv in v.items() for x in kv]
-        if isinstance(v, (tuple, list, frozenset)):
+        if isinstance(v, (tuple, list, AbstractSet)):
             return next((i for i in map(self._named, v) if i is not None), None)
         return None
 
@@ -180,9 +180,9 @@ class Symmetry:
 
     def _check_types(self, checks: Checks) -> None:
         for t, values in checks.types.items():
-            held = set(values)
+            held = FrozenSet(values)
             for perm in self.perms:
-                if {rename(v, perm) for v in held} != held:
+                if FrozenSet(rename(v, perm) for v in held) != held:
                     raise ValueError(f"the values of {t!r} are not closed under renaming the symmetric IDs, so they are not interchangeable")
 
     def _check_atoms(self, d: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> None:
@@ -285,18 +285,18 @@ class Symmetry:
         none and are kept as they are."""
         self.check(state)
         sid, values, ghosts = state
-        return min(((sid, rename(values, p), ghosts) for p in self.perms), key=lambda s: _order_key(s[1]))
+        return min((Strict((sid, rename(values, p), ghosts)) for p in self.perms), key=lambda s: _order_key(s[1]))
 
 
 def rename(v, perm: dict):
     if isinstance(v, Rec):
         return Rec(v.state, rename(v.fields, perm))
     if isinstance(v, FrozenMap):
-        return FrozenMap({rename(k, perm): rename(x, perm) for k, x in v.items()})
+        return FrozenMap((rename(k, perm), rename(x, perm)) for k, x in v.items())
     if isinstance(v, tuple):
         return tuple(rename(x, perm) for x in v)
-    if isinstance(v, frozenset):
-        return frozenset(rename(x, perm) for x in v)
+    if isinstance(v, AbstractSet):
+        return FrozenSet(rename(x, perm) for x in v)
     if isinstance(v, str):
         return perm.get(v, v)
     return v
@@ -309,6 +309,6 @@ def _order_key(v):
         return (3, tuple(sorted((_order_key(k), _order_key(x)) for k, x in v.items())))
     if isinstance(v, tuple):
         return (4, tuple(_order_key(x) for x in v))
-    if isinstance(v, frozenset):
+    if isinstance(v, AbstractSet):
         return (5, tuple(sorted(_order_key(x) for x in v)))
     return (0, type(v).__name__, repr(v))

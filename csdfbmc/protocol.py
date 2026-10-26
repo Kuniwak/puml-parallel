@@ -63,10 +63,10 @@ import importlib
 import json
 import math
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap, unsigned_zero
+from csdfbmc.values import FrozenMap, FrozenSet, kind_key, unsigned_zero
 
 _TAGS = ("tuple", "set", "map")
 
@@ -86,7 +86,7 @@ def to_wire(value):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
         return {"tuple": [to_wire(v) for v in value]}
-    if isinstance(value, (set, frozenset)):
+    if isinstance(value, AbstractSet):
         # One order for any items, so that a set is always sent the same way.
         return {"set": sorted((to_wire(v) for v in value), key=lambda w: json.dumps(w, sort_keys=True, ensure_ascii=False))}
     raise TypeError(f"{value!r} is not a value the protocol carries: integers, finite floats, strings, booleans, null, tuples, sets and maps")
@@ -104,7 +104,7 @@ def from_wire(wire):
             if tag == "tuple":
                 return tuple(from_wire(v) for v in items)
             if tag == "set":
-                return frozenset(from_wire(v) for v in items)
+                return FrozenSet(from_wire(v) for v in items)
             if all(isinstance(kv, list) and len(kv) == 2 for kv in items):
                 return FrozenMap((from_wire(k), from_wire(v)) for k, v in items)
     raise ValueError(f"{wire!r} is not a value in the tagged encoding: a scalar, or one of {list(_TAGS)} as the only key")

@@ -21,6 +21,15 @@ HELLO = {"language": "fake", "protocol": 2}
 
 
 class WireEncodingTest(unittest.TestCase):
+    def test_a_set_or_map_from_the_wire_keeps_values_of_other_kinds_apart(self):
+        tests = {
+            "a set": ({"set": [1, True, 1.0]}, 3),
+            "a map": ({"map": [[1, "a"], [True, "b"], [1.0, "c"]]}, 3),
+        }
+        for name, (wire, want) in tests.items():
+            with self.subTest(name):
+                self.assertEqual(want, len(from_wire(wire)))
+
     def test_scalars_are_themselves(self):
         for v in (0, -3, "残高", True, False, None):
             with self.subTest(v=v):
