@@ -40,7 +40,8 @@ type Finding struct {
 
 // Replay walks a fresh session along r: the initial values, then every step.
 // It stops at the first step that does not match an outgoing transition or
-// whose values the solver refuses, leaving the session at the last state it
+// whose values EnterValues refuses (they do not fit the state, or the
+// session's suggester does not admit them), leaving the session at the last state it
 // reached, in command mode.
 func (s *Session) Replay(r Replay) error {
 	if s.Mode() != ModeValues || len(s.history) != 0 {

@@ -430,7 +430,10 @@ func TestHandleReplayReportsAStepThatCannotBeTaken(t *testing.T) {
 	}
 }
 
-type fakeSuggester struct{ values string }
+type fakeSuggester struct {
+	animation.NoSuggester
+	values string
+}
 
 func (f fakeSuggester) Initial() ([]animation.Suggestion, error) {
 	return []animation.Suggestion{{Values: []byte(f.values)}}, nil

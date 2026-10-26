@@ -32,9 +32,9 @@ type Pending struct {
 	Post   clause.And
 	Event  core.Event
 	Prev   *State
-	// edge is the index of the edge among Prev's outgoing ones; -1 for
-	// the start edge.
-	edge int
+	// Edge is the index of the edge among Prev's outgoing ones, as
+	// csdfbmc next --edge numbers it; -1 for the start edge.
+	Edge int
 }
 
 // Session is a single in-memory exploration of a diagram. It is not safe for
@@ -64,7 +64,7 @@ func NewSession(diagram *core.Diagram, suggester Suggester) (*Session, error) {
 			Target: targetOf(diagram, diagram.Init),
 			Post:   diagram.InitPost,
 			Event:  core.Event{Channel: core.Tau},
-			edge:   -1,
+			Edge:   -1,
 		},
 	}, nil
 }
@@ -98,14 +98,18 @@ func (s *Session) Trace() []string { return s.currentTrace() }
 // EnterValues binds the entered values, a JSON array in declaration order,
 // to the pending target's variables. On success it appends a history entry,
 // sets the current state, and switches to ModeCommand. Values that do not
-// fit the target are a *RefusedValuesError, and the session is unchanged;
-// any other error says the session is not awaiting values.
+// fit the target, or that the session's suggester does not admit
+// (Suggester.Admit), are a *RefusedValuesError, and the session is
+// unchanged; any other error says the session is not awaiting values.
 func (s *Session) EnterValues(encoded string) (State, error) {
 	if s.mode != ModeValues {
 		return State{}, errors.New("animation.Session.EnterValues: not awaiting values")
 	}
 	values, err := decodeValues(s.diagram, s.pending.Target, encoded)
 	if err != nil {
+		return State{}, err
+	}
+	if err := s.suggester.Admit(s.diagram, s.pending, values); err != nil {
 		return State{}, err
 	}
 	state := State{ID: s.pending.Target.ID, Name: s.pending.Target.Name, Values: values}
@@ -141,7 +145,7 @@ func (s *Session) Select(idx int) error {
 		Post:   edge.Post,
 		Event:  edge.Event,
 		Prev:   &prev,
-		edge:   idx,
+		Edge:   idx,
 	}
 	s.mode = ModeValues
 	return nil

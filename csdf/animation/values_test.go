@@ -106,3 +106,154 @@ func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 		})
 	}
 }
+
+// eqDiagram holds builtins over its variables alone, which Go decides
+// without a glue.
+const eqDiagram = `@startuml
+state "S" as s0
+s0: a
+s0: b
+s0: m
+[*] --> s0 : @eq(a', b') ∧ @empty(m')
+s0 --> s0 : tick ; @ne(a, b) ; @eq(a', a) ∧ @eq(m', m)
+@enduml
+`
+
+func TestEnterValuesWithoutACheckerRefusesValuesThatFalsifyABuiltin(t *testing.T) {
+	tests := map[string]struct {
+		prev   string
+		values string
+		want   string
+	}{
+		"@eq of the variables after the start edge": {
+			values: `[1, 2, {}]`,
+			want:   "the post does not hold of these values: @eq(a', b')",
+		},
+		"@empty of a map holding an entry": {
+			values: `[1, 1, {"x": 1}]`,
+			want:   "the post does not hold of these values: @empty(m')",
+		},
+		"a guard the previous state falsifies": {
+			prev:   `[1, 1, {}]`,
+			values: `[1, 0, {}]`,
+			want:   "the guard does not hold of these values: @ne(a, b)",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := newSession(t, eqDiagram)
+			if tt.prev != "" {
+				if _, err := session.EnterValues(tt.prev); err != nil {
+					t.Fatalf("Setup: EnterValues() error = %v", err)
+				}
+				if err := session.Select(0); err != nil {
+					t.Fatalf("Setup: Select() error = %v", err)
+				}
+			}
+
+			// Execute
+			_, err := session.EnterValues(tt.values)
+
+			// Assert
+			var refused *RefusedValuesError
+			if !errors.As(err, &refused) || refused.Error() != tt.want {
+				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestEnterValuesWithoutACheckerTakesWhatNoBuiltinFalsifies(t *testing.T) {
+	tests := map[string]struct {
+		source string
+		values string
+	}{
+		"values every builtin of the post holds of": {
+			source: eqDiagram,
+			values: `[1, 1, {}]`,
+		},
+		"an atom, which is not evaluated": {
+			source: twoStateDiagram,
+			values: `[5]`,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session := newSession(t, tt.source)
+
+			// Execute
+			_, err := session.EnterValues(tt.values)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("EnterValues() error = %v, want the values taken", err)
+			}
+		})
+	}
+}
+
+func TestEnterValuesWithoutACheckerSkipsABuiltinReadingAField(t *testing.T) {
+	// Setup
+	session := newSession(t, builtinsDiagram)
+	if _, err := session.EnterValues(`[{}, 0]`); err != nil {
+		t.Fatalf("Setup: EnterValues() error = %v", err)
+	}
+	if err := session.Select(0); err != nil {
+		t.Fatalf("Setup: Select() error = %v", err)
+	}
+
+	// Execute
+	_, err := session.EnterValues(`[{"7": 1}, 7]`)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("EnterValues() error = %v, want the values taken: put's builtins read its field x", err)
+	}
+}
+
+type admittingOnly struct {
+	NoSuggester
+	values string
+}
+
+func (a admittingOnly) Admit(_ *core.Diagram, _ Pending, values []Value) error {
+	return AmongSuggestions([]Suggestion{{Values: json.RawMessage(a.values)}}, values)
+}
+
+func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
+	tests := map[string]struct {
+		values  string
+		wantErr string
+	}{
+		"values the suggester admits":                    {values: `[{}, 0]`},
+		"the same values written otherwise":              {values: ` [ {} , 0.0 ] `},
+		"values the suggester does not admit":            {values: `[{}, 2]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
+		"a truth value where the suggester has a number": {values: `[{}, false]`, wantErr: "the checker admits none of these values; enter one of its suggestions"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session, err := NewSession(mustRead(t, builtinsDiagram), admittingOnly{values: `[{}, 0]`})
+			if err != nil {
+				t.Fatalf("Setup: NewSession() error = %v", err)
+			}
+
+			// Execute
+			_, err = session.EnterValues(tt.values)
+
+			// Assert
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("EnterValues() error = %v, want the values taken", err)
+				}
+				return
+			}
+			var refused *RefusedValuesError
+			if !errors.As(err, &refused) || refused.Error() != tt.wantErr {
+				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.wantErr)
+			}
+		})
+	}
+}

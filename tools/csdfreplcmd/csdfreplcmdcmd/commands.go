@@ -205,7 +205,7 @@ func parseStatevar() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd statevar", inout)
 		setLeafUsage(flags, "csdfreplcmd statevar -json <json-array> | -json-file <file> | -pick <n> [-s <id>]",
-			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -checks and a glue.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
+			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -checks and a glue.\n\nA daemon started with -checks refuses values csdfbmc next does not admit;\nwithout, values a builtin of the guard or the post (@eq, @ne, ...) is false of\nare refused, and atoms are not evaluated.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		var jsonText, jsonFile string

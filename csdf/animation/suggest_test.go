@@ -6,6 +6,7 @@ import (
 )
 
 type fakeSuggester struct {
+	NoSuggester
 	initial []Suggestion
 	next    map[int][]Suggestion
 	asked   []int

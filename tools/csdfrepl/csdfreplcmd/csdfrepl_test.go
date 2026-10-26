@@ -305,8 +305,8 @@ state "Initial" as s0
 	if err == nil {
 		t.Fatalf("runREPL() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "No solutions found") {
-		t.Errorf("runREPL() error = %v, want fatal error mentioning No solutions found", err)
+	if want := "interrupted before the initial state's values were entered"; !strings.Contains(err.Error(), want) {
+		t.Errorf("runREPL() error = %v, want fatal error saying %q", err, want)
 	}
 }
 
@@ -626,6 +626,7 @@ a --> b : stop ; $n = 0
 }
 
 type stubSuggester struct {
+	animation.NoSuggester
 	initial []animation.Suggestion
 	next    []animation.Suggestion
 }

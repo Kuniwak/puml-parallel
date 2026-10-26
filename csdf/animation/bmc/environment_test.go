@@ -183,7 +183,7 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 // parallel has two edges of one event between the same states, told apart
 // only by their posts; the index a session selects must be the one csdfbmc
 // next numbers the edge by.
-const parallel = "@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : @eq(n', 0)\ns0 --> s0 : tick ; ; $n' == 1\ns0 --> s0 : tick ; ; $n' == 2\n@enduml\n"
+const parallel = "@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : $n' == 0\ns0 --> s0 : tick ; ; $n' == 1\ns0 --> s0 : tick ; ; $n' == 2\n@enduml\n"
 
 func TestASelectedParallelEdgeIsTheOneCsdfbmcNumbersSo(t *testing.T) {
 	c := newChecker(t)
@@ -230,6 +230,63 @@ func TestASelectedParallelEdgeIsTheOneCsdfbmcNumbersSo(t *testing.T) {
 			}
 			if len(got) != 1 || string(got[0].Values) != tt.want {
 				t.Errorf("Suggest() = %v, want only %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestASessionTakesOnlyTheValuesCsdfbmcAdmits(t *testing.T) {
+	c := newChecker(t)
+	if err := os.WriteFile(c.checks, []byte("TYPES = {\"n\": [0, 1, 2]}\n"), 0o644); err != nil {
+		t.Fatalf("Setup: %v", err)
+	}
+	tests := map[string]struct {
+		values  string
+		wantErr string
+	}{
+		"the value the selected edge's post admits": {values: "[2]"},
+		"the value the other parallel edge's post admits": {
+			values:  "[1]",
+			wantErr: "the checker admits none of these values; enter one of its suggestions",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			checker := bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue"}
+			s, cleanup, err := bmc.ForSource([]byte(parallel), checker, c.run(t))
+			if err != nil {
+				t.Fatalf("Setup: ForSource() error = %v", err)
+			}
+			defer cleanup()
+			d, err := animation.ReadDiagram([]byte(parallel), nil)
+			if err != nil {
+				t.Fatalf("Setup: ReadDiagram() error = %v", err)
+			}
+			session, err := animation.NewSession(d, s)
+			if err != nil {
+				t.Fatalf("Setup: NewSession() error = %v", err)
+			}
+			if _, err := session.EnterValues("[0]"); err != nil {
+				t.Fatalf("Setup: EnterValues() error = %v", err)
+			}
+			if err := session.Select(1); err != nil {
+				t.Fatalf("Setup: Select() error = %v", err)
+			}
+
+			// Execute
+			_, err = session.EnterValues(tt.values)
+
+			// Assert
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("EnterValues() error = %v, want the values taken", err)
+				}
+				return
+			}
+			var refused *animation.RefusedValuesError
+			if !errors.As(err, &refused) || refused.Error() != tt.wantErr {
+				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.wantErr)
 			}
 		})
 	}

@@ -1073,8 +1073,13 @@ post of the pending transition as the clause printer writes them, and an
 empty clause as `(none)`.
 
 For each state, enter its variable values as a JSON array in declaration order.
-`csdfrepl` checks that they fit the state, but does not evaluate guards or
-posts; `-checks` (below) does. JSON `null` is not accepted. A map of a
+`csdfrepl` checks that they fit the state and, without `-checks`, that no
+builtin of the guard or the post (`@eq`, `@ne`, `@in`, `@notin`, `@empty`,
+`@update`, `@frame`, `@at`) is false of them and the previous state's values;
+a builtin reading an event's field or an environment function is left
+alone, and atoms are not evaluated, for only a glue reads them. With
+`-checks` (below), the values must be ones `csdfbmc next` admits for the
+pending transition. JSON `null` is not accepted. A map of a
 family's instances (in an expansion) is a JSON object from IDs to
 `{"at": <state>, "fields": {...}}`, as `csdfbmc` writes it: `at` is a state of
 the family other than its start state (absence, written by leaving the entry

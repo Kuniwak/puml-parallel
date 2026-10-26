@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
 // Suggestion is one set of values a checker says the pending post admits:
@@ -18,11 +20,14 @@ type Suggestion struct {
 
 // Suggester answers what a value prompt may ask a checker: the values the
 // start state admits, and the values after the idx-th outgoing transition of
-// a state. An error is the checker's, and a REPL shows it and goes on
-// without suggestions.
+// a state; an error is the checker's, and a REPL shows it and goes on
+// without suggestions. Admit refuses, with a *RefusedValuesError, values
+// entered for the pending transition p of a session of d that the checker
+// does not admit.
 type Suggester interface {
 	Initial() ([]Suggestion, error)
 	Next(from State, idx int) ([]Suggestion, error)
+	Admit(d *core.Diagram, p Pending, values []Value) error
 }
 
 // ErrNoSuggester is what NoSuggester answers: no checker was given to ask.
@@ -30,8 +35,13 @@ type Suggester interface {
 var ErrNoSuggester = errors.New("no checker was given to suggest values")
 
 // NoSuggester is the Suggester of a session no checker was given: it
-// suggests nothing, answering every question with ErrNoSuggester.
+// suggests nothing, answering every question with ErrNoSuggester, and
+// admits what AdmitByBuiltins admits.
 type NoSuggester struct{}
+
+func (NoSuggester) Admit(d *core.Diagram, p Pending, values []Value) error {
+	return AdmitByBuiltins(d, p, values)
+}
 
 func (NoSuggester) Initial() ([]Suggestion, error)        { return nil, ErrNoSuggester }
 func (NoSuggester) Next(State, int) ([]Suggestion, error) { return nil, ErrNoSuggester }
@@ -59,7 +69,7 @@ func (s *Session) Suggest() ([]Suggestion, error) {
 	if s.pending.Prev == nil {
 		return s.suggester.Initial()
 	}
-	return s.suggester.Next(*s.pending.Prev, s.pending.edge)
+	return s.suggester.Next(*s.pending.Prev, s.pending.Edge)
 }
 
 // RenderSuggestions renders what the checker admits, numbered so that a

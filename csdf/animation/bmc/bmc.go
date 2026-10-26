@@ -131,6 +131,23 @@ func (s *Suggester) Next(from animation.State, idx int) ([]animation.Suggestion,
 	return s.ask("--state", string(state), "--edge", strconv.Itoa(idx))
 }
 
+// Admit refuses values csdfbmc next does not list among the successors of
+// p (animation.AmongSuggestions). A checker that fails refuses them too,
+// saying why, for nothing then admits them.
+func (s *Suggester) Admit(_ *core.Diagram, p animation.Pending, values []animation.Value) error {
+	var suggestions []animation.Suggestion
+	var err error
+	if p.Prev == nil {
+		suggestions, err = s.Initial()
+	} else {
+		suggestions, err = s.Next(*p.Prev, p.Edge)
+	}
+	if err != nil {
+		return &animation.RefusedValuesError{Reason: fmt.Sprintf("the checker could not check the values: %v", err)}
+	}
+	return animation.AmongSuggestions(suggestions, values)
+}
+
 func (s *Suggester) ask(args ...string) ([]animation.Suggestion, error) {
 	stdout, err := s.run(append(s.checker.NextArgs(s.diagram), args...))
 	if err != nil {

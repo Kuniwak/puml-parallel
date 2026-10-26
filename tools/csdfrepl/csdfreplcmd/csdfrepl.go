@@ -286,7 +286,7 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 		}
 		if outcome == inputInterrupt {
 			if len(r.session.History()) == 0 {
-				return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: No solutions found")
+				return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: interrupted before the initial state's values were entered")
 			}
 			if err := r.session.Back(); err != nil {
 				return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)

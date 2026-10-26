@@ -42,6 +42,12 @@ array in declaration order. A map of a family's instances is a JSON object
 from IDs to {"at": <state>, "fields": {...}}, at a state of the family other
 than its start state and with exactly that state's variables as fields.
 
+Without -checks, values a builtin of the guard or the post (@eq, @ne, @in,
+@notin, @empty, @update, @frame, @at) is false of, with the previous state's
+values, are refused; a builtin reading an event's field or an environment
+function is left alone, and atoms are not evaluated, for only a glue reads
+them. With -checks, values csdfbmc next does not admit are refused.
+
 With -replay, the session first walks the path csdfbmc --json recorded under
 one of its findings (-finding picks which, numbered from 0 in the order the
 output lists them: deadlocks, tau cycles, broken invariants, avoiding cycles,
