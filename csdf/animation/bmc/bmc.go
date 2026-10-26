@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
@@ -43,16 +42,6 @@ type Binding struct {
 
 // String is the binding as --env takes it.
 func (b Binding) String() string { return b.Name + "=" + strconv.FormatBool(b.Value) }
-
-// ParseBinding reads NAME=true or NAME=false as csdfbmc reads --env: the
-// name is everything before the last "=", and must not be empty.
-func ParseBinding(word string) (Binding, error) {
-	i := strings.LastIndex(word, "=")
-	if i <= 0 || (word[i+1:] != "true" && word[i+1:] != "false") {
-		return Binding{}, fmt.Errorf("-env expects NAME=true or NAME=false, not %q", word)
-	}
-	return Binding{Name: word[:i], Value: word[i+1:] == "true"}, nil
-}
 
 // Asks reports whether the Checker is set, so that value prompts suggest.
 func (c Checker) Asks() bool { return c.Checks != "" }

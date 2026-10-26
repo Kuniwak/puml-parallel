@@ -153,42 +153,6 @@ func TestCheckerArgsOfNextCarryTheEnvironment(t *testing.T) {
 	}
 }
 
-func TestParseBinding(t *testing.T) {
-	tests := map[string]struct {
-		word    string
-		want    bmc.Binding
-		wantErr bool
-	}{
-		"true":                {word: "$_0 が 正=true", want: bmc.Binding{Name: "$_0 が 正", Value: true}},
-		"false":               {word: "f=false", want: bmc.Binding{Name: "f", Value: false}},
-		"a name holding =":    {word: "a=b=true", want: bmc.Binding{Name: "a=b", Value: true}},
-		"no value":            {word: "f", wantErr: true},
-		"no name":             {word: "=true", wantErr: true},
-		"not a truth value":   {word: "f=maybe", wantErr: true},
-		"a capitalised value": {word: "f=True", wantErr: true},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Execute
-			got, err := bmc.ParseBinding(tt.word)
-
-			// Assert
-			if tt.wantErr {
-				if err == nil || !strings.Contains(err.Error(), "expects NAME=true or NAME=false") {
-					t.Fatalf("ParseBinding(%q) = %v, %v; want csdfbmc's refusal", tt.word, got, err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != tt.want {
-				t.Errorf("ParseBinding(%q) = %+v, want %+v", tt.word, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestCheckerReproducesTheEnvironmentOfAReport(t *testing.T) {
 	glue := bmc.Checker{Checks: "c.py", EvaluatorModule: "g"}
 	with := func(s *int, env ...bmc.Binding) bmc.Checker {
