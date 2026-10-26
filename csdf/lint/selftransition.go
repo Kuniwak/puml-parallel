@@ -51,19 +51,20 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 			Severity:  SeverityHint,
 			Message: fmt.Sprintf(
 				"State `%s` has a self-transition on `%s` guarded by `%s` whose post `%s` does not keep %s, which the guard reads, so the guard may be false after the step. Assume the guard holds, apply the post, and evaluate the guard again: if it can be false, `%[1]s` is two states - the one where the guard holds and the one after the post - and the edge should go to a second state. If the guard always holds again, keep what it reads with @eq(v', v) in the post, or leave the loop as it is.",
-				edge.Src, edge.Event.Label(), printed(edge.Guard), printed(edge.Post), quotedList(loose),
+				edge.Src, edge.Event.Label(), printed(edge.Guard), printed(edge.Post), quoted(loose, ", "),
 			),
 		})
 	}
 	return findings
 }
 
-func quotedList(names []string) string {
-	quoted := make([]string, len(names))
+// quoted is names each in backquotes, joined by sep.
+func quoted(names []string, sep string) string {
+	q := make([]string, len(names))
 	for i, n := range names {
-		quoted[i] = "`" + n + "`"
+		q[i] = "`" + n + "`"
 	}
-	return strings.Join(quoted, ", ")
+	return strings.Join(q, sep)
 }
 
 // printed is f as the clause syntax writes it. A formula the reader read

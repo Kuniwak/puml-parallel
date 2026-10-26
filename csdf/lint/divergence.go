@@ -3,7 +3,6 @@ package lint
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
@@ -55,17 +54,9 @@ func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
 			Severity:  SeverityWarn,
 			Message: fmt.Sprintf(
 				"The tau edge `%s` -> `%s` lies on the cycle of tau edges %s, which the start reaches, and its guard is not false on its face, so the diagram may diverge: the cycle may run forever while nothing observable happens. If it cannot, prove the diagram livelock-free with csdflivelockfree; if it can, write a guard that excludes it, or make one of its edges observable.",
-				e.Src, e.Dst, quotedPath(cycle),
+				e.Src, e.Dst, quoted(cycle, " -> "),
 			),
 		})
 	}
 	return findings
-}
-
-func quotedPath(states []string) string {
-	quoted := make([]string, len(states))
-	for i, s := range states {
-		quoted[i] = "`" + s + "`"
-	}
-	return strings.Join(quoted, " -> ")
 }
