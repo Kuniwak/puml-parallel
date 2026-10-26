@@ -266,7 +266,7 @@ func TestAmongSuggestionsComparesValuesAsLiterals(t *testing.T) {
 		admitted           bool
 	}{
 		"0.0 is 0.0":                    {suggested: `[0.0]`, entered: "0.0", admitted: true},
-		"negative zero is no value":     {suggested: `[0.0]`, entered: "-0.0", admitted: false},
+		"negative zero is zero":         {suggested: `[0.0]`, entered: "-0.0", admitted: true},
 		"a float written otherwise":     {suggested: `[1.5]`, entered: "15e-1", admitted: true},
 		"an integer beyond the floats":  {suggested: `[12345678901234567890]`, entered: "12345678901234567891", admitted: false},
 		"an object of the same entries": {suggested: `[{"a": 1, "b": 2}]`, entered: `{"b": 2, "a": 1}`, admitted: true},

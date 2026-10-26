@@ -477,16 +477,20 @@ JSON values without null: integers (any integer, not bounded by a machine
 word), floats, strings (Unicode), the truth values `true` and `false`,
 arrays (ordered lists, not tuples) and objects (records from string keys).
 
-- A float is a finite IEEE 754 binary64 that is not negative zero. NaN and
+- A float is a finite IEEE 754 binary64, and its zero has no sign. NaN and
   the infinities cannot be written in JSON, and a literal beyond the largest
-  float is refused rather than rounded to one; negative zero is refused too,
-  since telling it from zero would make equality on floats differ from
-  equality of numbers, and identifying it with zero would make one value
-  have two encodings.
+  float is refused rather than rounded to one. Negative zero is read as
+  zero wherever it enters: the literals `-0.0`, `-0e5` and `-1e-400` are
+  `0.0`, the integer `-0` is `0`, and a glue's `-0.0` is `0.0` on receipt.
+  Refusing it would refuse glues for what they produce routinely (`-x` for
+  `x = 0.0`); IEEE 754 already takes `-0.0 == +0.0`; and with no
+  arithmetic and no infinities in the language, nothing can observe the
+  sign of zero, so reading it as zero loses nothing and keeps one value to
+  one encoding.
 - Equality on values is structural: two values are equal when they are of
   one kind and their parts are equal. A number with a point or an exponent
   is a float, any other an integer, so `1` and `1.0` are two values, and a
-  truth value is no number. With negative zero and NaN gone, two floats are
+  truth value is no number. With one zero and no NaN, two floats are
   equal exactly when they are equal numbers. Python takes `1 == 1.0` and
   `True == 1`; csdfbmc and every glue compare kinds first.
 - A literal is held as its canonical JSON text (`clause.Lit`), so two

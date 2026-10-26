@@ -60,7 +60,7 @@ class Lit:
     """A literal (docs/CLAUSE_DESIGN.md, Literals), held as its canonical
     JSON text: two literals are one value exactly when their texts are
     equal, so 1 is not 1.0 nor true, though Python takes each pair for
-    equal. No literal is negative zero."""
+    equal. Negative zero is read as zero."""
     text: str
 
     @property
@@ -80,8 +80,6 @@ def literal(value) -> Lit:
             raise ValueError(f"a literal holds the float {v!r}, which is not finite")
         if isinstance(v, str) and any(0xD800 <= ord(c) <= 0xDFFF for c in v):
             raise ValueError(f"a literal holds {v!r}, a lone surrogate, which is no character")
-        if isinstance(v, float) and v == 0 and math.copysign(1, v) < 0:
-            raise ValueError("a literal holds negative zero, which is no value")
         if isinstance(v, list):
             for x in v:
                 check(x)
@@ -92,7 +90,19 @@ def literal(value) -> Lit:
         elif not isinstance(v, (bool, int, float, str, dict, list)):
             raise ValueError(f"a literal holds {v!r}, which is no JSON value")
     check(value)
-    return Lit(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")))
+    return Lit(json.dumps(_positive_zero(value), sort_keys=True, ensure_ascii=False, separators=(",", ":")))
+
+
+def _positive_zero(v):
+    """v with every negative zero in it read as zero, from which nothing in
+    the language can tell it (docs/CLAUSE_DESIGN.md, Literals)."""
+    if isinstance(v, float):
+        return v + 0.0
+    if isinstance(v, list):
+        return [_positive_zero(x) for x in v]
+    if isinstance(v, dict):
+        return {k: _positive_zero(x) for k, x in v.items()}
+    return v
 
 
 Term = Free | Bound | Index | Field | App | Lit

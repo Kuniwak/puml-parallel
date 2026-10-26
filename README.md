@@ -86,7 +86,7 @@ variable it binds is the term `{"kind": "bound", "index": 0}`. A term is
 `free` (`name`, `primed`), `bound`, `index` (`map`, `key`), `field` (`of`,
 `name`), `app` (`fn`, `args`) or `lit` (`value`, the JSON value of a literal
 in its canonical form: a number with a point or an exponent is a float, any
-other an integer of any size, and no value is null or negative zero;
+other an integer of any size, no value is null, and negative zero is written as zero;
 docs/SYNTAX.md). An edge's `label` and an atom's `text`,
 `primed` and `function` (the name of the environment function it denotes)
 are derived from the rest, for a program that hands atoms to a glue. A

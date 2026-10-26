@@ -91,8 +91,8 @@ LEFT_OUT = _LeftOut()
 
 def same_value(a, b) -> bool:
     """Whether two values are one value: of one kind as well as equal, so
-    that 1 is not True nor 1.0, all the way into containers. A float is
-    never negative zero (docs/CLAUSE_DESIGN.md, Literals), so floats are
+    that 1 is not True nor 1.0, all the way into containers. A float's
+    zero has no sign (docs/CLAUSE_DESIGN.md, Literals), so floats are
     compared as numbers."""
     if type(a) is not type(b):
         return False

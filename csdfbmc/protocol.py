@@ -45,7 +45,8 @@ position, which a glue never sees (docs/CLAUSE_DESIGN.md, control state).
 A number with a point or an exponent is a float and any other an integer,
 of any size: 1 and 1.0 are two values, which a glue keeps apart
 (docs/CLAUSE_DESIGN.md, Literals). NaN and the infinities, which JSON
-cannot write, and negative zero are no values.
+cannot write, are no values; negative zero, which a glue may well compute
+(as -x for x = 0.0), is read as zero on either side.
 
 hello comes first and agrees on the protocol for the rest of the session: a
 glue refuses a request before it and a hello asking a protocol it does not
@@ -74,8 +75,8 @@ PROTOCOL = 2
 
 
 def _a_float(f: float) -> bool:
-    """Whether f is a float a value may be: finite, and not negative zero."""
-    return math.isfinite(f) and not (f == 0 and math.copysign(1, f) < 0)
+    """Whether f is a float a value may be: finite."""
+    return math.isfinite(f)
 
 
 def to_wire(value):
@@ -84,8 +85,8 @@ def to_wire(value):
         return value
     if isinstance(value, float):
         if not _a_float(value):
-            raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite, and not negative zero")
-        return value
+            raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite")
+        return value + 0.0
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
@@ -101,7 +102,7 @@ def from_wire(wire):
     if wire is None or isinstance(wire, (bool, int, str)):
         return wire
     if isinstance(wire, float) and _a_float(wire):
-        return wire
+        return wire + 0.0
     if isinstance(wire, dict) and len(wire) == 1:
         (tag, items), = wire.items()
         if tag in _TAGS and isinstance(items, list):

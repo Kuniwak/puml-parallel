@@ -2,6 +2,7 @@
 in a tagged JSON encoding, since JSON has no tuples, sets or maps with keys
 other than strings."""
 import gc
+import math
 import io
 import json
 import os
@@ -61,11 +62,17 @@ class WireEncodingTest(unittest.TestCase):
                 self.assertTrue(same_value(v, got))
         self.assertIs(int, type(from_wire(json.loads(json.dumps(to_wire(1))))))
 
+    def test_negative_zero_is_read_as_zero(self):
+        for got in (from_wire(-0.0), to_wire(-0.0), from_wire({"tuple": [-0.0]})[0]):
+            with self.subTest(got=got):
+                self.assertIs(float, type(got))
+                self.assertEqual(1.0, math.copysign(1, got))
+
     def test_a_value_outside_the_model_is_refused(self):
-        for v in (float("nan"), float("inf"), -float("inf"), -0.0, object()):
+        for v in (float("nan"), float("inf"), -float("inf"), object()):
             with self.subTest(v=v), self.assertRaises(TypeError):
                 to_wire(v)
-        for wire in (float("nan"), float("inf"), -0.0):
+        for wire in (float("nan"), float("inf"), -float("inf")):
             with self.subTest(wire=wire), self.assertRaises(ValueError):
                 from_wire(wire)
 

@@ -20,8 +20,8 @@ import (
 // value exactly when their texts are equal. An integer is any integer,
 // written in decimal; a float is a finite IEEE 754 binary64, written
 // shortest with a point or an exponent, so that 1 and 1.0 are two values,
-// and never negative zero, which is refused, so that two floats are one
-// value exactly when they are equal numbers; a string is written with its characters as they
+// and never negative zero, which is read as zero, so that two floats are
+// one value exactly when they are equal numbers; a string is written with its characters as they
 // are, but for those a clause or its edge reads as syntax, which are
 // escaped; an array keeps its order; an object has its keys sorted.
 type Lit struct{ Text string }
@@ -177,9 +177,6 @@ func canonicalNumber(text string, float bool) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%s is no integer", text)
 		}
-		if n.Sign() == 0 && strings.HasPrefix(text, "-") {
-			return "", fmt.Errorf("%s is negative zero, which is no value; write 0", text)
-		}
 		return n.String(), nil
 	}
 	f, err := strconv.ParseFloat(text, 64)
@@ -189,15 +186,16 @@ func canonicalNumber(text string, float bool) (string, error) {
 	if err != nil && !errors.Is(err, strconv.ErrRange) {
 		return "", fmt.Errorf("%s is no float: %w", text, err)
 	}
-	if f == 0 && math.Signbit(f) {
-		return "", fmt.Errorf("%s is negative zero, which is no value; write 0.0", text)
-	}
 	return CanonicalFloat(f), nil
 }
 
-// CanonicalFloat is the canonical text of the finite float f, which is not
-// negative zero: shortest, with a point or an exponent.
+// CanonicalFloat is the canonical text of the finite float f: shortest,
+// with a point or an exponent, and negative zero written as zero, from
+// which nothing in the language can tell it.
 func CanonicalFloat(f float64) string {
+	if f == 0 {
+		f = 0
+	}
 	s := strconv.FormatFloat(f, 'g', -1, 64)
 	if !strings.ContainsAny(s, ".e") {
 		s += ".0"
@@ -205,8 +203,8 @@ func CanonicalFloat(f float64) string {
 	return s
 }
 
-// FloatParts is the canonical form of the finite float f, which is not negative
-// zero: f = (-1)^neg · sig · 2^exp with sig odd, or sig and exp 0 for zero.
+// FloatParts is the canonical form of the finite float f: f = (-1)^neg · sig
+// · 2^exp with sig odd, or neg false and sig and exp 0 for either zero.
 // Every such float has one, so two floats are one exactly when their forms
 // are.
 func FloatParts(f float64) (neg bool, sig uint64, exp int) {
@@ -452,9 +450,6 @@ func CanonicalValue(v any) (string, error) {
 	case float64:
 		if math.IsNaN(v) || math.IsInf(v, 0) {
 			return "", fmt.Errorf("clause.CanonicalValue: %v is no finite float", v)
-		}
-		if v == 0 && math.Signbit(v) {
-			return "", fmt.Errorf("clause.CanonicalValue: negative zero is no value")
 		}
 		return CanonicalFloat(v), nil
 	case int:

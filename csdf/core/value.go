@@ -62,8 +62,8 @@ func Key(v Value) string {
 	switch v.(type) {
 	case float64, json.Number:
 		if err != nil {
-			// A number with no literal form - NaN, an infinity or
-			// negative zero - is refused where it enters; one here is a
+			// A number with no literal form - NaN or an infinity - is
+			// refused where it enters; one here is a
 			// bug, which no key may hide.
 			panic(fmt.Sprintf("core.Key: %v", err))
 		}

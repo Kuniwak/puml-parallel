@@ -243,7 +243,7 @@ term     = literal
          / name ["'"] *("[" term "]" / "." name) ["'"]
          / name "(" [term *(", " term)] ")" ; an environment function
 name     = id                            ; not starting with a digit, not true, false or null
-literal  = <a JSON value (RFC 8259) other than null and negative zero>
+literal  = <a JSON value (RFC 8259) other than null>
 holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 ```
 
@@ -252,9 +252,9 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
   (`"在庫"`, with JSON's escapes), `true`, `false`, an array (`[1, "a"]`,
   ordered) or an object (`{"a": 1}`, a record from string keys). `null` is
   no value. A float is an IEEE 754 binary64: it is rounded to the nearest
-  one, and one beyond the largest (`1e400`), negative zero (`-0.0`, `-0`,
-  `-0e5`, or a negative number rounded to zero) and NaN or the infinities,
-  which JSON cannot write, are refused.
+  one, and one beyond the largest (`1e400`) and NaN or the infinities,
+  which JSON cannot write, are refused. Negative zero (`-0.0`, `-0e5`, or a
+  negative number rounded to zero) is read as `0.0`, and `-0` as `0`.
 - Literals are equal when they are the same value: `1` and `1.0` are two
   values, an integer and a float, and `"1"` and `true` are neither; two
   floats are equal when they are the same number. An object's key order and
