@@ -82,7 +82,12 @@ func Parse(content string) (*Diagram, error) {
 // parseAt parses the source and tags a failure with the position the parser
 // stopped at.
 func parseAt(source string) (*Diagram, error) {
-	p := NewParser(source)
+	return NewParser(source).ParseAt()
+}
+
+// ParseAt parses as Parse does and tags a failure with the position the
+// parser stopped at, as a *ParseError.
+func (p *Parser) ParseAt() (*Diagram, error) {
 	diagram, err := p.Parse()
 	if err != nil {
 		return nil, &ParseError{Line: p.line, Col: p.col, err: err}
