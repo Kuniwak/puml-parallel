@@ -1,7 +1,6 @@
 package csdfpromotecmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,7 +9,6 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/csdf/promote"
 	"github.com/Kuniwak/puml-parallel/tools"
 	"github.com/Kuniwak/puml-parallel/version"
 )
@@ -23,10 +21,6 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if opts.Common.Version {
 			fmt.Fprintln(inout.Stdout, version.Version)
 			return nil
-		}
-		// -json prints the directives as csdf/promote parses them.
-		if opts.JSON {
-			return mainJSON(opts, inout)
 		}
 		return mainFormula(opts, inout)
 	}
@@ -101,18 +95,6 @@ func report(w io.Writer, warnings []core.Warning, werror bool) error {
 	}
 	if werror && warned {
 		return errors.New("the promotion has warnings and -Werror is set")
-	}
-	return nil
-}
-
-// mainJSON prints the directives as csdf/promote parses them (-json).
-func mainJSON(opts *Options, inout *cli.ProcInout) error {
-	global, err := promote.ParseGlobalBytes(opts.Bytes)
-	if err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-	}
-	if err := json.NewEncoder(inout.Stdout).Encode(global); err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: writing JSON: %w", err)
 	}
 	return nil
 }

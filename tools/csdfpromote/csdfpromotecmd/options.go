@@ -43,12 +43,10 @@ type Options struct {
 	Common *tools.CommonOptions
 	// Base is what an !include path is resolved against: the directory the
 	// input was read from, or the working directory when it came from stdin.
-	Base       string
-	Template   string
-	NoComments bool
-	Werror     bool
-	LintOnly   bool
-	JSON       bool
+	Base     string
+	Template string
+	Werror   bool
+	LintOnly bool
 	// Only names the families the expansion keeps, by map; empty keeps them
 	// all.
 	Only   []string
@@ -96,7 +94,6 @@ examples/promote/templates/ja.tmpl).
 (core.DiagramDoc, version 2), with the local states of each family and the
 variables each holds, which an instance in the map is: the shape csdfbmc
 reads. -template is refused with it.
--json prints the directives as parsed.
 
 Options:
 `)
@@ -116,10 +113,8 @@ Examples:
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
 		base := flags.String("base", "", "directory to resolve !include paths against (default: the directory of the input file)")
 		templatePath := flags.String("template", "", "file of templates glossing the builtins of each edge in a line comment (default: none)")
-		noComments := flags.Bool("no-comments", false, "omit the line comment that says where each generated edge came from (-format json)")
 		werror := flags.Bool("Werror", false, "treat warnings as errors")
 		lintOnly := flags.Bool("lint-only", false, "check the directives without printing the expansion")
-		asJSON := flags.Bool("json", false, "print the parsed directives as JSON instead of expanding them")
 		only := flags.String("only", "", "comma-separated families to keep, each named by its map (default: all)")
 		var format string
 		flags.StringVar(&format, "format", OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program such as csdfbmc, as csdfparse prints a diagram)")
@@ -158,17 +153,15 @@ Examples:
 		}
 
 		return &Options{
-			Common:     commonOpts,
-			Base:       resolved,
-			Template:   *templatePath,
-			NoComments: *noComments,
-			Werror:     *werror,
-			LintOnly:   *lintOnly,
-			JSON:       *asJSON,
-			Only:       splitList(*only),
-			Output:     output,
-			Args:       args,
-			Bytes:      bs,
+			Common:   commonOpts,
+			Base:     resolved,
+			Template: *templatePath,
+			Werror:   *werror,
+			LintOnly: *lintOnly,
+			Only:     splitList(*only),
+			Output:   output,
+			Args:     args,
+			Bytes:    bs,
 		}, nil
 	}
 }

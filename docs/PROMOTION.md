@@ -371,9 +371,7 @@ Output
 Plain Composable State Diagram syntax: the directives, the `!include`s, the
 notes but the `assume` ones, and the preprocessor lines are gone, and the
 composite states are flattened into ordinary ones. Hand-written states and edges are kept as they
-were, and every edge is printed in the canonical order. A line comment above
-each generated edge names the local edge it came from; `-no-comments` leaves
-them out.
+were, and every edge is printed in the canonical order.
 
 The expanded form is **not** drawn. It is one state with a bundle of self-loops,
 which is unreadable and slow to lay out. A repository whose CI expects a sibling

@@ -77,17 +77,21 @@ func TestNewMainFunc(t *testing.T) {
 		wantNoStdout    []string
 		wantStderr      string
 	}{
-		"-no-comments leaves the origins out": {
-			args:         []string{"-no-comments", accountsPath},
-			wantNoStdout: []string{"' promote:"},
+		"-no-comments is refused as an unknown flag": {
+			args:            []string{"-no-comments", accountsPath},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "flag provided but not defined: -no-comments",
 		},
 		"-lint-only prints nothing": {
 			args:            []string{"-lint-only", accountsPath},
 			wantStdoutEmpty: true,
 		},
-		"-json reports the directives": {
-			args:       []string{"-json", accountsPath},
-			wantStdout: []string{`"map":"accounts"`},
+		"-json is refused as an unknown flag": {
+			args:            []string{"-json", accountsPath},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "flag provided but not defined: -json",
 		},
 		"-format json prints the expansion as csdfparse prints a diagram": {
 			args:         []string{"-format", "json", accountsPath},
