@@ -1008,8 +1008,10 @@ so in a line naming the reductions used (`reduced by --cone: …`, and
 `--por` walks fewer states and finds the same, by partial-order
 reduction. An entry `m[k]` of a map is told from the map as a whole, so an
 edge moves the instance of `m` at its field `p` alone when every name it
-reads or writes is `m` or a field it receives, it writes `m` and nothing
-else, and every `m` it names is `m[p]`, `m'[p]`, the membership of `p` or
+reads or writes is `m` or a field it receives, it writes `m` and keeps
+every other variable of its state by a frame `@eq(x', x)` (a variable its
+post does not name ranges over its type, and so is written), and every `m`
+it names is `m[p]`, `m'[p]`, the membership of `p` or
 `@frame(m', m, p)`. In a control state whose edges are all self-loops and
 none `tau`, the instances of `m` move independently when every edge writing
 `m` moves one alone and updates no ghost, and no other edge, invariant or

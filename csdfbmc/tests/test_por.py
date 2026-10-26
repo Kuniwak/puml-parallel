@@ -37,6 +37,21 @@ class IndependenceTest(unittest.TestCase):
         self.assertEqual(fixture.findings(full), fixture.findings(reduced))
         self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))
 
+    def test_an_instance_moves_alone_when_the_other_variables_are_framed(self):
+        # Setup
+        d = dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
+                 edges=[with_post(OPEN, eq("n'", "n")), with_post(CLOSE, eq("n'", "n"))])
+        checks = Checks(types=dict(IDS, n=[0, 1, 2]), invariants={"small": lambda n: n < 1})
+
+        # Execute
+        full = fixture.explorer(d, checks).run()
+        reduced = fixture.explorer(d, checks, por=True).run()
+
+        # Assert
+        self.assertLess(len(reduced.states), len(full.states))
+        self.assertEqual(fixture.findings(full), fixture.findings(reduced))
+        self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))
+
     def test_what_ties_the_instances_together_keeps_every_transition(self):
         others = {"count": [0]}
         tests = {
@@ -52,6 +67,9 @@ class IndependenceTest(unittest.TestCase):
             "an edge that moves the map and a variable": (
                 dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
                      edges=[with_post(OPEN, eq("n'", "n")), with_post(CLOSE, atom("$n' == $n"))]), Checks(types=dict(IDS, **others))),
+            "an edge whose post leaves another variable to range over its type": (
+                dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")]),
+                Checks(types=dict(IDS, n=[0, 1, 2]), invariants={"small": lambda n: n < 1})),
         }
         for name, (d, checks) in tests.items():
             with self.subTest(name):
@@ -106,5 +124,4 @@ class SameFindingsTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(fixture.findings(full), fixture.findings(reduced))
-                self.assertEqual(set(full.deadlocks) <= set(full.states), set(reduced.deadlocks) <= set(full.states))
-                self.assertEqual({s[0] for s in full.deadlocks}, {s[0] for s in reduced.deadlocks})
+                self.assertEqual(set(full.deadlocks), set(reduced.deadlocks))

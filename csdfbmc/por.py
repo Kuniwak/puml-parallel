@@ -4,9 +4,12 @@ independently of everything else (docs/CLAUSE_DESIGN.md, Q1 and O9).
 
 What a clause reads and writes is its free names, and an entry m[k] of a
 map is told from the map as a whole, so the instances of a family are told
-apart without a glue. An edge moves the instance of m at its field p alone
-when every name its guard and post read or write is m or a field it
-receives, its post writes m and nothing else, and every m it names is
+apart without a glue. A variable of its state that a post
+does not name ranges over its type (csdfbmc.formula.solve), so the post
+writes it too; only a frame @eq(x', x) keeps it. An edge moves the
+instance of m at its field p alone when its post writes m and frames every
+other variable of its state, every name its guard and the rest of its post
+read or write is m or a field it receives, and every m they name is
 m[p] or m'[p], or p in the membership @in/@notin(p, m) or @notin(p, m'),
 or @frame(m', m, p). A map m is independent in a control state g when
 
@@ -70,14 +73,42 @@ def _only_at(clause, m: str, p: str) -> bool:
     return all(conjunct(c) for c in clause)
 
 
-def own_key(e: Edge, m: str) -> str | None:
-    """The field of e whose instance of m it moves alone; None when it
-    moves no instance alone."""
-    names = free_names(e.guard) | free_names(e.post)
-    if primed_roots(e.post) != {m} or not names <= {m} | set(e.params):
+def _frame(c) -> str | None:
+    """x when c is the frame @eq(x', x) of a variable, which keeps it."""
+    if isinstance(c, Builtin) and c.op == "eq":
+        for x, y in ((c.args[0], c.args[1]), (c.args[1], c.args[0])):
+            if isinstance(x, Free) and x.primed and y == Free(x.name):
+                return x.name
+    return None
+
+
+def _moving(e: Edge) -> tuple:
+    """The conjuncts of e's post but the frames @eq(x', x)."""
+    return tuple(c for c in e.post if _frame(c) is None)
+
+
+def written(e: Edge, variables: tuple[str, ...]) -> set[str]:
+    """The variables of e's destination, variables, its step may change:
+    those its post names after the step, but a frame @eq(x', x) alone, and
+    those it does not name, which range over their types
+    (csdfbmc.formula.solve)."""
+    framed = {x for x in map(_frame, e.post) if x is not None}
+    return primed_roots(_moving(e)) | (set(variables) - framed)
+
+
+def _read(e: Edge) -> set[str]:
+    """The names e's guard and post read or write, but the frames."""
+    return free_names(e.guard) | free_names(_moving(e))
+
+
+def own_key(e: Edge, m: str, variables: tuple[str, ...]) -> str | None:
+    """The field of e whose instance of m it moves alone, every other
+    variable of its destination, variables, framed; None when it moves no
+    instance alone."""
+    if written(e, variables) != {m} or not _read(e) <= {m} | set(e.params):
         return None
     for p in e.params:
-        if _only_at(e.guard, m, p) and _only_at(e.post, m, p):
+        if _only_at(e.guard, m, p) and _only_at(_moving(e), m, p):
             return p
     return None
 
@@ -98,12 +129,14 @@ class PartialOrder:
         edges = self.d.out_edges(g)
         out: dict[str, dict[str, str]] = {}
         if all(e.dst == g and not e.is_tau for e in edges):
-            for m in set().union(*(primed_roots(e.post) for e in edges)) - self.property_reads:
-                own = [e for e in edges if m in primed_roots(e.post)]
-                others = [e for e in edges if m not in primed_roots(e.post)]
-                keys = {id(e): own_key(e, m) for e in own}
+            variables = self.d.vars[g]
+            writes = {id(e): written(e, variables) for e in edges}
+            for m in set().union(*writes.values()) - self.property_reads:
+                own = [e for e in edges if m in writes[id(e)]]
+                others = [e for e in edges if m not in writes[id(e)]]
+                keys = {id(e): own_key(e, m, variables) for e in own}
                 if (all(keys[id(e)] is not None and e.name not in self.ghost_events for e in own)
-                        and all(m not in free_names(e.guard) | free_names(e.post) for e in others)):
+                        and all(m not in _read(e) for e in others)):
                     out[m] = {id(e): keys[id(e)] for e in own}
         self._independent[g] = out
         return out
