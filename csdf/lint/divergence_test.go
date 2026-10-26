@@ -58,11 +58,11 @@ func TestSelfTransitionDivergenceRule(t *testing.T) {
 			WantTSV: header,
 		},
 		"a guard with @in and @notin of the same key is false on its face (lower boundary value)": {
-			Source:  diagram(`state "s0" as s0`, "s0 : m ; Map", "[*] --> s0", "s0 --> s0 : tau ; @in(k, m) ∧ @notin(k, m)"),
+			Source:  diagram(`state "s0" as s0`, "s0 : m ; Map", "[*] --> s0", "s0 --> s0 : tau ; @exists(k : K) (@in(k, m) ∧ @notin(k, m))"),
 			WantTSV: header,
 		},
 		"a guard with @empty and @in of the same map is false on its face (lower boundary value)": {
-			Source:  diagram(`state "s0" as s0`, "s0 : m ; Map", "[*] --> s0", "s0 --> s0 : tau ; @empty(m) ∧ @in(k, m)"),
+			Source:  diagram(`state "s0" as s0`, "s0 : m ; Map", "[*] --> s0", "s0 --> s0 : tau ; @exists(k : K) (@empty(m) ∧ @in(k, m))"),
 			WantTSV: header,
 		},
 		"a guard whose ∃ body is false on its face is false on its face (lower boundary value)": {

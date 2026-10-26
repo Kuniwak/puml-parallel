@@ -45,8 +45,8 @@ func TestSelfTransitionPostBreaksGuardRule(t *testing.T) {
 			Source:  diagram("[*] --> s0", "s0 --> s0 : a ; @in(1, n) ; @frame(n', n)"),
 			WantTSV: header,
 		},
-		"a constant the guard reads cannot change (lower boundary value)": {
-			Source:  diagram("[*] --> s0", "s0 --> s0 : a ; $limit > 0 ; $n' = $n + 1"),
+		"a guard on literals alone cannot be broken (lower boundary value)": {
+			Source:  diagram("s0 : n ; Nat", "[*] --> s0", "s0 --> s0 : a ; @ne(1, 0) ; $n' = $n + 1"),
 			WantTSV: header,
 		},
 		"a guard that reads nothing cannot be broken (lower boundary value)": {
