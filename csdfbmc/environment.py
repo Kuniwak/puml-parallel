@@ -96,7 +96,7 @@ class Environment:
     given: Mapping[str, Given]
     env: Mapping[str, bool]
 
-    def check_decided(self, applied: Iterable[str] = ()) -> None:
+    def check_decided(self, applied: Iterable[str]) -> None:
         """Refuses a function nothing gives, listing every one: a declared
         one, or one a term applies (applied, csdfbmc.model.Diagram.applied);
         nothing approximates an undecided function, so the walk does not
