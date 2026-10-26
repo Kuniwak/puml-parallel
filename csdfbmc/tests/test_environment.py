@@ -84,7 +84,7 @@ class OverTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "--env names 'p', which the checks module's ENVIRONMENT does not declare"):
             over({"q": None}, {"p": True})
 
-    def test_the_report_names_the_given_names_and_no_seed(self):
+    def test_the_report_names_the_given_names_and_the_env_values_and_no_seed(self):
         # Setup
         env = over({"q": True, "p": None, "r": None}, {"p": False})
 
@@ -92,7 +92,7 @@ class OverTest(unittest.TestCase):
         report = env.to_json()
 
         # Assert
-        self.assertEqual({"given": ["p", "q"]}, report)
+        self.assertEqual({"given": ["p", "q"], "env": {"p": False}}, report)
 
     def test_none_declares_nothing_and_reports_nothing(self):
         # Execute
@@ -100,7 +100,7 @@ class OverTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(frozenset(), declared)
-        self.assertEqual({"given": []}, report)
+        self.assertEqual({"given": [], "env": {}}, report)
 
 if __name__ == "__main__":
     unittest.main()
