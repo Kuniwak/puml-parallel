@@ -349,6 +349,22 @@ result:
 
 Q1 and Q3 follow from P2 without asking a glue.
 
+Bounded checking tells the bound from the diagram without Q2. A type given
+as a sample has more values than the walk ranges over, and the checks
+module writes some of them, the values beyond the sample, like any value of
+a type. At a state with no way out, csdfbmc tries them all at once, a type
+built of the sample by record or partial_map built again with them, and
+asks whether a step or an end edge is then enabled; no state is added for
+them. If one is, the state is reported as the bound reached, with that step
+as the witness; otherwise it is a deadlock. An enabling value beyond the
+sample is itself a witness that a value of the real type enables a step, so
+no data independence is needed, however the clauses tell the values apart;
+and a state no value beyond gives a way out is a deadlock as before, so the
+state being judged never hides a real deadlock. This is about that state
+only: no state is explored from a value beyond the sample, so a deadlock
+reachable only through such values is not found; that is the bound. That the values beyond are values of the
+real type is the user's responsibility, as the sample is.
+
 Q5 is read only from builtins, never from atoms, whose text the tools do not
 interpret. It is more than speed: a field computed from its equality does
 not depend on its type, so bounded checking no longer misses a step because

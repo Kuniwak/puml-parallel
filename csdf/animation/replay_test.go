@@ -97,3 +97,24 @@ func TestLoadReplaysFlattensTheFindings(t *testing.T) {
 		t.Errorf("replay = %+v", findings[0].Replay)
 	}
 }
+
+// A state where csdfbmc reached the bound of a sample type is no finding, but
+// it can be replayed; it comes after the findings, so their numbers stay.
+func TestLoadReplaysListsTheBoundReachedLast(t *testing.T) {
+	// Setup
+	bs := []byte(`{"deadlocks": [{"at": {"state": "b", "values": []}, "trace": [], "replay": {"initial": [], "steps": []}}],
+	  "tau_cycles": [], "violations": [], "avoiding_cycles": [], "empty_posts": [], "unconstrained": [],
+	  "bound_reached": [{"at": {"state": "r", "values": [{}]}, "trace": ["OPEN(k=a)"],
+	  "replay": {"initial": [{}], "steps": [{"event": "OPEN?k", "src": "r", "dst": "r", "line": 3, "values": [{}]}]}}]}`)
+
+	// Execute
+	findings, err := LoadReplays(bs)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 || findings[0].Kind != "deadlock" || findings[1].Kind != "bound_reached" || len(findings[1].Replay.Steps) != 1 {
+		t.Errorf("findings = %+v, want the deadlock, then the bound reached with its replay", findings)
+	}
+}

@@ -2,7 +2,7 @@
 that enumerate their domains from the domains of their fields."""
 import unittest
 
-from csdfbmc.values import FrozenMap, Rec, encode, freeze, record, partial_map, visible
+from csdfbmc.values import FrozenMap, Rec, encode, freeze, partial_map, record, sample, samples_in, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -58,3 +58,47 @@ class DomainBuilderTest(unittest.TestCase):
         full = partial_map(["t1", "t2"], ["x", "y"])
         self.assertEqual(1 + 4 + 4, len(full))
         self.assertIn(FrozenMap({"t1": "x", "t2": "y"}), full)
+
+    def test_a_type_is_built_of_the_samples_record_and_partial_map_were_given(self):
+        # Setup
+        ids, other = sample(["t1"], beyond=["t2"]), sample([1], beyond=[2])
+        tests = {
+            "a sample": (ids, [ids]),
+            "a record of a field of a sample": (record(id=ids, 額=[1]), [ids]),
+            "a record of a record of a sample": (record(r=record(id=ids)), [ids]),
+            "a map keyed by a sample, its values of another": (partial_map(ids, other), [ids, other]),
+            "the same values listed by hand": ([FrozenMap({"id": "t1"})], []),
+            "a record of values of no sample": (record(id=["t1"]), []),
+        }
+        for name, (values, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                found = samples_in(values)
+
+                # Assert
+                self.assertEqual([id(x) for x in want], [id(x) for x in found])
+
+    def test_a_sample_takes_values_beyond_it_that_are_not_in_it(self):
+        tests = {
+            "a value beyond": (["t1"], ["t2"]),
+            "values beyond, of records": ([FrozenMap({"id": "t1"})], [FrozenMap({"id": "t2"})]),
+            "1 beyond a sample of True": ([True], [1]),
+        }
+        for name, (values, beyond) in tests.items():
+            with self.subTest(name):
+                # Execute
+                s = sample(values, beyond=beyond)
+
+                # Assert
+                self.assertEqual(tuple(beyond), s.beyond)
+
+    def test_a_sample_with_no_value_beyond_it_or_one_of_its_own_is_refused(self):
+        tests = {
+            "no value beyond": ((["t1"], []), "at least one value beyond"),
+            "a value beyond that is in the sample": ((["t1", "t2"], ["t3", "t2"]), "'t2' beyond the sample, which is a value of it"),
+        }
+        for name, ((values, beyond), refused) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                with self.assertRaisesRegex(ValueError, refused):
+                    sample(values, beyond=beyond)

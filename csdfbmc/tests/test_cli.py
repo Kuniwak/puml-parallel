@@ -9,8 +9,8 @@ import unittest
 from contextlib import redirect_stderr
 
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, diagram, edge
-from csdfbmc.tests.test_explore import COUNTER
+from csdfbmc.tests.fixture import atom, diagram, edge, fld, idx
+from csdfbmc.tests.test_explore import COUNTER, OPENING
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -147,6 +147,50 @@ class ReportTest(unittest.TestCase):
         # Assert
         self.assertEqual(2, code)
         self.assertIn("q has none in TYPES", err)
+
+
+class SampleReportTest(unittest.TestCase):
+    """Where the bound was reached is reported apart from the deadlocks, and
+    is no finding for the exit status."""
+
+    SAMPLE = 'from csdfbmc.values import sample\nTYPES = {"k": sample(["a"], beyond=["b"])}\n'
+
+    def opening(self, *guard):
+        """OPENING without STOP, OPEN guarded by guard too and opening an
+        account with a balance of 0 or 1: two states where every ID is used
+        up, after CLOSE."""
+        e = OPENING["edges"][0]
+        post = e["post"][:-1] + [atom("${} in [0, 1]", fld(idx("m'", "k"), "bal"))]
+        return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard), post=post)] + OPENING["edges"][1:2])
+
+    def test_the_bound_reached_is_reported_and_is_no_finding(self):
+        why = " (OPEN(k=b) is enabled by a value beyond a sample)"
+        closed = "r [{'a': {'at': 'closed', 'fields': {'bal': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)']" + why
+        tests = {
+            "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']" + why + "\n"),
+            "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),
+            "a deadlock when no value beyond enables a step": ((), (atom("$k != 'b'"),), 1, "states: 5\ndeadlock ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']\n"),
+        }
+        for name, (args, guard, want_code, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", *args, d=self.opening(*guard), checks=self.SAMPLE)
+
+                # Assert
+                self.assertEqual((want_code, want), (code, out), err)
+
+    def test_the_bound_reached_is_reported_in_json_with_its_witness(self):
+        # Execute
+        code, out, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", "--json", d=self.opening(), checks=self.SAMPLE)
+
+        # Assert
+        self.assertEqual(0, code, err)
+        report = json.loads(out)
+        self.assertEqual({"deadlocks": [], "bound_reached": [[["OPEN(k=a)", "CLOSE(k=a)"], "OPEN(k=b)"]] * 2,
+                          "groups": [["bound_reached", "r", "CLOSE", 2]]},
+                         {"deadlocks": report["deadlocks"],
+                          "bound_reached": [[r["trace"], r["witness"]] for r in report["bound_reached"]],
+                          "groups": [[g["kind"], g["at"], g["after"], g["count"]] for g in report["groups"]]})
 
 
 class NextCommandTest(unittest.TestCase):

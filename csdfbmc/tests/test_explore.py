@@ -4,8 +4,8 @@ import unittest
 from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, builtin, diagram, edge, end, eq, exists, family, fld, idx
-from csdfbmc.values import FrozenMap, Rec
+from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
+from csdfbmc.values import FrozenMap, Rec, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -304,6 +304,96 @@ class PropertyTest(unittest.TestCase):
         self.assertTrue(result.stopped_early)
         self.assertEqual(("残高は 1 未満", ("a", (1,), ())), result.violations[0])
         self.assertEqual(3, len(result.states))
+
+
+# ACCOUNTS without DROP, so an ID once opened is never given back; and a STOP
+# out of the map, after which nothing happens whatever the IDs.
+OPENING = dict(ACCOUNTS, states=["r", "s"], vars={"r": ["m"], "s": []}, edges=ACCOUNTS["edges"][:2] + [
+    edge("r", "s", "STOP", guard=[builtin("at", idx("m", "k"), state="closed")]) | {"fields": [{"dir": "?", "name": "k"}]},
+])
+
+
+class SampleTest(unittest.TestCase):
+    """A type given as a sample has more values than the walk ranges over: a
+    state with no way out that a value beyond the sample gives one is where
+    the bound was reached, with that step as the witness, not a deadlock."""
+
+    def test_a_dead_end_is_told_from_a_deadlock_by_the_values_beyond_the_sample(self):
+        closed = ("r", (FrozenMap({"a": inst("closed", bal=0)}),), ())
+        ordered = [atom("$k >= 'a'")]
+        tests = {
+            "the bound reached when every ID is used up": (["r"], [], sample(["a"], beyond=["b"]), [], [(closed, "OPEN(k=b)")]),
+            "the first of the values beyond that enables a step": (["r"], [atom("$k != 'b'")], sample(["a"], beyond=["b", "c"]), [],
+                                                                    [(closed, "OPEN(k=c)")]),
+            "a deadlock however many IDs there are": (["r", "s"], [], sample(["a"], beyond=["b"]), [("s", (), ())], []),
+            "a deadlock when no value beyond enables a step": (["r"], ordered, sample(["a"], beyond=["0"]), [closed], []),
+            "a glue atom ordering the values is walked": (["r"], ordered, sample(["a"], beyond=["b"]), [], [(closed, "OPEN(k=b)")]),
+            "a deadlock when the type is not a sample": (["r"], [], ["a"], [closed], []),
+        }
+        for name, (states, guard, keys, deadlocks, reached) in tests.items():
+            with self.subTest(name):
+                # Setup
+                e = OPENING["edges"][0]
+                edges = [dict(e, guard=e["guard"] + guard)] + [e for e in OPENING["edges"][1:] if e["dst"] in states]
+                checks = Checks(types={"k": keys})
+
+                # Execute
+                result = fixture.explorer(dict(OPENING, edges=edges), checks).run()
+
+                # Assert
+                self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
+
+    def test_an_end_edge_the_values_beyond_enable_is_the_witness(self):
+        # Setup
+        # The end edge is open only for a key b not in m, which no value of
+        # the sample is.
+        d = dict(OPENING, edges=OPENING["edges"][:2], ends=[end("r", guard=[exists("k", builtin("notin", bound(0), "m"), atom("${} == 'b'", bound(0)))])])
+        checks = Checks(types={"k": sample(["a"], beyond=["b"])})
+
+        # Execute
+        result = fixture.explorer(d, checks).run()
+
+        # Assert
+        self.assertEqual(([], ["the end edge"]), (result.deadlocks, [w for _, w in result.bound_reached]))
+
+    def test_a_type_built_of_a_sample_takes_the_values_beyond_it(self):
+        # OPEN receives a record whose id is the key, not the key itself.
+        rid = fld("r", "id")
+        opens = edge("r", "r", "OPEN?r", guard=[builtin("notin", rid, "m")],
+                     post=[builtin("frame", "m'", "m", rid), builtin("at", idx("m'", rid), state="open"),
+                           atom("${} == 0", fld(idx("m'", rid), "bal"))])
+        ids = sample(["a"], beyond=["b"])
+        opened = ("r", (FrozenMap({"a": inst("open", bal=0)}),), ())
+        tests = {
+            "a record of the sample": (ids, [], [(opened, "OPEN(r={'id': 'b'})")]),
+            "a record of values listed by hand": (["a"], [opened], []),
+        }
+        for name, (keys, deadlocks, reached) in tests.items():
+            with self.subTest(name):
+                # Setup
+                types = {"k": ids, "r": record(id=keys), "bal": [0]}
+                checks = Checks(types=types)
+
+                # Execute
+                result = fixture.explorer(dict(OPENING, edges=[opens]), checks).run()
+
+                # Assert
+                self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
+
+    def test_the_values_beyond_the_sample_add_no_state(self):
+        used_up = ("r", (FrozenMap({"a": inst("closed", bal=0), "b": inst("closed", bal=0)}),), ())
+        tests = {"a sample": (sample(["a", "b"], beyond=["c"]), [], [(used_up, "OPEN(k=c)")]),
+                 "the same values, not a sample": (["a", "b"], [used_up], [])}
+        for name, (keys, deadlocks, reached) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = dict(OPENING, edges=OPENING["edges"][:2])
+
+                # Execute
+                result = fixture.explorer(d, Checks(types={"k": keys})).run()
+
+                # Assert
+                self.assertEqual((9, deadlocks, reached), (len(result.states), result.deadlocks, result.bound_reached))
 
 
 class ReplayTest(unittest.TestCase):

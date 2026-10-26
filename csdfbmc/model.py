@@ -215,6 +215,10 @@ class Edge:
     def is_tau(self) -> bool:
         return self.name == TAU
 
+    def describe(self) -> str:
+        """The edge as a message names it: its states, its event and its line."""
+        return f"{self.src} --> {self.dst} : {self.event} (line {self.line})"
+
 
 @dataclass(frozen=True)
 class End:

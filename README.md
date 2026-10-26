@@ -828,7 +828,13 @@ to another type, so that `相手ID` can range over `口座ID`
 (`TYPEOF = {"相手ID": "口座ID"}`). `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
-keys. A module that defines `DOMAINS` or `CLAUSES`, which an earlier
+keys. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
+of a larger one (`TYPES = {"試行ID": sample(["t1", "t2", "t3"],
+beyond=["t4"])}`): the walk ranges over the values listed, and the type has
+more, of which `beyond` lists at least one, written like any value of
+`TYPES`; a plain list is the whole type. Loading refuses an empty `beyond`
+and a value of `beyond` that is one of the sample's.
+A module that defines `DOMAINS` or `CLAUSES`, which an earlier
 `csdfbmc` read, is refused.
 
 Which atoms are functions of the environment (docs/CLAUSE_DESIGN.md, P15 and
@@ -886,6 +892,35 @@ state, cycles by the control states they run through, empty posts by event.
 or broken invariant (cycles need the whole space and are then not looked
 for).
 
+A finite bound can end a run the diagram would go on with: once every ID of
+a finite type is used up, nothing is enabled, though a fresh ID would be.
+For a type given as a sample, a state with no enabled transition and no end
+edge whose guard holds is tried once more, with each sample extended by all
+its values `beyond` at once, and every type `record(…)` or `partial_map(…)`
+built of the sample built again of the wider one, so that a record whose
+field is of the sample also takes them. A type derived some other way, a
+comprehension over a sample say, is not widened. If an end edge or an edge
+is then enabled, the state is reported as `bound reached … (W is enabled by
+a value beyond a sample)`, W the witness: `the end edge`, or the first step
+enabled, as taken, with the value beyond it bound — `bound_reached` in
+`--json`, each with its `witness`, and a group of kind `bound_reached`. It
+is no finding, so it does not set the exit status. Otherwise it is a
+deadlock. The values are only tried: the walk adds no state for them, so
+the state count is the same.
+
+This is sound with no restriction on how the diagram tells values apart. A
+state reported as the bound reached comes with a witness: a value of the
+real type that gives the state a way out, so it is not a deadlock of the
+real type. A state none of the values beyond gives a way out is reported as
+a deadlock, as without the sample, so the state being judged never hides a
+real deadlock. This is about that state only: the walk does not go on from
+a value beyond the sample, so a deadlock reachable only through such values
+is not explored; that is the bound. An
+atom may order the values or compare them with constants; a witness it
+allows is still a witness. What csdfbmc cannot check is that the values
+`beyond` are values of the real type: that is the user's to keep, as it is
+that the sample is.
+
 `csdfbmc next <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module
 MODULE) (--initial | --state JSON --edge N)` answers what a REPL asks at a
 value prompt — the values the clauses admit for the start state, or after the
@@ -934,7 +969,9 @@ Instance IDs range over the type of the ID field, which is the bound of the
 scenario. The third example, `examples/bmc/attempts/`, is the fee-bumping
 diagram of `examples/promote/ATTEMPTS.puml` with its atoms written in Python.
 A global diagram has no end edge, so the walk stops only once every ID of
-the bound is confirmed, which it reports as deadlocks; no cycle avoids
+the bound is confirmed. The IDs are a sample with `t4` beyond it
+(`checks.py`), which lets a new attempt register, so those states are the
+bound reached, not deadlocks, and the walk exits 0; no cycle avoids
 `CONFIRMED`:
 
 ```console
@@ -942,7 +979,7 @@ $ csdfpromote -format json examples/bmc/attempts/ATTEMPTS.puml > attempts.json
 $ csdfbmc attempts.json examples/bmc/attempts/checks.py \
     --evaluator-module csdfbmc.python_glue --avoid CONFIRMED
 states: 496
-deadlock ×19 at running after CONFIRMED; …
+bound reached ×19 at running after CONFIRMED; first after […] (SEND(試行ID=t4, 未署名Tx={'手数料': 1}) is enabled by a value beyond a sample)
 ```
 
 The reductions `--por`, `--symmetry` and `--cone` of earlier releases read
@@ -978,7 +1015,7 @@ With `-replay`, the session first walks the path `csdfbmc --json` recorded
 under one of its findings and the prompt opens at the state the finding is at,
 with the path in the history; `-finding N` picks the finding, numbered from 0
 in the order the output lists them (deadlocks, tau cycles, broken invariants,
-avoiding cycles, empty posts). A step that cannot be
+avoiding cycles, empty posts), then the states where the bound was reached. A step that cannot be
 taken, for instance because the diagram changed since the check, is an error.
 
 ```console

@@ -11,7 +11,7 @@ from __future__ import annotations
 import itertools
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Callable, Iterable
 
 
 class FrozenMap(Mapping):
@@ -140,21 +140,96 @@ def encode(value):
     return value
 
 
-def record(**fields: Iterable) -> list[FrozenMap]:
+class Sample(tuple):
+    """The values of a type that are a sample of it: the type has more
+    values than these, which the walk ranges over, and beyond gives some of
+    them. A Sample is the tuple of its values, so it is written wherever
+    the values are."""
+
+    def __new__(cls, values: Iterable, beyond: tuple):
+        self = super().__new__(cls, values)
+        self.beyond = beyond
+        return self
+
+
+def sample(values: Iterable, beyond: Iterable) -> Sample:
+    """The values of a type of TYPES given as a sample of the type, and
+    beyond, values of the type that are not in the sample, at least one: at
+    a state with no way out, csdfbmc tries them (README, Bounded model
+    checking). They must be values of the type; csdfbmc cannot tell."""
+    values, beyond = tuple(values), tuple(beyond)
+    if not beyond:
+        raise ValueError("sample(values, beyond) needs at least one value beyond the sample")
+    for b in beyond:
+        if any(same_value(b, v) for v in values):
+            raise ValueError(f"sample(values, beyond) is given {b!r} beyond the sample, which is a value of it")
+    return Sample(values, beyond)
+
+
+class Built(list):
+    """The values of a type record or partial_map built from the values of
+    other types, parts (a parameter of the builder -> the values it was
+    given), which build makes them from again: a type built of a sample is
+    built again of the sample with the values beyond it."""
+
+    def __init__(self, values: Iterable, build: Callable[..., "Built"], parts: dict):
+        super().__init__(values)
+        self.build = build
+        self.parts = parts
+
+
+def _kept(values: Iterable):
+    """values as a part of a Built: a Sample or a Built as itself, so that
+    what it is built of stays known; any other iterable as a tuple."""
+    return values if isinstance(values, (Sample, Built)) else tuple(values)
+
+
+def samples_in(values: Iterable) -> list[Sample]:
+    """The samples the values of a type are, or are built of by record and
+    partial_map, each once. Values listed by hand are built of nothing."""
+    if isinstance(values, Sample):
+        return [values]
+    if isinstance(values, Built):
+        found: dict[int, Sample] = {}
+        for part in values.parts.values():
+            found.update((id(x), x) for x in samples_in(part))
+        return list(found.values())
+    return []
+
+
+def _widened(values: Iterable) -> Iterable:
+    """values with each sample they are, or are built of, extended by the
+    values beyond it, and built again."""
+    if isinstance(values, Sample):
+        return tuple(values) + values.beyond
+    if isinstance(values, Built) and samples_in(values):
+        return values.build(**{k: _widened(v) for k, v in values.parts.items()})
+    return values
+
+
+def beyond_samples(types: dict[str, Iterable]) -> dict[str, Iterable]:
+    """types with each sample extended by all the values beyond it at once,
+    and every type built of a sample built again of the wider one, so that
+    a record of a sample also takes the values beyond it."""
+    return {t: _widened(vs) for t, vs in types.items()}
+
+
+def record(**fields: Iterable) -> Built:
     """Every record whose fields range over the given domains."""
+    fields = {n: _kept(vs) for n, vs in fields.items()}
     names = list(fields)
-    return [FrozenMap(zip(names, combo)) for combo in itertools.product(*(list(fields[n]) for n in names))]
+    return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
 
 
-def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> list[FrozenMap]:
+def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:
     """Every partial function from keys to values with at most max_size
     entries (all sizes when max_size is None), the empty one included."""
-    keys = list(keys)
-    values = list(values)
+    keys = _kept(keys)
+    values = _kept(values)
     limit = len(keys) if max_size is None else min(max_size, len(keys))
     out: list[FrozenMap] = []
     for size in range(0, limit + 1):
         for chosen in itertools.combinations(keys, size):
             for vals in itertools.product(values, repeat=size):
                 out.append(FrozenMap(zip(chosen, vals)))
-    return out
+    return Built(out, lambda keys, values: partial_map(keys, values, max_size), {"keys": keys, "values": values})

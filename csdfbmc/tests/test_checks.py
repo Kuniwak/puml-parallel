@@ -1,9 +1,11 @@
+import dataclasses
 import os
 import tempfile
 import textwrap
 import unittest
 
 from csdfbmc.checks import Checks, load_checks, PurityError
+from csdfbmc.values import sample
 
 
 class TypesTest(unittest.TestCase):
@@ -17,6 +19,16 @@ class TypesTest(unittest.TestCase):
         # Assert
         self.assertEqual(["a1", "a2"], values)
         self.assertTrue(checks.declares("相手ID"))
+
+    def test_the_samples_follow_the_types_they_are_replaced_by(self):
+        # Setup
+        checks = Checks(types={"ID": sample(["a1"], beyond=["a2"])})
+
+        # Execute
+        replaced = dataclasses.replace(checks, types={"ID": ["a1", "a2"]})
+
+        # Assert
+        self.assertEqual((frozenset({"ID"}), frozenset()), (checks.samples, replaced.samples))
 
     def test_a_name_typeof_does_not_name_takes_the_type_of_its_own_name(self):
         # Setup
@@ -78,6 +90,39 @@ class LoadChecksTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(["a1", "a2"], checks.domain("相手ID"))
+
+    def test_a_type_given_as_a_sample_ranges_over_its_values_and_is_known_as_a_sample(self):
+        tests = {
+            "a sample": ('TYPES = {"ID": sample(["a1", "a2"], beyond=["a3"]), "額": [1]}\n', {"ID"}),
+            "plain values only": ('TYPES = {"ID": ["a1", "a2"], "額": [1]}\n', set()),
+            "a record over a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "額": [r.id for r in record(id=IDS)]}\n', {"ID"}),
+            "a record built of a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "Tx": record(id=IDS)}\n', {"ID", "Tx"}),
+        }
+        for name, (body, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                path = self.write("from csdfbmc.values import record, sample\n" + body)
+
+                # Execute
+                checks = load_checks(path)
+
+                # Assert
+                self.assertEqual(["a1", "a2"], checks.domain("ID"))
+                self.assertEqual(want, set(checks.samples))
+
+    def test_a_sample_with_no_value_beyond_it_or_one_of_its_own_is_refused(self):
+        tests = {
+            "no value beyond": ('TYPES = {"ID": sample(["a1"], beyond=[])}\n', "at least one value beyond"),
+            "a value of the sample beyond it": ('TYPES = {"ID": sample(["a1"], beyond=["a1"])}\n', "which is a value of it"),
+        }
+        for name, (body, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                path = self.write("from csdfbmc.values import sample\n" + body)
+
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    load_checks(path)
 
     def test_loads_the_environment_of_a_module(self):
         # Setup

@@ -2,7 +2,8 @@
 checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
-TYPES (a type -> iterable of its values, its carrier set) and, when wanted,
+TYPES (a type -> iterable of its values, its carrier set, or a sample of
+them, csdfbmc.values.sample) and, when wanted,
 TYPEOF (a name -> its type; a name it does not list has the type of its own
 name), ENVIRONMENT (declares the atoms that are functions of the
 environment, and gives them; see csdfbmc.environment),
@@ -28,6 +29,8 @@ import importlib.util
 import inspect
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Iterable
+
+from csdfbmc.values import samples_in
 
 if TYPE_CHECKING:
     from csdfbmc.environment import Given
@@ -93,6 +96,14 @@ class Checks:
     # of its arguments in order, or None to leave it to --env or --seed
     # (csdfbmc.environment).
     environment: dict[str, "Given | None"] = field(default_factory=dict)
+
+    @property
+    def samples(self) -> frozenset[str]:
+        """The types whose values are a sample of the type, which has more
+        (csdfbmc.values.sample), or are built of one by record or
+        partial_map (csdfbmc.values.samples_in); computed from types, so it
+        follows them."""
+        return frozenset(t for t, vs in self.types.items() if samples_in(vs))
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
