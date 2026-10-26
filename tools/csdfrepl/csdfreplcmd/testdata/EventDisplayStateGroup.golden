@@ -3,14 +3,14 @@ State: Review order
   metadata = {"priority":true,"tags":["new","gift"]}
 
 Guard:
-  count > 0
+  $count > 0 ∧ @ne(count, 9)
 
 Post State Group:
   Approved
-    status' as string
+    status'
 
 Post Condition:
-  status' = "reviewing"
+  $status' = "reviewing"
 
 Enter 1 value as a JSON array in declaration order: [<status>].
 

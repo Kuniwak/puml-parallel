@@ -28,6 +28,7 @@ Typical workflow:
   $ csdfreplcmd trace                               # visible event trace
   $ csdfreplcmd history                             # exploration history
   $ csdfreplcmd jump 0                              # branch from an earlier history entry
+  $ csdfreplcmd end 0                               # take an end edge: the run terminates
   $ csdfreplcmd session rm -s "$SID"                # clean up
 
 Every command prints human-readable text by default and structured JSON with
@@ -45,6 +46,7 @@ func Subcommands() []tools.Subcommand {
 		{Name: "trace", Description: "show the current event trace", CommandFunc: tools.NewCommandFunc(parseTrace(), newMainFunc())},
 		{Name: "history", Description: "show the exploration history", CommandFunc: tools.NewCommandFunc(parseHistory(), newMainFunc())},
 		{Name: "jump", Description: "jump to a history entry", CommandFunc: tools.NewCommandFunc(parseJump(), newMainFunc())},
+		{Name: "end", Description: "take an end edge: the run terminates", CommandFunc: tools.NewCommandFunc(parseEnd(), newMainFunc())},
 		{Name: "replay", Description: "walk a fresh session along a finding of csdfbmc --json", CommandFunc: tools.NewCommandFunc(parseReplay(), newMainFunc())},
 		{Name: "serverversion", Description: "print the csdfrepld server version", CommandFunc: tools.NewCommandFunc(parseServerVersion(), newMainFunc())},
 	}
@@ -172,6 +174,30 @@ func parseJump() cli.ParseOptionsFunc[*clientOptions] {
 	}
 }
 
+func parseEnd() cli.ParseOptionsFunc[*clientOptions] {
+	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
+		flags := newFlagSet("csdfreplcmd end", inout)
+		setLeafUsage(flags, "csdfreplcmd end <index> [-s <id>] [-json]",
+			"Take the zero-based end edge <index> from the current state (\"read\" lists\nthem under Ends): the run terminates there, and only a jump goes on. An end\nedge a builtin of whose guard is false of the current values is refused;\nthe guard's atoms are not evaluated.\n\nExample:\n  csdfreplcmd end 0")
+		cf := declareConnFlags(flags)
+		declareSession(flags, cf)
+		declareJSON(flags, cf)
+		opts, err := parseLeaf(flags, args, cf)
+		if err != nil || opts.help {
+			return opts, err
+		}
+		if flags.NArg() != 1 {
+			return nil, errors.New("end requires an end edge index")
+		}
+		index, err := parseIndex(flags.Arg(0))
+		if err != nil {
+			return nil, err
+		}
+		opts.req = proto.Request{Command: proto.CommandEnd, Session: cf.session, Index: &index}
+		return opts, nil
+	}
+}
+
 func parseReplay() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd replay", inout)
@@ -205,7 +231,7 @@ func parseStatevar() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd statevar", inout)
 		setLeafUsage(flags, "csdfreplcmd statevar -json <json-array> | -json-file <file> | -pick <n> [-s <id>]",
-			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -checks and a glue.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
+			"Enter the current post state group's variable values as a JSON array, in\ndeclaration order (run \"csdfreplcmd read\" to see the names and count). Each\nvalue is one array element; JSON null is not accepted. With -pick, enter the\nn-th suggestion \"read\" showed, which needs a daemon started with -checks and a glue.\n\nA daemon started with -checks refuses values csdfbmc next does not admit;\nwithout, values a builtin of the guard or the post (@eq, @ne, ...) is false of\nare refused, and atoms are not evaluated.\n\nExample:\n  csdfreplcmd statevar -json '[[\"cola\",\"water\"]]'\n  csdfreplcmd statevar -pick 0")
 		cf := declareConnFlags(flags)
 		declareSession(flags, cf)
 		var jsonText, jsonFile string
@@ -276,10 +302,10 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
 		setLeafUsage(flags, "csdfreplcmd session new [-diagram-json <file>] [-json] <file.puml|file.png>",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. With a daemon started with -checks,\n-diagram-json names the JSON the checker reads for this session (an\nexpansion from csdfpromote -format json); default: the file's own parse.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\n-diagram-json names, on the daemon's side, the JSON the session explores\nand the checker reads in place of the file (csdfparse's, or csdfpromote\n-format json's for an expansion, which holds its families).\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
-		diagramJSON := flags.String("diagram-json", "", "the JSON csdfbmc reads for this session (an expansion)")
+		diagramJSON := flags.String("diagram-json", "", "the diagram JSON to explore and check in place of the file (an expansion's)")
 		opts, err := parseLeaf(flags, args, cf)
 		if err != nil || opts.help {
 			return opts, err

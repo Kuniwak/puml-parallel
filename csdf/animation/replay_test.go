@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -12,17 +11,14 @@ const counterSource = `@startuml
 state "counting" as a
 a: n
 state "stopped" as b
-[*] --> a : n = 2
-a --> a : dec ; n > 0 ; n' = n - 1
-a --> b : stop ; n = 0
+[*] --> a : $n' = 2
+a --> a : dec ; $n > 0 ; $n' = $n - 1
+a --> b : stop ; $n = 0
 @enduml
 `
 
 func TestReplayWalksTheSessionAlongTheSteps(t *testing.T) {
-	sess, err := NewSession(csdf.MustParse(counterSource), csdf.SolveJSON)
-	if err != nil {
-		t.Fatal(err)
-	}
+	sess := newSession(t, counterSource)
 	replay := Replay{
 		Initial: []byte(`[2]`),
 		Steps: []ReplayStep{
@@ -47,7 +43,7 @@ func TestReplayWalksTheSessionAlongTheSteps(t *testing.T) {
 }
 
 func TestReplayRefusesAStepThatMatchesNoTransition(t *testing.T) {
-	sess, _ := NewSession(csdf.MustParse(counterSource), csdf.SolveJSON)
+	sess := newSession(t, counterSource)
 	err := sess.Replay(Replay{Initial: []byte(`[2]`), Steps: []ReplayStep{{Event: "jump", Src: "a", Dst: "b", Values: []byte(`[]`)}}})
 	if err == nil || !strings.Contains(err.Error(), "jump") {
 		t.Fatalf("Replay() error = %v, want one naming the event", err)
@@ -62,12 +58,12 @@ func TestReplayMatchesAnEdgeByLineWhenEventsRepeat(t *testing.T) {
 	source := `@startuml
 state "s" as s
 s: n
-[*] --> s : n = 0
-s --> s : tick ; n = 0 ; n' = 1
-s --> s : tick ; n = 0 ; n' = 2
+[*] --> s : $n' = 0
+s --> s : tick ; $n = 0 ; $n' = 1
+s --> s : tick ; $n = 0 ; $n' = 2
 @enduml
 `
-	sess, _ := NewSession(csdf.MustParse(source), csdf.SolveJSON)
+	sess := newSession(t, source)
 	err := sess.Replay(Replay{Initial: []byte(`[0]`), Steps: []ReplayStep{{Event: "tick", Src: "s", Dst: "s", Line: 6, Values: []byte(`[2]`)}}})
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +117,7 @@ func TestLoadReplaysListsTheBoundReachedLast(t *testing.T) {
 }
 
 func TestReplayRefusesAValueTheConeLeftOut(t *testing.T) {
-	sess, _ := NewSession(csdf.MustParse(counterSource), csdf.SolveJSON)
+	sess := newSession(t, counterSource)
 	err := sess.Replay(Replay{Initial: []byte(`[2]`), Steps: []ReplayStep{{Event: "dec", Src: "a", Dst: "a", Line: 6, Values: []byte(`[{"left_out": true}]`)}}})
 	if err == nil || !strings.Contains(err.Error(), "without --cone") {
 		t.Fatalf("Replay() error = %v, want one suggesting a run without --cone", err)

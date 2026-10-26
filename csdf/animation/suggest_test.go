@@ -3,11 +3,10 @@ package animation
 import (
 	"strings"
 	"testing"
-
-	"github.com/Kuniwak/puml-parallel/csdf"
 )
 
 type fakeSuggester struct {
+	NoSuggester
 	initial []Suggestion
 	next    map[int][]Suggestion
 	asked   []int
@@ -17,29 +16,32 @@ func (f *fakeSuggester) Initial() ([]Suggestion, error) {
 	f.asked = append(f.asked, -1)
 	return f.initial, nil
 }
-func (f *fakeSuggester) Next(from csdf.RuntimeState, idx int) ([]Suggestion, error) {
+func (f *fakeSuggester) Next(from State, idx int) ([]Suggestion, error) {
 	f.asked = append(f.asked, idx)
 	return f.next[idx], nil
 }
 
 func TestSuggestAsksForTheInitialStateThenForTheSelectedTransition(t *testing.T) {
-	sess, _ := NewSession(csdf.MustParse(counterSource), csdf.SolveJSON)
 	fake := &fakeSuggester{initial: []Suggestion{{Values: []byte(`[2]`)}}, next: map[int][]Suggestion{1: {{Values: []byte(`[]`)}}}}
+	sess, err := NewSession(mustRead(t, counterSource), fake)
+	if err != nil {
+		t.Fatalf("Setup: NewSession() error = %v", err)
+	}
 
-	got, err := sess.Suggest(fake)
+	got, err := sess.Suggest()
 	if err != nil || len(got) != 1 || string(got[0].Values) != "[2]" {
 		t.Fatalf("Suggest() = %v, %v; want the initial suggestion", got, err)
 	}
 	if _, err := sess.EnterValues("[0]"); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := sess.Suggest(fake); got != nil {
+	if got, _ := sess.Suggest(); got != nil {
 		t.Errorf("Suggest() in command mode = %v, want nil", got)
 	}
 	if err := sess.Select(1); err != nil { // stop
 		t.Fatal(err)
 	}
-	got, err = sess.Suggest(fake)
+	got, err = sess.Suggest()
 	if err != nil || len(got) != 1 {
 		t.Fatalf("Suggest() after select = %v, %v", got, err)
 	}

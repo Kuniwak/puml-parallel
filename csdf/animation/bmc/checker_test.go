@@ -30,14 +30,14 @@ func TestForSourceWritesTheDiagramAsCsdfparsePrintsIt(t *testing.T) {
 	src := []byte("@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : @eq(n', n)\n@enduml\n")
 
 	// Execute
-	s, cleanup, err := bmc.ForSource(src, bmc.Checker{})
+	s, cleanup, err := bmc.ForSource(src, bmc.Checker{}, bmc.RunCsdfbmc)
 
 	// Assert
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer cleanup()
-	raw, err := os.ReadFile(s.Diagram)
+	raw, err := os.ReadFile(s.Diagram())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestForSourceWritesTheDiagramAsCsdfparsePrintsIt(t *testing.T) {
 
 func TestForSourceRefusesADiagramItCannotRead(t *testing.T) {
 	// Execute
-	_, _, err := bmc.ForSource([]byte("@startuml\n[*] --> \n@enduml\n"), bmc.Checker{})
+	_, _, err := bmc.ForSource([]byte("@startuml\n[*] --> \n@enduml\n"), bmc.Checker{}, bmc.RunCsdfbmc)
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "bmc.ForSource") {

@@ -1092,9 +1092,24 @@ and `go test ./...` runs them too when a `python3` is on the PATH.
 $ csdfrepl examples/valid/vending_machine.puml
 ```
 
+The diagram's guards and posts are clauses ([Clauses](docs/SYNTAX.md)); a
+diagram holding a clause of the old syntax (`@opaque`, a renaming `@[y := x]`)
+is refused with the reader's error. Each value prompt shows the guard and the
+post of the pending transition as the clause printer writes them, and an
+empty clause as `(none)`.
+
 For each state, enter its variable values as a JSON array in declaration order.
-The initial implementation records the values but does not evaluate guards or
-postconditions. JSON `null` is not accepted.
+`csdfrepl` checks that they fit the state and, without `-checks`, that no
+builtin of the guard or the post (`@eq`, `@ne`, `@in`, `@notin`, `@empty`,
+`@update`, `@frame`, `@at`) is false of them and the previous state's values;
+a builtin reading an event's field or an environment function is left
+alone, and atoms are not evaluated, for only a glue reads them. With
+`-checks` (below), the values must be ones `csdfbmc next` admits for the
+pending transition. JSON `null` is not accepted. A map of a
+family's instances (in an expansion) is a JSON object from IDs to
+`{"at": <state>, "fields": {...}}`, as `csdfbmc` writes it: `at` is a state of
+the family other than its start state (absence, written by leaving the entry
+out), and `fields` holds exactly that state's variables.
 
 Commands use zero-based indexes:
 
@@ -1102,6 +1117,9 @@ Commands use zero-based indexes:
 - `t` displays the current visible trace. The internal event `tau` is hidden.
 - `h` displays the exploration history.
 - `s INDEX` selects an outgoing transition.
+- `e INDEX` takes an end edge (listed under `Ends:`): the run terminates
+  there, and only `j` goes on. A builtin of its guard false of the current
+  values refuses it; the guard's atoms are not evaluated, even with `-checks`.
 - `j INDEX` jumps to a history entry.
 - `?` or `help` displays command help.
 
@@ -1126,7 +1144,9 @@ With `-checks CHECKS.py` and a glue (`-evaluator CMD` or `-evaluator-module
 MODULE`), every value prompt also asks `csdfbmc` (on the PATH or beside the
 binary) what values the clauses admit for the pending transition, shows them
 numbered, and takes `#N` in place of the values. `-diagram-json FILE` names the
-expansion JSON the checker reads instead of the file's own parse.
+diagram JSON (`csdfparse`'s, or `csdfpromote -format json`'s for an expansion,
+which holds its families) that the session explores and the checker reads in
+place of the file.
 
 The environment is csdfbmc's: `-env NAME=true|false` (repeatable) is passed
 to `csdfbmc next` as `--env`, so the prompt suggests what csdfbmc walks with
@@ -1171,6 +1191,7 @@ $ csdfreplcmd select 0                                   # choose a transition, 
 $ csdfreplcmd statevar -json '["done"]'
 $ csdfreplcmd trace
 $ csdfreplcmd jump 0                                     # branch from an earlier history entry
+$ csdfreplcmd end 0                                      # take an end edge: the run terminates
 $ csdfreplcmd replay -finding 0 findings.json            # walk a fresh session to a csdfbmc finding
 $ csdfreplcmd statevar -pick 0                           # enter the first suggestion (daemon started with -checks)
 $ csdfreplcmd read -json                                 # structured output for parsing
@@ -1181,13 +1202,15 @@ $ csdfreplcmd session rm -s "$SID"
 
 The socket path is shared by both binaries via `-sock`, then `$CSDFREPLD_SOCK`,
 then `$XDG_RUNTIME_DIR/csdfrepld.sock`, then a temporary directory. Every command
-prints human-readable text by default and structured JSON with `-json`; `statevar`
+prints human-readable text by default and structured JSON with `-json`, where a
+guard or a post is the clause text as the text output shows it (an empty clause
+is `"(none)"` in both); `statevar`
 instead takes its values via `-json <json-array>` or `-json-file <file>`. A daemon
 started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`)
 asks `csdfbmc` at every value prompt what values the clauses admit:
 `read` lists them under `suggestions`, `statevar -pick N` enters the N-th, and
-`session new -diagram-json FILE` names the expansion JSON the checker reads for
-that session. `-env NAME=true|false` gives every session the environment
+`session new -diagram-json FILE` names the diagram JSON, on the daemon's side,
+that the session explores and the checker reads in place of the file. `-env NAME=true|false` gives every session the environment
 csdfbmc walks with `--env NAME=true|false`. The daemon's environment is
 fixed when it starts, so `replay` refuses a report whose `environment` it
 does not walk: one whose `--env` gave a function another value or a value

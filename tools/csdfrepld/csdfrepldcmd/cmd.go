@@ -26,18 +26,12 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		sock := tools.ResolveSocketPath(opts.Sock, inout.Env)
 		check := proto.EnvironmentCheck(proto.AnyEnvironment)
+		suggesters := animation.SuggesterFactory(animation.NoSuggesters)
 		if opts.Checker.Asks() {
 			check = opts.Checker.Agrees
+			suggesters = opts.Checker.Suggesters(bmc.RunCsdfbmc)
 		}
-		service := proto.NewService(version.Version, opts.Common.Debug(), check)
-		if opts.Checker.Asks() {
-			service.SetSuggesters(func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
-				if diagramJSON != "" {
-					return &bmc.Suggester{Diagram: diagramJSON, Checker: opts.Checker}, func() {}, nil
-				}
-				return bmc.ForSource(source, opts.Checker)
-			})
-		}
+		service := proto.NewService(version.Version, opts.Common.Debug(), check, suggesters)
 
 		interrupts := make(chan os.Signal, 1)
 		signal.Notify(interrupts, os.Interrupt, syscall.SIGTERM)

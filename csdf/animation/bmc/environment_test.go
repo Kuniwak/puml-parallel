@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/google/go-cmp/cmp"
@@ -82,7 +81,7 @@ func (c checker) next(t *testing.T, diagram string, args ...string) []animation.
 	return got.Candidates
 }
 
-var zero = csdf.RuntimeState{ID: "s0", Values: []csdf.StateValue{{Name: "n", Value: 0}}}
+var zero = animation.State{ID: "s0", Values: []animation.Value{{Name: "n", Value: 0}}}
 
 func TestSuggesterGivenAFunctionSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 	c := newChecker(t)
@@ -90,14 +89,13 @@ func TestSuggesterGivenAFunctionSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 		t.Run(v, func(t *testing.T) {
 			// Setup
 			env := []bmc.Binding{{Name: "$_0 が 正", Value: v == "true"}}
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env})
+			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env}, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Run = c.run(t)
 			state, _ := json.Marshal(zero)
-			want := c.next(t, s.Diagram, "--env", env[0].String(), "--state", string(state), "--edge", "0")
+			want := c.next(t, s.Diagram(), "--env", env[0].String(), "--state", string(state), "--edge", "0")
 
 			// Execute
 			got, err := s.Next(zero, 0)
@@ -125,12 +123,11 @@ func TestSuggesterTakesTheFunctionsGiven(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env})
+			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env}, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Run = c.run(t)
 
 			// Execute
 			got, err := s.Next(zero, 0)
@@ -166,12 +163,11 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 			// Setup
 			checker := tt.checker
 			checker.Checks, checker.EvaluatorModule = c.checks, "csdfbmc.python_glue"
-			s, cleanup, err := bmc.ForSource([]byte(guarded), checker)
+			s, cleanup, err := bmc.ForSource([]byte(guarded), checker, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer cleanup()
-			s.Run = c.run(t)
 
 			// Execute
 			_, err = s.Initial()
@@ -179,6 +175,118 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Errorf("Initial() = %v, want an error saying %q", err, tt.want)
+			}
+		})
+	}
+}
+
+// parallel has two edges of one event between the same states, told apart
+// only by their posts; the index a session selects must be the one csdfbmc
+// next numbers the edge by.
+const parallel = "@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : $n' == 0\ns0 --> s0 : tick ; ; $n' == 1\ns0 --> s0 : tick ; ; $n' == 2\n@enduml\n"
+
+func TestASelectedParallelEdgeIsTheOneCsdfbmcNumbersSo(t *testing.T) {
+	c := newChecker(t)
+	if err := os.WriteFile(c.checks, []byte("TYPES = {\"n\": [0, 1, 2]}\n"), 0o644); err != nil {
+		t.Fatalf("Setup: %v", err)
+	}
+	tests := map[string]struct {
+		idx  int
+		want string
+	}{
+		"the first of the parallel edges":  {idx: 0, want: "[1]"},
+		"the second of the parallel edges": {idx: 1, want: "[2]"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			checker := bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue"}
+			s, cleanup, err := bmc.ForSource([]byte(parallel), checker, c.run(t))
+			if err != nil {
+				t.Fatalf("Setup: ForSource() error = %v", err)
+			}
+			defer cleanup()
+			d, err := animation.ReadDiagram([]byte(parallel), nil)
+			if err != nil {
+				t.Fatalf("Setup: ReadDiagram() error = %v", err)
+			}
+			session, err := animation.NewSession(d, s)
+			if err != nil {
+				t.Fatalf("Setup: NewSession() error = %v", err)
+			}
+			if _, err := session.EnterValues("[0]"); err != nil {
+				t.Fatalf("Setup: EnterValues() error = %v", err)
+			}
+			if err := session.Select(tt.idx); err != nil {
+				t.Fatalf("Setup: Select() error = %v", err)
+			}
+
+			// Execute
+			got, err := session.Suggest()
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Suggest() error = %v", err)
+			}
+			if len(got) != 1 || string(got[0].Values) != tt.want {
+				t.Errorf("Suggest() = %v, want only %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestASessionTakesOnlyTheValuesCsdfbmcAdmits(t *testing.T) {
+	c := newChecker(t)
+	if err := os.WriteFile(c.checks, []byte("TYPES = {\"n\": [0, 1, 2]}\n"), 0o644); err != nil {
+		t.Fatalf("Setup: %v", err)
+	}
+	tests := map[string]struct {
+		values  string
+		wantErr string
+	}{
+		"the value the selected edge's post admits": {values: "[2]"},
+		"the value the other parallel edge's post admits": {
+			values:  "[1]",
+			wantErr: "the checker admits none of these values; enter one of its suggestions",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			checker := bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue"}
+			s, cleanup, err := bmc.ForSource([]byte(parallel), checker, c.run(t))
+			if err != nil {
+				t.Fatalf("Setup: ForSource() error = %v", err)
+			}
+			defer cleanup()
+			d, err := animation.ReadDiagram([]byte(parallel), nil)
+			if err != nil {
+				t.Fatalf("Setup: ReadDiagram() error = %v", err)
+			}
+			session, err := animation.NewSession(d, s)
+			if err != nil {
+				t.Fatalf("Setup: NewSession() error = %v", err)
+			}
+			if _, err := session.EnterValues("[0]"); err != nil {
+				t.Fatalf("Setup: EnterValues() error = %v", err)
+			}
+			if err := session.Select(1); err != nil {
+				t.Fatalf("Setup: Select() error = %v", err)
+			}
+
+			// Execute
+			_, err = session.EnterValues(tt.values)
+
+			// Assert
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("EnterValues() error = %v, want the values taken", err)
+				}
+				return
+			}
+			var refused *animation.RefusedValuesError
+			if !errors.As(err, &refused) || refused.Error() != tt.wantErr {
+				t.Fatalf("EnterValues() error = %v, want refused values saying %q", err, tt.wantErr)
 			}
 		})
 	}

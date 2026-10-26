@@ -13,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
@@ -60,24 +59,45 @@ func (c Checker) NextArgs(diagram string) []string {
 	return args
 }
 
-// Suggester runs csdfbmc. Diagram is the JSON the checker reads (csdfparse's
-// output, or an expansion from csdfpromote -format json), Checker what it
-// reads besides, and Run what runs csdfbmc (RunCsdfbmc when nil).
+// Suggester runs csdfbmc: diagram is the JSON the checker reads (csdfparse's
+// output, or an expansion from csdfpromote -format json), checker what it
+// reads besides, and run what runs csdfbmc.
 type Suggester struct {
-	Diagram string
-	Checker Checker
-	Run     Runner
+	diagram string
+	checker Checker
+	run     Runner
 }
+
+// NewSuggester is the Suggester asking, through run (RunCsdfbmc, or a
+// stand-in), csdfbmc next about the diagram JSON at path diagram.
+func NewSuggester(diagram string, checker Checker, run Runner) *Suggester {
+	return &Suggester{diagram: diagram, checker: checker, run: run}
+}
+
+// Diagram is the path of the diagram JSON the suggester asks about.
+func (s *Suggester) Diagram() string { return s.diagram }
 
 // Runner runs csdfbmc with args and returns what it printed on its standard
 // output, or an error saying why it failed.
 type Runner func(args []string) ([]byte, error)
 
+// Suggesters is the factory of the suggesters c and run make for a
+// session: one reading the diagram JSON when the session explores one,
+// otherwise one reading the source as csdfparse prints it (ForSource).
+func (c Checker) Suggesters(run Runner) animation.SuggesterFactory {
+	return func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
+		if diagramJSON != "" {
+			return NewSuggester(diagramJSON, c, run), animation.NoCleanup, nil
+		}
+		return ForSource(source, c, run)
+	}
+}
+
 // ForSource writes the diagram whose PlantUML source (or PNG) is src as
 // csdfparse prints it to a temporary file, and returns a Suggester reading
 // it, so a REPL started on a .puml needs no JSON of its own. The caller
 // removes the file with the returned function.
-func ForSource(src []byte, checker Checker) (*Suggester, func(), error) {
+func ForSource(src []byte, checker Checker, run Runner) (*Suggester, func(), error) {
 	d, err := coreio.ReadBytes(src)
 	if err != nil {
 		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
@@ -96,27 +116,40 @@ func ForSource(src []byte, checker Checker) (*Suggester, func(), error) {
 		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
 	}
 	_ = f.Close()
-	return &Suggester{Diagram: f.Name(), Checker: checker}, func() { _ = os.Remove(f.Name()) }, nil
+	return NewSuggester(f.Name(), checker, run), func() { _ = os.Remove(f.Name()) }, nil
 }
 
 func (s *Suggester) Initial() ([]animation.Suggestion, error) {
-	return s.run("--initial")
+	return s.ask("--initial")
 }
 
-func (s *Suggester) Next(from csdf.RuntimeState, idx int) ([]animation.Suggestion, error) {
+func (s *Suggester) Next(from animation.State, idx int) ([]animation.Suggestion, error) {
 	state, err := json.Marshal(from)
 	if err != nil {
 		return nil, fmt.Errorf("bmc.Suggester.Next: %w", err)
 	}
-	return s.run("--state", string(state), "--edge", strconv.Itoa(idx))
+	return s.ask("--state", string(state), "--edge", strconv.Itoa(idx))
 }
 
-func (s *Suggester) run(args ...string) ([]animation.Suggestion, error) {
-	run := s.Run
-	if run == nil {
-		run = RunCsdfbmc
+// Admit refuses values csdfbmc next does not list among the successors of
+// p (animation.AmongSuggestions). A checker that fails refuses them too,
+// saying why, for nothing then admits them.
+func (s *Suggester) Admit(_ *core.Diagram, p animation.Pending, values []animation.Value) error {
+	var suggestions []animation.Suggestion
+	var err error
+	if p.Prev == nil {
+		suggestions, err = s.Initial()
+	} else {
+		suggestions, err = s.Next(*p.Prev, p.Edge)
 	}
-	stdout, err := run(append(s.Checker.NextArgs(s.Diagram), args...))
+	if err != nil {
+		return &animation.RefusedValuesError{Reason: fmt.Sprintf("the checker could not check the values: %v", err)}
+	}
+	return animation.AmongSuggestions(suggestions, values)
+}
+
+func (s *Suggester) ask(args ...string) ([]animation.Suggestion, error) {
+	stdout, err := s.run(append(s.checker.NextArgs(s.diagram), args...))
 	if err != nil {
 		return nil, err
 	}

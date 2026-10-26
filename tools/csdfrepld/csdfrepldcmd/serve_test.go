@@ -9,16 +9,17 @@ import (
 	"time"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
 )
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count ; number
+s0: count
 state "Done" as s1
-s1: result ; string
-[*] --> s0 : count starts at zero
-s0 --> s1 : insert?coin ; count >= 0 ; result is done
+s1: result
+[*] --> s0 : $count' = 0
+s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
 @enduml
 `
 
@@ -57,7 +58,7 @@ func TestServeRoundTripAndShutdown(t *testing.T) {
 	spy := cli.SpyProcInout()
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(sock, proto.NewService("test-version", false, proto.AnyEnvironment), spy.New(), interrupts)
+		done <- serve(sock, proto.NewService("test-version", false, proto.AnyEnvironment, animation.NoSuggesters), spy.New(), interrupts)
 	}()
 	waitForDaemon(t, sock)
 
@@ -94,7 +95,7 @@ func TestServeRemovesStaleSocket(t *testing.T) {
 	interrupts := make(chan os.Signal, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(sock, proto.NewService("test", false, proto.AnyEnvironment), cli.SpyProcInout().New(), interrupts)
+		done <- serve(sock, proto.NewService("test", false, proto.AnyEnvironment, animation.NoSuggesters), cli.SpyProcInout().New(), interrupts)
 	}()
 	waitForDaemon(t, sock)
 
@@ -113,7 +114,7 @@ func TestServeRejectsLiveDaemon(t *testing.T) {
 	interrupts := make(chan os.Signal, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- serve(sock, proto.NewService("test", false, proto.AnyEnvironment), cli.SpyProcInout().New(), interrupts)
+		done <- serve(sock, proto.NewService("test", false, proto.AnyEnvironment, animation.NoSuggesters), cli.SpyProcInout().New(), interrupts)
 	}()
 	waitForDaemon(t, sock)
 	defer func() {
@@ -121,7 +122,7 @@ func TestServeRejectsLiveDaemon(t *testing.T) {
 		<-done
 	}()
 
-	err := serve(sock, proto.NewService("test", false, proto.AnyEnvironment), cli.SpyProcInout().New(), make(chan os.Signal, 1))
+	err := serve(sock, proto.NewService("test", false, proto.AnyEnvironment, animation.NoSuggesters), cli.SpyProcInout().New(), make(chan os.Signal, 1))
 	if err == nil || !strings.Contains(err.Error(), "already listening") {
 		t.Errorf("second serve() error = %v, want \"already listening\"", err)
 	}

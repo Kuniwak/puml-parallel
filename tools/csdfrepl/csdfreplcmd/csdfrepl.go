@@ -10,39 +10,50 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"golang.org/x/term"
 )
 
-// HistoryEntry is the explored-state record; the engine owns the type.
-type HistoryEntry = animation.HistoryEntry
-
-// runOptions is what a run may start with: a replay to walk first, and a
-// suggester for the value prompts, given directly or built from the
-// diagram's source (which may hand back a cleanup).
+// runOptions is what a run starts with: the JSON to explore in place of
+// the file (an expansion's, which holds its families), a replay to walk
+// first (nil for none), and what builds the suggester of the value prompts
+// (animation.NoSuggesters when no checker was given).
 type runOptions struct {
-	Replay             *animation.Replay
-	Suggester          animation.Suggester
-	SuggesterForSource func(source []byte) (animation.Suggester, func(), error)
+	DiagramJSON string
+	Replay      *animation.Replay
+	Suggesters  animation.SuggesterFactory
 }
 
-// runWithSolver runs the REPL on file. With a replay, the session first walks
-// the recorded path and the prompt opens at the state it reaches.
-func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, solver csdf.PostSolver, run runOptions) error {
+// runREPL runs the REPL on file, or on run.DiagramJSON when it is given.
+// With a replay, the session first walks the recorded path and the prompt
+// opens at the state it reaches.
+func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run runOptions) error {
 	bs, err := os.ReadFile(file)
 	if err != nil {
-		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot read the file: %w: %q", err, file)
+		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the file: %w: %q", err, file)
+	}
+	var diagramJSON []byte
+	if run.DiagramJSON != "" {
+		diagramJSON, err = os.ReadFile(run.DiagramJSON)
+		if err != nil {
+			return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram JSON: %w: %q", err, run.DiagramJSON)
+		}
 	}
 
-	diagram, err := csdf.ParseBytes(bs)
+	diagram, err := animation.ReadDiagram(bs, diagramJSON)
 	if err != nil {
-		return fmt.Errorf("csdfreplcmd.runWithSolver: cannot parse the file: %w: %q", err, file)
+		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram: %w: %q", err, file)
 	}
 
-	session, err := animation.NewSession(diagram, solver)
+	suggester, cleanup, err := run.Suggesters(bs, run.DiagramJSON)
 	if err != nil {
-		return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
+	}
+	defer cleanup()
+	session, err := animation.NewSession(diagram, suggester)
+	if err != nil {
+		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 	}
 
 	var terminal *terminalLineReader
@@ -52,15 +63,6 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 	} else {
 		lines = newLineReader(inout.Stdin)
 	}
-	suggester := run.Suggester
-	if suggester == nil && run.SuggesterForSource != nil {
-		built, cleanup, err := run.SuggesterForSource(bs)
-		if err != nil {
-			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
-		}
-		defer cleanup()
-		suggester = built
-	}
 	repl := repl{
 		diagram:    diagram,
 		session:    session,
@@ -68,11 +70,10 @@ func runWithSolver(file string, inout *cli.ProcInout, interrupts <-chan os.Signa
 		interrupts: interrupts,
 		lines:      lines,
 		terminal:   terminal,
-		suggester:  suggester,
 	}
 	if run.Replay != nil {
 		if err := session.Replay(*run.Replay); err != nil {
-			return fmt.Errorf("csdfreplcmd.runWithSolver: %w", err)
+			return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 		}
 		_, _ = fmt.Fprintf(inout.Stdout, "Replayed %d step(s); the path is in the history.\n\n", len(run.Replay.Steps))
 		repl.replayed = true
@@ -171,7 +172,7 @@ func newLineReader(reader io.Reader) <-chan lineResult {
 // repl is the terminal front-end: it reads lines and renders, delegating all
 // exploration state to the animation engine.
 type repl struct {
-	diagram    *csdf.Diagram
+	diagram    *core.Diagram
 	session    *animation.Session
 	stdout     io.Writer
 	interrupts <-chan os.Signal
@@ -180,9 +181,6 @@ type repl struct {
 	// replayed says the session already stands at a state when the loop
 	// starts, so the first prompt is a command prompt, not a value prompt.
 	replayed bool
-	// suggester, when set, is asked at every value prompt what values the
-	// pending transition admits; "#N" then enters the N-th.
-	suggester animation.Suggester
 }
 
 func (r *repl) run() error {
@@ -222,8 +220,7 @@ func (r *repl) run() error {
 			case commandEmpty:
 				r.displayEmptyLine()
 			case commandList:
-				current, _ := r.session.Current()
-				r.displayState(current)
+				r.displayPosition()
 			case commandTrace:
 				r.displayTrace(r.session.Trace())
 			case commandHistory:
@@ -232,7 +229,7 @@ func (r *repl) run() error {
 				r.displayHelp()
 			case commandJump:
 				if err := r.session.Jump(index); err != nil {
-					if errors.Is(err, animation.ErrIndexOutOfRange) {
+					if isRecoverable(err) {
 						r.displayError(err.Error())
 						continue
 					}
@@ -242,18 +239,46 @@ func (r *repl) run() error {
 				r.displayState(current)
 			case commandSelect:
 				if err := r.session.Select(index); err != nil {
-					if errors.Is(err, animation.ErrIndexOutOfRange) {
+					if isRecoverable(err) {
 						r.displayError(err.Error())
 						continue
 					}
 					return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
 				}
 				goto askValues
+			case commandEnd:
+				if err := r.session.End(index); err != nil {
+					if isRecoverable(err) {
+						r.displayError(err.Error())
+						continue
+					}
+					return fmt.Errorf("csdfreplcmd.repl.run: %w", err)
+				}
+				r.displayPosition()
 			}
 		}
 
 	askValues:
 	}
+}
+
+// isRecoverable says err is the user's to fix at the command prompt: an
+// index out of range, a step after the run ended, or an end edge whose
+// guard does not hold.
+func isRecoverable(err error) bool {
+	var refused *animation.RefusedValuesError
+	return errors.Is(err, animation.ErrIndexOutOfRange) || errors.Is(err, animation.ErrEnded) || errors.As(err, &refused)
+}
+
+// displayPosition renders where the session stands: the current state and
+// its ways out, or the end of the run.
+func (r *repl) displayPosition() {
+	current, _ := r.session.Current()
+	if r.session.Mode() == animation.ModeEnded {
+		animation.RenderEnded(r.stdout, current)
+		return
+	}
+	r.displayState(current)
 }
 
 type inputOutcome int
@@ -267,24 +292,33 @@ const (
 )
 
 func (r *repl) askStateValues() (inputOutcome, error) {
-	var suggestions []animation.Suggestion
-	if r.suggester != nil {
-		got, err := r.session.Suggest(r.suggester)
-		if err != nil {
-			r.displayError(err.Error())
-		} else {
-			suggestions = got
-		}
+	// The session's suggester is asked once per prompt what values the
+	// pending transition admits; "#N" then enters the N-th. Without a
+	// checker it suggests nothing, and nothing is shown.
+	suggestions, suggestErr := r.session.Suggest()
+	if suggestErr != nil && !errors.Is(suggestErr, animation.ErrNoSuggester) {
+		r.displayError(suggestErr.Error())
 	}
 	for {
-		group, guard, post, _, prev := r.session.Pending()
-		r.displayStateValuePrompt(prev, group, guard, post)
-		if r.suggester != nil && suggestions != nil {
+		r.displayStateValuePrompt(r.session.Pending())
+		if suggestErr == nil {
 			animation.RenderSuggestions(r.stdout, suggestions)
 		}
 		line, outcome, err := r.readLine("state> ")
 		if err != nil {
 			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
+		}
+		if outcome == inputExit {
+			return inputExit, nil
+		}
+		if outcome == inputInterrupt {
+			if len(r.session.History()) == 0 {
+				return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: interrupted before the initial state's values were entered")
+			}
+			if err := r.session.Back(); err != nil {
+				return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
+			}
+			return inputBack, nil
 		}
 		if picked, isPick, pickErr := animation.PickSuggestion(line, suggestions); isPick {
 			if pickErr != nil {
@@ -293,43 +327,17 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 			}
 			line = picked
 		}
-		if outcome == inputExit {
-			return inputExit, nil
-		}
-		if outcome == inputInterrupt {
-			if len(r.session.History()) == 0 {
-				return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: No solutions found")
-			}
-			if err := r.session.Back(); err != nil {
-				return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
-			}
-			return inputBack, nil
-		}
 
-		result, err := r.session.EnterValues(line)
+		_, err = r.session.EnterValues(line)
+		var refused *animation.RefusedValuesError
+		if errors.As(err, &refused) {
+			r.displayError(refused.Error())
+			continue
+		}
 		if err != nil {
 			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
 		}
-		switch result.Kind {
-		case csdf.PostSolverResultOK:
-			return inputLine, nil
-		case csdf.PostSolverResultNoSolutions:
-			r.displayError("No solutions")
-		case csdf.PostSolverResultInvalidStateVarValuesLength:
-			if result.Err == nil {
-				r.displayError("state variable values length mismatch")
-			} else {
-				r.displayError(result.Err.Error())
-			}
-		case csdf.PostSolverResultSyntaxError:
-			if result.Err == nil {
-				r.displayError("invalid state variable values")
-			} else {
-				r.displayError(result.Err.Error())
-			}
-		default:
-			return inputFatal, errors.New("csdfreplcmd.repl.askStateValues: post solver returned an unknown result")
-		}
+		return inputLine, nil
 	}
 }
 
@@ -384,17 +392,19 @@ func (r *repl) displayError(message string) { animation.RenderError(r.stdout, me
 
 func (r *repl) displayEmptyLine() { animation.RenderEmptyLine(r.stdout) }
 
-func (r *repl) displayStateValuePrompt(previous *csdf.RuntimeState, group csdf.StateWithID, guard, post csdf.Predicate) {
-	animation.RenderStateValuePrompt(r.stdout, previous, group, guard, post)
+func (r *repl) displayStateValuePrompt(pending animation.Pending) {
+	animation.RenderStateValuePrompt(r.stdout, r.diagram, pending)
 }
 
-func (r *repl) displayState(state csdf.RuntimeState) {
+func (r *repl) displayState(state animation.State) {
 	animation.RenderState(r.stdout, r.diagram, state)
 }
 
-func (r *repl) displayTrace(trace []csdf.Event) { animation.RenderTrace(r.stdout, trace) }
+func (r *repl) displayTrace(trace []string) { animation.RenderTrace(r.stdout, trace) }
 
-func (r *repl) displayHistory(history []HistoryEntry) { animation.RenderHistory(r.stdout, history) }
+func (r *repl) displayHistory(history []animation.HistoryEntry) {
+	animation.RenderHistory(r.stdout, history)
+}
 
 func (r *repl) displayHelp() { animation.RenderHelp(r.stdout) }
 
@@ -408,6 +418,7 @@ const (
 	commandHelp
 	commandSelect
 	commandJump
+	commandEnd
 )
 
 func parseCommand(input string) (commandKind, int, error) {
@@ -426,6 +437,8 @@ func parseCommand(input string) (commandKind, int, error) {
 		return 0, 0, errors.New("required an index of transition")
 	case "j":
 		return 0, 0, errors.New("required an index of history")
+	case "e":
+		return 0, 0, errors.New("required an index of end edge")
 	}
 
 	for _, command := range []string{"l", "t", "h", "?", "help"} {
@@ -440,6 +453,10 @@ func parseCommand(input string) (commandKind, int, error) {
 	if strings.HasPrefix(input, "j ") {
 		index, err := parseNaturalNumber(strings.TrimPrefix(input, "j "))
 		return commandJump, index, err
+	}
+	if strings.HasPrefix(input, "e ") {
+		index, err := parseNaturalNumber(strings.TrimPrefix(input, "e "))
+		return commandEnd, index, err
 	}
 	return 0, 0, errors.New("invalid command")
 }

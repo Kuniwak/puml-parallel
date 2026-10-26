@@ -12,40 +12,50 @@ import (
 	"time"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden files")
 
+func mustClause(t *testing.T, text string) clause.And {
+	t.Helper()
+	c, err := clause.Parse(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
 func TestEventDisplaysGolden(t *testing.T) {
-	state := csdf.RuntimeState{
+	state := animation.State{
 		ID:   "review",
 		Name: "Review order",
-		Values: []csdf.StateValue{
+		Values: []animation.Value{
 			{Name: "count", Value: 2},
 			{Name: "metadata", Value: map[string]any{"priority": true, "tags": []any{"new", "gift"}}},
 		},
 	}
-	history := []HistoryEntry{
+	history := []animation.HistoryEntry{
 		{
-			State: csdf.RuntimeState{
+			State: animation.State{
 				ID:     "draft",
 				Name:   "Draft order",
-				Values: []csdf.StateValue{{Name: "count", Value: 1}},
+				Values: []animation.Value{{Name: "count", Value: 1}},
 			},
-			Trace: []csdf.Event{},
+			Trace: []string{},
 		},
 		{
 			State: state,
-			Trace: []csdf.Event{"submit(order)", "approve"},
+			Trace: []string{"submit?order", "approve"},
 		},
 	}
 
 	tests := []struct {
 		name    string
-		diagram *csdf.Diagram
+		diagram *core.Diagram
 		prompt  string
 		display func(*repl)
 	}{
@@ -53,15 +63,12 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayStateGroup",
 			prompt: "state> ",
 			display: func(r *repl) {
-				r.displayStateValuePrompt(&state, csdf.StateWithID{
-					ID: "approved",
-					State: csdf.State{
-						Name: "Approved",
-						Vars: []csdf.StateVar{
-							{Name: "status", Type: "string"},
-						},
-					},
-				}, "count > 0", `status' = "reviewing"`)
+				r.displayStateValuePrompt(animation.Pending{
+					Target: animation.Target{ID: "approved", Name: "Approved", Vars: []string{"status"}},
+					Guard:  mustClause(t, "$count > 0 ∧ @ne(count, 9)"),
+					Post:   mustClause(t, `$status' = "reviewing"`),
+					Prev:   &state,
+				})
 			},
 		},
 		{
@@ -81,23 +88,21 @@ func TestEventDisplaysGolden(t *testing.T) {
 		{
 			name:   "EventDisplayTrans",
 			prompt: "command> ",
-			diagram: &csdf.Diagram{
-				States: map[csdf.StateID]csdf.State{
-					"approved": {Name: "Approved"},
-					"rejected": {Name: "Rejected"},
-				},
-				Edges: []csdf.Edge{
+			diagram: &core.Diagram{
+				States: []string{"review", "approved", "rejected"},
+				Labels: map[string]string{"review": "Review order", "approved": "Approved", "rejected": "Rejected"},
+				Edges: []core.Edge{
 					{
 						Src:   "review",
 						Dst:   "approved",
-						Event: "approve",
-						Guard: "count > 0",
-						Post:  `status' = "approved"`,
+						Event: core.Event{Channel: "approve"},
+						Guard: mustClause(t, "$count > 0"),
+						Post:  mustClause(t, `$status' = "approved"`),
 					},
 					{
 						Src:   "review",
 						Dst:   "rejected",
-						Event: "reject(reason)",
+						Event: core.Event{Channel: "reject", Fields: []core.Field{{Name: "reason"}}},
 					},
 				},
 			},
@@ -107,7 +112,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 		},
 		{
 			name:    "EventDisplayDeadlock",
-			diagram: &csdf.Diagram{},
+			diagram: &core.Diagram{},
 			prompt:  "command> ",
 			display: func(r *repl) {
 				r.displayState(state)
@@ -117,7 +122,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			name:   "EventDisplayTrace",
 			prompt: "command> ",
 			display: func(r *repl) {
-				r.displayTrace([]csdf.Event{"submit(order)", "approve"})
+				r.displayTrace([]string{"submit?order", "approve"})
 			},
 		},
 		{
@@ -148,7 +153,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			stdout := &bytes.Buffer{}
 			diagram := tt.diagram
 			if diagram == nil {
-				diagram = &csdf.Diagram{}
+				diagram = &core.Diagram{}
 			}
 			lines := make(chan lineResult, 1)
 			lines <- lineResult{}
@@ -162,49 +167,6 @@ func TestEventDisplaysGolden(t *testing.T) {
 			}
 			assertGolden(t, tt.name, stdout.Bytes())
 		})
-	}
-}
-
-func TestDisplayStateValuePromptForInitialState(t *testing.T) {
-	stdout := &bytes.Buffer{}
-	lines := make(chan lineResult, 1)
-	lines <- lineResult{}
-	close(lines)
-	r := &repl{stdout: stdout, lines: lines}
-
-	r.displayStateValuePrompt(nil, csdf.StateWithID{
-		ID: "initial",
-		State: csdf.State{
-			Name: "Initial",
-			Vars: []csdf.StateVar{
-				{Name: "count", Type: "number"},
-				{Name: "metadata"},
-			},
-		},
-	}, "", "")
-	if _, outcome, _ := r.readLine("state> "); outcome != inputLine {
-		t.Fatalf("readLine() outcome = %v, want inputLine", outcome)
-	}
-
-	want := "" +
-		"State: (none)\n" +
-		"\n" +
-		"Guard:\n" +
-		"  true\n" +
-		"\n" +
-		"Post State Group:\n" +
-		"  Initial\n" +
-		"    count' as number\n" +
-		"    metadata' as any\n" +
-		"\n" +
-		"Post Condition:\n" +
-		"  true\n" +
-		"\n" +
-		"Enter 2 values as a JSON array in declaration order: [<count>, <metadata>].\n" +
-		"\n" +
-		"state> \n"
-	if stdout.String() != want {
-		t.Error(cmp.Diff(want, stdout.String()))
 	}
 }
 
@@ -233,28 +195,29 @@ func assertGolden(t *testing.T, name string, actual []byte) {
 func TestRunExploresDiagram(t *testing.T) {
 	path := writeDiagram(t, `@startuml
 state "Initial" as s0
-s0: count ; number
+s0: count
 state "Done" as s1
-s1: result ; string
-[*] --> s0 : count starts at zero
-s0 --> s1 : insert?coin ; count >= 0 ; result is done
+s1: result
+[*] --> s0 : $count' = 0
+s0 --> s1 : insert?coin ; @ne(count, 9) ∧ $count >= 0 ; $result' is done
 @enduml
 `)
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("[0]\nl\nt\nh\ns 0\n[\"ok\"]\nt\nj 0\n\n"))
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err != nil {
-		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
+		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
 	}
 	if spy.Stderr.Len() != 0 {
-		t.Errorf("runWithSolver() stderr = %q, want empty", spy.Stderr.String())
+		t.Errorf("runREPL() stderr = %q, want empty", spy.Stderr.String())
 	}
 	for _, want := range []string{
 		"State: Initial",
-		"count' as number",
+		"    count'\n",
 		"[0] insert?coin -> Done",
+		"Guard: @ne(count, 9) ∧ $count >= 0",
 		`"insert?coin"`,
 		"State: Done",
 		`result = "ok"`,
@@ -277,15 +240,15 @@ s0: value
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("null\n{}\n[]\n[null]\n[1]\ns\ns nope\ns 0\nj\nj nope\nj 9\nl extra\nunknown\n"))
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err != nil {
-		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
+		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
 	}
 	for _, want := range []string{
 		"invalid JSON array",
 		"expected 1 value(s) for [value], got 0",
-		"null is not a supported JSON value",
+		"null is not a valid state variable value",
 		"required an index of transition",
 		"Not a natural number",
 		"Index out of range",
@@ -296,35 +259,6 @@ s0: value
 		if !strings.Contains(spy.Stdout.String(), want) {
 			t.Errorf("Run() stdout does not contain %q:\n%s", want, spy.Stdout.String())
 		}
-	}
-}
-
-func TestRunKeepsNoSolutionsEscapeHatch(t *testing.T) {
-	path := writeDiagram(t, `@startuml
-state "Initial" as s0
-[*] --> s0
-@enduml
-`)
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader("[]\n[]\n"))
-	solver, calls := sequenceSolver(
-		csdf.PostSolverResult{Kind: csdf.PostSolverResultNoSolutions},
-		csdf.PostSolverResult{
-			Kind:  csdf.PostSolverResultOK,
-			State: csdf.RuntimeState{ID: "s0", Name: "Initial"},
-		},
-	)
-
-	err := runWithSolver(path, spy.New(), nil, solver, runOptions{})
-
-	if err != nil {
-		t.Fatalf("runWithSolver() error = %v, want nil", err)
-	}
-	if !strings.Contains(spy.Stdout.String(), "Error: No solutions") {
-		t.Fatalf("runWithSolver() stdout = %q, want No solutions error", spy.Stdout.String())
-	}
-	if *calls != 2 {
-		t.Errorf("solver calls = %d, want 2", *calls)
 	}
 }
 
@@ -342,7 +276,7 @@ s0 --> s1 : go
 	spy.Stdin = cli.StubStdin(inputReader)
 	done := make(chan error, 1)
 	go func() {
-		done <- runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON, runOptions{})
+		done <- runREPL(path, spy.New(), interrupts, runOptions{Suggesters: animation.NoSuggesters})
 	}()
 
 	writeAndWait(t, inputWriter, "[]\n", spy.Stdout, "command> ")
@@ -352,7 +286,7 @@ s0 --> s1 : go
 	_ = inputWriter.Close()
 
 	if err := <-done; err != nil {
-		t.Fatalf("runWithSolver() error = %v, want nil", err)
+		t.Fatalf("runREPL() error = %v, want nil", err)
 	}
 }
 
@@ -366,13 +300,13 @@ state "Initial" as s0
 	interrupts <- os.Interrupt
 	spy := cli.SpyProcInout()
 
-	err := runWithSolver(path, spy.New(), interrupts, csdf.SolveJSON, runOptions{})
+	err := runREPL(path, spy.New(), interrupts, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err == nil {
-		t.Fatalf("runWithSolver() error = nil, want error")
+		t.Fatalf("runREPL() error = nil, want error")
 	}
-	if !strings.Contains(err.Error(), "No solutions found") {
-		t.Errorf("runWithSolver() error = %v, want fatal error mentioning No solutions found", err)
+	if want := "interrupted before the initial state's values were entered"; !strings.Contains(err.Error(), want) {
+		t.Errorf("runREPL() error = %v, want fatal error saying %q", err, want)
 	}
 }
 
@@ -387,13 +321,13 @@ s0: value
 	spy.Stdin = cli.StubStdin(strings.NewReader("[1]"))
 	stdout := &bytes.Buffer{}
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, runOptions{})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	if err != nil {
-		t.Fatalf("runWithSolver() error = %v, want nil", err)
+		t.Fatalf("runREPL() error = %v, want nil", err)
 	}
 	if strings.Contains(stdout.String(), "value = 1") {
-		t.Errorf("runWithSolver() submitted a line without Enter:\n%s", stdout.String())
+		t.Errorf("runREPL() submitted a line without Enter:\n%s", stdout.String())
 	}
 }
 
@@ -479,23 +413,145 @@ func TestTerminalLineReaderControlOutcomes(t *testing.T) {
 	}
 }
 
-func TestRunWithSolverRejectsBadFiles(t *testing.T) {
-	tests := []struct {
-		name string
+func TestRunREPLRejectsBadFiles(t *testing.T) {
+	tests := map[string]struct {
 		file string
+		want string
 	}{
-		{name: "missing file", file: filepath.Join(t.TempDir(), "missing.puml")},
-		{name: "invalid file", file: writeDiagram(t, "not PlantUML")},
+		"missing file": {file: filepath.Join(t.TempDir(), "missing.puml"), want: "cannot read the file"},
+		"invalid file": {file: writeDiagram(t, "not PlantUML"), want: "cannot read the diagram"},
+		"a clause of the old syntax": {
+			file: writeDiagram(t, "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n"),
+			want: "cannot read the diagram: animation.ReadDiagram: coreio.ReadBytes: coreio.Read:",
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
 			spy := cli.SpyProcInout()
-			err := runWithSolver(tt.file, spy.New(), nil, csdf.SolveJSON, runOptions{})
-			if err == nil {
-				t.Error("runWithSolver() error = nil, want error")
+
+			// Execute
+			err := runREPL(tt.file, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("runREPL() error = %v, want one containing %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestRunStepsADiagramOfTheNewBuiltins(t *testing.T) {
+	// Setup
+	path := writeDiagram(t, `@startuml
+state "Open" as s0
+s0: m
+s0: k
+[*] --> s0 : @empty(m') ∧ @eq(k', 0)
+s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k', x)
+@enduml
+`)
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("[{}, 0]\ns 0\n[{\"1\": 1}, 1]\nt\n"))
+
+	// Execute
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{
+		"Post Condition:\n  @empty(m') ∧ @eq(k', 0)\n",
+		"[0] put?x -> Open\n      Guard: @notin(m, x) ∧ @ne(x, k)\n      Post: @update(m', m, x, 1) ∧ @eq(k', x)\n",
+		"  m = {\"1\":1}\n  k = 1\n",
+		`"put?x"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout does not contain %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRunExploresTheDiagramJSONOfAnExpansion(t *testing.T) {
+	// Setup
+	raw, err := core.MarshalDiagram(&core.Diagram{
+		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
+		Families: []core.FamilyStates{{Map: "accounts", Init: "none", States: []string{"none", "opened"},
+			Vars: map[string][]string{"opened": {"balance"}}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jsonPath := filepath.Join(t.TempDir(), "expansion.json")
+	if err := os.WriteFile(jsonPath, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := writeDiagram(t, "@startuml\nstate \"S\" as s\n[*] --> s\n@enduml\n")
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(`[{"a": {"at": "opened", "fields": {}}}]` + "\n" + `[{"a": {"at": "opened", "fields": {"balance": 1}}}]` + "\n"))
+
+	// Execute
+	err = runREPL(path, spy.New(), nil, runOptions{DiagramJSON: jsonPath, Suggesters: animation.NoSuggesters})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{
+		"    accounts', a map from IDs to instances {\"at\": <state>, \"fields\": {...}}:\n      at opened, holding balance\n",
+		`Error: accounts["a"]: an instance at opened holds the fields [balance], got []`,
+		`State: G`,
+		`accounts = {"a":{"at":"opened","fields":{"balance":1}}}`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout does not contain %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRunTakesAnEndEdgeAndGoesOnByAJump(t *testing.T) {
+	// Setup
+	path := writeDiagram(t, `@startuml
+state "Idle" as s0
+s0: a
+[*] --> s0 : $a' == 0
+s0 --> [*] : @eq(a, a)
+@enduml
+`)
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("[0]\ne 3\ne 0\ns 0\nl\nj 0\n"))
+
+	// Execute
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+	out := spy.Stdout.String()
+	if strings.Contains(out, "Deadlock") {
+		t.Errorf("stdout calls a state with an end edge a deadlock:\n%s", out)
+	}
+	ended := "Ended: the run terminates at Idle. Jump to a history entry (j INDEX) to go on.\n"
+	for _, want := range []string{
+		"Ends:\n  [0] end the run\n      Guard: @eq(a, a)\n",
+		"Error: Index out of range\n",
+		ended,
+		"Error: the run has ended; jump to a history entry (j INDEX) to go on\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout does not contain %q:\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, ended); n != 2 {
+		t.Errorf("stdout shows the end %d times, want 2 (after e, after l):\n%s", n, out)
+	}
+	if !strings.HasSuffix(out, "Ends:\n  [0] end the run\n      Guard: @eq(a, a)\n\ncommand> ") {
+		t.Errorf("stdout does not end at the state jumped to:\n%s", out)
 	}
 }
 
@@ -511,6 +567,8 @@ func TestParseCommand(t *testing.T) {
 		{input: "help", wantKind: commandHelp},
 		{input: "s 12", wantKind: commandSelect, wantIndex: 12},
 		{input: "j 0", wantKind: commandJump},
+		{input: "e 1", wantKind: commandEnd, wantIndex: 1},
+		{input: "e", wantError: "required an index of end edge"},
 		{input: "s", wantError: "required an index of transition"},
 		{input: "j -1", wantError: "Not a natural number"},
 		{input: "t extra", wantError: "invalid arguments"},
@@ -534,17 +592,6 @@ func TestParseCommand(t *testing.T) {
 			}
 		})
 	}
-}
-
-// sequenceSolver returns a csdf.PostSolver that yields the given results in
-// order, plus a pointer to the number of times it has been called.
-func sequenceSolver(results ...csdf.PostSolverResult) (csdf.PostSolver, *int) {
-	calls := 0
-	return func(csdf.PostSolverInput) csdf.PostSolverResult {
-		result := results[calls]
-		calls++
-		return result
-	}, &calls
 }
 
 func writeDiagram(t *testing.T, content string) string {
@@ -593,9 +640,9 @@ func TestRunReplaysAFindingBeforeTheFirstPrompt(t *testing.T) {
 state "counting" as a
 a: n
 state "stopped" as b
-[*] --> a : n = 2
-a --> a : dec ; n > 0 ; n' = n - 1
-a --> b : stop ; n = 0
+[*] --> a : $n' = 2
+a --> a : dec ; $n > 0 ; $n' = $n - 1
+a --> b : stop ; $n = 0
 @enduml
 `)
 	replay := animation.Replay{Initial: []byte(`[2]`), Steps: []animation.ReplayStep{
@@ -606,10 +653,10 @@ a --> b : stop ; n = 0
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("t\nh\n"))
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, runOptions{Replay: &replay})
+	err := runREPL(path, spy.New(), nil, runOptions{Replay: &replay, Suggesters: animation.NoSuggesters})
 
 	if err != nil {
-		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
+		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
 	}
 	out := spy.Stdout.String()
 	for _, want := range []string{"Replayed 3 step(s)", "State: stopped", `"dec"`, `"stop"`, "History:"} {
@@ -623,12 +670,13 @@ a --> b : stop ; n = 0
 }
 
 type stubSuggester struct {
+	animation.NoSuggester
 	initial []animation.Suggestion
 	next    []animation.Suggestion
 }
 
 func (s stubSuggester) Initial() ([]animation.Suggestion, error) { return s.initial, nil }
-func (s stubSuggester) Next(csdf.RuntimeState, int) ([]animation.Suggestion, error) {
+func (s stubSuggester) Next(animation.State, int) ([]animation.Suggestion, error) {
 	return s.next, nil
 }
 
@@ -637,9 +685,9 @@ func TestRunShowsSuggestionsAndTakesOneWithHash(t *testing.T) {
 state "counting" as a
 a: n
 state "stopped" as b
-[*] --> a : n = 2
-a --> a : dec ; n > 0 ; n' = n - 1
-a --> b : stop ; n = 0
+[*] --> a : $n' = 2
+a --> a : dec ; $n > 0 ; $n' = $n - 1
+a --> b : stop ; $n = 0
 @enduml
 `)
 	sg := stubSuggester{
@@ -649,10 +697,10 @@ a --> b : stop ; n = 0
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("#0\ns 0\n#9\n#0\nl\n"))
 
-	err := runWithSolver(path, spy.New(), nil, csdf.SolveJSON, runOptions{Suggester: sg})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: func([]byte, string) (animation.Suggester, func(), error) { return sg, animation.NoCleanup, nil }})
 
 	if err != nil {
-		t.Fatalf("runWithSolver() error = %v; stderr = %q", err, spy.Stderr.String())
+		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
 	}
 	out := spy.Stdout.String()
 	for _, want := range []string{"Suggested by csdfbmc", "[#0] [2]", "n = 2", "[#0] [1]", "no suggestion #9", "n = 1"} {

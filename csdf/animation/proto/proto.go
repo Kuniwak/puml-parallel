@@ -7,7 +7,6 @@ package proto
 import (
 	"encoding/json"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 )
 
@@ -22,6 +21,7 @@ const (
 	CommandTrace         = "trace"
 	CommandHistory       = "history"
 	CommandJump          = "jump"
+	CommandEnd           = "end"
 	CommandReplay        = "replay"
 	CommandServerVersion = "server_version"
 )
@@ -32,13 +32,15 @@ type Request struct {
 	Session string `json:"session,omitempty"` // "" => resolve the single session
 	Path    string `json:"path,omitempty"`    // session_new: label for listings
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
-	Index   *int   `json:"index,omitempty"`   // select (optional) / jump (required)
+	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
 	Pick *int `json:"pick,omitempty"`
-	// DiagramJSON (session_new) is the JSON the checker reads for this session
-	// when the file is an expansion; empty means the file's own parse.
+	// DiagramJSON (session_new) is the path, on the daemon's side, of the
+	// JSON the session explores and the checker reads in place of Content,
+	// for an expansion, whose families only the JSON holds; empty means
+	// Content.
 	DiagramJSON string `json:"diagram_json,omitempty"`
 	// Replay walks a fresh session along a path csdfbmc recorded under a
 	// finding (replay).
@@ -59,30 +61,43 @@ type Response struct {
 }
 
 // View is the structured current position of a session, returned by read,
-// select, statevar (on success), and jump.
+// select, statevar (on success), jump and end. In "ended" mode, State is
+// where the run ended.
 type View struct {
-	Mode        string             `json:"mode"` // "values" | "command"
-	State       *csdf.RuntimeState `json:"state,omitempty"`
-	Transitions []Transition       `json:"transitions,omitempty"`
-	Pending     *Pending           `json:"pending,omitempty"`
+	Mode        string           `json:"mode"` // "values" | "command" | "ended"
+	State       *animation.State `json:"state,omitempty"`
+	Transitions []Transition     `json:"transitions,omitempty"`
+	Ends        []End            `json:"ends,omitempty"`
+	Pending     *Pending         `json:"pending,omitempty"`
 }
 
-// Transition is one selectable outgoing edge from the current state.
+// End is one end edge from the current state, which end takes: its guard
+// as Transition writes one.
+type End struct {
+	Index int    `json:"index"`
+	Guard string `json:"guard"`
+}
+
+// Transition is one selectable outgoing edge from the current state: its
+// event's label, and its guard and post as the canonical clause printer
+// writes them, as animation.ClauseText does: "(none)" for a clause of no
+// conjunct, as in the text output.
 type Transition struct {
-	Index   int            `json:"index"`
-	Event   csdf.Event     `json:"event"`
-	Dst     csdf.StateID   `json:"dst"`
-	DstName string         `json:"dst_name"`
-	Guard   csdf.Predicate `json:"guard"`
-	Post    csdf.Predicate `json:"post"`
+	Index   int    `json:"index"`
+	Event   string `json:"event"`
+	Dst     string `json:"dst"`
+	DstName string `json:"dst_name"`
+	Guard   string `json:"guard"`
+	Post    string `json:"post"`
 }
 
-// Pending describes the post state group awaiting values in ModeValues.
+// Pending describes the state awaiting values in ModeValues, with the guard
+// and post of the transition to it as Transition writes them.
 type Pending struct {
-	Previous *csdf.RuntimeState `json:"previous,omitempty"`
-	Group    csdf.StateWithID   `json:"group"`
-	Guard    csdf.Predicate     `json:"guard"`
-	Post     csdf.Predicate     `json:"post"`
+	Previous *animation.State `json:"previous,omitempty"`
+	Group    animation.Target `json:"group"`
+	Guard    string           `json:"guard"`
+	Post     string           `json:"post"`
 	// Suggestions are the values the checker admits for this prompt, when
 	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`
@@ -100,7 +115,7 @@ type VersionData struct {
 
 // TraceData is the trace payload.
 type TraceData struct {
-	Trace []csdf.Event `json:"trace"`
+	Trace []string `json:"trace"`
 }
 
 // HistoryData is the history payload.
@@ -115,11 +130,11 @@ type SessionListData struct {
 
 // SessionInfo summarizes one live session.
 type SessionInfo struct {
-	Session   string       `json:"session"`
-	Path      string       `json:"path,omitempty"`
-	Mode      string       `json:"mode"`
-	StateID   csdf.StateID `json:"state_id"`
-	StateName string       `json:"state_name"`
+	Session   string `json:"session"`
+	Path      string `json:"path,omitempty"`
+	Mode      string `json:"mode"`
+	StateID   string `json:"state_id"`
+	StateName string `json:"state_name"`
 }
 
 func mustData(v any) json.RawMessage {

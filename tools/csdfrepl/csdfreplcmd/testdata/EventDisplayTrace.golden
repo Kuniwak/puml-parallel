@@ -1,6 +1,6 @@
 Trace:
   [
-    "submit(order)",
+    "submit?order",
     "approve"
   ]
 

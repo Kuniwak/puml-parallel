@@ -12,14 +12,15 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 )
 
 // HistoryEntry is one explored state together with the event trace that led to
 // it from the initial state.
 type HistoryEntry struct {
-	State csdf.RuntimeState `json:"state"`
-	Trace []csdf.Event      `json:"trace"`
+	State State    `json:"state"`
+	Trace []string `json:"trace"`
 }
 
 // RenderError writes a human-readable error block.
@@ -33,45 +34,58 @@ func RenderEmptyLine(w io.Writer) {
 }
 
 // RenderStateValuePrompt renders the prompt shown before the user enters the
-// state-variable values for the pending post state group.
-func RenderStateValuePrompt(w io.Writer, previous *csdf.RuntimeState, group csdf.StateWithID, guard, post csdf.Predicate) {
-	if previous == nil {
+// values of the pending target state of diagram: the previous state, the
+// guard and the post as the canonical clause printer writes them, and the
+// variables to enter, with what an instance of a family's map holds.
+func RenderStateValuePrompt(w io.Writer, diagram *core.Diagram, pending Pending) {
+	if pending.Prev == nil {
 		_, _ = fmt.Fprintln(w, "State: (none)")
 	} else {
-		_, _ = fmt.Fprintf(w, "State: %s\n", previous.Name)
-		renderStateValues(w, previous.Values, "  ")
+		_, _ = fmt.Fprintf(w, "State: %s\n", pending.Prev.Name)
+		renderStateValues(w, pending.Prev.Values, "  ")
 	}
 	_, _ = fmt.Fprintln(w)
 
 	_, _ = fmt.Fprintln(w, "Guard:")
-	_, _ = fmt.Fprintf(w, "  %s\n\n", renderCondition(guard))
+	_, _ = fmt.Fprintf(w, "  %s\n\n", ClauseText(pending.Guard))
 
 	_, _ = fmt.Fprintln(w, "Post State Group:")
-	_, _ = fmt.Fprintf(w, "  %s\n", group.Name)
-	for _, variable := range group.Vars {
-		variableType := variable.Type
-		if variableType == "" {
-			variableType = "any"
+	_, _ = fmt.Fprintf(w, "  %s\n", pending.Target.Name)
+	for _, name := range pending.Target.Vars {
+		f, ok := family(diagram, name)
+		if !ok {
+			_, _ = fmt.Fprintf(w, "    %s'\n", name)
+			continue
 		}
-		_, _ = fmt.Fprintf(w, "    %s' as %s\n", variable.Name, variableType)
+		_, _ = fmt.Fprintf(w, "    %s', a map from IDs to instances {\"at\": <state>, \"fields\": {...}}:\n", name)
+		for _, s := range f.States {
+			if s == f.Init {
+				continue
+			}
+			holding := "nothing"
+			if vs := f.Vars[s]; len(vs) > 0 {
+				holding = strings.Join(vs, ", ")
+			}
+			_, _ = fmt.Fprintf(w, "      at %s, holding %s\n", s, holding)
+		}
 	}
 	_, _ = fmt.Fprintln(w)
 
 	_, _ = fmt.Fprintln(w, "Post Condition:")
-	_, _ = fmt.Fprintf(w, "  %s\n\n", renderCondition(post))
-	_, _ = fmt.Fprintln(w, valuePromptInstruction(group.Vars))
+	_, _ = fmt.Fprintf(w, "  %s\n\n", ClauseText(pending.Post))
+	_, _ = fmt.Fprintln(w, valuePromptInstruction(pending.Target.Vars))
 	_, _ = fmt.Fprintln(w)
 }
 
 // valuePromptInstruction tells the user exactly how many values to enter and in
 // what order, using the variable names as placeholders.
-func valuePromptInstruction(vars []csdf.StateVar) string {
+func valuePromptInstruction(vars []string) string {
 	if len(vars) == 0 {
 		return "Enter an empty JSON array: []."
 	}
 	placeholders := make([]string, len(vars))
 	for i, v := range vars {
-		placeholders[i] = "<" + string(v.Name) + ">"
+		placeholders[i] = "<" + v + ">"
 	}
 	noun := "value"
 	if len(vars) != 1 {
@@ -80,12 +94,14 @@ func valuePromptInstruction(vars []csdf.StateVar) string {
 	return fmt.Sprintf("Enter %d %s as a JSON array in declaration order: [%s].", len(vars), noun, strings.Join(placeholders, ", "))
 }
 
-// RenderState renders the current state, its values, and its outgoing
-// transitions (numbered for selection), or a deadlock notice if there are none.
-func RenderState(w io.Writer, diagram *csdf.Diagram, state csdf.RuntimeState) {
+// RenderState renders the current state, its values, its outgoing
+// transitions and its end edges (each numbered for selection), or a
+// deadlock notice if it has neither, as csdfbmc counts a deadlock.
+func RenderState(w io.Writer, diagram *core.Diagram, state State) {
 	edges := Outgoing(diagram, state.ID)
+	ends := EndsFrom(diagram, state.ID)
 	_, _ = fmt.Fprintf(w, "State: %s\n", state.Name)
-	if len(edges) > 0 {
+	if len(edges) > 0 || len(ends) > 0 {
 		_, _ = fmt.Fprintln(w)
 	}
 	_, _ = fmt.Fprintln(w, "Values:")
@@ -95,22 +111,37 @@ func RenderState(w io.Writer, diagram *csdf.Diagram, state csdf.RuntimeState) {
 	renderStateValues(w, state.Values, "  ")
 	_, _ = fmt.Fprintln(w)
 
-	if len(edges) == 0 {
+	if len(edges) == 0 && len(ends) == 0 {
 		_, _ = fmt.Fprintln(w, "Deadlock: no outgoing transitions.")
 		_, _ = fmt.Fprintln(w)
 		return
 	}
-	_, _ = fmt.Fprintln(w, "Transitions:")
+	if len(edges) > 0 {
+		_, _ = fmt.Fprintln(w, "Transitions:")
+	}
 	for i, edge := range edges {
-		destination := diagram.States[edge.Dst]
-		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s\n", i, edge.Event, destination.Name)
-		_, _ = fmt.Fprintf(w, "      Guard: %s\n", renderCondition(edge.Guard))
-		_, _ = fmt.Fprintf(w, "      Post: %s\n", renderCondition(edge.Post))
+		_, _ = fmt.Fprintf(w, "  [%d] %s -> %s\n", i, edge.Event.Label(), StateName(diagram, edge.Dst))
+		_, _ = fmt.Fprintf(w, "      Guard: %s\n", ClauseText(edge.Guard))
+		_, _ = fmt.Fprintf(w, "      Post: %s\n", ClauseText(edge.Post))
+		_, _ = fmt.Fprintln(w)
+	}
+	if len(ends) > 0 {
+		_, _ = fmt.Fprintln(w, "Ends:")
+	}
+	for i, end := range ends {
+		_, _ = fmt.Fprintf(w, "  [%d] end the run\n", i)
+		_, _ = fmt.Fprintf(w, "      Guard: %s\n", ClauseText(end.Guard))
 		_, _ = fmt.Fprintln(w)
 	}
 }
 
-func renderStateValues(w io.Writer, values []csdf.StateValue, indent string) {
+// RenderEnded renders the notice of a run that ended at state by an end
+// edge.
+func RenderEnded(w io.Writer, state State) {
+	_, _ = fmt.Fprintf(w, "Ended: the run terminates at %s. Jump to a history entry (j INDEX) to go on.\n\n", state.Name)
+}
+
+func renderStateValues(w io.Writer, values []Value, indent string) {
 	for _, value := range values {
 		_, _ = fmt.Fprintf(w, "%s%s = %s\n", indent, value.Name, encodeJSON(value.Value))
 	}
@@ -121,15 +152,21 @@ func encodeJSON(value any) string {
 	return string(encoded)
 }
 
-func renderCondition(condition csdf.Predicate) string {
-	if csdf.IsTrue(condition) {
-		return string(csdf.PredicateTrue)
+// ClauseText is c as the canonical clause printer writes it (clause.Print),
+// or "(none)" for a clause of no conjunct, which holds.
+func ClauseText(c clause.And) string {
+	if len(c.Conjuncts) == 0 {
+		return "(none)"
 	}
-	return string(condition)
+	text, err := clause.Print(c)
+	if err != nil {
+		return fmt.Sprintf("(unprintable: %v)", err)
+	}
+	return text
 }
 
 // RenderTrace renders the event trace of the current path.
-func RenderTrace(w io.Writer, trace []csdf.Event) {
+func RenderTrace(w io.Writer, trace []string) {
 	encoded, err := json.MarshalIndent(trace, "", "  ")
 	if err != nil {
 		RenderError(w, fmt.Sprintf("encoding trace: %v", err))
@@ -162,6 +199,7 @@ func RenderHelp(w io.Writer) {
 	_, _ = fmt.Fprintln(w, "  t         display the current trace")
 	_, _ = fmt.Fprintln(w, "  h         display history")
 	_, _ = fmt.Fprintln(w, "  s INDEX   select a transition")
+	_, _ = fmt.Fprintln(w, "  e INDEX   take an end edge: the run terminates")
 	_, _ = fmt.Fprintln(w, "  j INDEX   jump to a history entry")
 	_, _ = fmt.Fprintln(w, "  ?, help   display this help")
 	_, _ = fmt.Fprintln(w)

@@ -45,7 +45,10 @@ Examples:
   $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue -env '$_0 が 正=true'
 
 With -checks and a glue, value prompts suggest the values the clauses admit,
-as csdfbmc reads them, and statevar -pick enters one. -env is
+as csdfbmc reads them, statevar -pick enters one, and values csdfbmc does
+not admit are refused. Without -checks, values a builtin of the guard or
+the post (@eq, @ne, ...) is false of are refused; atoms are not evaluated.
+-env is
 csdfbmc's --env, for every session; it has no default. A replay of a
 report whose --env gave a function another value, or a value -env does
 not give here, is refused.

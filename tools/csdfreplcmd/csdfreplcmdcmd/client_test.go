@@ -8,17 +8,18 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/cli"
+	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count ; number
+s0: count
 state "Done" as s1
-s1: result ; string
-[*] --> s0 : count starts at zero
-s0 --> s1 : insert?coin ; count >= 0 ; result is done
+s1: result
+[*] --> s0 : $count' = 0
+s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
 @enduml
 `
 
@@ -31,7 +32,7 @@ func startDaemon(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Listen() error = %v", err)
 	}
-	service := proto.NewService("client-test", false, proto.AnyEnvironment)
+	service := proto.NewService("client-test", false, proto.AnyEnvironment, animation.NoSuggesters)
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -291,5 +292,28 @@ func TestReplay(t *testing.T) {
 	}
 	if code, _, stderr := run(t, sock, "replay", "-finding", "3", findings); code == 0 || !strings.Contains(stderr, "no finding 3") {
 		t.Errorf("replay -finding 3: code %d, stderr %q; want a refusal", code, stderr)
+	}
+}
+
+func TestEndEndsTheRunAtAnEndEdge(t *testing.T) {
+	// Setup
+	sock := startDaemon(t)
+	path := filepath.Join(t.TempDir(), "ending.puml")
+	if err := os.WriteFile(path, []byte("@startuml\nstate \"Idle\" as s0\n[*] --> s0\ns0 --> [*]\n@enduml\n"), 0o600); err != nil {
+		t.Fatalf("Setup: %v", err)
+	}
+	if code, _, stderr := run(t, sock, "session", "new", path); code != 0 {
+		t.Fatalf("Setup: session new exit = %d, stderr = %q", code, stderr)
+	}
+	if code, _, stderr := run(t, sock, "statevar", "-json", "[]"); code != 0 {
+		t.Fatalf("Setup: statevar exit = %d, stderr = %q", code, stderr)
+	}
+
+	// Execute
+	code, stdout, stderr := run(t, sock, "end", "0")
+
+	// Assert
+	if code != 0 || !strings.Contains(stdout, "Ended: the run terminates at Idle.") {
+		t.Errorf("end exit = %d, stdout = %q, stderr = %q; want the run ended", code, stdout, stderr)
 	}
 }

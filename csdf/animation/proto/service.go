@@ -5,21 +5,21 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"sync"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
 // entry is one live session with its origin label.
 type entry struct {
-	id        string
-	path      string
-	session   *animation.Session
-	suggester animation.Suggester
-	cleanup   func()
+	id      string
+	path    string
+	session *animation.Session
+	// cleanup runs when the session is removed, after its suggester.
+	cleanup func()
 }
 
 // Service holds the in-memory animation sessions and maps protocol requests to
@@ -31,24 +31,14 @@ type Service struct {
 	order    []string // session ids in creation order, for stable listing
 	nextID   int
 	version  string
-	solver   csdf.PostSolver
 	debug    bool
-	// suggesters builds, per new session, what its value prompts ask; nil
-	// when the daemon has no checker.
-	suggesters SuggesterFactory
+	// suggesters builds, per new session, what its value prompts ask;
+	// animation.NoSuggesters when the daemon has no checker.
+	suggesters animation.SuggesterFactory
 	// environmentCheck refuses a replay whose report was made in an
 	// environment the suggesters do not walk.
 	environmentCheck EnvironmentCheck
 }
-
-// SuggesterFactory builds a session's suggester from its diagram's source
-// and, for an expansion, the JSON the checker reads; the cleanup, if any,
-// runs when the session is removed.
-type SuggesterFactory func(source []byte, diagramJSON string) (animation.Suggester, func(), error)
-
-// SetSuggesters gives the daemon a checker: every session created afterwards
-// suggests values at its prompts and accepts statevar picks.
-func (s *Service) SetSuggesters(f SuggesterFactory) { s.suggesters = f }
 
 // EnvironmentCheck refuses, before a replay walks, a path whose report's
 // environment (nil when the report has none) is not the one the daemon's
@@ -60,18 +50,20 @@ type EnvironmentCheck func(*animation.Environment) error
 // nothing, for which every environment is alike.
 func AnyEnvironment(*animation.Environment) error { return nil }
 
-// NewService returns a Service that reports the given version and resolves
-// state-variable values with csdf.SolveJSON. When debug is false, errors are
+// NewService returns a Service that reports the given version. When debug is false, errors are
 // surfaced as their deepest (prefix-free) message; when true, the full wrapped
 // chain is surfaced. environmentCheck refuses a replay of a report made in
-// another environment; AnyEnvironment refuses none.
-func NewService(version string, debug bool, environmentCheck EnvironmentCheck) *Service {
+// another environment; AnyEnvironment refuses none. suggesters builds the
+// suggester of every session, whose value prompts then suggest values and
+// accept statevar picks; animation.NoSuggesters when the daemon has no
+// checker.
+func NewService(version string, debug bool, environmentCheck EnvironmentCheck, suggesters animation.SuggesterFactory) *Service {
 	return &Service{
 		sessions:         map[string]*entry{},
 		version:          version,
-		solver:           csdf.SolveJSON,
 		debug:            debug,
 		environmentCheck: environmentCheck,
+		suggesters:       suggesters,
 	}
 }
 
@@ -99,6 +91,8 @@ func (s *Service) Handle(req Request) Response {
 		return s.handleHistory(req)
 	case CommandJump:
 		return s.handleJump(req)
+	case CommandEnd:
+		return s.handleEnd(req)
 	case CommandReplay:
 		return s.handleReplay(req)
 	case CommandServerVersion:
@@ -109,22 +103,28 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	diagram, err := csdf.ParseBytes(req.Content)
-	if err != nil {
-		return s.errorFromErr(err)
-	}
-	session, err := animation.NewSession(diagram, s.solver)
-	if err != nil {
-		return s.errorFromErr(err)
-	}
-	e := &entry{path: req.Path, session: session}
-	if s.suggesters != nil {
-		sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
+	var diagramJSON []byte
+	if req.DiagramJSON != "" {
+		bs, err := os.ReadFile(req.DiagramJSON)
 		if err != nil {
-			return s.errorFromErr(err)
+			return s.errorFromErr(fmt.Errorf("proto.Service: cannot read the diagram JSON: %w", err))
 		}
-		e.suggester, e.cleanup = sg, cleanup
+		diagramJSON = bs
 	}
+	diagram, err := animation.ReadDiagram(req.Content, diagramJSON)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	session, err := animation.NewSession(diagram, sg)
+	if err != nil {
+		cleanup()
+		return s.errorFromErr(err)
+	}
+	e := &entry{path: req.Path, session: session, cleanup: cleanup}
 	s.nextID++
 	e.id = strconv.Itoa(s.nextID)
 	s.sessions[e.id] = e
@@ -156,9 +156,7 @@ func (s *Service) handleSessionRm(req Request) Response {
 	}
 	delete(s.sessions, e.id)
 	s.order = removeString(s.order, e.id)
-	if e.cleanup != nil {
-		e.cleanup()
-	}
+	e.cleanup()
 	return Response{OK: true, Session: e.id, Output: "removed " + e.id + "\n", Data: mustData(SessionRef{Session: e.id})}
 }
 
@@ -187,10 +185,10 @@ func (s *Service) handleStatevar(req Request) Response {
 	}
 	values := req.Values
 	if req.Pick != nil {
-		if e.suggester == nil {
+		suggestions, err := e.session.Suggest()
+		if errors.Is(err, animation.ErrNoSuggester) {
 			return errorResponse("the daemon has no checker to pick a suggestion from; start csdfrepld with -checks and -evaluator or -evaluator-module")
 		}
-		suggestions, err := e.session.Suggest(e.suggester)
 		if err != nil {
 			return s.errorFromErr(err)
 		}
@@ -200,28 +198,10 @@ func (s *Service) handleStatevar(req Request) Response {
 		}
 		values = picked
 	}
-	result, err := e.session.EnterValues(values)
-	if err != nil {
+	if _, err := e.session.EnterValues(values); err != nil {
 		return s.errorFromErr(err)
 	}
-	switch result.Kind {
-	case csdf.PostSolverResultOK:
-		return viewResponse(e)
-	case csdf.PostSolverResultNoSolutions:
-		return errorResponse("No solutions")
-	case csdf.PostSolverResultInvalidStateVarValuesLength:
-		if result.Err == nil {
-			return errorResponse("state variable values length mismatch")
-		}
-		return s.errorFromErr(result.Err)
-	case csdf.PostSolverResultSyntaxError:
-		if result.Err == nil {
-			return errorResponse("invalid state variable values")
-		}
-		return s.errorFromErr(result.Err)
-	default:
-		return errorResponse("post solver returned an unknown result")
-	}
+	return viewResponse(e)
 }
 
 func (s *Service) handleTrace(req Request) Response {
@@ -255,6 +235,21 @@ func (s *Service) handleJump(req Request) Response {
 		return errorResponse("jump requires a history index")
 	}
 	if err := e.session.Jump(*req.Index); err != nil {
+		return s.errorFromErr(err)
+	}
+	return viewResponse(e)
+}
+
+// handleEnd takes an end edge from the current state: the run ends there.
+func (s *Service) handleEnd(req Request) Response {
+	e, err := s.resolve(req.Session)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	if req.Index == nil {
+		return errorResponse("end requires an end edge index")
+	}
+	if err := e.session.End(*req.Index); err != nil {
 		return s.errorFromErr(err)
 	}
 	return viewResponse(e)
@@ -317,25 +312,31 @@ func viewResponse(e *entry) Response {
 	var buf bytes.Buffer
 	view := View{}
 	if sess.Mode() == animation.ModeValues {
-		group, guard, post, _, prev := sess.Pending()
-		animation.RenderStateValuePrompt(&buf, prev, group, guard, post)
+		pending := sess.Pending()
+		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
-		view.Pending = &Pending{Previous: prev, Group: group, Guard: guard, Post: post}
-		if e.suggester != nil {
-			suggestions, err := sess.Suggest(e.suggester)
-			if err != nil {
-				animation.RenderError(&buf, err.Error())
-			} else {
-				animation.RenderSuggestions(&buf, suggestions)
-				view.Pending.Suggestions = suggestions
-			}
+		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post)}
+		suggestions, err := sess.Suggest()
+		switch {
+		case errors.Is(err, animation.ErrNoSuggester):
+		case err != nil:
+			animation.RenderError(&buf, err.Error())
+		default:
+			animation.RenderSuggestions(&buf, suggestions)
+			view.Pending.Suggestions = suggestions
 		}
+	} else if sess.Mode() == animation.ModeEnded {
+		current, _ := sess.Current()
+		animation.RenderEnded(&buf, current)
+		view.Mode = "ended"
+		view.State = &current
 	} else {
 		current, _ := sess.Current()
 		animation.RenderState(&buf, sess.Diagram(), current)
 		view.Mode = "command"
 		view.State = &current
 		view.Transitions = transitionsOf(sess)
+		view.Ends = endsOf(sess)
 	}
 	return Response{OK: true, Session: e.id, Output: buf.String(), Data: mustData(view)}
 }
@@ -346,12 +347,21 @@ func transitionsOf(sess *animation.Session) []Transition {
 	for i, edge := range edges {
 		out[i] = Transition{
 			Index:   i,
-			Event:   edge.Event,
+			Event:   edge.Event.Label(),
 			Dst:     edge.Dst,
-			DstName: sess.Diagram().States[edge.Dst].Name,
-			Guard:   edge.Guard,
-			Post:    edge.Post,
+			DstName: animation.StateName(sess.Diagram(), edge.Dst),
+			Guard:   animation.ClauseText(edge.Guard),
+			Post:    animation.ClauseText(edge.Post),
 		}
+	}
+	return out
+}
+
+func endsOf(sess *animation.Session) []End {
+	ends := sess.Ends()
+	out := make([]End, len(ends))
+	for i, end := range ends {
+		out[i] = End{Index: i, Guard: animation.ClauseText(end.Guard)}
 	}
 	return out
 }
@@ -359,13 +369,16 @@ func transitionsOf(sess *animation.Session) []Transition {
 func sessionInfo(e *entry) SessionInfo {
 	info := SessionInfo{Session: e.id, Path: e.path}
 	if e.session.Mode() == animation.ModeValues {
-		group, _, _, _, _ := e.session.Pending()
+		target := e.session.Pending().Target
 		info.Mode = "values"
-		info.StateID = group.ID
-		info.StateName = group.Name
+		info.StateID = target.ID
+		info.StateName = target.Name
 	} else {
 		current, _ := e.session.Current()
 		info.Mode = "command"
+		if e.session.Mode() == animation.ModeEnded {
+			info.Mode = "ended"
+		}
 		info.StateID = current.ID
 		info.StateName = current.Name
 	}
