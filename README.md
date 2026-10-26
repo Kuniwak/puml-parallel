@@ -234,8 +234,10 @@ A file argument, a `-` argument, and stdin are all equivalent.
 
 `csdflint` checks diagrams and writes what it finds as a TSV table with the
 columns `file`, `start_line`, `end_line`, `rule`, `severity` and `message`. It
-exits 1 when anything is an `ERROR` and 0 otherwise, so a `HINT` never fails a
-build.
+exits 1 when anything is an `ERROR` and 0 otherwise, so a `WARN` or a `HINT`
+never fails a build. It reads clauses as formulas (`docs/CLAUSE_DESIGN.md`), as
+`csdfparse` does, so the old `@opaque` and `@[from := to]` are reported as
+`syntax-error`.
 
 ```console
 $ csdflint examples/valid/client.puml
@@ -250,10 +252,30 @@ the author meant), `HINT` (suspicious, but may well be intended) and
 
 The output is written for two readers at once: a CI job, which reads the exit
 status, and an AI reviewing a diagram it wrote itself, which reads the messages.
-So a message says what is suspicious *and what would settle it* — the predicates
-of a CSDF are natural language and so opaque, and a `HINT` is a question rather
-than a verdict. The self-transition rules are there because a diagram written by
-an AI loops where it should have split a state.
+So a message says what is suspicious *and what would settle it*.
+
+No rule evaluates an atom: an atom is text a language interprets, and a rule
+concludes only what the builtins and the shape of a formula decide. The rules
+are:
+
+| Rule | Severity | Reports |
+| --- | --- | --- |
+| `syntax-error` | `ERROR` | a file the reader refuses, at the line it stopped, or at the line of the edge whose clause it refused |
+| `self-transition-divergence` | `WARN` | a `tau` edge on a cycle of `tau` edges the start reaches, so the diagram may diverge |
+| `self-transition-post-breaks-guard` | `HINT` | a self-transition whose post does not keep a state variable its guard reads, so it may be two states written as one |
+
+`self-transition-divergence` sets aside an edge whose guard is false on its
+face: `@ne(t, t)`, `@eq(a, b)` beside `@ne(a, b)`, `@in(k, m)` beside
+`@notin(k, m)`, or `@empty(m)` beside `@in(k, m)`, terms compared as written,
+also under an `∃`. Any other `tau` cycle is reported, since only its atoms say
+whether it can run forever; `csdflivelockfree` settles that. A self-loop on an
+observable event is not divergence and is not reported.
+
+`self-transition-post-breaks-guard` stays silent only when it is sure the post
+keeps the guard: every state variable the guard reads is kept by `@eq(v', v)`
+or `@frame(v', v)` in the post. An atom reads only its holes, so the guard then
+holds again on the same event. A field of the event or a constant the guard
+reads is not the state's and needs no keeping. An omitted post keeps nothing.
 
 `csdflint -list-rules` prints every rule with a one-line summary. Lint what a
 person wrote: the expansion of a promotion is one state with many self-loops by

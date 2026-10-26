@@ -20,6 +20,19 @@ func TestSyntaxErrorRule(t *testing.T) {
 			WantLine:      3,
 			WantInMessage: "unexpected syntax",
 		},
+		"an old @opaque clause is refused where it was written (representative value)": {
+			Source:        "@startuml\nstate \"s0\" as s0\n[*] --> s0\ns0 --> s0 : a ; @opaque\n@enduml\n",
+			WantLine:      4,
+			WantInMessage: "@opaque",
+		},
+		"an old @[from := to] clause is refused where it was written (representative value)": {
+			Source:        "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\n[*] --> s0\ns0 --> s1 : a ; ; @[x := y]\n@enduml\n",
+			WantLine:      5,
+			WantInMessage: "unknown tool word @",
+		},
+		"clauses with holes, builtins and ∧ get no finding (representative value)": {
+			Source: "@startuml\nstate \"s0\" as s0\ns0 : m ; Map\nstate \"s1\" as s1\ns1 : m ; Map\n[*] --> s0 : ; @empty(m')\ns0 --> s1 : put?k ; @notin(k, m) ∧ $k が有効 ; @update(m', m, k, k)\ns1 --> s0 : del?k ; @in(k, m) ; @frame(m', m, k)\n@enduml\n",
+		},
 		"a source that parses gets no finding (lower boundary value)": {
 			Source: "@startuml\nstate \"s0\" as s0\n[*] --> s0\n@enduml\n",
 		},

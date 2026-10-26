@@ -367,3 +367,30 @@ func (e Event) Label() string {
 	}
 	return sb.String()
 }
+
+// NotKept are the state variables vars that e's guard reads and e's post
+// does not keep, in the order the guard reads them. Any other name the
+// guard reads is not the state's: a field of the event takes whatever value
+// the next event carries, so the same event is enabled again when the
+// state is kept, and a constant cannot change.
+func (e Edge) NotKept(vars []string) []string {
+	mutable := map[string]bool{}
+	for _, v := range vars {
+		mutable[v] = true
+	}
+	kept := map[string]bool{}
+	for _, c := range clause.Normalize(e.Post).Conjuncts {
+		if b, ok := c.(clause.Builtin); ok {
+			if v, ok := clause.Keeps(b); ok {
+				kept[v] = true
+			}
+		}
+	}
+	var loose []string
+	for _, v := range clause.FreeVars(e.Guard) {
+		if mutable[v.Name] && !kept[v.Name] && !slices.Contains(loose, v.Name) {
+			loose = append(loose, v.Name)
+		}
+	}
+	return loose
+}

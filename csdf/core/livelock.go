@@ -51,23 +51,46 @@ func (d *Diagram) reachedStates() map[string]bool {
 
 // onTauCycle reports whether s reaches itself by tau edges alone.
 func (d *Diagram) onTauCycle(s string) bool {
-	seen := map[string]bool{}
-	todo := []string{s}
+	for _, e := range d.Edges {
+		if e.Src != s || e.Event.Channel != Tau {
+			continue
+		}
+		if _, ok := d.TauPath(e.Dst, s, everyEdge); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func everyEdge(Edge) bool { return true }
+
+// TauPath is a shortest path of states from from to to over the tau edges
+// of d that keep accepts, both ends included, the edges taken in the order
+// they are written. It reports false when there is none.
+func (d *Diagram) TauPath(from, to string, keep func(Edge) bool) ([]string, bool) {
+	parent := map[string]string{from: ""}
+	todo := []string{from}
 	for len(todo) > 0 {
-		t := todo[0]
+		s := todo[0]
 		todo = todo[1:]
+		if s == to {
+			var path []string
+			for t := to; t != from; t = parent[t] {
+				path = append(path, t)
+			}
+			path = append(path, from)
+			slices.Reverse(path)
+			return path, true
+		}
 		for _, e := range d.Edges {
-			if e.Src != t || e.Event.Channel != Tau {
+			if e.Src != s || e.Event.Channel != Tau || !keep(e) {
 				continue
 			}
-			if e.Dst == s {
-				return true
-			}
-			if !seen[e.Dst] {
-				seen[e.Dst] = true
+			if _, seen := parent[e.Dst]; !seen {
+				parent[e.Dst] = s
 				todo = append(todo, e.Dst)
 			}
 		}
 	}
-	return false
+	return nil, false
 }

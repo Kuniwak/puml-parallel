@@ -33,7 +33,10 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 
 Checks Composable State Diagrams and writes what it finds as a TSV table with
 the columns file, start_line, end_line, rule, severity and message.
-No file argument, and a "-" argument, both mean standard input.
+No file argument, and a "-" argument, both mean standard input. Clauses are
+read as formulas (docs/CLAUSE_DESIGN.md), so the old @opaque and
+@[from := to] are syntax errors. No rule evaluates an atom: a rule concludes
+only what the builtins and the shape of a formula decide.
 
 A message is written to be read by a person and by an AI reviewing a diagram it
 wrote itself, so it says what would settle the question, not only what looks
@@ -44,8 +47,8 @@ wrong. The severities are:
   HINT           suspicious, but may well be intended.
   STYLE_PROBLEM  about how the source is written, not about what it means.
 
-Exits 1 when anything is an ERROR, and 0 otherwise, so a HINT never fails a
-build. Run csdflint -list-rules to see every rule.
+Exits 1 when anything is an ERROR, and 0 otherwise, so a WARN or a HINT never
+fails a build. Run csdflint -list-rules to see every rule.
 
 Options:
 `)

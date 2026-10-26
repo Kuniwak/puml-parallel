@@ -1,89 +1,33 @@
 package lint
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
 
-// SelfTransitionDivergenceRule reports a transition from a state back to
-// itself. Such an edge can be taken any number of times in a row, so the
-// diagram has the infinite trace prefix -> A -> A -> ... : the event repeats
-// without bound and the suffix after A never begins.
+// SelfTransitionPostBreaksGuardRule reports a transition from a state back
+// to itself whose post may make its own guard false. A self-transition says
+// the system is in the same situation after the event as before it; if the
+// post falsifies the guard, it is not - the edge is enabled once and then
+// not again - and the two situations are two states written as one.
 //
-// A diagram written by an AI has far more of these than one written by hand,
-// because a state that should have been split is easier to write as a loop. The
-// loop is nonetheless often what the author meant - polling, retrying, adding
-// one more item - so this is a HINT: it asks for the trace to be read, and does
-// not claim the edge is wrong.
-type SelfTransitionDivergenceRule struct{}
-
-func (SelfTransitionDivergenceRule) ID() string { return "self-transition-divergence" }
-
-func (SelfTransitionDivergenceRule) Description() string {
-	return "A transition back to its own state can repeat without bound; check that the infinite trace is intended."
-}
-
-func (r SelfTransitionDivergenceRule) Check(in *Input) []Finding {
-	if in.Diagram == nil {
-		return nil
-	}
-
-	var findings []Finding
-	for _, edge := range in.Diagram.Edges {
-		if edge.Src != edge.Dst {
-			continue
-		}
-		findings = append(findings, Finding{
-			File:      in.File,
-			StartLine: edge.Line,
-			EndLine:   edge.Line,
-			RuleID:    r.ID(),
-			Severity:  SeverityHint,
-			Message:   r.message(in.Diagram, edge),
-		})
-	}
-	return findings
-}
-
-func (r SelfTransitionDivergenceRule) message(d *csdf.Diagram, edge csdf.Edge) string {
-	// The label is written once, at the first mention: a state label is a
-	// sentence in some diagrams, and repeating it at every mention would bury
-	// the question the message asks.
-	state := fmt.Sprintf("`%s`", edge.Src)
-	intro := state
-	if name := d.States[edge.Src].Name; name != "" && csdf.StateID(name) != edge.Src {
-		intro = fmt.Sprintf("`%s` (%s)", edge.Src, name)
-	}
-
-	if edge.Event == csdf.Tau {
-		return fmt.Sprintf(
-			"State %s has a tau self-transition, so the diagram admits the trace prefix -> %[2]s -> %[2]s -> ... in which nothing observable ever happens again: that is divergence, not a loop of work. Check whether this tau was meant to leave %[2]s, and if it was not, prove the diagram livelock-free with csdflivelockfree.",
-			intro, state,
-		)
-	}
-
-	return fmt.Sprintf(
-		"State %s has a self-transition on `%s`, so the diagram admits the trace prefix -> %[3]s -> %[3]s -> ... in which `%[2]s` repeats without bound and no suffix after %[3]s ever begins. Read that trace against the specification and answer: is every number of repetitions of `%[2]s` really allowed here, and does %[3]s really look the same after each one? If the repetitions are bounded, or if the system is in a different situation after `%[2]s` than before it, split %[3]s into the states before and after instead of looping.",
-		intro, string(edge.Event), state,
-	)
-}
-
-// SelfTransitionPostBreaksGuardRule reports a transition from a state back to
-// itself that has both a guard and a post. Predicates are natural language and
-// so opaque: nothing here can decide whether the post falsifies the guard. What
-// it can do is point at the one shape where that question matters.
-//
-// It matters because a self-transition says the system is in the same situation
-// after the event as before it. If the post makes the guard false, that is not
-// so - the edge is enabled once and then not again - and the two situations are
-// two states that were written as one.
+// Whether the post falsifies the guard depends on atoms, which are never
+// evaluated here. What the skeleton decides is the converse: a post that
+// keeps every state variable the guard reads, by @eq(v', v) or by @frame(v', v)
+// without keys, keeps the guard, since an atom reads only its holes. Such an
+// edge, and one whose guard reads nothing, is not reported; every other
+// self-transition is a HINT naming the state variables not kept. A field
+// of the event or a constant the guard reads is not the state's, so it
+// does not make the guard false again on the same event.
 type SelfTransitionPostBreaksGuardRule struct{}
 
 func (SelfTransitionPostBreaksGuardRule) ID() string { return "self-transition-post-breaks-guard" }
 
 func (SelfTransitionPostBreaksGuardRule) Description() string {
-	return "A self-transition whose post may falsify its own guard is two states written as one."
+	return "A self-transition whose post does not keep what its guard reads may be two states written as one."
 }
 
 func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
@@ -96,7 +40,24 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 		if edge.Src != edge.Dst {
 			continue
 		}
-		if csdf.IsTrue(edge.Guard) || csdf.IsTrue(edge.Post) {
+		loose := edge.NotKept(in.Diagram.Vars[edge.Src])
+		if len(loose) == 0 {
+			continue
+		}
+		guard, gErr := clause.Print(edge.Guard)
+		post, pErr := clause.Print(edge.Post)
+		if err := errors.Join(gErr, pErr); err != nil {
+			findings = append(findings, Finding{
+				File:      in.File,
+				StartLine: edge.Line,
+				EndLine:   edge.Line,
+				RuleID:    r.ID(),
+				Severity:  SeverityError,
+				Message: fmt.Sprintf(
+					"The self-transition of state `%s` on `%s` has a clause that cannot be printed: %s. A diagram the reader read always prints, so this is a bug of csdflint; please report it.",
+					edge.Src, edge.Event.Label(), err,
+				),
+			})
 			continue
 		}
 		findings = append(findings, Finding{
@@ -106,10 +67,19 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 			RuleID:    r.ID(),
 			Severity:  SeverityHint,
 			Message: fmt.Sprintf(
-				"State `%s` has a self-transition on `%s` guarded by `%s` whose post is `%s`. Decide whether the post can make the guard false: assume the guard holds, apply the post, and evaluate the guard again in the resulting state. If it can be false, `%[1]s` is not one state but two - the one where `%[3]s` holds and the one after `%[4]s` - and the edge should go to a second state instead of back to `%[1]s`. If the guard still holds afterwards, say so and leave the loop alone.",
-				string(edge.Src), string(edge.Event), string(edge.Guard), string(edge.Post),
+				"State `%s` has a self-transition on `%s` guarded by `%s` whose post `%s` does not keep %s, which the guard reads, so the guard may be false after the step. Assume the guard holds, apply the post, and evaluate the guard again: if it can be false, `%[1]s` is two states - the one where the guard holds and the one after the post - and the edge should go to a second state. If the guard always holds again, keep what it reads with @eq(v', v) in the post, or leave the loop as it is.",
+				edge.Src, edge.Event.Label(), guard, post, quoted(loose, ", "),
 			),
 		})
 	}
 	return findings
+}
+
+// quoted is names each in backquotes, joined by sep.
+func quoted(names []string, sep string) string {
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = "`" + n + "`"
+	}
+	return strings.Join(q, sep)
 }
