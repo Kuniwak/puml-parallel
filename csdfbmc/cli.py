@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from csdfbmc import cone as cones
+from csdfbmc.explore import every_transition
+from csdfbmc.por import PartialOrder
 from csdfbmc.model import Diagram
 from csdfbmc.formula import PostError
 from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
@@ -65,8 +67,11 @@ def opened(a: argparse.Namespace) -> Iterator[tuple[Diagram, Checks, object, Env
         client.close()
 
 
-def reductions(diagram: Diagram, checks: Checks, *, cone: bool) -> dict:
+def reductions(diagram: Diagram, checks: Checks, *, cone: bool, por: bool = False, avoid: str | None = None) -> dict:
     """The options of a walk (csdfbmc.explore.Explorer) the reductions asked
     for give: with cone, the variables outside the cone of influence to
-    leave out (csdfbmc.cone); none without."""
-    return {"left_out": cones.left_out(diagram, checks) if cone else ()}
+    leave out (csdfbmc.cone), none without; with por, the ample sets of
+    partial-order reduction, which keep avoid's transitions
+    (csdfbmc.por), every transition without."""
+    return {"left_out": cones.left_out(diagram, checks) if cone else (),
+            "ample": PartialOrder(diagram, checks, avoid).ample if por else every_transition}

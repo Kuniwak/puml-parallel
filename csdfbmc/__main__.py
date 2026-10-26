@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--seed N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -14,9 +14,11 @@ the step they enable as its witness, not as a deadlock, and is no finding.
 Findings of one shape are reported once with their count and the shortest
 trace; --all lists every one, and --first stops the walk at the first
 deadlock or broken invariant. --cone leaves out the variables nothing that
-decides a step or a property reads (csdfbmc.cone), and finds the same
-findings; their counts, the states and --all are those of the reduced walk,
-which a line naming the reductions says.
+decides a step or a property reads (csdfbmc.cone), and --por takes the
+transitions of an instance that moves independently of everything else
+alone (csdfbmc.por); each finds the same findings; their counts, the
+states and --all are those of the reduced walk, which a line naming the
+reductions says.
 Exits 1 when it finds any, 2 on a usage or
 loading error.
 """
@@ -30,7 +32,7 @@ from csdfbmc.explore import Explorer
 
 # The reductions, by their options: each walks fewer states and finds the
 # shapes of the full walk's findings, not their counts.
-REDUCTIONS = ("cone",)
+REDUCTIONS = ("cone", "por")
 
 
 def beyond(witness: str) -> str:
@@ -100,6 +102,7 @@ def main(argv=None) -> int:
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock or broken invariant (cycles are then not looked for)")
     ap.add_argument("--all", action="store_true", help="list every finding instead of one per shape with a count")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
+    ap.add_argument("--por", action="store_true", help="take the transitions of an instance that moves independently alone: fewer states, the same findings")
     ap.add_argument("--cone", action="store_true", help="leave out the variables outside the cone of influence: fewer states, the same findings")
     a = ap.parse_args(argv)
 
@@ -107,7 +110,7 @@ def main(argv=None) -> int:
         with opened(a) as (diagram, checks, client, environment):
             result = Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
                               within=a.within, first=a.first,
-                              **reductions(diagram, checks, cone=a.cone)).run()
+                              **reductions(diagram, checks, cone=a.cone, por=a.por, avoid=a.avoid)).run()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

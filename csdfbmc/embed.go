@@ -14,7 +14,7 @@ import (
 // Sources is the Python package itself, embedded so that the csdfbmc binary
 // of a release carries the checker and needs nothing from a checkout.
 //
-//go:embed __init__.py __main__.py checks.py cli.py cone.py environment.py explore.py formal.py formula.py model.py meaning.py next.py protocol.py python_glue.py values.py
+//go:embed __init__.py __main__.py checks.py cli.py cone.py environment.py explore.py formal.py formula.py model.py meaning.py next.py por.py protocol.py python_glue.py values.py
 var Sources embed.FS
 
 // Materialize writes the Python package under root, in a directory named by
