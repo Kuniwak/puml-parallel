@@ -8,7 +8,6 @@ import itertools
 import sys
 from dataclasses import dataclass, field
 
-from csdfbmc import cone as cones
 from csdfbmc.checks import Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, solve
@@ -50,8 +49,8 @@ class Result:
     # enables or "the end edge": the bound, not the diagram, ends them, so
     # they are not deadlocks.
     bound_reached: list[tuple[State, str]] = field(default_factory=list)
-    # left_out: the variables the cone of influence left out (cone=True),
-    # each kept at csdfbmc.cone.LEFT_OUT.
+    # left_out: the variables the cone of influence left out, each kept
+    # at csdfbmc.values.LEFT_OUT.
     left_out: tuple[str, ...] = ()
 
     def trace_to(self, state: State) -> list[str]:
@@ -172,14 +171,14 @@ class Explorer:
     invariants. A ghost update and an invariant see each instance as the map
     of its fields.
 
-    cone leaves out the variables outside the cone of influence
-    (csdfbmc.cone): the walk keeps each at csdfbmc.values.LEFT_OUT, and finds what it would
-    find without.
+    left_out are the variables to leave out, those outside the cone of
+    influence (csdfbmc.cone.left_out) or none: the walk keeps each at
+    csdfbmc.values.LEFT_OUT.
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
-                 first: bool = False, cone: bool = False):
+                 first: bool = False, left_out: tuple[str, ...] = ()):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
@@ -196,7 +195,7 @@ class Explorer:
         self.first = first
         self.ghost_names = tuple(checks.ghosts)
         self.empty_posts: list[tuple[State, str]] = []
-        self.left_out = cones.left_out(diagram, checks) if cone else ()
+        self.left_out = tuple(left_out)
         self._check_fields()
         self._check_environment()
 

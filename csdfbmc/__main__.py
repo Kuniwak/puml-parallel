@@ -22,7 +22,7 @@ import argparse
 import json
 import sys
 
-from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
+from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened, reductions
 from csdfbmc.explore import Explorer
 
 
@@ -99,7 +99,8 @@ def main(argv=None) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             result = Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
-                              within=a.within, first=a.first, cone=a.cone).run()
+                              within=a.within, first=a.first,
+                              **reductions(diagram, checks, cone=a.cone)).run()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
