@@ -45,9 +45,8 @@ func NewMainFunc() cli.MainFunc[*Options] {
 }
 
 // loadReplay reads the finding -replay and -finding name, if any, and the
-// checker the value prompts ask: with a report, the one walking the
-// environment the report was made in (bmc.Checker.Reproduce), so the
-// suggestions after the replayed path are what csdfbmc saw there.
+// checker the value prompts ask (bmc.LoadFinding), so the suggestions after
+// the replayed path are what csdfbmc saw there.
 func loadReplay(opts *Options) (*animation.Replay, bmc.Checker, error) {
 	if opts.Replay == "" {
 		return nil, opts.Checker, nil
@@ -56,25 +55,9 @@ func loadReplay(opts *Options) (*animation.Replay, bmc.Checker, error) {
 	if err != nil {
 		return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: cannot read the replay file: %w: %q", err, opts.Replay)
 	}
-	findings, err := animation.LoadReplays(bs)
+	finding, checker, err := bmc.LoadFinding(bs, opts.Finding, opts.Checker)
 	if err != nil {
-		return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: %w", err)
+		return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: %q: %w", opts.Replay, err)
 	}
-	if len(findings) == 0 {
-		return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: %q records no finding", opts.Replay)
-	}
-	if opts.Finding < 0 || opts.Finding >= len(findings) {
-		return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: no finding %d; %q records %d (0 to %d)", opts.Finding, opts.Replay, len(findings), len(findings)-1)
-	}
-	checker := opts.Checker
-	if checker.Asks() {
-		env, err := animation.LoadEnvironment(bs)
-		if err != nil {
-			return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: %w", err)
-		}
-		if checker, err = checker.Reproduce(env); err != nil {
-			return nil, bmc.Checker{}, fmt.Errorf("csdfreplcmd.loadReplay: %q: %w", opts.Replay, err)
-		}
-	}
-	return &findings[opts.Finding].Replay, checker, nil
+	return &finding.Replay, checker, nil
 }

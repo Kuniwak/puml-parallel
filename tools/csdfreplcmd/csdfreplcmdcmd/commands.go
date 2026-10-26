@@ -192,32 +192,13 @@ func parseReplay() cli.ParseOptionsFunc[*clientOptions] {
 		if err != nil {
 			return nil, fmt.Errorf("replay: cannot read file: %v", err)
 		}
-		replay, err := pickFinding(bs, *finding)
+		picked, env, err := animation.LoadFinding(bs, *finding)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("replay: %w", err)
 		}
-		env, err := animation.LoadEnvironment(bs)
-		if err != nil {
-			return nil, err
-		}
-		opts.req = proto.Request{Command: proto.CommandReplay, Session: cf.session, Replay: replay, Environment: env}
+		opts.req = proto.Request{Command: proto.CommandReplay, Session: cf.session, Replay: &picked.Replay, Environment: env}
 		return opts, nil
 	}
-}
-
-// pickFinding reads csdfbmc's JSON and returns the replay of the n-th finding.
-func pickFinding(bs []byte, n int) (*animation.Replay, error) {
-	findings, err := animation.LoadReplays(bs)
-	if err != nil {
-		return nil, err
-	}
-	if len(findings) == 0 {
-		return nil, errors.New("replay: the file records no finding")
-	}
-	if n < 0 || n >= len(findings) {
-		return nil, fmt.Errorf("replay: no finding %d; the file records %d (0 to %d)", n, len(findings), len(findings)-1)
-	}
-	return &findings[n].Replay, nil
 }
 
 func parseStatevar() cli.ParseOptionsFunc[*clientOptions] {

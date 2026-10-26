@@ -229,3 +229,24 @@ func LoadEnvironment(bs []byte) (*Environment, error) {
 	}
 	return out.Environment, nil
 }
+
+// LoadFinding reads csdfbmc's JSON output and returns its n-th finding, as
+// LoadReplays numbers them, and the environment it reports (nil when it
+// reports none).
+func LoadFinding(bs []byte, n int) (Finding, *Environment, error) {
+	findings, err := LoadReplays(bs)
+	if err != nil {
+		return Finding{}, nil, err
+	}
+	if len(findings) == 0 {
+		return Finding{}, nil, errors.New("animation.LoadFinding: the report records no finding")
+	}
+	if n < 0 || n >= len(findings) {
+		return Finding{}, nil, fmt.Errorf("animation.LoadFinding: no finding %d; the report records %d (0 to %d)", n, len(findings), len(findings)-1)
+	}
+	env, err := LoadEnvironment(bs)
+	if err != nil {
+		return Finding{}, nil, err
+	}
+	return findings[n], env, nil
+}

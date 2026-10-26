@@ -234,3 +234,22 @@ func (c Checker) Agrees(report *animation.Environment) error {
 	}
 	return nil
 }
+
+// LoadFinding reads csdfbmc's JSON output and returns its n-th finding
+// (animation.LoadFinding) and the checker that explores it further: c
+// walking the environment the report was made in (Reproduce), or c as it
+// is when it asks nothing.
+func LoadFinding(bs []byte, n int, c Checker) (animation.Finding, Checker, error) {
+	finding, env, err := animation.LoadFinding(bs, n)
+	if err != nil {
+		return animation.Finding{}, Checker{}, fmt.Errorf("bmc.LoadFinding: %w", err)
+	}
+	if !c.Asks() {
+		return finding, c, nil
+	}
+	reproduced, err := c.Reproduce(env)
+	if err != nil {
+		return animation.Finding{}, Checker{}, fmt.Errorf("bmc.LoadFinding: %w", err)
+	}
+	return finding, reproduced, nil
+}
