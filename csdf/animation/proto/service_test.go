@@ -210,7 +210,7 @@ func TestHandleSessionNewExploresTheDiagramJSONInPlaceOfTheContent(t *testing.T)
 	// Setup
 	raw, err := core.MarshalDiagram(&core.Diagram{
 		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
-		Families: []core.FamilyStates{{Map: "accounts", Init: "none", States: []string{"none", "opened"}, Vars: map[string][]string{}}},
+		Families: []core.FamilyStates{{Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened"}, Vars: map[string][]string{}}},
 	})
 	if err != nil {
 		t.Fatal(err)

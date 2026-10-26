@@ -20,7 +20,7 @@ func promotedDiagram() *core.Diagram {
 		Vars:   map[string][]string{"G": {"accounts", "total"}},
 		Init:   "G",
 		Families: []core.FamilyStates{{
-			Map: "accounts", Init: "none", States: []string{"none", "opened", "closed"},
+			Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened", "closed"},
 			Vars: map[string][]string{"opened": {"balance"}},
 		}},
 		InitPost: clause.And{},

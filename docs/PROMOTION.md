@@ -59,7 +59,7 @@ expansion.
 `-format json` is not a drop-in replacement for the removed `-json`. `-json`
 printed the parsed directives (core, promotes, syncs, constrains, diagnostics)
 before expansion; `-format json` prints the expanded diagram as diagram JSON
-(version 2), and the warnings go to standard error. To check the directives,
+(version 3), and the warnings go to standard error. To check the directives,
 use `-lint-only`.
 
 
