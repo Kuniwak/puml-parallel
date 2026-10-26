@@ -22,11 +22,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
 		}
-		canonical, err := coreio.Canonical(diagram)
-		if err != nil {
-			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
-		}
-		text, err := coreio.Write(canonical)
+		text, err := coreio.WriteCanonical(diagram)
 		if err != nil {
 			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
 		}
