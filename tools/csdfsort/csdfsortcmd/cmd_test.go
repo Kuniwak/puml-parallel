@@ -72,12 +72,12 @@ shop --> door : open?k ; @in(k, doors) ∧ @at(doors[k], shut) ; @frame(doors', 
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Arrange
+			// Setup
 			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 			spy := cli.SpyProcInout()
 			spy.Stdin = cli.StubStdin(strings.NewReader(testCase.Stdin))
 
-			// Act
+			// Execute
 			exitStatus := cmdFunc(testCase.Args, spy.New())
 
 			// Assert
@@ -92,9 +92,10 @@ shop --> door : open?k ; @in(k, doors) ∧ @at(doors[k], shut) ; @frame(doors', 
 	}
 }
 
-func TestNewMainFuncRefusesOldClauseSyntax(t *testing.T) {
+func TestNewMainFuncRefuses(t *testing.T) {
 	type testCase struct {
 		Args       []string
+		Stdin      string
 		WantStderr string
 	}
 
@@ -105,17 +106,23 @@ func TestNewMainFuncRefusesOldClauseSyntax(t *testing.T) {
 		},
 		"a renaming @[x := 1]": {
 			Args:       []string{filepath.Join("testdata", "old_update.puml")},
-			WantStderr: "unknown tool word @",
+			WantStderr: "unknown tool word @ at 0",
+		},
+		"text that is not a diagram": {
+			Args:       []string{},
+			Stdin:      "not a diagram\n",
+			WantStderr: "expected @startuml at line 1, col 1",
 		},
 	}
 
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
-			// Arrange
+			// Setup
 			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 			spy := cli.SpyProcInout()
+			spy.Stdin = cli.StubStdin(strings.NewReader(testCase.Stdin))
 
-			// Act
+			// Execute
 			exitStatus := cmdFunc(testCase.Args, spy.New())
 
 			// Assert
@@ -132,30 +139,18 @@ func TestNewMainFuncRefusesOldClauseSyntax(t *testing.T) {
 	}
 }
 
-func TestNewMainFuncReportsParseErrors(t *testing.T) {
-	// Arrange
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader("not a diagram\n"))
-
-	// Act
-	exitStatus := cmdFunc([]string{}, spy.New())
-
-	// Assert
-	if exitStatus == 0 {
-		t.Error("want non-zero exit status, got 0")
-	}
-}
-
 // A global diagram's edges are not the whole of its behaviour, so every tool but
 // csdfpromote has to refuse one. The refusal comes from the reader, which every
 // tool goes through, and it says what the author is missing.
 func TestNewMainFuncRefusesAGlobalDiagram(t *testing.T) {
+	// Setup
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
 
+	// Execute
 	exitStatus := cmdFunc([]string{"../../../examples/promote/TRADES.puml"}, spy.New())
 
+	// Assert
 	if exitStatus != 1 {
 		t.Fatalf("want 1, got %d", exitStatus)
 	}
