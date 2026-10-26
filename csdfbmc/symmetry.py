@@ -44,7 +44,7 @@ from collections.abc import Mapping
 from csdfbmc import formal
 from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
-from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Exists, Field, Free, Index, root
+from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
 from csdfbmc.values import FrozenMap, Rec
 
@@ -105,14 +105,14 @@ class Symmetry:
         while grown:
             before = (len(ids), len(fields), len(maps))
             for clause in clauses:
-                for c, types in _conjuncts(clause, ()):
-                    for t in _terms(c):
+                for c, types in conjuncts(clause, ()):
+                    for t in terms(c):
                         if isinstance(t, Index) and isinstance(t.map, Free) and self._carries(t.key, types, ids, fields):
                             maps.add(t.map.name)
                     ids |= maps
-                    if isinstance(c, Builtin) and any(self._carries(a, types, ids, fields) for a in c.args if not _primed(a)):
+                    if isinstance(c, Builtin) and any(self._carries(a, types, ids, fields) for a in c.args if not is_primed(a)):
                         for a in c.args:
-                            if _primed(a):
+                            if is_primed(a):
                                 ids.add(root(a).name)
                                 if isinstance(a, Field):
                                     fields.add(a.name)
@@ -147,8 +147,8 @@ class Symmetry:
         asked: set = set()
         groups = [sorted(g) for g in self.groups]
         for clause in [d.start_post] + [c for e in d.edges for c in (e.guard, e.post)] + [x.guard for x in d.ends]:
-            for c, types in _conjuncts(clause, ()):
-                for t in _terms(c):
+            for c, types in conjuncts(clause, ()):
+                for t in terms(c):
                     if isinstance(t, App) and any(self._carries(a, types, self.ids, self.fields) for a in t.args):
                         self._check_environment(t.fn, environment)
                 if not isinstance(c, Atom):
@@ -212,35 +212,6 @@ class Symmetry:
         self.check(state)
         sid, values, ghosts = state
         return min(((sid, rename(values, p), rename(ghosts, p)) for p in self.perms), key=lambda s: _order_key(s[1:]))
-
-
-def _primed(t) -> bool:
-    r = root(t)
-    return isinstance(r, Free) and r.primed
-
-
-def _conjuncts(clause, types: tuple):
-    """The conjuncts of clause but ∃, each with the types of the ∃s
-    enclosing it."""
-    for c in clause:
-        if isinstance(c, Exists):
-            yield from _conjuncts(c.body, types + (c.type,))
-        else:
-            yield c, types
-
-
-def _terms(c):
-    """Every term c holds, at any depth."""
-    stack = list(getattr(c, "args", ()))
-    while stack:
-        t = stack.pop()
-        yield t
-        if isinstance(t, Index):
-            stack += [t.map, t.key]
-        elif isinstance(t, Field):
-            stack.append(t.of)
-        elif isinstance(t, App):
-            stack += list(t.args)
 
 
 def rename(v, perm: dict):

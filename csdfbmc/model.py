@@ -156,6 +156,16 @@ def terms(f):
                 stack += list(x.args)
 
 
+def conjuncts(clause, types: tuple = ()):
+    """The conjuncts of clause but ∃, each with the types of the ∃s
+    enclosing it, innermost last, after types."""
+    for c in clause:
+        if isinstance(c, Exists):
+            yield from conjuncts(c.body, types + (c.type,))
+        else:
+            yield c, types
+
+
 def primed_roots(f) -> set[str]:
     """The variables f names after the step, by the roots of its terms: what
     it may give a value; under ∃ too."""
