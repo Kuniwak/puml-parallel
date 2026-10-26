@@ -15,9 +15,6 @@ import (
 	"golang.org/x/term"
 )
 
-// HistoryEntry is the explored-state record; the engine owns the type.
-type HistoryEntry = animation.HistoryEntry
-
 // runOptions is what a run may start with: the JSON to explore in place of
 // the file (an expansion's, which holds its families), a replay to walk
 // first, and a suggester for the value prompts, given directly or built from
@@ -295,13 +292,6 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 		if err != nil {
 			return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
 		}
-		if picked, isPick, pickErr := animation.PickSuggestion(line, suggestions); isPick {
-			if pickErr != nil {
-				r.displayError(pickErr.Error())
-				continue
-			}
-			line = picked
-		}
 		if outcome == inputExit {
 			return inputExit, nil
 		}
@@ -313,6 +303,13 @@ func (r *repl) askStateValues() (inputOutcome, error) {
 				return inputFatal, fmt.Errorf("csdfreplcmd.repl.askStateValues: %w", err)
 			}
 			return inputBack, nil
+		}
+		if picked, isPick, pickErr := animation.PickSuggestion(line, suggestions); isPick {
+			if pickErr != nil {
+				r.displayError(pickErr.Error())
+				continue
+			}
+			line = picked
 		}
 
 		_, err = r.session.EnterValues(line)
@@ -389,7 +386,9 @@ func (r *repl) displayState(state animation.State) {
 
 func (r *repl) displayTrace(trace []string) { animation.RenderTrace(r.stdout, trace) }
 
-func (r *repl) displayHistory(history []HistoryEntry) { animation.RenderHistory(r.stdout, history) }
+func (r *repl) displayHistory(history []animation.HistoryEntry) {
+	animation.RenderHistory(r.stdout, history)
+}
 
 func (r *repl) displayHelp() { animation.RenderHelp(r.stdout) }
 

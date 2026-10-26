@@ -38,7 +38,7 @@ func TestEventDisplaysGolden(t *testing.T) {
 			{Name: "metadata", Value: map[string]any{"priority": true, "tags": []any{"new", "gift"}}},
 		},
 	}
-	history := []HistoryEntry{
+	history := []animation.HistoryEntry{
 		{
 			State: animation.State{
 				ID:     "draft",
