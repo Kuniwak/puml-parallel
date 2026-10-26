@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/version"
 )
 
@@ -18,16 +19,20 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagrams, err := csdf.LoadDiagrams(opts.Files)
-		if err != nil {
-			return fmt.Errorf("csdfeventscmd.NewMainFunc: cannot parse diagrams: %w", err)
+		diagrams := make([]*core.Diagram, 0, len(opts.Files))
+		for _, file := range opts.Files {
+			d, err := coreio.Load(file)
+			if err != nil {
+				return fmt.Errorf("csdfeventscmd.NewMainFunc: cannot parse diagrams: %w", err)
+			}
+			diagrams = append(diagrams, d)
 		}
 
 		var events []string
 		if opts.OnlyCommon {
-			events = csdf.CommonChannels(diagrams)
+			events = core.CommonChannels(diagrams)
 		} else {
-			events = csdf.AllChannels(diagrams)
+			events = core.AllChannels(diagrams)
 		}
 
 		for _, event := range events {

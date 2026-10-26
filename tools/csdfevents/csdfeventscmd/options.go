@@ -27,7 +27,9 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			fmt.Fprintf(w, `Usage: csdfevents [options] <file1.puml> [file2.puml] ...
 
 Prints the channels used across one or more Composable State Diagrams: what
-csdfparallel -sync synchronises on and csdfhide -channels hides.
+csdfparallel -sync synchronises on and csdfhide -channels hides. Diagrams are
+read as csdfparallel reads them; a clause in the old syntax (@opaque,
+@[from := to]) is refused.
 
 Options:
 `)
