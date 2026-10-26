@@ -992,7 +992,9 @@ conjunct of a post reads it before the step; a copy `@eq(x', y)` that is the
 only conjunct of its post giving `x` a value reads `y` only if `x` is kept.
 A left-out variable is kept at one value, printed `{"left_out": true}` in
 `--json`, and the variables left out are listed (`cone of influence leaves
-out: …`, `left_out` in `--json`). An invariant or a ghost update that takes
+out: …`, `left_out` in `--json`). `csdfrepl -replay` refuses a finding holding a
+value left out, since no value of the variable stands for it; run csdfbmc
+without `--cone` to replay it. An invariant or a ghost update that takes
 any keyword is refused with `--cone`, since what it reads cannot be told.
 
 A reduction keeps the findings, not their counts: the walk reports the
