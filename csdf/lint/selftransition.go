@@ -17,13 +17,12 @@ import (
 //
 // Whether the post falsifies the guard depends on atoms, which are never
 // evaluated here. What the skeleton decides is the converse: a post that
-// keeps every variable the guard reads, by @eq(v', v) or by @frame(v', v)
+// keeps every state variable the guard reads, by @eq(v', v) or by @frame(v', v)
 // without keys, keeps the guard, since an atom reads only its holes. Such an
 // edge, and one whose guard reads nothing, is not reported; every other
-// self-transition is a HINT naming the variables not kept. A field of the
-// event is never kept: it is sent or received anew on each step. A name
-// that is neither a state variable nor a field, such as a constant, cannot
-// change.
+// self-transition is a HINT naming the state variables not kept. A field
+// of the event or a constant the guard reads is not the state's, so it
+// does not make the guard false again on the same event.
 type SelfTransitionPostBreaksGuardRule struct{}
 
 func (SelfTransitionPostBreaksGuardRule) ID() string { return "self-transition-post-breaks-guard" }
@@ -61,17 +60,15 @@ func (r SelfTransitionPostBreaksGuardRule) Check(in *Input) []Finding {
 	return findings
 }
 
-// notKept are the names e's guard reads that may differ on the next step,
-// in the order the guard reads them: the state variables vars that e's post
-// does not keep, and the fields of e's event. Any other name is not the
-// diagram's to change, such as a constant.
+// notKept are the state variables vars that e's guard reads and e's post
+// does not keep, in the order the guard reads them. Any other name the
+// guard reads is not the state's: a field of the event takes whatever value
+// the next event carries, so the same event is enabled again when the
+// state is kept, and a constant cannot change.
 func notKept(e core.Edge, vars []string) []string {
 	mutable := map[string]bool{}
 	for _, v := range vars {
 		mutable[v] = true
-	}
-	for _, f := range e.Event.Fields {
-		mutable[f.Name] = true
 	}
 	kept := map[string]bool{}
 	for _, c := range clause.Normalize(e.Post).Conjuncts {

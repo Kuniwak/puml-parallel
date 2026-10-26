@@ -31,9 +31,9 @@ func TestSelfTransitionPostBreaksGuardRule(t *testing.T) {
 			Source:  diagram("[*] --> s0", "s0 --> s0 : a ; $n > 0"),
 			WantTSV: header + breaks("5", "a", "$n > 0", "", "`n`"),
 		},
-		"a field the event receives is never kept (representative value)": {
-			Source:  diagram("[*] --> s0", "s0 --> s0 : a?x ; $x > 0 ; @eq(n', n)"),
-			WantTSV: header + breaks("5", "a?x", "$x > 0", "@eq(n', n)", "`x`"),
+		"a field of the event is not the state's (lower boundary value)": {
+			Source:  diagram("[*] --> s0", "s0 --> s0 : a?x ; $x > $n ; @eq(n', n)"),
+			WantTSV: header,
 		},
 		"a post that keeps what the guard reads keeps the guard (lower boundary value)": {
 			Source:  diagram("[*] --> s0", "s0 --> s0 : a ; $n > 0 ; @eq(n', n)"),

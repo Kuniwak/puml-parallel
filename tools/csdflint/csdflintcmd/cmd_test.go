@@ -89,6 +89,24 @@ func TestNewMainFuncFailsOnAnErrorButStillWritesTheFinding(t *testing.T) {
 	}
 }
 
+func TestNewMainFuncRefusesAnOldClauseAsASyntaxError(t *testing.T) {
+	// Arrange
+	path := filepath.Join("testdata", "oldsyntax.puml")
+
+	// Act
+	exitStatus, spy := run(path)
+
+	// Assert
+	if exitStatus != 1 {
+		t.Errorf("want 1, got %d", exitStatus)
+	}
+	want := "file\tstart_line\tend_line\trule\tseverity\tmessage\n" +
+		path + "\t4\t4\tsyntax-error\tERROR\tThe parser stopped here: unknown tool word @opaque at 0. Fix the syntax before reading any other finding: every other rule is skipped while the file does not parse. The grammar is in docs/SYNTAX.md.\n"
+	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestNewMainFuncLintsEveryFileGiven(t *testing.T) {
 	// Arrange
 	clean := filepath.Join("testdata", "clean.puml")
