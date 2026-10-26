@@ -33,7 +33,7 @@ what it declares and what reproduces it.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable
 
 
@@ -91,14 +91,14 @@ class Environment:
     decide: Decide
     declared: frozenset[str]
     given: Mapping[str, Given]
-    env: Mapping[str, bool] = field(default_factory=dict)
+    env: Mapping[str, bool]
 
     def to_json(self) -> dict:
         return {"given": sorted(self.given), "env": dict(sorted(self.env.items()))}
 
 
 # NONE declares nothing: every atom is the glue's.
-NONE = Environment(decide=nothing, declared=frozenset(), given={})
+NONE = Environment(decide=nothing, declared=frozenset(), given={}, env={})
 
 
 def over(module: Mapping[str, "Given | None"], given: Mapping[str, Given]) -> Environment:

@@ -102,5 +102,14 @@ class OverTest(unittest.TestCase):
         self.assertEqual(frozenset(), declared)
         self.assertEqual({"given": [], "env": {}}, report)
 
+
+class EnvironmentTest(unittest.TestCase):
+    def test_should_require_the_values_env_gave(self):
+        # Execute / Assert: an environment that does not say what --env gave
+        # would be reported as if --env gave nothing.
+        with self.assertRaises(TypeError):
+            environment.Environment(decide=nothing, declared=frozenset(), seed=None, given={})
+
+
 if __name__ == "__main__":
     unittest.main()
