@@ -159,6 +159,8 @@ class Symmetry:
                 maps = [i for i, a in enumerate(c.args) if isinstance(a, Free) and a.name in self.maps]
                 params = [i for i, a in enumerate(c.args) if i not in maps and self._carries(a, types, self.ids, self.fields)]
                 if c.function in environment.declared:
+                    # csdfbmc.cli.reductions refuses an undecided function, listing every one, before Symmetry is built.
+                    assert c.function in environment.given, f"{c.function!r} is undecided; Environment.check_decided must run first"
                     if params or maps:
                         self._check_given(c.function, environment.given.get(c.function), c.args, types, checks)
                     continue

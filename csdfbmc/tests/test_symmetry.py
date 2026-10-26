@@ -58,7 +58,12 @@ class RefusalTest(unittest.TestCase):
             "an atom comparing an ID with a constant": (ids_only(ONE_WAY, atom("$k != 'a'")), checks(), {}, "tells the symmetric IDs apart.*'a'"),
             "an atom ordering IDs": (ids_only(ONE_WAY, exists("k", atom("${} < $k", fixture.bound(0)))), checks(), {}, "ordered"),
             "a function of the environment nothing gives": (
-                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})}, "nothing decides|given nothing"),
+                ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": None}, {})},
+                "^nothing decides the environment's functions '\\$_0 が 予約済み'; give each in ENVIRONMENT or with --env NAME=true\\|false$"),
+            "two functions of the environment nothing gives": (
+                ids_only(ONE_WAY, atom("$k が 予約済み"), atom("$k が 空き")), checks(),
+                {"environment": environment.over({"$_0 が 予約済み": None, "$_0 が 空き": None}, {})},
+                "^nothing decides the environment's functions '\\$_0 が 予約済み', '\\$_0 が 空き'; "),
             "a function of the environment given as Python that tells IDs apart": (
                 ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k == "a"}, {})},
                 "'\\$_0 が 予約済み'.*tells the symmetric IDs apart"),

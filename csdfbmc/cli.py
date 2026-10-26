@@ -76,7 +76,10 @@ def reductions(diagram: Diagram, checks: Checks, client, environment: Environmen
     (csdfbmc.por), every transition without; with symmetry, the
     representative of a state's renamings of the symmetric IDs, which the
     glue client and the environment are asked about (csdfbmc.symmetry), the
-    state itself without."""
+    state itself without. A function of the environment nothing gives is
+    refused first, listing every one, before symmetry asks about any."""
+    if symmetry:
+        environment.check_decided()
     return {"left_out": cones.left_out(diagram, checks) if cone else (),
             "ample": PartialOrder(diagram, checks, avoid).ample if por else every_transition,
             "canonical": Symmetry(diagram, checks, client, environment).canonical if symmetry else as_met}
