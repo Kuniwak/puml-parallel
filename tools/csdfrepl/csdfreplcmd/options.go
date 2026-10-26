@@ -18,7 +18,7 @@ type Options struct {
 	Replay  string
 	Finding int
 	// Checker is what csdfbmc reads to let the value prompt suggest values,
-	// and DiagramJSON the JSON it reads when the file is an expansion.
+	// and DiagramJSON the JSON explored and checked in place of the file.
 	Checker     bmc.Checker
 	DiagramJSON string
 }
@@ -34,7 +34,13 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			w := flags.Output()
 			fmt.Fprintf(w, `Usage: csdfrepl [options] <file.puml|file.png>
 
-Interactively explores a Composable State Diagram.
+Interactively explores a Composable State Diagram whose guards and posts
+are clauses (docs/SYNTAX.md, "Clauses"); a clause of the old syntax is
+refused. Each value prompt shows the guard and the post as the clause
+printer writes them; enter the values of the state's variables as a JSON
+array in declaration order. A map of a family's instances is a JSON object
+from IDs to {"at": <state>, "fields": {...}}, at a state of the family other
+than its start state and with exactly that state's variables as fields.
 
 With -replay, the session first walks the path csdfbmc --json recorded under
 one of its findings (-finding picks which, numbered from 0 in the order the
@@ -45,9 +51,11 @@ finding is at, with the path in the history.
 With -checks and a glue (-evaluator or -evaluator-module), every value prompt
 also shows the values the clauses admit for the pending transition, as
 csdfbmc reads them through the glue, numbered, and "#N" enters the N-th;
-csdfbmc must be on the PATH or beside this binary. -diagram-json names the
-JSON (csdfpromote -format json, for an expansion) the checker reads instead of the
-file's own parse.
+csdfbmc must be on the PATH or beside this binary.
+
+-diagram-json names the JSON (csdfparse's, or csdfpromote -format json's for
+an expansion, which holds its families) that the session explores and the
+checker reads in place of the file.
 
 -env is csdfbmc's --env: the prompt suggests what csdfbmc walks with the
 same given functions. It has no default; a function the checks module
@@ -77,7 +85,7 @@ Examples:
 		finding := flags.Int("finding", 0, "with -replay, which finding to walk, numbered from 0")
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
-		diagramJSON := flags.String("diagram-json", "", "with -checks, the JSON csdfbmc reads (an expansion); default: the file's own parse")
+		diagramJSON := flags.String("diagram-json", "", "the diagram JSON to explore and check in place of the file (an expansion's, which holds its families)")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
