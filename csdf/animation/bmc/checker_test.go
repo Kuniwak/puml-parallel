@@ -27,7 +27,7 @@ func TestCheckerArgsOfNext(t *testing.T) {
 
 func TestForSourceWritesTheDiagramAsCsdfparsePrintsIt(t *testing.T) {
 	// Setup
-	src := []byte("@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : @eq(n', n)\n@enduml\n")
+	src := []byte("@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : @eq(n', 0)\n@enduml\n")
 
 	// Execute
 	s, cleanup, err := bmc.ForSource(src, bmc.Checker{}, bmc.RunCsdfbmc)

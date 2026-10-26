@@ -83,6 +83,7 @@ s --> s : reset ; ; $x' = 0
 state "a" as a
 a : m
 state "b" as b
+b : m
 [*] --> a : @empty(m')
 a --> b : put?k?v ; @notin(k, m) ; @update(m', m, k, v)
 b --> [*] : 片付いている
@@ -91,7 +92,7 @@ b --> [*] : 片付いている
 			want: func(t *testing.T) *core.Diagram {
 				return &core.Diagram{
 					States:   []string{"a", "b"},
-					Vars:     map[string][]string{"a": {"m"}},
+					Vars:     map[string][]string{"a": {"m"}, "b": {"m"}},
 					Init:     "a",
 					InitPost: mustParse(t, "@empty(m')"),
 					Edges: []core.Edge{
@@ -145,6 +146,17 @@ s --> s : a ; @opaque
 @enduml
 `,
 			want: "@opaque",
+		},
+		{
+			name: "a name nothing binds, such as a literal written as a name",
+			source: `@startuml
+state "s" as s
+s : n
+[*] --> s : @eq(n', 0)
+s --> s : a ; @eq(n, zero)
+@enduml
+`,
+			want: "the guard reads zero, which is no state variable of s, no field of the event and bound by no ∃",
 		},
 	}
 	for _, c := range cases {
