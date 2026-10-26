@@ -42,9 +42,13 @@ Examples:
   $ csdfrepld
   $ csdfrepld -sock /tmp/csdfrepld.sock
   $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue
+  $ csdfrepld -checks checks.py -evaluator-module csdfbmc.python_glue -env '$_0 が 正=true'
 
 With -checks and a glue, value prompts suggest the values the clauses admit,
-as csdfbmc reads them, and statevar -pick enters one.
+as csdfbmc reads them, and statevar -pick enters one. -env is
+csdfbmc's --env, for every session; it has no default. A replay of a
+report whose --env gave a function another value, or a value -env does
+not give here, is refused.
 `, tools.SocketEnv, tools.SocketName, tools.SocketName)
 		}
 
@@ -71,7 +75,7 @@ as csdfbmc reads them, and statevar -pick enters one.
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		if err := checker.Validate(); err != nil {
+		if err := tools.ValidateCheckerOptions(checker); err != nil {
 			return nil, fmt.Errorf("csdfrepldcmd.NewParseOptionsFunc: %w", err)
 		}
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/google/go-cmp/cmp"
 )
 
 const counterSource = `@startuml
@@ -127,5 +128,103 @@ func TestReplayRefusesAValueTheConeLeftOut(t *testing.T) {
 	}
 	if len(sess.History()) != 0 {
 		t.Errorf("history has %d entries, want none: nothing is replayed", len(sess.History()))
+	}
+}
+
+func TestLoadEnvironmentReadsWhatReproducesTheRun(t *testing.T) {
+	tests := map[string]struct {
+		report string
+		want   *Environment
+	}{
+		"given functions": {
+			report: `{"environment": {"given": ["$_0 が 正", "f"], "env": {"f": false}, "decided": ["f"]}}`,
+			want:   &Environment{Given: []string{"$_0 が 正", "f"}, Env: map[string]bool{"f": false}},
+		},
+		"a seed, which is not read": {
+			report: `{"environment": {"seed": 7, "given": [], "env": {}, "decided": []}}`,
+			want:   &Environment{Given: []string{}, Env: map[string]bool{}},
+		},
+		"nothing given": {
+			report: `{"environment": {"given": [], "env": {}, "decided": []}}`,
+			want:   &Environment{Given: []string{}, Env: map[string]bool{}},
+		},
+		"a report of no environment": {
+			report: `{"deadlocks": []}`,
+			want:   nil,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := LoadEnvironment([]byte(tt.report))
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("LoadEnvironment() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestLoadEnvironmentRefusesWhatIsNotAReport(t *testing.T) {
+	// Execute
+	_, err := LoadEnvironment([]byte("not json"))
+
+	// Assert
+	if err == nil {
+		t.Error("LoadEnvironment() = nil, want an error")
+	}
+}
+
+func TestLoadFindingPicksOneFindingAndTheEnvironment(t *testing.T) {
+	two := `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}},{"replay":{"initial":[1],"steps":[]}}],"environment":{"given":[],"env":{},"decided":[]}}`
+	tests := map[string]struct {
+		report      string
+		n           int
+		wantInitial string
+		wantEnv     *Environment
+		wantErr     string
+	}{
+		"the first":          {report: two, n: 0, wantInitial: "[0]", wantEnv: &Environment{Given: []string{}, Env: map[string]bool{}}},
+		"the second":         {report: two, n: 1, wantInitial: "[1]", wantEnv: &Environment{Given: []string{}, Env: map[string]bool{}}},
+		"no environment":     {report: `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}]}`, wantInitial: "[0]"},
+		"past the last":      {report: two, n: 2, wantErr: "no finding 2; the report records 2 (0 to 1)"},
+		"a negative index":   {report: two, n: -1, wantErr: "no finding -1"},
+		"no finding":         {report: `{"deadlocks":[]}`, wantErr: "the report records no finding"},
+		"not csdfbmc's JSON": {report: "not json", wantErr: "not csdfbmc --json output"},
+		"an environment of no env": {
+			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"given":["f"],"decided":[]}}`,
+			wantErr: "records no env; make it again with this release's csdfbmc --json",
+		},
+		"an env of a function not given": {
+			report:  `{"deadlocks":[{"replay":{"initial":[0],"steps":[]}}],"environment":{"given":[],"env":{"f":true},"decided":[]}}`,
+			wantErr: `gives "f" a value, but does not list it as given`,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			finding, env, err := LoadFinding([]byte(tt.report), tt.n)
+
+			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("LoadFinding() error = %v, want one saying %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(finding.Replay.Initial) != tt.wantInitial {
+				t.Errorf("LoadFinding() initial = %s, want %s", finding.Replay.Initial, tt.wantInitial)
+			}
+			if diff := cmp.Diff(tt.wantEnv, env); diff != "" {
+				t.Errorf("LoadFinding() environment mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

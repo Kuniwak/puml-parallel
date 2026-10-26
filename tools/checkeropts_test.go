@@ -3,6 +3,7 @@ package tools_test
 import (
 	"flag"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
@@ -12,12 +13,23 @@ import (
 
 func TestDeclareCheckerOptions(t *testing.T) {
 	tests := map[string]struct {
-		args []string
-		want bmc.Checker
+		args    []string
+		want    bmc.Checker
+		wantErr string
 	}{
 		"none":                      {args: nil, want: bmc.Checker{}},
 		"checks and a glue command": {args: []string{"-checks", "c.py", "-evaluator", "glue"}, want: bmc.Checker{Checks: "c.py", Evaluator: "glue"}},
 		"checks and a glue module":  {args: []string{"-checks", "c.py", "-evaluator-module", "csdfbmc.python_glue"}, want: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
+		"functions in the order given": {
+			args: []string{"-env", "$_0 が 正=true", "-env", "f=false"},
+			want: bmc.Checker{Env: []bmc.Binding{{Name: "$_0 が 正", Value: true}, {Name: "f", Value: false}}},
+		},
+		"a function whose name holds =": {args: []string{"-env", "a=b=true"}, want: bmc.Checker{Env: []bmc.Binding{{Name: "a=b", Value: true}}}},
+		"a seed, which is no option":    {args: []string{"-seed", "0"}, wantErr: "flag provided but not defined: -seed"},
+		"a function without a value":    {args: []string{"-env", "f"}, wantErr: "-env expects NAME=true or NAME=false"},
+		"a function without a name":     {args: []string{"-env", "=true"}, wantErr: "-env expects NAME=true or NAME=false"},
+		"a function of no truth value":  {args: []string{"-env", "f=maybe"}, wantErr: "-env expects NAME=true or NAME=false"},
+		"a capitalised truth value":     {args: []string{"-env", "f=True"}, wantErr: "-env expects NAME=true or NAME=false"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -31,11 +43,71 @@ func TestDeclareCheckerOptions(t *testing.T) {
 			err := fs.Parse(tt.args)
 
 			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("Parse(%q) = %v, want an error saying %q", tt.args, err, tt.wantErr)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
 			if diff := cmp.Diff(tt.want, checker); diff != "" {
 				t.Errorf("checker mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestValidateCheckerOptions(t *testing.T) {
+	tests := map[string]struct {
+		checker bmc.Checker
+		wantErr bool
+	}{
+		"none":                      {checker: bmc.Checker{}},
+		"checks and a glue command": {checker: bmc.Checker{Checks: "c.py", Evaluator: "glue"}},
+		"checks and a glue module":  {checker: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
+		"checks without a glue":     {checker: bmc.Checker{Checks: "c.py"}, wantErr: true},
+		"a glue without checks":     {checker: bmc.Checker{EvaluatorModule: "m"}, wantErr: true},
+		"both forms of the glue":    {checker: bmc.Checker{Checks: "c.py", Evaluator: "a", EvaluatorModule: "b"}, wantErr: true},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := tools.ValidateCheckerOptions(tt.checker)
+
+			// Assert
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("ValidateCheckerOptions() = %v, want error %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// The message is csdfbmc's own for a walk without a glue
+// (csdfbmc/tests/test_labels.py), so the REPLs and the checker say the same.
+func TestValidateCheckerOptionsWithoutAGlueSaysWhatCsdfbmcSays(t *testing.T) {
+	// Execute
+	err := tools.ValidateCheckerOptions(bmc.Checker{Checks: "c.py"})
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "csdfbmc reads every clause through one; pass -evaluator or -evaluator-module") {
+		t.Errorf("ValidateCheckerOptions() = %v", err)
+	}
+}
+
+func TestValidateCheckerOptionsRefusesAnEnvironmentWithoutChecks(t *testing.T) {
+	tests := map[string]bmc.Checker{
+		"a function without checks": {Env: []bmc.Binding{{Name: "$_0 が 正", Value: true}}},
+	}
+	for name, checker := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := tools.ValidateCheckerOptions(checker)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), "needs -checks") {
+				t.Errorf("ValidateCheckerOptions() = %v, want -env to need -checks", err)
 			}
 		})
 	}

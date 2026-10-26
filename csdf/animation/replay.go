@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -207,4 +209,67 @@ func LoadReplays(bs []byte) ([]Finding, error) {
 	add("unconstrained", out.Unconstrained, func(e entry) string { return e.Event + " leaves " + strings.Join(e.Variables, ", ") })
 	add("bound_reached", out.BoundReached, none)
 	return findings, nil
+}
+
+// Environment is what csdfbmc --json reports under "environment" to
+// reproduce its run: the names of the functions given, by the checks module or by --env, and the values --env
+// gave. The checks module gives the rest again.
+type Environment struct {
+	Given []string        `json:"given"`
+	Env   map[string]bool `json:"env"`
+}
+
+// LoadEnvironment reads the environment csdfbmc's JSON output reports, or
+// nil when the output has none. An environment that records no env (one that
+// a csdfbmc before 3.0.0 wrote, whose given mixes the checks module's
+// functions with --env's) is refused, for it does not say which values
+// --env gave; so is an env of a function given does not list.
+func LoadEnvironment(bs []byte) (*Environment, error) {
+	var out struct {
+		Environment *struct {
+			Given []string         `json:"given"`
+			Env   *map[string]bool `json:"env"`
+		} `json:"environment"`
+	}
+	if err := json.Unmarshal(bs, &out); err != nil {
+		return nil, fmt.Errorf("animation.LoadEnvironment: not csdfbmc --json output: %w", err)
+	}
+	e := out.Environment
+	if e == nil {
+		return nil, nil
+	}
+	if e.Env == nil {
+		return nil, errors.New("animation.LoadEnvironment: the report's environment records no env; make it again with this release's csdfbmc --json")
+	}
+	given := make(map[string]bool, len(e.Given))
+	for _, name := range e.Given {
+		given[name] = true
+	}
+	for _, name := range slices.Sorted(maps.Keys(*e.Env)) {
+		if !given[name] {
+			return nil, fmt.Errorf("animation.LoadEnvironment: the report's environment gives %q a value, but does not list it as given", name)
+		}
+	}
+	return &Environment{Given: e.Given, Env: *e.Env}, nil
+}
+
+// LoadFinding reads csdfbmc's JSON output and returns its n-th finding, as
+// LoadReplays numbers them, and the environment it reports (nil when it
+// reports none).
+func LoadFinding(bs []byte, n int) (Finding, *Environment, error) {
+	findings, err := LoadReplays(bs)
+	if err != nil {
+		return Finding{}, nil, err
+	}
+	if len(findings) == 0 {
+		return Finding{}, nil, errors.New("animation.LoadFinding: the report records no finding")
+	}
+	if n < 0 || n >= len(findings) {
+		return Finding{}, nil, fmt.Errorf("animation.LoadFinding: no finding %d; the report records %d (0 to %d)", n, len(findings), len(findings)-1)
+	}
+	env, err := LoadEnvironment(bs)
+	if err != nil {
+		return Finding{}, nil, err
+	}
+	return findings[n], env, nil
 }

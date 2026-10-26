@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -25,7 +26,14 @@ func intPtr(i int) *int { return &i }
 // and returns the service together with the new session id.
 func newSession(t *testing.T) (*Service, string) {
 	t.Helper()
-	service := NewService("test-version", false)
+	return newSessionChecking(t, AnyEnvironment)
+}
+
+// newSessionChecking is newSession with a service whose replays check the
+// report's environment with check.
+func newSessionChecking(t *testing.T, check EnvironmentCheck) (*Service, string) {
+	t.Helper()
+	service := NewService("test-version", false, check)
 	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})
 	if !resp.OK {
 		t.Fatalf("session_new failed: %s", resp.Error)
@@ -55,7 +63,7 @@ func decodeView(t *testing.T, resp Response) View {
 }
 
 func TestHandleSessionNewReturnsID(t *testing.T) {
-	service := NewService("dev", false)
+	service := NewService("dev", false, AnyEnvironment)
 	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(twoStateDiagram)})
 	if !resp.OK {
 		t.Fatalf("session_new failed: %s", resp.Error)
@@ -70,7 +78,7 @@ func TestHandleSessionNewReturnsID(t *testing.T) {
 }
 
 func TestHandleSessionNewRejectsBadContent(t *testing.T) {
-	service := NewService("dev", false)
+	service := NewService("dev", false, AnyEnvironment)
 	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte("not plantuml")})
 	if resp.OK {
 		t.Fatalf("session_new OK = true, want failure")
@@ -136,7 +144,7 @@ func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 func TestHandleStatevarErrorDebugSurfacesChain(t *testing.T) {
 	newAt := func(debug bool) (*Service, string) {
 		t.Helper()
-		s := NewService("dev", debug)
+		s := NewService("dev", debug, AnyEnvironment)
 		resp := s.Handle(Request{Command: CommandSessionNew, Path: "d.puml", Content: []byte(twoStateDiagram)})
 		if !resp.OK {
 			t.Fatalf("session_new failed: %s", resp.Error)
@@ -306,7 +314,7 @@ func TestSessionListAndRemove(t *testing.T) {
 }
 
 func TestHandleServerVersion(t *testing.T) {
-	service := NewService("v1.2.3", false)
+	service := NewService("v1.2.3", false, AnyEnvironment)
 	resp := service.Handle(Request{Command: CommandServerVersion})
 	if !resp.OK || resp.Output != "v1.2.3\n" {
 		t.Errorf("server_version = (ok %v, output %q), want \"v1.2.3\\n\"", resp.OK, resp.Output)
@@ -314,7 +322,7 @@ func TestHandleServerVersion(t *testing.T) {
 }
 
 func TestHandleUnknownCommand(t *testing.T) {
-	service := NewService("dev", false)
+	service := NewService("dev", false, AnyEnvironment)
 	resp := service.Handle(Request{Command: "bogus"})
 	if resp.OK || !strings.Contains(resp.Error, "unknown command") {
 		t.Errorf("unknown command = (ok %v, error %q), want failure", resp.OK, resp.Error)
@@ -361,7 +369,7 @@ func (f fakeSuggester) Next(csdf.RuntimeState, int) ([]animation.Suggestion, err
 }
 
 func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
-	service := NewService("test-version", false)
+	service := NewService("test-version", false, AnyEnvironment)
 	cleaned := false
 	service.SetSuggesters(func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
 		return fakeSuggester{values: `[0]`}, func() { cleaned = true }, nil
@@ -401,5 +409,43 @@ func TestPickWithoutACheckerIsRefused(t *testing.T) {
 	resp := service.Handle(Request{Command: CommandStatevar, Session: id, Pick: intPtr(0)})
 	if resp.OK || !strings.Contains(resp.Error, "-checks") {
 		t.Errorf("statevar -pick without a checker = %+v, want a refusal naming -checks", resp)
+	}
+}
+
+func TestHandleReplayRefusesAnEnvironmentTheDaemonDoesNotWalk(t *testing.T) {
+	tests := map[string]struct {
+		check   EnvironmentCheck
+		wantErr string
+	}{
+		"any environment": {check: AnyEnvironment},
+		"a check refusing": {
+			check:   func(env *animation.Environment) error { return fmt.Errorf("%v refused", env.Env) },
+			wantErr: "map[f:true] refused",
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			service, id := newSessionChecking(t, tt.check)
+			replay := animation.Replay{Initial: []byte(`[0]`)}
+
+			// Execute
+			resp := service.Handle(Request{Command: CommandReplay, Session: id, Replay: &replay, Environment: &animation.Environment{Given: []string{"f"}, Env: map[string]bool{"f": true}}})
+
+			// Assert
+			if tt.wantErr == "" {
+				if !resp.OK {
+					t.Fatalf("replay failed: %s", resp.Error)
+				}
+				return
+			}
+			if resp.OK || !strings.Contains(resp.Error, tt.wantErr) {
+				t.Fatalf("replay = %+v, want an error saying %q", resp, tt.wantErr)
+			}
+			read := service.Handle(Request{Command: CommandRead, Session: id})
+			if view := decodeView(t, read); view.Mode != "values" {
+				t.Errorf("after a refused replay the session is %+v, want it untouched", view)
+			}
+		})
 	}
 }

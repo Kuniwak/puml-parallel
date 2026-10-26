@@ -231,7 +231,7 @@ class EnvironmentCommandTest(unittest.TestCase):
         _, out, _ = self.run_main("--env", "$_0 が 正=true", "--json")
 
         # Assert
-        self.assertEqual({"given": ["$_0 が 正"], "decided": ["$_0 が 正"]}, json.loads(out)["environment"])
+        self.assertEqual({"given": ["$_0 が 正"], "env": {"$_0 が 正": True}, "decided": ["$_0 が 正"]}, json.loads(out)["environment"])
 
 
 class ReportTest(unittest.TestCase):

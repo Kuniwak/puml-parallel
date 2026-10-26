@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 
 	"github.com/Kuniwak/puml-parallel/csdf"
@@ -21,50 +22,56 @@ import (
 // Checker is what csdfbmc reads besides the diagram: the checks module of the
 // domains, ghosts and invariants, and the glue every clause is read through,
 // as a command line (Evaluator) or a Python module and its arguments
-// (EvaluatorModule). The zero Checker asks nothing.
+// (EvaluatorModule); and the environment, as csdfbmc takes it: Env (--env, in the
+// order given). The zero Checker asks nothing.
 type Checker struct {
 	Checks          string
 	Evaluator       string
 	EvaluatorModule string
+	Env             []Binding
 }
+
+// Binding gives a function of the environment, named as csdfbmc names it
+// (the atom's text with its holes as $_0, $_1, ...), a truth value: what
+// "--env NAME=true|false" says.
+type Binding struct {
+	Name  string
+	Value bool
+}
+
+// String is the binding as --env takes it.
+func (b Binding) String() string { return b.Name + "=" + strconv.FormatBool(b.Value) }
 
 // Asks reports whether the Checker is set, so that value prompts suggest.
 func (c Checker) Asks() bool { return c.Checks != "" }
-
-// Validate refuses a Checker that csdfbmc could not run: a checks module
-// needs a glue, a glue needs a checks module, and the glue has one form.
-func (c Checker) Validate() error {
-	glue := c.Evaluator != "" || c.EvaluatorModule != ""
-	switch {
-	case c.Evaluator != "" && c.EvaluatorModule != "":
-		return errors.New("give -evaluator or -evaluator-module, not both")
-	case c.Checks != "" && !glue:
-		return errors.New("-checks needs a glue: csdfbmc reads every clause through one; pass -evaluator or -evaluator-module (csdfbmc.python_glue reads Python)")
-	case glue && c.Checks == "":
-		return errors.New("-evaluator and -evaluator-module need -checks, the module of the domains")
-	}
-	return nil
-}
 
 // NextArgs are the arguments of "csdfbmc next" for the diagram JSON at path,
 // before what next is asked.
 func (c Checker) NextArgs(diagram string) []string {
 	args := []string{"next", diagram, c.Checks}
 	if c.Evaluator != "" {
-		return append(args, "--evaluator", c.Evaluator)
+		args = append(args, "--evaluator", c.Evaluator)
+	} else {
+		args = append(args, "--evaluator-module", c.EvaluatorModule)
 	}
-	return append(args, "--evaluator-module", c.EvaluatorModule)
+	for _, b := range c.Env {
+		args = append(args, "--env", b.String())
+	}
+	return args
 }
 
 // Suggester runs csdfbmc. Diagram is the JSON the checker reads (csdfparse's
 // output, or an expansion from csdfpromote -format json), Checker what it
-// reads besides, and Command the csdfbmc executable (found on the PATH, or
-// beside this binary, when empty).
+// reads besides, and Run what runs csdfbmc (RunCsdfbmc when nil).
 type Suggester struct {
 	Diagram string
 	Checker Checker
-	Command string
+	Run     Runner
 }
+
+// Runner runs csdfbmc with args and returns what it printed on its standard
+// output, or an error saying why it failed.
+type Runner func(args []string) ([]byte, error)
 
 // ForSource writes the diagram whose PlantUML source (or PNG) is src as
 // csdfparse prints it to a temporary file, and returns a Suggester reading
@@ -105,12 +112,35 @@ func (s *Suggester) Next(from csdf.RuntimeState, idx int) ([]animation.Suggestio
 }
 
 func (s *Suggester) run(args ...string) ([]animation.Suggestion, error) {
-	command, err := s.executable()
+	run := s.Run
+	if run == nil {
+		run = RunCsdfbmc
+	}
+	stdout, err := run(append(s.Checker.NextArgs(s.Diagram), args...))
 	if err != nil {
 		return nil, err
 	}
-	full := append(s.Checker.NextArgs(s.Diagram), args...)
-	cmd := exec.Command(command, full...)
+	var out struct {
+		Candidates []animation.Suggestion `json:"candidates"`
+	}
+	if err := json.Unmarshal(stdout, &out); err != nil {
+		return nil, fmt.Errorf("bmc.Suggester: csdfbmc next printed something that is not its JSON: %w", err)
+	}
+	if out.Candidates == nil {
+		out.Candidates = []animation.Suggestion{}
+	}
+	return out.Candidates, nil
+}
+
+// RunCsdfbmc runs the csdfbmc on the PATH, or beside the running binary (a
+// release unpacks every tool together), failing with what it printed on its
+// standard error.
+func RunCsdfbmc(args []string) ([]byte, error) {
+	command, err := executable()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(command, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -121,24 +151,10 @@ func (s *Suggester) run(args ...string) ([]animation.Suggestion, error) {
 		}
 		return nil, fmt.Errorf("bmc.Suggester: %s", msg)
 	}
-	var out struct {
-		Candidates []animation.Suggestion `json:"candidates"`
-	}
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
-		return nil, fmt.Errorf("bmc.Suggester: csdfbmc next printed something that is not its JSON: %w", err)
-	}
-	if out.Candidates == nil {
-		out.Candidates = []animation.Suggestion{}
-	}
-	return out.Candidates, nil
+	return stdout.Bytes(), nil
 }
 
-// executable finds csdfbmc: the configured command, the PATH, or the
-// directory of the running binary (a release unpacks every tool together).
-func (s *Suggester) executable() (string, error) {
-	if s.Command != "" {
-		return s.Command, nil
-	}
+func executable() (string, error) {
 	if path, err := exec.LookPath("csdfbmc"); err == nil {
 		return path, nil
 	}
@@ -149,4 +165,87 @@ func (s *Suggester) executable() (string, error) {
 		}
 	}
 	return "", errors.New("bmc.Suggester: csdfbmc is not on the PATH nor beside this binary")
+}
+
+// errNoEnvironment refuses a report from a csdfbmc that did not yet report
+// its environment: what its run walked cannot be told.
+var errNoEnvironment = errors.New("the report records no environment, so the run that made it cannot be reproduced; make it again with this release's csdfbmc --json")
+
+// Reproduce is c walking the environment of the csdfbmc run that made a
+// report (animation.LoadEnvironment), so that a replayed finding is
+// explored further in the environment it was found in: the values its run
+// gave the functions, which c takes where it says nothing. A value other
+// than the report's,
+// or a function c gives a value the report's run did not give one (its
+// checks module did, or nothing did) is refused, for c would walk another
+// environment.
+func (c Checker) Reproduce(report *animation.Environment) (Checker, error) {
+	if report == nil {
+		return Checker{}, errNoEnvironment
+	}
+	for _, b := range c.Env {
+		v, ok := report.Env[b.Name]
+		if !ok {
+			return Checker{}, fmt.Errorf("the checker gives %q %t, but the report's run gave it no value", b.Name, b.Value)
+		}
+		if v != b.Value {
+			return Checker{}, fmt.Errorf("the report's run gave %q %t, not %t", b.Name, v, b.Value)
+		}
+	}
+	out := c
+	out.Env = bindings(report.Env)
+	return out, nil
+}
+
+// bindings are the values env gives, ordered by name.
+func bindings(env map[string]bool) []Binding {
+	names := make([]string, 0, len(env))
+	for name := range env {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var out []Binding
+	for _, name := range names {
+		out = append(out, Binding{Name: name, Value: env[name]})
+	}
+	return out
+}
+
+// Agrees refuses a report whose environment c does not already walk: what
+// Reproduce refuses, and a value c does not give. A
+// daemon's checker is fixed when it starts, so it cannot take the report's
+// environment as csdfrepl does.
+func (c Checker) Agrees(report *animation.Environment) error {
+	if _, err := c.Reproduce(report); err != nil {
+		return err
+	}
+	given := map[string]bool{}
+	for _, b := range c.Env {
+		given[b.Name] = true
+	}
+	for _, b := range bindings(report.Env) {
+		if !given[b.Name] {
+			return fmt.Errorf("the report's run gave %q %t, which the checker does not give", b.Name, b.Value)
+		}
+	}
+	return nil
+}
+
+// LoadFinding reads csdfbmc's JSON output and returns its n-th finding
+// (animation.LoadFinding) and the checker that explores it further: c
+// walking the environment the report was made in (Reproduce), or c as it
+// is when it asks nothing.
+func LoadFinding(bs []byte, n int, c Checker) (animation.Finding, Checker, error) {
+	finding, env, err := animation.LoadFinding(bs, n)
+	if err != nil {
+		return animation.Finding{}, Checker{}, fmt.Errorf("bmc.LoadFinding: %w", err)
+	}
+	if !c.Asks() {
+		return finding, c, nil
+	}
+	reproduced, err := c.Reproduce(env)
+	if err != nil {
+		return animation.Finding{}, Checker{}, fmt.Errorf("bmc.LoadFinding: %w", err)
+	}
+	return finding, reproduced, nil
 }

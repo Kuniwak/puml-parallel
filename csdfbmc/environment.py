@@ -22,8 +22,9 @@ position of the argument it reads, so `$在庫 が 十分` is the function
 module and --env name a function so, and csdfbmc never reads an atom's
 text itself.
 
-The report names the given functions, which with the checks module and
-the command line is all a run needs to be reproduced.
+The report names the given functions and the values --env gave them,
+which with the checks module and the command line is all a run needs to
+be reproduced.
 
 What decides is a function (Decide) built from combinators - nothing,
 given_over - and an Environment is that function together with
@@ -83,17 +84,21 @@ def recording(decide: Decide, seen: dict[str, None]) -> Decide:
 @dataclass(frozen=True)
 class Environment:
     """What decides the functions, and what reproduces it: the functions
-    declared, by name, and the functions given, by name."""
+    declared, by name; the functions given, by name; and the values --env
+    gave, by name. The checks module gives the rest of the given functions
+    again when the run is reproduced; --env's values are recorded so that a
+    replay need not guess them."""
     decide: Decide
     declared: frozenset[str]
     given: Mapping[str, Given]
+    env: Mapping[str, bool]
 
     def to_json(self) -> dict:
-        return {"given": sorted(self.given)}
+        return {"given": sorted(self.given), "env": dict(sorted(self.env.items()))}
 
 
 # NONE declares nothing: every atom is the glue's.
-NONE = Environment(decide=nothing, declared=frozenset(), given={})
+NONE = Environment(decide=nothing, declared=frozenset(), given={}, env={})
 
 
 def over(module: Mapping[str, "Given | None"], given: Mapping[str, Given]) -> Environment:
@@ -109,4 +114,4 @@ def over(module: Mapping[str, "Given | None"], given: Mapping[str, Given]) -> En
                          "declare it there (None leaves it to --env)")
     merged = {n: g for n, g in declared.items() if g is not None} | cli
     return Environment(decide=_given_over_named(merged, nothing),
-                       declared=frozenset(declared), given=merged)
+                       declared=frozenset(declared), given=merged, env=cli)

@@ -35,6 +35,11 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml",
 				Checker: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue"}},
 		},
+		"the environment csdfbmc walks": {
+			Args: []string{"-checks", "c.py", "-evaluator-module", "g", "-env", "f=false", "a.puml"},
+			Expected: &Options{Common: tools.NewCommonOptionsDefault(), File: "a.puml",
+				Checker: bmc.Checker{Checks: "c.py", EvaluatorModule: "g", Env: []bmc.Binding{{Name: "f", Value: false}}}},
+		},
 	}
 
 	for name, testCase := range testCases {
@@ -72,6 +77,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		},
 		"a checks module without a glue": {
 			Args: []string{"-checks", "c.py", "a.puml"},
+		},
+		"a function without a checks module": {
+			Args: []string{"-env", "f=true", "a.puml"},
+		},
+		"a seed, which csdfrepl does not take": {
+			Args: []string{"-checks", "c.py", "-evaluator-module", "g", "-seed", "1", "a.puml"},
 		},
 		"a flag csdfrepl does not declare": {
 			Args: []string{"-twins", "t.py", "a.puml"},
