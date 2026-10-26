@@ -5,7 +5,7 @@ from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
-from csdfbmc.values import FrozenMap, Rec, Sample, record, sample, samples_in
+from csdfbmc.values import FrozenMap, Rec, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -335,7 +335,7 @@ class SampleTest(unittest.TestCase):
                 # Setup
                 e = OPENING["edges"][0]
                 edges = [dict(e, guard=e["guard"] + guard)] + [e for e in OPENING["edges"][1:] if e["dst"] in states]
-                checks = Checks(types={"k": keys}, samples=frozenset({"k"}) if isinstance(keys, Sample) else frozenset())
+                checks = Checks(types={"k": keys})
 
                 # Execute
                 result = fixture.explorer(dict(OPENING, edges=edges), checks).run()
@@ -347,7 +347,7 @@ class SampleTest(unittest.TestCase):
         # The end edge is open only for a key b not in m, which no value of
         # the sample is.
         d = dict(OPENING, edges=OPENING["edges"][:2], ends=[end("r", guard=[exists("k", builtin("notin", bound(0), "m"), atom("${} == 'b'", bound(0)))])])
-        checks = Checks(types={"k": sample(["a"], beyond=["b"])}, samples=frozenset({"k"}))
+        checks = Checks(types={"k": sample(["a"], beyond=["b"])})
 
         # Execute
         result = fixture.explorer(d, checks).run()
@@ -371,7 +371,7 @@ class SampleTest(unittest.TestCase):
             with self.subTest(name):
                 # Setup
                 types = {"k": ids, "r": record(id=keys), "bal": [0]}
-                checks = Checks(types=types, samples=frozenset(t for t, vs in types.items() if samples_in(vs)))
+                checks = Checks(types=types)
 
                 # Execute
                 result = fixture.explorer(dict(OPENING, edges=[opens]), checks).run()
@@ -381,15 +381,15 @@ class SampleTest(unittest.TestCase):
 
     def test_the_values_beyond_the_sample_add_no_state(self):
         used_up = ("r", (FrozenMap({"a": inst("closed", bal=0), "b": inst("closed", bal=0)}),), ())
-        tests = {"a sample": (sample(["a", "b"], beyond=["c"]), {"k"}, [], [(used_up, "OPEN(k=c)")]),
-                 "the same values, not a sample": (["a", "b"], set(), [used_up], [])}
-        for name, (keys, samples, deadlocks, reached) in tests.items():
+        tests = {"a sample": (sample(["a", "b"], beyond=["c"]), [], [(used_up, "OPEN(k=c)")]),
+                 "the same values, not a sample": (["a", "b"], [used_up], [])}
+        for name, (keys, deadlocks, reached) in tests.items():
             with self.subTest(name):
                 # Setup
                 d = dict(OPENING, edges=OPENING["edges"][:2])
 
                 # Execute
-                result = fixture.explorer(d, Checks(types={"k": keys}, samples=frozenset(samples))).run()
+                result = fixture.explorer(d, Checks(types={"k": keys})).run()
 
                 # Assert
                 self.assertEqual((9, deadlocks, reached), (len(result.states), result.deadlocks, result.bound_reached))

@@ -96,10 +96,14 @@ class Checks:
     # of its arguments in order, or None to leave it to --env or --seed
     # (csdfbmc.environment).
     environment: dict[str, "Given | None"] = field(default_factory=dict)
-    # samples: the types whose values are a sample of the type, which has
-    # more (csdfbmc.values.sample), or are built of one by record or
-    # partial_map (csdfbmc.values.samples_in).
-    samples: frozenset[str] = frozenset()
+
+    @property
+    def samples(self) -> frozenset[str]:
+        """The types whose values are a sample of the type, which has more
+        (csdfbmc.values.sample), or are built of one by record or
+        partial_map (csdfbmc.values.samples_in); computed from types, so it
+        follows them."""
+        return frozenset(t for t, vs in self.types.items() if samples_in(vs))
 
     def type_of(self, name: str) -> str:
         return self.typeof.get(name, name)
@@ -184,7 +188,7 @@ def load_checks(path: str) -> Checks:
             raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
                               "or None to leave it to --env or --seed")
     return Checks(
-        types=dict(module.TYPES), samples=frozenset(t for t, vs in module.TYPES.items() if samples_in(vs)), typeof=dict(typeof), environment=environment,
+        types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         sources=[(path, source)],
     )

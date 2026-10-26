@@ -1,9 +1,11 @@
+import dataclasses
 import os
 import tempfile
 import textwrap
 import unittest
 
 from csdfbmc.checks import Checks, load_checks, PurityError
+from csdfbmc.values import sample
 
 
 class TypesTest(unittest.TestCase):
@@ -17,6 +19,16 @@ class TypesTest(unittest.TestCase):
         # Assert
         self.assertEqual(["a1", "a2"], values)
         self.assertTrue(checks.declares("相手ID"))
+
+    def test_the_samples_follow_the_types_they_are_replaced_by(self):
+        # Setup
+        checks = Checks(types={"ID": sample(["a1"], beyond=["a2"])})
+
+        # Execute
+        replaced = dataclasses.replace(checks, types={"ID": ["a1", "a2"]})
+
+        # Assert
+        self.assertEqual((frozenset({"ID"}), frozenset()), (checks.samples, replaced.samples))
 
     def test_a_name_typeof_does_not_name_takes_the_type_of_its_own_name(self):
         # Setup
