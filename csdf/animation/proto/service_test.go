@@ -189,6 +189,23 @@ func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
 	}
 }
 
+func TestAnEmptyClauseIsNoneInTheViewAsInTheText(t *testing.T) {
+	// Setup
+	service, id := newSession(t)
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandRead, Session: id})
+
+	// Assert
+	view := decodeView(t, resp)
+	if view.Pending == nil || view.Pending.Guard != "(none)" {
+		t.Errorf("pending = %+v, want the start edge's empty guard as (none)", view.Pending)
+	}
+	if !strings.Contains(resp.Output, "Guard:\n  (none)\n") {
+		t.Errorf("output = %q, want the empty guard as (none)", resp.Output)
+	}
+}
+
 func TestHandleSessionNewExploresTheDiagramJSONInPlaceOfTheContent(t *testing.T) {
 	// Setup
 	raw, err := core.MarshalDiagram(&core.Diagram{

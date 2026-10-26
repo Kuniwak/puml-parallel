@@ -70,7 +70,8 @@ type View struct {
 
 // Transition is one selectable outgoing edge from the current state: its
 // event's label, and its guard and post as the canonical clause printer
-// writes them ("" for a clause of no conjunct).
+// writes them, as animation.ClauseText does: "(none)" for a clause of no
+// conjunct, as in the text output.
 type Transition struct {
 	Index   int    `json:"index"`
 	Event   string `json:"event"`

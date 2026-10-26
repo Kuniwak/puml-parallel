@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -299,7 +298,7 @@ func viewResponse(e *entry) Response {
 		pending := sess.Pending()
 		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
-		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: clauseText(pending.Guard), Post: clauseText(pending.Post)}
+		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post)}
 		suggestions, err := sess.Suggest()
 		switch {
 		case errors.Is(err, animation.ErrNoSuggester):
@@ -328,20 +327,11 @@ func transitionsOf(sess *animation.Session) []Transition {
 			Event:   edge.Event.Label(),
 			Dst:     edge.Dst,
 			DstName: animation.StateName(sess.Diagram(), edge.Dst),
-			Guard:   clauseText(edge.Guard),
-			Post:    clauseText(edge.Post),
+			Guard:   animation.ClauseText(edge.Guard),
+			Post:    animation.ClauseText(edge.Post),
 		}
 	}
 	return out
-}
-
-// clauseText is c as the canonical clause printer writes it, or "" for a
-// clause of no conjunct.
-func clauseText(c clause.And) string {
-	if len(c.Conjuncts) == 0 {
-		return ""
-	}
-	return animation.ClauseText(c)
 }
 
 func sessionInfo(e *entry) SessionInfo {

@@ -1167,7 +1167,9 @@ $ csdfreplcmd session rm -s "$SID"
 
 The socket path is shared by both binaries via `-sock`, then `$CSDFREPLD_SOCK`,
 then `$XDG_RUNTIME_DIR/csdfrepld.sock`, then a temporary directory. Every command
-prints human-readable text by default and structured JSON with `-json`; `statevar`
+prints human-readable text by default and structured JSON with `-json`, where a
+guard or a post is the clause text as the text output shows it (an empty clause
+is `"(none)"` in both); `statevar`
 instead takes its values via `-json <json-array>` or `-json-file <file>`. A daemon
 started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`)
 asks `csdfbmc` at every value prompt what values the clauses admit:
