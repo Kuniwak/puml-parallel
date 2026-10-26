@@ -217,6 +217,10 @@ changing its meaning: states are ordered by id, transitions by source, event,
 destination, guard, then post. The start edge stays first and the end edge last.
 The declaration order of the state variables is authored meaning, so it is
 preserved.
+It prints the diagram in the same order and rendering as `csdfhide`, clauses in
+the formula syntax of [SYNTAX.md](./docs/SYNTAX.md) included; a clause in the
+old syntax (`@opaque`, a renaming `@[from := to]`) is refused with the reader's
+error.
 
 ```console
 $ csdfsort examples/valid/client.puml

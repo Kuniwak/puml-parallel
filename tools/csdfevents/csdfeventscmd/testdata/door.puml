@@ -1,0 +1,8 @@
+@startuml
+state "Shut" as shut
+state "Wide" as wide
+[*] --> shut
+shut --> wide : open?k ; @ne(k, 0)
+wide --> shut : close
+wide --> wide : tau
+@enduml

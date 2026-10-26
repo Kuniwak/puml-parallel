@@ -37,6 +37,20 @@ func Load(path string) (*core.Diagram, error) {
 	return d, nil
 }
 
+// LoadAll loads the diagram at each of paths, as Load does, in the order
+// paths gives them.
+func LoadAll(paths []string) ([]*core.Diagram, error) {
+	diagrams := make([]*core.Diagram, len(paths))
+	for i, path := range paths {
+		d, err := Load(path)
+		if err != nil {
+			return nil, fmt.Errorf("coreio.LoadAll: cannot parse diagrams: %w", err)
+		}
+		diagrams[i] = d
+	}
+	return diagrams, nil
+}
+
 // LoadPromotion reads the global diagram at path, each !include read
 // relative to the directory path is in.
 func LoadPromotion(path string) (core.Promotion, error) {

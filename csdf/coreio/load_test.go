@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -89,6 +91,72 @@ a --> a : tau ; @exists(y : Y) ($y < 1)
 			}
 			if got != c.want {
 				t.Errorf("read %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
+func TestLoadAll(t *testing.T) {
+	cases := []struct {
+		name    string
+		files   map[string]string
+		paths   []string
+		want    []int
+		wantErr string
+	}{
+		{
+			name:  "no files",
+			paths: nil,
+			want:  []int{},
+		},
+		{
+			name: "each file in the order given",
+			files: map[string]string{
+				"A.puml": "@startuml\nstate \"a\" as a\n[*] --> a\na --> a : x\n@enduml\n",
+				"B.puml": "@startuml\nstate \"b\" as b\n[*] --> b\n@enduml\n",
+			},
+			paths: []string{"B.puml", "A.puml"},
+			want:  []int{0, 1},
+		},
+		{
+			name:    "a file that is missing",
+			paths:   []string{"MISSING.puml"},
+			wantErr: "cannot parse diagrams",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			dir := t.TempDir()
+			for path, src := range c.files {
+				if err := os.WriteFile(filepath.Join(dir, path), []byte(src), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			paths := make([]string, len(c.paths))
+			for i, p := range c.paths {
+				paths[i] = filepath.Join(dir, p)
+			}
+
+			// Execute
+			got, err := LoadAll(paths)
+
+			// Assert
+			if c.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+					t.Errorf("LoadAll: got %v, want an error containing %q", err, c.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			edges := make([]int, len(got))
+			for i, d := range got {
+				edges[i] = len(d.Edges)
+			}
+			if !slices.Equal(edges, c.want) {
+				t.Errorf("LoadAll: edge counts %v, want %v", edges, c.want)
 			}
 		})
 	}

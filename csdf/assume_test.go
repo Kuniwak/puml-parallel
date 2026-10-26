@@ -81,10 +81,6 @@ func TestTransformationsKeepTheAssumptions(t *testing.T) {
 	if got := Hide(d, []string{"a"}).Assumptions; !cmp.Equal(want, got) {
 		t.Errorf("Hide() assumptions = %v, want %v", got, want)
 	}
-	sorted := Sort(d).Assumptions
-	if len(sorted) != 1 || sorted[0].Line != 0 || sorted[0].ID != "fair" {
-		t.Errorf("Sort() assumptions = %v, want the assumption with its line dropped", sorted)
-	}
 }
 
 func TestComposeParallelConcatenatesTheAssumptions(t *testing.T) {

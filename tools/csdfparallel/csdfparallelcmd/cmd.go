@@ -20,13 +20,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagrams := make([]*core.Diagram, len(opts.Files))
-		for i, f := range opts.Files {
-			d, err := coreio.Load(f)
-			if err != nil {
-				return fmt.Errorf("csdfparallelcmd.NewMainFunc: cannot parse diagrams: %w", err)
-			}
-			diagrams[i] = d
+		diagrams, err := coreio.LoadAll(opts.Files)
+		if err != nil {
+			return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
 		}
 
 		composite, err := core.ComposeAll(diagrams, opts.Sync)
@@ -35,11 +31,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 		composite.Name = tools.GeneratedBy("csdfparallel", opts.Args)
 
-		canonical, err := coreio.Canonical(composite)
-		if err != nil {
-			return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
-		}
-		text, err := coreio.Write(canonical)
+		text, err := coreio.WriteCanonical(composite)
 		if err != nil {
 			return fmt.Errorf("csdfparallelcmd.NewMainFunc: %w", err)
 		}

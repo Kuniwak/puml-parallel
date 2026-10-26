@@ -27,11 +27,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
 		}
-		canonical, err := coreio.Canonical(hidden)
-		if err != nil {
-			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
-		}
-		text, err := coreio.Write(canonical)
+		text, err := coreio.WriteCanonical(hidden)
 		if err != nil {
 			return fmt.Errorf("csdfhidecmd.NewMainFunc: %w", err)
 		}
