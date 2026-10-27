@@ -1,6 +1,6 @@
 @startuml
 state "稼働中" as running
-running : attempts
+running : attempts ; 試行ID ⇸ Attempt
 [*] --> running : @empty(attempts')
 running --> running : CONFIRMED?試行ID ; @at(attempts[試行ID], attSent) ; @frame(attempts', attempts, 試行ID) ∧ @at(attempts'[試行ID], attConfirmed) ∧ ${attempts'[試行ID].手数料} = ${attempts[試行ID].手数料}
 running --> running : CONFIRMED?試行ID ; @at(attempts[試行ID], attStuck) ; @frame(attempts', attempts, 試行ID) ∧ @at(attempts'[試行ID], attConfirmed) ∧ ${attempts'[試行ID].手数料} = ${attempts[試行ID].手数料}
@@ -9,5 +9,11 @@ running --> running : RESEND?試行ID?置換Tx ; @notin(試行ID, attempts) ∧ 
 running --> running : SEND?試行ID?未署名Tx ; @notin(試行ID, attempts) ; @frame(attempts', attempts, 試行ID) ∧ @at(attempts'[試行ID], attSent) ∧ ${attempts'[試行ID].手数料} = $未署名Tx の手数料
 note as fair
   assume 手数料を上げた置換を続ければ、いつかいずれかの試行が〈確定〉になる
+end note
+note as channels
+  channel CONFIRMED : 試行ID
+  channel PENDING : 試行ID
+  channel RESEND : 試行ID.置換Tx
+  channel SEND : 試行ID.未署名Tx
 end note
 @enduml
