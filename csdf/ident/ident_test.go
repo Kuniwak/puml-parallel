@@ -2,6 +2,7 @@ package ident
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -56,5 +57,20 @@ func TestPatternAgreesWithIs(t *testing.T) {
 				t.Errorf("Pattern matches %q = %v, Is = %v", s, got, want)
 			}
 		})
+	}
+}
+
+func TestCheckRefusesWhatNamesNothing(t *testing.T) {
+	for s, want := range map[string]string{
+		"null": "null is a reserved word",
+		"9a":   "does not start with a digit, as 9a",
+		"a-b":  "is not an identifier",
+	} {
+		if err := Check(s); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Check(%q) = %v, want an error containing %q", s, err, want)
+		}
+	}
+	if err := Check("s0"); err != nil {
+		t.Errorf("Check(s0) = %v, want nil", err)
 	}
 }
