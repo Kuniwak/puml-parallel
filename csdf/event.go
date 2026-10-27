@@ -79,6 +79,9 @@ func splitEvent(text string) (string, []Field, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("csdf.ParseEvent: %w", err)
 	}
+	if err := core.FieldsDistinct(strings.TrimSpace(text), parts); err != nil {
+		return "", nil, fmt.Errorf("csdf.ParseEvent: %w", err)
+	}
 	fields := make([]Field, len(parts))
 	for i, p := range parts {
 		dir := Received

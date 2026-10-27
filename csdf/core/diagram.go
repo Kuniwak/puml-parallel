@@ -234,7 +234,8 @@ func (d *Diagram) declared() error {
 
 // namesWellFormed reports, as an error, a name d gives that the identifier
 // rule refuses (docs/SYNTAX.md): a state, a variable, a channel, a field,
-// an assumption, or a family's map, key or local state.
+// an assumption, or a family's map, key or local state; or an event that
+// repeats a field name (FieldsDistinct).
 func (d *Diagram) namesWellFormed() error {
 	if err := ident.CheckAll(d.States...); err != nil {
 		return fmt.Errorf("a state: %w", err)
@@ -252,6 +253,9 @@ func (d *Diagram) namesWellFormed() error {
 			if err := ident.Check(f.Name); err != nil {
 				return fmt.Errorf("%s --> %s : %s: a field: %w", e.Src, e.Dst, e.Event.Channel, err)
 			}
+		}
+		if err := e.Event.fieldsDistinct(); err != nil {
+			return fmt.Errorf("%s --> %s: %w", e.Src, e.Dst, err)
 		}
 	}
 	for _, a := range d.Assumes {
@@ -477,6 +481,15 @@ func ParseEvent(text string) (Event, error) {
 		e.Fields = append(e.Fields, Field{Send: p.Send, Name: p.Name})
 	}
 	return e, nil
+}
+
+// fieldsDistinct is FieldsDistinct of e's fields.
+func (e Event) fieldsDistinct() error {
+	parts := make([]EventField, len(e.Fields))
+	for i, f := range e.Fields {
+		parts[i] = EventField{Send: f.Send, Name: f.Name}
+	}
+	return FieldsDistinct(e.Label(), parts)
 }
 
 // Label is e as a diagram writes it: its channel, then ?name for each field

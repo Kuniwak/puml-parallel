@@ -421,6 +421,10 @@ class Diagram:
                               guard=formula_of(e["guard"]), post=formula_of(e["post"]), line=e["line"]))
         ends = [End(x["src"], formula_of(x["guard"])) for x in (_fields(x, "an end edge", ("src", "guard")) for x in d["ends"])]
         for e in edges:
+            names = [n for _, n in e.fields]
+            repeated = next((n for i, n in enumerate(names) if n in names[:i]), None)
+            if repeated is not None:
+                raise ValueError(f"{e.describe()} repeats the field {repeated}; name each field of an event once")
             if e.is_tau or not e.fields:
                 continue
             if e.name not in channels:

@@ -214,3 +214,18 @@ func TestComposeCarriesTheAssumeNotesOfBoth(t *testing.T) {
 		t.Errorf("Assumes (-want +got):\n%s", diff)
 	}
 }
+
+func TestComposeRefusesFieldsThatWouldMeetUnderOneName(t *testing.T) {
+	// Setup: synchronising c?x!y with c!y?x names both fields of the
+	// composite y, so the composite would repeat it.
+	l := &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {}}, Init: "s0", Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "y"}}}}}}
+	r := &Diagram{States: []string{"t0"}, Vars: map[string][]string{"t0": {}}, Init: "t0", Edges: []Edge{{Src: "t0", Dst: "t0", Event: Event{Channel: "c", Fields: []Field{{Send: true, Name: "y"}, {Name: "x"}}}}}}
+
+	// Execute
+	_, err := Compose(l, r, []string{"c"})
+
+	// Assert
+	if err == nil {
+		t.Fatal("Compose error = nil, want the composite's repeated field y refused")
+	}
+}

@@ -1,6 +1,7 @@
 """The diagram as csdfparse prints it: states, edges with their events, and
 clauses as formulas."""
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -70,6 +71,16 @@ class DiagramTest(unittest.TestCase):
             with self.subTest(name):
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, said):
+                    Diagram.from_json(doc)
+
+    def test_refuses_an_event_that_repeats_a_field_name(self):
+        for event in ("put?k!k", "put?k?k", "put!k!k"):
+            with self.subTest(event):
+                # Setup
+                doc = diagram({"G": []}, "G", edges=[edge("G", "G", event)], channels={"put": ["K", "K"]})
+
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, re.escape(event) + r".* repeats the field k"):
                     Diagram.from_json(doc)
 
     def test_refuses_families_that_do_not_fit_the_diagram(self):

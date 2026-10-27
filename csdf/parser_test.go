@@ -391,6 +391,24 @@ s0 --> s1 : ` + event + `
 	}
 }
 
+func TestParseRefusesAnEventThatRepeatsAFieldName(t *testing.T) {
+	for _, event := range []string{"c?x!x", "c?x?x", "c!x!x", "c?x?y!x"} {
+		t.Run(event, func(t *testing.T) {
+			parser := newParser(`@startuml
+state "Initial" as s0
+state "Done" as s1
+[*] --> s0
+s0 --> s1 : ` + event + `
+@enduml
+`)
+			_, err := parser.parse()
+			if err == nil || !strings.Contains(err.Error(), event) || !strings.Contains(err.Error(), "repeats the field x") {
+				t.Fatalf("parse() error = %v, want %q refused for repeating the field x", err, event)
+			}
+		})
+	}
+}
+
 func TestParseRejectsEmptyEvent(t *testing.T) {
 	tests := []struct {
 		name  string
