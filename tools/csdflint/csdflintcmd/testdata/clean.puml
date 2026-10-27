@@ -3,7 +3,7 @@ state "s0" as s0
 s0 : m ; Map
 state "s1" as s1
 s1 : m ; Map
-[*] --> s0 : ; @empty(m')
+[*] --> s0 : @empty(m')
 s0 --> s1 : put?k ; @notin(k, m) ∧ $k が有効 ; @update(m', m, k, k)
 s1 --> s1 : peek?k ; @in(k, m) ; @eq(m', m)
 s1 --> s0 : del?k ; @in(k, m) ; @frame(m', m, k)
