@@ -1,14 +1,14 @@
 package obligation_test
 
 import (
-	"github.com/Kuniwak/puml-parallel/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/obligation"
 	"github.com/google/go-cmp/cmp"
 )
 

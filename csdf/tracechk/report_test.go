@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/tracechk"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/tracechk"
 	"github.com/google/go-cmp/cmp"
 )
 

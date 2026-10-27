@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
 	"github.com/google/go-cmp/cmp"
 )
 

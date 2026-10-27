@@ -7,12 +7,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/csdf/ident"
-	"github.com/Kuniwak/puml-parallel/csdf/pumlline"
-	"github.com/Kuniwak/puml-parallel/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v3/csdf"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/pumlline"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 )
 
 const id = ident.Pattern

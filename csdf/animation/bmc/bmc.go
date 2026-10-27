@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
 // Checker is what csdfbmc reads besides the diagram: the checks module of the

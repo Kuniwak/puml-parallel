@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/Kuniwak/puml-parallel/tools"
-	"github.com/Kuniwak/puml-parallel/tools/csdfrefinement/csdfrefinementcmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfrefinement/csdfrefinementcmd"
 )
 
 func main() {

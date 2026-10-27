@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/Kuniwak/puml-parallel/tools"
-	"github.com/Kuniwak/puml-parallel/tools/csdftranstable/csdftranstablecmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdftranstable/csdftranstablecmd"
 )
 
 func main() {

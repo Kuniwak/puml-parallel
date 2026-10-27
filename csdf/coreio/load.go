@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/pngsrc"
+	"github.com/Kuniwak/puml-parallel/v3/csdf"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/pngsrc"
 )
 
 // LoadAuthored reads the diagram an author wrote at path, a .puml file or a

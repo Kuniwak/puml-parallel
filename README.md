@@ -10,6 +10,14 @@ This tool takes multiple Composable State Diagram files and composes them into a
 
 Download binaries from [Releases](https://github.com/Kuniwak/puml-parallel/releases).
 
+Or build a tool with Go, for example:
+
+```console
+$ go install github.com/Kuniwak/puml-parallel/v3/tools/csdfparallel@latest
+```
+
+The module path ends in `/v3` since 3.0.0, as Go requires of a major version 2 or later.
+
 ## Tool index
 
 `csdfhelp` prints the help of every tool in this repository as one Markdown

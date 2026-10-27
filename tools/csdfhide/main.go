@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/Kuniwak/puml-parallel/tools"
-	"github.com/Kuniwak/puml-parallel/tools/csdfhide/csdfhidecmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfhide/csdfhidecmd"
 )
 
 func main() {

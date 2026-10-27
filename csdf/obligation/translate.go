@@ -15,8 +15,8 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
 )
 
 // The predicate symbols the map builtins become, which Lemmas gives their

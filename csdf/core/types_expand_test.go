@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/lts"
-	"github.com/Kuniwak/puml-parallel/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 )
 
 func TestExpandRangesOverTheDeclaredTypes(t *testing.T) {

@@ -3,7 +3,7 @@ package tracechk
 import (
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
 // Match decides whether an event of the trace is a given event of the

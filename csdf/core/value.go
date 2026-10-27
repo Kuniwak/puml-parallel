@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 )
 
 // Value is a value a variable or a field holds: a scalar the environment

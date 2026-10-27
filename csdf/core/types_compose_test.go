@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 )
 
 func typed(d *Diagram, types map[string]types.Type, channels map[string][]types.Type) *Diagram {

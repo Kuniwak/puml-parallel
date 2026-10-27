@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
 // Value is a value bound to a state variable, as JSON decodes it (numbers

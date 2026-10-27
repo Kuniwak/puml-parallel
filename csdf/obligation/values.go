@@ -3,8 +3,8 @@ package obligation
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 )
 
 // Value is a variable of the logic that stands for a value along a run of a

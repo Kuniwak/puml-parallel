@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 	"github.com/google/go-cmp/cmp"
 )
 
