@@ -30,7 +30,7 @@ func wellFormed(f Formula) error {
 		if !ident.Is(f.Hint) {
 			return fmt.Errorf("the hint %q of an ∃ is no identifier", f.Hint)
 		}
-		if err := checkName(f.Hint); err != nil {
+		if err := ident.CheckName(f.Hint); err != nil {
 			return err
 		}
 		if !ident.Is(f.Type) {
@@ -99,7 +99,7 @@ func wellFormedTerm(t Term) error {
 		if !ident.Is(t.Name) {
 			return fmt.Errorf("the variable %q is no identifier", t.Name)
 		}
-		return checkName(t.Name)
+		return ident.CheckName(t.Name)
 	case Lit:
 		lit, err := ParseLiteral(t.Text)
 		if err != nil {
@@ -121,7 +121,7 @@ func wellFormedTerm(t Term) error {
 		if !ident.Is(t.Name) {
 			return fmt.Errorf("the field %q is no identifier", t.Name)
 		}
-		if err := checkName(t.Name); err != nil {
+		if err := ident.CheckName(t.Name); err != nil {
 			return err
 		}
 		return wellFormedTerm(t.Of)
@@ -129,7 +129,7 @@ func wellFormedTerm(t Term) error {
 		if !ident.Is(t.Fn) {
 			return fmt.Errorf("the function %q is no identifier", t.Fn)
 		}
-		if err := checkName(t.Fn); err != nil {
+		if err := ident.CheckName(t.Fn); err != nil {
 			return err
 		}
 		for _, a := range t.Args {
