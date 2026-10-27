@@ -207,15 +207,16 @@ def _join(joined: list[dict], options: list[dict]) -> list[dict]:
 
 
 def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
-          domain: Callable[[str], list], where: str, families: Mapping[str, Family]) -> list[dict]:
+          types: Mapping[str, str], where: str, families: Mapping[str, Family]) -> list[dict]:
     """The valuations of names, the variables of the state after the step,
-    that post allows from before. domain gives the values of a name's type;
-    where names the edge in a refusal; families gives, for each map, what
-    an instance in it may be: at a state @at gives, it holds exactly that
-    state's variables."""
+    that post allows from before. types gives the type the diagram declares
+    of each variable, whose values ev.carrier gives; where names the edge in
+    a refusal; families gives, for each map, what an instance in it may be:
+    at a state @at gives, it holds exactly that state's variables, of the
+    types the family declares."""
     out: list[dict] = []
     for branch in _branches(post, (), ev.carrier):
-        for after in _solve_branch(ev, branch, names, before, domain, where, families):
+        for after in _solve_branch(ev, branch, names, before, types, where, families):
             if all(ev._holds(f, before, after, bound) for f, bound in branch):
                 _check_instances(after, families, where)
                 if not any(all(same_value(after[n], o[n]) for n in names) for o in out):
@@ -223,7 +224,7 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
     return out
 
 
-def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, where, families) -> list[dict]:
+def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, where, families) -> list[dict]:
     options: list[list[dict]] = []
     frames: dict[str, list[tuple]] = {}
     mentioned: set[tuple] = set()
@@ -235,7 +236,7 @@ def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, whe
                     raise PostError(f"{where}: the post reads a value after the step as {t!r}, which is neither a variable, "
                                     "an entry of a map nor a field of an entry")
                 mentioned.add(loc)
-            got = _determines(ev, f, before, bound, frames, where)
+            got = _determines(ev, f, before, bound, frames, where, types, families)
             if got is not None:
                 options.append(got)
     except Missing:
@@ -250,11 +251,11 @@ def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, domain, whe
             return []
     out = []
     for a in joined:
-        out.extend(_assemble(a, names, frames, mentioned, domain, where, families))
+        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families))
     return out
 
 
-def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | None:
+def _determines(ev: Evaluator, f, before, bound, frames, where, types, families) -> list[dict] | None:
     """The values after the step f determines, as options of assignments to
     locations; None when it determines none and is only checked."""
     def val(t):
@@ -294,8 +295,7 @@ def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | 
                 if loc[0] == "entry":
                     raise PostError(f"{where}: the environment decides {f.function!r} over the types of its values after the step, "
                                     f"but {loc[1]}'[{loc[2]!r}], an entry, has no type; give its state with @at and its fields instead")
-        types = [loc[1] if loc[0] == "var" else loc[3] for loc in locs]
-        options = ev.atoms.post(f, before_args, types)
+        options = ev.atoms.post(f, before_args, [_loc_type(loc, types, families) for loc in locs])
         for after in options:
             if len(after) != len(locs):
                 raise PostError(f"{where}: the post atom {f.function!r} gave {after!r}, not one value for each of its {len(locs)} values after the step")
@@ -303,7 +303,14 @@ def _determines(ev: Evaluator, f, before, bound, frames, where) -> list[dict] | 
     return None
 
 
-def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> list[dict]:
+def _loc_type(loc: tuple, types: Mapping[str, str], families: Mapping[str, Family]) -> str:
+    """The type of the location loc, a variable or a field of an instance."""
+    if loc[0] == "var":
+        return types[loc[1]]
+    return families[loc[1]].types[loc[3]]
+
+
+def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, families) -> list[dict]:
     """The valuations after the step that the assignment a to locations
     makes: none when a contradicts itself, and one per value of its type for
     a variable or a field of an instance nothing determines. An instance
@@ -311,12 +318,12 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
     state."""
     afters: list[dict] = [{}]
 
-    def typed(name: str, what: str) -> list:
+    def typed(type_: str, what: str) -> list:
         try:
-            return domain(name)
-        except KeyError:
-            raise PostError(f"{where}: nothing in the post determines {what}, so it ranges over its type, and {name} has none "
-                            "in TYPES; constrain it, or declare its type") from None
+            return ev.carrier(type_)
+        except KeyError as e:
+            raise PostError(f"{where}: nothing in the post determines {what}, so it ranges over its type {type_}: "
+                            f"{e.args[0]}") from None
 
     for x in names:
         if Strict(("var", x)) in a:
@@ -326,7 +333,7 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
         if x not in frames:
             if parts:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
-            afters = [dict(f, **{x: v}) for f in afters for v in typed(x, f"{x}'")]
+            afters = [dict(f, **{x: v}) for f in afters for v in typed(types[x], f"{x}'")]
             continue
         kept = _kept(frames[x])
         if kept is None:
@@ -356,7 +363,7 @@ def _assemble(a: dict, names, frames, mentioned, domain, where, families) -> lis
             records: list[dict] = [dict(given)]
             for name in own:
                 if name not in given:
-                    records = [dict(r, **{name: v}) for r in records for v in typed(name, f"{x}'[{k!r}].{name}")]
+                    records = [dict(r, **{name: v}) for r in records for v in typed(families[x].types[name], f"{x}'[{k!r}].{name}")]
             choices = [c.set(k, Rec(state, FrozenMap(r))) for c in choices for r in records]
         afters = [dict(f, **{x: c}) for f in afters for c in choices]
     return afters

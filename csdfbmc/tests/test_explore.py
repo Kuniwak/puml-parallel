@@ -3,6 +3,7 @@ import unittest
 
 from csdfbmc import environment
 from csdfbmc.checks import Checks
+from csdfbmc.formula import PostError
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx, lit
 from csdfbmc.values import FrozenMap, Rec, record, sample
@@ -196,7 +197,7 @@ class FieldTest(unittest.TestCase):
         tests = {
             "a state variable after the step": (edge("a", "a", "c", post=[eq("n'", lit(5))]), {"n": [0, 1]}, "n' with the literal 5"),
             "a state variable before the step, by @ne": (edge("a", "a", "c", guard=[builtin("ne", lit(1.0), "n")]), {"n": [0, 1]}, "n with the literal 1.0"),
-            "a received field of the type TYPEOF gives": (edge("a", "a", "c?x", guard=[eq("x", lit("1"))]), {"n": [0, 1], "x": [0]}, 'x with the literal "1"'),
+            "a received field of the type its channel declares": (edge("a", "a", "c?x", guard=[eq("x", lit("1"))]), {"n": [0, 1], "x": [0]}, 'x with the literal "1"'),
             "a variable ∃ binds": (edge("a", "a", "c", guard=[exists("n", eq(fixture.bound(0), lit(True)))]), {"n": [0, 1]}, "with the literal true"),
         }
         for name, (e, types, said) in tests.items():
@@ -476,7 +477,7 @@ class SampleTest(unittest.TestCase):
                 checks = Checks(types=types)
 
                 # Execute
-                result = fixture.explorer(dict(OPENING, edges=[opens]), checks).run()
+                result = fixture.explorer(fixture.redeclared(dict(OPENING, edges=[opens])), checks).run()
 
                 # Assert
                 self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
@@ -537,3 +538,48 @@ class CandidatesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeclaredTypesTest(unittest.TestCase):
+    def test_a_variable_and_a_field_range_over_their_declared_types_not_their_names(self):
+        # Setup: n and x are named apart from their type, Bit.
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(0))], edges=[edge("a", "a", "set?x", post=[eq("n'", "x")])],
+                    types={"n": "Bit"}, channels={"set": ["Bit"]})
+
+        # Execute
+        result = fixture.explorer(d, Checks(types={"Bit": [0, 1]})).run()
+
+        # Assert
+        self.assertEqual({("a", (0,), ()), ("a", (1,), ())}, set(result.states))
+
+    def test_a_value_of_any_a_clause_gives_is_walked(self):
+        # Setup
+        d = diagram({"a": ["memo"]}, "a", init_post=[eq("memo'", lit("x"))], edges=[edge("a", "a", "go", post=[eq("memo'", "memo")])],
+                    types={"memo": "any"})
+
+        # Execute
+        result = fixture.explorer(d, Checks(types={})).run()
+
+        # Assert
+        self.assertEqual([("a", ("x",), ())], list(result.states))
+
+    def test_a_value_of_any_it_would_enumerate_is_refused(self):
+        tests = {
+            "a variable the post leaves free": diagram({"a": ["memo"]}, "a", types={"memo": "any"}),
+            "a field received": diagram({"a": []}, "a", edges=[edge("a", "a", "put?x")], channels={"put": ["any"]}),
+        }
+        for name, d in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex((KeyError, PostError), "the type any constrains nothing and has no values to range over"):
+                    fixture.explorer(d, Checks(types={})).run()
+
+    def test_a_literal_compared_with_a_value_of_any_is_not_refused(self):
+        # Setup
+        d = diagram({"a": ["memo"]}, "a", init_post=[eq("memo'", lit(1.5))], types={"memo": "any"})
+
+        # Execute
+        result = fixture.explorer(d, Checks(types={})).run()
+
+        # Assert
+        self.assertEqual([("a", (1.5,), ())], list(result.states))

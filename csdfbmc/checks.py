@@ -3,12 +3,12 @@ checks besides the clauses.
 
 A checks module is ordinary Python restricted to a pure subset. It defines
 TYPES (a type -> iterable of its values, its carrier set, or a sample of
-them, csdfbmc.values.sample) and, when wanted,
-TYPEOF (a name -> its type; a name it does not list has the type of its own
-name), ENVIRONMENT (declares the atoms that are functions of the
-environment, and gives them; see csdfbmc.environment),
-GHOSTS and INVARIANTS. An earlier csdfbmc read DOMAINS; a module
-defining it is refused. The clauses themselves are read through a glue of
+them, csdfbmc.values.sample) and, when wanted, ENVIRONMENT (declares the
+atoms that are functions of the environment, and gives them; see
+csdfbmc.environment), GHOSTS and INVARIANTS. The diagram declares the
+type of each variable and field (docs/SYNTAX.md); TYPES gives the values
+of the types it names. An earlier csdfbmc read DOMAINS and TYPEOF; a
+module defining either is refused. The clauses themselves are read through a glue of
 the evaluator protocol (csdfbmc.protocol), so a module defining CLAUSES, which an
 earlier csdfbmc read, is refused: write the clauses in the glue's language
 instead.
@@ -75,6 +75,10 @@ def check_pure(source: str, path: str = "<checks>") -> None:
                     raise PurityError(f"{path}:{stmt.lineno}: an assignment inside a function is not allowed; a clause is one expression")
 
 
+# ANY is the type that constrains nothing (csdf/types.AnyName).
+ANY = "any"
+
+
 @dataclass
 class Checks:
     # types: a type -> the finite values it ranges over (its carrier set).
@@ -90,9 +94,6 @@ class Checks:
     ghosts: dict[str, tuple[object, dict[str, Callable[..., object]]]] = field(default_factory=dict)
     # sources: (path, source) of the module, which the symmetry check reads.
     sources: list[tuple[str, str]] = field(default_factory=list)
-    # typeof: a name -> its type; a name it does not list has the type of
-    # its own name.
-    typeof: dict[str, str] = field(default_factory=dict)
     # environment: the functions of the environment it declares, each by
     # its name or an atom of it -> its value, True or False, a pure function
     # of its arguments in order, or None to leave it to --env
@@ -109,30 +110,17 @@ class Checks:
         follows them."""
         return frozenset(t for t, vs in self.types.items() if samples_in(vs))
 
-    def type_of(self, name: str) -> str:
-        return self.typeof.get(name, name)
-
-    def declares(self, name: str) -> bool:
-        """Whether name has a type, and so values to range over."""
-        return self.type_of(name) in self.types
-
-    def typed_names(self) -> dict[str, list]:
-        """Every name that has a type, with its values: the names TYPEOF
-        lists, and each type under its own name."""
-        names = {name: list(values) for name, values in self.types.items()}
-        names.update((name, list(self.types[t])) for name, t in self.typeof.items() if t in self.types)
-        return names
-
     def carrier(self, type_: str) -> list:
-        """The values of the type type_, which an ∃ ranges over."""
+        """The values of the type type_, as the diagram writes it (a map
+        type K ⇸ V too), which a variable, a field or an ∃ of the type
+        ranges over; any, which constrains nothing, has none to range over
+        (docs/CLAUSE_DESIGN.md, Types)."""
+        if type_ == ANY:
+            raise KeyError("the type any constrains nothing and has no values to range over; let a clause give the value "
+                           "(@eq(n', 0)), or declare a type that TYPES gives")
         if type_ in self.types:
             return list(self.types[type_])
-        raise KeyError(f"no type {type_!r} in TYPES, which an ∃ ranges over")
-
-    def domain(self, name: str) -> list:
-        if self.declares(name):
-            return list(self.types[self.type_of(name)])
-        raise KeyError(f"no type declared for {name!r}; add it to TYPES, or give it a type with TYPEOF")
+        raise KeyError(f"no type {type_!r} in TYPES, which it ranges over; add it to TYPES")
 
     def binds(self, fn: Callable, env: dict) -> bool:
         return all(p in env for p in inspect.signature(fn).parameters)
@@ -180,15 +168,14 @@ def load_checks(path: str) -> Checks:
     spec.loader.exec_module(module)
     if hasattr(module, "DOMAINS"):
         raise PurityError(f"{path}: DOMAINS is no longer read; declare the values as TYPES (a type -> its values), "
-                          "and give a name the type of another name with TYPEOF (a name -> a type)")
+                          "and the type of each variable and field in the diagram")
+    if hasattr(module, "TYPEOF"):
+        raise PurityError(f"{path}: TYPEOF is no longer read; declare the type of each variable on its state line "
+                          "(s : v ; T) and of each field in a channel note (channel c : T), the types TYPES gives the values of")
     if not isinstance(getattr(module, "TYPES", None), dict):
         raise PurityError(f"{path}: the module must define TYPES as a dict (a type -> its values)")
-    typeof = getattr(module, "TYPEOF", {})
-    if not isinstance(typeof, dict):
-        raise PurityError(f"{path}: TYPEOF must be a dict (a name -> a type) when defined")
-    for name, t in typeof.items():
-        if t not in module.TYPES:
-            raise PurityError(f"{path}: TYPEOF gives {name!r} the type {t!r}, which TYPES does not declare")
+    if ANY in module.TYPES:
+        raise PurityError(f"{path}: TYPES declares {ANY!r}, the type that constrains nothing, which has no values")
     symmetric = getattr(module, "SYMMETRIC", ())
     if not isinstance(symmetric, (list, tuple, set, frozenset)) or not all(isinstance(t, str) for t in symmetric):
         raise PurityError(f"{path}: SYMMETRIC must list the names of types when defined")
@@ -206,7 +193,7 @@ def load_checks(path: str) -> Checks:
             raise PurityError(f"{path}: ENVIRONMENT gives {name!r} the value {value!r}; give True, False, a function of its arguments in order, "
                               "or None to leave it to --env")
     return Checks(
-        types=dict(module.TYPES), typeof=dict(typeof), environment=environment,
+        types=dict(module.TYPES), environment=environment,
         invariants=dict(getattr(module, "INVARIANTS", {})), ghosts=dict(getattr(module, "GHOSTS", {})),
         sources=[(path, source)], symmetric=tuple(sorted(symmetric)),
     )

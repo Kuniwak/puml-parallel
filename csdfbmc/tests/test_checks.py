@@ -9,16 +9,15 @@ from csdfbmc.values import sample
 
 
 class TypesTest(unittest.TestCase):
-    def test_a_name_ranges_over_the_type_typeof_gives_it(self):
+    def test_a_type_ranges_over_the_values_types_gives_it(self):
         # Setup
-        checks = Checks(types={"口座ID": ["a1", "a2"]}, typeof={"相手ID": "口座ID"})
+        checks = Checks(types={"口座ID": ["a1", "a2"]})
 
         # Execute
-        values = checks.domain("相手ID")
+        values = checks.carrier("口座ID")
 
         # Assert
         self.assertEqual(["a1", "a2"], values)
-        self.assertTrue(checks.declares("相手ID"))
 
     def test_the_samples_follow_the_types_they_are_replaced_by(self):
         # Setup
@@ -30,16 +29,21 @@ class TypesTest(unittest.TestCase):
         # Assert
         self.assertEqual((frozenset({"ID"}), frozenset()), (checks.samples, replaced.samples))
 
-    def test_a_name_typeof_does_not_name_takes_the_type_of_its_own_name(self):
+    def test_any_has_no_values_to_enumerate(self):
         # Setup
-        checks = Checks(types={"額": [1, 2]}, typeof={"相手ID": "口座ID"})
+        checks = Checks(types={"額": [1, 2]})
 
-        # Execute
-        values = checks.domain("額")
+        # Execute, Assert
+        with self.assertRaisesRegex(KeyError, "the type any constrains nothing and has no values to range over"):
+            checks.carrier("any")
 
-        # Assert
-        self.assertEqual([1, 2], values)
-        self.assertFalse(checks.declares("相手ID"))
+    def test_a_type_types_does_not_give_is_refused(self):
+        # Setup
+        checks = Checks(types={"額": [1, 2]})
+
+        # Execute, Assert
+        with self.assertRaisesRegex(KeyError, "no type '口座ID' in TYPES"):
+            checks.carrier("口座ID")
 
 
 class LoadChecksTest(unittest.TestCase):
@@ -78,19 +82,6 @@ class LoadChecksTest(unittest.TestCase):
                 with self.assertRaises(PurityError):
                     load_checks(self.write("TYPES = {}\n" + body))
 
-    def test_loads_the_types_and_typeof_of_a_module(self):
-        # Setup
-        path = self.write('''
-            TYPES = {"口座ID": ["a1", "a2"]}
-            TYPEOF = {"相手ID": "口座ID"}
-        ''')
-
-        # Execute
-        checks = load_checks(path)
-
-        # Assert
-        self.assertEqual(["a1", "a2"], checks.domain("相手ID"))
-
     def test_a_type_given_as_a_sample_ranges_over_its_values_and_is_known_as_a_sample(self):
         tests = {
             "a sample": ('TYPES = {"ID": sample(["a1", "a2"], beyond=["a3"]), "額": [1]}\n', {"ID"}),
@@ -107,7 +98,7 @@ class LoadChecksTest(unittest.TestCase):
                 checks = load_checks(path)
 
                 # Assert
-                self.assertEqual(["a1", "a2"], checks.domain("ID"))
+                self.assertEqual(["a1", "a2"], checks.carrier("ID"))
                 self.assertEqual(want, set(checks.samples))
 
     def test_a_sample_with_no_value_beyond_it_or_one_of_its_own_is_refused(self):
@@ -156,7 +147,9 @@ class LoadChecksTest(unittest.TestCase):
             ("an environment name that is not text", 'TYPES = {}\nENVIRONMENT = {1: True}\n', "names a function by 1"),
             ("a module without types", "INVARIANTS = {}\n", "TYPES"),
             ("the DOMAINS an earlier csdfbmc read, which would be ignored", 'DOMAINS = {"額": [1]}\n', "TYPES"),
-            ("a TYPEOF naming no type", 'TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n', "口座ID"),
+            ("the TYPEOF an earlier csdfbmc read, which the diagram's declarations replace", 'TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n',
+             "TYPEOF is no longer read; declare the type of each variable on its state line"),
+            ("a type named any, which constrains nothing", 'TYPES = {"any": [1]}\n', "TYPES declares 'any'"),
             ("the CLAUSES an earlier csdfbmc read, which a glue reads now", "TYPES = {}\nCLAUSES = {}\n", "glue"),
             ("a SYMMETRIC that lists no names", 'TYPES = {}\nSYMMETRIC = "k"\n', "SYMMETRIC must list"),
         ]
@@ -167,16 +160,6 @@ class LoadChecksTest(unittest.TestCase):
                 # Execute, Assert
                 with self.assertRaisesRegex(PurityError, message):
                     load_checks(path)
-
-    def test_an_exists_ranges_over_the_type_it_names(self):
-        # Setup
-        checks = Checks(types={"口座ID": ["a1", "a2"]}, typeof={"相手ID": "口座ID"})
-
-        # Execute, Assert
-        self.assertEqual(["a1", "a2"], checks.carrier("口座ID"))
-        with self.assertRaisesRegex(KeyError, "相手ID"):
-            checks.carrier("相手ID")
-
 
 if __name__ == "__main__":
     unittest.main()
