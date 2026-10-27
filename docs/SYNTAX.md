@@ -393,7 +393,7 @@ end note
   `map : ID ⇸ Type`, which gives the IDs no type, is refused with the form to
   write. The block includes the family's local diagram, read relative to the
   global file. The composite state may declare the maps it holds, as
-  `running : receipts ; 入荷ID ⇸ Receipt`, of the type the block gives. Its states are the modes
+  `running : receipts ; ReceiptId ⇸ Receipt`, of the type the block gives. Its states are the modes
   below, and its edges are the start edge and the hand-written edges between
   modes.
 - A local diagram keeps the contract of docs/PROMOTION.md: its start state

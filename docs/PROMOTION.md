@@ -85,13 +85,13 @@ is also the picture a reader looks at. A hand-written global diagram renders.
 !define PROMOTED
 
 state "稼働中" as running {
-  running : receipts ; 入荷ID ⇸ Receipt
-  running : cycles ; 基準日 ⇸ Cycle
+  running : receipts ; ReceiptId ⇸ Receipt
+  running : cycles ; Date ⇸ Cycle
 
-  state "receipts : (入荷ID : 入荷ID) ⇸ Receipt" as runningReceipts <<promote>> {
+  state "receipts : (入荷ID : ReceiptId) ⇸ Receipt" as runningReceipts <<promote>> {
     !include local/RECEIPT.puml
   }
-  state "cycles : (基準日 : 基準日) ⇸ Cycle" as runningCycles <<promote>> {
+  state "cycles : (基準日 : Date) ⇸ Cycle" as runningCycles <<promote>> {
     !include local/CYCLE.puml
   }
 }
@@ -113,7 +113,7 @@ inside the state its family moves in. Its title is
 `<map> : (<ID> : <Key>) ⇸ <Type>`: the map the instances live in, the parameter
 the instance ID is written as, the type of the IDs, and the type of one
 instance; the map is of the type `<Key> ⇸ <Type>`. A mode line declaring the
-map (`running : receipts ; 入荷ID ⇸ Receipt`) gives it the same type, or the diagram is
+map (`running : receipts ; ReceiptId ⇸ Receipt`) gives it the same type, or the diagram is
 refused. Its body is one `!include` naming the local diagram. `⇸` is U+21F8;
 `->>` is accepted in its place. The title before the IDs had a type,
 `<map> : <ID> ⇸ <Type>`, is refused with the form to write.
@@ -160,9 +160,9 @@ carries the `!include`; the others are bodyless:
 
 ```plantuml
 state "縮退中" as degraded {
-  degraded : members ; 会員ID ⇸ Member
+  degraded : members ; MemberId ⇸ Member
 
-  state "members : (会員ID : 会員ID) ⇸ Member" as degradedMembers <<promote>>
+  state "members : (会員ID : MemberId) ⇸ Member" as degradedMembers <<promote>>
 }
 ```
 
