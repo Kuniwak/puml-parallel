@@ -36,25 +36,25 @@ class DiagramTest(unittest.TestCase):
 
     def test_reads_the_local_states_of_each_family(self):
         # Setup
-        doc = diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": [], "open": ["bal", "fee"]}, key="acct")])
+        doc = diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": [], "open": ["cnt", "tag"]}, key="key")])
 
         # Execute
         d = Diagram.from_json(doc)
 
         # Assert
         f = d.families["m"]
-        self.assertEqual(("acct", "none", ("none", "open"), {"none": (), "open": ("bal", "fee")}), (f.key, f.init, f.states, f.vars))
+        self.assertEqual(("key", "none", ("none", "open"), {"none": (), "open": ("cnt", "tag")}), (f.key, f.init, f.states, f.vars))
 
     def test_reads_the_declared_types(self):
         # Setup
         doc = diagram({"G": ["m", "n"]}, "G", edges=[edge("G", "G", "put?k!n")], types={"m": "K ⇸ V", "n": "N"},
-                      families=[family("m", "none", {"none": [], "open": ["bal"]}, key_type="K", types={"bal": "any"})])
+                      families=[family("m", "none", {"none": [], "open": ["cnt"]}, key_type="K", types={"cnt": "any"})])
 
         # Execute
         d = Diagram.from_json(doc)
 
         # Assert
-        self.assertEqual(({"m": "K ⇸ V", "n": "N"}, {"put": ("k", "N")}, "K", {"bal": "any"}),
+        self.assertEqual(({"m": "K ⇸ V", "n": "N"}, {"put": ("k", "N")}, "K", {"cnt": "any"}),
                          (d.types, d.channels, d.families["m"].key_type, dict(d.families["m"].types)))
 
     def test_refuses_what_the_types_do_not_declare(self):
@@ -92,7 +92,7 @@ class DiagramTest(unittest.TestCase):
                                         "two families of m"),
             "a start state that is none of its states": (diagram({"G": ["m"]}, "G", families=[family("m", "gone", {"none": []})]),
                                                          "its start state gone is none of its states"),
-            "a start state that holds variables": (diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": ["bal"]})]),
+            "a start state that holds variables": (diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": ["cnt"]})]),
                                                    "its start state none, which is absence, holds variables"),
             "variables of a state not its own": (diagram({"G": ["m"]}, "G", families=[dict(family("m", "none", {"none": []}), vars={"none": [], "x": []})]),
                                                  "its variables are of the states"),
@@ -142,7 +142,7 @@ class FixtureTest(unittest.TestCase):
     def test_an_atom_is_written_as_csdfparse_writes_it(self):
         # Setup
         atoms = []
-        for name in ("withdraw_formal.json", "wallet_formal.json"):
+        for name in ("printer_formal.json", "printer_retry_formal.json"):
             printed = json.loads((ROOT / "examples" / "bmc" / name).read_text(encoding="utf-8"))
             atoms += [c for e in printed["edges"] for c in e["guard"] + e["post"] if c["kind"] == "atom"]
         self.assertGreater(len(atoms), 10)

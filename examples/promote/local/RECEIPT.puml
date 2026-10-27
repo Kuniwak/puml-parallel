@@ -1,0 +1,23 @@
+@startuml RECEIPT
+' CSDF-IGNORE-BEGIN
+!ifndef PROMOTED
+title 入荷 1 件のライフサイクル
+!endif
+' CSDF-IGNORE-END
+
+state "なし" as rcvNone
+state "入荷済み" as rcvReceived
+rcvReceived : qty ; Quantity
+state "記録済み" as rcvLogged
+rcvLogged : qty ; Quantity
+
+[*] --> rcvNone
+
+rcvNone --> rcvReceived : RECEIVE?数量 ; ; $qty' は $数量
+rcvReceived --> rcvLogged : LOG?数量 ; ; $qty' は $qty
+rcvLogged --> rcvNone : SHELVE
+note as receiptChannels
+  channel LOG : Quantity
+  channel RECEIVE : Quantity
+end note
+@enduml

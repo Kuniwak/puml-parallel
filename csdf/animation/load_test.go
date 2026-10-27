@@ -11,7 +11,7 @@ import (
 
 func TestReadDiagram(t *testing.T) {
 	// Setup
-	promotion, err := os.ReadFile("../../examples/promote/ACCOUNTS.puml")
+	promotion, err := os.ReadFile("../../examples/promote/MEMBERS.puml")
 	if err != nil {
 		t.Fatalf("Setup: os.ReadFile() error = %v", err)
 	}

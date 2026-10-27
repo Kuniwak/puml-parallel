@@ -16,19 +16,19 @@ from csdfbmc.values import record, sample
 IDS = sample(["t1", "t2", "t3"], beyond=["t4"])
 
 TYPES = {
-    "試行ID": IDS,
-    # A transaction to send carries its fee; a replacement also names the
+    "AttemptId": IDS,
+    # A new job carries its priority; a resubmission also names the
     # attempt it replaces.
-    "未署名Tx": record(手数料=[1]),
-    "置換Tx": record(置換元=IDS, 手数料=[2, 3]),
+    "NewJob": record(優先度=[1]),
+    "Resubmission": record(置換元=IDS, 優先度=[2, 3]),
 }
 
 # No clause tells two attempts apart by their IDs, so --symmetry may store
 # a state by one of its renamings of them.
-SYMMETRIC = ["試行ID"]
+SYMMETRIC = ["AttemptId"]
 
 INVARIANTS = {
-    # A replacement pays more than what it replaces, so fees never go down
-    # along a chain of replacements; every attempt's fee is at least the base.
-    "手数料は 1 以上": lambda attempts: all(r.手数料 >= 1 for r in attempts.values()),
+    # A resubmission asks more than what it replaces, so priorities never go
+    # down along a chain of them; every attempt's priority is at least the base.
+    "優先度は 1 以上": lambda attempts: all(r.優先度 >= 1 for r in attempts.values()),
 }

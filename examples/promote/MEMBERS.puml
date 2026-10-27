@@ -1,0 +1,14 @@
+@startuml MEMBERS
+' One map, one operating mode: the smallest promotion there is.
+!define PROMOTED
+
+state "稼働中" as running {
+  running : members ; MemberId ⇸ Member
+
+  state "members : (会員ID : MemberId) ⇸ Member" as runningMembers <<promote>> {
+    !include local/MEMBER.puml
+  }
+}
+
+[*] --> running
+@enduml

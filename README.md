@@ -132,8 +132,8 @@ argument, and stdin are all equivalent.
 
 ## Promotion
 
-A system built from many instances of one thing — an account per customer, a
-trade per order — collapses, written as one diagram, into a single state with a
+A system built from many instances of one thing — a member per library card, a
+receipt per delivery — collapses, written as one diagram, into a single state with a
 bundle of self-loops over a map from instance IDs to local states. That form is
 what the checkers want and no reader wants. So the author writes the diagram of
 *one* instance plus a few directives, and `csdfpromote` generates the global one.
@@ -143,8 +143,8 @@ state per map, a note per `sync` or `constrain` — so the hand-written global
 diagram still renders, and the picture shows the promotion.
 
 ```console
-$ csdfpromote examples/promote/TRADES.puml
-$ csdfpromote -lint-only -Werror examples/promote/TRADES.puml
+$ csdfpromote examples/promote/RECEIPTS.puml
+$ csdfpromote -lint-only -Werror examples/promote/RECEIPTS.puml
 ```
 
 Every predicate of the expansion is its clauses joined by the connective ` ∧ `
@@ -161,7 +161,7 @@ The PUML expansion is read by `csdflivelockfree`, `csdfrefinement`,
 `csdftracechk` and `csdftranstable`.
 
 ```console
-$ csdfpromote -format json examples/promote/TRADES.puml
+$ csdfpromote -format json examples/promote/RECEIPTS.puml
 ```
 
 Every other tool refuses a diagram that still holds directives, and says to run
@@ -337,7 +337,7 @@ $ csdflivelockfree examples/valid/vending_machine.puml
 $ csdflivelockfree -target lean examples/valid/vending_machine.puml
 $ csdflivelockfree -target isabelle examples/valid/vending_machine.puml
 $ csdfparallel a.puml b.puml | csdflivelockfree -
-$ csdfpromote examples/promote/TRADES.puml | csdflivelockfree -target lean -
+$ csdfpromote examples/promote/RECEIPTS.puml | csdflivelockfree -target lean -
 ```
 
 The JSON IR lists the states with their variables, the start state and the post of the
@@ -408,7 +408,7 @@ and `csdfrefinement -h`), and a Lean file imports
 `Mathlib.Data.List.Sort`, `Mathlib.Order.RelClasses` and `Mathlib.SetTheory.Cardinal.Order`,
 which need Mathlib `v4.29.0-rc4` (Lean `v4.29.0-rc4`, the version lean-csp-prover pins) or later. An assume note of the
 diagram (see [SYNTAX.md](./docs/SYNTAX.md)) — what it assumes of its runs as a whole, such as
-"a transaction whose fee keeps being raised is eventually confirmed", which no guard can
+"a job whose priority keeps being raised eventually completes", which no guard can
 state — is listed under `assumptions` in the IR and becomes an uninterpreted proposition
 `assume_<id>` in the skeletons, under which the theorem is stated: `theorem
 livelock_free (h_assume_fair : assume_fair) : …` in Lean, `assumes "assume_fair" shows …` in
@@ -600,11 +600,11 @@ bound variable nothing reads any more; both are equivalences of first-order
 logic, since every set of values is inhabited. An omitted postcondition still
 leaves the values after it free, which the variable says. With
 `examples/promote/local/CYCLE.puml`, where counting ends by a `tau`, the
-counting state both accepts and may refuse `BOOK`, and its `REPORT` is
+counting state both accepts and may refuse `LOG`, and its `REPORT` is
 unconditional because the `tau` and the `REPORT` edge are both omitted
 throughout:
 
-| state | name | BOOK?数量 | REPORT |
+| state | name | LOG?数量 | REPORT |
 |---|---|---|---|
 | cycIdle | 未開始 | ["total は 数量"(c, x, x')] → cycCounting | × |
 | cycCounting | 集計中 | ["total' = total + 数量"(c, x, x')] → cycCounting<br>× | → cycIdle |
@@ -832,11 +832,11 @@ functions of the environment and what to check besides from a *checks
 module*.
 
 ```console
-$ csdfparse examples/bmc/withdraw_formal.puml > withdraw_formal.json
-$ csdfbmc withdraw_formal.json examples/bmc/withdraw_formal_defs.py \
-    --evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"
+$ csdfparse examples/bmc/printer_formal.puml > printer_formal.json
+$ csdfbmc printer_formal.json examples/bmc/printer_formal_defs.py \
+    --evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"
 states: 22
-deadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']
+deadlock ×3 at printing after 印刷; first after ['印刷(枚数=3)']
 ```
 
 The checker knows no language by name: it reads every atom through a glue,
@@ -864,15 +864,15 @@ The reference glue, `csdfbmc.python_glue`, reads an atom as a pure subset of
 Python — an expression; no assignment inside a function, no loop statement,
 no exception, no I/O, no randomness, no float — whose holes are names of
 their own, so that evaluating an atom is deterministic. A guard atom is any
-expression (`$残高 >= $数量`); a post atom is `$x' == e`, `$x' in e`, or a
+expression (`$用紙 >= $枚数`); a post atom is `$x' == e`, `$x' in e`, or a
 tuple of every value after the step on the left, where `e` reads none of
-them (`$残高' == $残高 + $額`). An atom that is not Python of the subset is
+them (`$用紙' == $用紙 + $補充数`). An atom that is not Python of the subset is
 an error. The glue's arguments are modules whose public names every atom
 may use, checked against the same pure subset.
 
 A post is solved, not searched. The values after the step come from what
 determines them: an equality builtin with a value after the step on one side
-(`@eq(残高', 残高)`), `@empty`, `@update`, `@frame` with `@at` and `@notin`
+(`@eq(用紙', 用紙)`), `@empty`, `@update`, `@frame` with `@at` and `@notin`
 for its keys, and the values a post atom allows. A variable nothing in the
 post determines ranges over its type in `TYPES`, and is refused without one;
 every valuation is then checked against the whole post, so two clauses that
@@ -900,7 +900,7 @@ named `any`. `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
 keys. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
-of a larger one (`TYPES = {"試行ID": sample(["t1", "t2", "t3"],
+of a larger one (`TYPES = {"AttemptId": sample(["t1", "t2", "t3"],
 beyond=["t4"])}`): the walk ranges over the values listed, and the type has
 more, of which `beyond` lists at least one, written like any value of
 `TYPES`; a plain list is the whole type. Loading refuses an empty `beyond`
@@ -913,8 +913,8 @@ P16) is declared by the checks module alone: every key of `ENVIRONMENT`
 declares one, and every other atom is the glue's. A function is named as
 the diagram's JSON names it (an atom's `function`): the atom's text with
 each hole written as the position of the argument it reads, so
-`$口座 が凍結されていない` is the function `$_0 が凍結されていない` of the
-value of `口座`, and every atom with that text, on any edge and in a guard
+`$会員 が停止されていない` is the function `$_0 が停止されていない` of the
+value of `会員`, and every atom with that text, on any edge and in a guard
 or a post alike, is the same function. A key names a function so, and
 `csdfbmc` never reads an atom's text itself. A key gives the function `True`,
 `False` or a pure function taking the arguments in order, or `None`, which
@@ -1004,53 +1004,53 @@ at in the REPL; an instance is written `{"at": STATE, "fields": {…}}`. The
 exit status is 1 when something was found, 2 when the inputs could not be
 read.
 
-The first worked example, `examples/bmc/withdraw_formal.puml`, is a two-state
-ledger: a transfer is accepted when the balance covers it and completes when
-the balance also covers the fee. The explorer reports the states with no way
+The first worked example, `examples/bmc/printer_formal.puml`, is a two-state
+printer tray: a job is accepted when the tray holds its sheets and completes
+when the tray also holds the sheet it wastes. The explorer reports the states with no way
 out and the trace to each; change a clause and the report changes with it.
-`withdraw_formal_defs.py` is both its checks module and the module of the
+`printer_formal_defs.py` is both its checks module and the module of the
 constants its atoms name, given to the glue as an argument.
 
-The second, `examples/bmc/wallet_formal.puml`, is a toy ledger with deposits,
-one transfer at a time with a retry, and a fee refund from outside the
-balance. It checks six properties at once: no deadlock; no livelock under the
-fairness assumption (the `assume` note, which `wallet_formal_checks.py` turns
-into the bound `RESENDS`, with `--avoid 確定 --within sending`); and the
-`INVARIANTS` over `GHOSTS` that total the events, relating the balance to the
-amounts moved and the fees paid and refunded. The run reports a deadlock with
-its trace; the comments in `wallet_formal_checks.py` say what to change to
+The second, `examples/bmc/printer_retry_formal.puml`, is a toy printer with refills,
+one job at a time with retries that jam sheets, and the jammed sheets
+re-fed into the tray once the jam is cleared. It checks six properties at once: no deadlock; no livelock under the
+fairness assumption (the `assume` note, which `printer_retry_formal_checks.py` turns
+into the bound `RETRIES`, with `--avoid 完了 --within printing`); and the
+`INVARIANTS` over `GHOSTS` that total the events, relating the sheets in the tray
+to the sheets refilled, printed, jammed and re-fed. The run reports a deadlock with
+its trace; the comments in `printer_retry_formal_checks.py` say what to change to
 make every check pass.
 
 ```console
-$ csdfparse examples/bmc/wallet_formal.puml > wallet_formal.json
-$ csdfbmc wallet_formal.json examples/bmc/wallet_formal_checks.py \
-    --evaluator-module "csdfbmc.python_glue examples/bmc/wallet_formal_checks.py" \
-    --avoid 確定 --within sending
+$ csdfparse examples/bmc/printer_retry_formal.puml > printer_retry_formal.json
+$ csdfbmc printer_retry_formal.json examples/bmc/printer_retry_formal_checks.py \
+    --evaluator-module "csdfbmc.python_glue examples/bmc/printer_retry_formal_checks.py" \
+    --avoid 完了 --within printing
 ```
 
 An expansion of a promoted diagram is walked the same way. A map variable
 holds, per instance ID, an instance: its local state, which `@at` reads, and
-its local variables, which an atom reads as `${attempts'[試行ID].手数料}`.
+its local variables, which an atom reads as `${attempts'[試行ID].優先度}`.
 Which variables an instance holds at each local state is the family the JSON
 writes (`families`): after `@at(m'[k], S)` the instance holds exactly the
 variables of `S`, each one the post leaves open ranging over its type in
 `TYPES` (refused without one), and a post that gives a field `S` does not
 hold, or puts an entry of a map of no family at a state, is refused.
 Instance IDs range over the type of the ID field, which is the bound of the
-scenario. The third example, `examples/bmc/attempts/`, is the fee-bumping
+scenario. The third example, `examples/bmc/attempts/`, is the resubmission
 diagram of `examples/promote/ATTEMPTS.puml` with its atoms written in Python.
 A global diagram has no end edge, so the walk stops only once every ID of
-the bound is confirmed. The IDs are a sample with `t4` beyond it
+the bound is done. The IDs are a sample with `t4` beyond it
 (`checks.py`), which lets a new attempt register, so those states are the
 bound reached, not deadlocks, and the walk exits 0; no cycle avoids
-`CONFIRMED`:
+`DONE`:
 
 ```console
 $ csdfpromote -format json examples/bmc/attempts/ATTEMPTS.puml > attempts.json
 $ csdfbmc attempts.json examples/bmc/attempts/checks.py \
-    --evaluator-module csdfbmc.python_glue --avoid CONFIRMED
+    --evaluator-module csdfbmc.python_glue --avoid DONE
 states: 496
-bound reached ×19 at running after CONFIRMED; first after […] (SEND(試行ID=t4, 未署名Tx={'手数料': 1}) is enabled by a value beyond a sample)
+bound reached ×19 at running after DONE; first after […] (SUBMIT(試行ID=t4, 新規ジョブ={'優先度': 1}) is enabled by a value beyond a sample)
 ```
 
 `--cone` walks fewer states and finds the same. It leaves out every state
@@ -1092,7 +1092,7 @@ met (the cycle proviso, which in a breadth-first walk expands a state of
 every cycle in full). Deadlocks, the bound reached, broken invariants, empty
 posts and cycles are found as without it, of the same shapes. An invariant or a ghost update
 that takes any keyword is refused with `--por`. No example of
-`examples/bmc` is reduced: in `attempts`, `RESEND` reads the instance it
+`examples/bmc` is reduced: in `attempts`, `RESUBMIT` reads the instance it
 replaces, which ties the attempts together.
 
 `--symmetry` walks fewer states and finds the same. It stores a state by
@@ -1120,11 +1120,11 @@ the walk: csdfbmc exits 2 and reports no finding, not even those met
 before. Whether the walk meets such a state depends on how far it goes, so
 a run within a smaller `--max-states`, or one that `--first` stops early,
 may finish where a longer one is refused. The values beyond a sample are
-tried at the state as met. `examples/bmc/attempts/checks.py` declares `SYMMETRIC = ["試行ID"]`:
+tried at the state as met. `examples/bmc/attempts/checks.py` declares `SYMMETRIC = ["AttemptId"]`:
 
 ```console
 $ csdfbmc attempts.json examples/bmc/attempts/checks.py \
-    --evaluator-module csdfbmc.python_glue --avoid CONFIRMED --symmetry
+    --evaluator-module csdfbmc.python_glue --avoid DONE --symmetry
 states: 104 (496 without it)
 ```
 
@@ -1153,7 +1153,7 @@ are printed on the standard error. A diagram without promotion directives
 reads unchanged:
 
 ```console
-$ csdfrepl examples/promote/ACCOUNTS.puml
+$ csdfrepl examples/promote/MEMBERS.puml
 ```
 
 For each state, enter its variable values as a JSON array in declaration order.
@@ -1189,12 +1189,12 @@ avoiding cycles, empty posts), then the states where the bound was reached. A st
 taken, for instance because the diagram changed since the check, is an error.
 
 ```console
-$ csdfbmc withdraw_formal.json examples/bmc/withdraw_formal_defs.py \
-    --evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" --json > findings.json
-$ csdfrepl -replay findings.json -finding 0 examples/bmc/withdraw_formal.puml
+$ csdfbmc printer_formal.json examples/bmc/printer_formal_defs.py \
+    --evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" --json > findings.json
+$ csdfrepl -replay findings.json -finding 0 examples/bmc/printer_formal.puml
 Replayed 1 step(s); the path is in the history.
 
-State: 送信中
+State: 印刷中
 ...
 ```
 
@@ -1219,8 +1219,8 @@ report's environment, so it refuses a replay of a report whose `--env`
 values are not exactly its own `-env`.
 
 ```console
-$ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
-    -evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" examples/bmc/withdraw_formal.puml
+$ csdfrepl -checks examples/bmc/printer_formal_defs.py \
+    -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" examples/bmc/printer_formal.puml
 ...
 Suggested by csdfbmc (enter #N to take one):
   [#0] [3]

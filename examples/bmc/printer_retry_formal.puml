@@ -1,0 +1,37 @@
+@startuml PRINTER_RETRY
+' A printer in miniature, one job at a time, with every atom written in
+' Python and read through the reference glue. 用紙 is the sheets in the tray; a
+' jammed sheet waits outside the tray until the jam is cleared and the sheet
+' re-fed, which is why clearing the jams raises 用紙 again. printer_retry_formal_checks.py names the
+' constants the labels use and holds the domains, ghosts and invariants.
+' 補充回数 bounds the scenario, as the retry bound does: without it the
+' running totals grow without end and the walk only stops at --max-states.
+state "待機中" as idle
+idle : 用紙 ; Nat
+idle : 未回収損紙 ; Nat
+idle : 補充回数 ; Nat
+state "印刷中" as printing
+printing : 用紙 ; Nat
+printing : 未回収損紙 ; Nat
+printing : 補充回数 ; Nat
+printing : 印刷枚数 ; Nat
+printing : 再試行回数 ; Nat
+
+[*] --> idle : $用紙' == INITIAL ∧ $未回収損紙' == 0 ∧ $補充回数' == 0
+
+idle --> idle : 補充?補充数 ; $補充回数 < REFILLS ; $用紙' == $用紙 + $補充数 ∧ @eq(未回収損紙', 未回収損紙) ∧ $補充回数' == $補充回数 + 1
+idle --> printing : 印刷?枚数 ; $枚数 <= LIMIT ∧ $枚数 + BASE_WASTE <= $用紙 ; @eq(用紙', 用紙) ∧ @eq(未回収損紙', 未回収損紙) ∧ @eq(補充回数', 補充回数) ∧ @eq(印刷枚数', 枚数) ∧ $再試行回数' == 0
+printing --> printing : 再試行 ; $再試行回数 < RETRIES ; @eq(用紙', 用紙) ∧ @eq(未回収損紙', 未回収損紙) ∧ @eq(補充回数', 補充回数) ∧ @eq(印刷枚数', 印刷枚数) ∧ $再試行回数' == $再試行回数 + 1
+printing --> idle : 完了 ; $用紙 - $印刷枚数 >= waste($再試行回数) ; $用紙' == $用紙 - $印刷枚数 - waste($再試行回数) ∧ $未回収損紙' == $未回収損紙 + waste($再試行回数) ∧ @eq(補充回数', 補充回数)
+idle --> idle : 損紙回収 ; $未回収損紙 > 0 ; $用紙' == $用紙 + $未回収損紙 ∧ $未回収損紙' == 0 ∧ @eq(補充回数', 補充回数)
+' Resting with nothing in flight is a fine place to end the scenario.
+idle --> [*] : $未回収損紙 == 0
+
+note as fair
+  assume 再試行を続ければ、いつか印刷が完了する
+end note
+note as channels
+  channel 補充 : RefillSize
+  channel 印刷 : JobSize
+end note
+@enduml

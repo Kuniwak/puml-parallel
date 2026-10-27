@@ -336,7 +336,7 @@ s --> s : a ; @exists(y : Y) ($y が大きい)
 
 func TestReadHintsAtPromotionForAGlobalDiagram(t *testing.T) {
 	// Setup
-	src, err := os.ReadFile("../../examples/promote/TRADES.puml")
+	src, err := os.ReadFile("../../examples/promote/RECEIPTS.puml")
 	if err != nil {
 		t.Fatal(err)
 	}

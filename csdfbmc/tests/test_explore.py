@@ -17,16 +17,16 @@ COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edge
 # COUNTER with a bump back up at n = 0, so the walk can avoid stop forever.
 BUMPING = dict(COUNTER, edges=COUNTER["edges"] + [edge("a", "a", "bump", guard=[atom("$n == 0")], post=[atom("$n' == $n + 1")])])
 
-# A balance that deposits raise by amount minus fee and withdrawals reduce by
-# amount plus fee.
-LEDGER = diagram({"a": ["残高"]}, "a", init_post=[atom("$残高' == 0")], edges=[
-    edge("a", "a", "入庫?額", post=[atom("$残高' == $残高 + $額 - 1")]),
-    edge("a", "a", "出庫?額", guard=[atom("$額 + 1 <= $残高")], post=[atom("$残高' == $残高 - $額 - 1")]),
+# A stock that a delivery raises by its size minus a loss of one and a
+# dispatch lowers by its size plus a loss of one.
+TALLY = diagram({"a": ["在庫"]}, "a", init_post=[atom("$在庫' == 0")], edges=[
+    edge("a", "a", "搬入?量", post=[atom("$在庫' == $在庫 + $量 - 1")]),
+    edge("a", "a", "搬出?量", guard=[atom("$量 + 1 <= $在庫")], post=[atom("$在庫' == $在庫 - $量 - 1")]),
 ])
 
 
-def ledger_checks(**extra):
-    return Checks(types={"額": [1, 2, 3]}, **extra)
+def tally_checks(**extra):
+    return Checks(types={"量": [1, 2, 3]}, **extra)
 
 
 def inst(state, **fields):
@@ -35,15 +35,15 @@ def inst(state, **fields):
 
 # One family by hand, as csdfpromote writes it: OPEN creates an instance,
 # CLOSE moves it, DROP deletes it.
-ACCOUNTS = diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], edges=[
+MEMBERS = diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], edges=[
     edge("r", "r", "OPEN?k", guard=[builtin("notin", "k", "m")],
-         post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="open"), atom("${} == 0", fld(idx("m'", "k"), "bal"))]),
+         post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="open"), atom("${} == 0", fld(idx("m'", "k"), "cnt"))]),
     edge("r", "r", "CLOSE?k", guard=[builtin("at", idx("m", "k"), state="open")],
          post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
-               eq(fld(idx("m'", "k"), "bal"), fld(idx("m", "k"), "bal"))]),
+               eq(fld(idx("m'", "k"), "cnt"), fld(idx("m", "k"), "cnt"))]),
     edge("r", "r", "DROP?k", guard=[builtin("at", idx("m", "k"), state="closed")],
          post=[builtin("frame", "m'", "m", "k"), builtin("notin", "k", "m'")]),
-], families=[family("m", "none", {"none": [], "open": ["bal"], "closed": ["bal"]})])
+], families=[family("m", "none", {"none": [], "open": ["cnt"], "closed": ["cnt"]})])
 
 
 class WalkTest(unittest.TestCase):
@@ -84,7 +84,7 @@ class WalkTest(unittest.TestCase):
 
     def test_the_bound_on_states_stops_the_walk(self):
         # Execute
-        result = fixture.explorer(LEDGER, ledger_checks(), max_states=5).run()
+        result = fixture.explorer(TALLY, tally_checks(), max_states=5).run()
 
         # Assert
         self.assertTrue(result.truncated)
@@ -245,23 +245,23 @@ class FamilyTest(unittest.TestCase):
 
     def test_instances_are_created_moved_and_deleted(self):
         # Execute
-        result = fixture.explorer(ACCOUNTS, Checks(types={"k": ["a"]})).run()
+        result = fixture.explorer(MEMBERS, Checks(types={"k": ["a"]})).run()
 
         # Assert
-        self.assertEqual([("r", (FrozenMap(),), ()), ("r", (FrozenMap({"a": inst("open", bal=0)}),), ()),
-                          ("r", (FrozenMap({"a": inst("closed", bal=0)}),), ())], result.states)
+        self.assertEqual([("r", (FrozenMap(),), ()), ("r", (FrozenMap({"a": inst("open", cnt=0)}),), ()),
+                          ("r", (FrozenMap({"a": inst("closed", cnt=0)}),), ())], result.states)
         self.assertEqual([], result.deadlocks)
 
     def test_a_glue_never_sees_an_instance_s_state(self):
         # Setup: OPEN only while every instance the glue sees is its fields.
-        d = dict(ACCOUNTS, edges=[dict(ACCOUNTS["edges"][0], guard=ACCOUNTS["edges"][0]["guard"] + [atom("all(set(r) == {'bal'} for r in $m.values())")])]
-                 + ACCOUNTS["edges"][1:])
+        d = dict(MEMBERS, edges=[dict(MEMBERS["edges"][0], guard=MEMBERS["edges"][0]["guard"] + [atom("all(set(r) == {'cnt'} for r in $m.values())")])]
+                 + MEMBERS["edges"][1:])
 
         # Execute
         result = fixture.explorer(d, Checks(types={"k": ["a", "b"]})).run()
 
         # Assert
-        self.assertIn(("r", (FrozenMap({"a": inst("open", bal=0), "b": inst("open", bal=0)}),), ()), result.states)
+        self.assertIn(("r", (FrozenMap({"a": inst("open", cnt=0), "b": inst("open", cnt=0)}),), ()), result.states)
 
 
 class EnvironmentTest(unittest.TestCase):
@@ -269,29 +269,29 @@ class EnvironmentTest(unittest.TestCase):
     every other atom is the glue's."""
 
     FROZEN = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
-        edge("a", "a", "inc", guard=[atom("$n が凍結されていない"), atom("$n < 2")], post=[atom("$n' == $n + 1")])])
+        edge("a", "a", "inc", guard=[atom("$n が停止されていない"), atom("$n < 2")], post=[atom("$n' == $n + 1")])])
 
     def test_the_environment_decides_an_atom_it_declares(self):
         tests = {"given true": (True, 3), "given false": (False, 1), "given as a function": (lambda n: n < 1, 2)}
         for name, (given, states) in tests.items():
             with self.subTest(name):
                 # Setup
-                env = environment.over({"$_0 が凍結されていない": given}, {})
+                env = environment.over({"$_0 が停止されていない": given}, {})
 
                 # Execute
                 result = fixture.explorer(self.FROZEN, environment=env).run()
 
                 # Assert
                 self.assertEqual(states, len(result.states))
-                self.assertEqual(["$_0 が凍結されていない"], result.environment["decided"])
+                self.assertEqual(["$_0 が停止されていない"], result.environment["decided"])
 
     def test_an_atom_the_environment_does_not_declare_is_the_glue_s(self):
-        with self.assertRaisesRegex(Exception, "が凍結されていない"):
+        with self.assertRaisesRegex(Exception, "が停止されていない"):
             fixture.explorer(self.FROZEN).run()
 
     # FROZEN guarded further by a term applying the environment function next.
     FROZEN_NEXT = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
-        edge("a", "a", "inc", guard=[atom("$n が凍結されていない"), atom("$n < 2"),
+        edge("a", "a", "inc", guard=[atom("$n が停止されていない"), atom("$n < 2"),
                                      builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("n")]}, "n")],
              post=[atom("$n' == $n + 1")])])
 
@@ -299,7 +299,7 @@ class EnvironmentTest(unittest.TestCase):
     def frozen_applying(fn, *args):
         """FROZEN guarded further by a term applying fn to args."""
         return diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 0")], edges=[
-            edge("a", "a", "inc", guard=[atom("$n が凍結されていない"), atom("$n < 2"),
+            edge("a", "a", "inc", guard=[atom("$n が停止されていない"), atom("$n < 2"),
                                          builtin("ne", {"kind": "app", "fn": "next", "args": [fixture.term("n")]}, "n"),
                                          builtin("ne", {"kind": "app", "fn": fn, "args": [fixture.term(a) for a in args]}, "n")],
                  post=[atom("$n' == $n + 1")])])
@@ -309,25 +309,25 @@ class EnvironmentTest(unittest.TestCase):
             "a function applied with two arities": (
                 self.frozen_applying("next", "n", "n"), "^the function 'next' is applied with 1 and 2 arguments; one name has one arity"),
             "an applied function named like an atom function of other arguments": (
-                self.frozen_applying("$_0 が凍結されていない", "n", "n"),
-                "^the function '\\$_0 が凍結されていない' is applied with 1 and 2 arguments; one name has one arity"),
+                self.frozen_applying("$_0 が停止されていない", "n", "n"),
+                "^the function '\\$_0 が停止されていない' is applied with 1 and 2 arguments; one name has one arity"),
         }
         for name, (d, said) in tests.items():
             with self.subTest(name):
                 # Execute, Assert
                 with self.assertRaisesRegex(ValueError, said):
-                    fixture.explorer(d, environment=environment.over({"$_0 が凍結されていない": True, "next": lambda *a: 0}, {}))
+                    fixture.explorer(d, environment=environment.over({"$_0 が停止されていない": True, "next": lambda *a: 0}, {}))
 
     def test_what_the_environment_cannot_decide_is_refused_before_the_walk(self):
         tests = {
-            "a declared function nothing gives": (self.FROZEN, {"$_0 が凍結されていない": None}, "nothing decides the environment's functions '\\$_0 が凍結されていない'"),
-            "a declared name of no atom": (self.FROZEN, {"$_0 が凍結されていない": True, "$_0 が赤い": True}, "names no function of the diagram"),
-            "a function of other arguments": (self.FROZEN, {"$_0 が凍結されていない": lambda a, b: True}, "has 1 argument"),
+            "a declared function nothing gives": (self.FROZEN, {"$_0 が停止されていない": None}, "nothing decides the environment's functions '\\$_0 が停止されていない'"),
+            "a declared name of no atom": (self.FROZEN, {"$_0 が停止されていない": True, "$_0 が赤い": True}, "names no function of the diagram"),
+            "a function of other arguments": (self.FROZEN, {"$_0 が停止されていない": lambda a, b: True}, "has 1 argument"),
             "an applied function nothing gives, listed with a declared one": (
-                self.FROZEN_NEXT, {"$_0 が凍結されていない": None},
-                "^nothing decides the environment's functions '\\$_0 が凍結されていない', 'next'; "),
+                self.FROZEN_NEXT, {"$_0 が停止されていない": None},
+                "^nothing decides the environment's functions '\\$_0 が停止されていない', 'next'; "),
             "an applied function given a truth value": (
-                self.FROZEN_NEXT, {"$_0 が凍結されていない": True, "next": True}, "^the environment function 'next' is applied in a term, so it needs a function"),
+                self.FROZEN_NEXT, {"$_0 が停止されていない": True, "next": True}, "^the environment function 'next' is applied in a term, so it needs a function"),
         }
         for name, (d, module, said) in tests.items():
             with self.subTest(name):
@@ -337,7 +337,7 @@ class EnvironmentTest(unittest.TestCase):
 
     def test_an_applied_function_is_given_in_the_environment(self):
         # Setup
-        env = environment.over({"$_0 が凍結されていない": True, "next": lambda n: n + 1}, {})
+        env = environment.over({"$_0 が停止されていない": True, "next": lambda n: n + 1}, {})
 
         # Execute
         result = fixture.explorer(self.FROZEN_NEXT, environment=env).run()
@@ -349,25 +349,25 @@ class EnvironmentTest(unittest.TestCase):
 class PropertyTest(unittest.TestCase):
     def test_a_broken_invariant_names_the_state_and_the_trace(self):
         # Setup
-        checks = ledger_checks(invariants={"残高は 4 未満": lambda 残高: 残高 < 4})
+        checks = tally_checks(invariants={"在庫は 4 未満": lambda 在庫: 在庫 < 4})
 
         # Execute
-        result = fixture.explorer(LEDGER, checks, max_states=200).run()
+        result = fixture.explorer(TALLY, checks, max_states=200).run()
 
         # Assert
         name, state = result.violations[0]
-        self.assertEqual(("残高は 4 未満", ("a", (4,), ())), (name, state))
-        self.assertEqual(["入庫(額=3)", "入庫(額=3)"], result.trace_to(state))
+        self.assertEqual(("在庫は 4 未満", ("a", (4,), ())), (name, state))
+        self.assertEqual(["搬入(量=3)", "搬入(量=3)"], result.trace_to(state))
 
     def test_ghosts_follow_the_events_and_invariants_may_read_them(self):
         # Setup
-        checks = ledger_checks(
-            ghosts={"総入庫": (0, {"入庫": lambda 総入庫, 額: 総入庫 + 額}), "総出庫": (0, {"出庫": lambda 総出庫, 額: 総出庫 + 額}),
-                    "総fee": (0, {"入庫": lambda 総fee: 総fee + 1, "出庫": lambda 総fee: 総fee + 1})},
-            invariants={"帳簿は総和に一致": lambda 残高, 総入庫, 総出庫, 総fee: 残高 == 総入庫 - 総出庫 - 総fee})
+        checks = tally_checks(
+            ghosts={"総搬入": (0, {"搬入": lambda 総搬入, 量: 総搬入 + 量}), "総搬出": (0, {"搬出": lambda 総搬出, 量: 総搬出 + 量}),
+                    "総損耗": (0, {"搬入": lambda 総損耗: 総損耗 + 1, "搬出": lambda 総損耗: 総損耗 + 1})},
+            invariants={"在庫は総和に一致": lambda 在庫, 総搬入, 総搬出, 総損耗: 在庫 == 総搬入 - 総搬出 - 総損耗})
 
         # Execute
-        result = fixture.explorer(LEDGER, checks, max_states=300).run()
+        result = fixture.explorer(TALLY, checks, max_states=300).run()
 
         # Assert
         self.assertEqual([], result.violations)
@@ -400,17 +400,17 @@ class PropertyTest(unittest.TestCase):
 
     def test_first_stops_the_walk_at_the_first_finding(self):
         # Execute
-        result = fixture.explorer(LEDGER, ledger_checks(invariants={"残高は 1 未満": lambda 残高: 残高 < 1}), first=True).run()
+        result = fixture.explorer(TALLY, tally_checks(invariants={"在庫は 1 未満": lambda 在庫: 在庫 < 1}), first=True).run()
 
         # Assert
         self.assertTrue(result.stopped_early)
-        self.assertEqual(("残高は 1 未満", ("a", (1,), ())), result.violations[0])
+        self.assertEqual(("在庫は 1 未満", ("a", (1,), ())), result.violations[0])
         self.assertEqual(3, len(result.states))
 
 
-# ACCOUNTS without DROP, so an ID once opened is never given back; and a STOP
+# MEMBERS without DROP, so an ID once opened is never given back; and a STOP
 # out of the map, after which nothing happens whatever the IDs.
-OPENING = fixture.redeclared(dict(ACCOUNTS, states=["r", "s"], vars=fixture.typed_vars({"r": ["m"], "s": []}), edges=ACCOUNTS["edges"][:2] + [
+OPENING = fixture.redeclared(dict(MEMBERS, states=["r", "s"], vars=fixture.typed_vars({"r": ["m"], "s": []}), edges=MEMBERS["edges"][:2] + [
     edge("r", "s", "STOP", guard=[builtin("at", idx("m", "k"), state="closed")]) | {"fields": [{"dir": "?", "name": "k"}]},
 ]))
 
@@ -421,7 +421,7 @@ class SampleTest(unittest.TestCase):
     the bound was reached, with that step as the witness, not a deadlock."""
 
     def test_a_dead_end_is_told_from_a_deadlock_by_the_values_beyond_the_sample(self):
-        closed = ("r", (FrozenMap({"a": inst("closed", bal=0)}),), ())
+        closed = ("r", (FrozenMap({"a": inst("closed", cnt=0)}),), ())
         ordered = [atom("$k >= 'a'")]
         tests = {
             "the bound reached when every ID is used up": (["r"], [], sample(["a"], beyond=["b"]), [], [(closed, "OPEN(k=b)")]),
@@ -463,9 +463,9 @@ class SampleTest(unittest.TestCase):
         rid = fld("r", "id")
         opens = edge("r", "r", "OPEN?r", guard=[builtin("notin", rid, "m")],
                      post=[builtin("frame", "m'", "m", rid), builtin("at", idx("m'", rid), state="open"),
-                           atom("${} == 0", fld(idx("m'", rid), "bal"))])
+                           atom("${} == 0", fld(idx("m'", rid), "cnt"))])
         ids = sample(["a"], beyond=["b"])
-        opened = ("r", (FrozenMap({"a": inst("open", bal=0)}),), ())
+        opened = ("r", (FrozenMap({"a": inst("open", cnt=0)}),), ())
         tests = {
             "a record of the sample": (ids, [], [(opened, "OPEN(r={'id': 'b'})")]),
             "a record of values listed by hand": (["a"], [opened], []),
@@ -473,7 +473,7 @@ class SampleTest(unittest.TestCase):
         for name, (keys, deadlocks, reached) in tests.items():
             with self.subTest(name):
                 # Setup
-                types = {"k": ids, "r": record(id=keys), "bal": [0]}
+                types = {"k": ids, "r": record(id=keys), "cnt": [0]}
                 checks = Checks(types=types)
 
                 # Execute
@@ -483,7 +483,7 @@ class SampleTest(unittest.TestCase):
                 self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
 
     def test_the_values_beyond_the_sample_add_no_state(self):
-        used_up = ("r", (FrozenMap({"a": inst("closed", bal=0), "b": inst("closed", bal=0)}),), ())
+        used_up = ("r", (FrozenMap({"a": inst("closed", cnt=0), "b": inst("closed", cnt=0)}),), ())
         tests = {"a sample": (sample(["a", "b"], beyond=["c"]), [], [(used_up, "OPEN(k=c)")]),
                  "the same values, not a sample": (["a", "b"], [used_up], [])}
         for name, (keys, deadlocks, reached) in tests.items():
@@ -512,10 +512,10 @@ class ReplayTest(unittest.TestCase):
 
     def test_an_instance_is_encoded_with_its_state(self):
         # Execute
-        result = fixture.explorer(ACCOUNTS, Checks(types={"k": ["a"]})).run()
+        result = fixture.explorer(MEMBERS, Checks(types={"k": ["a"]})).run()
 
         # Assert
-        self.assertEqual([{"a": {"at": "open", "fields": {"bal": 0}}}], result.replay_to(result.states[1])["steps"][0]["values"])
+        self.assertEqual([{"a": {"at": "open", "fields": {"cnt": 0}}}], result.replay_to(result.states[1])["steps"][0]["values"])
 
 
 class CandidatesTest(unittest.TestCase):
@@ -526,10 +526,10 @@ class CandidatesTest(unittest.TestCase):
 
     def test_candidates_of_an_edge_come_per_value_of_the_fields(self):
         # Execute
-        got = fixture.explorer(LEDGER, ledger_checks()).candidates("a", [3], 1)
+        got = fixture.explorer(TALLY, tally_checks()).candidates("a", [3], 1)
 
         # Assert
-        self.assertEqual([{"params": {"額": 1}, "values": [1]}, {"params": {"額": 2}, "values": [0]}], got)
+        self.assertEqual([{"params": {"量": 1}, "values": [1]}, {"params": {"量": 2}, "values": [0]}], got)
 
     def test_a_bad_edge_index_is_refused(self):
         with self.assertRaisesRegex(IndexError, "no edge 5"):

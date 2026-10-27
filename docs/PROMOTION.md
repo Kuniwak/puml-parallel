@@ -1,8 +1,8 @@
 Promotion
 =========
 
-A system built from many instances of one thing — an account per customer, a
-trade per order, a report per business day — has no readable single Composable
+A system built from many instances of one thing — a member per library card, a
+receipt per delivery, a tally per business day — has no readable single Composable
 State Diagram. Written as one, the control state of every instance is absorbed
 into a state variable holding a partial map from instance IDs to local states,
 and the diagram collapses to one global state with a bundle of self-loops. That
@@ -81,29 +81,29 @@ They are written in PlantUML's own syntax, so that the diagram an author writes
 is also the picture a reader looks at. A hand-written global diagram renders.
 
 ```plantuml
-@startuml TRADES
+@startuml RECEIPTS
 !define PROMOTED
 
 state "稼働中" as running {
-  running : buys ; 約定ID ⇸ Buy
+  running : receipts ; 入荷ID ⇸ Receipt
   running : cycles ; 基準日 ⇸ Cycle
 
-  state "buys : (約定ID : 約定ID) ⇸ Buy" as runningBuys <<promote>> {
-    !include local/BUY.puml
+  state "receipts : (入荷ID : 入荷ID) ⇸ Receipt" as runningReceipts <<promote>> {
+    !include local/RECEIPT.puml
   }
   state "cycles : (基準日 : 基準日) ⇸ Cycle" as runningCycles <<promote>> {
     !include local/CYCLE.puml
   }
 }
 
-[*] --> running : buys と cycles は空
+[*] --> running : receipts と cycles は空
 
 note as sync1
-  sync BOOK : buys(約定ID), cycles(基準日)
+  sync LOG : receipts(入荷ID), cycles(基準日)
 end note
 
-note bottom of runningBuys
-  constrain BUY?約定ID?数量 ; 数量 は最小取引単位の倍数である
+note bottom of runningReceipts
+  constrain RECEIVE?入荷ID?数量 ; 数量 は箱入数の倍数である
 end note
 @enduml
 ```
@@ -113,7 +113,7 @@ inside the state its family moves in. Its title is
 `<map> : (<ID> : <Key>) ⇸ <Type>`: the map the instances live in, the parameter
 the instance ID is written as, the type of the IDs, and the type of one
 instance; the map is of the type `<Key> ⇸ <Type>`. A mode line declaring the
-map (`running : buys ; 約定ID ⇸ Buy`) gives it the same type, or the diagram is
+map (`running : receipts ; 入荷ID ⇸ Receipt`) gives it the same type, or the diagram is
 refused. Its body is one `!include` naming the local diagram. `⇸` is U+21F8;
 `->>` is accepted in its place. The title before the IDs had a type,
 `<map> : <ID> ⇸ <Type>`, is refused with the form to write.
@@ -132,13 +132,13 @@ floating note.
 
 **`assume`** is the core grammar's own note (docs/SYNTAX.md): a floating note
 holding one `assume <text>` line states what the diagram assumes of its runs
-as a whole, such as "a transaction whose fee keeps being raised is eventually
-confirmed". It is not a directive — it narrows no edge, because no guard can
+as a whole, such as "a job whose priority keeps being raised eventually
+completes". It is not a directive — it narrows no edge, because no guard can
 say it — so `csdfpromote` leaves it in place and the expansion carries it, where
 `csdflivelockfree` and `csdfrefinement` take it as a hypothesis. It cannot be
 anchored to a block: an assumption is about the whole system.
-`examples/promote/ATTEMPTS.puml` is the worked example: a stuck transaction
-attempt is replaced by one paying a higher fee, the `constrain` says what a
+`examples/promote/ATTEMPTS.puml` is the worked example: a stuck attempt at a
+job is replaced by one asking a higher priority, the `constrain` says what a
 replacement is, and the `assume` note says that the replacements stop, which
 is the hypothesis `csdflivelockfree` states its theorem under once the
 attempts are hidden.
@@ -160,9 +160,9 @@ carries the `!include`; the others are bodyless:
 
 ```plantuml
 state "縮退中" as degraded {
-  degraded : accounts ; 口座ID ⇸ Account
+  degraded : members ; 会員ID ⇸ Member
 
-  state "accounts : (口座ID : 口座ID) ⇸ Account" as degradedAccounts <<promote>>
+  state "members : (会員ID : 会員ID) ⇸ Member" as degradedMembers <<promote>>
 }
 ```
 
@@ -171,8 +171,8 @@ ID, and PlantUML would merge the two boxes into one.
 
 A state that holds the map but has no block for it has that family **frozen**
 there, which is reported as `info`. This is deliberate: expanding into every
-state that holds the map would quietly write a specification in which trades go
-on being booked during maintenance. Every state holds every family's map: the
+state that holds the map would quietly write a specification in which receipts go
+on being logged during maintenance. Every state holds every family's map: the
 instances exist whatever the mode, so a state that declares some maps and not
 others is refused. The edges that switch modes are hand-written. Every map is
 unchanged across them, since an edge of the global diagram cannot write an
@@ -200,7 +200,7 @@ The start state `S₀` means *this instance does not exist*. So:
 
 Because `!include` drops every local diagram into one namespace, state IDs have
 to be unique across the local diagrams of one global diagram (error). Prefix them
-per family (`acc`, `buy`, …).
+per family (`mem`, `rcv`, …).
 
 PlantUML-only lines — `title`, `skinparam`, standalone notes — belong inside
 `!ifndef PROMOTED … !endif`, with `!define PROMOTED` at the top of the global

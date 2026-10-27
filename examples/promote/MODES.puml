@@ -1,7 +1,7 @@
 @startuml MODES
-' Two maps and two operating modes. accounts is driven in both, audits only
+' Two maps and two operating modes. members is driven in both, reviews only
 ' while running: the <<promote>> block is what says where a family moves, so
-' audits is frozen in 縮退中. The mode-switching edges are hand-written; the
+' reviews is held still in 縮退中. The mode-switching edges are hand-written; the
 ' frame that keeps every map across them is promotion's to write.
 '
 ' A map is named by the title of its block, not by its PlantUML alias, because
@@ -12,22 +12,22 @@
 !define PROMOTED
 
 state "稼働中" as running {
-  running : accounts ; 口座ID ⇸ Account
-  running : audits ; 監査ID ⇸ Audit
+  running : members ; MemberId ⇸ Member
+  running : reviews ; ReviewId ⇸ Review
 
-  state "accounts : (口座ID : 口座ID) ⇸ Account" as runningAccounts <<promote>> {
-    !include local/ACCOUNT.puml
+  state "members : (会員ID : MemberId) ⇸ Member" as runningMembers <<promote>> {
+    !include local/MEMBER.puml
   }
-  state "audits : (監査ID : 監査ID) ⇸ Audit" as runningAudits <<promote>> {
-    !include local/AUDIT.puml
+  state "reviews : (審査ID : ReviewId) ⇸ Review" as runningReviews <<promote>> {
+    !include local/REVIEW.puml
   }
 }
 
 state "縮退中" as degraded {
-  degraded : accounts ; 口座ID ⇸ Account
-  degraded : audits ; 監査ID ⇸ Audit
+  degraded : members ; MemberId ⇸ Member
+  degraded : reviews ; ReviewId ⇸ Review
 
-  state "accounts : (口座ID : 口座ID) ⇸ Account" as degradedAccounts <<promote>>
+  state "members : (会員ID : MemberId) ⇸ Member" as degradedMembers <<promote>>
 }
 
 [*] --> running
@@ -35,7 +35,7 @@ state "縮退中" as degraded {
 running --> degraded : DEGRADE
 degraded --> running : RECOVER
 
-note bottom of runningAudits
-  constrain AUDIT_BEGIN?監査ID?口座ID ; $口座ID は $accounts の定義域にある
+note bottom of runningReviews
+  constrain REVIEW_BEGIN?審査ID?会員ID ; $会員ID は $members の定義域にある
 end note
 @enduml

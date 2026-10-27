@@ -21,10 +21,10 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 		run  func(args []string, inout *cli.ProcInout) int
 		args []string
 	}{
-		"withdraw": {json: "../examples/bmc/withdraw_formal.json", run: tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
-			args: []string{"../examples/bmc/withdraw_formal.puml"}},
-		"wallet": {json: "../examples/bmc/wallet_formal.json", run: tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
-			args: []string{"../examples/bmc/wallet_formal.puml"}},
+		"printer": {json: "../examples/bmc/printer_formal.json", run: tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
+			args: []string{"../examples/bmc/printer_formal.puml"}},
+		"printer_retry": {json: "../examples/bmc/printer_retry_formal.json", run: tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
+			args: []string{"../examples/bmc/printer_retry_formal.puml"}},
 		"attempts": {json: "../examples/bmc/attempts/attempts.json", run: tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc()),
 			args: []string{"-format", "json", "../examples/bmc/attempts/ATTEMPTS.puml"}},
 	}

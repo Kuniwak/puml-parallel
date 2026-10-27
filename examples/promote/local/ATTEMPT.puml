@@ -1,24 +1,24 @@
 @startuml ATTEMPT
-' One transaction attempt. A stuck attempt is replaced by a new one that pays a
-' higher fee, so the family can grow without bound; whether it stops is not a
+' One attempt at a job. A stuck attempt is replaced by a new one that asks a
+' higher priority, so the family can grow without bound; whether it stops is not a
 ' property of any one step, which is why the global diagram states it as an
 ' assumption rather than a constrain.
 state "未登録" as attNone
-state "送信済み" as attSent
-attSent : 手数料 ; 手数料
+state "投入済み" as attSent
+attSent : 優先度 ; Nat
 state "滞留" as attStuck
-attStuck : 手数料 ; 手数料
-state "確定" as attConfirmed
-attConfirmed : 手数料 ; 手数料
+attStuck : 優先度 ; Nat
+state "完了" as attDone
+attDone : 優先度 ; Nat
 
 [*] --> attNone
-attNone --> attSent : SEND?未署名Tx ; ; $手数料' = $未署名Tx の手数料
-attNone --> attSent : RESEND?置換Tx ; ; $手数料' = $置換Tx の手数料
-attSent --> attStuck : PENDING ; ; $手数料' = $手数料
-attSent --> attConfirmed : CONFIRMED ; ; $手数料' = $手数料
-attStuck --> attConfirmed : CONFIRMED ; ; $手数料' = $手数料
+attNone --> attSent : SUBMIT?新規ジョブ ; ; $優先度' = $新規ジョブ の優先度
+attNone --> attSent : RESUBMIT?再投入ジョブ ; ; $優先度' = $再投入ジョブ の優先度
+attSent --> attStuck : PENDING ; ; $優先度' = $優先度
+attSent --> attDone : DONE ; ; $優先度' = $優先度
+attStuck --> attDone : DONE ; ; $優先度' = $優先度
 note as attemptChannels
-  channel RESEND : 置換Tx
-  channel SEND : 未署名Tx
+  channel RESUBMIT : Resubmission
+  channel SUBMIT : NewJob
 end note
 @enduml

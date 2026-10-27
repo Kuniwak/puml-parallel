@@ -80,12 +80,12 @@ inputs could not be read. The sources are unpacked once per version under
 $CSDFBMC_CACHE, or the user cache directory.
 
 Examples:
-  $ csdfparse examples/bmc/withdraw_formal.puml > withdraw.json
-  $ csdfbmc withdraw.json examples/bmc/withdraw_formal_defs.py \
-      --evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"
-  $ csdfbmc wallet.json checks.py --evaluator-module "csdfbmc.python_glue checks.py" --avoid 確定 --within sending --json
+  $ csdfparse examples/bmc/printer_formal.puml > printer.json
+  $ csdfbmc printer.json examples/bmc/printer_formal_defs.py \
+      --evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"
+  $ csdfbmc printer_retry.json checks.py --evaluator-module "csdfbmc.python_glue checks.py" --avoid 完了 --within printing --json
   $ csdfpromote -format json GLOBAL.puml > global.json
-  $ csdfbmc global.json checks.py --evaluator-module csdfbmc.python_glue --avoid CONFIRMED
+  $ csdfbmc global.json checks.py --evaluator-module csdfbmc.python_glue --avoid DONE
 `
 
 // NewParseOptionsFunc reads the launcher's options by hand rather than with
