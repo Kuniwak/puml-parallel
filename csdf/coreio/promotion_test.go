@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // location: its start state none means it does not exist; OPEN creates it
@@ -68,10 +69,10 @@ title 移動
 ' CSDF-IGNORE-END
 !define PROMOTED
 state "稼働中" as running {
-  state "locations : l ⇸ Location" as runningLocations <<promote>> {
+  state "locations : (l : 場所ID) ⇸ Location" as runningLocations <<promote>> {
     !include local/LOCATION.puml
   }
-  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -86,8 +87,8 @@ end note
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{
-					{Map: "locations", ID: "l", Local: loc},
-					{Map: "shipments", ID: "s", Local: shp},
+					{Map: "locations", ID: "l", Key: types.Named("場所ID"), Val: types.Named("Location"), Local: loc},
+					{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp},
 				},
 				Syncs: []core.Sync{
 					{Event: "MOVE", Guard: mustParse(t, "${locations[from].在庫} > 1"), Targets: []core.Target{
@@ -102,8 +103,8 @@ end note
 			name: "map declarations, an anchored note, a note for the picture, and ->> in a title",
 			source: `@startuml
 state "稼働中" as running {
-  running : shipments ; s ⇸ Shipment
-  state "shipments : s ->> Shipment" as runningShipments <<promote>> {
+  running : shipments ; 出荷ID ⇸ Shipment
+  state "shipments : (s : 出荷ID) ->> Shipment" as runningShipments <<promote>> {
     !include "local/SHIPMENT.puml"
   }
 }
@@ -121,7 +122,7 @@ end note
 			want: core.Promotion{
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
-				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
+				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
 		},
@@ -129,7 +130,7 @@ end note
 			name: "a bare target takes the local event named like the sync",
 			source: `@startuml
 state "稼働中" as running {
-  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -142,7 +143,7 @@ end note
 			want: core.Promotion{
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
-				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp}},
+				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
 		},
@@ -150,15 +151,15 @@ end note
 			name: "variables of the global state that are no family's map are the controller's",
 			source: `@startuml
 state "稼働中" as running {
-  running : shipments ; s ⇸ Shipment
-  running : 件数 ; 0..2
-  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+  running : shipments ; 出荷ID ⇸ Shipment
+  running : 件数 ; 件数
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
 state "保守" as maint
-maint : shipments ; s ⇸ Shipment
-maint : 理由
+maint : shipments ; 出荷ID ⇸ Shipment
+maint : 理由 ; 理由
 [*] --> running : @empty(shipments') ∧ $件数' = 0
 running --> maint : HALT ; ; $理由' = 停止
 maint --> running : RESUME ; ; $件数' = 0
@@ -168,8 +169,9 @@ maint --> running : RESUME ; ; $件数' = 0
 				Labels: map[string]string{"maint": "保守", "running": "稼働中"},
 				Modes:  []string{"running", "maint"}, Init: "running",
 				Vars:     map[string][]string{"running": {"件数"}, "maint": {"理由"}},
+				Types:    map[string]types.Type{"件数": types.Named("件数"), "理由": types.Named("理由")},
 				InitPost: mustParse(t, "@empty(shipments') ∧ $件数' = 0"),
-				Families: []core.Family{{Map: "shipments", ID: "s", Local: shp, Frozen: []string{"maint"}}},
+				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Frozen: []string{"maint"}}},
 				Edges: []core.Edge{
 					{Src: "running", Dst: "maint", Event: core.Event{Channel: "HALT"}, Post: mustParse(t, "$理由' = 停止")},
 					{Src: "maint", Dst: "running", Event: core.Event{Channel: "RESUME"}, Post: mustParse(t, "$件数' = 0")},
@@ -180,7 +182,7 @@ maint --> running : RESUME ; ; $件数' = 0
 			name: "a constrain on an event and its fields",
 			source: `@startuml
 state "稼働中" as running {
-  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -194,7 +196,7 @@ end note
 			want: core.Promotion{
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
-				Families:   []core.Family{{Map: "shipments", ID: "s", Local: shp}},
+				Families:   []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp}},
 				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
 			},
 		},
@@ -202,23 +204,26 @@ end note
 			name: "modes, a bodyless block, a frozen family, hand-written edges, the start post and an assumption",
 			source: `@startuml
 state "稼働中" as running {
-  running : shipments ; s ⇸ Shipment
-  running : locations ; l ⇸ Location
-  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+  running : shipments ; 出荷ID ⇸ Shipment
+  running : locations ; 場所ID ⇸ Location
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
-  state "locations : l ⇸ Location" as runningLocations <<promote>> {
+  state "locations : (l : 場所ID) ⇸ Location" as runningLocations <<promote>> {
     !include local/LOCATION.puml
   }
 }
 state "縮退中" as degraded {
-  degraded : shipments ; s ⇸ Shipment
-  degraded : locations ; l ⇸ Location
-  state "shipments : s ⇸ Shipment" as degradedShipments <<promote>>
+  degraded : shipments ; 出荷ID ⇸ Shipment
+  degraded : locations ; 場所ID ⇸ Location
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as degradedShipments <<promote>>
 }
 [*] --> running : @empty(shipments') ∧ @empty(locations')
 running --> degraded : HALT?why ; @empty(locations)
 degraded --> running : RESUME
+note as channels
+  channel HALT : 理由
+end note
 note as fair
   assume いずれ RESUME が起きる
 end note
@@ -229,14 +234,15 @@ end note
 				Modes:  []string{"running", "degraded"}, Init: "running",
 				InitPost: mustParse(t, "@empty(shipments') ∧ @empty(locations')"),
 				Families: []core.Family{
-					{Map: "shipments", ID: "s", Local: shp},
-					{Map: "locations", ID: "l", Local: loc, Frozen: []string{"degraded"}},
+					{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp},
+					{Map: "locations", ID: "l", Key: types.Named("場所ID"), Val: types.Named("Location"), Local: loc, Frozen: []string{"degraded"}},
 				},
 				Edges: []core.Edge{
 					{Src: "running", Dst: "degraded", Event: core.Event{Channel: "HALT", Fields: []core.Field{{Name: "why"}}}, Guard: mustParse(t, "@empty(locations)")},
 					{Src: "degraded", Dst: "running", Event: core.Event{Channel: "RESUME"}},
 				},
-				Assumes: []core.Assumption{{ID: "fair", Text: "いずれ RESUME が起きる"}},
+				Assumes:  []core.Assumption{{ID: "fair", Text: "いずれ RESUME が起きる"}},
+				Channels: map[string][]types.Type{"HALT": {types.Named("理由")}},
 			},
 		},
 	}
@@ -261,7 +267,7 @@ end note
 func promoting(body string) string {
 	return fmt.Sprintf(`@startuml
 state "稼働中" as running {
-  state "shipments : s ⇸ Shipment" as rs <<promote>> {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as rs <<promote>> {
     !include S.puml
   }
 }
@@ -298,11 +304,11 @@ func TestReadPromotionRefuses(t *testing.T) {
 		{"a global end edge",
 			promoting("[*] --> running\nrunning --> [*]\n"), "a global end edge is not supported yet"},
 		{"the blocks of one map writing its ID apart",
-			promoting("state \"保守\" as maintenance {\n  state \"shipments : t ⇸ Shipment\" as ms <<promote>>\n}\n[*] --> running\n"), "write its ID as s and as t"},
+			promoting("state \"保守\" as maintenance {\n  state \"shipments : (t : 出荷ID) ⇸ Shipment\" as ms <<promote>>\n}\n[*] --> running\n"), "write its ID as s and as t"},
 		{"a second sync of one event",
 			promoting("[*] --> running\nnote as n\n  sync SHIP : shipments(s)\nend note\nnote as m\n  sync SHIP : shipments(s)\nend note\n"), "a second sync of SHIP"},
 		{"a second block of one map",
-			strings.Replace(promoting("[*] --> running\n"), "}\n}\n", "}\n  state \"shipments : t ⇸ Shipment\" as rt <<promote>> {\n    !include S.puml\n  }\n}\n", 1), "a second <<promote>> block of shipments"},
+			strings.Replace(promoting("[*] --> running\n"), "}\n}\n", "}\n  state \"shipments : (t : 出荷ID) ⇸ Shipment\" as rt <<promote>> {\n    !include S.puml\n  }\n}\n", 1), "a second <<promote>> block of shipments"},
 		{"!include_many",
 			strings.Replace(promoting("[*] --> running\n"), "!include S.puml", "!include_many S.puml", 1), "!include_many"},
 		{"!includesub",
@@ -312,7 +318,15 @@ func TestReadPromotionRefuses(t *testing.T) {
 		{"a sync of an unknown map",
 			promoting("[*] --> running\nnote as n\n  sync X : others(o)\nend note\n"), "others"},
 		{"a block title without the instance's type",
-			strings.Replace(promoting("[*] --> running\n"), "s ⇸ Shipment", "s", 1), "<map> : <ID> ⇸ <Type>"},
+			strings.Replace(promoting("[*] --> running\n"), "(s : 出荷ID) ⇸ Shipment", "s", 1), "<map> : (<ID> : <Key>) ⇸ <Type>"},
+		{"a block title giving the IDs no type",
+			strings.Replace(promoting("[*] --> running\n"), "(s : 出荷ID) ⇸ Shipment", "s ⇸ Shipment", 1), `its title "shipments : s ⇸ Shipment" gives the IDs no type; write it as "shipments : (s : <type of the IDs>) ⇸ Shipment"`},
+		{"a map declared of another type than its block's",
+			promoting("running : shipments ; 場所ID ⇸ Shipment\n[*] --> running\n"), "running declares the map shipments of the type 場所ID ⇸ Shipment, but its <<promote>> block gives it the type 出荷ID ⇸ Shipment"},
+		{"a controller variable with no type",
+			promoting("running : 件数\n[*] --> running\n"), "the variable 件数 of running has no type"},
+		{"a hand-written edge on an undeclared channel with fields",
+			promoting("[*] --> running\nrunning --> running : HALT?why\n"), "the channel HALT carries fields, and no channel note declares their types"},
 		{"a target that is not map(id)",
 			promoting("[*] --> running\nnote as n\n  sync X : shipments\nend note\n"), "map(id)"},
 		{"a mode whose ID is a reserved word",
@@ -320,9 +334,9 @@ func TestReadPromotionRefuses(t *testing.T) {
 		{"a controller variable starting with a digit",
 			promoting("running : 1件数 ; 1件数\n[*] --> running\n"), "does not start with a digit, as 1件数"},
 		{"a promote block whose ID is a reserved word",
-			strings.Replace(promoting("[*] --> running\n"), "s ⇸ Shipment", "true ⇸ Shipment", 1), "true is a reserved word"},
+			strings.Replace(promoting("[*] --> running\n"), "(s : 出荷ID)", "(true : 出荷ID)", 1), "true is a reserved word"},
 		{"a promote block whose map starts with a digit",
-			strings.Replace(promoting("[*] --> running\n"), "\"shipments : s", "\"2shipments : s", 1), "does not start with a digit, as 2shipments"},
+			strings.Replace(promoting("[*] --> running\n"), "\"shipments : (s", "\"2shipments : (s", 1), "does not start with a digit, as 2shipments"},
 		{"a sync of an event that is a reserved word",
 			promoting("[*] --> running\nnote as n\n  sync false : shipments(s)\nend note\n"), "false is a reserved word"},
 		{"a sync target whose ID starts with a digit",
@@ -359,7 +373,7 @@ func TestReadPromotionGivesWhatPromoteTakes(t *testing.T) {
 	cases := []struct{ name, source string }{
 		{"one mode and a sync", `@startuml
 state "稼働中" as running {
-  state "locations : l ⇸ Location" as rl <<promote>> {
+  state "locations : (l : 場所ID) ⇸ Location" as rl <<promote>> {
     !include L.puml
   }
 }
@@ -371,14 +385,14 @@ end note
 `},
 		{"controller variables", `@startuml
 state "稼働中" as running {
-  running : 件数
-  state "locations : l ⇸ Location" as rl <<promote>> {
+  running : 件数 ; 件数
+  state "locations : (l : 場所ID) ⇸ Location" as rl <<promote>> {
     !include L.puml
   }
 }
 state "保守" as maint
-maint : locations ; l ⇸ Location
-maint : 件数
+maint : locations ; 場所ID ⇸ Location
+maint : 件数 ; 件数
 [*] --> running : $件数' = 0
 running --> maint : HALT ; $件数 = 0 ; $件数' = 1
 maint --> running : RESUME ; ; $件数' = $件数
@@ -386,12 +400,12 @@ maint --> running : RESUME ; ; $件数' = $件数
 `},
 		{"two modes, a frozen family and an assumption", `@startuml
 state "稼働中" as running {
-  state "locations : l ⇸ Location" as rl <<promote>> {
+  state "locations : (l : 場所ID) ⇸ Location" as rl <<promote>> {
     !include L.puml
   }
 }
 state "保守" as maint {
-  maint : locations ; l ⇸ Location
+  maint : locations ; 場所ID ⇸ Location
 }
 [*] --> running
 running --> maint : HALT ; @empty(locations)

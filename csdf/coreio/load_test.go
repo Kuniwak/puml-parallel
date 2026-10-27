@@ -12,7 +12,7 @@ import (
 func TestLoad(t *testing.T) {
 	global := `@startuml
 state "稼働中" as running {
-  state "shipments : s ⇸ Shipment" as rs <<promote>> {
+  state "shipments : (s : s) ⇸ Shipment" as rs <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -168,7 +168,7 @@ func TestReadExpandedBytes(t *testing.T) {
 	global := `@startuml G
 state "Run" as run {
   run : items ; ID ⇸ Item
-  state "items : ID ⇸ Item" as runItems <<promote>> {
+  state "items : (ID : ID) ⇸ Item" as runItems <<promote>> {
     !include item.puml
   }
 }

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // Family is a promoted family: its instances live in the map Map, an
@@ -15,11 +16,14 @@ import (
 // self-loop, an edge out of it creates an instance, an edge into it deletes
 // one, and Local has no end edge. An instance that does not exist has no
 // entry in the map. Frozen are the modes in which the family holds its map
-// but takes no event (docs/CLAUSE_DESIGN.md).
+// but takes no event (docs/CLAUSE_DESIGN.md). Key is the type of the IDs
+// and Val the type of one instance, as the title of a <<promote>> block
+// writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val.
 type Family struct {
-	Map, ID string
-	Local   *Diagram
-	Frozen  []string
+	Map, ID  string
+	Key, Val types.Type
+	Local    *Diagram
+	Frozen   []string
 }
 
 // States is what an instance of f may be: the local states of f.Local and
@@ -31,7 +35,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Key: f.ID, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars}
+	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types)}
 }
 
 // movesIn says whether f takes its events in mode.
@@ -72,10 +76,15 @@ type Constrain struct {
 // Assumes are the assume notes of the global diagram, which the expansion
 // carries. Labels label the modes, for the reader alone.
 type Promotion struct {
-	Labels     map[string]string
-	Assumes    []Assumption
-	Modes      []string
-	Vars       map[string][]string
+	Labels  map[string]string
+	Assumes []Assumption
+	Modes   []string
+	Vars    map[string][]string
+	// Types are the types of the controller's own variables, and Channels
+	// the channels of its hand-written edges, as the global diagram
+	// declares them.
+	Types      map[string]types.Type
+	Channels   map[string][]types.Type
 	Init       string
 	InitPost   clause.And
 	Edges      []Edge

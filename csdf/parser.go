@@ -791,7 +791,7 @@ func (p *Parser) parseNote() (Assumption, []ChannelDecl, error) {
 			if read {
 				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: the note at line %d holds an assume directive and declares a channel at line %d; write the assume directive in a note of its own", startLine, line)
 			}
-			decl, err := parseChannelDecl(strings.TrimSpace(strings.TrimPrefix(text, "channel")), line)
+			decl, err := ParseChannelDecl(strings.TrimSpace(strings.TrimPrefix(text, "channel")), line)
 			if err != nil {
 				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
 			}
@@ -802,9 +802,9 @@ func (p *Parser) parseNote() (Assumption, []ChannelDecl, error) {
 	}
 }
 
-// parseChannelDecl reads what follows "channel " in a channel declaration
+// ParseChannelDecl reads what follows "channel " in a channel declaration
 // written at line: "<name>" or "<name> : <type>.<type>…", one type per field.
-func parseChannelDecl(text string, line int) (ChannelDecl, error) {
+func ParseChannelDecl(text string, line int) (ChannelDecl, error) {
 	name, written, hasTypes := strings.Cut(text, ":")
 	name = strings.TrimSpace(name)
 	if name == "" {

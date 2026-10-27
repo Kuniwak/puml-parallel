@@ -147,7 +147,7 @@ func TestNewMainFunc(t *testing.T) {
 			args: []string{"-base", "../../../examples/promote"},
 			stdin: `@startuml A
 state "稼働中" as running {
-  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+  state "accounts : (口座ID : 口座ID) ⇸ Account" as runningAccounts <<promote>> {
     !include local/ACCOUNT.puml
   }
 }

@@ -212,7 +212,7 @@ func TestAnEmptyClauseIsNoneInTheViewAsInTheText(t *testing.T) {
 const promotionGlobal = `@startuml G
 state "Run" as run {
   run : items ; ID ⇸ Item
-  state "items : ID ⇸ Item" as runItems <<promote>> {
+  state "items : (ID : ID) ⇸ Item" as runItems <<promote>> {
     !include item.puml
   }
 }

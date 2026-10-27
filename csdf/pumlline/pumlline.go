@@ -18,9 +18,13 @@ var (
 	// Promote opens a <<promote>> block: the title, the alias, and "{" when
 	// the block has a body.
 	Promote = regexp.MustCompile(`^state\s+"((?:[^"\\]|\\.)*)"\s+as\s+(` + id + `)\s+<<promote>>\s*(\{?)$`)
-	// PromoteTitle is the title of a <<promote>> block: the map, the
-	// parameter an instance ID is written as, and the type of one instance.
-	PromoteTitle = regexp.MustCompile(`^(\S+)\s*:\s*(.+?)\s*(?:⇸|->>)\s*(\S+)$`)
+	// PromoteTitle is the title of a <<promote>> block, <map> : (<ID> :
+	// <Key>) ⇸ <Type>: the map, the parameter an instance ID is written as,
+	// the type of the IDs, and the type of one instance.
+	PromoteTitle = regexp.MustCompile(`^(\S+)\s*:\s*\(\s*(\S+?)\s*:\s*(.+?)\s*\)\s*(?:⇸|->>)\s*(.+?)$`)
+	// PromoteTitleUntyped is a title of the form before the IDs had a type,
+	// <map> : <ID> ⇸ <Type>, which is refused with a hint.
+	PromoteTitleUntyped = regexp.MustCompile(`^(\S+)\s*:\s*([^()\s]+?)\s*(?:⇸|->>)\s*(\S+)$`)
 	// Close closes a composite state or a block.
 	Close = regexp.MustCompile(`^}$`)
 	// Include names a file to include.

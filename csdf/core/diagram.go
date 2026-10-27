@@ -133,6 +133,10 @@ type FamilyStates struct {
 	Init   string
 	States []string
 	Vars   map[string][]string
+	// KeyType is the type of the IDs (Family.Key), and Types the types of
+	// the variables of the local states.
+	KeyType types.Type
+	Types   map[string]types.Type
 }
 
 // clone is f sharing no slice or map with it.
@@ -141,7 +145,7 @@ func (f FamilyStates) clone() FamilyStates {
 	for s, vs := range f.Vars {
 		vars[s] = slices.Clone(vs)
 	}
-	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars}
+	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types)}
 }
 
 // cloneFamilies are fs, each cloned.

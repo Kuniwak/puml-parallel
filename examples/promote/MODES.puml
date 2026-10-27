@@ -15,10 +15,10 @@ state "稼働中" as running {
   running : accounts ; 口座ID ⇸ Account
   running : audits ; 監査ID ⇸ Audit
 
-  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+  state "accounts : (口座ID : 口座ID) ⇸ Account" as runningAccounts <<promote>> {
     !include local/ACCOUNT.puml
   }
-  state "audits : 監査ID ⇸ Audit" as runningAudits <<promote>> {
+  state "audits : (監査ID : 監査ID) ⇸ Audit" as runningAudits <<promote>> {
     !include local/AUDIT.puml
   }
 }
@@ -27,7 +27,7 @@ state "縮退中" as degraded {
   degraded : accounts ; 口座ID ⇸ Account
   degraded : audits ; 監査ID ⇸ Audit
 
-  state "accounts : 口座ID ⇸ Account" as degradedAccounts <<promote>>
+  state "accounts : (口座ID : 口座ID) ⇸ Account" as degradedAccounts <<promote>>
 }
 
 [*] --> running

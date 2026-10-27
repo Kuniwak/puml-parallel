@@ -12,6 +12,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
 	"github.com/Kuniwak/puml-parallel/csdf/pumlline"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 const id = ident.Pattern
@@ -19,7 +20,7 @@ const id = ident.Pattern
 var (
 	stateDeclRe = pumlline.StateDeclLabelled
 	edgeRe      = pumlline.Edge
-	mapDeclRe   = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;.*)?$`)
+	mapDeclRe   = regexp.MustCompile(`^(` + id + `)\s*:\s*(` + id + `)\s*(?:;\s*(.*?))?\s*$`)
 	startRe     = pumlline.Start
 	syncRe      = pumlline.Sync
 	targetRe    = regexp.MustCompile(`^(` + id + `)\((` + id + `)\)(?:\.(` + id + `))?$`)
@@ -27,19 +28,21 @@ var (
 
 // ReadPromotion reads a global diagram (docs/PROMOTION.md): its states, the
 // modes, each holding the maps it declares or has a <<promote>> block for;
-// a block titled "<map> : <ID> ⇸ <Type>" says that the family moves in that
+// a block titled "<map> : (<ID> : <Key>) ⇸ <Type>" says that the family moves in that
 // mode, and exactly one block of a map includes its local diagram, which
 // include reads by the path written, the others being bodyless; a mode
 // holding a map without a block for it has the family frozen there. Then the
 // start edge into a mode, hand-written edges between modes, floating assume
 // notes, and notes, floating or anchored, whose first line is a sync or
-// constrain directive, or which are for the picture and are skipped. The type
-// in a title is not read yet. Clauses are read as authored.
+// constrain directive, or which are for the picture and are skipped, and
+// floating notes of channel declarations, of the hand-written edges. Every
+// variable a mode declares has a type, a map the type its block gives it.
+// Clauses are read as authored.
 func ReadPromotion(source string, include Include) (core.Promotion, error) {
 	if err := csdf.CheckIgnoreRegions(source); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
-	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}}
+	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}, types: map[string]types.Type{}}
 	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
@@ -63,6 +66,7 @@ type promotionReader struct {
 	holds    map[string]map[string]bool // the maps each mode declares or has a block for
 	moves    map[string]map[string]bool // the maps each mode has a block for
 	declared map[string][]string        // the variables each mode declares, in order
+	types    map[string]types.Type      // the type of each variable the modes declare
 	lineNo   int                        // the line being read
 	edgeAt   []int                      // the line of each hand-written edge
 }
@@ -79,6 +83,8 @@ const (
 	directed
 	// picture is a note for the picture, skipped.
 	picture
+	// channels is a note of channel declarations, every line of it one.
+	channels
 )
 
 func (r *promotionReader) run(lines []string) error {
@@ -112,6 +118,9 @@ func (r *promotionReader) line(l string) error {
 	if m := mapDeclRe.FindStringSubmatch(l); m != nil && (r.depth == 1 && m[1] == r.mode() || r.depth == 0 && r.holds[m[1]] != nil) {
 		mode := m[1]
 		if err := ident.CheckAll(m[2]); err != nil {
+			return err
+		}
+		if err := r.declare(mode, m[2], m[3]); err != nil {
 			return err
 		}
 		r.holds[mode][m[2]] = true
@@ -166,6 +175,23 @@ func (r *promotionReader) line(l string) error {
 	return fmt.Errorf("unexpected %q", l)
 }
 
+// declare records that mode declares the variable v of the type written
+// typ, which is required, and which is one type for every mode.
+func (r *promotionReader) declare(mode, v, typ string) error {
+	if typ == "" {
+		return fmt.Errorf("the variable %s of %s has no type; declare it as %s : %s ; <type>, a map of a family as %s : %s ; <Key> ⇸ <Type>", v, mode, mode, v, mode, v)
+	}
+	t, err := types.Parse(typ)
+	if err != nil {
+		return fmt.Errorf("the variable %s of %s: %w", v, mode, err)
+	}
+	if u, ok := r.types[v]; ok && !u.Equal(t) {
+		return fmt.Errorf("the variable %s is declared of the type %s and of the type %s; a variable has one type in a diagram", v, u, t)
+	}
+	r.types[v] = t
+	return nil
+}
+
 func (r *promotionReader) includeLine(l string) error {
 	if word := strings.Fields(l)[0]; word != "!include" {
 		return fmt.Errorf("%s is not read: a <<promote>> block includes its local diagram with !include", word)
@@ -195,6 +221,14 @@ func (r *promotionReader) noteLine(l string) error {
 		return nil
 	case r.note == picture:
 		return nil
+	case r.note == channels:
+		return r.channelLine(l)
+	case r.note == unread && (strings.HasPrefix(l, "channel ") || l == "channel"):
+		if r.noteID == "" {
+			return fmt.Errorf("a note of channel declarations must float: the channels are of the whole system")
+		}
+		r.note = channels
+		return r.channelLine(l)
 	case r.note == directed && isDirective(l):
 		return fmt.Errorf("this note holds a second directive; write one note per directive")
 	case r.note == directed:
@@ -219,6 +253,34 @@ func (r *promotionReader) noteLine(l string) error {
 		return fmt.Errorf("%q is no directive; a note holds a sync directive", l)
 	}
 	return r.sync(m[1], m[2], m[3])
+}
+
+// channelLine reads a line of a note of channel declarations: the
+// channels of the hand-written edges.
+func (r *promotionReader) channelLine(l string) error {
+	if !strings.HasPrefix(l, "channel ") && l != "channel" {
+		return fmt.Errorf("%q in a note of channel declarations, which holds only channel <name> : <type>.<type>", l)
+	}
+	decl, err := csdf.ParseChannelDecl(strings.TrimSpace(strings.TrimPrefix(l, "channel")), r.lineNo)
+	if err != nil {
+		return err
+	}
+	if _, ok := r.p.Channels[decl.Name]; ok {
+		return fmt.Errorf("the channel %s is declared twice", decl.Name)
+	}
+	fields := []types.Type{}
+	for _, f := range decl.Fields {
+		t, err := types.Parse(f)
+		if err != nil {
+			return err
+		}
+		fields = append(fields, t)
+	}
+	if r.p.Channels == nil {
+		r.p.Channels = map[string][]types.Type{}
+	}
+	r.p.Channels[decl.Name] = fields
+	return nil
 }
 
 // isDirective reports whether a note line opens a directive, the core's
@@ -322,11 +384,22 @@ func (r *promotionReader) newMode(alias, label string) error {
 // local diagram.
 func (r *promotionReader) block(title, alias string, body bool) error {
 	t := pumlline.PromoteTitle.FindStringSubmatch(title)
+	if u := pumlline.PromoteTitleUntyped.FindStringSubmatch(title); t == nil && u != nil {
+		return fmt.Errorf("the <<promote>> block %s: its title %q gives the IDs no type; write it as \"%s : (%s : <type of the IDs>) ⇸ %s\"", alias, title, u[1], u[2], u[3])
+	}
 	if t == nil {
-		return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", title)
+		return fmt.Errorf("expected a <<promote>> title of the form \"<map> : (<ID> : <Key>) ⇸ <Type>\", got %q", title)
 	}
 	if err := ident.CheckAll(alias, t[1], t[2]); err != nil {
 		return fmt.Errorf("the <<promote>> block %s: %w", alias, err)
+	}
+	key, err := types.Parse(t[3])
+	if err != nil {
+		return fmt.Errorf("the <<promote>> block %s: the type of the IDs: %w", alias, err)
+	}
+	val, err := types.Parse(t[4])
+	if err != nil {
+		return fmt.Errorf("the <<promote>> block %s: the type of an instance: %w", alias, err)
 	}
 	mode := r.mode()
 	if r.moves[mode][t[1]] {
@@ -334,10 +407,12 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 	}
 	f, err := r.familyOf(t[1])
 	if err != nil {
-		r.p.Families = append(r.p.Families, core.Family{Map: t[1], ID: t[2]})
+		r.p.Families = append(r.p.Families, core.Family{Map: t[1], ID: t[2], Key: key, Val: val})
 		f = &r.p.Families[len(r.p.Families)-1]
 	} else if f.ID != t[2] {
 		return fmt.Errorf("%s: the blocks of %s write its ID as %s and as %s", alias, t[1], f.ID, t[2])
+	} else if m, n := types.MapOf(f.Key, f.Val), types.MapOf(key, val); !m.Equal(n) {
+		return fmt.Errorf("%s: the blocks of %s give it the type %s and the type %s", alias, t[1], m, n)
 	}
 	r.holds[mode][t[1]], r.moves[mode][t[1]] = true, true
 	if body {
@@ -405,17 +480,33 @@ func (r *promotionReader) check() error {
 				return fmt.Errorf("line %d: %s --> %s names %s, which is no state of the global diagram", r.edgeAt[i], e.Src, e.Dst, s)
 			}
 		}
+		decl, ok := r.p.Channels[e.Event.Channel]
+		switch {
+		case e.Event.Channel == core.Tau:
+		case !ok && len(e.Event.Fields) > 0:
+			return fmt.Errorf("line %d: the channel %s carries fields, and no channel note declares their types; declare it as channel %s : <type>", r.edgeAt[i], e.Event.Channel, e.Event.Channel)
+		case ok && len(decl) != len(e.Event.Fields):
+			return fmt.Errorf("line %d: %s has %d fields, but the channel %s is declared with %d", r.edgeAt[i], e.Event.Label(), len(e.Event.Fields), e.Event.Channel, len(decl))
+		}
 	}
 	for _, mode := range r.p.Modes {
 		for _, v := range r.declared[mode] {
-			if _, err := r.familyOf(v); err != nil {
-				// A variable that is no family's map is the controller's own
-				// (docs/CLAUSE_DESIGN.md).
-				if r.p.Vars == nil {
-					r.p.Vars = map[string][]string{}
+			if f, err := r.familyOf(v); err == nil {
+				if want := types.MapOf(f.Key, f.Val); !r.types[v].Equal(want) {
+					return fmt.Errorf("%s declares the map %s of the type %s, but its <<promote>> block gives it the type %s", mode, v, r.types[v], want)
 				}
-				r.p.Vars[mode] = append(r.p.Vars[mode], v)
+				continue
 			}
+			// A variable that is no family's map is the controller's own
+			// (docs/CLAUSE_DESIGN.md).
+			if r.p.Vars == nil {
+				r.p.Vars = map[string][]string{}
+			}
+			r.p.Vars[mode] = append(r.p.Vars[mode], v)
+			if r.p.Types == nil {
+				r.p.Types = map[string]types.Type{}
+			}
+			r.p.Types[v] = r.types[v]
 		}
 	}
 	for i := range r.p.Families {
