@@ -375,19 +375,12 @@ func (sc scope) check(what string, c clause.And) error {
 // one name as two things. Tools bind with hints only, chosen apart when a
 // clause is printed, so only an authored diagram is held to this.
 func (d *Diagram) BindersApart() error {
-	var fns []string
-	for _, c := range d.clauses() {
-		fns = append(fns, clause.FunctionNames(c)...)
-	}
-	start := scope{dst: "of " + d.Init, after: d.Vars[d.Init]}
-	if err := start.apart(d.InitPost, fns); err != nil {
+	fns := d.FunctionNames()
+	if err := d.startScope().apart(d.InitPost, fns); err != nil {
 		return fmt.Errorf("line %d: the start edge: %w", d.InitLine, err)
 	}
 	for _, e := range d.Edges {
-		sc := scope{src: "of " + e.Src, before: d.Vars[e.Src], dst: "of " + e.Dst, after: d.Vars[e.Dst]}
-		for _, f := range e.Event.Fields {
-			sc.fields = append(sc.fields, f.Name)
-		}
+		sc := d.edgeScope(e)
 		for _, c := range []clause.And{e.Guard, e.Post} {
 			if err := sc.apart(c, fns); err != nil {
 				return fmt.Errorf("line %d: %s --> %s : %s: %w", e.Line, e.Src, e.Dst, e.Event.Channel, err)
@@ -401,6 +394,54 @@ func (d *Diagram) BindersApart() error {
 		}
 	}
 	return nil
+}
+
+// FunctionNames are the names of the environment functions the clauses of
+// d apply, each once.
+func (d *Diagram) FunctionNames() []string {
+	var fns []string
+	for _, c := range d.clauses() {
+		for _, f := range clause.FunctionNames(c) {
+			if !slices.Contains(fns, f) {
+				fns = append(fns, f)
+			}
+		}
+	}
+	return fns
+}
+
+// FreshBinder is a name from hint that an ∃ of a clause of e may bind,
+// BindersApart refusing none of it.
+func (d *Diagram) FreshBinder(e Edge, hint string) string {
+	return d.edgeScope(e).fresh(d.FunctionNames(), hint)
+}
+
+// FreshStartBinder is FreshBinder of the start edge.
+func (d *Diagram) FreshStartBinder(hint string) string {
+	return d.startScope().fresh(d.FunctionNames(), hint)
+}
+
+func (d *Diagram) startScope() scope {
+	return scope{dst: "of " + d.Init, after: d.Vars[d.Init]}
+}
+
+func (d *Diagram) edgeScope(e Edge) scope {
+	sc := scope{src: "of " + e.Src, before: d.Vars[e.Src], dst: "of " + e.Dst, after: d.Vars[e.Dst]}
+	for _, f := range e.Event.Fields {
+		sc.fields = append(sc.fields, f.Name)
+	}
+	return sc
+}
+
+// fresh is a name from hint that apart refuses in no clause of sc.
+func (sc scope) fresh(fns []string, hint string) string {
+	taken := map[string]bool{}
+	for _, ns := range [][]string{sc.before, sc.after, sc.fields, fns} {
+		for _, n := range ns {
+			taken[n] = true
+		}
+	}
+	return clause.Fresh(taken, hint)
 }
 
 // apart is BindersApart of the clause c, fns the environment functions of
