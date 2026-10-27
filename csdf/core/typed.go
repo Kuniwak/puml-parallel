@@ -22,7 +22,7 @@ func TypesDeclared(d *Diagram) error {
 		}
 	}
 	if _, ok := d.Channels[Tau]; ok {
-		return fmt.Errorf("tau is internal, and no channel note declares it")
+		return fmt.Errorf("tau is internal and has no fields; remove its declaration from the channel note")
 	}
 	for _, e := range d.Edges {
 		if err := e.typed(d); err != nil {

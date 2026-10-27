@@ -60,7 +60,7 @@ class DiagramTest(unittest.TestCase):
         tests = {
             "a variable of no type": (dict(diagram({"G": []}, "G"), vars={"G": [{"name": "n", "type": ""}]}), "the variable n has no type"),
             "a variable of two types": (dict(diagram({"G": [], "H": []}, "G"), vars={"G": [{"name": "n", "type": "N"}], "H": [{"name": "n", "type": "M"}]}),
-                                        "the variable n is of the type N and of the type M"),
+                                        "the variable n is declared of the type N and of the type M"),
             "an undeclared channel with fields": (diagram({"G": []}, "G", edges=[edge("G", "G", "put?k")], channels={}),
                                                   "the channel put carries fields, and the diagram declares no types of them"),
             "an event of another number of fields": (diagram({"G": []}, "G", edges=[edge("G", "G", "put?k")], channels={"put": []}),

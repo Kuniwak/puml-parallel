@@ -234,6 +234,9 @@ func (ch channelTypes) add(c string, ts []types.Type, names []string) error {
 		ch[c] = ts
 		return nil
 	}
+	if len(prev) != len(ts) {
+		return fmt.Errorf("the channel %s is declared %s and %s", c, ChannelDecl(c, prev), ChannelDecl(c, ts))
+	}
 	for i := range ts {
 		if i < len(prev) && !prev[i].Equal(ts[i]) {
 			if names != nil {

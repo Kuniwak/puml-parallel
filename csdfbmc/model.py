@@ -343,7 +343,7 @@ def _typed_vars(docs, where: str, types: dict[str, str]) -> tuple[str, ...]:
         if not isinstance(v["type"], str) or not v["type"]:
             raise ValueError(f"{where}: the variable {v['name']} has no type")
         if types.setdefault(v["name"], v["type"]) != v["type"]:
-            raise ValueError(f"{where}: the variable {v['name']} is of the type {types[v['name']]} and of the type {v['type']}")
+            raise ValueError(f"{where}: the variable {v['name']} is declared of the type {types[v['name']]} and of the type {v['type']}; a variable has one type in a diagram")
         names.append(v["name"])
     return tuple(names)
 

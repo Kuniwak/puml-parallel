@@ -84,10 +84,9 @@ func readVars(s string, docs []VarDoc, vars map[string][]string, ts map[string]t
 		if err != nil {
 			return fmt.Errorf("the variable %s of %s: %w", vd.Name, s, err)
 		}
-		if u, ok := ts[vd.Name]; ok && !u.Equal(t) {
-			return fmt.Errorf("the variable %s is of the type %s and of the type %s; a variable has one type in a diagram", vd.Name, u, t)
+		if err := DeclareType(ts, vd.Name, t); err != nil {
+			return err
 		}
-		ts[vd.Name] = t
 		vars[s] = append(vars[s], vd.Name)
 	}
 	return nil

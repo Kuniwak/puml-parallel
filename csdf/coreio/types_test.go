@@ -37,7 +37,7 @@ func TestReadAuthoredRefusesWhatTheTypesDoNotDeclare(t *testing.T) {
 		{
 			name:   "a declared tau",
 			source: "@startuml\nstate \"s\" as s\n[*] --> s\nnote as channels\n  channel tau\nend note\n@enduml\n",
-			want:   "tau is internal, and no channel note declares it",
+			want:   "tau is internal and has no fields; remove its declaration from the channel note",
 		},
 	}
 	for _, c := range cases {

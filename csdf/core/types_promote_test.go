@@ -89,3 +89,20 @@ func TestRestrictKeepsTheTypesOfWhatItKeeps(t *testing.T) {
 		t.Errorf("Channels (-want +got):\n%s", diff)
 	}
 }
+
+func TestPromoteRefusesAChannelOfTwoArities(t *testing.T) {
+	// Setup
+	p := Promotion{
+		Modes: []string{"G"}, Init: "G",
+		Channels: map[string][]types.Type{"OPEN": {types.Named("Loc"), types.Named("Loc")}},
+		Families: []Family{{Map: "locations", ID: "loc", Key: types.Named("Loc"), Val: types.Named("Location"), Local: typedLocation(t)}},
+	}
+
+	// Execute
+	_, _, err := Promote(p)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "the channel OPEN is declared OPEN : Loc.Loc and OPEN : Loc") {
+		t.Errorf("Promote: got %v, want a refusal of the two arities of OPEN", err)
+	}
+}
