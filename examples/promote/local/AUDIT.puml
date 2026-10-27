@@ -16,7 +16,7 @@ audDone : target ; 対象の口座ID
 audIdle --> audOpen : AUDIT_BEGIN?口座ID ; ; $target' は $口座ID
 audOpen --> audDone : AUDIT_REPORT ; ; $target' は $target
 audDone --> audIdle : AUDIT_ARCHIVE
-note as channels
+note as auditChannels
   channel AUDIT_BEGIN : 口座ID
 end note
 @enduml

@@ -16,7 +16,7 @@ attNone --> attSent : RESEND?置換Tx ; ; $手数料' == $置換Tx.手数料
 attSent --> attStuck : PENDING ; ; @eq(手数料', 手数料)
 attSent --> attConfirmed : CONFIRMED ; ; @eq(手数料', 手数料)
 attStuck --> attConfirmed : CONFIRMED ; ; @eq(手数料', 手数料)
-note as channels
+note as attemptChannels
   channel RESEND : 置換Tx
   channel SEND : 未署名Tx
 end note
