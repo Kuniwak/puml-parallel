@@ -9,7 +9,7 @@ import (
 
 const counterSource = `@startuml
 state "counting" as a
-a: n
+a : n ; n
 state "stopped" as b
 [*] --> a : $n' = 2
 a --> a : dec ; $n > 0 ; $n' = $n - 1
@@ -57,7 +57,7 @@ func TestReplayRefusesAStepThatMatchesNoTransition(t *testing.T) {
 func TestReplayMatchesAnEdgeByLineWhenEventsRepeat(t *testing.T) {
 	source := `@startuml
 state "s" as s
-s: n
+s : n ; n
 [*] --> s : $n' = 0
 s --> s : tick ; $n = 0 ; $n' = 1
 s --> s : tick ; $n = 0 ; $n' = 2

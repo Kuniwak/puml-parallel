@@ -52,15 +52,19 @@ s0 --> s1 : a
 			Args: []string{filepath.Join("testdata", "builtins.puml")},
 			Want: `@startuml
 state "Door" as door
-door : doors
-door : loc
+door : doors ; doors
+door : loc ; loc
 state "Shop" as shop
-shop : doors
-shop : loc
+shop : doors ; doors
+shop : loc ; loc
 [*] --> shop : @empty(doors') ∧ $loc' = 0
 door --> shop : close ; @ne(loc, 0) ; @eq(doors', doors) ∧ @eq(loc', loc)
 shop --> shop : add?k ; @notin(k, doors) ; @update(doors', doors, k, k) ∧ @eq(loc', loc)
 shop --> door : open?k ; @in(k, doors) ∧ @at(doors[k], shut) ; @frame(doors', doors, k) ∧ @at(doors'[k], wide) ∧ @eq(loc', k)
+note as channels
+  channel add : k
+  channel open : k
+end note
 @enduml
 `,
 		},

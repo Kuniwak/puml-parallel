@@ -15,7 +15,7 @@ import (
 const location = `@startuml
 state "なし" as none
 state "空き" as free
-free : 在庫
+free : 在庫 ; 在庫
 [*] --> none
 none --> free : OPEN ; ; $在庫' = 0
 free --> free : DEPART ; $在庫 > 0 ; $在庫' = $在庫 - 1
@@ -282,7 +282,7 @@ func TestReadPromotionRefuses(t *testing.T) {
 		{"a constrain without its guard",
 			promoting("[*] --> running\nnote as n\n  constrain ORDER?s\nend note\n"), "constrain ORDER?s"},
 		{"a variable declared for a state that is no mode",
-			promoting("[*] --> running\nnowhere : 件数\n"), "unexpected"},
+			promoting("[*] --> running\nnowhere : 件数 ; 件数\n"), "unexpected"},
 		{"a mode holding no map of a family",
 			promoting("state \"保守\" as maintenance\n[*] --> running\n"), "maintenance holds no map shipments"},
 		{"a composite mode holding no map of a family",
@@ -318,7 +318,7 @@ func TestReadPromotionRefuses(t *testing.T) {
 		{"a mode whose ID is a reserved word",
 			promoting("state \"保守\" as null\n[*] --> running\n"), "null is a reserved word"},
 		{"a controller variable starting with a digit",
-			promoting("running : 1件数\n[*] --> running\n"), "does not start with a digit, as 1件数"},
+			promoting("running : 1件数 ; 1件数\n[*] --> running\n"), "does not start with a digit, as 1件数"},
 		{"a promote block whose ID is a reserved word",
 			strings.Replace(promoting("[*] --> running\n"), "s ⇸ Shipment", "true ⇸ Shipment", 1), "true is a reserved word"},
 		{"a promote block whose map starts with a digit",

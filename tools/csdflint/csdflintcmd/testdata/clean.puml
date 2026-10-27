@@ -8,4 +8,9 @@ s0 --> s1 : put?k ; @notin(k, m) ∧ $k が有効 ; @update(m', m, k, k)
 s1 --> s1 : peek?k ; @in(k, m) ; @eq(m', m)
 s1 --> s0 : del?k ; @in(k, m) ; @frame(m', m, k)
 s0 --> [*]
+note as channels
+  channel del : k
+  channel peek : k
+  channel put : k
+end note
 @enduml

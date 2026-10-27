@@ -5,16 +5,19 @@
 ' parentheses and spaces, a non-ASCII guard, and names ending in "_" - which
 ' Isabelle rejects outright.
 state "init" as init
-init: step
+init : step ; step
 state "vm_待機" as vm_待機
-vm_待機: and
-vm_待機: def
+vm_待機 : and ; and
+vm_待機 : def ; def
 state "s_" as s_
-s_: n_
+s_ : n_ ; n_
 [*] --> init : both are set initially
 init --> vm_待機 : tau ; step is positive ; and' is step
 vm_待機 --> init : choose?a_商品 ; ; step' is and
 vm_待機 --> vm_待機 : tau ; 商品 が残っている ; def' is def
 vm_待機 --> s_ : pay_ ; ; n_' is zero
 s_ --> init : reset ; ; step' is n_
+note as channels
+  channel choose : a_商品
+end note
 @enduml

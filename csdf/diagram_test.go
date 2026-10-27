@@ -21,7 +21,7 @@ state "稼働中" as running {
 `,
 		"a sync note": `@startuml A
 state "稼働中" as running
-running : accounts
+running : accounts ; accounts
 [*] --> running
 note as n1
   sync BOOK : accounts(口座ID)

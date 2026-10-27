@@ -1,25 +1,25 @@
 @startuml auto-generated-by: csdfparallel -sync 'insert;showAvailable;showPurchasable;choose;drop' examples/valid/user.puml examples/valid/vending_machine.puml
 state "(userChoosing, vmWaitingChoosing)" as userChoosing_vmWaitingChoosing
-userChoosing_vmWaitingChoosing : product
-userChoosing_vmWaitingChoosing : availableProducts
-userChoosing_vmWaitingChoosing : coins
+userChoosing_vmWaitingChoosing : product ; Product
+userChoosing_vmWaitingChoosing : availableProducts ; ProductSet
+userChoosing_vmWaitingChoosing : coins ; CoinSet
 state "(userGonnaBuy, vmIdle)" as userGonnaBuy_vmIdle
-userGonnaBuy_vmIdle : product
-userGonnaBuy_vmIdle : availableProducts
+userGonnaBuy_vmIdle : product ; Product
+userGonnaBuy_vmIdle : availableProducts ; ProductSet
 state "(userGonnaBuy, vmWaitingChoosing)" as userGonnaBuy_vmWaitingChoosing
-userGonnaBuy_vmWaitingChoosing : product
-userGonnaBuy_vmWaitingChoosing : availableProducts
-userGonnaBuy_vmWaitingChoosing : coins
+userGonnaBuy_vmWaitingChoosing : product ; Product
+userGonnaBuy_vmWaitingChoosing : availableProducts ; ProductSet
+userGonnaBuy_vmWaitingChoosing : coins ; CoinSet
 state "(userIdle, vmIdle)" as userIdle_vmIdle
-userIdle_vmIdle : wanted
-userIdle_vmIdle : availableProducts
+userIdle_vmIdle : wanted ; ProductSet
+userIdle_vmIdle : availableProducts ; ProductSet
 state "(userPaying, vmCoinsInserted)" as userPaying_vmCoinsInserted
-userPaying_vmCoinsInserted : product
-userPaying_vmCoinsInserted : availableProducts
-userPaying_vmCoinsInserted : coins
+userPaying_vmCoinsInserted : product ; Product
+userPaying_vmCoinsInserted : availableProducts ; ProductSet
+userPaying_vmCoinsInserted : coins ; CoinSet
 state "(userWaiting, vmDropping)" as userWaiting_vmDropping
-userWaiting_vmDropping : availableProducts
-userWaiting_vmDropping : dispensing
+userWaiting_vmDropping : availableProducts ; ProductSet
+userWaiting_vmDropping : dispensing ; Product
 [*] --> userIdle_vmIdle : $wanted' is empty ∧ $availableProducts' are products initially in the vending machine
 userChoosing_vmWaitingChoosing --> userWaiting_vmDropping : choose!product ; $availableProducts contains $product ; $dispensing' is $product
 userGonnaBuy_vmIdle --> userPaying_vmCoinsInserted : insert?coin ; ; $product' is $product ∧ $coins' is the set of $coin ∧ $availableProducts' is $availableProducts
@@ -29,4 +29,11 @@ userIdle_vmIdle --> userIdle_vmIdle : tau ; ; $wanted' is non-empty ∧ @eq(avai
 userPaying_vmCoinsInserted --> userChoosing_vmWaitingChoosing : showPurchasable?products ; $products contains $product ; $product' is $product ∧ $availableProducts' is $availableProducts ∧ $coins' is $coins
 userPaying_vmCoinsInserted --> userGonnaBuy_vmWaitingChoosing : showPurchasable?products ; $products does not contain $product ; $product' is $product ∧ $availableProducts' is $availableProducts ∧ $coins' is $coins
 userWaiting_vmDropping --> userIdle_vmIdle : drop?product ; $product is $dispensing ; $wanted' is empty ∧ $availableProducts' is $availableProducts minus $product
+note as channels
+  channel choose : Product
+  channel drop : Product
+  channel insert : Coin
+  channel showAvailable : ProductSet
+  channel showPurchasable : ProductSet
+end note
 @enduml

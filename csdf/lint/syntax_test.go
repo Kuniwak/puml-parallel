@@ -31,7 +31,7 @@ func TestSyntaxErrorRule(t *testing.T) {
 			WantInMessage: "unknown tool word @",
 		},
 		"clauses with holes, builtins and ∧ get no finding (representative value)": {
-			Source: "@startuml\nstate \"s0\" as s0\ns0 : m ; Map\nstate \"s1\" as s1\ns1 : m ; Map\n[*] --> s0 : ; @empty(m')\ns0 --> s1 : put?k ; @notin(k, m) ∧ $k が有効 ; @update(m', m, k, k)\ns1 --> s0 : del?k ; @in(k, m) ; @frame(m', m, k)\n@enduml\n",
+			Source: "@startuml\nstate \"s0\" as s0\ns0 : m ; Map\nstate \"s1\" as s1\ns1 : m ; Map\n[*] --> s0 : ; @empty(m')\ns0 --> s1 : put?k ; @notin(k, m) ∧ $k が有効 ; @update(m', m, k, k)\ns1 --> s0 : del?k ; @in(k, m) ; @frame(m', m, k)\nnote as channels\n  channel del : k\n  channel put : k\nend note\n@enduml\n",
 		},
 		"a source that parses gets no finding (lower boundary value)": {
 			Source: "@startuml\nstate \"s0\" as s0\n[*] --> s0\n@enduml\n",

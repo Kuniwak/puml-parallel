@@ -4,11 +4,11 @@
 ' the instance's variables after the step.
 state "未登録" as attNone
 state "送信済み" as attSent
-attSent : 手数料
+attSent : 手数料 ; 手数料
 state "滞留" as attStuck
-attStuck : 手数料
+attStuck : 手数料 ; 手数料
 state "確定" as attConfirmed
-attConfirmed : 手数料
+attConfirmed : 手数料 ; 手数料
 
 [*] --> attNone
 attNone --> attSent : SEND?未署名Tx ; ; $手数料' == $未署名Tx.手数料
@@ -16,4 +16,8 @@ attNone --> attSent : RESEND?置換Tx ; ; $手数料' == $置換Tx.手数料
 attSent --> attStuck : PENDING ; ; @eq(手数料', 手数料)
 attSent --> attConfirmed : CONFIRMED ; ; @eq(手数料', 手数料)
 attStuck --> attConfirmed : CONFIRMED ; ; @eq(手数料', 手数料)
+note as channels
+  channel RESEND : 置換Tx
+  channel SEND : 未署名Tx
+end note
 @enduml

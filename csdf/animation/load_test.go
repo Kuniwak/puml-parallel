@@ -35,7 +35,7 @@ func TestReadDiagram(t *testing.T) {
 			wantErr: "coreio.ReadBytes: coreio.Read:",
 		},
 		"a renaming of the old syntax is refused as coreio refuses it": {
-			source:  "@startuml\nstate \"S\" as s\ns : n\n[*] --> s : @[y := n] y = 0\n@enduml\n",
+			source:  "@startuml\nstate \"S\" as s\ns : n ; n\n[*] --> s : @[y := n] y = 0\n@enduml\n",
 			wantErr: "coreio.ReadBytes: coreio.Read:",
 		},
 	}

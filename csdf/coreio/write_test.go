@@ -27,6 +27,8 @@ func written(t *testing.T) []struct {
 			d: &core.Diagram{
 				States:   []string{"s"},
 				Vars:     map[string][]string{"s": {"x"}},
+				Types:    map[string]types.Type{"x": types.Named("N")},
+				Channels: map[string][]types.Type{"inc": {types.Named("N")}},
 				Init:     "s",
 				InitPost: mustParse(t, "$x' = 0"),
 				Edges: []core.Edge{
@@ -38,20 +40,24 @@ func written(t *testing.T) []struct {
 			},
 			want: `@startuml
 state "s" as s
-s : x
+s : x ; N
 [*] --> s : $x' = 0
 s --> s : inc!x ; $x < 1 ; $x' = $x + 1
 s --> s : reset ; ; $x' = 0
 s --> s : look ; $x \; は 0
+note as channels
+  channel inc : N
+end note
 @enduml
 `,
 		},
 		{
 			name: "∃, received fields and an end edge",
 			d: &core.Diagram{
-				States: []string{"a", "b"},
-				Vars:   map[string][]string{},
-				Init:   "a",
+				States:   []string{"a", "b"},
+				Vars:     map[string][]string{},
+				Channels: map[string][]types.Type{"put": {types.Named("K")}},
+				Init:     "a",
 				Edges: []core.Edge{
 					{Src: "a", Dst: "b", Event: core.Event{Channel: "put", Fields: []core.Field{{Name: "k"}}},
 						Guard: mustParse(t, "@exists(y : Y) ($y < $k)")},
@@ -64,6 +70,9 @@ state "b" as b
 [*] --> a
 a --> b : put?k ; @exists(y : Y) ($y < $k)
 b --> [*] : 片付いている
+note as channels
+  channel put : K
+end note
 @enduml
 `,
 		},
@@ -132,12 +141,13 @@ end note
 			d: &core.Diagram{
 				States: []string{"z", "a"},
 				Vars:   map[string][]string{"z": {"x"}},
+				Types:  map[string]types.Type{"x": types.Named("N")},
 				Init:   "a",
 				Edges:  []core.Edge{{Src: "a", Dst: "z", Event: core.Event{Channel: "go"}}},
 			},
 			want: `@startuml
 state "z" as z
-z : x
+z : x ; N
 state "a" as a
 [*] --> a
 a --> z : go

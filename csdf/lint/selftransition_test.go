@@ -34,7 +34,7 @@ func TestSelfTransitionPostBreaksGuardRule(t *testing.T) {
 			WantTSV: header + breaks("5", "a", "$n > 0", "", "`n`"),
 		},
 		"a field of the event is not the state's (lower boundary value)": {
-			Source:  diagram("[*] --> s0", "s0 --> s0 : a?x ; $x > $n ; @eq(n', n)"),
+			Source:  diagram("[*] --> s0", "s0 --> s0 : a?x ; $x > $n ; @eq(n', n)", "note as channels", "  channel a : Nat", "end note"),
 			WantTSV: header,
 		},
 		"a post that keeps what the guard reads keeps the guard (lower boundary value)": {

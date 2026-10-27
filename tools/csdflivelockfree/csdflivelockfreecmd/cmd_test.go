@@ -45,7 +45,7 @@ func TestNewMainFuncTellsAStructuralCandidate(t *testing.T) {
 			Want: false,
 		},
 		"a tau self-loop whose guard is false is still a candidate, and exits 0": {
-			Stdin: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : @eq(n', n')\na --> a : tau ; @ne(n, n) ; @eq(n', n)\n@enduml\n",
+			Stdin: "@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : @eq(n', n')\na --> a : tau ; @ne(n, n) ; @eq(n', n)\n@enduml\n",
 			Want:  false,
 		},
 		"standard input is a file": {

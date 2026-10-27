@@ -137,9 +137,9 @@ func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 // without a glue.
 const eqDiagram = `@startuml
 state "S" as s0
-s0: a
-s0: b
-s0: m
+s0 : a ; a
+s0 : b ; b
+s0 : m ; m
 [*] --> s0 : @eq(a', b') ∧ @empty(m')
 s0 --> s0 : tick ; @ne(a, b) ; @eq(a', a) ∧ @eq(m', m)
 @enduml

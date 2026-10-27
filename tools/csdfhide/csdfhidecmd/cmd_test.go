@@ -33,7 +33,7 @@ s1 --> s2 : tau
 			args: []string{"-channels", "put", "testdata/put.puml"},
 			want: `@startuml
 state "a" as a
-a : x
+a : x ; x
 [*] --> a : $x' = 0
 a --> a : tau ; @exists(k : k) ($k < 2) ; @exists(k : k) ($k < 2 ∧ $x' = $k)
 @enduml

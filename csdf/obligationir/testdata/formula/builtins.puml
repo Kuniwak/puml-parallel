@@ -4,8 +4,8 @@
 ' of csdf_at at two states, of csdf_update and of csdf_frame of no key and
 ' of a key.
 state "s" as s
-s : t
-s : m
+s : t ; t
+s : m ; m
 [*] --> s : @at(t', A) ∧ @empty(m')
 s --> s : tau ; @at(t, A) ; @at(t', B) ∧ @frame(m', m)
 s --> s : tau ; @at(t, B) ; @at(t', A) ∧ @exists(k : 鍵) (@update(m', m, k, t))

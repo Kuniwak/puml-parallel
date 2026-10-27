@@ -13,7 +13,7 @@ import (
 // like its variable or field.
 func TestTheValuesOfAPathAreOfTheTypesNamedLikeThem(t *testing.T) {
 	// Setup
-	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $n + $k\n@enduml\n")
+	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $n + $k\nnote as channels\n  channel in : k\nend note\n@enduml\n")
 	if err != nil {
 		t.Fatal(err)
 	}

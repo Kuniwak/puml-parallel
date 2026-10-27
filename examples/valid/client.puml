@@ -15,5 +15,13 @@ c1 --> c2 : inputPrompt ; always transition possible ; tools' remains the same
 c2 --> c1 : returnText ; always transition possible ; tools' remains the same
 c2 --> c3 : toolsCallReq?tool ; tool is included in tools ; tools' remains the same
 c3 --> c2 : toolsCallRes?tool?resp ; tool is included in tools ; tools' remains the same
-  
+note as channels
+  channel initializeReq : Server
+  channel initializeRes : Server
+  channel start : Server
+  channel toolsCallReq : Tool
+  channel toolsCallRes : Tool.Response
+  channel toolsListReq : Server
+  channel toolsListRes : Server.ToolSet
+end note
 @enduml

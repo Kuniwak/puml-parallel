@@ -76,7 +76,7 @@ func TestBuild(t *testing.T) {
 			Want:       map[string][]string{"s0 a": {"→ s1"}, "s1 a": {"×"}},
 		},
 		"a guarded edge is accepted when its guard holds of the values and the offered field, and refused otherwise": {
-			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\n[*] --> s0 : $n' = 0\ns0 --> s1 : a?k ; $k < $n\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n ; n\nstate \"S1\" as s1\n[*] --> s0 : $n' = 0\ns0 --> s1 : a?k ; $k < $n\nnote as channels\n  channel a : k\nend note\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
 				"s0 a?k": {`["$_0 < $_1"(k, n)] → s1`, `[¬"$_0 < $_1"(k, n)] ×`},
@@ -92,17 +92,17 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		"the post of an accepted event says what the values after it are, and the full conditions keep it": {
-			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\n[*] --> s0 : $n' = 0\ns0 --> s0 : inc ; ; $n' = $n + 1\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n ; n\n[*] --> s0 : $n' = 0\ns0 --> s0 : inc ; ; $n' = $n + 1\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
 			Want:       map[string][]string{"s0 inc": {`["$_0 = $_1 + 1"(n', n)] → s0`}},
 		},
 		"the enabling conditions leave out the post nothing reads": {
-			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\n[*] --> s0 : $n' = 0\ns0 --> s0 : inc ; ; $n' = $n + 1\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n ; n\n[*] --> s0 : $n' = 0\ns0 --> s0 : inc ; ; $n' = $n + 1\n@enduml\n",
 			Conditions: transtable.ConditionsEnabling,
 			Want:       map[string][]string{"s0 inc": {"→ s0"}},
 		},
 		"a tau step before the event binds the values after it, and an unstable state refuses nothing": {
-			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\ns1 : n\nstate \"S2\" as s2\n" +
+			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n ; n\nstate \"S1\" as s1\ns1 : n ; n\nstate \"S2\" as s2\n" +
 				"[*] --> s0 : $n' = 0\ns0 --> s1 : tau ; $n > 0 ; @eq(n', n)\ns1 --> s2 : a ; $n > 1\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
@@ -116,7 +116,7 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		"edges of one shape are one column, each field named as the column names it": {
-			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : a?k ; $k > 0\ns0 --> s2 : a?j ; $j < 0\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : a?k ; $k > 0\ns0 --> s2 : a?j ; $j < 0\nnote as channels\n  channel a : k\nend note\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
 				"s0 a?k": {`["$_0 > 0"(k)] → s1`, `["$_0 < 0"(k)] → s2`, `[¬"$_0 > 0"(k) ∧ ¬"$_0 < 0"(k)] ×`},
@@ -124,7 +124,7 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		"a tau whose post binds a hidden field, read by the guard after it": {
-			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\ns1 : n\n[*] --> s0 : $n' = 0\n" +
+			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n ; n\nstate \"S1\" as s1\ns1 : n ; n\n[*] --> s0 : $n' = 0\n" +
 				"s0 --> s1 : tau ; ; @exists(k : n) (@eq(n', k))\ns1 --> s1 : a ; $n > 1\n@enduml\n",
 			Conditions: transtable.ConditionsEnabling,
 			Want: map[string][]string{
@@ -136,13 +136,13 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		"a sent field is a value of the column the edge sends its own value as": {
-			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n\n[*] --> s0 : $n' = 0\ns0 --> s0 : show!n ; $n > 0 ; @eq(n', n)\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\ns0 : n ; n\n[*] --> s0 : $n' = 0\ns0 --> s0 : show!n ; $n > 0 ; @eq(n', n)\nnote as channels\n  channel show : n\nend note\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
 			Want:       map[string][]string{"s0 show!n2": {`["$_0 > 0"(n) ∧ n2 = n ∧ n' = n] → s0`, `[¬("$_0 > 0"(n) ∧ n2 = n)] ×`}},
 		},
 		"two edges of one column sending different values, each refused but where its value is sent": {
-			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n\ns0 : m\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0 : $n' = 0 ∧ $m' = 1\n" +
-				"s0 --> s1 : out!n ; g1\ns0 --> s2 : out!m ; g2\n@enduml\n",
+			Diagram: "@startuml\nstate \"S0\" as s0\ns0 : n ; N\ns0 : m ; N\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0 : $n' = 0 ∧ $m' = 1\n" +
+				"s0 --> s1 : out!n ; g1\ns0 --> s2 : out!m ; g2\nnote as channels\n  channel out : N\nend note\n@enduml\n",
 			Conditions: transtable.ConditionsFull,
 			Want: map[string][]string{
 				"s0 out!n2": {`["g1" ∧ n2 = n] → s1`, `["g2" ∧ n2 = m] → s2`, `[¬("g1" ∧ n2 = n) ∧ ¬("g2" ∧ n2 = m)] ×`},
@@ -150,8 +150,8 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		"one shape in two states naming its field apart, the second over the first's name": {
-			Diagram: "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\ns2 : k\n[*] --> s0\ns0 --> s1 : a?k\n" +
-				"s1 --> s2 : go ; ; $k' = 0\ns2 --> s2 : a?j ; $j < $k ; @eq(k', j)\n@enduml\n",
+			Diagram: "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\ns2 : k ; k\n[*] --> s0\ns0 --> s1 : a?k\n" +
+				"s1 --> s2 : go ; ; $k' = 0\ns2 --> s2 : a?j ; $j < $k ; @eq(k', j)\nnote as channels\n  channel a : k\nend note\n@enduml\n",
 			Conditions: transtable.ConditionsEnabling,
 			Want: map[string][]string{
 				"s0 a?k2": {"→ s1"}, "s1 a?k2": {"×"},
@@ -160,7 +160,7 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		"two fields swapped by name between edges are read by position": {
-			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : p?x?y ; $x < $y\ns0 --> s2 : p?y?x ; $x < $y\n@enduml\n",
+			Diagram:    "@startuml\nstate \"S0\" as s0\nstate \"S1\" as s1\nstate \"S2\" as s2\n[*] --> s0\ns0 --> s1 : p?x?y ; $x < $y\ns0 --> s2 : p?y?x ; $x < $y\nnote as channels\n  channel p : N.N\nend note\n@enduml\n",
 			Conditions: transtable.ConditionsEnabling,
 			Want: map[string][]string{
 				"s0 p?x2?y2": {`["$_0 < $_1"(x2, y2)] → s1`, `["$_0 < $_1"(y2, x2)] → s2`, `[¬"$_0 < $_1"(x2, y2) ∧ ¬"$_0 < $_1"(y2, x2)] ×`},
@@ -265,7 +265,7 @@ func TestBuildListsTheUnreachableStates(t *testing.T) {
 
 func TestBuildTypesTheValuesItBinds(t *testing.T) {
 	// Setup
-	d := read(t, "@startuml\nstate \"S0\" as s0\ns0 : n\nstate \"S1\" as s1\ns1 : n\n[*] --> s0 : $n' = 0\ns0 --> s1 : tau ; ; @eq(n', n)\ns1 --> s1 : a ; $n > 1\n@enduml\n")
+	d := read(t, "@startuml\nstate \"S0\" as s0\ns0 : n ; n\nstate \"S1\" as s1\ns1 : n ; n\n[*] --> s0 : $n' = 0\ns0 --> s1 : tau ; ; @eq(n', n)\ns1 --> s1 : a ; $n > 1\n@enduml\n")
 
 	// Execute
 	table, err := transtable.Build(d, transtable.ConditionsFull)

@@ -10,7 +10,7 @@ import (
 
 const assumeSource = `@startuml
 state "s0" as s0
-s0: n
+s0 : n ; n
 [*] --> s0 : n' = 0
 s0 --> s0 : tau ; ; n' = n + 1
 note as fair

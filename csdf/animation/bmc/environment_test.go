@@ -16,7 +16,7 @@ import (
 
 // guarded is a diagram whose one edge is guarded by an atom no glue reads,
 // which the checks module declares a function of the environment.
-const guarded = "@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : @eq(n', 0)\ns0 --> s0 : inc?x ; $x が 正 ; @eq(n', x)\n@enduml\n"
+const guarded = "@startuml\nstate \"S\" as s0\ns0 : n ; n\n[*] --> s0 : @eq(n', 0)\ns0 --> s0 : inc?x ; $x が 正 ; @eq(n', x)\nnote as channels\n  channel inc : x\nend note\n@enduml\n"
 
 const declared = "TYPES = {\"n\": [0, 1, 2, 3], \"x\": [0, 1, 2, 3]}\nENVIRONMENT = {\"$_0 が 正\": None}\n"
 
@@ -183,7 +183,7 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 // parallel has two edges of one event between the same states, told apart
 // only by their posts; the index a session selects must be the one csdfbmc
 // next numbers the edge by.
-const parallel = "@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : $n' == 0\ns0 --> s0 : tick ; ; $n' == 1\ns0 --> s0 : tick ; ; $n' == 2\n@enduml\n"
+const parallel = "@startuml\nstate \"S\" as s0\ns0 : n ; n\n[*] --> s0 : $n' == 0\ns0 --> s0 : tick ; ; $n' == 1\ns0 --> s0 : tick ; ; $n' == 2\n@enduml\n"
 
 func TestASelectedParallelEdgeIsTheOneCsdfbmcNumbersSo(t *testing.T) {
 	c := newChecker(t)

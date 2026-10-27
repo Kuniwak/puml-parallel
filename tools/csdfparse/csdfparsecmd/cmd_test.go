@@ -20,11 +20,14 @@ func TestNewMainFuncPrintsTheDiagramAsJSON(t *testing.T) {
 		"a diagram on standard input, its clauses as formulas": {
 			stdin: `@startuml
 state "Initial" as s0
-s0: n
+s0 : n ; n
 state "Done" as s1
 [*] --> s0 : $n' == 0
 s0 --> s1 : finish?result ; $n < $result
 s1 --> [*]
+note as channels
+  channel finish : result
+end note
 @enduml
 `,
 			want: `{"version": 3, "name": "", "states": ["s0", "s1"], "labels": {"s0": "Initial", "s1": "Done"},

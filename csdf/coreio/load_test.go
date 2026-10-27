@@ -178,7 +178,7 @@ state "Run" as run {
 	local := `@startuml item
 state "none" as itNone
 state "made" as itMade
-itMade : n
+itMade : n ; n
 [*] --> itNone : 準備済み
 itNone --> itMade : MAKE ; ; $n' は 0
 @enduml
