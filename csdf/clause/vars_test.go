@@ -82,3 +82,22 @@ func TestEachTermVisitsTheTermsOfEveryConjunct(t *testing.T) {
 		t.Errorf("EachTerm mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestPrimedNamesAreTheVariablesNamedAfterTheStep(t *testing.T) {
+	// Setup
+	f := And{Conjuncts: []Formula{
+		Builtin{Op: OpEq, Args: []Term{Free{Name: "n", Primed: true}, Free{Name: "n"}}},
+		Builtin{Op: OpEq, Args: []Term{App{Fn: "f", Args: []Term{Free{Name: "m", Primed: true}}}, Free{Name: "o"}}},
+		Exists{Type: "T", Body: And{Conjuncts: []Formula{
+			Builtin{Op: OpEq, Args: []Term{Free{Name: "n", Primed: true}, Bound{Index: 0}}},
+		}}},
+	}}
+
+	// Execute
+	got := PrimedNames(f)
+
+	// Assert
+	if diff := cmp.Diff([]string{"n", "m"}, got); diff != "" {
+		t.Error(diff)
+	}
+}

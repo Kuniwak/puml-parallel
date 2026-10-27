@@ -2,9 +2,9 @@ package lint
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
 // PostLeavesVariableFreeRule reports a post that never names a state
@@ -36,7 +36,7 @@ func (r PostLeavesVariableFreeRule) Check(in *Input) []Finding {
 	}
 
 	var findings []Finding
-	if free := leftFree(d.InitPost, d.Vars[d.Init]); len(free) > 0 {
+	if free := core.UnnamedAfter(d.InitPost, d.Vars[d.Init]); len(free) > 0 {
 		findings = append(findings, r.finding(in.File, d.InitLine, d.InitPost, free, func(post string) string {
 			return fmt.Sprintf(
 				"The start edge to state `%s` has the post `%s`, which does not name %s, so %s may start as any value of its type. Give it a start value with @eq(v', …) in the post; if any start value is intended, say so with an atom that names it, such as `${%s} is chosen freely`.",
@@ -45,7 +45,7 @@ func (r PostLeavesVariableFreeRule) Check(in *Input) []Finding {
 		}))
 	}
 	for _, edge := range d.Edges {
-		free := leftFree(edge.Post, d.Vars[edge.Dst])
+		free := core.UnnamedAfter(edge.Post, d.Vars[edge.Dst])
 		if len(free) == 0 {
 			continue
 		}
@@ -75,33 +75,6 @@ func (r PostLeavesVariableFreeRule) finding(file string, line int, post clause.A
 	}
 	f.Message = message(printed)
 	return f
-}
-
-// leftFree are the variables of vars whose primed name is the root of no
-// term post reads, in the order of vars.
-func leftFree(post clause.And, vars []string) []string {
-	named := map[string]bool{}
-	clause.EachTerm(post, func(t clause.Term) {
-		eachPrimedRoot(t, func(name string) { named[name] = true })
-	})
-	var free []string
-	for _, v := range vars {
-		if !named[v] && !slices.Contains(free, v) {
-			free = append(free, v)
-		}
-	}
-	return free
-}
-
-// eachPrimedRoot calls visit on the name of each primed free variable in t,
-// a key or an argument of a function included.
-func eachPrimedRoot(t clause.Term, visit func(string)) {
-	clause.MapTerm(t, 0, func(v clause.Term, _ int) clause.Term {
-		if f, ok := v.(clause.Free); ok && f.Primed {
-			visit(f.Name)
-		}
-		return v
-	})
 }
 
 // primed are names, each primed.

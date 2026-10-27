@@ -504,6 +504,20 @@ func (e Event) Label() string {
 	return sb.String()
 }
 
+// UnnamedAfter are the variables of vars that post does not name after the
+// step (clause.PrimedNames), in the order of vars: constrained by nothing,
+// each may be any value of its type after the step.
+func UnnamedAfter(post clause.And, vars []string) []string {
+	named := clause.PrimedNames(post)
+	var free []string
+	for _, v := range vars {
+		if !slices.Contains(named, v) {
+			free = append(free, v)
+		}
+	}
+	return free
+}
+
 // NotKept are the state variables vars that e's guard reads and e's post
 // does not keep, in the order the guard reads them. Any other name the
 // guard reads is not the state's: a field of the event takes whatever value
