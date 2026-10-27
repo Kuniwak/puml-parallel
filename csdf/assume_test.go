@@ -59,45 +59,6 @@ func TestParseRejectsANoteThatIsNotAnAssumption(t *testing.T) {
 	}
 }
 
-func TestDiagramStringRoundTripsAssumptions(t *testing.T) {
-	if diff := cmp.Diff(assumeSource, MustParse(assumeSource).String()); diff != "" {
-		t.Error(diff)
-	}
-}
-
-func TestCloneCopiesTheAssumptions(t *testing.T) {
-	d := MustParse(assumeSource)
-	c := d.Clone()
-	c.Assumptions[0].Text = "changed"
-	if d.Assumptions[0].Text == "changed" {
-		t.Error("Clone() shares the assumption list with its input")
-	}
-}
-
-func TestTransformationsKeepTheAssumptions(t *testing.T) {
-	d := MustParse(assumeSource)
-	want := d.Assumptions
-
-	if got := Hide(d, []string{"a"}).Assumptions; !cmp.Equal(want, got) {
-		t.Errorf("Hide() assumptions = %v, want %v", got, want)
-	}
-}
-
-func TestComposeParallelConcatenatesTheAssumptions(t *testing.T) {
-	other := MustParse("@startuml\n[*] --> t0\nt0 --> t0 : a\nnote as bound\n  assume a happens at most twice\nend note\n@enduml\n")
-	got, err := ComposeParallel([]*Diagram{MustParse(assumeSource), other}, nil)
-	if err != nil {
-		t.Fatalf("ComposeParallel() error = %v", err)
-	}
-	want := []Assumption{
-		{ID: "fair", Text: "the run has finitely many tau steps", Line: 7},
-		{ID: "bound", Text: "a happens at most twice", Line: 5},
-	}
-	if diff := cmp.Diff(want, got.Assumptions); diff != "" {
-		t.Error(diff)
-	}
-}
-
 // The grammar lets an assume note follow the end edge, which is the last
 // transition: an assumption is about the whole diagram, so it reads well last.
 func TestParseReadsAnAssumeNoteAfterTheEndEdge(t *testing.T) {

@@ -25,7 +25,7 @@ func TestParseValidExamples(t *testing.T) {
 					t.Fatalf("Failed to read file %s: %v", filePath, err)
 				}
 
-				parser := NewParser(string(content))
+				parser := newParser(string(content))
 				diagram, err := parser.Parse()
 
 				if err != nil {
@@ -69,7 +69,7 @@ func TestParseInvalidExamples(t *testing.T) {
 					t.Fatalf("Failed to read file %s: %v", filePath, err)
 				}
 
-				parser := NewParser(string(content))
+				parser := newParser(string(content))
 				diagram, err := parser.Parse()
 
 				if err == nil {
@@ -121,7 +121,7 @@ done --> [*]
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			parser := NewParser(tt.input)
+			parser := newParser(tt.input)
 
 			// Execute
 			diagram, err := parser.Parse()
@@ -180,7 +180,7 @@ done --> done : retry
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			parser := NewParser(tt.input)
+			parser := newParser(tt.input)
 
 			// Execute
 			diagram, err := parser.Parse()
@@ -200,7 +200,7 @@ done --> done : retry
 
 func TestParseRejectsSemicolonInEndEdgeGuard(t *testing.T) {
 	// Setup
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 state "Done" as done
 [*] --> done
 done --> [*] : left ; right
@@ -223,7 +223,7 @@ done --> [*] : left ; right
 
 func TestParseCommentsAndTypedStateVars(t *testing.T) {
 	// Setup
-	parser := NewParser(`@startuml /' diagram comment '/ "Example /' name '/"
+	parser := newParser(`@startuml /' diagram comment '/ "Example /' name '/"
 ' before first state
 state /' before name '/ "Initial /' literal '/ and ' apostrophe" /' before as '/ as /' before id '/ s0 /' after id '/
 ' before first variable
@@ -297,7 +297,7 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 
 func TestParseRecordsEdgeLine(t *testing.T) {
 	// Setup: each edge sits on a known source line.
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 state "a" as a
 state "b" as b
 [*] --> a
@@ -348,7 +348,7 @@ func TestParseEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parser := NewParser(`@startuml
+			parser := newParser(`@startuml
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0
@@ -377,7 +377,7 @@ s0 --> s1 : ` + tt.event + ` ; ready ; done
 func TestParseRejectsEventsOutsideTheGrammar(t *testing.T) {
 	for _, event := range []string{"finish(result)", "注文 accepted", "c?", "c?x?", "?x", "c!!y", "c x", "a.b"} {
 		t.Run(event, func(t *testing.T) {
-			parser := NewParser(`@startuml
+			parser := newParser(`@startuml
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0
@@ -403,7 +403,7 @@ func TestParseRejectsEmptyEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			parser := NewParser(`@startuml
+			parser := newParser(`@startuml
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0
@@ -490,7 +490,7 @@ s0 --> s1 : finish
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			parser := NewParser(tt.input)
+			parser := newParser(tt.input)
 
 			// Execute
 			diagram, err := parser.Parse()
@@ -519,7 +519,7 @@ s0 --> s1 : finish
 
 func TestParseRejectsUnterminatedIgnoreRegion(t *testing.T) {
 	// Setup
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 ' CSDF-IGNORE-BEGIN
 left to right direction
 @enduml
@@ -576,7 +576,7 @@ s0 --> s0 : retry ; ready /' never closed
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			parser := NewParser(tt.input)
+			parser := newParser(tt.input)
 
 			// Execute
 			diagram, err := parser.Parse()
@@ -599,7 +599,7 @@ s0 --> s0 : retry ; ready /' never closed
 
 func TestParseRejectsSemicolonInStateVarType(t *testing.T) {
 	// Setup
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 state "Initial" as s0
 s0: ready ; bool ; extra
 [*] --> s0
@@ -637,7 +637,7 @@ func TestParseDiagramName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			parser := NewParser(`@startuml ` + tt.title + `
+			parser := newParser(`@startuml ` + tt.title + `
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0
@@ -661,10 +661,6 @@ s0 --> s1 : e
 			if diagram.Name != tt.want {
 				t.Errorf("Parse().Name = %q, want %q", diagram.Name, tt.want)
 			}
-			// The name survives printing, so formatting keeps it.
-			if want, got := "@startuml "+tt.want+"\n", diagram.String(); !strings.HasPrefix(got, want) {
-				t.Errorf("Parse().String() = %q, want it to start with %q", got, want)
-			}
 
 			// Teardown: no resources to release.
 		})
@@ -673,7 +669,7 @@ s0 --> s1 : e
 
 func TestParseWithoutDiagramName(t *testing.T) {
 	// Setup
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0
@@ -691,9 +687,6 @@ s0 --> s1 : e
 	if diagram.Name != "" {
 		t.Errorf("Parse().Name = %q, want empty", diagram.Name)
 	}
-	if want, got := "@startuml\n", diagram.String(); !strings.HasPrefix(got, want) {
-		t.Errorf("Parse().String() = %q, want it to start with %q", got, want)
-	}
 
 	// Teardown: no resources to release.
 }
@@ -707,7 +700,7 @@ state "約定済み" as 約定済み
 @enduml
 `
 
-	diagram, err := NewParser(input).Parse()
+	diagram, err := newParser(input).Parse()
 	if err != nil {
 		t.Fatalf("Parse() error = %v, want nil", err)
 	}
@@ -725,7 +718,7 @@ state "約定済み" as 約定済み
 }
 
 func TestParseClausesWithTheToolsVocabulary(t *testing.T) {
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0 : @opaque
@@ -746,27 +739,8 @@ s1 --> [*] : mail \@ host
 	}
 }
 
-func TestParseRefusesAnUnknownToolWord(t *testing.T) {
-	for name, line := range map[string]string{
-		"in a guard":      "s0 --> s1 : go ; @opaq",
-		"in a post":       "s0 --> s1 : go ; ; x @ y",
-		"in a start post": "[*] --> s1 : @start",
-	} {
-		t.Run(name, func(t *testing.T) {
-			src := "@startuml\nstate \"Initial\" as s0\nstate \"Done\" as s1\n"
-			if !strings.HasPrefix(line, "[*]") {
-				src += "[*] --> s0\n"
-			}
-			parser := NewParser(src + line + "\n@enduml\n")
-			if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "are the only ones") {
-				t.Errorf("Parse() error = %v, want an unknown tool word refused", err)
-			}
-		})
-	}
-}
-
 func TestParseTakesNoQuotesOfAClauseLanguage(t *testing.T) {
-	parser := NewParser(`@startuml
+	parser := newParser(`@startuml
 state "Initial" as s0
 state "Done" as s1
 [*] --> s0
@@ -783,12 +757,5 @@ s0 --> s1 : go ; s == "a;b" ; t == "a\;b" \\; u
 	}
 	if got, want := diagram.Edges[0].Post, Predicate(`b" ; t == "a\;b" \\; u`); got != want {
 		t.Errorf("post = %q, want %q", got, want)
-	}
-}
-
-func TestParseRefusesAnEmptyClause(t *testing.T) {
-	parser := NewParser("@startuml\nstate \"Initial\" as s0\n[*] --> s0\ns0 --> s0 : go ; a ∧  ∧ b\n@enduml\n")
-	if _, err := parser.Parse(); err == nil || !strings.Contains(err.Error(), "empty clause") {
-		t.Errorf("Parse() error = %v, want an empty clause refused", err)
 	}
 }

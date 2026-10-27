@@ -1,9 +1,7 @@
 package csdf
 
 import (
-	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
@@ -62,17 +60,6 @@ func NewEvent(channel string, fields ...Field) Event {
 	return Event(sb.String())
 }
 
-// HasParams reports whether an edge's predicates read parameters of its
-// event: the fields it receives, or, for a tau, the values it chooses (a
-// hidden event's), which a tool cannot tell from none since it reads no
-// clause. A sent field is no parameter: it is a value the state holds.
-func (e Edge) HasParams() bool {
-	if e.Event == Tau {
-		return true
-	}
-	return slices.ContainsFunc(e.Event.Fields(), func(f Field) bool { return f.Dir == Received })
-}
-
 // Channel is the name the event synchronises on. Channel and Fields take
 // apart an event of the grammar, as ParseEvent, NewEvent, the parser and an
 // edge's JSON make them; they read the text each time, since an event is short.
@@ -101,51 +88,4 @@ func splitEvent(text string) (string, []Field, error) {
 		fields[i] = Field{Dir: dir, Name: p.Name}
 	}
 	return channel, fields, nil
-}
-
-// edgeJSON is an edge as JSON: the event is written whole and also taken
-// apart, so a reader in another language need not parse it again.
-type edgeJSON struct {
-	Src          StateID      `json:"src"`
-	Dst          StateID      `json:"dst"`
-	Event        Event        `json:"event"`
-	Channel      string       `json:"channel"`
-	Fields       []Field      `json:"fields"`
-	Guard        Predicate    `json:"guard"`
-	GuardClauses []ClauseJSON `json:"guard_clauses"`
-	Post         Predicate    `json:"post"`
-	PostClauses  []ClauseJSON `json:"post_clauses"`
-	Line         int          `json:"line"`
-}
-
-func (e Edge) MarshalJSON() ([]byte, error) {
-	fields := e.Event.Fields()
-	if fields == nil {
-		fields = []Field{}
-	}
-	guard, err := e.Guard.ClausesJSON()
-	if err != nil {
-		return nil, err
-	}
-	post, err := e.Post.ClausesJSON()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(edgeJSON{Src: e.Src, Dst: e.Dst, Event: e.Event, Channel: e.Event.Channel(), Fields: fields, Guard: e.Guard, GuardClauses: guard, Post: e.Post, PostClauses: post, Line: e.Line})
-}
-
-// UnmarshalJSON reads the event, guard and post whole, the event by the
-// grammar, and derives the rest from them: the texts win over the channel,
-// fields and clauses, which are only a reader's convenience.
-func (e *Edge) UnmarshalJSON(data []byte) error {
-	var j edgeJSON
-	if err := json.Unmarshal(data, &j); err != nil {
-		return err
-	}
-	event, err := ParseEvent(string(j.Event))
-	if err != nil {
-		return err
-	}
-	*e = Edge{Src: j.Src, Dst: j.Dst, Event: event, Guard: j.Guard, Post: j.Post, Line: j.Line}
-	return nil
 }
