@@ -66,3 +66,17 @@ func SplitEvent(text string, field FieldRule) (string, []EventField, error) {
 	}
 	return channel, fields, nil
 }
+
+// FieldsDistinct reports, as an error, a name that two fields of the event
+// label repeat: a field's name is what its clauses read and what its type
+// is found by, so an event names each field once (docs/SYNTAX.md).
+func FieldsDistinct(label string, fields []EventField) error {
+	seen := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		if seen[f.Name] {
+			return fmt.Errorf("%s repeats the field %s; name each field of an event once", label, f.Name)
+		}
+		seen[f.Name] = true
+	}
+	return nil
+}

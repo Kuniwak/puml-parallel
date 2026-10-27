@@ -465,6 +465,17 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 			},
 			want: `the field x has the direction "="`,
 		},
+		"an event that repeats a field name": {
+			edit: func(v map[string]any) {
+				e := v["edges"].([]any)[0].(map[string]any)
+				fs := e["fields"].([]any)
+				e["fields"] = append(fs, map[string]any{"dir": "!", "name": fs[0].(map[string]any)["name"]})
+				e["label"] = e["label"].(string) + "!" + fs[0].(map[string]any)["name"].(string)
+				c := v["channels"].(map[string]any)["c"].([]any)
+				v["channels"].(map[string]any)["c"] = append(c, c[0])
+			},
+			want: "repeats the field x",
+		},
 		"an atom whose pieces do not fit its holes": {
 			edit: func(v map[string]any) { guard(v)["pieces"] = []any{"x"} },
 			want: "one piece more than holes, not 1 pieces for 1 holes",

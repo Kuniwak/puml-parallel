@@ -68,8 +68,10 @@ rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a p
 Comment delimiters inside a state name are ordinary text. A clause language's quotes are not the tools': a comment delimiter, `;` or ` ∧ ` inside one is read as anywhere else.
 An event is a channel followed by its fields, in the CSP style: `c?x` receives `x`
 (the environment chooses its value, from those the guard accepts) and `c!y` sends
-the value of `y`, which the step already binds: a state variable before the step, or
-a field the same event receives (`c?x!x`). A sent field ranges over nothing, and a
+the value of `y`, which the step already binds: a state variable before the step. An
+event names each field once, so `c?x!x`, `c?x?x` and `c!x!x` are refused, naming the
+event and the repeated field; a field's name is what the clauses read and what its
+type is found by. A sent field ranges over nothing, and a
 constant is sent through a state variable that holds it. `tau` is the internal event, and carries no fields. An event names its fields and carries
 no value and no expression; anything about a value is said by the guard and the
 post, which read a field by its name. Whitespace and comments around `?` and `!`
@@ -121,7 +123,8 @@ never declared. Composition refuses a channel its two sides declare apart,
 and hiding binds a hidden field by its declared type (`@exists(x : T)`).
 A note holds either one `assume` line or `channel` lines, not both. A trace's event
 (`csdftracechk`) may carry values where a diagram's names fields, so its
-fields may start with a digit; its channel is a name.
+fields may start with a digit, and two of them may carry the same value
+(`c!1!1`); its channel is a name.
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as

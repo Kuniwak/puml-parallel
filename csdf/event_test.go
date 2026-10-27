@@ -2,6 +2,7 @@ package csdf
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -37,6 +38,20 @@ func TestParseEventRefusesTextOutsideTheGrammar(t *testing.T) {
 		t.Run(text, func(t *testing.T) {
 			if got, err := ParseEvent(text); err == nil {
 				t.Errorf("ParseEvent(%q) = %q, want an error", text, got)
+			}
+		})
+	}
+}
+
+func TestParseEventRefusesARepeatedFieldName(t *testing.T) {
+	for _, text := range []string{"c?x!x", "c?x?x", "c!x!x", " c ? x ! x "} {
+		t.Run(text, func(t *testing.T) {
+			// Execute
+			_, err := ParseEvent(text)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), strings.ReplaceAll(text, " ", "")+" repeats the field x") {
+				t.Errorf("ParseEvent(%q) error = %v, want the field x refused as repeated", text, err)
 			}
 		})
 	}
