@@ -89,7 +89,7 @@ func TestSuggesterGivenAFunctionSuggestsWhatCsdfbmcNextDoes(t *testing.T) {
 		t.Run(v, func(t *testing.T) {
 			// Setup
 			env := []bmc.Binding{{Name: "$_0 が 正", Value: v == "true"}}
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env}, c.run(t))
+			s, cleanup, err := forSource(t, []byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: env}, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,7 +123,7 @@ func TestSuggesterTakesTheFunctionsGiven(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			s, cleanup, err := bmc.ForSource([]byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env}, c.run(t))
+			s, cleanup, err := forSource(t, []byte(guarded), bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue", Env: tt.env}, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -163,7 +163,7 @@ func TestSuggesterRefusesWhatCsdfbmcRefuses(t *testing.T) {
 			// Setup
 			checker := tt.checker
 			checker.Checks, checker.EvaluatorModule = c.checks, "csdfbmc.python_glue"
-			s, cleanup, err := bmc.ForSource([]byte(guarded), checker, c.run(t))
+			s, cleanup, err := forSource(t, []byte(guarded), checker, c.run(t))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -201,9 +201,9 @@ func TestASelectedParallelEdgeIsTheOneCsdfbmcNumbersSo(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Setup
 			checker := bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue"}
-			s, cleanup, err := bmc.ForSource([]byte(parallel), checker, c.run(t))
+			s, cleanup, err := forSource(t, []byte(parallel), checker, c.run(t))
 			if err != nil {
-				t.Fatalf("Setup: ForSource() error = %v", err)
+				t.Fatalf("Setup: forSource() error = %v", err)
 			}
 			defer cleanup()
 			d, _, err := animation.ReadDiagram([]byte(parallel), nil)
@@ -254,9 +254,9 @@ func TestASessionTakesOnlyTheValuesCsdfbmcAdmits(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// Setup
 			checker := bmc.Checker{Checks: c.checks, EvaluatorModule: "csdfbmc.python_glue"}
-			s, cleanup, err := bmc.ForSource([]byte(parallel), checker, c.run(t))
+			s, cleanup, err := forSource(t, []byte(parallel), checker, c.run(t))
 			if err != nil {
-				t.Fatalf("Setup: ForSource() error = %v", err)
+				t.Fatalf("Setup: forSource() error = %v", err)
 			}
 			defer cleanup()
 			d, _, err := animation.ReadDiagram([]byte(parallel), nil)

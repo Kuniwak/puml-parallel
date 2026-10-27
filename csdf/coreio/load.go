@@ -125,13 +125,24 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
-	promoted, warnings, err := core.Promote(prom)
+	expanded, warnings, err := Expand(prom, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
-	canonical, err := Canonical(promoted)
+	return expanded, warnings, nil
+}
+
+// Expand is the expansion csdfpromote prints for prom: core.PromoteOnly(prom,
+// keep) in its canonical order, with the warnings of the promotion; with keep
+// empty every family is kept.
+func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, error) {
+	d, warnings, err := core.PromoteOnly(prom, keep)
 	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
+	}
+	canonical, err := Canonical(d)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
 	}
 	return canonical, warnings, nil
 }

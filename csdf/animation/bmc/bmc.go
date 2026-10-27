@@ -15,7 +15,6 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 )
 
 // Checker is what csdfbmc reads besides the diagram: the checks module of the
@@ -88,16 +87,6 @@ func (c Checker) Suggesters(run Runner) animation.SuggesterFactory {
 	return func(d *core.Diagram) (animation.Suggester, func(), error) {
 		return ForDiagram(d, c, run)
 	}
-}
-
-// ForSource is ForDiagram of the diagram whose PlantUML source (or PNG) is
-// src, as coreio.ReadBytes reads it.
-func ForSource(src []byte, checker Checker, run Runner) (*Suggester, func(), error) {
-	d, err := coreio.ReadBytes(src)
-	if err != nil {
-		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
-	}
-	return ForDiagram(d, checker, run)
 }
 
 // ForDiagram writes d as csdfparse prints it to a temporary file, and
