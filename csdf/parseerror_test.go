@@ -12,7 +12,7 @@ func TestParseReportsWhereTheSyntaxErrorIs(t *testing.T) {
 	source := "@startuml\nstate \"s0\" as s0\nbogus\n@enduml\n"
 
 	// Act
-	_, err := csdf.Parse(source)
+	_, err := csdf.ParseSource(source, func(csdf.Predicate) error { return nil })
 
 	// Assert
 	var parseErr *csdf.ParseError

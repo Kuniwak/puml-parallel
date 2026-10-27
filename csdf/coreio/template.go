@@ -25,8 +25,8 @@ type glossed struct {
 }
 
 // LoadTemplates reads a Go text/template file of templates named after
-// builtin words. A template of any other name, such as one csdfpromote
-// reads, is refused, and so is one that cannot render or writes a line
+// builtin words. A template of any other name is refused, and so is one
+// that cannot render or writes a line
 // break, each being rendered once here.
 func LoadTemplates(text string) (Templates, error) {
 	set, err := template.New("").Option("missingkey=error").Parse(text)

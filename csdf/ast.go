@@ -19,19 +19,14 @@ type StateVar struct {
 
 type Predicate string
 
-const (
-	// PredicateTrue is how a report spells the omitted predicate, which has
-	// no clause. Written by an author, "true" is an ordinary clause.
-	PredicateTrue Predicate = "true"
-)
-
 // Tau is the internal (silent) event. An edge whose event is exactly "tau" is a
 // τ-transition (docs/SYNTAX.md, docs/REFINEMENT_ALGORITHM.md §8).
 const Tau Event = "tau"
 
 type Diagram struct {
 	// Name is the optional PlantUML diagram name written on the @startuml line.
-	// It carries no meaning, but it is preserved so that formatting round-trips.
+	// It carries no meaning, but it is kept as core.Diagram.Name, so that
+	// writing a diagram back keeps it.
 	Name      string            `json:"name,omitempty"`
 	States    map[StateID]State `json:"states"`
 	StartEdge StartEdge         `json:"start_edge"`
@@ -59,7 +54,7 @@ type State struct {
 	Line int        `json:"line"` // 1-based source line of the start edge.
 }
 
-func CompareState(a, b State) int {
+func compareState(a, b State) int {
 	return a.Line - b.Line
 }
 
@@ -68,12 +63,12 @@ type StateWithID struct {
 	ID StateID `json:"id"`
 }
 
-// CompareStateWithID orders states by source line, falling back to the id. The
+// compareStateWithID orders states by source line, falling back to the id. The
 // fallback is what makes SortedStates deterministic: composition synthesises
 // states that never came from a source line, so every such state has
 // line 0 and comparing lines alone leaves them all tied.
-func CompareStateWithID(a, b StateWithID) int {
-	if c := CompareState(a.State, b.State); c != 0 {
+func compareStateWithID(a, b StateWithID) int {
+	if c := compareState(a.State, b.State); c != 0 {
 		return c
 	}
 	return cmp.Compare(a.ID, b.ID)
@@ -87,7 +82,7 @@ func SortedStates(m map[StateID]State) []StateWithID {
 			State: s,
 		})
 	}
-	slices.SortFunc(ss, CompareStateWithID)
+	slices.SortFunc(ss, compareStateWithID)
 	return ss
 }
 

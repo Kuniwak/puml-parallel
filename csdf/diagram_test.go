@@ -32,13 +32,13 @@ end note
 
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := Parse(source)
+			_, err := parseAccepting(source)
 			if err == nil {
-				t.Fatal("Parse() error = nil, want a parse error")
+				t.Fatal("parseAccepting() error = nil, want a parse error")
 			}
 			var hinted *PromotionHintError
 			if !errors.As(err, &hinted) {
-				t.Errorf("Parse() error = %q, want a *PromotionHintError in the chain", err)
+				t.Errorf("parseAccepting() error = %q, want a *PromotionHintError in the chain", err)
 			}
 		})
 	}
@@ -78,13 +78,13 @@ end note
 
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := Parse(source)
+			_, err := parseAccepting(source)
 			if err == nil {
-				t.Fatal("Parse() error = nil, want a parse error")
+				t.Fatal("parseAccepting() error = nil, want a parse error")
 			}
 			var hinted *PromotionHintError
 			if errors.As(err, &hinted) {
-				t.Errorf("Parse() error = %q, want no *PromotionHintError in the chain", err)
+				t.Errorf("parseAccepting() error = %q, want no *PromotionHintError in the chain", err)
 			}
 		})
 	}
@@ -93,7 +93,7 @@ end note
 // The hint is added to the error, not put in place of it, so a caller can still
 // tell what the parser actually said.
 func TestParseKeepsTheParseErrorUnderTheHint(t *testing.T) {
-	_, err := Parse(`@startuml A
+	_, err := parseAccepting(`@startuml A
 state "稼働中" as running {
   running : accounts
   state "accounts : 口座ID ⇸ Account" as a1 <<promote>> {
@@ -104,11 +104,11 @@ state "稼働中" as running {
 @enduml
 `)
 	if err == nil {
-		t.Fatal("Parse() error = nil, want a parse error")
+		t.Fatal("parseAccepting() error = nil, want a parse error")
 	}
 	var hinted *PromotionHintError
 	if !errors.As(err, &hinted) {
-		t.Fatalf("Parse() error = %v, want a *PromotionHintError in the chain", err)
+		t.Fatalf("parseAccepting() error = %v, want a *PromotionHintError in the chain", err)
 	}
 	if errors.Unwrap(hinted) == nil {
 		t.Error("PromotionHintError wraps nothing, want the parse error under it")

@@ -6,21 +6,17 @@ import "fmt"
 // and leaves its clauses to the clause language's own tests.
 func acceptClauses(Predicate) error { return nil }
 
-// Parse reads content with every clause accepted, a failure hinted as
-// coreio hints it.
-func Parse(content string) (*Diagram, error) {
-	d, err := NewParserCheckingClauses(content, acceptClauses).ParseAt()
-	if err != nil {
-		return nil, WithPromotionHint(err, content)
-	}
-	return d, nil
+// parseAccepting reads content as ParseSource does, every clause accepted.
+func parseAccepting(content string) (*Diagram, error) {
+	return ParseSource(content, acceptClauses)
 }
 
-// MustParse is Parse for a source a test knows is well formed.
-func MustParse(content string) *Diagram {
-	d, err := Parse(content)
+// mustParseAccepting is parseAccepting for a source a test knows is well
+// formed.
+func mustParseAccepting(content string) *Diagram {
+	d, err := parseAccepting(content)
 	if err != nil {
-		panic(fmt.Errorf("csdf.MustParse: %w", err))
+		panic(fmt.Errorf("csdf.mustParseAccepting: %w", err))
 	}
 	return d
 }

@@ -26,7 +26,7 @@ func TestParseValidExamples(t *testing.T) {
 				}
 
 				parser := newParser(string(content))
-				diagram, err := parser.Parse()
+				diagram, err := parser.parse()
 
 				if err != nil {
 					t.Errorf("Parse error for %s: %v", file.Name(), err)
@@ -70,7 +70,7 @@ func TestParseInvalidExamples(t *testing.T) {
 				}
 
 				parser := newParser(string(content))
-				diagram, err := parser.Parse()
+				diagram, err := parser.parse()
 
 				if err == nil {
 					t.Errorf("Expected parse error for invalid file %s, but parsing succeeded", file.Name())
@@ -124,25 +124,25 @@ done --> [*]
 			parser := newParser(tt.input)
 
 			// Execute
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 
 			// Assert
 			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
+				t.Fatalf("parseAccepting() error = %v", err)
 			}
 			if diagram.EndEdge == nil {
-				t.Fatal("Parse() EndEdge = nil")
+				t.Fatal("parseAccepting() EndEdge = nil")
 			}
 			if diagram.EndEdge.Src != tt.wantSrc {
-				t.Errorf("Parse() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
+				t.Errorf("parseAccepting() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
 			}
 			if diagram.EndEdge.Guard != Predicate(tt.wantGuard) {
-				t.Errorf("Parse() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
+				t.Errorf("parseAccepting() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
 			}
 			// The line the declaration starts on, like every other edge: it names
 			// the end edge's generated predicate aliases downstream.
 			if diagram.EndEdge.Line != tt.wantLine {
-				t.Errorf("Parse() EndEdge.Line = %d, want %d", diagram.EndEdge.Line, tt.wantLine)
+				t.Errorf("parseAccepting() EndEdge.Line = %d, want %d", diagram.EndEdge.Line, tt.wantLine)
 			}
 
 			// Teardown: no resources to release.
@@ -183,14 +183,14 @@ done --> done : retry
 			parser := newParser(tt.input)
 
 			// Execute
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 
 			// Assert
 			if err == nil {
-				t.Fatal("Parse() error = nil, want content-after-end-edge rejection")
+				t.Fatal("parseAccepting() error = nil, want content-after-end-edge rejection")
 			}
 			if diagram != nil {
-				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+				t.Errorf("parseAccepting() diagram = %#v, want nil", diagram)
 			}
 
 			// Teardown: no resources to release.
@@ -208,14 +208,14 @@ done --> [*] : left ; right
 `)
 
 	// Execute
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 
 	// Assert
 	if err == nil {
-		t.Fatal("Parse() error = nil, want semicolon rejection")
+		t.Fatal("parseAccepting() error = nil, want semicolon rejection")
 	}
 	if diagram != nil {
-		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+		t.Errorf("parseAccepting() diagram = %#v, want nil", diagram)
 	}
 
 	// Teardown: no resources to release.
@@ -245,15 +245,15 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 `)
 
 	// Execute
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 
 	// Assert
 	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+		t.Fatalf("parseAccepting() error = %v", err)
 	}
 	initial := diagram.States["s0"]
 	if initial.Name != "Initial /' literal '/ and ' apostrophe" {
-		t.Errorf("Parse() state name = %q", initial.Name)
+		t.Errorf("parseAccepting() state name = %q", initial.Name)
 	}
 	wantVars := []StateVar{
 		{Name: "ready", Type: "bool"},
@@ -261,35 +261,35 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 		{Name: "optional"},
 	}
 	if len(initial.Vars) != len(wantVars) {
-		t.Fatalf("Parse() vars = %#v, want %#v", initial.Vars, wantVars)
+		t.Fatalf("parseAccepting() vars = %#v, want %#v", initial.Vars, wantVars)
 	}
 	for i, want := range wantVars {
 		if initial.Vars[i] != want {
-			t.Errorf("Parse() vars[%d] = %#v, want %#v", i, initial.Vars[i], want)
+			t.Errorf("parseAccepting() vars[%d] = %#v, want %#v", i, initial.Vars[i], want)
 		}
 	}
 	if diagram.StartEdge.Post != "initialize now" {
-		t.Errorf("Parse() start post = %q, want %q", diagram.StartEdge.Post, "initialize now")
+		t.Errorf("parseAccepting() start post = %q, want %q", diagram.StartEdge.Post, "initialize now")
 	}
 	if len(diagram.Edges) != 1 {
-		t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+		t.Fatalf("parseAccepting() edges = %#v, want one edge", diagram.Edges)
 	}
 	edge := diagram.Edges[0]
 	if edge.Event != "finish?result?code" {
-		t.Errorf("Parse() event = %q, want %q", edge.Event, "finish?result?code")
+		t.Errorf("parseAccepting() event = %q, want %q", edge.Event, "finish?result?code")
 	}
 	if edge.Guard != "ready && done" {
-		t.Errorf("Parse() guard = %q, want %q", edge.Guard, "ready && done")
+		t.Errorf("parseAccepting() guard = %q, want %q", edge.Guard, "ready && done")
 	}
 	if edge.Post != "complete now" {
-		t.Errorf("Parse() post = %q, want %q", edge.Post, "complete now")
+		t.Errorf("parseAccepting() post = %q, want %q", edge.Post, "complete now")
 	}
 	if diagram.EndEdge == nil {
-		t.Fatal("Parse() end edge = nil")
+		t.Fatal("parseAccepting() end edge = nil")
 	}
 	// A clause language's quotes are not the tools': the comment is removed.
 	if diagram.EndEdge.Guard != `"guard "` {
-		t.Errorf("Parse() end guard = %q", diagram.EndEdge.Guard)
+		t.Errorf("parseAccepting() end guard = %q", diagram.EndEdge.Guard)
 	}
 
 	// Teardown: no resources to release.
@@ -307,23 +307,23 @@ b --> a : e1
 `)
 
 	// Execute
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 
 	// Assert
 	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+		t.Fatalf("parseAccepting() error = %v", err)
 	}
 	if diagram.StartEdge.Line != 4 {
-		t.Errorf("Parse() start edge line = %d, want 4", diagram.StartEdge.Line)
+		t.Errorf("parseAccepting() start edge line = %d, want 4", diagram.StartEdge.Line)
 	}
 	if len(diagram.Edges) != 2 {
-		t.Fatalf("Parse() edges = %#v, want two edges", diagram.Edges)
+		t.Fatalf("parseAccepting() edges = %#v, want two edges", diagram.Edges)
 	}
 	if diagram.Edges[0].Line != 5 {
-		t.Errorf("Parse() edges[0] line = %d, want 5", diagram.Edges[0].Line)
+		t.Errorf("parseAccepting() edges[0] line = %d, want 5", diagram.Edges[0].Line)
 	}
 	if diagram.Edges[1].Line != 6 {
-		t.Errorf("Parse() edges[1] line = %d, want 6", diagram.Edges[1].Line)
+		t.Errorf("parseAccepting() edges[1] line = %d, want 6", diagram.Edges[1].Line)
 	}
 
 	// Teardown: no resources to release.
@@ -356,13 +356,13 @@ s0 --> s1 : ` + tt.event + ` ; ready ; done
 @enduml
 `)
 
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
+				t.Fatalf("parseAccepting() error = %v", err)
 			}
 			e := diagram.Edges[0].Event
 			if e != tt.wantEvent {
-				t.Errorf("Parse() event = %q, want %q", e, tt.wantEvent)
+				t.Errorf("parseAccepting() event = %q, want %q", e, tt.wantEvent)
 			}
 			if e.Channel() != tt.wantChannel {
 				t.Errorf("Channel() = %q, want %q", e.Channel(), tt.wantChannel)
@@ -384,8 +384,8 @@ state "Done" as s1
 s0 --> s1 : ` + event + `
 @enduml
 `)
-			if _, err := parser.Parse(); err == nil {
-				t.Fatalf("Parse() error = nil, want %q refused", event)
+			if _, err := parser.parse(); err == nil {
+				t.Fatalf("parseAccepting() error = nil, want %q refused", event)
 			}
 		})
 	}
@@ -411,12 +411,12 @@ s0 --> s1 : ` + tt.event + `
 @enduml
 `)
 
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 			if err == nil {
-				t.Fatal("Parse() error = nil, want empty event rejection")
+				t.Fatal("parseAccepting() error = nil, want empty event rejection")
 			}
 			if diagram != nil {
-				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+				t.Errorf("parseAccepting() diagram = %#v, want nil", diagram)
 			}
 		})
 	}
@@ -493,23 +493,23 @@ s0 --> s1 : finish
 			parser := newParser(tt.input)
 
 			// Execute
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 
 			// Assert
 			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
+				t.Fatalf("parseAccepting() error = %v", err)
 			}
 			if len(diagram.States) != 2 {
-				t.Errorf("Parse() states = %#v, want two states", diagram.States)
+				t.Errorf("parseAccepting() states = %#v, want two states", diagram.States)
 			}
 			if diagram.StartEdge.Dst != "s0" {
-				t.Errorf("Parse() start edge dst = %q, want s0", diagram.StartEdge.Dst)
+				t.Errorf("parseAccepting() start edge dst = %q, want s0", diagram.StartEdge.Dst)
 			}
 			if len(diagram.Edges) != 1 {
-				t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+				t.Fatalf("parseAccepting() edges = %#v, want one edge", diagram.Edges)
 			}
 			if diagram.Edges[0].Event != "finish" {
-				t.Errorf("Parse() event = %q, want finish", diagram.Edges[0].Event)
+				t.Errorf("parseAccepting() event = %q, want finish", diagram.Edges[0].Event)
 			}
 
 			// Teardown: no resources to release.
@@ -526,17 +526,17 @@ left to right direction
 `)
 
 	// Execute
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 
 	// Assert
 	if err == nil {
-		t.Fatal("Parse() error = nil, want unterminated CSDF-IGNORE region error")
+		t.Fatal("parseAccepting() error = nil, want unterminated CSDF-IGNORE region error")
 	}
 	if diagram != nil {
-		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+		t.Errorf("parseAccepting() diagram = %#v, want nil", diagram)
 	}
 	if !strings.Contains(err.Error(), "unterminated CSDF-IGNORE region at line 2, col 1") {
-		t.Errorf("Parse() error = %q, want unterminated region at line 2, col 1", err)
+		t.Errorf("parseAccepting() error = %q, want unterminated region at line 2, col 1", err)
 	}
 
 	// Teardown: no resources to release.
@@ -579,17 +579,17 @@ s0 --> s0 : retry ; ready /' never closed
 			parser := newParser(tt.input)
 
 			// Execute
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 
 			// Assert
 			if err == nil {
-				t.Fatal("Parse() error = nil, want unterminated block comment error")
+				t.Fatal("parseAccepting() error = nil, want unterminated block comment error")
 			}
 			if diagram != nil {
-				t.Errorf("Parse() diagram = %#v, want nil", diagram)
+				t.Errorf("parseAccepting() diagram = %#v, want nil", diagram)
 			}
 			if !strings.Contains(err.Error(), "unterminated block comment at "+tt.wantPos) {
-				t.Errorf("Parse() error = %q, want block comment start at %s", err, tt.wantPos)
+				t.Errorf("parseAccepting() error = %q, want block comment start at %s", err, tt.wantPos)
 			}
 
 			// Teardown: no resources to release.
@@ -607,14 +607,14 @@ s0: ready ; bool ; extra
 `)
 
 	// Execute
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 
 	// Assert
 	if err == nil {
-		t.Fatal("Parse() error = nil, want semicolon rejection")
+		t.Fatal("parseAccepting() error = nil, want semicolon rejection")
 	}
 	if diagram != nil {
-		t.Errorf("Parse() diagram = %#v, want nil", diagram)
+		t.Errorf("parseAccepting() diagram = %#v, want nil", diagram)
 	}
 
 	// Teardown: no resources to release.
@@ -646,20 +646,20 @@ s0 --> s1 : e
 `)
 
 			// Execute
-			diagram, err := parser.Parse()
+			diagram, err := parser.parse()
 
 			// Assert
 			if err != nil {
-				t.Fatalf("Parse() error = %v, want nil", err)
+				t.Fatalf("parseAccepting() error = %v, want nil", err)
 			}
 			if len(diagram.States) != 2 {
-				t.Errorf("Parse() states = %#v, want two states", diagram.States)
+				t.Errorf("parseAccepting() states = %#v, want two states", diagram.States)
 			}
 			if len(diagram.Edges) != 1 {
-				t.Fatalf("Parse() edges = %#v, want one edge", diagram.Edges)
+				t.Fatalf("parseAccepting() edges = %#v, want one edge", diagram.Edges)
 			}
 			if diagram.Name != tt.want {
-				t.Errorf("Parse().Name = %q, want %q", diagram.Name, tt.want)
+				t.Errorf("parseAccepting().Name = %q, want %q", diagram.Name, tt.want)
 			}
 
 			// Teardown: no resources to release.
@@ -678,14 +678,14 @@ s0 --> s1 : e
 `)
 
 	// Execute
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 
 	// Assert
 	if err != nil {
-		t.Fatalf("Parse() error = %v, want nil", err)
+		t.Fatalf("parseAccepting() error = %v, want nil", err)
 	}
 	if diagram.Name != "" {
-		t.Errorf("Parse().Name = %q, want empty", diagram.Name)
+		t.Errorf("parseAccepting().Name = %q, want empty", diagram.Name)
 	}
 
 	// Teardown: no resources to release.
@@ -700,9 +700,9 @@ state "約定済み" as 約定済み
 @enduml
 `
 
-	diagram, err := newParser(input).Parse()
+	diagram, err := newParser(input).parse()
 	if err != nil {
-		t.Fatalf("Parse() error = %v, want nil", err)
+		t.Fatalf("parseAccepting() error = %v, want nil", err)
 	}
 
 	state, ok := diagram.States["約定済み"]
@@ -727,9 +727,9 @@ s1 --> [*] : mail \@ host
 @enduml
 `)
 
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+		t.Fatalf("parseAccepting() error = %v", err)
 	}
 	if got, want := diagram.Edges[0].Guard, Predicate(`f(x) \; g(x) ∧ @opaque`); got != want {
 		t.Errorf("guard = %q, want %q", got, want)
@@ -748,9 +748,9 @@ s0 --> s1 : go ; s == "a;b" ; t == "a\;b" \\; u
 @enduml
 `)
 
-	diagram, err := parser.Parse()
+	diagram, err := parser.parse()
 	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+		t.Fatalf("parseAccepting() error = %v", err)
 	}
 	if got, want := diagram.Edges[0].Guard, Predicate(`s == "a`); got != want {
 		t.Errorf("guard = %q, want %q", got, want)

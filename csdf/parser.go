@@ -34,7 +34,7 @@ func NewParserCheckingClauses(input string, check func(Predicate) error) *Parser
 	}
 }
 
-func (p *Parser) Parse() (*Diagram, error) {
+func (p *Parser) parse() (*Diagram, error) {
 	diagram := &Diagram{
 		States:      make(map[StateID]State),
 		Edges:       []Edge{},

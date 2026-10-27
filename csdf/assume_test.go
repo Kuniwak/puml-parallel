@@ -20,7 +20,7 @@ end note
 `
 
 func TestParseReadsAnAssumeNote(t *testing.T) {
-	d := MustParse(assumeSource)
+	d := mustParseAccepting(assumeSource)
 
 	want := []Assumption{{ID: "fair", Text: "the run has finitely many tau steps", Line: 7}}
 	if diff := cmp.Diff(want, d.Assumptions); diff != "" {
@@ -29,7 +29,7 @@ func TestParseReadsAnAssumeNote(t *testing.T) {
 }
 
 func TestParseGivesAnEmptyAssumptionListRatherThanNull(t *testing.T) {
-	bs, err := json.Marshal(MustParse("@startuml\n[*] --> s0\n@enduml\n"))
+	bs, err := json.Marshal(mustParseAccepting("@startuml\n[*] --> s0\n@enduml\n"))
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}
@@ -48,12 +48,12 @@ func TestParseRejectsANoteThatIsNotAnAssumption(t *testing.T) {
 	}
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := Parse(source)
+			_, err := parseAccepting(source)
 			if err == nil {
-				t.Fatal("Parse() error = nil, want a refusal")
+				t.Fatal("parseAccepting() error = nil, want a refusal")
 			}
 			if !strings.Contains(err.Error(), "assume") {
-				t.Errorf("Parse() error = %v, want it to say what a note may hold", err)
+				t.Errorf("parseAccepting() error = %v, want it to say what a note may hold", err)
 			}
 		})
 	}
@@ -62,11 +62,11 @@ func TestParseRejectsANoteThatIsNotAnAssumption(t *testing.T) {
 // The grammar lets an assume note follow the end edge, which is the last
 // transition: an assumption is about the whole diagram, so it reads well last.
 func TestParseReadsAnAssumeNoteAfterTheEndEdge(t *testing.T) {
-	d := MustParse("@startuml\n[*] --> s0\ns0 --> [*]\nnote as fair\n  assume x\nend note\n@enduml\n")
+	d := mustParseAccepting("@startuml\n[*] --> s0\ns0 --> [*]\nnote as fair\n  assume x\nend note\n@enduml\n")
 	if len(d.Assumptions) != 1 || d.Assumptions[0].ID != "fair" {
 		t.Errorf("Assumptions = %v, want the one note", d.Assumptions)
 	}
-	if _, err := Parse("@startuml\n[*] --> s0\ns0 --> [*]\ns0 --> s0 : a\n@enduml\n"); err == nil {
-		t.Error("Parse() accepted an edge after the end edge")
+	if _, err := parseAccepting("@startuml\n[*] --> s0\ns0 --> [*]\ns0 --> s0 : a\n@enduml\n"); err == nil {
+		t.Error("parseAccepting() accepted an edge after the end edge")
 	}
 }

@@ -30,16 +30,16 @@ func Read(source string) (*core.Diagram, error) {
 	return d, nil
 }
 
-// read reads source with the structure csdf.Parser reads, each clause by
+// read reads source with the structure csdf.ParseSource reads, each clause by
 // parse.
 func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
 	check := func(p csdf.Predicate) error {
 		_, err := parse(string(p))
 		return err
 	}
-	src, err := csdf.NewParserCheckingClauses(source, check).ParseAt()
+	src, err := csdf.ParseSource(source, check)
 	if err != nil {
-		return nil, csdf.WithPromotionHint(err, source)
+		return nil, err
 	}
 	clauses := func(p csdf.Predicate) clause.And {
 		f, _ := parse(string(p)) // check has read every predicate already

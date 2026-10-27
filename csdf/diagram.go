@@ -55,11 +55,23 @@ func (e *ParseError) Error() string { return e.err.Error() }
 
 func (e *ParseError) Unwrap() error { return e.err }
 
-// ParseAt parses as Parse does and tags a failure with the position the
+// ParseSource reads the structure of the diagram in source, its clauses
+// checked by check. A failure is a *ParseError tagged with the position the
+// parser stopped at, unless it already says where it is, and is hinted when
+// the source still holds promotion directives.
+func ParseSource(source string, check func(Predicate) error) (*Diagram, error) {
+	d, err := NewParserCheckingClauses(source, check).parseAt()
+	if err != nil {
+		return nil, withHint(err, source)
+	}
+	return d, nil
+}
+
+// parseAt parses as parse does and tags a failure with the position the
 // parser stopped at, as a *ParseError, unless the failure already says
 // where it is.
-func (p *Parser) ParseAt() (*Diagram, error) {
-	diagram, err := p.Parse()
+func (p *Parser) parseAt() (*Diagram, error) {
+	diagram, err := p.parse()
 	if err != nil {
 		var tagged *ParseError
 		if errors.As(err, &tagged) {
@@ -69,10 +81,6 @@ func (p *Parser) ParseAt() (*Diagram, error) {
 	}
 	return diagram, nil
 }
-
-// WithPromotionHint adds the promotion hint to a parse error when the source
-// looks like a global diagram, for a reader of diagrams other than Parse.
-func WithPromotionHint(err error, source string) error { return withHint(err, source) }
 
 // withHint adds the promotion hint to a parse error when the source looks like a
 // global diagram.
