@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
@@ -228,38 +227,6 @@ func TestHandleSessionNewExploresTheExpansionOfAPromotion(t *testing.T) {
 	}
 }
 
-func TestHandleSessionNewExploresTheDiagramJSONInPlaceOfTheContent(t *testing.T) {
-	// Setup
-	raw, err := core.MarshalDiagram(&core.Diagram{
-		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
-		Families: []core.FamilyStates{{Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened"}, Vars: map[string][]string{}}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := t.TempDir() + "/expansion.json"
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
-	resp := service.Handle(Request{Command: CommandSessionNew, Path: "e.puml", Content: []byte(twoStateDiagram), DiagramJSON: path})
-	if !resp.OK {
-		t.Fatalf("session_new failed: %s", resp.Error)
-	}
-
-	// Execute
-	refused := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{"a": {"at": "none", "fields": {}}}]`})
-	taken := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{"a": {"at": "opened", "fields": {}}}]`})
-
-	// Assert
-	if refused.OK || !strings.Contains(refused.Error, "which is absence") {
-		t.Errorf("statevar of an instance at the start state = %+v, want it refused", refused)
-	}
-	if !taken.OK || !strings.Contains(taken.Output, "State: G") {
-		t.Errorf("statevar of an instance = %+v, want the session at G", taken)
-	}
-}
-
 func TestHandleStatevarRejectedInCommandMode(t *testing.T) {
 	service, id := advance(t)
 	resp := service.Handle(Request{Command: CommandStatevar, Session: id, Values: "[0]"})
@@ -466,7 +433,7 @@ func (f fakeSuggester) Next(animation.State, int) ([]animation.Suggestion, error
 
 func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
 	cleaned := false
-	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram, string) (animation.Suggester, func(), error) {
+	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
 		return fakeSuggester{values: `[0]`}, func() { cleaned = true }, nil
 	})
 	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})

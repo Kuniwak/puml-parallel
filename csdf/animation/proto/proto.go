@@ -37,11 +37,6 @@ type Request struct {
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
 	Pick *int `json:"pick,omitempty"`
-	// DiagramJSON (session_new) is the path, on the daemon's side, of the
-	// JSON the session explores and the checker reads in place of Content,
-	// for an expansion, whose families only the JSON holds; empty means
-	// Content.
-	DiagramJSON string `json:"diagram_json,omitempty"`
 	// Replay walks a fresh session along a path csdfbmc recorded under a
 	// finding (replay).
 	Replay *animation.Replay `json:"replay,omitempty"`

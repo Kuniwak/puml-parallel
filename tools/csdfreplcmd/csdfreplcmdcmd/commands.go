@@ -302,11 +302,10 @@ func parseServerVersion() cli.ParseOptionsFunc[*clientOptions] {
 func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
-		setLeafUsage(flags, "csdfreplcmd session new [-diagram-json <file>] [-json] <file.puml|file.png>",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote reads it, each !include read on the daemon's side\nrelative to the file.\n-diagram-json names, on the daemon's side, the JSON the session explores\nand the checker reads in place of the file (csdfparse's, or csdfpromote\n-format json's for an expansion, which holds its families).\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+		setLeafUsage(flags, "csdfreplcmd session new [-json] <file.puml|file.png>",
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote reads it, each !include read on the daemon's side\nrelative to the file.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
-		diagramJSON := flags.String("diagram-json", "", "the diagram JSON to explore and check in place of the file (an expansion's)")
 		opts, err := parseLeaf(flags, args, cf)
 		if err != nil || opts.help {
 			return opts, err
@@ -326,7 +325,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		if err != nil {
 			return nil, fmt.Errorf("session new: %v", err)
 		}
-		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: abs, Content: content, DiagramJSON: *diagramJSON}
+		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: abs, Content: content}
 		return opts, nil
 	}
 }

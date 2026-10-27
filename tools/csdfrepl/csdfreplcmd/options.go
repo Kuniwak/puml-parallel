@@ -17,10 +17,8 @@ type Options struct {
 	// prompt, and Finding which of its findings; empty when none.
 	Replay  string
 	Finding int
-	// Checker is what csdfbmc reads to let the value prompt suggest values,
-	// and DiagramJSON the JSON explored and checked in place of the file.
-	Checker     bmc.Checker
-	DiagramJSON string
+	// Checker is what csdfbmc reads to let the value prompt suggest values.
+	Checker bmc.Checker
 }
 
 // CommonOptions returns the parsed common options.
@@ -64,10 +62,6 @@ also shows the values the clauses admit for the pending transition, as
 csdfbmc reads them through the glue, numbered, and "#N" enters the N-th;
 csdfbmc must be on the PATH or beside this binary.
 
--diagram-json names the JSON (csdfparse's, or csdfpromote -format json's for
-an expansion, which holds its families) that the session explores and the
-checker reads in place of the file.
-
 -env is csdfbmc's --env: the prompt suggests what csdfbmc walks with the
 same given functions. It has no default; a function the checks module
 declares that nothing gives is refused, as csdfbmc refuses it. With
@@ -96,7 +90,6 @@ Examples:
 		finding := flags.Int("finding", 0, "with -replay, which finding to walk, numbered from 0")
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
-		diagramJSON := flags.String("diagram-json", "", "the diagram JSON to explore and check in place of the file (an expansion's, which holds its families)")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -121,6 +114,6 @@ Examples:
 		}
 
 		return &Options{Common: commonOpts, File: flags.Arg(0), Replay: *replay, Finding: *finding,
-			Checker: checker, DiagramJSON: *diagramJSON}, nil
+			Checker: checker}, nil
 	}
 }

@@ -47,13 +47,11 @@ func (NoSuggester) Initial() ([]Suggestion, error)        { return nil, ErrNoSug
 func (NoSuggester) Next(State, int) ([]Suggestion, error) { return nil, ErrNoSuggester }
 
 // SuggesterFactory builds the suggester of a session from the diagram it
-// explores and, when the session explores a diagram JSON, the path of that
-// JSON ("" when none); the cleanup runs when the session is done with the
-// suggester.
-type SuggesterFactory func(diagram *core.Diagram, diagramJSON string) (Suggester, func(), error)
+// explores; the cleanup runs when the session is done with the suggester.
+type SuggesterFactory func(diagram *core.Diagram) (Suggester, func(), error)
 
 // NoSuggesters is the SuggesterFactory of a front end no checker was given.
-func NoSuggesters(*core.Diagram, string) (Suggester, func(), error) {
+func NoSuggesters(*core.Diagram) (Suggester, func(), error) {
 	return NoSuggester{}, NoCleanup, nil
 }
 

@@ -17,17 +17,15 @@ import (
 	"golang.org/x/term"
 )
 
-// runOptions is what a run starts with: the JSON to explore in place of
-// the file (an expansion's, which holds its families), a replay to walk
-// first (nil for none), and what builds the suggester of the value prompts
+// runOptions is what a run starts with: a replay to walk first (nil for
+// none), and what builds the suggester of the value prompts
 // (animation.NoSuggesters when no checker was given).
 type runOptions struct {
-	DiagramJSON string
-	Replay      *animation.Replay
-	Suggesters  animation.SuggesterFactory
+	Replay     *animation.Replay
+	Suggesters animation.SuggesterFactory
 }
 
-// runREPL runs the REPL on file, or on run.DiagramJSON when it is given.
+// runREPL runs the REPL on file, a promotion explored as its expansion.
 // With a replay, the session first walks the recorded path and the prompt
 // opens at the state it reaches.
 func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run runOptions) error {
@@ -35,15 +33,7 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the file: %w: %q", err, file)
 	}
-	var diagramJSON []byte
-	if run.DiagramJSON != "" {
-		diagramJSON, err = os.ReadFile(run.DiagramJSON)
-		if err != nil {
-			return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram JSON: %w: %q", err, run.DiagramJSON)
-		}
-	}
-
-	diagram, warnings, err := animation.ReadDiagram(bs, coreio.FileIncluder(filepath.Dir(file)), diagramJSON)
+	diagram, warnings, err := animation.ReadDiagram(bs, coreio.FileIncluder(filepath.Dir(file)))
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram: %w: %q", err, file)
 	}
@@ -51,7 +41,7 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 		_, _ = fmt.Fprintln(inout.Stderr, w)
 	}
 
-	suggester, cleanup, err := run.Suggesters(diagram, run.DiagramJSON)
+	suggester, cleanup, err := run.Suggesters(diagram)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 	}

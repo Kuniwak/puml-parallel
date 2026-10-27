@@ -82,14 +82,10 @@ func (s *Suggester) Diagram() string { return s.diagram }
 type Runner func(args []string) ([]byte, error)
 
 // Suggesters is the factory of the suggesters c and run make for a
-// session: one reading the diagram JSON when the session explores one,
-// otherwise one reading the session's diagram as csdfparse prints it
+// session: one reading the session's diagram as csdfparse prints it
 // (ForDiagram).
 func (c Checker) Suggesters(run Runner) animation.SuggesterFactory {
-	return func(d *core.Diagram, diagramJSON string) (animation.Suggester, func(), error) {
-		if diagramJSON != "" {
-			return NewSuggester(diagramJSON, c, run), animation.NoCleanup, nil
-		}
+	return func(d *core.Diagram) (animation.Suggester, func(), error) {
 		return ForDiagram(d, c, run)
 	}
 }

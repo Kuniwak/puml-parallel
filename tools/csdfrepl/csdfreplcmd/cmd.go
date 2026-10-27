@@ -29,7 +29,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return err
 		}
-		run := runOptions{Replay: replay, DiagramJSON: opts.DiagramJSON, Suggesters: animation.NoSuggesters}
+		run := runOptions{Replay: replay, Suggesters: animation.NoSuggesters}
 		if checker.Asks() {
 			run.Suggesters = checker.Suggesters(bmc.RunCsdfbmc)
 		}

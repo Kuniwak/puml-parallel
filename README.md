@@ -1162,10 +1162,8 @@ State: 送信中
 With `-checks CHECKS.py` and a glue (`-evaluator CMD` or `-evaluator-module
 MODULE`), every value prompt also asks `csdfbmc` (on the PATH or beside the
 binary) what values the clauses admit for the pending transition, shows them
-numbered, and takes `#N` in place of the values. `-diagram-json FILE` names the
-diagram JSON (`csdfparse`'s, or `csdfpromote -format json`'s for an expansion,
-which holds its families) that the session explores and the checker reads in
-place of the file.
+numbered, and takes `#N` in place of the values. The checker reads the diagram
+the session explores, a promotion's expansion included.
 
 The environment is csdfbmc's: `-env NAME=true|false` (repeatable) is passed
 to `csdfbmc next` as `--env`, so the prompt suggests what csdfbmc walks with
@@ -1227,9 +1225,9 @@ is `"(none)"` in both); `statevar`
 instead takes its values via `-json <json-array>` or `-json-file <file>`. A daemon
 started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`)
 asks `csdfbmc` at every value prompt what values the clauses admit:
-`read` lists them under `suggestions`, `statevar -pick N` enters the N-th, and
-`session new -diagram-json FILE` names the diagram JSON, on the daemon's side,
-that the session explores and the checker reads in place of the file. `-env NAME=true|false` gives every session the environment
+`read` lists them under `suggestions`, and `statevar -pick N` enters the N-th.
+`session new` explores a promotion as its expansion, as `csdfrepl` does, the
+daemon reading each `!include` relative to the file. `-env NAME=true|false` gives every session the environment
 csdfbmc walks with `--env NAME=true|false`. The daemon's environment is
 fixed when it starts, so `replay` refuses a report whose `environment` it
 does not walk: one whose `--env` gave a function another value or a value

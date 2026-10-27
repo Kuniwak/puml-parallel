@@ -84,6 +84,9 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		"a seed, which csdfrepl does not take": {
 			Args: []string{"-checks", "c.py", "-evaluator-module", "g", "-seed", "1", "a.puml"},
 		},
+		"-diagram-json, which a promotion's expansion no longer needs": {
+			Args: []string{"-diagram-json", "e.json", "a.puml"},
+		},
 		"a flag csdfrepl does not declare": {
 			Args: []string{"-twins", "t.py", "a.puml"},
 		},

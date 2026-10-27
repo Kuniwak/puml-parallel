@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -105,22 +104,14 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	var diagramJSON []byte
-	if req.DiagramJSON != "" {
-		bs, err := os.ReadFile(req.DiagramJSON)
-		if err != nil {
-			return s.errorFromErr(fmt.Errorf("proto.Service: cannot read the diagram JSON: %w", err))
-		}
-		diagramJSON = bs
-	}
 	// A promotion's !include is read relative to the file the client
 	// names. Its warnings are left out: session_new prints the session id
 	// alone.
-	diagram, _, err := animation.ReadDiagram(req.Content, coreio.FileIncluder(filepath.Dir(req.Path)), diagramJSON)
+	diagram, _, err := animation.ReadDiagram(req.Content, coreio.FileIncluder(filepath.Dir(req.Path)))
 	if err != nil {
 		return s.errorFromErr(err)
 	}
-	sg, cleanup, err := s.suggesters(diagram, req.DiagramJSON)
+	sg, cleanup, err := s.suggesters(diagram)
 	if err != nil {
 		return s.errorFromErr(err)
 	}

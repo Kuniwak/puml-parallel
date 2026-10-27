@@ -500,44 +500,6 @@ func TestRunExploresTheExpansionOfAPromotion(t *testing.T) {
 	}
 }
 
-func TestRunExploresTheDiagramJSONOfAnExpansion(t *testing.T) {
-	// Setup
-	raw, err := core.MarshalDiagram(&core.Diagram{
-		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
-		Families: []core.FamilyStates{{Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened"},
-			Vars: map[string][]string{"opened": {"balance"}}}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	jsonPath := filepath.Join(t.TempDir(), "expansion.json")
-	if err := os.WriteFile(jsonPath, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	path := writeDiagram(t, "@startuml\nstate \"S\" as s\n[*] --> s\n@enduml\n")
-	spy := cli.SpyProcInout()
-	spy.Stdin = cli.StubStdin(strings.NewReader(`[{"a": {"at": "opened", "fields": {}}}]` + "\n" + `[{"a": {"at": "opened", "fields": {"balance": 1}}}]` + "\n"))
-
-	// Execute
-	err = runREPL(path, spy.New(), nil, runOptions{DiagramJSON: jsonPath, Suggesters: animation.NoSuggesters})
-
-	// Assert
-	if err != nil {
-		t.Fatalf("runREPL() error = %v", err)
-	}
-	out := spy.Stdout.String()
-	for _, want := range []string{
-		"    accounts', a map from IDs to instances {\"at\": <state>, \"fields\": {...}}:\n      at opened, holding balance\n",
-		`Error: accounts["a"]: an instance at opened holds the fields [balance], got []`,
-		`State: G`,
-		`accounts = {"a":{"at":"opened","fields":{"balance":1}}}`,
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("stdout does not contain %q:\n%s", want, out)
-		}
-	}
-}
-
 func TestRunTakesAnEndEdgeAndGoesOnByAJump(t *testing.T) {
 	// Setup
 	path := writeDiagram(t, `@startuml
@@ -722,7 +684,7 @@ a --> b : stop ; $n = 0
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("#0\ns 0\n#9\n#0\nl\n"))
 
-	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: func(*core.Diagram, string) (animation.Suggester, func(), error) { return sg, animation.NoCleanup, nil }})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: func(*core.Diagram) (animation.Suggester, func(), error) { return sg, animation.NoCleanup, nil }})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())
