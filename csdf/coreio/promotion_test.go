@@ -327,6 +327,8 @@ func TestReadPromotionRefuses(t *testing.T) {
 			promoting("[*] --> running\nnote as n\n  sync false : shipments(s)\nend note\n"), "false is a reserved word"},
 		{"a sync target whose ID starts with a digit",
 			promoting("[*] --> running\nnote as n\n  sync SHIP : shipments(0s)\nend note\n"), "does not start with a digit, as 0s"},
+		{"a note ID that is a reserved word",
+			promoting("[*] --> running\nnote as null\n  sync SHIP : shipments(s)\nend note\n"), "null is a reserved word"},
 		{"a missing include",
 			strings.Replace(promoting("[*] --> running\n"), "S.puml", "T.puml", 1), "no file T.puml"},
 	}

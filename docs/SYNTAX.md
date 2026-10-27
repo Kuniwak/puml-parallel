@@ -87,6 +87,11 @@ a clause reads as literals; so a name means the same wherever it is
 written, and a field or a variable is never mistaken for a value. A diagram
 using such a name is refused, the error naming the reserved word or the
 leading digit. A digit may still follow the first character (`s0`, `item2`).
+A diagram read from JSON is held to the same rule. Type names (a
+variable's `varType`, the type of a `<<promote>>` title or of an
+`@exists`) are not names and are not held to it. A trace's event
+(`csdftracechk`) may carry values where a diagram's names fields, so its
+fields may start with a digit; its channel is a name.
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as

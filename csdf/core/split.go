@@ -36,7 +36,8 @@ var (
 
 // SplitEvent takes apart an event written as a channel, then ?x for each
 // field received and !x for each sent, in order, each trimmed of spaces. The
-// channel is an identifier, and each x is one field accepts. Neither may
+// channel is a name (ident.Check), whatever field is, and each x is one
+// field accepts: a name in a diagram, a name or a value in a trace. Neither may
 // hold ? or !, which mark the fields.
 func SplitEvent(text string, field FieldRule) (string, []EventField, error) {
 	i := strings.IndexAny(text, "?!")

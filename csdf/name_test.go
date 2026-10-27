@@ -47,9 +47,19 @@ func TestParseRefusesIllegalNames(t *testing.T) {
 	}
 }
 
-func TestParseChannelRefusesAReservedWord(t *testing.T) {
-	_, err := ParseChannel("true")
-	if err == nil || !strings.Contains(err.Error(), "true is a reserved word") {
-		t.Fatalf("ParseChannel(true) error = %v, want true refused as a reserved word", err)
+func TestParseChannelRefusesWhatIsNoChannel(t *testing.T) {
+	for text, want := range map[string]string{
+		"true":  "true is a reserved word",
+		"false": "false is a reserved word",
+		"null":  "null is a reserved word",
+		"0c":    "does not start with a digit, as 0c",
+		"tau":   "tau is the internal event",
+	} {
+		t.Run(text, func(t *testing.T) {
+			_, err := ParseChannel(text)
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("ParseChannel(%q) error = %v, want it to contain %q", text, err, want)
+			}
+		})
 	}
 }

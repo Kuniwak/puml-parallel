@@ -27,11 +27,8 @@ func wellFormed(f Formula) error {
 		}
 		return nil
 	case Exists:
-		if !ident.Is(f.Hint) {
-			return fmt.Errorf("the hint %q of an ∃ is no identifier", f.Hint)
-		}
-		if err := ident.CheckName(f.Hint); err != nil {
-			return err
+		if err := ident.Check(f.Hint); err != nil {
+			return fmt.Errorf("the hint of an ∃: %w", err)
 		}
 		if !ident.Is(f.Type) {
 			return fmt.Errorf("the type %q of the ∃ %s is no identifier", f.Type, f.Hint)
@@ -74,8 +71,10 @@ func wellFormedBuiltin(b Builtin) error {
 	if spec.State != (b.State != "") {
 		return fmt.Errorf("@%s: a state %q where the table says state = %v", b.Op, b.State, spec.State)
 	}
-	if spec.State && !ident.Is(b.State) {
-		return fmt.Errorf("@%s: the state %q is no identifier", b.Op, b.State)
+	if spec.State {
+		if err := ident.Check(b.State); err != nil {
+			return fmt.Errorf("@%s: the state: %w", b.Op, err)
+		}
 	}
 	for _, t := range b.Args {
 		if err := wellFormedTerm(t); err != nil {
@@ -96,10 +95,9 @@ func wellFormedTerm(t Term) error {
 	}
 	switch t := t.(type) {
 	case Free:
-		if !ident.Is(t.Name) {
-			return fmt.Errorf("the variable %q is no identifier", t.Name)
+		if err := ident.Check(t.Name); err != nil {
+			return fmt.Errorf("the variable: %w", err)
 		}
-		return ident.CheckName(t.Name)
 	case Lit:
 		lit, err := ParseLiteral(t.Text)
 		if err != nil {
@@ -118,19 +116,13 @@ func wellFormedTerm(t Term) error {
 		}
 		return wellFormedTerm(t.Key)
 	case Field:
-		if !ident.Is(t.Name) {
-			return fmt.Errorf("the field %q is no identifier", t.Name)
-		}
-		if err := ident.CheckName(t.Name); err != nil {
-			return err
+		if err := ident.Check(t.Name); err != nil {
+			return fmt.Errorf("the field: %w", err)
 		}
 		return wellFormedTerm(t.Of)
 	case App:
-		if !ident.Is(t.Fn) {
-			return fmt.Errorf("the function %q is no identifier", t.Fn)
-		}
-		if err := ident.CheckName(t.Fn); err != nil {
-			return err
+		if err := ident.Check(t.Fn); err != nil {
+			return fmt.Errorf("the function: %w", err)
 		}
 		for _, a := range t.Args {
 			if err := wellFormedTerm(a); err != nil {

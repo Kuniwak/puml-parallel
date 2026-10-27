@@ -125,8 +125,8 @@ func TestPrintRefusesAFormulaThatIsNotWellFormed(t *testing.T) {
 		want string
 	}{
 		"a dangling index":                   {f: and(eq(Bound{0}, pre("x"))), want: "clause.Print: clause.LocallyClosed: the index 0 is under 0 binders"},
-		"a name that is no identifier":       {f: and(atom(hole(pre("a b")))), want: `clause.Print: clause.WellFormed: the variable "a b" is no identifier`},
-		"a hint that is no name":             {f: Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint "" of an ∃ is no identifier`},
+		"a name that is no identifier":       {f: and(atom(hole(pre("a b")))), want: `clause.Print: clause.WellFormed: the variable: "a b" is not an identifier, which is letters, digits and _`},
+		"a hint that is no name":             {f: Exists{Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: `clause.Print: clause.WellFormed: the hint of an ∃: "" is not an identifier, which is letters, digits and _`},
 		"a name that starts with a digit":    {f: and(atom(hole(pre("1st")))), want: "a name does not start with a digit, as 1st does"},
 		"a name that is a reserved word":     {f: and(eq(pre("true"), pre("x"))), want: "true is a reserved word"},
 		"a field that is a reserved word":    {f: and(eq(Field{Of: pre("r"), Name: "false"}, pre("x"))), want: "false is a reserved word"},

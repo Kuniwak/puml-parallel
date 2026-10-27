@@ -60,17 +60,30 @@ func TestPatternAgreesWithIs(t *testing.T) {
 	}
 }
 
-func TestCheckRefusesWhatNamesNothing(t *testing.T) {
-	for s, want := range map[string]string{
-		"null": "null is a reserved word",
-		"9a":   "does not start with a digit, as 9a",
-		"a-b":  "is not an identifier",
-	} {
-		if err := Check(s); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("Check(%q) = %v, want an error containing %q", s, err, want)
-		}
+func TestCheck(t *testing.T) {
+	tests := map[string]struct {
+		s       string
+		wantErr string
+	}{
+		"a name":           {s: "s0"},
+		"a Unicode name":   {s: "在庫2"},
+		"a reserved word":  {s: "null", wantErr: "null is a reserved word"},
+		"a leading digit":  {s: "9a", wantErr: "does not start with a digit, as 9a"},
+		"no identifier":    {s: "a-b", wantErr: "is not an identifier"},
+		"the empty string": {s: "", wantErr: "is not an identifier"},
 	}
-	if err := Check("s0"); err != nil {
-		t.Errorf("Check(s0) = %v, want nil", err)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := Check(tt.s)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("Check(%q) = %v, want nil", tt.s, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Check(%q) = %v, want an error containing %q", tt.s, err, tt.wantErr)
+			}
+		})
 	}
 }

@@ -66,3 +66,13 @@ func Check(s string) error {
 	}
 	return CheckName(s)
 }
+
+// CheckAll refuses the first of names that Check refuses.
+func CheckAll(names ...string) error {
+	for _, n := range names {
+		if err := Check(n); err != nil {
+			return err
+		}
+	}
+	return nil
+}
