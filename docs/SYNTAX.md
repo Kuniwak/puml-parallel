@@ -14,20 +14,21 @@ startEdgeDecl = "[*]" inlineSeparator "-->" inlineSeparator stateID 0*1(inlineTr
 edgeDecl = stateID inlineSeparator "-->" inlineSeparator stateID inlineTrivia ":" inlineTrivia event 0*1(inlineTrivia ";" inlineTrivia guard 0*1(inlineTrivia ";" inlineTrivia post)) inlineTrivia LF
 endEdgeDecl = stateID inlineSeparator "-->" inlineSeparator "[*]" 0*1(inlineTrivia ":" inlineSeparator guard) inlineTrivia LF
 assumeDecl = "note" inlineSeparator "as" inlineSeparator noteID inlineTrivia LF *(inlineTrivia LF) inlineTrivia "assume" inlineSeparator assumption inlineTrivia LF *(inlineTrivia LF) inlineTrivia "end" inlineSeparator "note" inlineTrivia LF
-noteID = id
+noteID = name
 assumption = 1*textElement
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
 escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
-stateID = id
-var = id
+stateID = name
+var = name
 varType = *textElement
 event = channel *(inlineTrivia ("?" / "!") inlineTrivia field)
-channel = id
-field = id
+channel = name
+field = name
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
+name = id ; not starting with a digit, not true, false or null
 id = 1*(unicode_letter / unicode_digit / "_")
 trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
@@ -76,6 +77,16 @@ state ID or a state variable may be written in Japanese (`承認記録' の承�
 PlantUML accepts such identifiers too, which keeps CSDF a subset of PlantUML.
 `-` is not part of an identifier, so that a name followed by `-` in a clause
 reads as the name and then the text (`$x-1`).
+
+Everything a diagram names is a `name`: a state ID, a state variable, a
+channel, a field, a note ID, the names in a clause, and the names in a
+global diagram's directives (docs/PROMOTION.md) and a composition
+expression's channels. A name is an identifier that does not start with a
+digit and is none of the reserved words `true`, `false` and `null`, which
+a clause reads as literals; so a name means the same wherever it is
+written, and a field or a variable is never mistaken for a value. A diagram
+using such a name is refused, the error naming the reserved word or the
+leading digit. A digit may still follow the first character (`s0`, `item2`).
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as
@@ -213,7 +224,7 @@ atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = literal
          / name ["'"] *("[" term "]" / "." name) ["'"]
          / name "(" [term *(", " term)] ")" ; an environment function
-name     = id                            ; not starting with a digit, not true, false or null
+name     = <name, as in the diagram grammar above>
 literal  = <a JSON value (RFC 8259) other than null>
 holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 ```
@@ -403,7 +414,7 @@ noteBlock       = "note" inlineSeparator ("as" inlineSeparator noteID / noteAnch
                   inlineTrivia "end" inlineSeparator "note" inlineTrivia LF
 noteAnchor      = ("left" / "right" / "top" / "bottom") inlineSeparator "of" inlineSeparator stateID
 noteLine        = *unicode_char_except_LF
-noteID          = id
+noteID          = name
 
 syncBody        = "sync" inlineSeparator eventName inlineTrivia ":" inlineTrivia mapRef *(inlineTrivia "," inlineTrivia mapRef)
 constrainBody   = "constrain" inlineSeparator event inlineTrivia ";" inlineTrivia guard
@@ -412,7 +423,7 @@ mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")"
 preprocessorLine = "!" *unicode_char_except_LF LF
 path            = 1*(unicode_char_except_space) / DQUOTE 1*(unicode_char_except_dquote) DQUOTE
 typeName        = 1*(unicode_char_except_space)
-param           = 1*(unicode_char_except_comma_paren)
+param           = name
 eventName       = channel
 ```
 
