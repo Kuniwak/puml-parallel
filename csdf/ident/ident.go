@@ -40,6 +40,10 @@ const (
 	NullWord  = "null"
 )
 
+// AnyWord is the type that constrains nothing (csdf/core.AnyName); it is
+// reserved, so that no name is mistaken for it.
+const AnyWord = "any"
+
 // IsReserved reports whether s is a word a term reads as a literal, and so
 // is no name.
 func IsReserved(s string) bool { return s == TrueWord || s == FalseWord || s == NullWord }
@@ -50,6 +54,9 @@ func IsReserved(s string) bool { return s == TrueWord || s == FalseWord || s == 
 func CheckName(name string) error {
 	if IsReserved(name) {
 		return fmt.Errorf("%s is a reserved word, a literal, and names nothing", name)
+	}
+	if name == AnyWord {
+		return fmt.Errorf("%s is a reserved word, the type that constrains nothing, and names nothing", name)
 	}
 	if r := []rune(name); len(r) > 0 && unicode.IsDigit(r[0]) {
 		return fmt.Errorf("a name does not start with a digit, as %s does", name)
