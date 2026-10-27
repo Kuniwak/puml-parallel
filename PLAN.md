@@ -2,6 +2,8 @@
 
 改訂 2（実装済み。実装中に決めた訂正は各節の「実装」注記に書く）。改訂 1 からの主な変更：宣言を PlantUML ネイティブ構文（複合状態・`!include`・`note`）で綴る（§2）、上位互換パーサを `csdf/promote` に置き core は変えない（§3・§6）、展開先は親の複合状態で表す（§4.7）、局所 start edge の post は無視する（§4.2）、S₀ の自己ループは error（§4.6）、PNG の不変条件の扱い（§4.9）。
 
+> 注記（#76）：`csdf/promote` は削除した。昇格は `csdf/core` と `csdf/coreio` が行い、節の言語は `csdf/clause` が読む。以下の `csdf/promote` への言及は当時の設計の記録である。
+
 ## 0. 背景と目的
 
 CSDF は状態と状態変数、`event ; guard ; post` のエッジで LTS を書く。述語は自然言語（不透明）である。
