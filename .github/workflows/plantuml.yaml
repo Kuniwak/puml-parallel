@@ -52,7 +52,7 @@ jobs:
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: ~/.cache/plantuml
-          key: plantuml-${{ env.PLANTUML_VERSION }}
+          key: plantuml-${{ env.PLANTUML_VERSION }}-${{ env.PLANTUML_SHA256 }}
 
       - name: Download PlantUML
         if: steps.plantuml-cache.outputs.cache-hit != 'true'
@@ -62,7 +62,7 @@ jobs:
           curl -fsSL --retry 3 --max-time 120 -o ~/.cache/plantuml/plantuml.jar \
             "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar"
 
-      - name: Install PlantUML
+      - name: Verify PlantUML and put it on PATH
         run: |
           set -euo pipefail
           echo "${PLANTUML_SHA256}  ${HOME}/.cache/plantuml/plantuml.jar" | sha256sum -c -
