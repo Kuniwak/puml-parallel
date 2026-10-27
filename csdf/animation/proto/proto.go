@@ -37,11 +37,10 @@ type Request struct {
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
 	Pick *int `json:"pick,omitempty"`
-	// DiagramJSON (session_new) is the path, on the daemon's side, of the
-	// JSON the session explores and the checker reads in place of Content,
-	// for an expansion, whose families only the JSON holds; empty means
-	// Content.
-	DiagramJSON string `json:"diagram_json,omitempty"`
+	// Includes (session_new) is the source of every file a promotion in
+	// Content includes, by the path its !include writes; the daemon reads
+	// no file of its own.
+	Includes map[string]string `json:"includes,omitempty"`
 	// Replay walks a fresh session along a path csdfbmc recorded under a
 	// finding (replay).
 	Replay *animation.Replay `json:"replay,omitempty"`
@@ -58,6 +57,9 @@ type Response struct {
 	Session string          `json:"session,omitempty"`
 	Output  string          `json:"output,omitempty"`
 	Data    json.RawMessage `json:"data,omitempty"`
+	// Warnings (session_new) are what the promotion the session explores
+	// warns of, one per line, for the client to print on its standard error.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // View is the structured current position of a session, returned by read,

@@ -85,13 +85,16 @@ func (p *Parser) parseAt() (*Diagram, error) {
 // withHint adds the promotion hint to a parse error when the source looks like a
 // global diagram.
 func withHint(err error, source string) error {
-	if !holdsPromotionDirectives(source) {
+	if !HoldsPromotionDirectives(source) {
 		return err
 	}
 	return &PromotionHintError{err: err}
 }
 
-func holdsPromotionDirectives(source string) bool {
+// HoldsPromotionDirectives reports whether source looks like a global
+// diagram: it holds a <<promote>> block or an !include, or a note whose
+// body is a sync or constrain directive, outside CSDF-IGNORE regions.
+func HoldsPromotionDirectives(source string) bool {
 	// What a CSDF-IGNORE region holds is PlantUML's alone - a theme, a skin, a
 	// title - so an !include in there is not a directive.
 	source = BlankIgnoreRegions(source)

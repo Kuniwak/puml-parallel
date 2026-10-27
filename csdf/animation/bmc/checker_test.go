@@ -8,6 +8,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -25,12 +26,12 @@ func TestCheckerArgsOfNext(t *testing.T) {
 	}
 }
 
-func TestForSourceWritesTheDiagramAsCsdfparsePrintsIt(t *testing.T) {
+func TestForDiagramWritesTheDiagramAsCsdfparsePrintsIt(t *testing.T) {
 	// Setup
 	src := []byte("@startuml\nstate \"S\" as s0\ns0 : n\n[*] --> s0 : @eq(n', 0)\n@enduml\n")
 
 	// Execute
-	s, cleanup, err := bmc.ForSource(src, bmc.Checker{}, bmc.RunCsdfbmc)
+	s, cleanup, err := forSource(t, src, bmc.Checker{}, bmc.RunCsdfbmc)
 
 	// Assert
 	if err != nil {
@@ -47,16 +48,6 @@ func TestForSourceWritesTheDiagramAsCsdfparsePrintsIt(t *testing.T) {
 	}
 	if d.Init != "s0" || len(d.Vars["s0"]) != 1 {
 		t.Errorf("the diagram read back = %+v, want s0 holding n", d)
-	}
-}
-
-func TestForSourceRefusesADiagramItCannotRead(t *testing.T) {
-	// Execute
-	_, _, err := bmc.ForSource([]byte("@startuml\n[*] --> \n@enduml\n"), bmc.Checker{}, bmc.RunCsdfbmc)
-
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "bmc.ForSource") {
-		t.Errorf("ForSource error = %v, want one of ForSource", err)
 	}
 }
 
@@ -181,4 +172,14 @@ func TestCheckerAgreesOnlyWithTheEnvironmentItAlreadyWalks(t *testing.T) {
 			}
 		})
 	}
+}
+
+// forSource is bmc.ForDiagram of the diagram whose source is src.
+func forSource(t *testing.T, src []byte, checker bmc.Checker, run bmc.Runner) (*bmc.Suggester, func(), error) {
+	t.Helper()
+	d, err := coreio.ReadBytes(src)
+	if err != nil {
+		t.Fatalf("Setup: coreio.ReadBytes() error = %v", err)
+	}
+	return bmc.ForDiagram(d, checker, run)
 }

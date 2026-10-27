@@ -48,7 +48,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		templates = &loaded
 	}
 
-	d, warnings, err := core.PromoteOnly(prom, opts.Only)
+	canonical, warnings, err := coreio.Expand(prom, opts.Only)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
@@ -59,11 +59,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		return nil
 	}
 
-	d.Name = tools.GeneratedBy("csdfpromote", opts.Args)
-	canonical, err := coreio.Canonical(d)
-	if err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
-	}
+	canonical.Name = tools.GeneratedBy("csdfpromote", opts.Args)
 	if opts.Output == OutputJSON {
 		raw, err := core.MarshalDiagram(canonical)
 		if err != nil {

@@ -3,12 +3,10 @@ package proto
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
@@ -153,7 +151,7 @@ func TestHandleSessionNewErrorDebugSurfacesChain(t *testing.T) {
 		wantLeak bool
 	}{
 		"default: the deepest message": {debug: false, wantPart: "@opaque", wantLeak: false},
-		"debug: the full chain":        {debug: true, wantPart: "animation.ReadDiagram: coreio.ReadBytes:", wantLeak: true},
+		"debug: the full chain":        {debug: true, wantPart: "animation.ReadDiagram: coreio.ReadExpandedBytes:", wantLeak: true},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -206,35 +204,61 @@ func TestAnEmptyClauseIsNoneInTheViewAsInTheText(t *testing.T) {
 	}
 }
 
-func TestHandleSessionNewExploresTheDiagramJSONInPlaceOfTheContent(t *testing.T) {
+// promotionGlobal promotes a family of items, whose local diagram it
+// includes as item.puml.
+const promotionGlobal = `@startuml G
+state "Run" as run {
+  run : items ; ID ⇸ Item
+  state "items : ID ⇸ Item" as runItems <<promote>> {
+    !include item.puml
+  }
+}
+[*] --> run
+@enduml
+`
+
+// promotionLocal is the item: its start post says nothing, so promotion
+// drops it with a warning.
+const promotionLocal = `@startuml item
+state "none" as itNone
+state "made" as itMade
+itMade : n
+[*] --> itNone : 準備済み
+itNone --> itMade : MAKE ; ; $n' は 0
+@enduml
+`
+
+func TestHandleSessionNewExploresTheExpansionOfAPromotion(t *testing.T) {
 	// Setup
-	raw, err := core.MarshalDiagram(&core.Diagram{
-		States: []string{"G"}, Vars: map[string][]string{"G": {"accounts"}}, Init: "G", InitPost: clause.And{},
-		Families: []core.FamilyStates{{Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened"}, Vars: map[string][]string{}}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	path := t.TempDir() + "/expansion.json"
-	if err := os.WriteFile(path, raw, 0o600); err != nil {
-		t.Fatal(err)
-	}
 	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
-	resp := service.Handle(Request{Command: CommandSessionNew, Path: "e.puml", Content: []byte(twoStateDiagram), DiagramJSON: path})
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "g.puml", Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+	taken := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{}]`})
+
+	// Assert
 	if !resp.OK {
 		t.Fatalf("session_new failed: %s", resp.Error)
 	}
+	if len(resp.Warnings) == 0 {
+		t.Errorf("session_new warnings = %v, want the dropped start post", resp.Warnings)
+	}
+	if !taken.OK || !strings.Contains(taken.Output, "MAKE?") {
+		t.Errorf("statevar = %+v, want the session at the expansion's mode", taken)
+	}
+}
+
+func TestHandleSessionNewRefusesAnIncludeTheRequestDoesNotCarry(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
 
 	// Execute
-	refused := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{"a": {"at": "none", "fields": {}}}]`})
-	taken := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{"a": {"at": "opened", "fields": {}}}]`})
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "g.puml", Content: []byte(promotionGlobal)})
 
 	// Assert
-	if refused.OK || !strings.Contains(refused.Error, "which is absence") {
-		t.Errorf("statevar of an instance at the start state = %+v, want it refused", refused)
-	}
-	if !taken.OK || !strings.Contains(taken.Output, "State: G") {
-		t.Errorf("statevar of an instance = %+v, want the session at G", taken)
+	if resp.OK || !strings.Contains(resp.Error, "item.puml") {
+		t.Errorf("session_new = %+v, want the missing include refused", resp)
 	}
 }
 
@@ -444,7 +468,7 @@ func (f fakeSuggester) Next(animation.State, int) ([]animation.Suggestion, error
 
 func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
 	cleaned := false
-	service := NewService("test-version", false, AnyEnvironment, func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
+	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
 		return fakeSuggester{values: `[0]`}, func() { cleaned = true }, nil
 	})
 	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})

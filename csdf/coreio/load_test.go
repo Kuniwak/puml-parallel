@@ -161,3 +161,78 @@ func TestLoadAll(t *testing.T) {
 		})
 	}
 }
+
+func TestReadExpandedBytes(t *testing.T) {
+	// Setup
+	plain := "@startuml\nstate \"S\" as s\n[*] --> s\n@enduml\n"
+	global := `@startuml G
+state "Run" as run {
+  run : items ; ID ⇸ Item
+  state "items : ID ⇸ Item" as runItems <<promote>> {
+    !include item.puml
+  }
+}
+[*] --> run
+@enduml
+`
+	local := `@startuml item
+state "none" as itNone
+state "made" as itMade
+itMade : n
+[*] --> itNone : 準備済み
+itNone --> itMade : MAKE ; ; $n' は 0
+@enduml
+`
+	cases := map[string]struct {
+		raw          string
+		sources      map[string]string
+		wantFamilies []string
+		wantStates   []string
+		wantWarnings int
+		wantErr      string
+	}{
+		"a diagram without promotion directives reads as ReadBytes reads it": {
+			raw: plain, wantStates: []string{"s"},
+		},
+		"a promotion reads as its expansion, families included, with its warnings": {
+			raw: global, sources: map[string]string{"item.puml": local},
+			wantStates: []string{"run"}, wantFamilies: []string{"items"}, wantWarnings: 1,
+		},
+		"a promotion whose include cannot be read is refused": {
+			raw: global, wantErr: "item.puml",
+		},
+		"a plain diagram that does not parse is refused with the parse error": {
+			raw: "@startuml\n[*] --> \n@enduml\n", wantErr: "coreio.ReadExpandedBytes: coreio.ReadBytes:",
+		},
+	}
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			d, warnings, err := ReadExpandedBytes([]byte(tt.raw), SourcesIncluder(tt.sources))
+
+			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want one containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("error = %v", err)
+			}
+			if !slices.Equal(d.States, tt.wantStates) {
+				t.Errorf("states = %v, want %v", d.States, tt.wantStates)
+			}
+			var families []string
+			for _, f := range d.Families {
+				families = append(families, f.Map)
+			}
+			if !slices.Equal(families, tt.wantFamilies) {
+				t.Errorf("families = %v, want %v", families, tt.wantFamilies)
+			}
+			if len(warnings) != tt.wantWarnings {
+				t.Errorf("warnings = %v, want %d", warnings, tt.wantWarnings)
+			}
+		})
+	}
+}

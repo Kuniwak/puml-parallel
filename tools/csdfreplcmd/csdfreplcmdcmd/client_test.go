@@ -203,6 +203,37 @@ func TestSessionListAndRm(t *testing.T) {
 	}
 }
 
+func TestNoDiagramJSONFlag(t *testing.T) {
+	// Setup
+	sock := startDaemon(t)
+
+	// Execute
+	code, _, stderr := run(t, sock, "session", "new", "-diagram-json", "e.json", writeDiagram(t))
+
+	// Assert
+	if code == 0 || !strings.Contains(stderr, "flag provided but not defined: -diagram-json") {
+		t.Errorf("session new -diagram-json = (exit %d, stderr %q), want it refused as an unknown flag", code, stderr)
+	}
+}
+
+// The daemon reads no file of its own, so the session reading the family
+// says the client sent what the promotion includes.
+func TestNewOnAPromotion(t *testing.T) {
+	// Setup
+	sock := startDaemon(t)
+	if code, _, stderr := run(t, sock, "session", "new", "../../../examples/promote/ACCOUNTS.puml"); code != 0 {
+		t.Fatalf("Setup: session new exit = %d, stderr = %q", code, stderr)
+	}
+
+	// Execute
+	code, stdout, stderr := run(t, sock, "read")
+
+	// Assert
+	if code != 0 || !strings.Contains(stdout, "accounts', a map from IDs to instances") {
+		t.Errorf("read = (exit %d, stdout %q, stderr %q), want the family's map at the prompt", code, stdout, stderr)
+	}
+}
+
 func TestDialFailureIsFriendly(t *testing.T) {
 	sock := filepath.Join(t.TempDir(), "absent.sock")
 	code, _, stderr := run(t, sock, "serverversion")

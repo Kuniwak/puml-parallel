@@ -5,11 +5,12 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"sync"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -103,19 +104,11 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	var diagramJSON []byte
-	if req.DiagramJSON != "" {
-		bs, err := os.ReadFile(req.DiagramJSON)
-		if err != nil {
-			return s.errorFromErr(fmt.Errorf("proto.Service: cannot read the diagram JSON: %w", err))
-		}
-		diagramJSON = bs
-	}
-	diagram, err := animation.ReadDiagram(req.Content, diagramJSON)
+	diagram, warnings, err := animation.ReadDiagram(req.Content, coreio.SourcesIncluder(req.Includes))
 	if err != nil {
 		return s.errorFromErr(err)
 	}
-	sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
+	sg, cleanup, err := s.suggesters(diagram)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
@@ -129,7 +122,7 @@ func (s *Service) handleSessionNew(req Request) Response {
 	e.id = strconv.Itoa(s.nextID)
 	s.sessions[e.id] = e
 	s.order = append(s.order, e.id)
-	return Response{OK: true, Session: e.id, Output: e.id + "\n", Data: mustData(SessionRef{Session: e.id})}
+	return Response{OK: true, Session: e.id, Output: e.id + "\n", Data: mustData(SessionRef{Session: e.id}), Warnings: warningLines(warnings)}
 }
 
 func (s *Service) handleSessionList() Response {
@@ -403,4 +396,13 @@ func removeString(items []string, target string) []string {
 		}
 	}
 	return out
+}
+
+// warningLines are warnings as the client prints them, nil for none.
+func warningLines(warnings []core.Warning) []string {
+	var lines []string
+	for _, w := range warnings {
+		lines = append(lines, w.String())
+	}
+	return lines
 }

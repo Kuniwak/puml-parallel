@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
@@ -65,6 +66,32 @@ func LoadPromotion(path string) (core.Promotion, error) {
 	return prom, nil
 }
 
+// SourcesIncluder includes a file by the path an !include writes from
+// sources, which maps each such path to its source; a path it does not hold
+// is refused.
+func SourcesIncluder(sources map[string]string) Include {
+	return func(p string) (string, error) {
+		src, ok := sources[p]
+		if !ok {
+			return "", fmt.Errorf("coreio.SourcesIncluder: %s is not among the included files given", p)
+		}
+		return src, nil
+	}
+}
+
+// RecordingIncluder is include, recording in sources what it includes by
+// the path written.
+func RecordingIncluder(include Include, sources map[string]string) Include {
+	return func(p string) (string, error) {
+		src, err := include(p)
+		if err != nil {
+			return "", err
+		}
+		sources[p] = src
+		return src, nil
+	}
+}
+
 // FileIncluder includes a file by the path an !include writes, relative to
 // dir unless it is absolute: a .puml file, or a .png with its source
 // embedded.
@@ -103,4 +130,48 @@ func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: %w", err)
 	}
 	return prom, nil
+}
+
+// ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
+// ReadBytes does, unless it holds promotion directives
+// (csdf.HoldsPromotionDirectives): then it is the expansion csdfpromote
+// prints for it (Expand), each !include read by include, with the warnings
+// of the promotion. A diagram without promotion directives reads as
+// ReadBytes reads it, with no warnings.
+func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warning, error) {
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: reading PlantUML source: %w", err)
+	}
+	if !csdf.HoldsPromotionDirectives(src) {
+		d, err := ReadBytes(raw)
+		if err != nil {
+			return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		}
+		return d, nil, nil
+	}
+	prom, err := ReadPromotionBytes(raw, include)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	expanded, warnings, err := Expand(prom, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	return expanded, warnings, nil
+}
+
+// Expand is the expansion csdfpromote prints for prom: core.PromoteOnly(prom,
+// keep) in its canonical order, with the warnings of the promotion; with keep
+// empty every family is kept.
+func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, error) {
+	d, warnings, err := core.PromoteOnly(prom, keep)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
+	}
+	canonical, err := Canonical(d)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
+	}
+	return canonical, warnings, nil
 }

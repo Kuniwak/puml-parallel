@@ -4,10 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -301,11 +303,10 @@ func parseServerVersion() cli.ParseOptionsFunc[*clientOptions] {
 func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
-		setLeafUsage(flags, "csdfreplcmd session new [-diagram-json <file>] [-json] <file.puml|file.png>",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\n-diagram-json names, on the daemon's side, the JSON the session explores\nand the checker reads in place of the file (csdfparse's, or csdfpromote\n-format json's for an expansion, which holds its families).\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+		setLeafUsage(flags, "csdfreplcmd session new [-json] <file.puml|file.png>",
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote reads it, each !include read relative to the\nfile and sent to the daemon with it; the promotion's warnings are printed\non stderr.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
-		diagramJSON := flags.String("diagram-json", "", "the diagram JSON to explore and check in place of the file (an expansion's)")
 		opts, err := parseLeaf(flags, args, cf)
 		if err != nil || opts.help {
 			return opts, err
@@ -318,7 +319,13 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		if err != nil {
 			return nil, fmt.Errorf("session new: cannot read file: %v", err)
 		}
-		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content, DiagramJSON: *diagramJSON}
+		// The daemon reads no file: the client reads what a promotion
+		// includes, relative to the file, and sends it along.
+		includes := map[string]string{}
+		if _, _, err := coreio.ReadExpandedBytes(content, coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(path)), includes)); err != nil {
+			return nil, fmt.Errorf("session new: %v", err)
+		}
+		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content, Includes: includes}
 		return opts, nil
 	}
 }

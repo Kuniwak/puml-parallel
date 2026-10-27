@@ -17,10 +17,8 @@ type Options struct {
 	// prompt, and Finding which of its findings; empty when none.
 	Replay  string
 	Finding int
-	// Checker is what csdfbmc reads to let the value prompt suggest values,
-	// and DiagramJSON the JSON explored and checked in place of the file.
-	Checker     bmc.Checker
-	DiagramJSON string
+	// Checker is what csdfbmc reads to let the value prompt suggest values.
+	Checker bmc.Checker
 }
 
 // CommonOptions returns the parsed common options.
@@ -42,6 +40,11 @@ array in declaration order. A map of a family's instances is a JSON object
 from IDs to {"at": <state>, "fields": {...}}, at a state of the family other
 than its start state and with exactly that state's variables as fields.
 
+A global diagram holding promotion directives (docs/PROMOTION.md) is
+explored as its expansion, read as csdfpromote reads it, families included,
+each !include read relative to the file; the promotion's warnings are
+printed on the standard error. A diagram without them reads unchanged.
+
 Without -checks, values a builtin of the guard or the post (@eq, @ne, @in,
 @notin, @empty, @update, @frame, @at) is false of, with the previous state's
 values, are refused; a builtin reading an event's field or an environment
@@ -58,10 +61,6 @@ With -checks and a glue (-evaluator or -evaluator-module), every value prompt
 also shows the values the clauses admit for the pending transition, as
 csdfbmc reads them through the glue, numbered, and "#N" enters the N-th;
 csdfbmc must be on the PATH or beside this binary.
-
--diagram-json names the JSON (csdfparse's, or csdfpromote -format json's for
-an expansion, which holds its families) that the session explores and the
-checker reads in place of the file.
 
 -env is csdfbmc's --env: the prompt suggests what csdfbmc walks with the
 same given functions. It has no default; a function the checks module
@@ -91,7 +90,6 @@ Examples:
 		finding := flags.Int("finding", 0, "with -replay, which finding to walk, numbered from 0")
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
-		diagramJSON := flags.String("diagram-json", "", "the diagram JSON to explore and check in place of the file (an expansion's, which holds its families)")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -116,6 +114,6 @@ Examples:
 		}
 
 		return &Options{Common: commonOpts, File: flags.Arg(0), Replay: *replay, Finding: *finding,
-			Checker: checker, DiagramJSON: *diagramJSON}, nil
+			Checker: checker}, nil
 	}
 }

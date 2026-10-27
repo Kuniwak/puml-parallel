@@ -46,13 +46,12 @@ func (NoSuggester) Admit(d *core.Diagram, p Pending, values []Value) error {
 func (NoSuggester) Initial() ([]Suggestion, error)        { return nil, ErrNoSuggester }
 func (NoSuggester) Next(State, int) ([]Suggestion, error) { return nil, ErrNoSuggester }
 
-// SuggesterFactory builds the suggester of a session from its diagram's
-// source and, for an expansion, the path of the JSON the checker reads ("" when
-// none); the cleanup runs when the session is done with the suggester.
-type SuggesterFactory func(source []byte, diagramJSON string) (Suggester, func(), error)
+// SuggesterFactory builds the suggester of a session from the diagram it
+// explores; the cleanup runs when the session is done with the suggester.
+type SuggesterFactory func(diagram *core.Diagram) (Suggester, func(), error)
 
 // NoSuggesters is the SuggesterFactory of a front end no checker was given.
-func NoSuggesters([]byte, string) (Suggester, func(), error) {
+func NoSuggesters(*core.Diagram) (Suggester, func(), error) {
 	return NoSuggester{}, NoCleanup, nil
 }
 

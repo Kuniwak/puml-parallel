@@ -1,22 +1,22 @@
 package animation
 
 import (
+	"os"
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestReadDiagram(t *testing.T) {
 	// Setup
-	promoted, err := core.MarshalDiagram(promotedDiagram())
+	promotion, err := os.ReadFile("../../examples/promote/ACCOUNTS.puml")
 	if err != nil {
-		t.Fatalf("Setup: core.MarshalDiagram() error = %v", err)
+		t.Fatalf("Setup: os.ReadFile() error = %v", err)
 	}
 	tests := map[string]struct {
 		source       string
-		diagramJSON  []byte
 		wantStates   []string
 		wantFamilies int
 		wantErr      string
@@ -25,10 +25,9 @@ func TestReadDiagram(t *testing.T) {
 			source:     builtinsDiagram,
 			wantStates: []string{"s0"},
 		},
-		"the JSON of an expansion, whose families the source cannot say": {
-			source:       "not read",
-			diagramJSON:  promoted,
-			wantStates:   []string{"G"},
+		"a promotion is read as its expansion, families included": {
+			source:       string(promotion),
+			wantStates:   []string{"running"},
 			wantFamilies: 1,
 		},
 		"a tool word of the old vocabulary is refused as coreio refuses it": {
@@ -39,16 +38,11 @@ func TestReadDiagram(t *testing.T) {
 			source:  "@startuml\nstate \"S\" as s\ns : n\n[*] --> s : @[y := n] y = 0\n@enduml\n",
 			wantErr: "coreio.ReadBytes: coreio.Read:",
 		},
-		"JSON that is no diagram is refused": {
-			source:      builtinsDiagram,
-			diagramJSON: []byte(`{"version": 0}`),
-			wantErr:     "core.UnmarshalDiagram:",
-		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			d, err := ReadDiagram([]byte(tt.source), tt.diagramJSON)
+			d, _, err := ReadDiagram([]byte(tt.source), coreio.FileIncluder("../../examples/promote"))
 
 			// Assert
 			if tt.wantErr != "" {
