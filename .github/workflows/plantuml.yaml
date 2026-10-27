@@ -71,7 +71,6 @@ jobs:
             "${HOME}/.cache/plantuml/plantuml.jar" > ~/.local/bin/plantuml
           chmod +x ~/.local/bin/plantuml
           echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-          ~/.local/bin/plantuml -version
 
       - name: Render the global diagrams
         run: go test -v ./examples/rendercheck/
