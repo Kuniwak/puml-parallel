@@ -83,37 +83,43 @@ type Runner func(args []string) ([]byte, error)
 
 // Suggesters is the factory of the suggesters c and run make for a
 // session: one reading the diagram JSON when the session explores one,
-// otherwise one reading the source as csdfparse prints it (ForSource).
+// otherwise one reading the session's diagram as csdfparse prints it
+// (ForDiagram).
 func (c Checker) Suggesters(run Runner) animation.SuggesterFactory {
-	return func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
+	return func(d *core.Diagram, diagramJSON string) (animation.Suggester, func(), error) {
 		if diagramJSON != "" {
 			return NewSuggester(diagramJSON, c, run), animation.NoCleanup, nil
 		}
-		return ForSource(source, c, run)
+		return ForDiagram(d, c, run)
 	}
 }
 
-// ForSource writes the diagram whose PlantUML source (or PNG) is src as
-// csdfparse prints it to a temporary file, and returns a Suggester reading
-// it, so a REPL started on a .puml needs no JSON of its own. The caller
-// removes the file with the returned function.
+// ForSource is ForDiagram of the diagram whose PlantUML source (or PNG) is
+// src, as coreio.ReadBytes reads it.
 func ForSource(src []byte, checker Checker, run Runner) (*Suggester, func(), error) {
 	d, err := coreio.ReadBytes(src)
 	if err != nil {
 		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
 	}
+	return ForDiagram(d, checker, run)
+}
+
+// ForDiagram writes d as csdfparse prints it to a temporary file, and
+// returns a Suggester reading it, so a REPL started on a .puml needs no JSON
+// of its own. The caller removes the file with the returned function.
+func ForDiagram(d *core.Diagram, checker Checker, run Runner) (*Suggester, func(), error) {
 	raw, err := core.MarshalDiagram(d)
 	if err != nil {
-		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
+		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
 	}
 	f, err := os.CreateTemp("", "csdfrepl-*.json")
 	if err != nil {
-		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
+		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
 	}
 	if _, err := f.Write(raw); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
-		return nil, nil, fmt.Errorf("bmc.ForSource: %w", err)
+		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
 	}
 	_ = f.Close()
 	return NewSuggester(f.Name(), checker, run), func() { _ = os.Remove(f.Name()) }, nil

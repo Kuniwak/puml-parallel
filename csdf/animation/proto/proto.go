@@ -30,7 +30,7 @@ const (
 type Request struct {
 	Command string `json:"command"`
 	Session string `json:"session,omitempty"` // "" => resolve the single session
-	Path    string `json:"path,omitempty"`    // session_new: label for listings
+	Path    string `json:"path,omitempty"`    // session_new: label for listings, and what a promotion's !include is read relative to
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
 	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text

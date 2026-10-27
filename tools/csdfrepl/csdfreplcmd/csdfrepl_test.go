@@ -422,7 +422,7 @@ func TestRunREPLRejectsBadFiles(t *testing.T) {
 		"invalid file": {file: writeDiagram(t, "not PlantUML"), want: "cannot read the diagram"},
 		"a clause of the old syntax": {
 			file: writeDiagram(t, "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n"),
-			want: "cannot read the diagram: animation.ReadDiagram: coreio.ReadBytes: coreio.Read:",
+			want: "cannot read the diagram: animation.ReadDiagram: coreio.ReadExpandedBytes: coreio.ReadBytes: coreio.Read:",
 		},
 	}
 
@@ -468,6 +468,31 @@ s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k'
 		"[0] put?x -> Open\n      Guard: @notin(m, x) ∧ @ne(x, k)\n      Post: @update(m', m, x, 1) ∧ @eq(k', x)\n",
 		"  m = {\"1\":1}\n  k = 1\n",
 		`"put?x"`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout does not contain %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestRunExploresTheExpansionOfAPromotion(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(`[{}]` + "\n"))
+
+	// Execute
+	err := runREPL("../../../examples/promote/ACCOUNTS.puml", spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
+
+	// Assert
+	if err != nil {
+		t.Fatalf("runREPL() error = %v", err)
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{
+		"accounts', a map from IDs to instances",
+		"at accOpen, holding balance",
+		"State: 稼働中",
+		"OPEN?口座ID",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("stdout does not contain %q:\n%s", want, out)
@@ -697,7 +722,7 @@ a --> b : stop ; $n = 0
 	spy := cli.SpyProcInout()
 	spy.Stdin = cli.StubStdin(strings.NewReader("#0\ns 0\n#9\n#0\nl\n"))
 
-	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: func([]byte, string) (animation.Suggester, func(), error) { return sg, animation.NoCleanup, nil }})
+	err := runREPL(path, spy.New(), nil, runOptions{Suggesters: func(*core.Diagram, string) (animation.Suggester, func(), error) { return sg, animation.NoCleanup, nil }})
 
 	if err != nil {
 		t.Fatalf("runREPL() error = %v; stderr = %q", err, spy.Stderr.String())

@@ -1,9 +1,11 @@
 package coreio
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
+	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
@@ -103,4 +105,33 @@ func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: %w", err)
 	}
 	return prom, nil
+}
+
+// ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
+// ReadBytes does, unless it holds promotion directives: then it is the
+// expansion csdfpromote prints for it, each !include read by include, with
+// the warnings of the promotion. A diagram without promotion directives
+// reads as ReadBytes reads it, with no warnings.
+func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warning, error) {
+	d, err := ReadBytes(raw)
+	var hint *csdf.PromotionHintError
+	if !errors.As(err, &hint) {
+		if err != nil {
+			return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		}
+		return d, nil, nil
+	}
+	prom, err := ReadPromotionBytes(raw, include)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	promoted, warnings, err := core.Promote(prom)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	canonical, err := Canonical(promoted)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	return canonical, warnings, nil
 }

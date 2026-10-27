@@ -153,7 +153,7 @@ func TestHandleSessionNewErrorDebugSurfacesChain(t *testing.T) {
 		wantLeak bool
 	}{
 		"default: the deepest message": {debug: false, wantPart: "@opaque", wantLeak: false},
-		"debug: the full chain":        {debug: true, wantPart: "animation.ReadDiagram: coreio.ReadBytes:", wantLeak: true},
+		"debug: the full chain":        {debug: true, wantPart: "animation.ReadDiagram: coreio.ReadExpandedBytes:", wantLeak: true},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -203,6 +203,28 @@ func TestAnEmptyClauseIsNoneInTheViewAsInTheText(t *testing.T) {
 	}
 	if !strings.Contains(resp.Output, "Guard:\n  (none)\n") {
 		t.Errorf("output = %q, want the empty guard as (none)", resp.Output)
+	}
+}
+
+func TestHandleSessionNewExploresTheExpansionOfAPromotion(t *testing.T) {
+	// Setup
+	const path = "../../../examples/promote/ACCOUNTS.puml"
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: path, Content: content})
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
+	}
+
+	// Execute
+	taken := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{}]`})
+
+	// Assert
+	if !taken.OK || !strings.Contains(taken.Output, "OPEN?口座ID") {
+		t.Errorf("statevar = %+v, want the session at the expansion's mode", taken)
 	}
 }
 
@@ -444,7 +466,7 @@ func (f fakeSuggester) Next(animation.State, int) ([]animation.Suggestion, error
 
 func TestSuggestionsShowAtThePromptAndCanBePicked(t *testing.T) {
 	cleaned := false
-	service := NewService("test-version", false, AnyEnvironment, func(source []byte, diagramJSON string) (animation.Suggester, func(), error) {
+	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram, string) (animation.Suggester, func(), error) {
 		return fakeSuggester{values: `[0]`}, func() { cleaned = true }, nil
 	})
 	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})

@@ -48,7 +48,7 @@ func TestReadDiagram(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			d, err := ReadDiagram([]byte(tt.source), tt.diagramJSON)
+			d, _, err := ReadDiagram([]byte(tt.source), nil, tt.diagramJSON)
 
 			// Assert
 			if tt.wantErr != "" {

@@ -1107,6 +1107,16 @@ is refused with the reader's error. Each value prompt shows the guard and the
 post of the pending transition as the clause printer writes them, and an
 empty clause as `(none)`.
 
+A global diagram holding promotion directives ([Promotion](docs/PROMOTION.md))
+is explored as its expansion, read as `csdfpromote` reads it, families
+included, each `!include` read relative to the file; the promotion's warnings
+are printed on the standard error. A diagram without promotion directives
+reads unchanged:
+
+```console
+$ csdfrepl examples/promote/ACCOUNTS.puml
+```
+
 For each state, enter its variable values as a JSON array in declaration order.
 `csdfrepl` checks that they fit the state and, without `-checks`, that no
 builtin of the guard or the post (`@eq`, `@ne`, `@in`, `@notin`, `@empty`,

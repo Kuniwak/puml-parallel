@@ -206,7 +206,7 @@ func TestASelectedParallelEdgeIsTheOneCsdfbmcNumbersSo(t *testing.T) {
 				t.Fatalf("Setup: ForSource() error = %v", err)
 			}
 			defer cleanup()
-			d, err := animation.ReadDiagram([]byte(parallel), nil)
+			d, _, err := animation.ReadDiagram([]byte(parallel), nil, nil)
 			if err != nil {
 				t.Fatalf("Setup: ReadDiagram() error = %v", err)
 			}
@@ -259,7 +259,7 @@ func TestASessionTakesOnlyTheValuesCsdfbmcAdmits(t *testing.T) {
 				t.Fatalf("Setup: ForSource() error = %v", err)
 			}
 			defer cleanup()
-			d, err := animation.ReadDiagram([]byte(parallel), nil)
+			d, _, err := animation.ReadDiagram([]byte(parallel), nil, nil)
 			if err != nil {
 				t.Fatalf("Setup: ReadDiagram() error = %v", err)
 			}

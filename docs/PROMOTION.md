@@ -6,8 +6,8 @@ trade per order, a report per business day — has no readable single Composable
 State Diagram. Written as one, the control state of every instance is absorbed
 into a state variable holding a partial map from instance IDs to local states,
 and the diagram collapses to one global state with a bundle of self-loops. That
-form is what `csdflivelockfree`, `csdfrefinement` and `csdfrepl` want. It is not
-what a reader wants.
+form is what `csdflivelockfree` and `csdfrefinement` want, and what `csdfrepl`
+explores a global diagram as. It is not what a reader wants.
 
 The readable form is the diagram of *one* instance. The two cannot be the same
 artefact, so the author writes the local diagrams plus a few directives, and

@@ -8,21 +8,22 @@ import (
 )
 
 // ReadDiagram reads the diagram a session explores: diagramJSON, when it
-// is given (csdfparse's or csdfpromote -format json's output, which holds
-// the families of an expansion), and otherwise source, a .puml text or a
-// .png, as coreio.ReadBytes reads it. A clause of the old syntax is refused
-// with coreio's error.
-func ReadDiagram(source []byte, diagramJSON []byte) (*core.Diagram, error) {
+// is given (csdfparse's or csdfpromote -format json's output), and
+// otherwise source, a .puml text or a .png, as coreio.ReadExpandedBytes
+// reads it: a promotion is explored as its expansion, families included,
+// each !include read by include, and the warnings of the promotion are
+// returned. A clause of the old syntax is refused with coreio's error.
+func ReadDiagram(source []byte, include coreio.Include, diagramJSON []byte) (*core.Diagram, []core.Warning, error) {
 	if diagramJSON != nil {
 		d, err := core.UnmarshalDiagram(diagramJSON)
 		if err != nil {
-			return nil, fmt.Errorf("animation.ReadDiagram: %w", err)
+			return nil, nil, fmt.Errorf("animation.ReadDiagram: %w", err)
 		}
-		return d, nil
+		return d, nil, nil
 	}
-	d, err := coreio.ReadBytes(source)
+	d, warnings, err := coreio.ReadExpandedBytes(source, include)
 	if err != nil {
-		return nil, fmt.Errorf("animation.ReadDiagram: %w", err)
+		return nil, nil, fmt.Errorf("animation.ReadDiagram: %w", err)
 	}
-	return d, nil
+	return d, warnings, nil
 }

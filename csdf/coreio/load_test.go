@@ -161,3 +161,54 @@ func TestLoadAll(t *testing.T) {
 		})
 	}
 }
+
+func TestReadExpandedBytes(t *testing.T) {
+	plain := "@startuml\nstate \"S\" as s\n[*] --> s\n@enduml\n"
+	promoted, err := os.ReadFile("../../examples/promote/ACCOUNTS.puml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]struct {
+		raw          []byte
+		wantFamilies []string
+		wantStates   []string
+		wantErr      string
+	}{
+		"a diagram without promotion directives reads as ReadBytes reads it": {
+			raw: []byte(plain), wantStates: []string{"s"},
+		},
+		"a promotion reads as its expansion, families included": {
+			raw: promoted, wantStates: []string{"running"}, wantFamilies: []string{"accounts"},
+		},
+		"a plain diagram that does not parse is refused with the parse error": {
+			raw: []byte("@startuml\n[*] --> \n@enduml\n"), wantErr: "coreio.ReadExpandedBytes: coreio.ReadBytes:",
+		},
+	}
+	for name, tt := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			d, _, err := ReadExpandedBytes(tt.raw, FileIncluder("../../examples/promote"))
+
+			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want one containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("error = %v", err)
+			}
+			if !slices.Equal(d.States, tt.wantStates) {
+				t.Errorf("states = %v, want %v", d.States, tt.wantStates)
+			}
+			var families []string
+			for _, f := range d.Families {
+				families = append(families, f.Map)
+			}
+			if !slices.Equal(families, tt.wantFamilies) {
+				t.Errorf("families = %v, want %v", families, tt.wantFamilies)
+			}
+		})
+	}
+}

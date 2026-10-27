@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"golang.org/x/term"
 )
 
@@ -41,12 +43,15 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 		}
 	}
 
-	diagram, err := animation.ReadDiagram(bs, diagramJSON)
+	diagram, warnings, err := animation.ReadDiagram(bs, coreio.FileIncluder(filepath.Dir(file)), diagramJSON)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram: %w: %q", err, file)
 	}
+	for _, w := range warnings {
+		_, _ = fmt.Fprintln(inout.Stderr, w)
+	}
 
-	suggester, cleanup, err := run.Suggesters(bs, run.DiagramJSON)
+	suggester, cleanup, err := run.Suggesters(diagram, run.DiagramJSON)
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: %w", err)
 	}

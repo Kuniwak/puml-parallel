@@ -42,6 +42,11 @@ array in declaration order. A map of a family's instances is a JSON object
 from IDs to {"at": <state>, "fields": {...}}, at a state of the family other
 than its start state and with exactly that state's variables as fields.
 
+A global diagram holding promotion directives (docs/PROMOTION.md) is
+explored as its expansion, read as csdfpromote reads it, families included,
+each !include read relative to the file; the promotion's warnings are
+printed on the standard error. A diagram without them reads unchanged.
+
 Without -checks, values a builtin of the guard or the post (@eq, @ne, @in,
 @notin, @empty, @update, @frame, @at) is false of, with the previous state's
 values, are refused; a builtin reading an event's field or an environment

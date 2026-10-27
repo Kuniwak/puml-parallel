@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -111,11 +113,14 @@ func (s *Service) handleSessionNew(req Request) Response {
 		}
 		diagramJSON = bs
 	}
-	diagram, err := animation.ReadDiagram(req.Content, diagramJSON)
+	// A promotion's !include is read relative to the file the client
+	// names. Its warnings are left out: session_new prints the session id
+	// alone.
+	diagram, _, err := animation.ReadDiagram(req.Content, coreio.FileIncluder(filepath.Dir(req.Path)), diagramJSON)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
-	sg, cleanup, err := s.suggesters(req.Content, req.DiagramJSON)
+	sg, cleanup, err := s.suggesters(diagram, req.DiagramJSON)
 	if err != nil {
 		return s.errorFromErr(err)
 	}
