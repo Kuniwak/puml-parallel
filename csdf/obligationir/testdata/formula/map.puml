@@ -1,15 +1,17 @@
 @startuml
 ' A map the start empties, a visible edge that receives a key, and a tau
-' edge whose guard an ∃ of a type reads, under an assumption.
+' edge whose guard an ∃ of a type reads, under an assumption. The map is of
+' a map type, and a memo of the type any constrains nothing.
 state "s" as s
-s : m ; m
-[*] --> s : @empty(m')
-s --> s : PUT?k ; @notin(k, m) ; @frame(m', m, k) ∧ @in(k, m')
-s --> s : tau ; @exists(k : 鍵) (@in(k, m) ∧ $k は古い) ; @eq(m', m)
+s : m ; 鍵 ⇸ 値
+s : memo ; any
+[*] --> s : @empty(m') ∧ @eq(memo', 0)
+s --> s : PUT?k ; @notin(k, m) ; @frame(m', m, k) ∧ @in(k, m') ∧ @eq(memo', memo)
+s --> s : tau ; @exists(k : 鍵) (@in(k, m) ∧ $k は古い) ; @eq(m', m) ∧ @eq(memo', memo)
 note as fair
   assume PUT は無限に起きない
 end note
 note as channels
-  channel PUT : k
+  channel PUT : 鍵
 end note
 @enduml

@@ -34,6 +34,9 @@ func TestRelativize(t *testing.T) {
 		"∀ assumes the type of each variable": {
 			Forall: true, Vars: []string{"v_j", "v_k"}, Types: []string{"J", "K"}, Want: "(type_J v_j and type_K v_k) implies (B)",
 		},
+		"any restricts nothing": {
+			Forall: true, Vars: []string{"v_j", "v_k"}, Types: []string{"any", "K"}, Want: "(type_K v_k) implies (B)",
+		},
 		"a type variable of an axiom restricts nothing": {
 			Forall: true, Vars: []string{"v_m"}, Types: []string{obligation.TypeMap}, Want: "B",
 		},

@@ -9,6 +9,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/logic"
 	"github.com/Kuniwak/puml-parallel/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // The identifiers a formula's symbols become in a prover. Each category has a
@@ -182,7 +183,7 @@ func Symbols(types []string, fs ...logic.Tree) ([]Symbol, error) {
 // relativized reports whether a quantifier over typ is restricted to the
 // values of typ. A type variable of an axiom ('map, 'key, 'value) is every
 // value, and so restricts nothing.
-func relativized(typ string) bool { return !strings.HasPrefix(typ, "'") }
+func relativized(typ string) bool { return !strings.HasPrefix(typ, "'") && typ != types.AnyName }
 
 // Notation is how a prover spells the connectives and the binders. Every
 // value is of one type, ValType; a quantifier over a type is relativized to
@@ -417,8 +418,7 @@ func (ir LivelockFree) Formulas() []logic.Tree {
 }
 
 // Symbols are the constants ir reads, the types of its state variables and
-// received fields among them: each is of the type named like it, the
-// convention until they carry types of their own.
+// received fields among them, as the diagram declares them.
 func (ir LivelockFree) Symbols() ([]Symbol, error) {
 	return Symbols(ir.types(), ir.Formulas()...)
 }
@@ -427,10 +427,10 @@ func (ir LivelockFree) Symbols() ([]Symbol, error) {
 func (ir LivelockFree) types() []string {
 	var types []string
 	for _, s := range ir.States {
-		types = append(types, s.Vars...)
+		types = append(types, s.Types...)
 	}
 	for _, e := range ir.Edges {
-		types = append(types, e.Received()...)
+		types = append(types, e.ReceivedTypes()...)
 	}
 	return types
 }
@@ -471,7 +471,7 @@ func InitDisjunct(n Notation, side Side, s State, post logic.Tree, ref func(stri
 	if err != nil {
 		return "", fmt.Errorf("obligationir.InitDisjunct: %w", err)
 	}
-	typed, err := n.Relativize(false, vars, s.Vars, spelled)
+	typed, err := n.Relativize(false, vars, s.Types, spelled)
 	if err != nil {
 		return "", fmt.Errorf("obligationir.InitDisjunct: %w", err)
 	}
@@ -522,13 +522,13 @@ func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref fu
 		for j, f := range fields {
 			received[j] = SpellVar(logic.Var(f))
 		}
-		typed, err := n.Relativize(false, received, fields, step)
+		typed, err := n.Relativize(false, received, e.ReceivedTypes(), step)
 		if err != nil {
 			return "", err
 		}
 		step = n.Exists(received, typed)
 	}
-	typed, err := n.Relativize(false, after, dstState.Vars, step)
+	typed, err := n.Relativize(false, after, dstState.Types, step)
 	if err != nil {
 		return "", err
 	}

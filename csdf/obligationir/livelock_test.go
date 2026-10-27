@@ -105,6 +105,28 @@ func TestFormulaLivelockFreeReadsBackFromJSON(t *testing.T) {
 	}
 }
 
+func TestBuildLivelockFreeCarriesTheDeclaredTypes(t *testing.T) {
+	// Setup
+	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n ; Count\n[*] --> a : @eq(n', 0)\na --> a : put?k ; ; @eq(n', k)\nnote as channels\n  channel put : Count\nend note\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	ir, err := obligationir.BuildLivelockFree(d)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]obligationir.State{{Name: "a", Vars: []string{"n"}, Types: []string{"Count"}}}, ir.States); diff != "" {
+		t.Errorf("States (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]obligationir.Field{{Name: "k", Type: "Count"}}, ir.Edges[0].Fields); diff != "" {
+		t.Errorf("Fields (-want +got):\n%s", diff)
+	}
+}
+
 func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 	valid := func() obligationir.LivelockFree {
 		return obligationir.LivelockFree{
@@ -133,6 +155,12 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 		"a received field named like a variable of the destination": func(ir *obligationir.LivelockFree) {
 			ir.States = append(ir.States, obligationir.State{Name: "b", Vars: []string{"k"}})
 			ir.Edges[0].Dst, ir.Edges[0].Fields = "b", []obligationir.Field{{Name: "k"}}
+		},
+		"a state with fewer types than variables": func(ir *obligationir.LivelockFree) {
+			ir.States[0].Vars = []string{"n"}
+		},
+		"a received field of no type": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}}
 		},
 		"a tau with a field": func(ir *obligationir.LivelockFree) {
 			ir.Edges[0].Channel, ir.Edges[0].Fields = "tau", []obligationir.Field{{Name: "k"}}

@@ -187,7 +187,7 @@ func EdgeSets(n Notation, states map[string]State, e Edge, ev, event string) (en
 	if err != nil {
 		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
 	}
-	typedAfter, err := n.Relativize(false, after, dst.Vars, step)
+	typedAfter, err := n.Relativize(false, after, dst.Types, step)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
 	}
@@ -201,7 +201,7 @@ func EdgeSets(n Notation, states map[string]State, e Edge, ev, event string) (en
 		if len(vars) == 0 {
 			return body, nil
 		}
-		typed, err := n.Relativize(false, vars, received, body)
+		typed, err := n.Relativize(false, vars, e.ReceivedTypes(), body)
 		if err != nil {
 			return "", err
 		}
@@ -235,7 +235,7 @@ func InitSet(n Notation, ir LivelockFree) (body string, vars []string, err error
 	if err != nil {
 		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
 	}
-	body, err = n.Relativize(false, vars, start.Vars, post)
+	body, err = n.Relativize(false, vars, start.Types, post)
 	if err != nil {
 		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
 	}

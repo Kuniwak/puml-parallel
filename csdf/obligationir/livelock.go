@@ -48,7 +48,7 @@ type LivelockFree struct {
 // IRVersion is the version of the encoding of LivelockFree. It changes
 // whenever a field changes meaning, so that an IR stored by another release
 // is refused rather than misread.
-const IRVersion = 2
+const IRVersion = 3
 
 // Validate reports, as an error, what makes ir no obligation of a diagram: an
 // encoding of another version, a state named twice or by no name, a start
@@ -65,6 +65,9 @@ func (ir LivelockFree) Validate() error {
 			return fmt.Errorf("obligationir.Validate: the state %q is named twice or by nothing", s.Name)
 		}
 		states[s.Name] = true
+		if len(s.Types) != len(s.Vars) || slices.Contains(s.Types, "") {
+			return fmt.Errorf("obligationir.Validate: the state %s holds %d variables of %d types, or one of no type", s.Name, len(s.Vars), len(s.Types))
+		}
 	}
 	if !states[ir.Init] {
 		return fmt.Errorf("obligationir.Validate: no start state %q", ir.Init)
@@ -123,6 +126,9 @@ func fieldsBound(e Edge, states map[string]State) error {
 		}
 		received[f] = true
 	}
+	if slices.Contains(e.ReceivedTypes(), "") {
+		return fmt.Errorf("it receives a field of no type")
+	}
 	for _, f := range e.Fields {
 		if f.Send && !bound[f.Name] && !received[f.Name] {
 			return fmt.Errorf("it sends %q, which neither %s holds nor it receives", f.Name, e.Src)
@@ -154,10 +160,14 @@ type Assumption struct {
 	Text string `json:"text"`
 }
 
-// State is a state and the state variables it holds.
+// State is a state and the state variables it holds, with the type the
+// diagram declares of each, at the same position (docs/CLAUSE_DESIGN.md,
+// Types): a quantifier over a variable is relativised to its type, but to
+// none for the type any.
 type State struct {
-	Name string   `json:"name"`
-	Vars []string `json:"vars"`
+	Name  string   `json:"name"`
+	Vars  []string `json:"vars"`
+	Types []string `json:"types"`
 }
 
 // Edge is a step of the diagram: from Src to Dst, on an event of Channel
@@ -178,11 +188,13 @@ type End struct {
 	Guard logic.Tree `json:"guard"`
 }
 
-// Field is a field of an event: received (?Name), which the step chooses, or
-// sent (!Name), a value the step has bound already.
+// Field is a field of an event: received (?Name), which the step chooses,
+// of the type Type its channel declares, or sent (!Name), a value the step
+// has bound already, whose Type is no one's concern and is left empty.
 type Field struct {
 	Send bool   `json:"send"`
 	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
 }
 
 // Tau reports whether e is internal.
@@ -199,10 +211,26 @@ func (e Edge) Received() []string {
 	return names
 }
 
-func fieldsOf(e core.Event) []Field {
+// ReceivedTypes are the types of the fields e receives, in order.
+func (e Edge) ReceivedTypes() []string {
+	ts := []string{}
+	for _, f := range e.Fields {
+		if !f.Send {
+			ts = append(ts, f.Type)
+		}
+	}
+	return ts
+}
+
+// fieldsOf are the fields of e on d, each received one of the type its
+// channel declares.
+func fieldsOf(d *core.Diagram, e core.Event) []Field {
 	fs := make([]Field, len(e.Fields))
 	for i, f := range e.Fields {
 		fs[i] = Field{Send: f.Send, Name: f.Name}
+		if !f.Send {
+			fs[i].Type = obligation.FieldType(*d, e, f.Name)
+		}
 	}
 	return fs
 }
@@ -220,7 +248,7 @@ func BuildLivelockFree(d *core.Diagram) (LivelockFree, error) {
 		if err != nil {
 			return LivelockFree{}, fmt.Errorf("obligationir.BuildLivelockFree: %w", err)
 		}
-		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Channel: e.Event.Channel, Fields: fieldsOf(e.Event), Step: logic.TreeOf(step)})
+		edges = append(edges, Edge{Src: e.Src, Dst: e.Dst, Channel: e.Event.Channel, Fields: fieldsOf(d, e.Event), Step: logic.TreeOf(step)})
 		clauses = append(clauses, e.Guard, e.Post)
 	}
 	ends := make([]End, 0, len(d.Ends))
@@ -234,7 +262,10 @@ func BuildLivelockFree(d *core.Diagram) (LivelockFree, error) {
 	}
 	states := make([]State, len(d.States))
 	for i, s := range d.States {
-		states[i] = State{Name: s, Vars: append([]string{}, d.Vars[s]...)}
+		states[i] = State{Name: s, Vars: append([]string{}, d.Vars[s]...), Types: []string{}}
+		for _, v := range d.Vars[s] {
+			states[i].Types = append(states[i].Types, obligation.VarType(*d, v))
+		}
 	}
 	assumptions := make([]Assumption, 0, len(d.Assumes))
 	for _, a := range d.Assumes {
