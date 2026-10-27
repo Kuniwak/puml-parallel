@@ -14,9 +14,12 @@ import (
 // is how a nondeterministic choice is written, but it is more often a
 // forgotten @eq(v', v).
 //
-// A variable counts as named when its primed name is the root of a term the
-// post reads anywhere: in an atom's hole, in a builtin (@eq, @frame,
-// @update, @at, …), under an ∃. Whether that constrains it is up to the
+// A variable counts as named when its primed name occurs anywhere in a term
+// the post reads (core.UnnamedAfter): in an atom's hole, in a builtin (@eq,
+// @frame, @update, @at, …), as a key or an argument of a function. A
+// self-transition may also be reported by self-transition-post-breaks-guard;
+// the two say different things: this one that the step forgets a value, that
+// one that the guard may not hold again. Whether that constrains it is up to the
 // atom, which is never evaluated here, so naming it is how an author says
 // the choice is intended: an atom such as `${v'} is chosen freely` silences
 // the rule. The start edge is checked as every other edge, against the
@@ -39,8 +42,8 @@ func (r PostLeavesVariableFreeRule) Check(in *Input) []Finding {
 	if free := core.UnnamedAfter(d.InitPost, d.Vars[d.Init]); len(free) > 0 {
 		findings = append(findings, r.finding(in.File, d.InitLine, d.InitPost, free, func(post string) string {
 			return fmt.Sprintf(
-				"The start edge to state `%s` has the post `%s`, which does not name %s, so %s may start as any value of its type. Give it a start value with @eq(v', …) in the post; if any start value is intended, say so with an atom that names it, such as `${%s} is chosen freely`.",
-				d.Init, post, quoted(primed(free), ", "), quoted(free, ", "), free[0]+"'",
+				"The start edge to state `%s` has the post `%s`, which does not name %s, so %s may start as any value of its type. Give it a start value in the post, such as `@eq(%[5]s, …)`; if any start value is intended, say so with an atom that names it, such as `${%[5]s} is chosen freely`.",
+				d.Init, post, quoted(primed(free), ", "), quoted(free, ", "), primed(free)[0],
 			)
 		}))
 	}
@@ -51,8 +54,8 @@ func (r PostLeavesVariableFreeRule) Check(in *Input) []Finding {
 		}
 		findings = append(findings, r.finding(in.File, edge.Line, edge.Post, free, func(post string) string {
 			return fmt.Sprintf(
-				"The edge `%s` -> `%s` on `%s` has the post `%s`, which does not name %s, so after the step %s may be any value of its type. If it should not change, keep it with @eq(v', v) in the post; if the choice is intended, say so with an atom that names it, such as `${%s} is chosen freely`.",
-				edge.Src, edge.Dst, edge.Event.Label(), post, quoted(primed(free), ", "), quoted(free, ", "), free[0]+"'",
+				"The edge `%s` -> `%s` on `%s` has the post `%s`, which does not name %s, so after the step %s may be any value of its type. If it should not change, keep it in the post, such as `@eq(%[7]s, %[8]s)`; if the choice is intended, say so with an atom that names it, such as `${%[7]s} is chosen freely`.",
+				edge.Src, edge.Dst, edge.Event.Label(), post, quoted(primed(free), ", "), quoted(free, ", "), primed(free)[0], free[0],
 			)
 		}))
 	}

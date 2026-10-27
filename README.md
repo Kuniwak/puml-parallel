@@ -296,14 +296,17 @@ or `@frame(v', v)` in the post. An atom reads only its holes, so the guard then
 holds again on the same event. A field of the event or a constant the guard
 reads is not the state's and needs no keeping. An omitted post keeps nothing.
 
-`post-leaves-variable-free` counts a variable as named when `v'` is the root
-of a term the post reads: in a hole of an atom, in `@eq`, `@frame`, `@update`
-or `@at`, as a key or an argument of a function. A post that names no `v'` lets
+`post-leaves-variable-free` counts a variable as named when `v'` occurs
+anywhere in a term the post reads: in a hole of an atom, in `@eq`, `@frame`,
+`@update` or `@at`, as a key or an argument of a function. A post that names no `v'` lets
 `v` take any value of its type, which is how a nondeterministic choice is
 written but is more often a forgotten `@eq(v', v)`. The rule does not evaluate
 atoms, so naming the variable is how to say the choice is intended: an atom
 such as `${v'} is chosen freely` silences it. On the start edge the variables
-are those of the start state, and the finding asks for a start value.
+are those of the start state, and the finding asks for a start value. A
+self-transition may be reported by both this rule and
+`self-transition-post-breaks-guard`: one says the step forgets a value, the
+other that the guard may not hold again.
 
 `csdflint -list-rules` prints every rule with a one-line summary. Lint what a
 person wrote: the expansion of a promotion is one state with many self-loops by

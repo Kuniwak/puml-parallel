@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/lint"
 	"github.com/google/go-cmp/cmp"
 )
@@ -42,10 +44,10 @@ func TestPostLeavesVariableFreeRule(t *testing.T) {
 
 	header := "file\tstart_line\tend_line\trule\tseverity\tmessage\n"
 	edgeFree := func(line, post, primed, plain, first string) string {
-		return "a.puml\t" + line + "\t" + line + "\tpost-leaves-variable-free\tHINT\tThe edge `s0` -> `s1` on `a` has the post `" + post + "`, which does not name " + primed + ", so after the step " + plain + " may be any value of its type. If it should not change, keep it with @eq(v', v) in the post; if the choice is intended, say so with an atom that names it, such as `${" + first + "} is chosen freely`.\n"
+		return "a.puml\t" + line + "\t" + line + "\tpost-leaves-variable-free\tHINT\tThe edge `s0` -> `s1` on `a` has the post `" + post + "`, which does not name " + primed + ", so after the step " + plain + " may be any value of its type. If it should not change, keep it in the post, such as `@eq(" + first + ", " + strings.TrimSuffix(first, "'") + ")`; if the choice is intended, say so with an atom that names it, such as `${" + first + "} is chosen freely`.\n"
 	}
 	startFree := func(line, post string) string {
-		return "a.puml\t" + line + "\t" + line + "\tpost-leaves-variable-free\tHINT\tThe start edge to state `s0` has the post `" + post + "`, which does not name `n'`, so `n` may start as any value of its type. Give it a start value with @eq(v', …) in the post; if any start value is intended, say so with an atom that names it, such as `${n'} is chosen freely`.\n"
+		return "a.puml\t" + line + "\t" + line + "\tpost-leaves-variable-free\tHINT\tThe start edge to state `s0` has the post `" + post + "`, which does not name `n'`, so `n` may start as any value of its type. Give it a start value in the post, such as `@eq(n', …)`; if any start value is intended, say so with an atom that names it, such as `${n'} is chosen freely`.\n"
 	}
 	diagram := func(start string, lines ...string) string {
 		return strings.Join(append(append([]string{
@@ -68,9 +70,9 @@ func TestPostLeavesVariableFreeRule(t *testing.T) {
 			Source:  diagram(started, "s0 --> s1 : a ; ; $m > 0"),
 			WantTSV: header + edgeFree("8", "$m > 0", "`n'`", "`n`", "n'"),
 		},
-		"a self-transition names every variable it leaves free (upper boundary value)": {
+		"a post that names none of several variables names them all (upper boundary value)": {
 			Source:  diagram(started, "s0 --> s0 : a"),
-			WantTSV: header + "a.puml\t8\t8\tpost-leaves-variable-free\tHINT\tThe edge `s0` -> `s0` on `a` has the post ``, which does not name `n'`, `m'`, so after the step `n`, `m` may be any value of its type. If it should not change, keep it with @eq(v', v) in the post; if the choice is intended, say so with an atom that names it, such as `${n'} is chosen freely`.\n",
+			WantTSV: header + "a.puml\t8\t8\tpost-leaves-variable-free\tHINT\tThe edge `s0` -> `s0` on `a` has the post ``, which does not name `n'`, `m'`, so after the step `n`, `m` may be any value of its type. If it should not change, keep it in the post, such as `@eq(n', n)`; if the choice is intended, say so with an atom that names it, such as `${n'} is chosen freely`.\n",
 		},
 		"a start edge without a post leaves the start state's variable free (representative value)": {
 			Source:  diagram(" : @eq(m', 0)"),
@@ -98,7 +100,7 @@ func TestPostLeavesVariableFreeRule(t *testing.T) {
 		},
 		"a frame of another map leaves the map free (upper boundary value)": {
 			Source:  mapDiagram("s0 --> s1 : put?k?v ; ; @frame(o', m, k)"),
-			WantTSV: header + "a.puml\t9\t9\tpost-leaves-variable-free\tHINT\tThe edge `s0` -> `s1` on `put?k?v` has the post `@frame(o', m, k)`, which does not name `m'`, so after the step `m` may be any value of its type. If it should not change, keep it with @eq(v', v) in the post; if the choice is intended, say so with an atom that names it, such as `${m'} is chosen freely`.\n",
+			WantTSV: header + "a.puml\t9\t9\tpost-leaves-variable-free\tHINT\tThe edge `s0` -> `s1` on `put?k?v` has the post `@frame(o', m, k)`, which does not name `m'`, so after the step `m` may be any value of its type. If it should not change, keep it in the post, such as `@eq(m', m)`; if the choice is intended, say so with an atom that names it, such as `${m'} is chosen freely`.\n",
 		},
 		"a target without variables has nothing to leave free (lower boundary value)": {
 			Source:  strings.Join([]string{"@startuml", `state "s0" as s0`, "[*] --> s0", "s0 --> s0 : a", "@enduml", ""}, "\n"),
@@ -126,5 +128,30 @@ func TestPostLeavesVariableFreeRule(t *testing.T) {
 				t.Error(diff)
 			}
 		})
+	}
+}
+
+func TestPostLeavesVariableFreeRuleReportsAPostItCannotPrintAsAnError(t *testing.T) {
+	// Setup: a post with a variable bound by no ∃, which no reader produces
+	// and Print refuses.
+	in := &lint.Input{File: "a.puml", Diagram: &core.Diagram{
+		States: []string{"s0"},
+		Vars:   map[string][]string{"s0": {"n"}},
+		Init:   "s0",
+		InitPost: clause.And{Conjuncts: []clause.Formula{
+			clause.Builtin{Op: clause.OpEq, Args: []clause.Term{clause.Free{Name: "m", Primed: true}, clause.Bound{Index: 0}}},
+		}},
+		InitLine: 3,
+	}}
+
+	// Execute
+	findings := lint.PostLeavesVariableFreeRule{}.Check(in)
+
+	// Assert
+	if len(findings) != 1 || findings[0].Severity != lint.SeverityError || findings[0].StartLine != 3 {
+		t.Fatalf("want one ERROR on line 3, got %+v", findings)
+	}
+	if !strings.Contains(findings[0].Message, "the index 0 is under 0 binders") {
+		t.Errorf("want the reason Print gave, got %q", findings[0].Message)
 	}
 }
