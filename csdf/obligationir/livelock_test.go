@@ -105,11 +105,33 @@ func TestFormulaLivelockFreeReadsBackFromJSON(t *testing.T) {
 	}
 }
 
+func TestBuildLivelockFreeCarriesTheDeclaredTypes(t *testing.T) {
+	// Setup
+	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n ; Count\n[*] --> a : @eq(n', 0)\na --> a : put?k ; ; @eq(n', k)\nnote as channels\n  channel put : Count\nend note\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	ir, err := obligationir.BuildLivelockFree(d)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]obligationir.State{{Name: "a", Vars: []obligationir.Var{{Name: "n", Type: "Count"}}}}, ir.States); diff != "" {
+		t.Errorf("States (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff([]obligationir.Field{{Name: "k", Type: "Count"}}, ir.Edges[0].Fields); diff != "" {
+		t.Errorf("Fields (-want +got):\n%s", diff)
+	}
+}
+
 func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 	valid := func() obligationir.LivelockFree {
 		return obligationir.LivelockFree{
 			Version:  obligationir.IRVersion,
-			States:   []obligationir.State{{Name: "a", Vars: []string{}}},
+			States:   []obligationir.State{{Name: "a", Vars: []obligationir.Var{}}},
 			Init:     "a",
 			InitPost: logic.Tree{Op: logic.OpTrue},
 			Edges:    []obligationir.Edge{{Src: "a", Dst: "a", Channel: "go", Fields: []obligationir.Field{}, Step: logic.Tree{Op: logic.OpTrue}}},
@@ -121,18 +143,24 @@ func TestValidateRefusesAnIROfNoDiagram(t *testing.T) {
 		"an unknown start state":      func(ir *obligationir.LivelockFree) { ir.Init = "b" },
 		"an edge to an unknown state": func(ir *obligationir.LivelockFree) { ir.Edges[0].Dst = "b" },
 		"a field received twice": func(ir *obligationir.LivelockFree) {
-			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}, {Name: "k"}}
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k", Type: "K"}, {Name: "k", Type: "K"}}
 		},
 		"a sent field bound nowhere": func(ir *obligationir.LivelockFree) {
-			ir.Edges[0].Fields = []obligationir.Field{{Send: true, Name: "k"}}
+			ir.Edges[0].Fields = []obligationir.Field{{Send: true, Name: "k", Type: "K"}}
 		},
 		"a received field named like a variable of the source": func(ir *obligationir.LivelockFree) {
-			ir.States[0].Vars = []string{"k"}
-			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}}
+			ir.States[0].Vars = []obligationir.Var{{Name: "k", Type: "K"}}
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k", Type: "K"}}
 		},
 		"a received field named like a variable of the destination": func(ir *obligationir.LivelockFree) {
-			ir.States = append(ir.States, obligationir.State{Name: "b", Vars: []string{"k"}})
-			ir.Edges[0].Dst, ir.Edges[0].Fields = "b", []obligationir.Field{{Name: "k"}}
+			ir.States = append(ir.States, obligationir.State{Name: "b", Vars: []obligationir.Var{{Name: "k", Type: "K"}}})
+			ir.Edges[0].Dst, ir.Edges[0].Fields = "b", []obligationir.Field{{Name: "k", Type: "K"}}
+		},
+		"a variable of no type": func(ir *obligationir.LivelockFree) {
+			ir.States[0].Vars = []obligationir.Var{{Name: "n"}}
+		},
+		"a received field of no type": func(ir *obligationir.LivelockFree) {
+			ir.Edges[0].Fields = []obligationir.Field{{Name: "k"}}
 		},
 		"a tau with a field": func(ir *obligationir.LivelockFree) {
 			ir.Edges[0].Channel, ir.Edges[0].Fields = "tau", []obligationir.Field{{Name: "k"}}

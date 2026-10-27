@@ -106,3 +106,87 @@ func TestPromoteRefusesAChannelOfTwoArities(t *testing.T) {
 		t.Errorf("Promote: got %v, want a refusal of the two arities of OPEN", err)
 	}
 }
+
+func TestPromoteRefusesWhatItCannotType(t *testing.T) {
+	typedFamily := Family{Map: "locations", ID: "loc", Key: types.Named("Loc"), Val: types.Named("Location"), Local: typedLocation(t)}
+	untypedLocal := typedFamily
+	untypedLocal.Local = location(t)
+	noKey := typedFamily
+	noKey.Key = types.Type{}
+	tests := map[string]struct {
+		p    Promotion
+		want string
+	}{
+		"a family whose IDs have no type": {Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{noKey}},
+			"the family of locations: its IDs or its instances have no type"},
+		"a local channel with fields no note declares": {Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{untypedLocal}},
+			"DEPART: the local DEPART carries q, but declares no type of it"},
+		"a controller variable with no type": {Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{typedFamily}, Vars: map[string][]string{"G": {"count"}}},
+			"the controller variable count has no type"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, _, err := Promote(tt.p)
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("Promote: got %v, want an error containing %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestPromoteBindsTheInstanceOfAnInternalEventByTheTypeOfItsIDs(t *testing.T) {
+	// Setup
+	local := &Diagram{States: []string{"none", "a", "b"}, Init: "none", Edges: []Edge{
+		{Src: "none", Dst: "a", Event: ev("NEW")}, {Src: "a", Dst: "b", Event: ev(Tau)}}}
+	p := Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{{Map: "lamps", ID: "l", Key: types.Named("LampID"), Val: types.Named("Lamp"), Local: local}}}
+
+	// Execute
+	d, _, err := Promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range d.Edges {
+		if e.Event.Channel == Tau {
+			if got := printed(t, e.Guard); !strings.HasPrefix(got, "@exists(l : LampID)") {
+				t.Errorf("the guard of the τ is %s, want it to bind l of the type LampID", got)
+			}
+		}
+	}
+}
+
+func TestHideRefusesAFieldOfAnUndeclaredChannel(t *testing.T) {
+	// Setup
+	d := oneState(t, "c", nil, "", loop(t, "c", ev("put", recv("v")), "$v = 0", ""))
+	d.Channels = nil
+
+	// Execute
+	_, err := Hide(d, []string{"put"})
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "put carries v, but declares no type of it") {
+		t.Errorf("Hide: got %v, want a refusal of the undeclared field", err)
+	}
+}
+
+func TestMapTypeRangesTheFieldsOverTheirDeclaredTypes(t *testing.T) {
+	// Setup: stock is of the type N, which the environment gives; no type
+	// is named like it.
+	f := Family{Map: "locations", ID: "loc", Key: types.Named("Loc"), Val: types.Named("Location"), Local: typedLocation(t)}
+	env := Env{Types: map[string][]Value{"N": {0, 1}}}
+
+	// Execute
+	got, err := MapType(f, []Value{"a"}, env)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 { // absent, or open with a stock of 0 or 1
+		t.Errorf("MapType gives %d maps, want 3: %v", len(got), got)
+	}
+}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 func mustParse(t *testing.T, text string) clause.And {
@@ -22,6 +23,8 @@ func counter(t *testing.T) (*Diagram, Env) {
 	d := &Diagram{
 		States:   []string{"s"},
 		Vars:     map[string][]string{"s": {"x"}},
+		Types:    map[string]types.Type{"x": types.Named("N")},
+		Channels: map[string][]types.Type{"inc": {types.Named("N")}},
 		Init:     "s",
 		InitPost: mustParse(t, "$x' = 0"),
 		Edges: []Edge{
@@ -32,7 +35,7 @@ func counter(t *testing.T) (*Diagram, Env) {
 		},
 	}
 	env := Env{
-		Types: map[string][]Value{"x": {0, 1}},
+		Types: map[string][]Value{"N": {0, 1}},
 		Atoms: map[string]func([]Value) bool{
 			"#0 = 0":      func(a []Value) bool { return a[0] == 0 },
 			"#0 < 1":      func(a []Value) bool { return a[0].(int) < 1 },
@@ -69,11 +72,14 @@ func TestExpandRefusesANameWithoutAType(t *testing.T) {
 	}{
 		"a state variable": {d: &Diagram{
 			States: []string{"s"}, Vars: map[string][]string{"s": {"y"}}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
-		}, want: "no type y"},
+		}, want: "s: the variable y has no type"},
+		"a state variable of a type the environment does not give": {d: &Diagram{
+			States: []string{"s"}, Vars: map[string][]string{"s": {"y"}}, Types: map[string]types.Type{"y": types.Named("Y")}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
+		}, want: "no type Y"},
 		"a received field": {d: &Diagram{
 			States: []string{"s"}, Init: "s",
 			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "put", Fields: []Field{{Name: "y"}}}}},
-		}, want: "no type y"},
+		}, want: "put carries y, but declares no type of it"},
 		"a variable bound by ∃": {d: &Diagram{
 			States: []string{"s"}, Init: "s",
 			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "go"}, Guard: mustParse(t, "@exists(v : Y) (@eq(v, v))")}},

@@ -11,7 +11,7 @@ datatype val = ValInt int
   | ValRecord val "(string \<times> val) list"
   | ValMap "(val \<times> val) list"
 
-datatype st = St_s val (* s (m) *)
+datatype st = St_s val val (* s (m, memo) *)
 
 (* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* $_0 は古い *)
@@ -22,12 +22,8 @@ consts atom__u24u__0_u20u_u306fu_u53e4u_u3044u :: "val \<Rightarrow> bool"
 consts type__u9375u :: "val \<Rightarrow> bool"
 
 (* TODO(csdf): not formalised; this predicate is uninterpreted. *)
-(* k *)
-consts type_k :: "val \<Rightarrow> bool"
-
-(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
-(* m *)
-consts type_m :: "val \<Rightarrow> bool"
+(* 鍵 ⇸ 値 *)
+consts type__u9375u_u20u_u21f8u_u20u_u5024u :: "val \<Rightarrow> bool"
 
 (* Values are countable, so ordered by their numbers: a linear order of the
    library's, which the keys of a map are sorted in. *)
@@ -132,17 +128,17 @@ lemma csdf_lemma_2: "\<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n
 consts assume_fair :: "bool"
 
 definition init :: "st \<Rightarrow> bool"
-  where "init s' \<equiv> \<exists>(v_m_u27u::val). s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (csdf_empty v_m_u27u)"
+  where "init s' \<equiv> \<exists>(v_m_u27u::val) (v_memo_u27u::val). s' = St_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> (csdf_empty v_m_u27u \<and> v_memo_u27u = (ValInt 0))"
 
 definition step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (\<exists>(v_k::val). type_k v_k \<and> csdf_wf v_k \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u))) \<or> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
+  where "step s s' \<equiv> (\<exists>(v_m::val) (v_memo::val) (v_m_u27u::val) (v_memo_u27u::val). s = St_s v_m v_memo \<and> s' = St_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> (\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u \<and> v_memo_u27u = v_memo))) \<or> (\<exists>(v_m::val) (v_memo::val) (v_m_u27u::val) (v_memo_u27u::val). s = St_s v_m v_memo \<and> s' = St_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m \<and> v_memo_u27u = v_memo))"
 
 inductive reachable :: "st \<Rightarrow> bool"
   where base: "init s \<Longrightarrow> reachable s"
   | step: "reachable s \<Longrightarrow> step s s' \<Longrightarrow> reachable s'"
 
 definition tau_step :: "st \<Rightarrow> st \<Rightarrow> bool"
-  where "tau_step s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_s v_m \<and> s' = St_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
+  where "tau_step s s' \<equiv> (\<exists>(v_m::val) (v_memo::val) (v_m_u27u::val) (v_memo_u27u::val). s = St_s v_m v_memo \<and> s' = St_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m \<and> v_memo_u27u = v_memo))"
 
 theorem livelock_free:
   assumes "assume_fair"

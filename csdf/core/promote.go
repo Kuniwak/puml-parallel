@@ -118,6 +118,9 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	var start []clause.Formula
 	var warnings []Warning
 	for _, f := range p.Families {
+		if f.Key.IsZero() || f.Val.IsZero() {
+			return nil, nil, fmt.Errorf("core.Promote: the family of %s: its IDs or its instances have no type", f.Map)
+		}
 		if err := f.Local.wellFormed(); err != nil {
 			return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 		}
@@ -137,6 +140,13 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	}
 	if err := controllerVars(p, maps); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
+	}
+	for _, mode := range p.Modes {
+		for _, v := range p.Vars[mode] {
+			if _, ok := p.Types[v]; !ok {
+				return nil, nil, fmt.Errorf("core.Promote: the controller variable %s has no type", v)
+			}
+		}
 	}
 	for _, mode := range p.Modes {
 		out.Vars[mode] = append(slices.Clone(maps), p.Vars[mode]...)
@@ -205,14 +215,11 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 
 // promotedTypes are the types of the variables of the global diagram of p:
 // each map of the type its family gives it, Key ⇸ Val, and the
-// controller's own variables of the types p declares; nil when p declares
+// controller's own variables of the types p declares; nil when there is
 // none.
 func promotedTypes(p Promotion) map[string]types.Type {
 	out := maps.Clone(p.Types)
 	for _, f := range p.Families {
-		if f.Key.IsZero() || f.Val.IsZero() {
-			continue
-		}
 		if out == nil {
 			out = map[string]types.Type{}
 		}
@@ -248,31 +255,47 @@ func (ch channelTypes) add(c string, ts []types.Type, names []string) error {
 	return nil
 }
 
+// fieldType is the type of the field name of the generated event on
+// channel: an ID's, as ids gives it, or the one the local channels of moves
+// that name it declare alike.
+func fieldType(name, channel string, ids map[string]types.Type, moves []move) (types.Type, error) {
+	if t, ok := ids[name]; ok {
+		return t, nil
+	}
+	var t types.Type
+	for _, m := range moves {
+		for i, g := range m.e.Event.Fields {
+			if g.Name != name {
+				continue
+			}
+			u, err := m.f.Local.FieldType(m.e.Event, i)
+			if err != nil {
+				return types.Type{}, fmt.Errorf("%s: the local %w", channel, err)
+			}
+			if !t.IsZero() && !t.Equal(u) {
+				return types.Type{}, fmt.Errorf("the field %s of %s is of the type %s and of the type %s", name, channel, t, u)
+			}
+			t = u
+		}
+	}
+	if t.IsZero() {
+		return types.Type{}, fmt.Errorf("%s: the field %s has no type", channel, name)
+	}
+	return t, nil
+}
+
 // declareEvent declares the channel of the generated event e, whose
 // fields are the IDs ids of the types of their families' keys, then the
-// fields of the local events of moves; it declares nothing when a type is
-// not known, as when a family's key or a local channel is undeclared, and
-// refuses a field that two moves give two types.
+// fields of the local events of moves, of the types their local channels
+// declare; a field that no local channel types, or that two moves give two
+// types, is refused.
 func (ch channelTypes) declareEvent(e Event, ids map[string]types.Type, moves []move) error {
 	var ts []types.Type
 	var names []string
 	for _, f := range e.Fields {
-		t, ok := ids[f.Name]
-		if !ok {
-			for _, m := range moves {
-				decl, declared := m.f.Local.Channels[m.e.Event.Channel]
-				i := slices.IndexFunc(m.e.Event.Fields, func(g Field) bool { return g.Name == f.Name })
-				if i < 0 || !declared || i >= len(decl) {
-					continue
-				}
-				if ok && !t.Equal(decl[i]) {
-					return fmt.Errorf("the field %s of %s is of the type %s and of the type %s", f.Name, e.Channel, t, decl[i])
-				}
-				t, ok = decl[i], true
-			}
-		}
-		if !ok || t.IsZero() {
-			return nil
+		t, err := fieldType(f.Name, e.Channel, ids, moves)
+		if err != nil {
+			return err
 		}
 		ts, names = append(ts, t), append(names, f.Name)
 	}
@@ -648,11 +671,11 @@ func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, erro
 		// An internal event has no argument: the instance is any that can
 		// take it (docs/PROMOTION.md). The post binds its own instance, one
 		// the guard holds of: ∃id. (g ∧ p), as Hide does.
-		g, err := Bind(guard, f.ID, f.ID)
+		g, err := Bind(guard, f.ID, f.Key.String())
 		if err != nil {
 			return Edge{}, err
 		}
-		q, err := Bind(Conj(guard, post), f.ID, f.ID)
+		q, err := Bind(Conj(guard, post), f.ID, f.Key.String())
 		if err != nil {
 			return Edge{}, err
 		}
@@ -844,8 +867,8 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 		}
 	}
 	var guards, posts []clause.Formula
-	var bound []clause.Free // the intermediate maps, with the map each stands for
-	var boundMap []string
+	var bound []clause.Free // the intermediate maps, with the type of the map each stands for
+	var boundType []string
 	for _, f := range p.Families {
 		var mine []move
 		for _, m := range moves {
@@ -863,7 +886,7 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 			if k < len(mine)-1 {
 				v := clause.Free{Name: clause.Fresh(avoid, f.Map)}
 				avoid[v.Name] = true
-				bound, boundMap = append(bound, v), append(boundMap, f.Map)
+				bound, boundType = append(bound, v), append(boundType, types.MapOf(f.Key, f.Val).String())
 				after = v
 			}
 			g, q, err := moved(f, m, before, after)
@@ -878,7 +901,7 @@ func step(p Promotion, moves []move, ids map[string]bool) (clause.And, clause.An
 	for i := len(bound) - 1; i >= 0; i-- {
 		// An intermediate map ranges over the type of the map it stands
 		// for.
-		e, err := clause.Close(post, bound[i], boundMap[i])
+		e, err := clause.Close(post, bound[i], boundType[i])
 		if err != nil {
 			return clause.And{}, clause.And{}, err
 		}
@@ -932,8 +955,8 @@ func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 
 // MapType is the type of the map of f over the IDs ids: every partial map
 // from them to an instance at a state of f's local diagram other than its
-// start state, which is absence, its variables at values of their types in
-// env.
+// start state, which is absence, its variables at values of the types the
+// local diagram declares, as env gives them.
 func MapType(f Family, ids []Value, env Env) ([]Value, error) {
 	var recs []Value
 	for _, state := range f.Local.States {
@@ -942,7 +965,11 @@ func MapType(f Family, ids []Value, env Env) ([]Value, error) {
 		}
 		fields := []map[string]Value{{}}
 		for _, v := range f.Local.Vars[state] {
-			vals, err := env.values(v)
+			t, err := f.Local.VarType(v)
+			if err != nil {
+				return nil, fmt.Errorf("core.MapType: %s, at %s: %w", f.Map, state, err)
+			}
+			vals, err := env.values(t.String())
 			if err != nil {
 				return nil, fmt.Errorf("core.MapType: %s: %w", f.Map, err)
 			}

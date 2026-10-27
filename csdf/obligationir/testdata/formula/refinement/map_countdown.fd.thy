@@ -42,12 +42,8 @@ consts atom__u24u__0_u20u_u3eu_u20u0 :: "val \<Rightarrow> bool"
 consts type__u9375u :: "val \<Rightarrow> bool"
 
 (* TODO(csdf): not formalised; this predicate is uninterpreted. *)
-(* k *)
-consts type_k :: "val \<Rightarrow> bool"
-
-(* TODO(csdf): not formalised; this predicate is uninterpreted. *)
-(* m *)
-consts type_m :: "val \<Rightarrow> bool"
+(* 鍵 ⇸ 値 *)
+consts type__u9375u_u20u_u21f8u_u20u_u5024u :: "val \<Rightarrow> bool"
 
 (* TODO(csdf): not formalised; this predicate is uninterpreted. *)
 (* n *)
@@ -155,16 +151,16 @@ lemma csdf_lemma_2: "\<forall>(v_n::val) (v_m::val) (v_k1::val). csdf_frame1 v_n
 (* PUT は無限に起きない *)
 consts assume_fair_S :: "bool"
 
-datatype PN = S_s val (* s (m) *)
+datatype PN = S_s val val (* s (m, memo) *)
   | I_a val (* a (n) *)
 
 primrec
   procfun :: "(PN, event) pnfun"
 where
-  "procfun (S_s v_m) =
-     (? ev:{ev. \<exists>(v_k::val). type_k v_k \<and> csdf_wf v_k \<and> (ev = Alphabet (Ev_PUT v_k) \<and> (\<exists>(v_m_u27u::val). type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u)))} -> (!<(\<lambda>v_m_u27u. Internal [v_m_u27u])> v_m_u27u:{v_m_u27u. \<exists>(v_k::val). type_k v_k \<and> csdf_wf v_k \<and> (ev = Alphabet (Ev_PUT v_k) \<and> (type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u)))} .. $(S_s v_m_u27u)))
+  "procfun (S_s v_m v_memo) =
+     (? ev:{ev. \<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (ev = Alphabet (Ev_PUT v_k) \<and> (\<exists>(v_m_u27u::val) (v_memo_u27u::val). type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u \<and> v_memo_u27u = v_memo)))} -> (!<(\<lambda>(v_m_u27u, v_memo_u27u). Internal [v_m_u27u, v_memo_u27u])> (v_m_u27u, v_memo_u27u):{(v_m_u27u, v_memo_u27u). \<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (ev = Alphabet (Ev_PUT v_k) \<and> (type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u \<and> v_memo_u27u = v_memo)))} .. $(S_s v_m_u27u v_memo_u27u)))
      [+]
-     (? ev:{ev. ev = Alphabet HTau \<and> (\<exists>(v_m_u27u::val). type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))} -> (!<(\<lambda>v_m_u27u. Internal [v_m_u27u])> v_m_u27u:{v_m_u27u. ev = Alphabet HTau \<and> (type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))} .. $(S_s v_m_u27u)))"
+     (? ev:{ev. ev = Alphabet HTau \<and> (\<exists>(v_m_u27u::val) (v_memo_u27u::val). type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m \<and> v_memo_u27u = v_memo))} -> (!<(\<lambda>(v_m_u27u, v_memo_u27u). Internal [v_m_u27u, v_memo_u27u])> (v_m_u27u, v_memo_u27u):{(v_m_u27u, v_memo_u27u). ev = Alphabet HTau \<and> (type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m \<and> v_memo_u27u = v_memo))} .. $(S_s v_m_u27u v_memo_u27u)))"
 | "procfun (I_a v_n) =
      (? ev:{ev. ev = Alphabet HTau \<and> (\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> csdf_wf v_n_u27u \<and> (atom__u24u__0_u20u_u3eu_u20u0 v_n \<and> atom__u24u__0_u20u_u3du_u20u_u24u__1_u20u_u2du_u20u1 v_n_u27u v_n))} -> (!<(\<lambda>v_n_u27u. Internal [v_n_u27u])> v_n_u27u:{v_n_u27u. ev = Alphabet HTau \<and> (type_n v_n_u27u \<and> csdf_wf v_n_u27u \<and> (atom__u24u__0_u20u_u3eu_u20u0 v_n \<and> atom__u24u__0_u20u_u3du_u20u_u24u__1_u20u_u2du_u20u1 v_n_u27u v_n))} .. $(I_a v_n_u27u)))"
 
@@ -175,25 +171,25 @@ end
 declare Set_procfun_def [simp]
 
 definition SpecProc :: "(PN, event) proc"
-  where "SpecProc \<equiv> (!<(\<lambda>v_m_u27u. Internal [v_m_u27u])> v_m_u27u:{v_m_u27u. type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (csdf_empty v_m_u27u)} .. $(S_s v_m_u27u)) -- {Alphabet HTau}"
+  where "SpecProc \<equiv> (!<(\<lambda>(v_m_u27u, v_memo_u27u). Internal [v_m_u27u, v_memo_u27u])> (v_m_u27u, v_memo_u27u):{(v_m_u27u, v_memo_u27u). type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> (csdf_empty v_m_u27u \<and> v_memo_u27u = (ValInt 0))} .. $(S_s v_m_u27u v_memo_u27u)) -- {Alphabet HTau}"
 
 definition ImplProc :: "(PN, event) proc"
   where "ImplProc \<equiv> (!<(\<lambda>v_n_u27u. Internal [v_n_u27u])> v_n_u27u:{v_n_u27u. type_n v_n_u27u \<and> csdf_wf v_n_u27u \<and> (atom__u24u__0_u20u_u3du_u20u10 v_n_u27u)} .. $(I_a v_n_u27u)) -- {Alphabet HTau}"
 
-datatype st_S = St_S_s val (* s (m) *)
+datatype st_S = St_S_s val val (* s (m, memo) *)
 
 definition init_S :: "st_S \<Rightarrow> bool"
-  where "init_S s' \<equiv> \<exists>(v_m_u27u::val). s' = St_S_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (csdf_empty v_m_u27u)"
+  where "init_S s' \<equiv> \<exists>(v_m_u27u::val) (v_memo_u27u::val). s' = St_S_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> (csdf_empty v_m_u27u \<and> v_memo_u27u = (ValInt 0))"
 
 definition step_S :: "st_S \<Rightarrow> st_S \<Rightarrow> bool"
-  where "step_S s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_S_s v_m \<and> s' = St_S_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (\<exists>(v_k::val). type_k v_k \<and> csdf_wf v_k \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u))) \<or> (\<exists>(v_m::val) (v_m_u27u::val). s = St_S_s v_m \<and> s' = St_S_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
+  where "step_S s s' \<equiv> (\<exists>(v_m::val) (v_memo::val) (v_m_u27u::val) (v_memo_u27u::val). s = St_S_s v_m v_memo \<and> s' = St_S_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> (\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> ((\<not> csdf_in v_k v_m) \<and> csdf_frame1 v_m_u27u v_m v_k \<and> csdf_in v_k v_m_u27u \<and> v_memo_u27u = v_memo))) \<or> (\<exists>(v_m::val) (v_memo::val) (v_m_u27u::val) (v_memo_u27u::val). s = St_S_s v_m v_memo \<and> s' = St_S_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m \<and> v_memo_u27u = v_memo))"
 
 inductive reachable_S :: "st_S \<Rightarrow> bool"
   where base: "init_S s \<Longrightarrow> reachable_S s"
   | step: "reachable_S s \<Longrightarrow> step_S s s' \<Longrightarrow> reachable_S s'"
 
 definition tau_step_S :: "st_S \<Rightarrow> st_S \<Rightarrow> bool"
-  where "tau_step_S s s' \<equiv> (\<exists>(v_m::val) (v_m_u27u::val). s = St_S_s v_m \<and> s' = St_S_s v_m_u27u \<and> type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m))"
+  where "tau_step_S s s' \<equiv> (\<exists>(v_m::val) (v_memo::val) (v_m_u27u::val) (v_memo_u27u::val). s = St_S_s v_m v_memo \<and> s' = St_S_s v_m_u27u v_memo_u27u \<and> type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> ((\<exists>(v_k::val). type__u9375u v_k \<and> csdf_wf v_k \<and> (csdf_in v_k v_m \<and> atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) \<and> v_m_u27u = v_m \<and> v_memo_u27u = v_memo))"
 
 theorem livelock_free_S:
   assumes "assume_fair_S"
@@ -203,7 +199,7 @@ theorem livelock_free_S:
 (* Spec admits an initial valuation, so it does not denote DIV, which
    diverges on the empty trace and, as the Impl, would make the refinement
    vacuous. Stated under no hypothesis: it must not rest on an assumption. *)
-theorem initialisable_S: "\<exists>(v_m_u27u::val). type_m v_m_u27u \<and> csdf_wf v_m_u27u \<and> (csdf_empty v_m_u27u)"
+theorem initialisable_S: "\<exists>(v_m_u27u::val) (v_memo_u27u::val). type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u \<and> csdf_wf v_m_u27u \<and> csdf_wf v_memo_u27u \<and> (csdf_empty v_m_u27u \<and> v_memo_u27u = (ValInt 0))"
   oops
 
 datatype st_I = St_I_a val (* a (n) *)

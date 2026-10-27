@@ -11,9 +11,9 @@ import (
 // TestTheValuesOfAPathAreOfTheTypesNamedLikeThem holds the quantifiers of a
 // report to the convention of obligation.Enabled: a value is of the type named
 // like its variable or field.
-func TestTheValuesOfAPathAreOfTheTypesNamedLikeThem(t *testing.T) {
+func TestTheValuesOfAPathAreOfTheirDeclaredTypes(t *testing.T) {
 	// Setup
-	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $n + $k\nnote as channels\n  channel in : k\nend note\n@enduml\n")
+	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n ; Count\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $n + $k\nnote as channels\n  channel in : Step\nend note\n@enduml\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestTheValuesOfAPathAreOfTheTypesNamedLikeThem(t *testing.T) {
 	if diff := cmp.Diff([]logic.Var{"n@0", "n@1", "k#1"}, tree.Vars); diff != "" {
 		t.Error(diff)
 	}
-	if diff := cmp.Diff([]string{"n", "n", "k"}, tree.Types); diff != "" {
+	if diff := cmp.Diff([]string{"Count", "Count", "Step"}, tree.Types); diff != "" {
 		t.Error(diff)
 	}
 }

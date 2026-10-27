@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
-// promoted is Promote(p), failing t on an error.
+// promoted is promote(p), failing t on an error.
 func promoted(t *testing.T, p Promotion) *Diagram {
 	t.Helper()
-	d, _, err := Promote(p)
+	d, _, err := promote(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +26,7 @@ func TestEachOperationCarriesTheLocalStatesOfTheFamilies(t *testing.T) {
 	}{
 		"Promote writes the local states of each family": {
 			do: func(t *testing.T) (*Diagram, error) {
-				d, _, err := Promote(Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{
+				d, _, err := promote(Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{
 					{Map: "locations", ID: "loc", Local: location(t)}, {Map: "doors", ID: "d", Local: door()},
 				}})
 				return d, err
@@ -76,7 +77,8 @@ func TestEachOperationCarriesTheLocalStatesOfTheFamilies(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if diff := cmp.Diff(tt.want, d.Families); diff != "" {
+			// The types of a family are another test's (types_promote_test.go).
+			if diff := cmp.Diff(tt.want, d.Families, cmpopts.IgnoreFields(FamilyStates{}, "KeyType", "Types")); diff != "" {
 				t.Errorf("Families (-want +got):\n%s", diff)
 			}
 			if err := d.familiesWellFormed(); err != nil {

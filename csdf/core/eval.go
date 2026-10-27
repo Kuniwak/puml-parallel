@@ -7,22 +7,27 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // Env is what a diagram takes from outside to be expanded: the values of
-// each type (a variable bound by ∃ ranges over the type it carries; a state
-// variable or a field, until they carry types, over the type of the same
-// name), the meaning
-// of each atom, keyed by AtomKey, and the environment functions.
+// each type by its text (types.Type.String; a variable bound by ∃ ranges over
+// the type it carries, a state variable or a field over the type the
+// diagram declares of it), the meaning of each atom, keyed by AtomKey, and
+// the environment functions.
 type Env struct {
 	Types map[string][]Value
 	Atoms map[string]func(args []Value) bool
 	Funcs map[string]func(args []Value) Value
 }
 
-// values are the values of the type typ; a type the environment does not
-// give is an error, never an empty type.
+// values are the values of the type written typ; a type the environment
+// does not give is an error, never an empty type, and so is any, whose
+// values are not known (docs/CLAUSE_DESIGN.md, Types).
 func (env Env) values(typ string) ([]Value, error) {
+	if typ == types.AnyName {
+		return nil, fmt.Errorf("core: the type any has no values to range over; a clause gives the value, or the variable is declared of a type the environment gives")
+	}
 	vals, ok := env.Types[typ]
 	if !ok {
 		return nil, fmt.Errorf("core: no type %s in the environment", typ)

@@ -151,7 +151,7 @@ func writeStates(w io.Writer, side obligationir.Side, ss []obligationir.State) {
 	io.WriteString(w, "inductive "+side.Qualify("St")+" where\n")
 	for _, s := range ss {
 		io.WriteString(w, "  | "+side.Ctor(csdf.StateID(s.Name)))
-		for _, v := range s.Vars {
+		for _, v := range s.Names() {
 			io.WriteString(w, " ("+obligationir.VarName(v)+" : Val)")
 		}
 		if obligationir.IsMangled(s.Name) || len(s.Vars) > 0 {
