@@ -57,8 +57,9 @@ Checker options (the checker's --help lists them in full):
   --all                list every finding instead of one per shape with a count
   --json               print the result as JSON
 
-The checks module defines TYPES (a type -> its finite values) and, when
-wanted, TYPEOF (a name -> its type), ENVIRONMENT (declares the atoms that
+The checks module defines TYPES (a type the diagram declares -> its finite
+values; TYPEOF is refused, the diagram declaring every type) and, when
+wanted, ENVIRONMENT (declares the atoms that
 are functions of the environment, each named by its atom's text with its
 holes as $_0, $_1, ... -> True, False, a pure
 function of its arguments in order, or None to leave it to --env),

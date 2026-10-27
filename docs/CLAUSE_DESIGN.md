@@ -20,8 +20,9 @@ syntax.
   them the pure functions that atoms without a glue denote (see P15, P16).
   An environment function is written `envfn` below. The environment
   replaced the separate `DOMAINS` csdfbmc read: its checks module declares
-  `TYPES`, `TYPEOF` and `ENVIRONMENT`, and `--env` gives the
-  rest (README, bounded model checking).
+  `TYPES`, the values of the types the diagram declares, and `ENVIRONMENT`,
+  and `--env` gives the rest (README, bounded model checking); `TYPEOF`,
+  which typed a name by another name, is refused.
 - A **type** is declared by the diagram, never taken from a name
   (docs/SYNTAX.md): each state variable has one type in a diagram, written
   on its state lines (`s : v ; T`); each field of an event has the type its

@@ -154,15 +154,20 @@ class FamilyKeyTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(keyed, "m" in sym.maps)
 
-    def test_refuses_a_family_whose_key_has_no_type(self):
+    def test_a_family_map_is_keyed_by_the_declared_type_of_its_ids_not_by_the_name_of_its_id(self):
         from csdfbmc.symmetry import Symmetry
-        # Setup
-        d = fixture.load(fixture.diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")],
-                                         families=[fixture.family("m", "none", {"none": [], "open": []}, key="x")]))
+        tests = {"IDs of a symmetric type, named apart from it": ("k", True), "IDs of any, which is no symmetric type": ("any", False)}
+        for name, (key_type, keyed) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = fixture.load(fixture.diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], types={"m": key_type + " ⇸ M"},
+                                                 families=[fixture.family("m", "none", {"none": [], "open": []}, key="x", key_type=key_type)]))
 
-        # Execute / Assert
-        with self.assertRaisesRegex(ValueError, "^give 'x' a type in TYPES or TYPEOF"):
-            Symmetry(d, checks(types={"k": ["a", "b", "c"]}), fixture.glue(), environment.over({}, {}))
+                # Execute
+                sym = Symmetry(d, checks(types={"k": ["a", "b", "c"]}), fixture.glue(), environment.over({}, {}))
+
+                # Assert
+                self.assertEqual(keyed, "m" in sym.maps)
 
 
 class SameFindingsTest(unittest.TestCase):

@@ -9,9 +9,9 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from csdfbmc.checks import Checks, apply
+from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
-from csdfbmc.formula import Evaluator, Missing, solve
+from csdfbmc.formula import Evaluator, Missing, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
@@ -215,7 +215,7 @@ class Explorer:
         self.d = diagram
         self.checks = checks
         self.environment = environment
-        self.meaning = AtomMeaning(client, environment, checks.domain)
+        self.meaning = AtomMeaning(client, environment, checks.carrier)
         self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given))
         self.max_states = max_states
         self.avoid = avoid
@@ -229,6 +229,7 @@ class Explorer:
         self.ample = ample
         self.canonical = canonical
         self._check_fields()
+        self._check_exists()
         self._check_literals()
         self._check_environment()
 
@@ -248,19 +249,31 @@ class Explorer:
                 if n not in bound:
                     raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
 
+    def _check_exists(self) -> None:
+        """Refuses an ∃ over the type any, whose values the walk would have
+        to enumerate (docs/CLAUSE_DESIGN.md, Types)."""
+        clauses = [("the start edge", self.d.start_post)] + [(e.describe(), c) for e in self.d.edges for c in (e.guard, e.post)]
+        clauses += [(f"the end edge from {x.src}", x.guard) for x in self.d.ends]
+        for where, clause in clauses:
+            for _, types in conjuncts(clause):
+                if ANY in types:
+                    raise PostError(f"{where}: an ∃ ranges over the type any, which constrains nothing and has no values "
+                                    "to range over; bind it over a type TYPES gives")
+
     def _check_literals(self) -> None:
         """Refuses @eq or @ne of a literal and a variable whose type cannot
-        hold it: a state variable or a field, of the type TYPEOF gives it,
-        or a variable an ∃ binds, of its type, when the type lists every
-        value it has and the literal is none of them. Such a comparison is
-        a slip - 1.0 for 1, "1" for 1 - that would make the clause constant
-        unnoticed. A type that is a sample may hold the literal beyond it,
-        and a type TYPES does not declare is refused where it is needed."""
-        clauses = [("the start edge", self.d.start_post)]
-        clauses += [(e.describe(), c) for e in self.d.edges for c in (e.guard, e.post)]
-        clauses += [(f"the end edge from {x.src}", x.guard) for x in self.d.ends]
+        hold it: a state variable or a field, of the type the diagram
+        declares of it, or a variable an ∃ binds, of its type, when the type
+        lists every value it has and the literal is none of them. Such a
+        comparison is a slip - 1.0 for 1, "1" for 1 - that would make the
+        clause constant unnoticed. A type that is a sample may hold the
+        literal beyond it, any holds every value, and a type TYPES does not
+        declare is refused where it is needed."""
+        clauses = [("the start edge", self.d.start_post, {})]
+        clauses += [(e.describe(), c, {n: self.d.field_type(e, n) for _, n in e.fields}) for e in self.d.edges for c in (e.guard, e.post)]
+        clauses += [(f"the end edge from {x.src}", x.guard, {}) for x in self.d.ends]
         samples = self.checks.samples
-        for where, clause in clauses:
+        for where, clause, fields in clauses:
             for c, types in conjuncts(clause):
                 if not isinstance(c, Builtin) or c.op not in ("eq", "ne") or len(c.args) != 2:
                     continue
@@ -268,7 +281,8 @@ class Explorer:
                     if not isinstance(lit, Lit):
                         continue
                     if isinstance(other, Free):
-                        name, t = other.name + ("'" if other.primed else ""), self.checks.type_of(other.name)
+                        typed = self.d.types if other.primed or other.name not in fields else fields
+                        name, t = other.name + ("'" if other.primed else ""), typed.get(other.name)
                     elif isinstance(other, Bound):
                         name, t = "the variable an ∃ binds", types[len(types) - 1 - other.index]
                     else:
@@ -328,7 +342,7 @@ class Explorer:
     def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
         names = self.d.vars[dst]
         out: dict = {}
-        for a in solve(self.ev, post, names, before, self.checks.domain, where, self.d.families):
+        for a in solve(self.ev, post, names, before, self.d.types, where, self.d.families):
             v = tuple(LEFT_OUT if n in self.left_out else freeze(a[n]) for n in names)
             out.setdefault(kind_key(v), v)
         return list(out.values())
@@ -363,10 +377,19 @@ class Explorer:
                     except Missing:
                         pass  # the guard reads an entry its map does not have: false
                 else:
-                    grown.extend(dict(params, **{p: v}) for v in self.checks.domain(p))
+                    grown.extend(dict(params, **{p: v}) for v in self._field_values(e, p))
             alive = grown
             known.add(p)
         return alive
+
+    def _field_values(self, e: Edge, p: str) -> list:
+        """The values the field p of e ranges over: those of the type its
+        channel declares of it."""
+        t = self.d.field_type(e, p)
+        try:
+            return self.checks.carrier(t)
+        except KeyError as err:
+            raise PostError(f"{e.describe()}: nothing determines the field {p}, so it ranges over its type {t}: {err.args[0]}") from None
 
     def _label(self, e: Edge, before: dict) -> str:
         """The event as taken: each field, in the event's order, with the

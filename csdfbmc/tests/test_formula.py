@@ -4,6 +4,7 @@ import itertools
 import unittest
 
 from csdfbmc import environment
+from csdfbmc.checks import Checks
 from csdfbmc.formula import Evaluator, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Family, formula_of
@@ -24,12 +25,23 @@ TYPES["w"] = [FrozenMap({k: v for k, v in zip(("a", "b"), entries) if v is not N
                                                [Rec("open", FrozenMap(bal=b, p=q)) for b in TYPES["bal"] for q in TYPES["p"]], repeat=2)]
 # The families of the maps: what an instance in each may be. An instance of
 # m is dear only in a refusal, fee having no type.
-FAMILIES = {"m": Family("none", ("none", "open", "closed", "dear"), FrozenMap({"none": (), "open": ("bal",), "closed": ("bal",), "dear": ("fee",)}), "k"),
-            "w": Family("none", ("none", "open", "shut"), FrozenMap({"none": (), "open": ("bal", "p"), "shut": ()}), "k")}
+FAMILIES = {"m": Family("none", ("none", "open", "closed", "dear"), FrozenMap({"none": (), "open": ("bal",), "closed": ("bal",), "dear": ("fee",)}), "k",
+                        "k", FrozenMap({"bal": "bal", "fee": "fee"})),
+            "w": Family("none", ("none", "open", "shut"), FrozenMap({"none": (), "open": ("bal", "p"), "shut": ()}), "k",
+                        "k", FrozenMap({"bal": "bal", "p": "p"}))}
+CARRIER = Checks(types=TYPES).carrier
+
+
+class ByName(dict):
+    """The types of the variables of the tests: each of the type named like
+    it."""
+
+    def __missing__(self, name):
+        return name
 
 
 def evaluator(env=environment.NONE, given=None):
-    return Evaluator(AtomMeaning(fixture.glue(), env, lambda n: TYPES[n]), lambda t: TYPES[t], apply_given(given or {}))
+    return Evaluator(AtomMeaning(fixture.glue(), env, CARRIER), CARRIER, apply_given(given or {}))
 
 
 def inst(state, **fields):
@@ -97,7 +109,7 @@ class GuardTest(unittest.TestCase):
 
 class SolveTest(unittest.TestCase):
     def solve(self, post, names, before, env=environment.NONE):
-        return solve(evaluator(env), formula_of(post), tuple(names), before, lambda n: TYPES[n], "the edge", FAMILIES)
+        return solve(evaluator(env), formula_of(post), tuple(names), before, ByName(), "the edge", FAMILIES)
 
     def test_the_values_after_the_step_come_from_what_determines_them(self):
         tests = {
@@ -146,12 +158,12 @@ class SolveTest(unittest.TestCase):
 
     def test_what_it_cannot_enumerate_is_refused(self):
         tests = {
-            "a variable nothing determines, of no type": ([], ["q"], {}, "q has none in TYPES"),
+            "a variable nothing determines, of no type": ([], ["q"], {}, "q', so it ranges over its type q: no type 'q' in TYPES"),
             "a field nothing determines, of no type": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="dear"),
                                                         builtin("ne", fld(idx("m'", "k"), "fee"), "x")], ["m"], {"m": M, "k": "b", "x": 0},
-                                                       "m'\\['b'\\].fee, .* fee has none in TYPES"),
+                                                       "m'\\['b'\\].fee, so it ranges over its type fee: no type 'fee' in TYPES"),
             "a field the post does not mention, of no type": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="dear")],
-                                                              ["m"], {"m": M, "k": "b"}, "m'\\['b'\\].fee, .* fee has none in TYPES"),
+                                                              ["m"], {"m": M, "k": "b"}, "m'\\['b'\\].fee, so it ranges over its type fee: no type 'fee' in TYPES"),
             "a field not of the state": ([builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state="closed"),
                                           eq(fld(idx("m'", "k"), "fee"), "x")], ["m"], {"m": M, "k": "b", "x": 0},
                                          "m'\\['b'\\].fee, but an instance at closed holds only bal"),
@@ -234,7 +246,7 @@ class SolveIsTheMeaningTest(unittest.TestCase):
                         if ev.holds(clause, before, dict(zip(names, vs)))]
 
                 # Execute
-                got = solve(ev, clause, names, before, lambda n: TYPES[n], "the edge", FAMILIES)
+                got = solve(ev, clause, names, before, ByName(), "the edge", FAMILIES)
 
                 # Assert
                 self.assertTrue(_same(want, got), f"want {want}, got {got}")
@@ -286,7 +298,7 @@ class SolveIsTheMeaningTest(unittest.TestCase):
                 want = [{"m": m} for m in TYPES["m"] if ev.holds(clause, before, {"m": m})]
 
                 # Execute
-                got = solve(ev, clause, ("m",), before, lambda n: TYPES[n], "the edge", FAMILIES)
+                got = solve(ev, clause, ("m",), before, ByName(), "the edge", FAMILIES)
 
                 # Assert
                 self.assertTrue(_same(want, got), f"want {want}, got {got}")
@@ -312,7 +324,7 @@ class SolveIsTheMeaningTest(unittest.TestCase):
                 want = [{"w": w} for w in TYPES["w"] if ev.holds(clause, before, {"w": w})]
 
                 # Execute
-                got = solve(ev, clause, ("w",), before, lambda n: TYPES[n], "the edge", FAMILIES)
+                got = solve(ev, clause, ("w",), before, ByName(), "the edge", FAMILIES)
 
                 # Assert
                 self.assertTrue(_same(want, got), f"want {want}, got {got}")

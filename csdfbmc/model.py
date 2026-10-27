@@ -451,6 +451,28 @@ class Diagram:
         with open(path, encoding="utf-8") as f:
             return cls.from_json(json.load(f))
 
+    def field_type(self, e: Edge, name: str) -> str:
+        """The type e's channel declares of its field name, by its position."""
+        for i, (_, n) in enumerate(e.fields):
+            if n == name:
+                return self.channels[e.name][i]
+        raise KeyError(f"{e.describe()} has no field {name!r}")
+
+    def name_types(self) -> dict[str, set[str]]:
+        """Every name of a variable or a field, of the diagram or of an
+        instance of a family, with the types it is declared of: one for a
+        variable, and one per position a field of that name takes."""
+        out: dict[str, set[str]] = {}
+        for name, t in self.types.items():
+            out.setdefault(name, set()).add(t)
+        for e in self.edges:
+            for _, n in e.fields:
+                out.setdefault(n, set()).add(self.field_type(e, n))
+        for fam in self.families.values():
+            for name, t in fam.types.items():
+                out.setdefault(name, set()).add(t)
+        return out
+
     def out_edges(self, sid: str) -> list[Edge]:
         return [e for e in self.edges if e.src == sid]
 

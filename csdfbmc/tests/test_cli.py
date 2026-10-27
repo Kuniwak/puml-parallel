@@ -255,7 +255,7 @@ class ReportTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(2, code)
-        self.assertIn("q has none in TYPES", err)
+        self.assertIn("q', so it ranges over its type q: no type 'q' in TYPES", err)
 
 
 class SampleReportTest(unittest.TestCase):
