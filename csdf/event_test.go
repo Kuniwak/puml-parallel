@@ -44,12 +44,16 @@ func TestParseEventRefusesTextOutsideTheGrammar(t *testing.T) {
 }
 
 func TestParseEventRefusesARepeatedFieldName(t *testing.T) {
-	// Execute
-	_, err := ParseEvent("c?x!x")
+	for _, text := range []string{"c?x!x", "c?x?x", "c!x!x", " c ? x ! x "} {
+		t.Run(text, func(t *testing.T) {
+			// Execute
+			_, err := ParseEvent(text)
 
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "c?x!x repeats the field x") {
-		t.Errorf("ParseEvent(c?x!x) error = %v, want the field x refused as repeated", err)
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), strings.ReplaceAll(text, " ", "")+" repeats the field x") {
+				t.Errorf("ParseEvent(%q) error = %v, want the field x refused as repeated", text, err)
+			}
+		})
 	}
 }
 

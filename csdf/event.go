@@ -79,7 +79,7 @@ func splitEvent(text string) (string, []Field, error) {
 	if err != nil {
 		return "", nil, fmt.Errorf("csdf.ParseEvent: %w", err)
 	}
-	if err := core.FieldsDistinct(strings.TrimSpace(text), parts); err != nil {
+	if err := core.FieldsDistinct(core.Event{Channel: channel, Fields: coreFields(parts)}.Label(), parts); err != nil {
 		return "", nil, fmt.Errorf("csdf.ParseEvent: %w", err)
 	}
 	fields := make([]Field, len(parts))
@@ -91,4 +91,12 @@ func splitEvent(text string) (string, []Field, error) {
 		fields[i] = Field{Dir: dir, Name: p.Name}
 	}
 	return channel, fields, nil
+}
+
+func coreFields(parts []core.EventField) []core.Field {
+	fields := make([]core.Field, len(parts))
+	for i, p := range parts {
+		fields[i] = core.Field{Send: p.Send, Name: p.Name}
+	}
+	return fields
 }

@@ -48,6 +48,9 @@ func DeclareType(ts map[string]types.Type, v string, t types.Type) error {
 func (e Edge) typed(d *Diagram) error {
 	name := fmt.Sprintf("%s --> %s : %s", e.Src, e.Dst, e.Event.Label())
 	decl, ok := d.Channels[e.Event.Channel]
+	if err := e.Event.fieldsDistinct(); err != nil {
+		return fmt.Errorf("%s --> %s: %w", e.Src, e.Dst, err)
+	}
 	switch {
 	case e.Event.Channel == Tau:
 		return nil
@@ -60,7 +63,7 @@ func (e Edge) typed(d *Diagram) error {
 	}
 	for i, f := range e.Event.Fields {
 		// A sent field is a state variable of the source: no other field of
-		// the event bears its name (FieldsDistinct), and NamesBound refuses
+		// the event bears its name (fieldsDistinct, above), and NamesBound refuses
 		// any other name.
 		if !f.Send || !slices.Contains(d.Vars[e.Src], f.Name) {
 			continue

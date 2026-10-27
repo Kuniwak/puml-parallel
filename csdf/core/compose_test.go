@@ -2,6 +2,7 @@ package core
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -215,17 +216,32 @@ func TestComposeCarriesTheAssumeNotesOfBoth(t *testing.T) {
 	}
 }
 
-func TestComposeRefusesFieldsThatWouldMeetUnderOneName(t *testing.T) {
-	// Setup: synchronising c?x!y with c!y?x names both fields of the
-	// composite y, so the composite would repeat it.
-	l := &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {}}, Init: "s0", Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "y"}}}}}}
+func TestComposeRefusesByCaptureFieldsThatWouldMeetUnderOneName(t *testing.T) {
+	// Setup: synchronising c?x!y with c!y?x would name both fields of the
+	// composite y; renaming x to y is refused as capturing y.
+	l := &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"y"}}, Init: "s0", Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "y"}}}}}}
 	r := &Diagram{States: []string{"t0"}, Vars: map[string][]string{"t0": {}}, Init: "t0", Edges: []Edge{{Src: "t0", Dst: "t0", Event: Event{Channel: "c", Fields: []Field{{Send: true, Name: "y"}, {Name: "x"}}}}}}
 
 	// Execute
 	_, err := Compose(l, r, []string{"c"})
 
 	// Assert
-	if err == nil {
-		t.Fatal("Compose error = nil, want the composite's repeated field y refused")
+	if err == nil || !strings.Contains(err.Error(), "renaming x to y would capture y") {
+		t.Fatalf("Compose error = %v, want the renaming of x to y refused as capturing y", err)
+	}
+}
+
+func TestTypesDeclaredRefusesAnEventThatRepeatsAFieldName(t *testing.T) {
+	// Setup: a diagram no well-formedness check has read, as a promotion builds.
+	d := &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {}}, Init: "s0",
+		Channels: map[string][]types.Type{"c": {types.Named("Bit"), types.Named("Bit")}},
+		Edges:    []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "x"}}}}}}
+
+	// Execute
+	err := TypesDeclared(d)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "c?x!x repeats the field x") {
+		t.Fatalf("TypesDeclared error = %v, want c?x!x refused for repeating x", err)
 	}
 }
