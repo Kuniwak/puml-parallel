@@ -862,9 +862,17 @@ and the post, and ranges over the type the `∃` names.
 
 The checks module is Python too, checked against the same subset before it is
 imported. `TYPES` maps a type to the finite set of its values (its carrier
-set), and a name ranges over the type of its own name; `TYPEOF` maps a name
-to another type, so that `相手ID` can range over `口座ID`
-(`TYPEOF = {"相手ID": "口座ID"}`). `csdfbmc.values.record(field=domain, …)`
+set): a state variable ranges over the type its state lines declare
+(`s : 相手 ; 利用者ID`), a received field over the type its channel note
+declares at its position (`channel 依頼 : 利用者ID`), an instance's field over
+the type its local diagram declares, and a map type is looked up by its
+text (`TYPES = {"利用者ID ⇸ 件数": …}`). The type `any` has no values: a
+value of it is walked where a clause gives it (`@eq(memo', 0)`), and the
+walk is refused, exit 2, where it would have to enumerate one (a variable
+the post leaves free, a received field, a value the environment chooses).
+`TYPEOF`, which typed a name by another name before the diagram declared
+types, is refused with what to write instead, and so is a type of `TYPES`
+named `any`. `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
 keys. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
@@ -1079,10 +1087,10 @@ the checks module's source naming an ID as a constant (a literal listing
 all of a group, as a type does, names none), ordering one, or sorting, or
 taking the min or max of, one or a map keyed by them. The builtins and `∃`
 never tell IDs apart. What may hold an ID is read from the types and the
-builtins: a family's map is keyed by IDs exactly when its `key` (the promote
-directive's ID parameter, in the diagram JSON) has a symmetric type, a key
-with no type is refused (give it one in `TYPES` or `TYPEOF`), and a
-map of no such family when a term that may hold an ID indexes it; an atom's output is the glue's, so a state in which a variable,
+builtins: a family's map is keyed by IDs exactly when the type of its IDs
+(`key_type` in the diagram JSON, the `<Key>` of its promote title) is
+symmetric, and a map of no such family when a term that may hold an ID
+indexes it; a value of the type `any` is never renamed; an atom's output is the glue's, so a state in which a variable,
 a field or a ghost holds an ID where none was foreseen is refused during
 the walk: csdfbmc exits 2 and reports no finding, not even those met
 before. Whether the walk meets such a state depends on how far it goes, so

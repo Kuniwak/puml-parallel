@@ -13,7 +13,7 @@ import (
 // and -env on flags, filling in checker. -env is csdfbmc's --env: a REPL
 // given it walks the environment csdfbmc walks with it. It has no default.
 func DeclareCheckerOptions(flags *flag.FlagSet, checker *bmc.Checker) {
-	flags.StringVar(&checker.Checks, "checks", "", "csdfbmc checks module (TYPES, TYPEOF, GHOSTS, INVARIANTS); with a glue, the value prompt suggests the values the clauses admit")
+	flags.StringVar(&checker.Checks, "checks", "", "csdfbmc checks module (TYPES, GHOSTS, INVARIANTS); with a glue, the value prompt suggests the values the clauses admit")
 	flags.StringVar(&checker.Evaluator, "evaluator", "", "with -checks, the command line of the glue csdfbmc reads the clauses through")
 	flags.StringVar(&checker.EvaluatorModule, "evaluator-module", "", "with -checks, the Python module (and its arguments) of the glue csdfbmc reads the clauses through, such as csdfbmc.python_glue")
 	flags.Func("env", "with -checks, give the function of the environment NAME the value true or false, as csdfbmc --env NAME=true|false does (repeatable)", func(word string) error {
