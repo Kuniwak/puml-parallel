@@ -68,6 +68,23 @@ end note
 @enduml
 `,
 		},
+		"a diagram whose clauses an author bound with @exists (printed back as written)": {
+			Args: []string{},
+			Stdin: `@startuml
+state "s0" as s0
+s0 : n ; N
+[*] --> s0 : @exists(x : N) (@eq(n', x))
+s0 --> s0 : pick ; @exists(y : N) (@ne(n, y)) ; @exists(y : N) (@exists(z : N) (@eq(n', y) ∧ @ne(y, z)))
+@enduml
+`,
+			Want: `@startuml
+state "s0" as s0
+s0 : n ; N
+[*] --> s0 : @exists(x : N) (@eq(n', x))
+s0 --> s0 : pick ; @exists(y : N) (@ne(n, y)) ; @exists(y : N) (@exists(z : N) (@eq(n', y) ∧ @ne(y, z)))
+@enduml
+`,
+		},
 		"-v (representative value)": {
 			Args: []string{"-v"},
 			Want: version.Version + "\n",

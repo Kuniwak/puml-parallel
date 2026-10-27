@@ -175,15 +175,32 @@ func TestParseReadsExists(t *testing.T) {
 	}
 }
 
-func TestParseAuthoredRefusesExists(t *testing.T) {
+func TestParseAuthoredReadsAnExistsAnAuthorWrote(t *testing.T) {
 	// Setup
-	text := "$x > 0 ∧ @exists(v : T) (@eq(v, x))"
+	text := "@exists(x : T) (@eq(n', x))"
+	want := and(Exists{Hint: "x", Type: "T", Body: and(Builtin{Op: OpEq, Args: []Term{post("n"), Bound{Index: 0}}})})
+
+	// Execute
+	got, err := ParseAuthored(text)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("ParseAuthored(%q) mismatch (-want +got):\n%s", text, diff)
+	}
+}
+
+func TestParseAuthoredRefusesABinderThatShadowsAnEnclosingOne(t *testing.T) {
+	// Setup
+	text := "@exists(x : T) (@exists(x : U) (@eq(n', x)))"
 
 	// Execute
 	_, err := ParseAuthored(text)
 
 	// Assert
-	assertErrorContains(t, err, "@exists is written by tools only")
+	assertErrorContains(t, err, "x is bound by an enclosing @exists; give it another name")
 }
 
 func TestParseRefuses(t *testing.T) {

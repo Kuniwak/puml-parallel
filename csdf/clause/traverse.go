@@ -128,3 +128,50 @@ func PrimedNames(f Formula) []string {
 	}
 	return names
 }
+
+// BinderHints are the hints of the ∃s of f, outermost first, each once: the
+// names an author gave the variables f binds.
+func BinderHints(f Formula) []string {
+	var hints []string
+	var walk func(Formula)
+	walk = func(f Formula) {
+		switch f := f.(type) {
+		case And:
+			for _, c := range f.Conjuncts {
+				walk(c)
+			}
+		case Exists:
+			if !slices.Contains(hints, f.Hint) {
+				hints = append(hints, f.Hint)
+			}
+			walk(f.Body)
+		}
+	}
+	walk(f)
+	return hints
+}
+
+// FunctionNames are the names of the environment functions f applies, in
+// order of appearance, each once.
+func FunctionNames(f Formula) []string {
+	var names []string
+	var term func(Term)
+	term = func(t Term) {
+		switch t := t.(type) {
+		case Index:
+			term(t.Map)
+			term(t.Key)
+		case Field:
+			term(t.Of)
+		case App:
+			if !slices.Contains(names, t.Fn) {
+				names = append(names, t.Fn)
+			}
+			for _, a := range t.Args {
+				term(a)
+			}
+		}
+	}
+	EachTerm(f, term)
+	return names
+}

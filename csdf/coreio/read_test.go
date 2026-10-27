@@ -134,19 +134,123 @@ end note
 	}
 }
 
+func TestReadAuthoredReadsAnExistsAnAuthorWrote(t *testing.T) {
+	// Setup
+	source := `@startuml
+state "s" as s
+s : n ; N
+[*] --> s : @exists(x : N) (@eq(n', x))
+s --> s : a ; ; @exists(y : N) (@eq(n', y))
+@enduml
+`
+	want := mustParse(t, "@exists(y : N) (@eq(n', y))")
+
+	// Execute
+	got, err := ReadAuthored(source)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(want, got.Edges[0].Post, sameClauses); diff != "" {
+		t.Errorf("ReadAuthored post (-want +got):\n%s", diff)
+	}
+}
+
 func TestReadAuthoredRefuses(t *testing.T) {
 	cases := []struct {
 		name, source, want string
 	}{
 		{
-			name: "a clause holding ∃, which only tools write",
+			name: "an ∃ binding a state variable of the source",
 			source: `@startuml
 state "s" as s
-[*] --> s
-s --> s : a ; @exists(y : Y) ($y が大きい)
+s : n ; N
+state "t" as t
+t : m ; N
+[*] --> s : @eq(n', 0)
+s --> t : a ; ; @exists(n : N) (@eq(m', n))
 @enduml
 `,
-			want: "written by tools only",
+			want: "@exists binds n, which is a state variable of s; give it another name",
+		},
+		{
+			name: "an ∃ binding a state variable of the target",
+			source: `@startuml
+state "s" as s
+s : n ; N
+state "t" as t
+t : m ; N
+[*] --> s : @eq(n', 0)
+s --> t : a ; ; @exists(m : N) (@eq(n, m))
+@enduml
+`,
+			want: "@exists binds m, which is a state variable of t; give it another name",
+		},
+		{
+			name: "an ∃ binding a field of the event",
+			source: `@startuml
+state "s" as s
+s : n ; N
+state "t" as t
+t : m ; N
+[*] --> s : @eq(n', 0)
+s --> t : c?k ; ; @exists(k : N) (@eq(m', k))
+note as channels
+  channel c : N
+end note
+@enduml
+`,
+			want: "@exists binds k, which is a field of the event; give it another name",
+		},
+		{
+			name: "an ∃ binding an environment function",
+			source: `@startuml
+state "s" as s
+s : n ; N
+state "t" as t
+t : m ; N
+[*] --> s : @eq(n', 0)
+s --> t : a ; ; @exists(f : N) (@eq(m', f(n)))
+@enduml
+`,
+			want: "@exists binds f, which is an environment function; give it another name",
+		},
+		{
+			name: "an ∃ binding a state variable on the start edge",
+			source: `@startuml
+state "s" as s
+s : n ; N
+[*] --> s : @exists(n : N) (@eq(n, 0))
+@enduml
+`,
+			want: "@exists binds n, which is a state variable of s; give it another name",
+		},
+		{
+			name: "an ∃ binding a reserved word",
+			source: `@startuml
+state "s" as s
+s : n ; N
+state "t" as t
+t : m ; N
+[*] --> s : @eq(n', 0)
+s --> t : a ; ; @exists(true : N) (@eq(m', 0))
+@enduml
+`,
+			want: "true is a reserved word",
+		},
+		{
+			name: "an ∃ shadowing an enclosing one",
+			source: `@startuml
+state "s" as s
+s : n ; N
+state "t" as t
+t : m ; N
+[*] --> s : @eq(n', 0)
+s --> t : a ; ; @exists(x : N) (@exists(x : N) (@eq(m', x)))
+@enduml
+`,
+			want: "x is bound by an enclosing @exists",
 		},
 		{
 			name: "a tool word of the old vocabulary",

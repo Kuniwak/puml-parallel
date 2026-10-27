@@ -367,6 +367,72 @@ func (sc scope) check(what string, c clause.And) error {
 	return nil
 }
 
+// BindersApart reports, as an error, an ∃ of a clause of d that binds a
+// name the clause could otherwise read (docs/CLAUSE_DESIGN.md, Binding): a
+// state variable of the source or the target, a field of the event, or an
+// environment function a clause of d applies. Such an ∃ is no error of the
+// meaning, its variable being an index, but an author who writes it reads
+// one name as two things. Tools bind with hints only, chosen apart when a
+// clause is printed, so only an authored diagram is held to this.
+func (d *Diagram) BindersApart() error {
+	var fns []string
+	for _, c := range d.clauses() {
+		fns = append(fns, clause.FunctionNames(c)...)
+	}
+	start := scope{dst: "of " + d.Init, after: d.Vars[d.Init]}
+	if err := start.apart(d.InitPost, fns); err != nil {
+		return fmt.Errorf("line %d: the start edge: %w", d.InitLine, err)
+	}
+	for _, e := range d.Edges {
+		sc := scope{src: "of " + e.Src, before: d.Vars[e.Src], dst: "of " + e.Dst, after: d.Vars[e.Dst]}
+		for _, f := range e.Event.Fields {
+			sc.fields = append(sc.fields, f.Name)
+		}
+		for _, c := range []clause.And{e.Guard, e.Post} {
+			if err := sc.apart(c, fns); err != nil {
+				return fmt.Errorf("line %d: %s --> %s : %s: %w", e.Line, e.Src, e.Dst, e.Event.Channel, err)
+			}
+		}
+	}
+	for _, e := range d.Ends {
+		sc := scope{src: "of " + e.Src, before: d.Vars[e.Src]}
+		if err := sc.apart(e.Guard, fns); err != nil {
+			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return nil
+}
+
+// apart is BindersApart of the clause c, fns the environment functions of
+// the diagram.
+func (sc scope) apart(c clause.And, fns []string) error {
+	return BindersApartFrom(c, func(h string) string {
+		switch {
+		case slices.Contains(sc.before, h):
+			return "a state variable " + sc.src
+		case slices.Contains(sc.after, h):
+			return "a state variable " + sc.dst
+		case slices.Contains(sc.fields, h):
+			return "a field of the event"
+		case slices.Contains(fns, h):
+			return "an environment function"
+		}
+		return ""
+	})
+}
+
+// BindersApartFrom reports, as an error, an ∃ of c binding a name that
+// taken says what it is of, by a phrase such as "a field of the event";
+// taken gives "" for a name that is free to bind.
+func BindersApartFrom(c clause.And, taken func(name string) string) error {
+	for _, h := range clause.BinderHints(c) {
+		if what := taken(h); what != "" {
+			return fmt.Errorf("@exists binds %s, which is %s; give it another name", h, what)
+		}
+	}
+	return nil
+}
+
 // atsWellFormed reports, as an error, an @at of an entry of a family's map
 // at a state that is none of the family's, or at its start state, which is
 // absence (said with @notin).
