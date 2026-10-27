@@ -295,7 +295,7 @@ class Edge:
     @property
     def params(self) -> tuple[str, ...]:
         """The received fields, c?x: values the environment offers."""
-        return tuple(dict.fromkeys(n for d, n in self.fields if d == RECEIVED))
+        return tuple(n for d, n in self.fields if d == RECEIVED)
 
     @property
     def sent(self) -> tuple[str, ...]:
@@ -456,16 +456,17 @@ class Diagram:
             return cls.from_json(json.load(f))
 
     def field_type(self, e: Edge, name: str) -> str:
-        """The type e's channel declares of its field name, by its position."""
-        for i, (_, n) in enumerate(e.fields):
-            if n == name:
-                return self.channels[e.name][i]
-        raise KeyError(f"{e.describe()} has no field {name!r}")
+        """The type e's channel declares of its field name, by its position;
+        an event names each field once (from_json)."""
+        names = [n for _, n in e.fields]
+        if name not in names:
+            raise KeyError(f"{e.describe()} has no field {name!r}")
+        return self.channels[e.name][names.index(name)]
 
     def name_types(self) -> dict[str, set[str]]:
         """Every name of a variable or a field, of the diagram or of an
         instance of a family, with the types it is declared of: one for a
-        variable, and one per position a field of that name takes."""
+        variable, and one per edge whose event names a field so."""
         out: dict[str, set[str]] = {}
         for name, t in self.types.items():
             out.setdefault(name, set()).add(t)

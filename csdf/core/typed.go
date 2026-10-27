@@ -59,19 +59,13 @@ func (e Edge) typed(d *Diagram) error {
 		return fmt.Errorf("%s has %d fields, but the channel %s is declared with %d", name, len(e.Event.Fields), e.Event.Channel, len(decl))
 	}
 	for i, f := range e.Event.Fields {
-		var t types.Type
-		switch {
-		case !f.Send:
+		// A sent field is a state variable of the source: no other field of
+		// the event bears its name (FieldsDistinct), and NamesBound refuses
+		// any other name.
+		if !f.Send || !slices.Contains(d.Vars[e.Src], f.Name) {
 			continue
-		case slices.Contains(d.Vars[e.Src], f.Name):
-			t = d.Types[f.Name]
-		default:
-			j := slices.IndexFunc(e.Event.Fields, func(g Field) bool { return !g.Send && g.Name == f.Name })
-			if j < 0 {
-				continue // NamesBound refuses it
-			}
-			t = decl[j]
 		}
+		t := d.Types[f.Name]
 		if !decl[i].IsAny() && !t.Equal(decl[i]) {
 			return fmt.Errorf("%s sends %s, of the type %s, on a field of the type %s", name, f.Name, t, decl[i])
 		}
