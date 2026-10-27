@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // The denotation of a promotion is written by hand below, independently of
@@ -201,11 +202,12 @@ func stock(t *testing.T, families ...Family) Env {
 func envWith(t *testing.T, env Env, families ...Family) Env {
 	t.Helper()
 	for _, f := range families {
+		f = familyByName(f)
 		m, err := MapType(f, env.Types[f.ID], env)
 		if err != nil {
 			t.Fatal(err)
 		}
-		env.Types[f.Map] = m
+		env.Types[types.MapOf(f.Key, f.Val).String()] = m
 	}
 	return env
 }
@@ -321,7 +323,7 @@ func TestPromoteRefuses(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			_, _, err := Promote(c.p)
+			_, _, err := promote(c.p)
 
 			// Assert
 			assertErrorContains(t, err, c.want)
@@ -357,7 +359,7 @@ func TestPromoteWarnsOfAPostItDrops(t *testing.T) {
 			p := promotion(Family{Map: "doors", ID: "d", Local: c.local(t)})
 
 			// Execute
-			_, got, err := Promote(p)
+			_, got, err := promote(p)
 
 			// Assert
 			if err != nil {
@@ -381,7 +383,7 @@ func TestPromoteAcceptsAGlobalStartPostSayingEveryMapIsEmpty(t *testing.T) {
 	p.InitPost = mustParse(t, "@empty(doors')")
 
 	// Execute
-	got, warnings, err := Promote(p)
+	got, warnings, err := promote(p)
 
 	// Assert
 	if err != nil {
@@ -401,7 +403,7 @@ func TestPromoteReportsAFrozenFamilyAsInfo(t *testing.T) {
 		Families: []Family{{Map: "doors", ID: "loc", Local: door(), Frozen: []string{"maint"}}}}
 
 	// Execute
-	_, got, err := Promote(p)
+	_, got, err := promote(p)
 
 	// Assert
 	if err != nil {
@@ -423,7 +425,7 @@ func TestPromoteComparesAHandWrittenChannelWithTheGlobalOnes(t *testing.T) {
 		Edges: []Edge{{Src: "G", Dst: "H", Event: ev("DEPART")}}}
 
 	// Execute
-	_, _, err := Promote(p)
+	_, _, err := promote(p)
 
 	// Assert
 	if err != nil {
@@ -452,7 +454,7 @@ func TestPromoteWritesAGeneratedEdgeOnlyInTheModesItsFamiliesMoveIn(t *testing.T
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			d, _, err := Promote(c.p)
+			d, _, err := promote(c.p)
 
 			// Assert
 			if err != nil {
@@ -480,7 +482,7 @@ func TestPromoteLeavesAHandWrittenEdgeToItsOwnGuard(t *testing.T) {
 		Edges:      []Edge{{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: halt}}}
 
 	// Execute
-	d, _, err := Promote(p)
+	d, _, err := promote(p)
 
 	// Assert
 	if err != nil {
@@ -501,7 +503,7 @@ func TestPromoteCarriesTheAssumptions(t *testing.T) {
 	p.Assumes = []Assumption{{ID: "fair", Text: "every door is eventually shut"}}
 
 	// Execute
-	got, _, err := Promote(p)
+	got, _, err := promote(p)
 
 	// Assert
 	if err != nil {
@@ -518,7 +520,7 @@ func TestPromoteCarriesTheLabelsOfTheModes(t *testing.T) {
 	p.Labels = map[string]string{"G": "稼働中"}
 
 	// Execute
-	got, _, err := Promote(p)
+	got, _, err := promote(p)
 
 	// Assert
 	if err != nil {
@@ -567,7 +569,7 @@ func TestMapTypeIsEveryPartialMap(t *testing.T) {
 	env := Env{Types: map[string][]Value{"bit": {0, 1}}}
 
 	// Execute
-	got, err := MapType(f, []Value{"x"}, env)
+	got, err := MapType(familyByName(f), []Value{"x"}, env)
 
 	// Assert
 	if err != nil {
@@ -1062,7 +1064,7 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 			env, want := c.env(t), c.want(t)
 
 			// Execute
-			promoted, _, err := Promote(c.p)
+			promoted, _, err := promote(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}

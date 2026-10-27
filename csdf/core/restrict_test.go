@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // plainDoor: NEW creates it shut, and GONE deletes it.
@@ -94,7 +95,7 @@ func TestRestrictKeepsTheKeptFamiliesWithTheOthersAsTheEnvironment(t *testing.T)
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			full, _, err := Promote(c.p)
+			full, _, err := promote(c.p)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -141,7 +142,7 @@ func TestRestrictKeepsTheKeptFamiliesWithTheOthersAsTheEnvironment(t *testing.T)
 
 func TestRestrictRefuses(t *testing.T) {
 	promoted := func(t *testing.T, p Promotion) *Diagram {
-		d, _, err := Promote(p)
+		d, _, err := promote(p)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +157,7 @@ func TestRestrictRefuses(t *testing.T) {
 		k := key()
 		k.Edges = append(k.Edges, Edge{Src: "held", Dst: "held", Event: ev("PING")})
 		return promoted(t, Promotion{Modes: []string{"G"}, Init: "G",
-			Families: []Family{{Map: "doors", ID: "loc", Local: d}, {Map: "keys", ID: "s", Local: k}}})
+			Families: []Family{{Map: "doors", ID: "loc", Key: types.Named("ID"), Local: d}, {Map: "keys", ID: "s", Key: types.Named("ID"), Local: k}}})
 	}
 	// handWritten is a diagram of the modes G and H whose one edge moves
 	// only doors, as post says, from G to dst.
@@ -197,7 +198,7 @@ func TestRestrictRefuses(t *testing.T) {
 
 func TestRestrictReportsEveryClauseItDrops(t *testing.T) {
 	// Setup
-	full, _, err := Promote(fitting(plainDoor()))
+	full, _, err := promote(fitting(plainDoor()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +232,7 @@ func TestRestrictKeepsTheControllerVariables(t *testing.T) {
 		{Src: "run", Dst: "maint", Event: ev("HALT"), Guard: mustParse(t, "$halted = 0 ∧ $halted と $doors"), Post: mustParse(t, "$halted' = 1")},
 		{Src: "maint", Dst: "run", Event: ev("RESUME")},
 	}
-	full, _, err := Promote(p)
+	full, _, err := promote(p)
 	if err != nil {
 		t.Fatal(err)
 	}

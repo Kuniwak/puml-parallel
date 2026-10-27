@@ -48,7 +48,7 @@ func TestRestrictSaysWhatItsResultMeansAsANote(t *testing.T) {
 func TestPromoteOnlyIsPromoteThenRestrict(t *testing.T) {
 	// Setup
 	p := fitting(plainDoor())
-	full, fw, err := Promote(p)
+	full, fw, err := promote(p)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +58,7 @@ func TestPromoteOnlyIsPromoteThenRestrict(t *testing.T) {
 	}
 
 	// Execute
-	got, warnings, err := PromoteOnly(p, []string{"keys"})
+	got, warnings, err := PromoteOnly(byName(p), []string{"keys"})
 
 	// Assert
 	if err != nil {

@@ -1,15 +1,35 @@
 package core
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/Kuniwak/puml-parallel/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
+// oneState is a diagram of one state holding vars, each of the type Bit,
+// as is every field of its edges.
 func oneState(t *testing.T, state string, vars []string, init string, edges ...Edge) *Diagram {
-	return &Diagram{States: []string{state}, Vars: map[string][]string{state: vars}, Init: state, InitPost: mustParse(t, init), Edges: edges}
+	d := &Diagram{States: []string{state}, Vars: map[string][]string{state: vars}, Init: state, InitPost: mustParse(t, init), Edges: edges}
+	for _, v := range vars {
+		if d.Types == nil {
+			d.Types = map[string]types.Type{}
+		}
+		d.Types[v] = types.Named("Bit")
+	}
+	for _, e := range edges {
+		if len(e.Event.Fields) == 0 {
+			continue
+		}
+		if d.Channels == nil {
+			d.Channels = map[string][]types.Type{}
+		}
+		d.Channels[e.Event.Channel] = slices.Repeat([]types.Type{types.Named("Bit")}, len(e.Event.Fields))
+	}
+	return d
 }
 
 func loop(t *testing.T, state string, e Event, guard, post string) Edge {
@@ -22,7 +42,7 @@ func send(name string) Field                   { return Field{Send: true, Name: 
 
 func bits() Env {
 	return Env{
-		Types: map[string][]Value{"n": {0, 1}, "got": {0, 1}, "v": {0, 1}, "w": {0, 1}, "m": {0, 1}},
+		Types: map[string][]Value{"Bit": {0, 1}},
 		Atoms: map[string]func([]Value) bool{
 			"#0 = 0":      func(a []Value) bool { return a[0] == 0 },
 			"#0 = #1":     func(a []Value) bool { return a[0] == a[1] },

@@ -11,7 +11,8 @@ import (
 
 // Hide is d with the channels hidden (docs/CLAUSE_DESIGN.md, a
 // constructor): ⟦Hide(d, C)⟧ is ⟦d⟧ \ C. An edge on a hidden channel
-// becomes τ, and each field it received is bound by ∃ (O4): the step can be
+// becomes τ, and each field it received is bound by ∃ (O4) over the type
+// its channel declares of it, which a channel with fields declares: the step can be
 // taken when some value satisfies the guard, ∃x. g, and leads where some
 // value satisfies both, ∃x. (g ∧ p), so that the guard and the post agree
 // on the value chosen. A sent field names a value already bound, so it is
@@ -39,10 +40,11 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 				continue
 			}
 			var err error
-			typ := f.Name
-			if ts, ok := d.Channels[e.Event.Channel]; ok && i < len(ts) {
-				typ = ts[i].String()
+			ts, ok := d.Channels[e.Event.Channel]
+			if !ok || i >= len(ts) {
+				return nil, fmt.Errorf("core.Hide: %s receives %s, but declares no type of it", e.Event.Channel, f.Name)
 			}
+			typ := ts[i].String()
 			if guard, err = Bind(guard, f.Name, typ); err != nil {
 				return nil, fmt.Errorf("core.Hide: %s: %w", e.Event.Channel, err)
 			}
