@@ -266,15 +266,15 @@ class SampleReportTest(unittest.TestCase):
 
     def opening(self, *guard):
         """OPENING without STOP, OPEN guarded by guard too and opening an
-        account with a balance of 0 or 1: two states where every ID is used
+        instance with a count of 0 or 1: two states where every ID is used
         up, after CLOSE."""
         e = OPENING["edges"][0]
-        post = e["post"][:-1] + [atom("${} in [0, 1]", fld(idx("m'", "k"), "bal"))]
+        post = e["post"][:-1] + [atom("${} in [0, 1]", fld(idx("m'", "k"), "cnt"))]
         return dict(OPENING, edges=[dict(e, guard=e["guard"] + list(guard), post=post)] + OPENING["edges"][1:2])
 
     def test_the_bound_reached_is_reported_and_is_no_finding(self):
         why = " (OPEN(k=b) is enabled by a value beyond a sample)"
-        closed = "r [{'a': {'at': 'closed', 'fields': {'bal': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)']" + why
+        closed = "r [{'a': {'at': 'closed', 'fields': {'cnt': %d}}}] after ['OPEN(k=a)', 'CLOSE(k=a)']" + why
         tests = {
             "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']" + why + "\n"),
             "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),

@@ -3,12 +3,12 @@
 
 state "Initial" as s0
 
-s0 : ready ; ready
+s0 : ready ; Bool
 
 
 state "Processing" as s1
-s1 : busy ; busy
-s1 : counter ; counter
+s1 : busy ; Bool
+s1 : counter ; Nat
 
 [*] --> s0
 

@@ -53,7 +53,7 @@ def same_value(a, b) -> bool:
 class FrozenMap(Mapping):
     """An immutable mapping, equal and hashable by content, its keys told
     apart by kind (kind_key): {1: a} and {True: a} are two maps of one
-    entry each. Fields may also be read as attributes (m.残高), which keeps
+    entry each. Fields may also be read as attributes (m.在庫), which keeps
     a clause readable."""
 
     __slots__ = ("_d", "_key")

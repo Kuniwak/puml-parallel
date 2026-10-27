@@ -1,28 +1,28 @@
 @startuml
 
 state "serverNotRunning" as s0
-s0 : server ; server
-s0 : tools ; tools
+s0 : server ; Server
+s0 : tools ; ToolSet
 state "serverNotInitialized" as s1
-s1 : server ; server
-s1 : tools ; tools
-s1 : state ; state
+s1 : server ; Server
+s1 : tools ; ToolSet
+s1 : state ; ServerState
 state "serverInitializing" as s2
-s2 : server ; server
-s2 : tools ; tools
-s2 : state ; state
+s2 : server ; Server
+s2 : tools ; ToolSet
+s2 : state ; ServerState
 state "serverInitialized" as s3
-s3 : server ; server
-s3 : tools ; tools
-s3 : state ; state
+s3 : server ; Server
+s3 : tools ; ToolSet
+s3 : state ; ServerState
 state "serverCallingToolsList" as s4
-s4 : server ; server
-s4 : tools ; tools
-s4 : state ; state
+s4 : server ; Server
+s4 : tools ; ToolSet
+s4 : state ; ServerState
 state "serverCallingToolsCall" as s5
-s5 : server ; server
-s5 : tools ; tools
-s5 : state ; state
+s5 : server ; Server
+s5 : tools ; ToolSet
+s5 : state ; ServerState
 
 [*] --> s0 : server' is the name of this MCP server, tools is the set of tools provided by this MCP server
 s0 --> s1 : start?s ; s and server match ; server' and tools' remain the same, state' is initial state
@@ -34,12 +34,12 @@ s3 --> s5 : toolsCallReq?s ; s and server match ; server' and tools' both remain
 s5 --> s3 : toolsCallRes?s ; s and server match ; server' and tools' both remain the same, state' is somehow updated (may not be updated)
 
 note as channels
-  channel initializeReq : s
-  channel initializeRes : s
-  channel start : s
-  channel toolsCallReq : s
-  channel toolsCallRes : s
-  channel toolsListReq : s
-  channel toolsListRes : s.ts
+  channel initializeReq : Server
+  channel initializeRes : Server
+  channel start : Server
+  channel toolsCallReq : Server
+  channel toolsCallRes : Server
+  channel toolsListReq : Server
+  channel toolsListRes : Server.ToolSet
 end note
 @enduml

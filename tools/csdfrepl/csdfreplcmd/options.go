@@ -78,8 +78,8 @@ Examples:
   $ csdfrepl examples/valid/vending_machine.puml
   $ csdfbmc diagram.json checks.py --evaluator-module csdfbmc.python_glue --json > findings.json
   $ csdfrepl -replay findings.json -finding 0 diagram.puml
-  $ csdfrepl -checks examples/bmc/withdraw_formal_defs.py \
-      -evaluator-module "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py" examples/bmc/withdraw_formal.puml
+  $ csdfrepl -checks examples/bmc/printer_formal_defs.py \
+      -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" examples/bmc/printer_formal.puml
   $ csdfrepl -checks checks.py -evaluator-module csdfbmc.python_glue -env '$_0 が 正=true' diagram.puml
 `)
 		}

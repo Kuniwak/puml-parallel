@@ -1,0 +1,27 @@
+@startuml MEMBER
+' The start state means that no such member exists: leaving it opens a
+' membership and entering it closes one. The state IDs carry a "mem" prefix
+' because !include drops every local diagram into one namespace.
+' CSDF-IGNORE-BEGIN
+!ifndef PROMOTED
+title 会員 1 人のライフサイクル
+!endif
+' CSDF-IGNORE-END
+
+state "未入会" as memNone
+state "在籍中" as memActive
+memActive : checkouts ; Nat
+state "停止中" as memSuspended
+memSuspended : checkouts ; Nat
+memSuspended : reason ; SuspendReason
+
+[*] --> memNone
+
+memNone --> memActive : OPEN ; ; $checkouts' は 0
+memActive --> memSuspended : SUSPEND?理由 ; ; $reason' は $理由 ∧ $checkouts' は $checkouts
+memSuspended --> memActive : RESUME ; ; $checkouts' は $checkouts
+memActive --> memNone : CLOSE ; $checkouts が 0
+note as memberChannels
+  channel SUSPEND : SuspendReason
+end note
+@enduml

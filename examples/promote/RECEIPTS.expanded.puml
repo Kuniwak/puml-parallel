@@ -1,0 +1,18 @@
+@startuml
+state "稼働中" as running
+running : receipts ; ReceiptId ⇸ Receipt
+running : cycles ; Date ⇸ Cycle
+[*] --> running : @empty(receipts') ∧ @empty(cycles')
+running --> running : LOG?入荷ID?基準日?数量 ; @at(receipts[入荷ID], rcvReceived) ∧ @at(cycles[基準日], cycCounting) ∧ $基準日 は $入荷ID の入荷日である ; @frame(receipts', receipts, 入荷ID) ∧ @at(receipts'[入荷ID], rcvLogged) ∧ ${receipts'[入荷ID].qty} は ${receipts[入荷ID].qty} ∧ @frame(cycles', cycles, 基準日) ∧ @at(cycles'[基準日], cycCounting) ∧ ${cycles'[基準日].total} = ${cycles[基準日].total} + $数量
+running --> running : LOG?入荷ID?基準日?数量 ; @at(receipts[入荷ID], rcvReceived) ∧ @notin(基準日, cycles) ∧ $基準日 は $入荷ID の入荷日である ; @frame(receipts', receipts, 入荷ID) ∧ @at(receipts'[入荷ID], rcvLogged) ∧ ${receipts'[入荷ID].qty} は ${receipts[入荷ID].qty} ∧ @frame(cycles', cycles, 基準日) ∧ @at(cycles'[基準日], cycCounting) ∧ ${cycles'[基準日].total} は $数量
+running --> running : RECEIVE?入荷ID?数量 ; @notin(入荷ID, receipts) ∧ $数量 は箱入数の倍数である ; @frame(receipts', receipts, 入荷ID) ∧ @at(receipts'[入荷ID], rcvReceived) ∧ ${receipts'[入荷ID].qty} は $数量 ∧ @eq(cycles', cycles)
+running --> running : REPORT?基準日 ; @at(cycles[基準日], cycFixed) ; @eq(receipts', receipts) ∧ @frame(cycles', cycles, 基準日) ∧ @notin(基準日, cycles')
+running --> running : SHELVE?入荷ID ; @at(receipts[入荷ID], rcvLogged) ; @frame(receipts', receipts, 入荷ID) ∧ @notin(入荷ID, receipts') ∧ @eq(cycles', cycles)
+running --> running : tau ; @exists(基準日 : Date) (@at(cycles[基準日], cycCounting)) ; @exists(基準日 : Date) (@at(cycles[基準日], cycCounting) ∧ @eq(receipts', receipts) ∧ @frame(cycles', cycles, 基準日) ∧ @at(cycles'[基準日], cycFixed) ∧ ${cycles'[基準日].total} は ${cycles[基準日].total})
+note as channels
+  channel LOG : ReceiptId.Date.Quantity
+  channel RECEIVE : ReceiptId.Quantity
+  channel REPORT : Date
+  channel SHELVE : ReceiptId
+end note
+@enduml

@@ -9,7 +9,7 @@ import (
 
 func TestMatch(t *testing.T) {
 	insert := core.Event{Channel: "insert", Fields: []core.Field{{Name: "coin"}}}
-	pay := core.Event{Channel: "pay", Fields: []core.Field{{Name: "coin"}, {Send: true, Name: "change"}}}
+	swap := core.Event{Channel: "swap", Fields: []core.Field{{Name: "item"}, {Send: true, Name: "back"}}}
 	tick := core.Event{Channel: "tick"}
 	testCases := map[string]struct {
 		Match tracechk.Match
@@ -19,18 +19,18 @@ func TestMatch(t *testing.T) {
 	}{
 		"exact: the label itself":                        {tracechk.MatchExact, insert, "insert?coin", true},
 		"exact: a value in place of the field's name":    {tracechk.MatchExact, insert, "insert?3", true},
-		"exact: a sent value in place of the sent field": {tracechk.MatchExact, pay, "pay?5!2", true},
+		"exact: a sent value in place of the sent field": {tracechk.MatchExact, swap, "swap?5!2", true},
 		"exact: a field of the other direction":          {tracechk.MatchExact, insert, "insert!3", false},
-		"exact: too few fields":                          {tracechk.MatchExact, pay, "pay?5", false},
+		"exact: too few fields":                          {tracechk.MatchExact, swap, "swap?5", false},
 		"exact: another channel":                         {tracechk.MatchExact, insert, "inserted?3", false},
 		"exact: an event without fields":                 {tracechk.MatchExact, tick, "tick", true},
 		"exact: a marker with no value":                  {tracechk.MatchExact, insert, "insert?", false},
 		"prefix: a marker with no value":                 {tracechk.MatchPrefix, insert, "insert?", false},
 		"prefix: the channel alone":                      {tracechk.MatchPrefix, insert, "insert", true},
-		"prefix: the first of the fields":                {tracechk.MatchPrefix, pay, "pay?5", true},
+		"prefix: the first of the fields":                {tracechk.MatchPrefix, swap, "swap?5", true},
 		"prefix: stops at the channel's boundary":        {tracechk.MatchPrefix, insert, "ins", false},
 		"prefix: a longer channel":                       {tracechk.MatchPrefix, tick, "ticks", false},
-		"prefix: every field, as exact":                  {tracechk.MatchPrefix, pay, "pay?5!2", true},
+		"prefix: every field, as exact":                  {tracechk.MatchPrefix, swap, "swap?5!2", true},
 		"prefix: a field the event does not have":        {tracechk.MatchPrefix, tick, "tick?1", false},
 	}
 	for name, tc := range testCases {

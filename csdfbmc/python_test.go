@@ -60,18 +60,18 @@ func TestPythonUnitTestsPass(t *testing.T) {
 	}
 }
 
-// The toy ledger checks six properties at once; as written it reports a
+// The printer with retries checks six properties at once; as written it reports a
 // deadlock after the retries and nothing else.
-func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
-	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/wallet_formal.json", "examples/bmc/wallet_formal_checks.py",
-		"--evaluator-module", "csdfbmc.python_glue examples/bmc/wallet_formal_checks.py", "--avoid", "確定", "--within", "sending")
+func TestThePrinterRetryExampleReportsADeadlockAfterTheRetries(t *testing.T) {
+	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/printer_retry_formal.json", "examples/bmc/printer_retry_formal_checks.py",
+		"--evaluator-module", "csdfbmc.python_glue examples/bmc/printer_retry_formal_checks.py", "--avoid", "完了", "--within", "printing")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
 		t.Fatalf("want exit status 1, got %v\n%.2000s", err, out)
 	}
 	text := string(out)
-	for _, want := range []string{"deadlock ×", "at sending after 再送", "'再送', '再送'"} {
+	for _, want := range []string{"deadlock ×", "at printing after 再試行", "'再試行', '再試行'"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("want %q in the report, got:\n%.2000s", want, text)
 		}
@@ -86,20 +86,20 @@ func TestTheWalletExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 // The first worked example reaches a state with no way out, read through the
 // reference glue as a command or in-process, and the report names it with
 // its trace.
-func TestTheWithdrawExampleReportsADeadlockThroughTheGlue(t *testing.T) {
+func TestThePrinterExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 	py := python(t)
 	for _, glue := range [][]string{
-		{"--evaluator", py + " -E -s -B -m csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
-		{"--evaluator-module", "csdfbmc.python_glue examples/bmc/withdraw_formal_defs.py"},
+		{"--evaluator", py + " -E -s -B -m csdfbmc.python_glue examples/bmc/printer_formal_defs.py"},
+		{"--evaluator-module", "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"},
 	} {
 		t.Run(glue[0], func(t *testing.T) {
-			cmd := exec.Command(py, append([]string{"-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/withdraw_formal.json", "examples/bmc/withdraw_formal_defs.py"}, glue...)...)
+			cmd := exec.Command(py, append([]string{"-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/printer_formal.json", "examples/bmc/printer_formal_defs.py"}, glue...)...)
 			cmd.Dir = ".."
 			out, err := cmd.CombinedOutput()
 			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
 				t.Fatalf("want exit status 1 (a deadlock found), got %v\n%s", err, out)
 			}
-			if want := "states: 22\ndeadlock ×3 at sending after 出庫; first after ['出庫(数量=3)']\n"; string(out) != want {
+			if want := "states: 22\ndeadlock ×3 at printing after 印刷; first after ['印刷(枚数=3)']\n"; string(out) != want {
 				t.Errorf("want the deadlock and its trace, got:\n%s", out)
 			}
 		})
@@ -108,18 +108,18 @@ func TestTheWithdrawExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 
 // The expansion of a promoted diagram is walked through the reference glue,
 // local clauses and all. With no end edge, the walk stops only when every ID
-// of the bound is confirmed; the IDs are a sample, so that is the bound
-// reached, not a deadlock. No cycle avoids CONFIRMED.
-func TestThePromotedExampleStopsOnlyWhenEveryIDIsConfirmed(t *testing.T) {
+// of the bound is done; the IDs are a sample, so that is the bound
+// reached, not a deadlock. No cycle avoids DONE.
+func TestThePromotedExampleStopsOnlyWhenEveryIDIsDone(t *testing.T) {
 	cmd := exec.Command(python(t), "-E", "-s", "-B", "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
-		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "CONFIRMED")
+		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "DONE")
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("want exit status 0 (the bound reached is no finding), got %v\n%s", err, out)
 	}
 	text := string(out)
-	for _, want := range []string{"states: 496\n", "bound reached ×19 at running after CONFIRMED", "(SEND(試行ID=t4, 未署名Tx={'手数料': 1}) is enabled by a value beyond a sample)"} {
+	for _, want := range []string{"states: 496\n", "bound reached ×19 at running after DONE", "(SUBMIT(試行ID=t4, 新規ジョブ={'優先度': 1}) is enabled by a value beyond a sample)"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("want %q in the report, got:\n%s", want, text)
 		}

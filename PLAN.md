@@ -8,7 +8,7 @@
 
 CSDF は状態と状態変数、`event ; guard ; post` のエッジで LTS を書く。述語は自然言語（不透明）である。
 
-同種のインスタンスが何個も並ぶシステム（口座 × N、約定 × N）を 1 本の CSDF で書くと、局所の制御状態はインスタンス ID → 局所状態 の写像（状態変数）に吸われ、大局図は「1 状態 + 自己ループ多数」になる。これは CSP の `||| id : ID @ Local(id)` を、状態を写像で持つ 1 本のパラメータ付き再帰方程式として書き直したもので、Z の promotion に一致する。
+同種のインスタンスが何個も並ぶシステム（会員 × N、貸出 × N）を 1 本の CSDF で書くと、局所の制御状態はインスタンス ID → 局所状態 の写像（状態変数）に吸われ、大局図は「1 状態 + 自己ループ多数」になる。これは CSP の `||| id : ID @ Local(id)` を、状態を写像で持つ 1 本のパラメータ付き再帰方程式として書き直したもので、Z の promotion に一致する。
 
 この形は検査（`csdfrefinement` / `csdflivelockfree` / `csdfrepl`）には適するが、人が読めない。読める形は「1 インスタンス分の局所図」である。両者は同じ成果物になりえないので、**局所図と結合宣言を人が書き、大局図（展開形）を機械生成する**。
 
@@ -54,23 +54,23 @@ CSDF は状態と状態変数、`event ; guard ; post` のエッジで LTS を�
 ### 2.1 例
 
 ```plantuml
-@startuml CUSTODY-SPEC-STATE
+@startuml LIBRARY-SPEC-STATE
 !define PROMOTED
 
 state "稼働中" as running {
-  running : whitelistEntries ; エントリID ⇸ Whitelist
-  running : buyTrades ; 買い約定ID ⇸ BuyTrade
-  running : segReportCycles ; 基準日 ⇸ SegReport
+  running : reservations ; 予約ID ⇸ Reservation
+  running : checkouts ; 貸出ID ⇸ Checkout
+  running : dailyTallies ; 基準日 ⇸ DailyTally
   running : sessions ; ユーザー ⇸ Session
 
-  state "whitelistEntries : エントリID ⇸ Whitelist" as runningWhitelist <<promote>> {
-    !include states/WHITELIST_ja.puml
+  state "reservations : 予約ID ⇸ Reservation" as runningReservation <<promote>> {
+    !include states/RESERVATION_ja.puml
   }
-  state "buyTrades : 買い約定ID ⇸ BuyTrade" as runningBuy <<promote>> {
-    !include states/BUY_ja.puml
+  state "checkouts : 貸出ID ⇸ Checkout" as runningCheckout <<promote>> {
+    !include states/CHECKOUT_ja.puml
   }
-  state "segReportCycles : 基準日 ⇸ SegReport" as runningSegReport <<promote>> {
-    !include states/SEGREPORT_ja.puml
+  state "dailyTallies : 基準日 ⇸ DailyTally" as runningTally <<promote>> {
+    !include states/TALLY_ja.puml
   }
   state "sessions : ユーザー ⇸ Session" as runningSession <<promote>> {
     !include states/SESSION_ja.puml
@@ -80,15 +80,15 @@ state "稼働中" as running {
 [*] --> running : すべての写像は空
 
 note as sync1
-  sync EVT-CUSTODY-DEPOSIT-UNKNOWN-BOOK : buyTrades(買い約定ID), segReportCycles(基準日)
+  sync EVT-CHECKOUT-RECORD : checkouts(貸出ID), dailyTallies(基準日)
 end note
 
-note bottom of runningWhitelist
-  constrain EVT-HW-WHITELIST-VERIFY?売り約定ID?送金先アドレス ; whitelistEntries の 送金先アドレス が〈登録済み〉
+note bottom of runningReservation
+  constrain EVT-DESK-RESERVATION-VERIFY?貸出ID?蔵書番号 ; reservations の 蔵書番号 が〈登録済み〉
 end note
 
 note bottom of runningSession
-  constrain EVT-WL-CHECKER-APPROVE?エントリID?checker ; sessions の checker が〈ログイン中〉で役割が checker
+  constrain EVT-RSV-CHECKER-APPROVE?予約ID?checker ; sessions の checker が〈ログイン中〉で役割が checker
 end note
 @enduml
 ```
@@ -162,7 +162,7 @@ eventName       = 1*(unicode_char_except_paren_semicolon)
 局所図の**文法は変えない**が、`!include` されることを前提に次を守る（lint と docs で強制）：
 
 - `title` / `note` / `skinparam` など PlantUML 専用行は `!ifndef PROMOTED … !endif` で包む（大局図の先頭で `!define PROMOTED` する）。CSDF-IGNORE 領域と重なるのでそこに入れるだけでよい。
-- 状態 ID（`as` の別名）は局所図間で一意にする。接頭辞（`wl`, `buy`, …）を推奨。
+- 状態 ID（`as` の別名）は局所図間で一意にする。接頭辞（`rsv`, `co`, …）を推奨。
 - start 状態 S₀ は状態変数を持たない。S₀ を終点・始点とするエッジ、および局所 start edge に post を書かない。end edge を置かない（§4.1）。
 - 状態変数名は core の文法どおり ASCII の識別子にする（`var = id`）。型と述語は自然言語でよい。
 
@@ -317,14 +317,14 @@ warning は stderr、error は exit 1。`-Werror` で warning も exit 1。
 - `<<promote>>` ブロックを置いた親の複合状態がその家族の展開先。省略記法はない（1 状態の大局図でも親を書く。§2.1 の形）。
 - 同じ写像を複数の親に置けば、各親に自己ループ群が出る。`!include` を書くのは 1 つの親だけで、他の親には本体なしの `<<promote>>` 状態を置く（M0：同じ局所図を 2 度 `!include` すると状態 ID が衝突して PlantUML が 2 つの箱を 1 つに潰す）。写像を状態変数に持つが `<<promote>>` を置かない状態では家族は凍結する（意図的な表現。info）。
 - 親状態間の遷移（モード切替 `running --> maintenance : …`）は手書き。フレーム「すべての写像は不変」も手書き。promotion の外側なので生成しない。
-- **自動展開はしない**：写像を持つ全状態へ暗黙に展開すると、メンテナンス中でも約定が進む仕様が黙って生まれる。
+- **自動展開はしない**：写像を持つ全状態へ暗黙に展開すると、メンテナンス中でも貸出が進む仕様が黙って生まれる。
 
 ### 4.8 出力（展開形）
 
 - 素の CSDF。宣言・`!include`・`note`・preprocessor 行は消える。複合状態は通常の状態に平坦化する（`state "稼働中" as running` と `running : var` 行）。
 - 手書きの状態・start edge・エッジはそのまま残す。
 - 展開エッジは `csdfsort` と同じ正規順序（source, event, destination, guard, post）で並べる。手書きエッジも同じ順序に混ぜる。
-- 展開エッジの直前に由来を示す line comment を 1 行出す（`' promote: WHITELIST_ja.puml 〈未登録〉 → 〈CBJ登録承認待ち通知前〉`、`sync` は `' sync: EVT-… (BUY_ja.puml 〈…〉→〈…〉) × (SEGREPORT_ja.puml 〈…〉→〈…〉)`）。`-no-comments` で抑止。
+- 展開エッジの直前に由来を示す line comment を 1 行出す（`' promote: RESERVATION_ja.puml 〈未登録〉 → 〈承認待ち〉`、`sync` は `' sync: EVT-… (CHECKOUT_ja.puml 〈…〉→〈…〉) × (TALLY_ja.puml 〈…〉→〈…〉)`）。`-no-comments` で抑止。
 - `@startuml auto-generated-by: csdfpromote <args>`（POSIX クォート、既存慣例）。
 - 入力大局図の `CSDF-IGNORE` 領域はそのまま保持する。
 

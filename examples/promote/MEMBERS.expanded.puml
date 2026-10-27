@@ -1,0 +1,15 @@
+@startuml
+state "稼働中" as running
+running : members ; MemberId ⇸ Member
+[*] --> running : @empty(members')
+running --> running : CLOSE?会員ID ; @at(members[会員ID], memActive) ∧ ${members[会員ID].checkouts} が 0 ; @frame(members', members, 会員ID) ∧ @notin(会員ID, members')
+running --> running : OPEN?会員ID ; @notin(会員ID, members) ; @frame(members', members, 会員ID) ∧ @at(members'[会員ID], memActive) ∧ ${members'[会員ID].checkouts} は 0
+running --> running : RESUME?会員ID ; @at(members[会員ID], memSuspended) ; @frame(members', members, 会員ID) ∧ @at(members'[会員ID], memActive) ∧ ${members'[会員ID].checkouts} は ${members[会員ID].checkouts}
+running --> running : SUSPEND?会員ID?理由 ; @at(members[会員ID], memActive) ; @frame(members', members, 会員ID) ∧ @at(members'[会員ID], memSuspended) ∧ ${members'[会員ID].reason} は $理由 ∧ ${members'[会員ID].checkouts} は ${members[会員ID].checkouts}
+note as channels
+  channel CLOSE : MemberId
+  channel OPEN : MemberId
+  channel RESUME : MemberId
+  channel SUSPEND : MemberId.SuspendReason
+end note
+@enduml

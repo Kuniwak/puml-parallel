@@ -6,15 +6,15 @@ import unittest
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx
-from csdfbmc.tests.test_explore import ACCOUNTS
+from csdfbmc.tests.test_explore import MEMBERS
 from csdfbmc.values import sample
 
 IDS = {"k": ["a", "b", "c"]}
-OPEN, CLOSE, DROP = ACCOUNTS["edges"]
+OPEN, CLOSE, DROP = MEMBERS["edges"]
 
-# ACCOUNTS without DROP: an instance never returns to where it was, so the
+# MEMBERS without DROP: an instance never returns to where it was, so the
 # cycle proviso does not expand every state in full.
-ONE_WAY = dict(ACCOUNTS, edges=[OPEN, CLOSE])
+ONE_WAY = dict(MEMBERS, edges=[OPEN, CLOSE])
 
 
 def with_guard(e, *more):
@@ -91,9 +91,9 @@ class SameFindingsTest(unittest.TestCase):
     invariants, cycles, empty posts and the bound reached."""
 
     def test_the_examples_find_the_same_with_partial_order_reduction(self):
-        tests = {"withdraw": ({}, False), "wallet": ({"avoid": "確定", "within": ["sending"]}, False),
-                 "attempts": ({"avoid": "CONFIRMED"}, False)}
-        # No example moves an instance alone: RESEND reads the instance it
+        tests = {"printer": ({}, False), "printer_retry": ({"avoid": "完了", "within": ["printing"]}, False),
+                 "attempts": ({"avoid": "DONE"}, False)}
+        # No example moves an instance alone: RESUBMIT reads the instance it
         # replaces, which ties the attempts together.
         for name, (options, fewer) in tests.items():
             with self.subTest(name):
@@ -106,16 +106,16 @@ class SameFindingsTest(unittest.TestCase):
                 self.assertEqual(fewer, len(reduced.states) < len(full.states))
 
     def test_small_diagrams_find_the_same_with_partial_order_reduction(self):
-        stuck = dict(CLOSE, guard=CLOSE["guard"] + [atom("${} > 0", fld(idx("m", "k"), "bal"))])
+        stuck = dict(CLOSE, guard=CLOSE["guard"] + [atom("${} > 0", fld(idx("m", "k"), "cnt"))])
         tests = {
             "deadlocks with the map closed": (ONE_WAY, Checks(types=IDS), {}),
-            "a cycle through every instance": (ACCOUNTS, Checks(types=IDS), {"avoid": "OPEN"}),
+            "a cycle through every instance": (MEMBERS, Checks(types=IDS), {"avoid": "OPEN"}),
             "a broken invariant over another variable": (
                 dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "n"]}), init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
                      edges=[with_post(OPEN, eq("n'", "n")), with_post(CLOSE, eq("n'", "n")),
                             edge("r", "r", "INC", guard=[atom("$n < 2")], post=[atom("$n' == $n + 1"), eq("m'", "m")])]),
                 Checks(types=IDS, invariants={"small": lambda n: n < 2}), {}),
-            "an empty post": (dict(ONE_WAY, edges=[OPEN, with_post(CLOSE, atom("${} in ()", fld(idx("m'", "k"), "bal")))]), Checks(types=IDS), {}),
+            "an empty post": (dict(ONE_WAY, edges=[OPEN, with_post(CLOSE, atom("${} in ()", fld(idx("m'", "k"), "cnt")))]), Checks(types=IDS), {}),
             "a guard that never holds": (dict(ONE_WAY, edges=[OPEN, stuck]), Checks(types=IDS), {}),
             "the bound reached": (ONE_WAY, Checks(types={"k": sample(["a", "b"], beyond=["c"])}), {}),
             "an end edge": (dict(ONE_WAY, ends=[end("r", [builtin("empty", "m")])]), Checks(types=IDS), {}),

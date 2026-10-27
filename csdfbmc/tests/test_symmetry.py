@@ -7,7 +7,7 @@ from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, edge, exists, fld, idx, lit
-from csdfbmc.tests.test_explore import ACCOUNTS
+from csdfbmc.tests.test_explore import MEMBERS
 from csdfbmc.tests.test_por import CLOSE, OPEN, ONE_WAY, with_guard
 from csdfbmc.values import record, sample
 
@@ -115,7 +115,7 @@ class RefusalTest(unittest.TestCase):
         tests = {
             "a builtin comparing IDs": (ids_only(ONE_WAY, exists("k", builtin("ne", fixture.bound(0), "k"))), checks(), {}),
             "an atom looking an ID up": (ids_only(ONE_WAY, atom("$k not in $m")), checks(), {}),
-            "an atom ordering what an ID indexes": (dict(ONE_WAY, edges=[OPEN, with_guard(CLOSE, atom("${} >= 0", fld(idx("m", "k"), "bal")))]), checks(), {}),
+            "an atom ordering what an ID indexes": (dict(ONE_WAY, edges=[OPEN, with_guard(CLOSE, atom("${} >= 0", fld(idx("m", "k"), "cnt")))]), checks(), {}),
             "a function of the environment given a constant": (
                 ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": True}, {})}),
             "a function of the environment given as Python that renames with the IDs": (
@@ -172,7 +172,7 @@ class FamilyKeyTest(unittest.TestCase):
 
 class SameFindingsTest(unittest.TestCase):
     def test_the_attempts_example_finds_the_same_in_fewer_states(self):
-        for options in ({}, {"avoid": "CONFIRMED"}, {"por": True, "cone": True}):
+        for options in ({}, {"avoid": "DONE"}, {"por": True, "cone": True}):
             with self.subTest(**options):
                 # Execute
                 full = fixture.example("attempts", **options).run()
@@ -186,10 +186,10 @@ class SameFindingsTest(unittest.TestCase):
     def test_small_diagrams_find_the_same_with_every_reduction(self):
         tests = {
             "deadlocks": (ONE_WAY, checks(), {}),
-            "a cycle that avoids an event": (ACCOUNTS, checks(), {"avoid": "OPEN"}),
+            "a cycle that avoids an event": (MEMBERS, checks(), {"avoid": "OPEN"}),
             "a broken invariant": (ONE_WAY, checks(SOURCE + 'INVARIANTS = {"few": lambda m: len(m) < 2}\n', invariants={"few": lambda m: len(m) < 2}), {}),
             "the bound reached": (ONE_WAY, checks(types={"k": sample(["a", "b"], beyond=["c"])}), {}),
-            "an empty post": (dict(ONE_WAY, edges=[OPEN, dict(CLOSE, post=CLOSE["post"] + [atom("${} in ()", fld(idx("m'", "k"), "bal"))])]), checks(), {}),
+            "an empty post": (dict(ONE_WAY, edges=[OPEN, dict(CLOSE, post=CLOSE["post"] + [atom("${} in ()", fld(idx("m'", "k"), "cnt"))])]), checks(), {}),
         }
         for name, (d, c, options) in tests.items():
             for reductions in ({"symmetry": True}, {"symmetry": True, "por": True, "cone": True}):

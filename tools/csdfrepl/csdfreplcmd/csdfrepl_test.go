@@ -487,7 +487,7 @@ func TestRunExploresTheExpansionOfAPromotion(t *testing.T) {
 	spy.Stdin = cli.StubStdin(strings.NewReader(`[{}]` + "\n"))
 
 	// Execute
-	err := runREPL("../../../examples/promote/ACCOUNTS.puml", spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
+	err := runREPL("../../../examples/promote/MEMBERS.puml", spy.New(), nil, runOptions{Suggesters: animation.NoSuggesters})
 
 	// Assert
 	if err != nil {
@@ -495,10 +495,10 @@ func TestRunExploresTheExpansionOfAPromotion(t *testing.T) {
 	}
 	out := spy.Stdout.String()
 	for _, want := range []string{
-		"accounts', a map from IDs to instances",
-		"at accOpen, holding balance",
+		"members', a map from IDs to instances",
+		"at memActive, holding checkouts",
 		"State: 稼働中",
-		"OPEN?口座ID",
+		"OPEN?会員ID",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("stdout does not contain %q:\n%s", want, out)

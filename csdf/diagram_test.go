@@ -11,9 +11,9 @@ func TestParseReportsThatTheSourceStillHoldsDirectives(t *testing.T) {
 	cases := map[string]string{
 		"a <<promote>> block": `@startuml A
 state "稼働中" as running {
-  running : accounts ; 口座ID ⇸ Account
-  state "accounts : (口座ID : 口座ID) ⇸ Account" as runningAccounts <<promote>> {
-    !include local/ACCOUNT.puml
+  running : members ; 会員ID ⇸ Member
+  state "members : (会員ID : 会員ID) ⇸ Member" as runningMembers <<promote>> {
+    !include local/MEMBER.puml
   }
 }
 [*] --> running
@@ -21,10 +21,10 @@ state "稼働中" as running {
 `,
 		"a sync note": `@startuml A
 state "稼働中" as running
-running : accounts ; 口座ID ⇸ Account
+running : members ; 会員ID ⇸ Member
 [*] --> running
 note as n1
-  sync BOOK : accounts(口座ID)
+  sync LOG : members(会員ID)
 end note
 @enduml
 `,
@@ -95,9 +95,9 @@ end note
 func TestParseKeepsTheParseErrorUnderTheHint(t *testing.T) {
 	_, err := parseAccepting(`@startuml A
 state "稼働中" as running {
-  running : accounts ; 口座ID ⇸ Account
-  state "accounts : (口座ID : 口座ID) ⇸ Account" as a1 <<promote>> {
-    !include local/ACCOUNT.puml
+  running : members ; 会員ID ⇸ Member
+  state "members : (会員ID : 会員ID) ⇸ Member" as a1 <<promote>> {
+    !include local/MEMBER.puml
   }
 }
 [*] --> running

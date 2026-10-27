@@ -5,7 +5,7 @@ import unittest
 from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, diagram, edge, eq
-from csdfbmc.tests.test_explore import ACCOUNTS, COUNTER
+from csdfbmc.tests.test_explore import MEMBERS, COUNTER
 
 # COUNTER with a memo of the last value noted, which nothing reads.
 MEMO = diagram({"a": ["n", "memo"], "b": []}, "a", init_post=[atom("$n' == 2"), atom("$memo' == 0")], edges=[
@@ -58,7 +58,7 @@ class LeftOutTest(unittest.TestCase):
 
     def test_a_map_of_a_family_is_kept(self):
         # Execute
-        reduced = fixture.explorer(ACCOUNTS, Checks(types={"k": ["a"]}), cone=True).run()
+        reduced = fixture.explorer(MEMBERS, Checks(types={"k": ["a"]}), cone=True).run()
 
         # Assert
         self.assertEqual((), reduced.left_out)

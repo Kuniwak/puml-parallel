@@ -141,7 +141,7 @@ A --> B : a
 		// A global diagram's edges are not the whole of its behaviour, so every
 		// tool but csdfpromote has to refuse one.
 		"a global diagram": {
-			Args:       []string{"../../../examples/promote/TRADES.puml"},
+			Args:       []string{"../../../examples/promote/RECEIPTS.puml"},
 			WantStderr: "run csdfpromote on it first",
 		},
 	}

@@ -26,7 +26,7 @@ func TestLabel(t *testing.T) {
 		"no field":             {core.Event{Channel: "tick"}, "tick"},
 		"a received field":     {core.Event{Channel: "in", Fields: []core.Field{{Name: "k"}}}, "in?k"},
 		"a sent field alone":   {core.Event{Channel: "out", Fields: []core.Field{{Send: true, Name: "n"}}}, "out!n"},
-		"both, in their order": {core.Event{Channel: "pay", Fields: []core.Field{{Name: "coin"}, {Send: true, Name: "change"}}}, "pay?coin!change"},
+		"both, in their order": {core.Event{Channel: "swap", Fields: []core.Field{{Name: "item"}, {Send: true, Name: "back"}}}, "swap?item!back"},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {

@@ -1,0 +1,20 @@
+@startuml PRINTER
+' A two-state printer tray with every atom written in Python, as a front end
+' renders the formal labels in place of the prose: the reference glue reads
+' them, and printer_formal_defs.py names the constants and the types.
+state "待機中" as idle
+idle : 用紙 ; Nat
+state "印刷中" as printing
+printing : 用紙 ; Nat
+printing : 印刷枚数 ; Nat
+
+[*] --> idle : $用紙' == INITIAL
+
+idle --> printing : 印刷?枚数 ; $枚数 <= LIMIT ∧ $用紙 >= $枚数 ; @eq(用紙', 用紙) ∧ @eq(印刷枚数', 枚数)
+printing --> idle : 排紙 ; $用紙 - $印刷枚数 >= WASTE ; $用紙' == $用紙 - $印刷枚数 - WASTE
+idle --> idle : 補充?補充数 ; $用紙 + $補充数 <= CAP ; $用紙' == $用紙 + $補充数
+note as channels
+  channel 補充 : RefillSize
+  channel 印刷 : JobSize
+end note
+@enduml

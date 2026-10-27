@@ -11,10 +11,10 @@ from csdfbmc.values import sample
 class TypesTest(unittest.TestCase):
     def test_a_type_ranges_over_the_values_types_gives_it(self):
         # Setup
-        checks = Checks(types={"口座ID": ["a1", "a2"]})
+        checks = Checks(types={"会員ID": ["a1", "a2"]})
 
         # Execute
-        values = checks.carrier("口座ID")
+        values = checks.carrier("会員ID")
 
         # Assert
         self.assertEqual(["a1", "a2"], values)
@@ -42,8 +42,8 @@ class TypesTest(unittest.TestCase):
         checks = Checks(types={"額": [1, 2]})
 
         # Execute, Assert
-        with self.assertRaisesRegex(KeyError, "no type '口座ID' in TYPES"):
-            checks.carrier("口座ID")
+        with self.assertRaisesRegex(KeyError, "no type '会員ID' in TYPES"):
+            checks.carrier("会員ID")
 
 
 class LoadChecksTest(unittest.TestCase):
@@ -87,7 +87,7 @@ class LoadChecksTest(unittest.TestCase):
             "a sample": ('TYPES = {"ID": sample(["a1", "a2"], beyond=["a3"]), "額": [1]}\n', {"ID"}),
             "plain values only": ('TYPES = {"ID": ["a1", "a2"], "額": [1]}\n', set()),
             "a record over a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "額": [r.id for r in record(id=IDS)]}\n', {"ID"}),
-            "a record built of a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "Tx": record(id=IDS)}\n', {"ID", "Tx"}),
+            "a record built of a sample": ('IDS = sample(["a1", "a2"], beyond=["a3"])\nTYPES = {"ID": IDS, "Job": record(id=IDS)}\n', {"ID", "Job"}),
         }
         for name, (body, want) in tests.items():
             with self.subTest(name):
@@ -147,7 +147,7 @@ class LoadChecksTest(unittest.TestCase):
             ("an environment name that is not text", 'TYPES = {}\nENVIRONMENT = {1: True}\n', "names a function by 1"),
             ("a module without types", "INVARIANTS = {}\n", "TYPES"),
             ("the DOMAINS an earlier csdfbmc read, which would be ignored", 'DOMAINS = {"額": [1]}\n', "TYPES"),
-            ("the TYPEOF an earlier csdfbmc read, which the diagram's declarations replace", 'TYPES = {}\nTYPEOF = {"相手ID": "口座ID"}\n',
+            ("the TYPEOF an earlier csdfbmc read, which the diagram's declarations replace", 'TYPES = {}\nTYPEOF = {"相手ID": "会員ID"}\n',
              "TYPEOF is no longer read; declare the type of each variable on its state line"),
             ("a type named any, which constrains nothing", 'TYPES = {"any": [1]}\n', "TYPES declares 'any'"),
             ("the CLAUSES an earlier csdfbmc read, which a glue reads now", "TYPES = {}\nCLAUSES = {}\n", "glue"),

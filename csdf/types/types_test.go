@@ -13,7 +13,7 @@ func TestParse(t *testing.T) {
 		wantErr string
 	}{
 		"a named type":                  {text: "ID", want: "ID"},
-		"a Unicode name":                {text: "口座ID", want: "口座ID"},
+		"a Unicode name":                {text: "会員ID", want: "会員ID"},
 		"any":                           {text: "any", want: "any"},
 		"a map type":                    {text: "K ⇸ V", want: "K ⇸ V"},
 		"a map type written in ASCII":   {text: "K->>V", want: "K ⇸ V"},

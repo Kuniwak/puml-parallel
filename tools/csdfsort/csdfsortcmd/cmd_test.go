@@ -169,7 +169,7 @@ func TestNewMainFuncRefusesAGlobalDiagram(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Execute
-	exitStatus := cmdFunc([]string{"../../../examples/promote/TRADES.puml"}, spy.New())
+	exitStatus := cmdFunc([]string{"../../../examples/promote/RECEIPTS.puml"}, spy.New())
 
 	// Assert
 	if exitStatus != 1 {

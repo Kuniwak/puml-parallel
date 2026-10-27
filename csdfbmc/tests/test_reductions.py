@@ -7,7 +7,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, edge, eq, exists, fld, idx
 from csdfbmc.tests.test_cone import MEMO, MEMO_TYPES
-from csdfbmc.tests.test_explore import ACCOUNTS
+from csdfbmc.tests.test_explore import MEMBERS
 from csdfbmc.tests.test_por import CLOSE, IDS, OPEN, ONE_WAY, with_post
 from csdfbmc.tests.test_symmetry import SOURCE, checks as symmetric
 from csdfbmc.values import sample
@@ -25,9 +25,9 @@ NOTED = dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "memo", "n"]}), init_p
 class CombinedTest(unittest.TestCase):
     def test_the_examples_find_the_same_with_the_reductions_combined(self):
         tests = {
-            "withdraw": ({}, WITHOUT_SYMMETRY),
-            "wallet": ({"avoid": "確定", "within": ["sending"]}, WITHOUT_SYMMETRY),
-            "attempts": ({"avoid": "CONFIRMED"}, WITH_SYMMETRY),
+            "printer": ({}, WITHOUT_SYMMETRY),
+            "printer_retry": ({"avoid": "完了", "within": ["printing"]}, WITHOUT_SYMMETRY),
+            "attempts": ({"avoid": "DONE"}, WITH_SYMMETRY),
         }
         for name, (options, combinations) in tests.items():
             full = fixture.example(name, **options).run()
@@ -45,12 +45,12 @@ class CombinedTest(unittest.TestCase):
         tests = {
             "a memo nothing reads": (MEMO, Checks(types=MEMO_TYPES), {}, WITHOUT_SYMMETRY),
             "deadlocks among instances": (ONE_WAY, symmetric(), {}, WITH_SYMMETRY),
-            "a cycle through every instance": (ACCOUNTS, symmetric(), {"avoid": "STOP"}, WITH_SYMMETRY),
+            "a cycle through every instance": (MEMBERS, symmetric(), {"avoid": "STOP"}, WITH_SYMMETRY),
             "a memo of an ID and a framed count": (NOTED, symmetric(types=dict(IDS, n=[0, 1])), {}, WITH_SYMMETRY),
             "a broken invariant": (ONE_WAY, symmetric(SOURCE + 'INVARIANTS = {"few": lambda m: len(m) < 2}\n',
                                                       invariants={"few": lambda m: len(m) < 2}), {}, WITH_SYMMETRY),
             "the bound reached": (ONE_WAY, symmetric(types={"k": sample(["a", "b"], beyond=["c"])}), {}, WITH_SYMMETRY),
-            "an empty post": (dict(ONE_WAY, edges=[OPEN, with_post(CLOSE, atom("${} in ()", fld(idx("m'", "k"), "bal")))]), symmetric(), {}, WITH_SYMMETRY),
+            "an empty post": (dict(ONE_WAY, edges=[OPEN, with_post(CLOSE, atom("${} in ()", fld(idx("m'", "k"), "cnt")))]), symmetric(), {}, WITH_SYMMETRY),
             "a tau cycle": (dict(MEMO, edges=MEMO["edges"][:1] + [edge("a", "a", "tau", post=[atom("$memo' == 1"), eq("n'", "n")])] + MEMO["edges"][2:]),
                             Checks(types={}), {}, WITHOUT_SYMMETRY),
         }

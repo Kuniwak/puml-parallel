@@ -1,65 +1,65 @@
 @startuml
 state "clientReady(tools) || serverCallingToolsList" as c1_s4
-c1_s4 : server ; server
-c1_s4 : tools ; tools
-c1_s4 : state ; state
+c1_s4 : server ; Server
+c1_s4 : tools ; ToolSet
+c1_s4 : state ; ServerState
 state "clientInitializing(serverStateMap, tools) || serverNotInitialized" as c0_s1
-c0_s1 : server ; server
-c0_s1 : tools ; tools
-c0_s1 : state ; state
+c0_s1 : server ; Server
+c0_s1 : tools ; ToolSet
+c0_s1 : state ; ServerState
 state "clientReady(tools) || serverNotInitialized" as c1_s1
-c1_s1 : server ; server
-c1_s1 : tools ; tools
-c1_s1 : state ; state
+c1_s1 : server ; Server
+c1_s1 : tools ; ToolSet
+c1_s1 : state ; ServerState
 state "clientInitializing(serverStateMap, tools) || serverInitialized" as c0_s3
-c0_s3 : server ; server
-c0_s3 : tools ; tools
-c0_s3 : state ; state
+c0_s3 : server ; Server
+c0_s3 : tools ; ToolSet
+c0_s3 : state ; ServerState
 state "clientReady(tools) || serverInitialized" as c1_s3
-c1_s3 : server ; server
-c1_s3 : tools ; tools
-c1_s3 : state ; state
+c1_s3 : server ; Server
+c1_s3 : tools ; ToolSet
+c1_s3 : state ; ServerState
 state "clientProcessing(tools) || serverCallingToolsList" as c2_s4
-c2_s4 : server ; server
-c2_s4 : tools ; tools
-c2_s4 : state ; state
+c2_s4 : server ; Server
+c2_s4 : tools ; ToolSet
+c2_s4 : state ; ServerState
 state "clientProcessing(tools) || serverNotRunning" as c2_s0
-c2_s0 : server ; server
-c2_s0 : tools ; tools
+c2_s0 : server ; Server
+c2_s0 : tools ; ToolSet
 state "clientInitializing(serverStateMap, tools) || serverInitializing" as c0_s2
-c0_s2 : server ; server
-c0_s2 : tools ; tools
-c0_s2 : state ; state
+c0_s2 : server ; Server
+c0_s2 : tools ; ToolSet
+c0_s2 : state ; ServerState
 state "clientProcessing(tools) || serverInitialized" as c2_s3
-c2_s3 : server ; server
-c2_s3 : tools ; tools
-c2_s3 : state ; state
+c2_s3 : server ; Server
+c2_s3 : tools ; ToolSet
+c2_s3 : state ; ServerState
 state "clientProcessing(tools) || serverInitializing" as c2_s2
-c2_s2 : server ; server
-c2_s2 : tools ; tools
-c2_s2 : state ; state
+c2_s2 : server ; Server
+c2_s2 : tools ; ToolSet
+c2_s2 : state ; ServerState
 state "clientInitializing(serverStateMap, tools) || serverNotRunning" as c0_s0
-c0_s0 : server ; server
-c0_s0 : tools ; tools
+c0_s0 : server ; Server
+c0_s0 : tools ; ToolSet
 state "clientReady(tools) || serverNotRunning" as c1_s0
-c1_s0 : server ; server
-c1_s0 : tools ; tools
+c1_s0 : server ; Server
+c1_s0 : tools ; ToolSet
 state "clientProcessing(tools) || serverNotInitialized" as c2_s1
-c2_s1 : server ; server
-c2_s1 : tools ; tools
-c2_s1 : state ; state
+c2_s1 : server ; Server
+c2_s1 : tools ; ToolSet
+c2_s1 : state ; ServerState
 state "clientReady(tools) || serverInitializing" as c1_s2
-c1_s2 : server ; server
-c1_s2 : tools ; tools
-c1_s2 : state ; state
+c1_s2 : server ; Server
+c1_s2 : tools ; ToolSet
+c1_s2 : state ; ServerState
 state "clientCallingMCPServer(tools) || serverCallingToolsCall" as c3_s5
-c3_s5 : server ; server
-c3_s5 : tools ; tools
-c3_s5 : state ; state
+c3_s5 : server ; Server
+c3_s5 : tools ; ToolSet
+c3_s5 : state ; ServerState
 state "clientInitializing(serverStateMap, tools) || serverCallingToolsList" as c0_s4
-c0_s4 : server ; server
-c0_s4 : tools ; tools
-c0_s4 : state ; state
+c0_s4 : server ; Server
+c0_s4 : tools ; ToolSet
+c0_s4 : state ; ServerState
 [*] --> c0_s0 : serverStateMap' = all pre-registered MCP are in not-running state, tools is empty set & server' is the name of this MCP server, tools is the set of tools provided by this MCP server
 c0_s0 --> c1_s0 : tau ; all in serverStateMap are initialized ; tools' remains the same
 c0_s0 --> c0_s1 : start ; server is a pre-registered MCP server and in not-running state & s and server match ; serverStateMap' is serverStateMap with server changed to not-initialized, tools' remains the same & server' and tools' remain the same, state' is initial state

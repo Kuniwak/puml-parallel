@@ -31,7 +31,7 @@ class WireEncodingTest(unittest.TestCase):
                 self.assertEqual(want, len(from_wire(wire)))
 
     def test_scalars_are_themselves(self):
-        for v in (0, -3, "残高", True, False, None):
+        for v in (0, -3, "在庫", True, False, None):
             with self.subTest(v=v):
                 self.assertEqual(v, to_wire(v))
                 self.assertEqual(v, from_wire(to_wire(v)))
@@ -46,7 +46,7 @@ class WireEncodingTest(unittest.TestCase):
                 self.assertEqual(wire, to_wire(value))
 
     def test_a_nested_value_comes_back_equal_through_json(self):
-        v = FrozenMap({"t1": FrozenMap({"state": "署名済み", "手数料": 2}), 3: (1, frozenset({"a"}))})
+        v = FrozenMap({"t1": FrozenMap({"state": "印刷済み", "枚数": 2}), 3: (1, frozenset({"a"}))})
         self.assertEqual(v, from_wire(json.loads(json.dumps(to_wire(v)))))
 
     def test_a_boolean_stays_a_boolean(self):

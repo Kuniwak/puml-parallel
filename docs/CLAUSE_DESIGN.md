@@ -16,7 +16,7 @@ syntax.
   meaning, through the evaluator protocol; `csdfbmc/python_glue.py` is the
   reference glue for Python.
 - The **environment** is everything a diagram takes from outside: types
-  (carrier sets, such as the IDs or the amounts) and typed constants, among
+  (carrier sets, such as the IDs or the quantities) and typed constants, among
   them the pure functions that atoms without a glue denote (see P15, P16).
   An environment function is written `envfn` below. The environment
   replaced the separate `DOMAINS` csdfbmc read: its checks module declares
@@ -388,7 +388,7 @@ the Q4 approximation, not of the meaning).
 Natural language and formal languages fit the same frame (P15): an atom
 without a glue is an uninterpreted predicate of its arguments. There is no
 separate tool word for a clause not formalised: it is written as an atom
-whose holes are what it reads, such as `$口座 が凍結されていない`.
+whose holes are what it reads, such as `$会員 が停止されていない`.
 
 Which atoms are without a glue is declared, never inferred: the checks
 module lists them (its `ENVIRONMENT`), and every other atom is the glue's,

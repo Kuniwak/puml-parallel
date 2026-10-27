@@ -1,25 +1,25 @@
 @startuml CYCLE
-' The report of one business day. It is fixed by a tau: nothing outside decides
+' The tally of one business day. It is fixed by a tau: nothing outside decides
 ' when counting stops, so the event is internal.
 ' CSDF-IGNORE-BEGIN
 !ifndef PROMOTED
-title 基準日 1 日分の分別報告
+title 基準日 1 日分の入荷集計
 !endif
 ' CSDF-IGNORE-END
 
 state "未開始" as cycIdle
 state "集計中" as cycCounting
-cycCounting : total ; 合計数量
+cycCounting : total ; Nat
 state "確定済み" as cycFixed
-cycFixed : total ; 合計数量
+cycFixed : total ; Nat
 
 [*] --> cycIdle
 
-cycIdle --> cycCounting : BOOK?数量 ; ; $total' は $数量
-cycCounting --> cycCounting : BOOK?数量 ; ; $total' = $total + $数量
+cycIdle --> cycCounting : LOG?数量 ; ; $total' は $数量
+cycCounting --> cycCounting : LOG?数量 ; ; $total' = $total + $数量
 cycCounting --> cycFixed : tau ; ; $total' は $total
 cycFixed --> cycIdle : REPORT
 note as cycleChannels
-  channel BOOK : 数量
+  channel LOG : Quantity
 end note
 @enduml

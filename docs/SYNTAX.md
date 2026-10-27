@@ -128,7 +128,7 @@ fields may start with a digit, and two of them may carry the same value
 
 An `assumeDecl` is PlantUML's floating note holding one `assume` line. It states
 what the diagram assumes of its runs as a whole — a fairness assumption such as
-"a transaction whose fee keeps being raised is eventually confirmed" — which no
+"a job whose priority keeps being raised eventually completes" — which no
 guard can state, because a guard is about one step. The assumption is opaque text
 like a predicate; `csdflivelockfree` and `csdfrefinement` carry it as a hypothesis
 of the obligation, and `csdfparallel` gives a composition the assumptions of both
@@ -393,7 +393,7 @@ end note
   `map : ID ⇸ Type`, which gives the IDs no type, is refused with the form to
   write. The block includes the family's local diagram, read relative to the
   global file. The composite state may declare the maps it holds, as
-  `running : buys ; 約定ID ⇸ Buy`, of the type the block gives. Its states are the modes
+  `running : receipts ; ReceiptId ⇸ Receipt`, of the type the block gives. Its states are the modes
   below, and its edges are the start edge and the hand-written edges between
   modes.
 - A local diagram keeps the contract of docs/PROMOTION.md: its start state

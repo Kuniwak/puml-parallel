@@ -1,0 +1,33 @@
+@startuml RECEIPTS
+' Logging a receipt and counting it into the tally of its business day is
+' one event, so the two families take it together. That is what
+' the sync note says; the constrain notes are the conditions a local diagram
+' cannot see, because they are about the other map.
+!define PROMOTED
+
+state "稼働中" as running {
+  running : receipts ; ReceiptId ⇸ Receipt
+  running : cycles ; Date ⇸ Cycle
+
+  state "receipts : (入荷ID : ReceiptId) ⇸ Receipt" as runningReceipts <<promote>> {
+    !include local/RECEIPT.puml
+  }
+  state "cycles : (基準日 : Date) ⇸ Cycle" as runningCycles <<promote>> {
+    !include local/CYCLE.puml
+  }
+}
+
+[*] --> running
+
+note as sync1
+  sync LOG : receipts(入荷ID), cycles(基準日)
+end note
+
+note bottom of runningReceipts
+  constrain RECEIVE?入荷ID?数量 ; $数量 は箱入数の倍数である
+end note
+
+note as cons2
+  constrain LOG?入荷ID?基準日?数量 ; $基準日 は $入荷ID の入荷日である
+end note
+@enduml

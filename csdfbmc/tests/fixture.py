@@ -228,8 +228,8 @@ def findings(result) -> set:
 
 
 EXAMPLES = {
-    "withdraw": ("withdraw_formal.json", "withdraw_formal_defs.py"),
-    "wallet": ("wallet_formal.json", "wallet_formal_checks.py"),
+    "printer": ("printer_formal.json", "printer_formal_defs.py"),
+    "printer_retry": ("printer_retry_formal.json", "printer_retry_formal_checks.py"),
     "attempts": ("attempts/attempts.json", "attempts/checks.py"),
 }
 

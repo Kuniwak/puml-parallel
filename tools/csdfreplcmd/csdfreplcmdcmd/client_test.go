@@ -224,7 +224,7 @@ func TestNoDiagramJSONFlag(t *testing.T) {
 func TestNewOnAPromotion(t *testing.T) {
 	// Setup
 	sock := startDaemon(t)
-	if code, _, stderr := run(t, sock, "session", "new", "../../../examples/promote/ACCOUNTS.puml"); code != 0 {
+	if code, _, stderr := run(t, sock, "session", "new", "../../../examples/promote/MEMBERS.puml"); code != 0 {
 		t.Fatalf("Setup: session new exit = %d, stderr = %q", code, stderr)
 	}
 
@@ -232,7 +232,7 @@ func TestNewOnAPromotion(t *testing.T) {
 	code, stdout, stderr := run(t, sock, "read")
 
 	// Assert
-	if code != 0 || !strings.Contains(stdout, "accounts', a map from IDs to instances") {
+	if code != 0 || !strings.Contains(stdout, "members', a map from IDs to instances") {
 		t.Errorf("read = (exit %d, stdout %q, stderr %q), want the family's map at the prompt", code, stdout, stderr)
 	}
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const accountsPath = "../../../examples/promote/ACCOUNTS.puml"
+const membersPath = "../../../examples/promote/MEMBERS.puml"
 
 var update = flag.Bool("update", false, "rewrite the recorded expansions")
 
@@ -78,65 +78,65 @@ func TestNewMainFunc(t *testing.T) {
 		wantStderr      string
 	}{
 		"-no-comments is refused as an unknown flag": {
-			args:            []string{"-no-comments", accountsPath},
+			args:            []string{"-no-comments", membersPath},
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "flag provided but not defined: -no-comments",
 		},
 		"-lint-only prints nothing": {
-			args:            []string{"-lint-only", accountsPath},
+			args:            []string{"-lint-only", membersPath},
 			wantStdoutEmpty: true,
 		},
 		"-json is refused as an unknown flag": {
-			args:            []string{"-json", accountsPath},
+			args:            []string{"-json", membersPath},
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "flag provided but not defined: -json",
 		},
 		"-format json prints the expansion as csdfparse prints a diagram": {
-			args:         []string{"-format", "json", accountsPath},
+			args:         []string{"-format", "json", membersPath},
 			wantStdout:   []string{`"version":3`, `"kind":"builtin","op":"notin"`},
 			wantNoStdout: []string{"@startuml", `"origin"`},
 		},
 		"an unknown -format is refused": {
-			args:            []string{"-format", "tsv", accountsPath},
+			args:            []string{"-format", "tsv", membersPath},
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "unknown output",
 		},
 		"-template glosses the builtins in a line comment": {
-			args:       []string{"-template", "../../../examples/promote/templates/ja.tmpl", accountsPath},
-			wantStdout: []string{"' accounts[口座ID] は〈accOpen〉", "@notin(口座ID, accounts')"},
+			args:       []string{"-template", "../../../examples/promote/templates/ja.tmpl", membersPath},
+			wantStdout: []string{"' members[会員ID] は〈memActive〉", "@notin(会員ID, members')"},
 		},
 		"-template is refused with -format json": {
-			args:            []string{"-template", "../../../examples/promote/templates/ja.tmpl", "-format", "json", accountsPath},
+			args:            []string{"-template", "../../../examples/promote/templates/ja.tmpl", "-format", "json", membersPath},
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "-format json takes none",
 		},
 		"-only keeps the named families, and says what its result means": {
-			args:         []string{"-only", "buys", "../../../examples/promote/TRADES.puml"},
-			wantStdout:   []string{"running : buys"},
+			args:         []string{"-only", "receipts", "../../../examples/promote/RECEIPTS.puml"},
+			wantStdout:   []string{"running : receipts"},
 			wantNoStdout: []string{"REPORT", "running : cycles"},
 			wantStderr:   "note: a restriction keeps only safety",
 		},
 		"-only names a family by its map, not its type": {
-			args:            []string{"-only", "Buy", "../../../examples/promote/TRADES.puml"},
+			args:            []string{"-only", "Receipt", "../../../examples/promote/RECEIPTS.puml"},
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      "Buy is no promoted map",
+			wantStderr:      "Receipt is no promoted map",
 		},
 		"-only with -format json drops what reads a left-out map, and says so": {
-			args:         []string{"-only", "buys", "-format", "json", "../../../examples/promote/TRADES.puml"},
+			args:         []string{"-only", "receipts", "-format", "json", "../../../examples/promote/RECEIPTS.puml"},
 			wantStdout:   []string{`"version":3`},
 			wantNoStdout: []string{"cycles"},
 			wantStderr:   "dropped, as it reads a left-out map",
 		},
 		"-only refuses an unknown family": {
-			args:            []string{"-only", "sells", "../../../examples/promote/TRADES.puml"},
+			args:            []string{"-only", "shipments", "../../../examples/promote/RECEIPTS.puml"},
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      "sells is no promoted map",
+			wantStderr:      "shipments is no promoted map",
 		},
 		"-v prints the version": {
 			args:       []string{"-v"},
@@ -147,23 +147,23 @@ func TestNewMainFunc(t *testing.T) {
 			args: []string{"-base", "../../../examples/promote"},
 			stdin: `@startuml A
 state "稼働中" as running {
-  state "accounts : (口座ID : 口座ID) ⇸ Account" as runningAccounts <<promote>> {
-    !include local/ACCOUNT.puml
+  state "members : (会員ID : 会員ID) ⇸ Member" as runningMembers <<promote>> {
+    !include local/MEMBER.puml
   }
 }
 [*] --> running
 note as s
-  sync OPEN : audits(監査ID)
+  sync OPEN : reviews(審査ID)
 end note
 @enduml
 `,
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      "audits",
+			wantStderr:      "reviews",
 		},
 		"a warning is printed at its level": {
 			args:       []string{"../../../examples/promote/MODES.puml"},
-			wantStderr: "info: audits: frozen in degraded",
+			wantStderr: "info: reviews: frozen in degraded",
 		},
 	}
 

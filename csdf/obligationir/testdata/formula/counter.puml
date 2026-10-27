@@ -1,5 +1,5 @@
 @startuml
-' A counter that receives an amount and sends its total, with a tau that
+' A counter that receives a number and sends its total, with a tau that
 ' resets it nondeterministically to some value of its type.
 state "s" as s
 s : n ; n
