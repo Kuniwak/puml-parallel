@@ -41,4 +41,4 @@ jobs:
           sudo apt-get install -y --no-install-recommends plantuml graphviz
 
       - name: Render the global diagrams
-        run: go test -v ./csdf/promote/rendercheck/
+        run: go test -v ./examples/rendercheck/
