@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -14,23 +15,29 @@ type EventField struct {
 	Name string
 }
 
-// FieldRule is what stands for a field of an event: Check accepts it, and
-// Name says what it is, for an error of an event it refuses.
+// FieldRule is what stands for a field of an event: Check refuses what is
+// not one, and Name says what it is, for an error of an event it refuses.
 type FieldRule struct {
 	Name  string
-	Check func(string) bool
+	Check func(string) error
 }
 
 // The FieldRules: a diagram's event names its fields; a trace's event may
 // carry their values instead.
 var (
-	FieldIdentifier  = FieldRule{Name: "an identifier", Check: ident.Is}
-	FieldNameOrValue = FieldRule{Name: "a name or a value", Check: func(s string) bool { return s != "" }}
+	FieldIdentifier  = FieldRule{Name: "an identifier", Check: ident.Check}
+	FieldNameOrValue = FieldRule{Name: "a name or a value", Check: func(s string) error {
+		if s == "" {
+			return errors.New("it is empty")
+		}
+		return nil
+	}}
 )
 
 // SplitEvent takes apart an event written as a channel, then ?x for each
 // field received and !x for each sent, in order, each trimmed of spaces. The
-// channel is an identifier, and each x is one field accepts. Neither may
+// channel is a name (ident.Check), whatever field is, and each x is one
+// field accepts: a name in a diagram, a name or a value in a trace. Neither may
 // hold ? or !, which mark the fields.
 func SplitEvent(text string, field FieldRule) (string, []EventField, error) {
 	i := strings.IndexAny(text, "?!")
@@ -38,8 +45,8 @@ func SplitEvent(text string, field FieldRule) (string, []EventField, error) {
 		i = len(text)
 	}
 	channel := strings.TrimSpace(text[:i])
-	if !ident.Is(channel) {
-		return "", nil, fmt.Errorf("%q: expected a channel, an identifier, then ?field or !field", text)
+	if err := ident.Check(channel); err != nil {
+		return "", nil, fmt.Errorf("%q: expected a channel, an identifier, then ?field or !field: %w", text, err)
 	}
 	var fields []EventField
 	for rest := text[i:]; rest != ""; {
@@ -51,8 +58,8 @@ func SplitEvent(text string, field FieldRule) (string, []EventField, error) {
 			j = len(rest)
 		}
 		name := strings.TrimSpace(rest[:j])
-		if !field.Check(name) {
-			return "", nil, fmt.Errorf("%q: expected %s after %q", text, field.Name, marker)
+		if err := field.Check(name); err != nil {
+			return "", nil, fmt.Errorf("%q: expected %s after %q: %w", text, field.Name, marker, err)
 		}
 		fields = append(fields, EventField{Send: send, Name: name})
 		rest = rest[j:]

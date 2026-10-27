@@ -49,7 +49,7 @@ func TestCheck(t *testing.T) {
 	}
 
 	linear := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : x ; g1 ; p1\nb --> a : y ; g2 ; p2\n@enduml\n"
-	forked := "@startuml\nstate \"A\" as A\nstate \"B\" as B\nstate \"C\" as C\nstate \"D\" as D\n[*] --> A\nA --> B : 1\nA --> C : 1\nC --> D : 2\n@enduml\n"
+	forked := "@startuml\nstate \"A\" as A\nstate \"B\" as B\nstate \"C\" as C\nstate \"D\" as D\n[*] --> A\nA --> B : p\nA --> C : p\nC --> D : q\n@enduml\n"
 	tauThenX := "@startuml\nstate \"a\" as a\nstate \"b\" as b\nstate \"c\" as c\n[*] --> a\na --> b : tau ; gt ; pt\nb --> c : x\n@enduml\n"
 	tauCycle := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : tau\nb --> a : tau\na --> a : x\nb --> b : x\n@enduml\n"
 	insert := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert?coin\n@enduml\n"
@@ -78,12 +78,12 @@ func TestCheck(t *testing.T) {
 			},
 		},
 		"a nondeterministic branch that refuses the next event rejects the trace": {
-			// After 1 the diagram may be in B, which is stable and cannot do 2:
-			// (<1>, {2}) is a failure, even though C can do 2.
-			Match: tracechk.MatchExact, Diagram: forked, Trace: []string{"1", "2"},
+			// After p the diagram may be in B, which is stable and cannot do q:
+			// (<p>, {q}) is a failure, even though C can do q.
+			Match: tracechk.MatchExact, Diagram: forked, Trace: []string{"p", "q"},
 			WantRejection: func(es []core.Edge) *tracechk.Rejection {
 				return &tracechk.Rejection{
-					Index: 1, Event: "2", States: []string{"B", "C"}, Refusing: []string{"B"},
+					Index: 1, Event: "q", States: []string{"B", "C"}, Refusing: []string{"B"},
 					Paths: []tracechk.PrefixPath{{Path: tracechk.Path{es[0]}, Dst: "B"}},
 				}
 			},

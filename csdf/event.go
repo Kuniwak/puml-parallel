@@ -40,8 +40,8 @@ func ParseEvent(text string) (Event, error) {
 // what a composition synchronises on.
 func ParseChannel(text string) (string, error) {
 	channel := strings.TrimSpace(text)
-	if !ident.Is(channel) {
-		return "", fmt.Errorf("csdf.ParseChannel: %q is not a channel, which is an identifier with no ?field or !field", text)
+	if err := ident.Check(channel); err != nil {
+		return "", fmt.Errorf("csdf.ParseChannel: %q is not a channel, which is an identifier with no ?field or !field: %w", text, err)
 	}
 	if Event(channel) == Tau {
 		return "", fmt.Errorf("csdf.ParseChannel: tau is the internal event, which is neither synchronised nor hidden")

@@ -2,6 +2,7 @@ package ident
 
 import (
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -54,6 +55,34 @@ func TestPatternAgreesWithIs(t *testing.T) {
 			// Assert
 			if want := Is(s); got != want {
 				t.Errorf("Pattern matches %q = %v, Is = %v", s, got, want)
+			}
+		})
+	}
+}
+
+func TestCheck(t *testing.T) {
+	tests := map[string]struct {
+		s       string
+		wantErr string
+	}{
+		"a name":           {s: "s0"},
+		"a Unicode name":   {s: "在庫2"},
+		"a reserved word":  {s: "null", wantErr: "null is a reserved word"},
+		"a leading digit":  {s: "9a", wantErr: "does not start with a digit, as 9a"},
+		"no identifier":    {s: "a-b", wantErr: "is not an identifier"},
+		"the empty string": {s: "", wantErr: "is not an identifier"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := Check(tt.s)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("Check(%q) = %v, want nil", tt.s, err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Check(%q) = %v, want an error containing %q", tt.s, err, tt.wantErr)
 			}
 		})
 	}

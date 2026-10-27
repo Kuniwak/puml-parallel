@@ -3,7 +3,10 @@
 // follow it.
 package ident
 
-import "unicode"
+import (
+	"fmt"
+	"unicode"
+)
 
 // Pattern is the rule as a regular expression, for parsers built on regexp.
 const Pattern = `[\p{L}\p{N}_]+`
@@ -28,4 +31,48 @@ func Is(s string) bool {
 		}
 	}
 	return true
+}
+
+// The words that are literals, never names.
+const (
+	TrueWord  = "true"
+	FalseWord = "false"
+	NullWord  = "null"
+)
+
+// IsReserved reports whether s is a word a term reads as a literal, and so
+// is no name.
+func IsReserved(s string) bool { return s == TrueWord || s == FalseWord || s == NullWord }
+
+// CheckName refuses a name that is a reserved word, or that starts with a
+// digit, as a literal number does. It does not check the characters; Is
+// does, and Check does both.
+func CheckName(name string) error {
+	if IsReserved(name) {
+		return fmt.Errorf("%s is a reserved word, a literal, and names nothing", name)
+	}
+	if r := []rune(name); len(r) > 0 && unicode.IsDigit(r[0]) {
+		return fmt.Errorf("a name does not start with a digit, as %s does", name)
+	}
+	return nil
+}
+
+// Check refuses s unless it is a name: an identifier (Is) that CheckName
+// accepts. State IDs, state variables, channels, fields, the names in
+// clauses and in a global diagram's directives are all names.
+func Check(s string) error {
+	if !Is(s) {
+		return fmt.Errorf("%q is not an identifier, which is letters, digits and _", s)
+	}
+	return CheckName(s)
+}
+
+// CheckAll refuses the first of names that Check refuses.
+func CheckAll(names ...string) error {
+	for _, n := range names {
+		if err := Check(n); err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -47,17 +47,6 @@ func startsLiteral(r rune) bool {
 	return r == '-' || r == '"' || r == '[' || r == '{' || ('0' <= r && r <= '9')
 }
 
-// The words that are literals, never names.
-const (
-	trueWord  = "true"
-	falseWord = "false"
-	nullWord  = "null"
-)
-
-// IsReserved reports whether a name is a word a term reads as a literal,
-// and so is no name of a variable, a field or a function.
-func IsReserved(name string) bool { return name == trueWord || name == falseWord || name == nullWord }
-
 // readLiteral reads the literal at pos of src and returns its canonical
 // text and the position after it.
 func readLiteral(src []rune, pos int) (string, int, error) {
@@ -110,12 +99,12 @@ func (l *lexer) value() (string, error) {
 		return l.object()
 	case r == '-' || ('0' <= r && r <= '9'):
 		return l.number()
-	case l.word(trueWord):
-		return trueWord, nil
-	case l.word(falseWord):
-		return falseWord, nil
-	case l.word(nullWord):
-		return "", fmt.Errorf("null is no value at %d", l.pos-len(nullWord))
+	case l.word(ident.TrueWord):
+		return ident.TrueWord, nil
+	case l.word(ident.FalseWord):
+		return ident.FalseWord, nil
+	case l.word(ident.NullWord):
+		return "", fmt.Errorf("null is no value at %d", l.pos-len(ident.NullWord))
 	}
 	return "", fmt.Errorf("expected a literal at %d", l.pos)
 }

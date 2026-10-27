@@ -128,7 +128,7 @@ func (p *parser) exists() (Formula, error) {
 	if hint == "" {
 		return nil, fmt.Errorf("@exists at %d: expected a name", start)
 	}
-	if err := checkName(hint); err != nil {
+	if err := ident.CheckName(hint); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)
 	}
 	if err := p.expect(existsType); err != nil {
@@ -195,6 +195,9 @@ func (p *parser) builtin() (Formula, error) {
 		}
 		if b.State = p.name(); b.State == "" {
 			return nil, fmt.Errorf("@%s at %d: expected a state at %d", op, start, p.pos)
+		}
+		if err := ident.CheckName(b.State); err != nil {
+			return nil, fmt.Errorf("@%s at %d: the state: %w", op, start, err)
 		}
 	}
 	if err := p.expect(")"); err != nil {
@@ -264,24 +267,12 @@ func (p *parser) hole() (Term, error) {
 func (p *parser) nameHole() (Term, error) {
 	p.pos++ // $
 	name := p.name()
-	if err := checkName(name); err != nil {
+	if err := ident.CheckName(name); err != nil {
 		return nil, err
 	}
 	primed := p.prime()
 	p.spaceAfterHole()
 	return p.variable(name, primed)
-}
-
-// checkName refuses a name that is a word a term reads as a literal, or
-// that starts with a digit, as a literal number does.
-func checkName(name string) error {
-	if IsReserved(name) {
-		return fmt.Errorf("%s is a reserved word, a literal; it names no variable, field or function", name)
-	}
-	if r := []rune(name); len(r) > 0 && unicode.IsDigit(r[0]) {
-		return fmt.Errorf("a name does not start with a digit, as %s does", name)
-	}
-	return nil
 }
 
 // variable resolves name against the enclosing binders.
@@ -340,7 +331,7 @@ func (p *parser) term() (Term, error) {
 	if name == "" {
 		return nil, fmt.Errorf("expected a term at %d", p.pos)
 	}
-	if err := checkName(name); err != nil {
+	if err := ident.CheckName(name); err != nil {
 		return nil, fmt.Errorf("at %d: %w", start, err)
 	}
 	if p.hasPrefix("(") {
@@ -369,7 +360,7 @@ func (p *parser) term() (Term, error) {
 			if f == "" {
 				return nil, fmt.Errorf("expected a field at %d", p.pos)
 			}
-			if err := checkName(f); err != nil {
+			if err := ident.CheckName(f); err != nil {
 				return nil, fmt.Errorf("at %d: %w", p.pos-len([]rune(f)), err)
 			}
 			t, path = Field{Of: t, Name: f}, true
@@ -402,7 +393,7 @@ func (p *parser) atLiteral() bool {
 	save := p.pos
 	w := p.name()
 	p.pos = save
-	return IsReserved(w) && !strings.HasPrefix(string(p.src[p.pos+len([]rune(w)):]), "(")
+	return ident.IsReserved(w) && !strings.HasPrefix(string(p.src[p.pos+len([]rune(w)):]), "(")
 }
 
 // literal reads a literal, which is a whole term: nothing is read of it

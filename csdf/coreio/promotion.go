@@ -111,6 +111,9 @@ func (r *promotionReader) line(l string) error {
 	}
 	if m := mapDeclRe.FindStringSubmatch(l); m != nil && (r.depth == 1 && m[1] == r.mode() || r.depth == 0 && r.holds[m[1]] != nil) {
 		mode := m[1]
+		if err := ident.CheckAll(m[2]); err != nil {
+			return err
+		}
 		r.holds[mode][m[2]] = true
 		if !slices.Contains(r.declared[mode], m[2]) {
 			r.declared[mode] = append(r.declared[mode], m[2])
@@ -150,6 +153,9 @@ func (r *promotionReader) line(l string) error {
 		return r.edge(l, m[1], m[2])
 	}
 	if m := pumlline.NoteFloating.FindStringSubmatch(l); m != nil && r.depth < 2 {
+		if err := ident.CheckAll(m[1]); err != nil {
+			return err
+		}
 		r.note, r.noteID = unread, m[1]
 		return nil
 	}
@@ -227,6 +233,9 @@ func isDirective(l string) bool {
 }
 
 func (r *promotionReader) sync(event, targets, guard string) error {
+	if err := ident.CheckAll(event); err != nil {
+		return fmt.Errorf("sync %s: %w", event, err)
+	}
 	for _, other := range r.p.Syncs {
 		if other.Event == event {
 			return fmt.Errorf("a second sync of %s; one event is synchronised once", event)
@@ -237,6 +246,9 @@ func (r *promotionReader) sync(event, targets, guard string) error {
 		m := targetRe.FindStringSubmatch(strings.TrimSpace(t))
 		if m == nil {
 			return fmt.Errorf("sync %s: %q: expected map(id) or map(id).event", event, strings.TrimSpace(t))
+		}
+		if err := ident.CheckAll(slices.DeleteFunc([]string{m[1], m[2], m[3]}, isLeftOut)...); err != nil {
+			return fmt.Errorf("sync %s: %w", event, err)
 		}
 		if _, err := r.familyOf(m[1]); err != nil {
 			return fmt.Errorf("sync %s: %w", event, err)
@@ -288,6 +300,9 @@ func (r *promotionReader) mode() string {
 
 // newMode starts the mode named alias, labelled label.
 func (r *promotionReader) newMode(alias, label string) error {
+	if err := ident.CheckAll(alias); err != nil {
+		return err
+	}
 	if slices.Contains(r.p.Modes, alias) {
 		return fmt.Errorf("a second state %s", alias)
 	}
@@ -309,6 +324,9 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 	t := pumlline.PromoteTitle.FindStringSubmatch(title)
 	if t == nil {
 		return fmt.Errorf("expected a <<promote>> title of the form \"<map> : <ID> ⇸ <Type>\", got %q", title)
+	}
+	if err := ident.CheckAll(alias, t[1], t[2]); err != nil {
+		return fmt.Errorf("the <<promote>> block %s: %w", alias, err)
 	}
 	mode := r.mode()
 	if r.moves[mode][t[1]] {
@@ -352,6 +370,9 @@ func (r *promotionReader) edge(l, src, dst string) error {
 	r.edgeAt = append(r.edgeAt, r.lineNo)
 	return nil
 }
+
+// isLeftOut reports whether s is an optional part a line leaves out.
+func isLeftOut(s string) bool { return s == "" }
 
 // located is an error that names its source line itself.
 type located struct{ error }

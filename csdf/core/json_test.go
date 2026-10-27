@@ -379,6 +379,17 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 			},
 			want: `unknown field "ids"`,
 		},
+		"a state that is a reserved word": {
+			edit: func(v map[string]any) { v["states"] = append(v["states"].([]any), "true") },
+			want: "a state: true is a reserved word",
+		},
+		"a channel starting with a digit": {
+			edit: func(v map[string]any) {
+				v["edges"].([]any)[0].(map[string]any)["channel"] = "9c"
+				v["edges"].([]any)[0].(map[string]any)["label"] = "9c?x"
+			},
+			want: "does not start with a digit, as 9c",
+		},
 		"a family without its key": {
 			edit: func(v map[string]any) {
 				v["vars"] = map[string]any{"s0": []any{"n", "m"}}

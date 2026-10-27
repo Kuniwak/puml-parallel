@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
 // Tau is the channel of an internal event.
@@ -219,6 +220,46 @@ func (d *Diagram) declared() error {
 	return nil
 }
 
+// namesWellFormed reports, as an error, a name d gives that the identifier
+// rule refuses (docs/SYNTAX.md): a state, a variable, a channel, a field,
+// an assumption, or a family's map, key or local state.
+func (d *Diagram) namesWellFormed() error {
+	if err := ident.CheckAll(d.States...); err != nil {
+		return fmt.Errorf("a state: %w", err)
+	}
+	for _, vs := range d.Vars {
+		if err := ident.CheckAll(vs...); err != nil {
+			return fmt.Errorf("a variable: %w", err)
+		}
+	}
+	for _, e := range d.Edges {
+		if err := ident.Check(e.Event.Channel); err != nil {
+			return fmt.Errorf("%s --> %s: the channel: %w", e.Src, e.Dst, err)
+		}
+		for _, f := range e.Event.Fields {
+			if err := ident.Check(f.Name); err != nil {
+				return fmt.Errorf("%s --> %s : %s: a field: %w", e.Src, e.Dst, e.Event.Channel, err)
+			}
+		}
+	}
+	for _, a := range d.Assumes {
+		if err := ident.Check(a.ID); err != nil {
+			return fmt.Errorf("an assumption: %w", err)
+		}
+	}
+	for _, f := range d.Families {
+		if err := ident.CheckAll(append([]string{f.Map, f.Key, f.Init}, f.States...)...); err != nil {
+			return fmt.Errorf("the family of %s: %w", f.Map, err)
+		}
+		for _, vs := range f.Vars {
+			if err := ident.CheckAll(vs...); err != nil {
+				return fmt.Errorf("the family of %s: a variable: %w", f.Map, err)
+			}
+		}
+	}
+	return nil
+}
+
 // wellFormed reports, as an error, a state d names but does not declare, or
 // a clause of d that is not well formed (clause.WellFormed).
 func (d *Diagram) wellFormed() error {
@@ -226,6 +267,9 @@ func (d *Diagram) wellFormed() error {
 		return err
 	}
 	if err := d.familiesWellFormed(); err != nil {
+		return err
+	}
+	if err := d.namesWellFormed(); err != nil {
 		return err
 	}
 	if err := clause.WellFormed(d.InitPost); err != nil {

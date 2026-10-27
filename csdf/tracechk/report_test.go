@@ -30,12 +30,12 @@ state "B" as B
 state "C" as C
 state "D" as D
 [*] --> A : $n' = 0
-A --> B : 1 ; $n = 0
-A --> C : 1
-C --> D : 2
+A --> B : p ; $n = 0
+A --> C : p
+C --> D : q
 @enduml
 `,
-			Trace:  []string{"1", "2"},
+			Trace:  []string{"p", "q"},
 			Golden: "refusing.md",
 		},
 		"an accepted trace states one obligation per prefix path, each received field bound per step": {

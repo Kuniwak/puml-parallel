@@ -151,7 +151,7 @@ func (p *Parser) parseStateWithID() (StateWithID, error) {
 		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
 
-	id, err := p.parseID()
+	id, err := p.parseName()
 	if err != nil {
 		return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 	}
@@ -196,7 +196,7 @@ func (p *Parser) parseStateWithID() (StateWithID, error) {
 		if err := p.skipInlineTrivia(); err != nil {
 			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
-		varName, err := p.parseID()
+		varName, err := p.parseName()
 		if err != nil {
 			return StateWithID{}, fmt.Errorf("csdf.Parser.parseState: %w", err)
 		}
@@ -283,7 +283,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: %w", err)
 	}
 
-	dst, err := p.parseID()
+	dst, err := p.parseName()
 	if err != nil {
 		return StartEdge{}, fmt.Errorf("csdf.Parser.parseStartEdge: expected destination state ID after '-->' in start edge at line %d, col %d", p.line, p.col)
 	}
@@ -319,7 +319,7 @@ func (p *Parser) parseStartEdge() (StartEdge, error) {
 
 func (p *Parser) parseEdge() (Edge, error) {
 	line := p.line
-	src, err := p.parseID()
+	src, err := p.parseName()
 	if err != nil {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
@@ -334,7 +334,7 @@ func (p *Parser) parseEdge() (Edge, error) {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
 
-	dst, err := p.parseID()
+	dst, err := p.parseName()
 	if err != nil {
 		return Edge{}, fmt.Errorf("csdf.Parser.parseEdge: %w", err)
 	}
@@ -439,6 +439,20 @@ func (p *Parser) parseID() (string, error) {
 	}
 
 	return result.String(), nil
+}
+
+// parseName reads an identifier that names something, refusing one that
+// ident.CheckName refuses. The probes read with parseID, which only reads.
+func (p *Parser) parseName() (string, error) {
+	line, col := p.line, p.col
+	name, err := p.parseID()
+	if err != nil {
+		return "", err
+	}
+	if err := ident.CheckName(name); err != nil {
+		return "", fmt.Errorf("csdf.Parser.parseName: line %d, col %d: %w", line, col, err)
+	}
+	return name, nil
 }
 
 func (p *Parser) parseUntilSemicolon() (string, error) {
@@ -715,7 +729,7 @@ func (p *Parser) parseAssumeNote() (Assumption, error) {
 	if err := p.skipInlineTrivia(); err != nil {
 		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
 	}
-	id, err := p.parseID()
+	id, err := p.parseName()
 	if err != nil {
 		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
 	}
@@ -765,7 +779,7 @@ func (p *Parser) parseAssumeNote() (Assumption, error) {
 
 func (p *Parser) parseEndEdge() (EndEdge, error) {
 	line := p.line
-	src, err := p.parseID()
+	src, err := p.parseName()
 	if err != nil {
 		return EndEdge{}, fmt.Errorf("csdf.Parser.parseEndEdge: %w", err)
 	}
