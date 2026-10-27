@@ -1,5 +1,7 @@
 package clause
 
+import "slices"
+
 // MapTerm rebuilds t bottom-up, replacing each variable (Free or Bound) by
 // what leaf gives for it; a literal is no variable and stays. depth is the number of binders t sits under, and
 // leaf is told it, so that it can tell a Bound that points outside from one
@@ -111,4 +113,65 @@ func EachTerm(f Formula, visit func(Term)) {
 			visit(a)
 		}
 	}
+}
+
+// PrimedNames are the names of the primed free variables of f, the
+// variables it names after the step, in order of appearance, each once: a
+// primed variable anywhere in a term counts, a key or an argument of a
+// function included.
+func PrimedNames(f Formula) []string {
+	var names []string
+	for _, v := range FreeVars(f) {
+		if v.Primed && !slices.Contains(names, v.Name) {
+			names = append(names, v.Name)
+		}
+	}
+	return names
+}
+
+// BinderHints are the hints of the ∃s of f, outermost first, each once: the
+// names an author gave the variables f binds.
+func BinderHints(f Formula) []string {
+	var hints []string
+	var walk func(Formula)
+	walk = func(f Formula) {
+		switch f := f.(type) {
+		case And:
+			for _, c := range f.Conjuncts {
+				walk(c)
+			}
+		case Exists:
+			if !slices.Contains(hints, f.Hint) {
+				hints = append(hints, f.Hint)
+			}
+			walk(f.Body)
+		}
+	}
+	walk(f)
+	return hints
+}
+
+// FunctionNames are the names of the environment functions f applies, in
+// order of appearance, each once.
+func FunctionNames(f Formula) []string {
+	var names []string
+	var term func(Term)
+	term = func(t Term) {
+		switch t := t.(type) {
+		case Index:
+			term(t.Map)
+			term(t.Key)
+		case Field:
+			term(t.Of)
+		case App:
+			if !slices.Contains(names, t.Fn) {
+				names = append(names, t.Fn)
+			}
+			for _, a := range t.Args {
+				term(a)
+			}
+		}
+	}
+	EachTerm(f, term)
+	return names
 }

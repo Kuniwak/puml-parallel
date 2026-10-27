@@ -2,6 +2,7 @@ package clause
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -22,37 +23,35 @@ const (
 // Parse reads a clause (docs/SYNTAX.md, "Clauses"). The empty text is true,
 // And{}.
 func Parse(text string) (And, error) {
-	p := &parser{src: []rune(text)}
-	f, err := p.clause()
+	f, err := parse(text, false)
 	if err != nil {
 		return And{}, fmt.Errorf("clause.Parse: %q: %w", text, err)
 	}
-	if !p.atEnd() {
-		return And{}, fmt.Errorf("clause.Parse: %q: unexpected %q at %d", text, string(p.src[p.pos:]), p.pos)
+	return f, nil
+}
+
+// ParseAuthored reads a clause an author wrote: Parse, refusing an ∃ that
+// binds the name of an enclosing one, which would shadow it. Whether a
+// bound name is apart from the names of the diagram is the diagram's to
+// say (core.BindersApart).
+func ParseAuthored(text string) (And, error) {
+	f, err := parse(text, true)
+	if err != nil {
+		return And{}, fmt.Errorf("clause.ParseAuthored: %q: %w", text, err)
 	}
 	return f, nil
 }
 
-// ParseAuthored reads a clause an author wrote: Parse, refusing ∃, which
-// only tools write.
-func ParseAuthored(text string) (And, error) {
-	f, err := Parse(text)
+func parse(text string, authored bool) (And, error) {
+	p := &parser{src: []rune(text), authored: authored}
+	f, err := p.clause()
 	if err != nil {
 		return And{}, err
 	}
-	if hasExists(f) {
-		return And{}, fmt.Errorf("clause.ParseAuthored: %q: @exists is written by tools only", text)
+	if !p.atEnd() {
+		return And{}, fmt.Errorf("unexpected %q at %d", string(p.src[p.pos:]), p.pos)
 	}
 	return f, nil
-}
-
-func hasExists(f And) bool {
-	for _, c := range f.Conjuncts {
-		if _, ok := c.(Exists); ok {
-			return true
-		}
-	}
-	return false
 }
 
 type parser struct {
@@ -60,6 +59,9 @@ type parser struct {
 	pos   int
 	scope []string // names bound by enclosing ∃, innermost last
 	body  int      // how many ∃ bodies the parser is in
+	// authored refuses an ∃ shadowing an enclosing one, which an author
+	// never means; a tool's binders are nameless and only hinted.
+	authored bool
 }
 
 func (p *parser) atEnd() bool { return p.pos >= len(p.src) }
@@ -131,6 +133,9 @@ func (p *parser) exists() (Formula, error) {
 	}
 	if err := ident.CheckName(hint); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)
+	}
+	if p.authored && slices.Contains(p.scope, hint) {
+		return nil, fmt.Errorf("@exists at %d: %s is bound by an enclosing @exists; give it another name", start, hint)
 	}
 	if err := p.expect(existsType); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)

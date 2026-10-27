@@ -12,10 +12,14 @@ import (
 )
 
 // ReadAuthored reads a diagram an author wrote: its clauses are read by
-// clause.ParseAuthored, so none holds ∃.
+// clause.ParseAuthored, and each ∃ binds a name apart from those of the
+// diagram (core.Diagram.BindersApart).
 func ReadAuthored(source string) (*core.Diagram, error) {
 	d, err := read(source, clause.ParseAuthored)
 	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadAuthored: %w", err)
+	}
+	if err := d.BindersApart(); err != nil {
 		return nil, fmt.Errorf("coreio.ReadAuthored: %w", err)
 	}
 	return d, nil

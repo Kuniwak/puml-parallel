@@ -367,6 +367,113 @@ func (sc scope) check(what string, c clause.And) error {
 	return nil
 }
 
+// BindersApart reports, as an error, an ∃ of a clause of d that binds a
+// name the clause could otherwise read (docs/CLAUSE_DESIGN.md, Binding): a
+// state variable of the source or the target, a field of the event, or an
+// environment function a clause of d applies. Such an ∃ is no error of the
+// meaning, its variable being an index, but an author who writes it reads
+// one name as two things. Tools bind with hints only, chosen apart when a
+// clause is printed, so only an authored diagram is held to this.
+func (d *Diagram) BindersApart() error {
+	fns := d.FunctionNames()
+	if err := d.startScope().apart(d.InitPost, fns); err != nil {
+		return fmt.Errorf("line %d: the start edge: %w", d.InitLine, err)
+	}
+	for _, e := range d.Edges {
+		sc := d.edgeScope(e)
+		for _, c := range []clause.And{e.Guard, e.Post} {
+			if err := sc.apart(c, fns); err != nil {
+				return fmt.Errorf("line %d: %s --> %s : %s: %w", e.Line, e.Src, e.Dst, e.Event.Label(), err)
+			}
+		}
+	}
+	for _, e := range d.Ends {
+		sc := scope{src: "of " + e.Src, before: d.Vars[e.Src]}
+		if err := sc.apart(e.Guard, fns); err != nil {
+			return fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+	}
+	return nil
+}
+
+// FunctionNames are the names of the environment functions the clauses of
+// d apply, each once.
+func (d *Diagram) FunctionNames() []string {
+	var fns []string
+	for _, c := range d.clauses() {
+		for _, f := range clause.FunctionNames(c) {
+			if !slices.Contains(fns, f) {
+				fns = append(fns, f)
+			}
+		}
+	}
+	return fns
+}
+
+// FreshBinder is a name from hint that an ∃ of a clause of e may bind,
+// BindersApart refusing none of it.
+func (d *Diagram) FreshBinder(e Edge, hint string) string {
+	return d.edgeScope(e).fresh(d.FunctionNames(), hint)
+}
+
+// FreshStartBinder is FreshBinder of the start edge.
+func (d *Diagram) FreshStartBinder(hint string) string {
+	return d.startScope().fresh(d.FunctionNames(), hint)
+}
+
+func (d *Diagram) startScope() scope {
+	return scope{dst: "of " + d.Init, after: d.Vars[d.Init]}
+}
+
+func (d *Diagram) edgeScope(e Edge) scope {
+	sc := scope{src: "of " + e.Src, before: d.Vars[e.Src], dst: "of " + e.Dst, after: d.Vars[e.Dst]}
+	for _, f := range e.Event.Fields {
+		sc.fields = append(sc.fields, f.Name)
+	}
+	return sc
+}
+
+// fresh is a name from hint that apart refuses in no clause of sc.
+func (sc scope) fresh(fns []string, hint string) string {
+	taken := map[string]bool{}
+	for _, ns := range [][]string{sc.before, sc.after, sc.fields, fns} {
+		for _, n := range ns {
+			taken[n] = true
+		}
+	}
+	return clause.Fresh(taken, hint)
+}
+
+// apart is BindersApart of the clause c, fns the environment functions of
+// the diagram.
+func (sc scope) apart(c clause.And, fns []string) error {
+	return BindersApartFrom(c, func(h string) string {
+		switch {
+		case slices.Contains(sc.before, h):
+			return "a state variable " + sc.src
+		case slices.Contains(sc.after, h):
+			return "a state variable " + sc.dst
+		case slices.Contains(sc.fields, h):
+			return "a field of the event"
+		case slices.Contains(fns, h):
+			return "an environment function"
+		}
+		return ""
+	})
+}
+
+// BindersApartFrom reports, as an error, an ∃ of c binding a name that
+// taken says what it is of, by a phrase such as "a field of the event";
+// taken gives "" for a name that is free to bind.
+func BindersApartFrom(c clause.And, taken func(name string) string) error {
+	for _, h := range clause.BinderHints(c) {
+		if what := taken(h); what != "" {
+			return fmt.Errorf("@exists binds %s, which is %s; give it another name", h, what)
+		}
+	}
+	return nil
+}
+
 // atsWellFormed reports, as an error, an @at of an entry of a family's map
 // at a state that is none of the family's, or at its start state, which is
 // absence (said with @notin).
@@ -502,6 +609,20 @@ func (e Event) Label() string {
 		sb.WriteString(f.Name)
 	}
 	return sb.String()
+}
+
+// UnnamedAfter are the variables of vars that post does not name after the
+// step (clause.PrimedNames), in the order of vars: constrained by nothing,
+// each may be any value of its type after the step.
+func UnnamedAfter(post clause.And, vars []string) []string {
+	named := clause.PrimedNames(post)
+	var free []string
+	for _, v := range vars {
+		if !slices.Contains(named, v) {
+			free = append(free, v)
+		}
+	}
+	return free
 }
 
 // NotKept are the state variables vars that e's guard reads and e's post

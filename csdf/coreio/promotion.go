@@ -497,6 +497,9 @@ func (r *promotionReader) check() error {
 			r.p.Types[v] = r.types[v]
 		}
 	}
+	if err := r.bindersApart(); err != nil {
+		return err
+	}
 	for i := range r.p.Families {
 		f := &r.p.Families[i]
 		if f.Local == nil {
@@ -512,4 +515,77 @@ func (r *promotionReader) check() error {
 		}
 	}
 	return nil
+}
+
+// bindersApart reports, as an error, an ∃ of a clause of the global diagram
+// that binds a name a clause of it could read, as core.Diagram.BindersApart
+// does of a local diagram, but with every variable of the global diagram
+// taken on every clause, whatever its mode: a map, which every mode holds,
+// or the controller's own, a field of the event, an ID of a sync, or an
+// environment function a clause applies.
+func (r *promotionReader) bindersApart() error {
+	clauses := []clause.And{r.p.InitPost}
+	for _, e := range r.p.Edges {
+		clauses = append(clauses, e.Guard, e.Post)
+	}
+	for _, s := range r.p.Syncs {
+		clauses = append(clauses, s.Guard)
+	}
+	for _, c := range r.p.Constrains {
+		clauses = append(clauses, c.Guard)
+	}
+	var fns []string
+	for _, c := range clauses {
+		fns = append(fns, clause.FunctionNames(c)...)
+	}
+	global := func(fields, ids []string) func(string) string {
+		return func(h string) string {
+			switch {
+			case slices.ContainsFunc(r.p.Families, func(f core.Family) bool { return f.Map == h }),
+				slices.ContainsFunc(r.p.Modes, func(m string) bool { return slices.Contains(r.p.Vars[m], h) }):
+				return "a state variable of the global diagram"
+			case slices.Contains(fields, h):
+				return "a field of the event"
+			case slices.Contains(ids, h):
+				return "an ID of the sync"
+			case slices.Contains(fns, h):
+				return "an environment function"
+			}
+			return ""
+		}
+	}
+	if err := core.BindersApartFrom(r.p.InitPost, global(nil, nil)); err != nil {
+		return fmt.Errorf("the start edge: %w", err)
+	}
+	for i, e := range r.p.Edges {
+		for _, c := range []clause.And{e.Guard, e.Post} {
+			if err := core.BindersApartFrom(c, global(fieldNames(e.Event), nil)); err != nil {
+				return fmt.Errorf("line %d: %s --> %s : %s: %w", r.edgeAt[i], e.Src, e.Dst, e.Event.Label(), err)
+			}
+		}
+	}
+	for _, s := range r.p.Syncs {
+		var ids []string
+		for _, t := range s.Targets {
+			ids = append(ids, t.ID)
+		}
+		if err := core.BindersApartFrom(s.Guard, global(nil, ids)); err != nil {
+			return fmt.Errorf("sync %s: %w", s.Event, err)
+		}
+	}
+	for _, c := range r.p.Constrains {
+		if err := core.BindersApartFrom(c.Guard, global(fieldNames(c.Event), nil)); err != nil {
+			return fmt.Errorf("constrain %s: %w", c.Event.Label(), err)
+		}
+	}
+	return nil
+}
+
+// fieldNames are the names of the fields of e, in order.
+func fieldNames(e core.Event) []string {
+	names := make([]string, len(e.Fields))
+	for i, f := range e.Fields {
+		names[i] = f.Name
+	}
+	return names
 }

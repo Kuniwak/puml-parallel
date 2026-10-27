@@ -264,7 +264,8 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
          / "@at(" term ", " id ")"          ; instance at a state of its local diagram
          / "@empty(" term ")"               ; a map without entries
-exists   = "@exists(" id " : " id ") (" clause ")" ; written by tools only
+exists   = "@exists(" name " : " type ") (" clause ")"
+type     = <a type, as a state variable declares it: a name, any, or K ⇸ V>
 atom     = 1*(text / "$" holeName ["'"] / "${" term "}")
 term     = literal
          / name ["'"] *("[" term "]" / "." name) ["'"]
@@ -320,9 +321,21 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 - `$` not followed by a letter, `_` or `{` is text, so `$100` is text.
 - A builtin is a whole conjunct. Text that starts with `@` is written `\@`.
 - `@exists(v : T) (…)` binds `v`, ranging over the type `T`, in its body; the innermost binder of a name
-  wins, and a bound variable has no value after the step. Authors do not
-  write it (`docs/CLAUSE_DESIGN.md`); tools do. Inside a body, parentheses
-  in text nest unless escaped.
+  wins, and a bound variable has no value after the step. Authors write it
+  for a choice the system makes nondeterministically, `@exists(x : T)
+  (@eq(n', x))` letting `n` take any value of `T`; tools write it when hiding
+  binds a field or promotion chains two moves. Inside a body, parentheses in
+  text nest unless escaped.
+- The name an author binds is a name (not a reserved word, not starting
+  with a digit), apart from every name the clause could otherwise read: a
+  state variable of the source or the target, a field of the event, an ID of
+  a sync, an environment function a clause of the diagram applies (in a
+global diagram, every variable of any mode), and the
+  name of an enclosing `@exists`, which it would shadow. A binder taking one
+  is refused, so no name is read as two things. A tool's binder is held to
+  none of this: its name is only a hint, chosen apart when printed.
+  csdfbmc enumerates the bound variable over the values `TYPES` gives `T`,
+  and refuses `T = any`, which has none to enumerate.
 - A clause that reads an entry a map does not have, `m[x]` with `x` not in
   the domain of `m`, is false.
 - In text, `\` before one of `$ ∧ ; @ \ ( )` is that character, and before
@@ -348,8 +361,9 @@ Diagrams of formulas (draft)
 A diagram whose clauses are in the syntax above has the structure of the
 grammar at the top of this document: states, their variables, a start edge,
 edges and one end edge. Each guard and post is a clause. A clause written by
-an author holds no `@exists` (`coreio.ReadAuthored`); one written by a tool
-may (`coreio.Read`). The types of the variables and the channel notes are
+an author may hold `@exists`, binding names apart from the diagram's
+(`coreio.ReadAuthored`); one written by a tool is read without that check
+(`coreio.Read`). The types of the variables and the channel notes are
 read as above, and what they leave out or contradict is refused.
 
 A global diagram that promotes families is written as:

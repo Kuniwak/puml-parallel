@@ -281,6 +281,7 @@ are:
 | `syntax-error` | `ERROR` | a file the reader refuses, at the line it stopped, or at the line of the edge whose clause it refused |
 | `self-transition-divergence` | `WARN` | a `tau` edge on a cycle of `tau` edges the start reaches, so the diagram may diverge |
 | `self-transition-post-breaks-guard` | `HINT` | a self-transition whose post does not keep a state variable its guard reads, so it may be two states written as one |
+| `post-leaves-variable-free` | `HINT` | an edge, the start edge included, whose post never names a variable `v` of its target as `v'`, so after the step `v` may be any value of its type |
 
 `self-transition-divergence` sets aside an edge whose guard is false on its
 face: `@ne(t, t)`, `@eq(a, b)` beside `@ne(a, b)`, `@in(k, m)` beside
@@ -294,6 +295,21 @@ keeps the guard: every state variable the guard reads is kept by `@eq(v', v)`
 or `@frame(v', v)` in the post. An atom reads only its holes, so the guard then
 holds again on the same event. A field of the event or a constant the guard
 reads is not the state's and needs no keeping. An omitted post keeps nothing.
+
+`post-leaves-variable-free` counts a variable as named when `v'` occurs
+anywhere in a term the post reads: in a hole of an atom, in `@eq`, `@frame`,
+`@update` or `@at`, as a key or an argument of a function. A post that names no `v'` lets
+`v` take any value of its type, which is how a nondeterministic choice is
+written but is more often a forgotten `@eq(v', v)`. An intended choice is said
+by binding it, `@exists(x : T) (@eq(v', x))` with `T` the declared type of `v`,
+which names `v'` and silences the rule; the finding suggests that form with the
+variable's type and a name apart from those the edge reads. An atom naming
+`v'` silences the rule as well, but it is not suggested: csdfbmc refuses an atom
+it cannot decide, and an atom is an environment function. On the start edge the variables
+are those of the start state, and the finding asks for a start value. A
+self-transition may be reported by both this rule and
+`self-transition-post-breaks-guard`: one says the step forgets a value, the
+other that the guard may not hold again.
 
 `csdflint -list-rules` prints every rule with a one-line summary. Lint what a
 person wrote: the expansion of a promotion is one state with many self-loops by

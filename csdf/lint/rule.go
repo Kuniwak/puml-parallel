@@ -26,6 +26,7 @@ func DefaultRules() []Rule {
 		SyntaxErrorRule{},
 		SelfTransitionDivergenceRule{},
 		SelfTransitionPostBreaksGuardRule{},
+		PostLeavesVariableFreeRule{},
 	}
 }
 
