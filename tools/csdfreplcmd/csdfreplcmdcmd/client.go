@@ -128,6 +128,9 @@ func printResponse(inout *cli.ProcInout, jsonOut bool, resp proto.Response) erro
 	if !resp.OK {
 		return errors.New(resp.Error)
 	}
+	for _, w := range resp.Warnings {
+		fmt.Fprintln(inout.Stderr, w)
+	}
 	if jsonOut {
 		if len(resp.Data) > 0 {
 			fmt.Fprintln(inout.Stdout, string(resp.Data))

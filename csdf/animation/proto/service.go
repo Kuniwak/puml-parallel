@@ -5,11 +5,11 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"sync"
 
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
@@ -104,10 +104,7 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	// A promotion's !include is read relative to the file the client
-	// names. Its warnings are left out: session_new prints the session id
-	// alone.
-	diagram, _, err := animation.ReadDiagram(req.Content, coreio.FileIncluder(filepath.Dir(req.Path)))
+	diagram, warnings, err := animation.ReadDiagram(req.Content, coreio.SourcesIncluder(req.Includes))
 	if err != nil {
 		return s.errorFromErr(err)
 	}
@@ -125,7 +122,7 @@ func (s *Service) handleSessionNew(req Request) Response {
 	e.id = strconv.Itoa(s.nextID)
 	s.sessions[e.id] = e
 	s.order = append(s.order, e.id)
-	return Response{OK: true, Session: e.id, Output: e.id + "\n", Data: mustData(SessionRef{Session: e.id})}
+	return Response{OK: true, Session: e.id, Output: e.id + "\n", Data: mustData(SessionRef{Session: e.id}), Warnings: warningLines(warnings)}
 }
 
 func (s *Service) handleSessionList() Response {
@@ -399,4 +396,13 @@ func removeString(items []string, target string) []string {
 		}
 	}
 	return out
+}
+
+// warningLines are warnings as the client prints them, nil for none.
+func warningLines(warnings []core.Warning) []string {
+	var lines []string
+	for _, w := range warnings {
+		lines = append(lines, w.String())
+	}
+	return lines
 }

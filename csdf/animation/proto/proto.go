@@ -30,13 +30,17 @@ const (
 type Request struct {
 	Command string `json:"command"`
 	Session string `json:"session,omitempty"` // "" => resolve the single session
-	Path    string `json:"path,omitempty"`    // session_new: label for listings, and what a promotion's !include is read relative to
+	Path    string `json:"path,omitempty"`    // session_new: label for listings
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
 	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
 	Pick *int `json:"pick,omitempty"`
+	// Includes (session_new) is the source of every file a promotion in
+	// Content includes, by the path its !include writes; the daemon reads
+	// no file of its own.
+	Includes map[string]string `json:"includes,omitempty"`
 	// Replay walks a fresh session along a path csdfbmc recorded under a
 	// finding (replay).
 	Replay *animation.Replay `json:"replay,omitempty"`
@@ -53,6 +57,9 @@ type Response struct {
 	Session string          `json:"session,omitempty"`
 	Output  string          `json:"output,omitempty"`
 	Data    json.RawMessage `json:"data,omitempty"`
+	// Warnings (session_new) are what the promotion the session explores
+	// warns of, one per line, for the client to print on its standard error.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // View is the structured current position of a session, returned by read,

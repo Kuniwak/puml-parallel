@@ -1,7 +1,6 @@
 package coreio
 
 import (
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -67,6 +66,32 @@ func LoadPromotion(path string) (core.Promotion, error) {
 	return prom, nil
 }
 
+// SourcesIncluder includes a file by the path an !include writes from
+// sources, which maps each such path to its source; a path it does not hold
+// is refused.
+func SourcesIncluder(sources map[string]string) Include {
+	return func(p string) (string, error) {
+		src, ok := sources[p]
+		if !ok {
+			return "", fmt.Errorf("coreio.SourcesIncluder: %s is not among the included files given", p)
+		}
+		return src, nil
+	}
+}
+
+// RecordingIncluder is include, recording in sources what it includes by
+// the path written.
+func RecordingIncluder(include Include, sources map[string]string) Include {
+	return func(p string) (string, error) {
+		src, err := include(p)
+		if err != nil {
+			return "", err
+		}
+		sources[p] = src
+		return src, nil
+	}
+}
+
 // FileIncluder includes a file by the path an !include writes, relative to
 // dir unless it is absolute: a .puml file, or a .png with its source
 // embedded.
@@ -108,14 +133,18 @@ func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
 }
 
 // ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
-// ReadBytes does, unless it holds promotion directives: then it is the
-// expansion csdfpromote prints for it, each !include read by include, with
-// the warnings of the promotion. A diagram without promotion directives
-// reads as ReadBytes reads it, with no warnings.
+// ReadBytes does, unless it holds promotion directives
+// (csdf.HoldsPromotionDirectives): then it is the expansion csdfpromote
+// prints for it (Expand), each !include read by include, with the warnings
+// of the promotion. A diagram without promotion directives reads as
+// ReadBytes reads it, with no warnings.
 func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warning, error) {
-	d, err := ReadBytes(raw)
-	var hint *csdf.PromotionHintError
-	if !errors.As(err, &hint) {
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: reading PlantUML source: %w", err)
+	}
+	if !csdf.HoldsPromotionDirectives(src) {
+		d, err := ReadBytes(raw)
 		if err != nil {
 			return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 		}

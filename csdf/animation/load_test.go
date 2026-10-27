@@ -13,7 +13,7 @@ func TestReadDiagram(t *testing.T) {
 	// Setup
 	promotion, err := os.ReadFile("../../examples/promote/ACCOUNTS.puml")
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Setup: os.ReadFile() error = %v", err)
 	}
 	tests := map[string]struct {
 		source       string

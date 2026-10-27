@@ -163,31 +163,52 @@ func TestLoadAll(t *testing.T) {
 }
 
 func TestReadExpandedBytes(t *testing.T) {
+	// Setup
 	plain := "@startuml\nstate \"S\" as s\n[*] --> s\n@enduml\n"
-	promoted, err := os.ReadFile("../../examples/promote/ACCOUNTS.puml")
-	if err != nil {
-		t.Fatal(err)
-	}
+	global := `@startuml G
+state "Run" as run {
+  run : items ; ID ⇸ Item
+  state "items : ID ⇸ Item" as runItems <<promote>> {
+    !include item.puml
+  }
+}
+[*] --> run
+@enduml
+`
+	local := `@startuml item
+state "none" as itNone
+state "made" as itMade
+itMade : n
+[*] --> itNone : 準備済み
+itNone --> itMade : MAKE ; ; $n' は 0
+@enduml
+`
 	cases := map[string]struct {
-		raw          []byte
+		raw          string
+		sources      map[string]string
 		wantFamilies []string
 		wantStates   []string
+		wantWarnings int
 		wantErr      string
 	}{
 		"a diagram without promotion directives reads as ReadBytes reads it": {
-			raw: []byte(plain), wantStates: []string{"s"},
+			raw: plain, wantStates: []string{"s"},
 		},
-		"a promotion reads as its expansion, families included": {
-			raw: promoted, wantStates: []string{"running"}, wantFamilies: []string{"accounts"},
+		"a promotion reads as its expansion, families included, with its warnings": {
+			raw: global, sources: map[string]string{"item.puml": local},
+			wantStates: []string{"run"}, wantFamilies: []string{"items"}, wantWarnings: 1,
+		},
+		"a promotion whose include cannot be read is refused": {
+			raw: global, wantErr: "item.puml",
 		},
 		"a plain diagram that does not parse is refused with the parse error": {
-			raw: []byte("@startuml\n[*] --> \n@enduml\n"), wantErr: "coreio.ReadExpandedBytes: coreio.ReadBytes:",
+			raw: "@startuml\n[*] --> \n@enduml\n", wantErr: "coreio.ReadExpandedBytes: coreio.ReadBytes:",
 		},
 	}
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			d, _, err := ReadExpandedBytes(tt.raw, FileIncluder("../../examples/promote"))
+			d, warnings, err := ReadExpandedBytes([]byte(tt.raw), SourcesIncluder(tt.sources))
 
 			// Assert
 			if tt.wantErr != "" {
@@ -208,6 +229,9 @@ func TestReadExpandedBytes(t *testing.T) {
 			}
 			if !slices.Equal(families, tt.wantFamilies) {
 				t.Errorf("families = %v, want %v", families, tt.wantFamilies)
+			}
+			if len(warnings) != tt.wantWarnings {
+				t.Errorf("warnings = %v, want %d", warnings, tt.wantWarnings)
 			}
 		})
 	}

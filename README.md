@@ -1226,8 +1226,10 @@ instead takes its values via `-json <json-array>` or `-json-file <file>`. A daem
 started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`)
 asks `csdfbmc` at every value prompt what values the clauses admit:
 `read` lists them under `suggestions`, and `statevar -pick N` enters the N-th.
-`session new` explores a promotion as its expansion, as `csdfrepl` does, the
-daemon reading each `!include` relative to the file. `-env NAME=true|false` gives every session the environment
+`session new` explores a promotion as its expansion, as `csdfrepl` does: the
+client reads each `!include` relative to the file and sends it along, for the
+daemon reads no file of its own, and prints the promotion's warnings on its
+standard error. `-env NAME=true|false` gives every session the environment
 csdfbmc walks with `--env NAME=true|false`. The daemon's environment is
 fixed when it starts, so `replay` refuses a report whose `environment` it
 does not walk: one whose `--env` gave a function another value or a value

@@ -9,6 +9,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/cli"
 	"github.com/Kuniwak/puml-parallel/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/tools"
 )
 
@@ -303,7 +304,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
 		setLeafUsage(flags, "csdfreplcmd session new [-json] <file.puml|file.png>",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote reads it, each !include read on the daemon's side\nrelative to the file.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote reads it, each !include read relative to the\nfile and sent to the daemon with it; the promotion's warnings are printed\non stderr.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
 		opts, err := parseLeaf(flags, args, cf)
@@ -318,14 +319,13 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		if err != nil {
 			return nil, fmt.Errorf("session new: cannot read file: %v", err)
 		}
-		// The daemon reads a promotion's !include relative to the path, so
-		// it is sent absolute: the daemon need not share the client's
-		// working directory.
-		abs, err := filepath.Abs(path)
-		if err != nil {
+		// The daemon reads no file: the client reads what a promotion
+		// includes, relative to the file, and sends it along.
+		includes := map[string]string{}
+		if _, _, err := coreio.ReadExpandedBytes(content, coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(path)), includes)); err != nil {
 			return nil, fmt.Errorf("session new: %v", err)
 		}
-		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: abs, Content: content}
+		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content, Includes: includes}
 		return opts, nil
 	}
 }

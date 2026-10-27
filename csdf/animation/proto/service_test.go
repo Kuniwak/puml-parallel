@@ -3,7 +3,6 @@ package proto
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -205,25 +204,61 @@ func TestAnEmptyClauseIsNoneInTheViewAsInTheText(t *testing.T) {
 	}
 }
 
+// promotionGlobal promotes a family of items, whose local diagram it
+// includes as item.puml.
+const promotionGlobal = `@startuml G
+state "Run" as run {
+  run : items ; ID ⇸ Item
+  state "items : ID ⇸ Item" as runItems <<promote>> {
+    !include item.puml
+  }
+}
+[*] --> run
+@enduml
+`
+
+// promotionLocal is the item: its start post says nothing, so promotion
+// drops it with a warning.
+const promotionLocal = `@startuml item
+state "none" as itNone
+state "made" as itMade
+itMade : n
+[*] --> itNone : 準備済み
+itNone --> itMade : MAKE ; ; $n' は 0
+@enduml
+`
+
 func TestHandleSessionNewExploresTheExpansionOfAPromotion(t *testing.T) {
 	// Setup
-	const path = "../../../examples/promote/ACCOUNTS.puml"
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
-	resp := service.Handle(Request{Command: CommandSessionNew, Path: path, Content: content})
-	if !resp.OK {
-		t.Fatalf("session_new failed: %s", resp.Error)
-	}
 
 	// Execute
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "g.puml", Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
 	taken := service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{}]`})
 
 	// Assert
-	if !taken.OK || !strings.Contains(taken.Output, "OPEN?口座ID") {
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
+	}
+	if len(resp.Warnings) == 0 {
+		t.Errorf("session_new warnings = %v, want the dropped start post", resp.Warnings)
+	}
+	if !taken.OK || !strings.Contains(taken.Output, "MAKE?") {
 		t.Errorf("statevar = %+v, want the session at the expansion's mode", taken)
+	}
+}
+
+func TestHandleSessionNewRefusesAnIncludeTheRequestDoesNotCarry(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "g.puml", Content: []byte(promotionGlobal)})
+
+	// Assert
+	if resp.OK || !strings.Contains(resp.Error, "item.puml") {
+		t.Errorf("session_new = %+v, want the missing include refused", resp)
 	}
 }
 
