@@ -3,11 +3,8 @@ package csdf
 import (
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
-
-	"github.com/Kuniwak/puml-parallel/pngsrc"
 )
 
 // What a global diagram carries and a plain one does not. Such a diagram's edges
@@ -58,39 +55,23 @@ func (e *ParseError) Error() string { return e.err.Error() }
 
 func (e *ParseError) Unwrap() error { return e.err }
 
-// ParseBytes parses a Composable State Diagram from raw .puml text or .png
-// bytes (the embedded PlantUML source is extracted from PNG inputs).
-func ParseBytes(content []byte) (*Diagram, error) {
-	source, err := pngsrc.Extract(content)
+// ParseSource reads the structure of the diagram in source, its clauses
+// checked by check. A failure is a *ParseError tagged with the position the
+// parser stopped at, unless it already says where it is, and is hinted when
+// the source still holds promotion directives.
+func ParseSource(source string, check func(Predicate) error) (*Diagram, error) {
+	d, err := NewParserCheckingClauses(source, check).parseAt()
 	if err != nil {
-		return nil, fmt.Errorf("csdf.ParseBytes: reading PlantUML source: %w", err)
+		return nil, withHint(err, source)
 	}
-	diagram, err := parseAt(source)
-	if err != nil {
-		return nil, fmt.Errorf("csdf.ParseBytes: parse: %w", withHint(err, source))
-	}
-	return diagram, nil
+	return d, nil
 }
 
-func Parse(content string) (*Diagram, error) {
-	diagram, err := parseAt(content)
-	if err != nil {
-		return nil, fmt.Errorf("csdf.Parse: parse: %w", withHint(err, content))
-	}
-	return diagram, nil
-}
-
-// parseAt parses the source and tags a failure with the position the parser
-// stopped at.
-func parseAt(source string) (*Diagram, error) {
-	return NewParser(source).ParseAt()
-}
-
-// ParseAt parses as Parse does and tags a failure with the position the
+// parseAt parses as parse does and tags a failure with the position the
 // parser stopped at, as a *ParseError, unless the failure already says
 // where it is.
-func (p *Parser) ParseAt() (*Diagram, error) {
-	diagram, err := p.Parse()
+func (p *Parser) parseAt() (*Diagram, error) {
+	diagram, err := p.parse()
 	if err != nil {
 		var tagged *ParseError
 		if errors.As(err, &tagged) {
@@ -100,10 +81,6 @@ func (p *Parser) ParseAt() (*Diagram, error) {
 	}
 	return diagram, nil
 }
-
-// WithPromotionHint adds the promotion hint to a parse error when the source
-// looks like a global diagram, for a reader of diagrams other than Parse.
-func WithPromotionHint(err error, source string) error { return withHint(err, source) }
 
 // withHint adds the promotion hint to a parse error when the source looks like a
 // global diagram.
@@ -170,47 +147,4 @@ func CheckIgnoreRegions(source string) error {
 		return fmt.Errorf("csdf.CheckIgnoreRegions: unterminated CSDF-IGNORE region at line %d", open)
 	}
 	return nil
-}
-
-func MustParse(content string) *Diagram {
-	d, err := Parse(content)
-	if err != nil {
-		panic(fmt.Errorf("csdf.MustParse: %w", err))
-	}
-	return d
-}
-
-// LoadDiagram reads and parses the diagram stored at path, which may be either
-// .puml text or a .png image written by PlantUML.
-func LoadDiagram(path string) (*Diagram, error) {
-	bs, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read file: %w: %q", err, path)
-	}
-
-	diagram, err := ParseBytes(bs)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse file: %w: %q", err, path)
-	}
-	return diagram, nil
-}
-
-func LoadDiagrams(files []string) ([]*Diagram, error) {
-	diagrams := make([]*Diagram, 0, len(files))
-	for _, file := range files {
-		diagram, err := LoadDiagram(file)
-		if err != nil {
-			return nil, fmt.Errorf("csdf.LoadDiagrams: %w", err)
-		}
-		diagrams = append(diagrams, diagram)
-	}
-	return diagrams, nil
-}
-
-func MustLoadDiagrams(paths ...string) []*Diagram {
-	diagrams, err := LoadDiagrams(paths)
-	if err != nil {
-		panic(err.Error())
-	}
-	return diagrams
 }

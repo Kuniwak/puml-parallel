@@ -174,13 +174,12 @@ This is the first target point when “simplicity first” is the priority; τ a
 
 ## 9. Correspondence with This Repository's Data Structures
 
-- `csdf.Diagram` (`States`, `Edges{Src,Dst,Event}`, `StartEdge`) corresponds to an LTS.
-- `ComposeParallel` is the existing path that constructs the composed LTS on the Impl side.
+- `core.Diagram` (`States`, `Edges{Src,Dst,Event}`, `Init`) corresponds to an LTS.
+- `core.Compose` is the existing path that constructs the composed LTS on the Impl side.
 - Additional required concepts:
   ① normal-form states (`Set[StateID]` + minimal acceptance sets),
   ② `normalize(Diagram) → NormalForm`,
   ③ BFS for `refinesSF(spec, impl) → (ok, counterexample trace)`.
-- Existing `StatePair` / `Trans` (`composition.go`) can be reused directly for product exploration.
 
 > **Assumption**: the algorithm in this document targets an “**explicit LTS with resolved enabledness**.”
 > In a symbolic model (with natural-language guards), the semantic backend must first resolve the executability of each edge,

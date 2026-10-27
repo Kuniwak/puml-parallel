@@ -38,8 +38,8 @@ $ csdfparallel [--sync channel1;channel2;...] <file1.puml> [file2.puml] ...
   parallel). An edge on one of them is taken by both sides together, with the same
   number of fields. A field sent (`!y`) on one side is named by that side, and the
   receiving side reads it: `c!y ‖ c?x` is `c!y`. A field both sides receive is
-  named as the left side does. Where a side names a field otherwise, each of its
-  clauses is read through a renaming, `@[x := y] …`, so no clause is rewritten
+  named as the left side does. Where a side names a field otherwise, the name
+  it meets is substituted into the holes of that side's clauses
   (see [SYNTAX.md](./docs/SYNTAX.md)). Two sides sending one field
   synchronise only where the two values are equal: `c!y ‖ c!z` is `c!y` with the
   guard `@eq(y, z)`.

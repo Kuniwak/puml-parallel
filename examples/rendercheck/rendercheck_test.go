@@ -37,7 +37,7 @@ const renderTimeout = 2 * time.Minute
 // examplesDir holds the hand-written global diagrams. Its local/ subdirectory
 // holds the local diagrams they !include, which are checked through their
 // includers rather than on their own.
-const examplesDir = "../../../examples/promote"
+const examplesDir = "../promote"
 
 func TestGlobalDiagramsRender(t *testing.T) {
 	bin := plantUML(t)

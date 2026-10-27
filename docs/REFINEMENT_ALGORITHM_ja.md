@@ -173,11 +173,10 @@ function Refines(S, I, M):          # S = 正規化済み Spec, I = Impl, M = �
 
 ## 9. 本リポジトリのデータ構造との対応
 
-- `csdf.Diagram`（`States`, `Edges{Src,Dst,Event}`, `StartEdge`）が LTS に相当。
-- `ComposeParallel` が Impl 側の合成 LTS を作る既存経路。
+- `core.Diagram`（`States`, `Edges{Src,Dst,Event}`, `Init`）が LTS に相当。
+- `core.Compose` が Impl 側の合成 LTS を作る既存経路。
 - 追加で必要になる概念：①正規形状態（`Set[StateID]` ＋ 極小受理集合）、
   ②`normalize(Diagram) → NormalForm`、③`refinesSF(spec, impl) → (ok, 反例トレース)` の BFS。
-- 既存の `StatePair` / `Trans`（`composition.go`）は積探索にそのまま流用できる。
 
 > **前提**：本書のアルゴリズムは「**enabledness が解決済みの明示 LTS**」を対象とする。
 > 記号モデル（自然言語ガード付き）では、各辺の実行可能性 `Enabled_e = Guard ∧ ∃v'.Post`

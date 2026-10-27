@@ -2,6 +2,8 @@
 
 改訂 2（実装済み。実装中に決めた訂正は各節の「実装」注記に書く）。改訂 1 からの主な変更：宣言を PlantUML ネイティブ構文（複合状態・`!include`・`note`）で綴る（§2）、上位互換パーサを `csdf/promote` に置き core は変えない（§3・§6）、展開先は親の複合状態で表す（§4.7）、局所 start edge の post は無視する（§4.2）、S₀ の自己ループは error（§4.6）、PNG の不変条件の扱い（§4.9）。
 
+> 注記（#76）：`csdf/promote` は削除した。昇格は `csdf/core` と `csdf/coreio` が行い、節の言語は `csdf/clause` が読む。以下の `csdf/promote` への言及は当時の設計の記録である。
+
 ## 0. 背景と目的
 
 CSDF は状態と状態変数、`event ; guard ; post` のエッジで LTS を書く。述語は自然言語（不透明）である。
@@ -364,7 +366,7 @@ csdf/promote/sync.go        sync と constrain（§4.4・§4.5）
 csdf/promote/lint.go        §4.6
 csdf/promote/templates.go   §4.10
 csdf/promote/print.go       由来コメント付きの印字（§4.8）
-csdf/promote/rendercheck/   PlantUML スモークテスト（§7-5）
+examples/rendercheck/       PlantUML スモークテスト（§7-5）
 tools/csdfpromote/          CLI（リポジトリの慣例に合わせ cli/ ではなく tools/）
 docs/PROMOTION.md           意味論、CSP/Z 対応、tau の扱い、置換しない判断、start/削除エッジの post、sync の引数結合、
                             局所図側の約束（!ifndef PROMOTED、状態 ID の接頭辞）、PNG の扱い
@@ -392,7 +394,7 @@ core への変更は「ヒント付きエラー」だけに限定する。ヒン
    - 日本語テンプレート
 3. **lint テスト**：§4.6 の各行に 1 ケース。
 4. **core の拒否**：宣言入りの大局図を各ツールに渡し、ヒント付きエラーを確認。
-5. **PlantUML スモークテスト**：`csdf/promote/rendercheck` が `examples/promote/*.puml` を `plantuml -checkonly` に通す。PlantUML がなければ skip、CI の `CSDF_REQUIRE_PLANTUML` を立てた job では失敗する（`provercheck` と同じ作法）。M0 で確認済みの点：
+5. **PlantUML スモークテスト**：`examples/rendercheck` が `examples/promote/*.puml` を `plantuml -checkonly` に通す。PlantUML がなければ skip、CI の `CSDF_REQUIRE_PLANTUML` を立てた job では失敗する（`provercheck` と同じ作法）。M0 で確認済みの点：
    - `!include` した局所図の `@startuml`/`@enduml` は剥がされて取り込まれる（`!startsub`/`!includesub` は要らない）
    - `!ifndef PROMOTED` で局所の `title` が消える。局所図側では `CSDF-IGNORE-BEGIN`/`-END` で囲って core パーサからも隠す
    - 複合状態ごとの `[*]` が描ける

@@ -289,19 +289,19 @@ Present:
 
 | # | Operator | Where it occurs today |
 |---|---|---|
-| O1 | Conjunction and its splitting | composition and promotion join guards and posts; `Predicate.Clauses` splits them |
+| O1 | Conjunction and its splitting | composition and promotion join guards and posts; `core.Conj` joins them |
 | O2 | Substitution of a name by a name | renaming a field when two events synchronise |
 | O3 | Substitution of a name by a term | promotion lifts a local state variable to an entry of a map, `x` to `m[id].x` |
 | O4 | Existential quantification | hiding closes a field of a hidden event; `csdfpromote -only` drops maps |
 | O5 | Relational composition | two updates of one map in one step; tau closure in obligations |
 | O6 | Generation of atoms | equality, distinctness, domain membership, map update and frame, stated by a tool |
-| O7 | Evaluation | a valuation gives a truth value or a set of next valuations (csdfbmc, `csdf.SolveJSON`) |
+| O7 | Evaluation | a valuation gives a truth value or a set of next valuations (csdfbmc) |
 | O8 | Translation to logic | proof obligations (csdftracechk, csdftranstable, csdfrefinement, csdflivelockfree) |
 | O9 | Free-name extraction | partial-order reduction, cone of influence, symmetry, restriction |
 | O10 | Permutation of IDs | symmetry reduction |
 | O11 | Refinement checking | relating a specification diagram to an implementation (csdfrefinement) |
-| O12 | Parsing and printing | text to the internal form and back (`csdf.ParseClause`, JSON, the PUML printer) |
-| O13 | Well-formedness checking | reserved words and escapes (`csdf.CheckClauses`, csdflint) |
+| O12 | Parsing and printing | text to the internal form and back (`clause.Parse`, JSON, the PUML printer) |
+| O13 | Well-formedness checking | reserved words, escapes and bound names (`clause.Parse`, csdflint) |
 
 Foreseen; the design must leave room for them:
 

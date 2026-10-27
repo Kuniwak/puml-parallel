@@ -21,14 +21,9 @@ type Parser struct {
 	check func(Predicate) error
 }
 
-// NewParser reads a diagram whose clauses are in the vocabulary CheckClauses
-// accepts.
-func NewParser(input string) *Parser {
-	return NewParserCheckingClauses(input, CheckClauses)
-}
-
-// NewParserCheckingClauses reads a diagram whose predicates check accepts,
-// for a reader of another clause language than CheckClauses's.
+// NewParserCheckingClauses reads a diagram whose predicates check accepts:
+// the parser reads the structure of a diagram, and check is the reader of
+// its clause language (coreio's, csdf/clause).
 func NewParserCheckingClauses(input string, check func(Predicate) error) *Parser {
 	return &Parser{
 		input: input,
@@ -39,7 +34,7 @@ func NewParserCheckingClauses(input string, check func(Predicate) error) *Parser
 	}
 }
 
-func (p *Parser) Parse() (*Diagram, error) {
+func (p *Parser) parse() (*Diagram, error) {
 	diagram := &Diagram{
 		States:      make(map[StateID]State),
 		Edges:       []Edge{},

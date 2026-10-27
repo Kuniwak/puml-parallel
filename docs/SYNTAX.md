@@ -87,44 +87,17 @@ sides. A note is the one PlantUML-only element the grammar admits, so that the
 picture shows the assumption next to the diagram; a note for the picture alone,
 and an anchored note (`note left of s`), still go in a `CSDF-IGNORE` region.
 
-A `guard` or a `post` is a conjunction of *clauses* joined by the connective ` ∧ `
-(U+2227 with one space on each side). The clause is the unit the tools treat as
-opaque text, written in whatever language its reader takes (natural language, or
-a formal language a `csdfbmc` glue reads): `csdfparallel` conjoins the
-predicates of two edges with it, and `csdfpromote` joins the clauses it
-generates and the clauses the author wrote with it (`Predicate.Clauses`). A
-`guard` or `post` that is omitted has no clause, and holds; `true` written by an
-author is an ordinary clause, read by whatever reads the others.
+A `guard` or a `post` is a *clause*: a conjunction of conjuncts joined by
+` ∧ ` (U+2227 with one space on each side), each a builtin such as `@eq(a, b)`
+or an atom, text with holes, written in whatever language its reader takes
+(natural language, or a formal language a `csdfbmc` glue reads). Its syntax
+is in [Clauses](#clauses) below. A `guard` or `post` that is omitted has no
+conjunct, and holds. The structure of a diagram reads a clause up to the `;`
+or the end of the line that ends it; `\;` writes a `;` inside one.
 
-The tools never write or rewrite the text of a clause, and reserve in it only
-what they must read:
-
-- **Separators**: `;` separates the event, the guard and the post, and ` ∧ `
-  separates clauses. ` ∧ ` is not an
-  operator of any clause language: a clause conjoins in its own words (`a、かつ b`,
-  `a and b`). `∨` and every other symbol belong to the clause.
-- **Tool words** start with `@`, and there are three:
-  - `@opaque` is a clause not formalised yet, which says nothing a tool can read.
-    csdfbmc refuses it: write such a clause as an atom whose holes are what it
-    reads, which the environment decides (README, bounded model checking).
-  - A renaming `@[y := x, …] clause` before a clause says that the name `y` the
-    clause reads stands for the value the predicate names `x`. Composition writes it
-    when two synchronised events name a field differently, so that no clause is
-    rewritten; csdfparse writes it as the clause's `rename` (`{"y": "x"}`). It is
-    written exactly `@[from := to, …] ` (one space after `]`), its names sorted, and
-    the renamings in it are simultaneous: `@[a := b, b := a]` swaps two names.
-  - `@eq(a, b)` is a clause of its own: the values named `a` and `b` are equal.
-    Composition writes it when both sides send one field (`c!y ‖ c!z`), which they
-    do only where the two values are equal; csdfparse writes it as `{"form": "eq",
-    "eq": ["a", "b"]}`. A tool renames the names in it, since it is the tools' word.
-
-  Any other word starting with an unescaped `@` is refused.
-- **Escapes**: `\∧`, `\;`, `\@` and `\\` write those characters inside a clause.
-  A backslash before any other character is part of the clause. A reader of the
-  clause gets it with the escapes removed: csdfparse writes each predicate's
-  clauses so, as `guard_clauses` and `post_clauses`, each saying its `form`:
-  `{"form": "text", "text": …}` (with a `rename` when renamed),
-  `{"form": "opaque"}`, or `{"form": "eq", "eq": [a, b]}`.
+The clause syntax of earlier releases is refused: `@opaque` and the renaming
+`@[from := to] clause` are unknown tool words. A clause not formalised yet is
+an atom whose holes are what it reads (README, bounded model checking).
 
 The following symbols are ABNF core rules:
 
@@ -219,12 +192,10 @@ Semantics
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
 
 
-Clauses (draft)
----------------
-**Draft for v3.0.0 (#76); no tool reads this syntax yet.** It is the surface
-syntax of the clause representation in `csdf/clause`, which follows
-`docs/CLAUSE_DESIGN.md`. It will replace the clause syntax of guards and
-posts described above.
+Clauses
+-------
+The surface syntax of the clause representation in `csdf/clause`, which
+follows `docs/CLAUSE_DESIGN.md`: every tool reads guards and posts by it.
 
 ```abnf
 clause   = [conjunct *(" ∧ " conjunct)]
