@@ -409,9 +409,9 @@ class PropertyTest(unittest.TestCase):
 
 # ACCOUNTS without DROP, so an ID once opened is never given back; and a STOP
 # out of the map, after which nothing happens whatever the IDs.
-OPENING = dict(ACCOUNTS, states=["r", "s"], vars={"r": ["m"], "s": []}, edges=ACCOUNTS["edges"][:2] + [
+OPENING = fixture.redeclared(dict(ACCOUNTS, states=["r", "s"], vars=fixture.typed_vars({"r": ["m"], "s": []}), edges=ACCOUNTS["edges"][:2] + [
     edge("r", "s", "STOP", guard=[builtin("at", idx("m", "k"), state="closed")]) | {"fields": [{"dir": "?", "name": "k"}]},
-])
+]))
 
 
 class SampleTest(unittest.TestCase):

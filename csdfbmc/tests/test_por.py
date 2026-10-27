@@ -39,7 +39,7 @@ class IndependenceTest(unittest.TestCase):
 
     def test_an_instance_moves_alone_when_the_other_variables_are_framed(self):
         # Setup
-        d = dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
+        d = dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "n"]}), init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
                  edges=[with_post(OPEN, eq("n'", "n")), with_post(CLOSE, eq("n'", "n"))])
         checks = Checks(types=dict(IDS, n=[0, 1, 2]), invariants={"small": lambda n: n < 1})
 
@@ -56,7 +56,7 @@ class IndependenceTest(unittest.TestCase):
         others = {"count": [0]}
         tests = {
             "a guard reading the whole map": (dict(ONE_WAY, edges=[with_guard(OPEN, atom("len($m) < 2")), CLOSE]), Checks(types=IDS)),
-            "a guard reading another instance": (dict(ONE_WAY, edges=[with_guard(edge("r", "r", "OPEN?k?j", guard=OPEN["guard"], post=OPEN["post"]), builtin("notin", "j", "m")), CLOSE]),
+            "a guard reading another instance": (fixture.redeclared(dict(ONE_WAY, edges=[with_guard(edge("r", "r", "OPEN?k?j", guard=OPEN["guard"], post=OPEN["post"]), builtin("notin", "j", "m")), CLOSE])),
                                                  Checks(types=IDS, typeof={"j": "k"})),
             # ∃ k binds its own k, an index, not the field k it shadows.
             "a guard reading another instance under an ∃ that shadows the field": (
@@ -65,13 +65,13 @@ class IndependenceTest(unittest.TestCase):
             "a ghost update on its event": (ONE_WAY, Checks(types=IDS, ghosts={"opened": (0, {"OPEN": lambda opened: opened + 1})})),
             "a ghost update reading the map": (ONE_WAY, Checks(types=IDS, ghosts={"size": (0, {"CLOSE": lambda m: len(m)})})),
             "a tau edge out of the state": (dict(ONE_WAY, edges=[OPEN, dict(CLOSE, channel="tau", label="tau?k")]), Checks(types=IDS)),
-            "an edge to another state": (dict(ONE_WAY, states=["r", "s"], vars={"r": ["m"], "s": []}, edges=[OPEN, CLOSE, edge("r", "s", "STOP")]),
+            "an edge to another state": (dict(ONE_WAY, states=["r", "s"], vars=fixture.typed_vars({"r": ["m"], "s": []}), edges=[OPEN, CLOSE, edge("r", "s", "STOP")]),
                                          Checks(types=IDS)),
             "an edge that moves the map and a variable": (
-                dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
+                dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "n"]}), init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
                      edges=[with_post(OPEN, eq("n'", "n")), with_post(CLOSE, atom("$n' == $n"))]), Checks(types=dict(IDS, **others))),
             "an edge whose post leaves another variable to range over its type": (
-                dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")]),
+                dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "n"]}), init_post=ONE_WAY["init_post"] + [atom("$n' == 0")]),
                 Checks(types=dict(IDS, n=[0, 1, 2]), invariants={"small": lambda n: n < 1})),
         }
         for name, (d, checks) in tests.items():
@@ -110,7 +110,7 @@ class SameFindingsTest(unittest.TestCase):
             "deadlocks with the map closed": (ONE_WAY, Checks(types=IDS), {}),
             "a cycle through every instance": (ACCOUNTS, Checks(types=IDS), {"avoid": "OPEN"}),
             "a broken invariant over another variable": (
-                dict(ONE_WAY, vars={"r": ["m", "n"]}, init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
+                dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "n"]}), init_post=ONE_WAY["init_post"] + [atom("$n' == 0")],
                      edges=[with_post(OPEN, eq("n'", "n")), with_post(CLOSE, eq("n'", "n")),
                             edge("r", "r", "INC", guard=[atom("$n < 2")], post=[atom("$n' == $n + 1"), eq("m'", "m")])]),
                 Checks(types=IDS, invariants={"small": lambda n: n < 2}), {}),

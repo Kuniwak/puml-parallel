@@ -103,7 +103,7 @@ class RefusalTest(unittest.TestCase):
     def test_an_id_an_atom_puts_where_none_was_foreseen_is_refused(self):
         # Setup: last has no type, and only the atom puts an ID in it, so the
         # atoms reading it were asked without it.
-        d = dict(ONE_WAY, vars={"r": ["m", "last"]}, init_post=ONE_WAY["init_post"] + [atom("$last' == ''")],
+        d = dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "last"]}), init_post=ONE_WAY["init_post"] + [atom("$last' == ''")],
                  edges=[dict(OPEN, post=OPEN["post"] + [atom("$last' == $k")]), dict(CLOSE, post=CLOSE["post"] + [builtin("eq", "last'", "last")])])
         explorer = fixture.explorer(d, checks(), symmetry=True)
 

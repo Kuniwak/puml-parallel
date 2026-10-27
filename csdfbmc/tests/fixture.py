@@ -1,5 +1,5 @@
 """Diagrams written by hand for the tests, in the JSON csdfparse prints
-(core.DiagramDoc, version 2). The atoms follow the reader only as far as the
+(core.DiagramDoc, version 3). The atoms follow the reader only as far as the
 tests need: a hole is $name or $name' (a space after it ends it before a
 character that could continue the name, as in docs/SYNTAX.md), and ${}
 takes the next of the terms given."""
@@ -113,17 +113,52 @@ def end(src, guard=()):
     return {"src": src, "guard": list(guard)}
 
 
-def family(m, init, states, key="k"):
-    """The family of the map m keyed by the IDs of key's type: states maps
-    each local state to its variables, in order; init is the start state,
-    which is absence."""
-    return {"map": m, "key": key, "init": init, "states": list(states), "vars": {s: list(vs) for s, vs in states.items()}}
+def _typed(vs, types):
+    """The variables vs with their types: as types gives, else the type
+    named like each."""
+    return [{"name": v, "type": types.get(v, v)} for v in vs]
 
 
-def diagram(states, init, init_post=(), edges=(), ends=(), name="D", assumes=(), families=()):
-    """A diagram: states maps each state to its variables, in order."""
+def family(m, init, states, key="k", key_type=None, types=None):
+    """The family of the map m keyed by the IDs of key_type, the type named
+    like key unless given: states maps each local state to its variables, in
+    order, of the types types gives, else of the types named like them; init
+    is the start state, which is absence."""
+    return {"map": m, "key": key, "key_type": key if key_type is None else key_type, "init": init, "states": list(states),
+            "vars": {s: _typed(vs, types or {}) for s, vs in states.items()}}
+
+
+def typed_vars(states, types=None):
+    """The "vars" of a diagram whose states states maps to their
+    variables, of the types types gives, else of the types named like them."""
+    return {s: _typed(vs, types or {}) for s, vs in states.items()}
+
+
+def channels_of(edges, types):
+    """The channels of edges, each field of the type types gives the
+    variable it sends, else of the type named like the field, as the first
+    edge on the channel names it."""
+    out = {}
+    for e in edges:
+        if e["channel"] != "tau" and e["fields"]:
+            out.setdefault(e["channel"], [types.get(f["name"], f["name"]) for f in e["fields"]])
+    return out
+
+
+def redeclared(d):
+    """d with its channels declared again as channels_of does, after its
+    edges were changed."""
+    return dict(d, channels=channels_of(d["edges"], {}))
+
+
+def diagram(states, init, init_post=(), edges=(), ends=(), name="D", assumes=(), families=(), types=None, channels=None):
+    """A diagram: states maps each state to its variables, in order, of the
+    types types gives, else of the type named like each; channels declares
+    the channels, else each as channels_of does."""
+    types = types or {}
     return {"version": 3, "name": name, "states": list(states), "labels": {},
-            "vars": {s: list(vs) for s, vs in states.items()}, "init": init, "init_post": list(init_post),
+            "vars": {s: _typed(vs, types) for s, vs in states.items()},
+            "channels": channels_of(edges, types) if channels is None else channels, "init": init, "init_post": list(init_post),
             "init_line": 0, "edges": list(edges), "ends": list(ends), "assumes": list(assumes),
             "families": list(families)}
 

@@ -165,7 +165,7 @@ class ReductionCommandTest(unittest.TestCase):
     def test_symmetry_refused_during_the_walk_reports_no_finding(self):
         # Setup: only an atom puts an ID in last, which the walk meets.
         from csdfbmc.tests.test_por import CLOSE, OPEN, ONE_WAY
-        d = dict(ONE_WAY, vars={"r": ["m", "last"]}, init_post=ONE_WAY["init_post"] + [atom("$last' == ''")],
+        d = dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "last"]}), init_post=ONE_WAY["init_post"] + [atom("$last' == ''")],
                  edges=[dict(OPEN, post=OPEN["post"] + [atom("$last' == $k")]), dict(CLOSE, post=CLOSE["post"] + [fixture.eq("last'", "last")])])
         checks = 'TYPES = {"k": ["a", "b", "c"]}\nSYMMETRIC = ["k"]\n'
         args = ("--evaluator-module", "csdfbmc.python_glue", "--symmetry")

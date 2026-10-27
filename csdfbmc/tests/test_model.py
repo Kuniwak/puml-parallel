@@ -44,6 +44,34 @@ class DiagramTest(unittest.TestCase):
         f = d.families["m"]
         self.assertEqual(("acct", "none", ("none", "open"), {"none": (), "open": ("bal", "fee")}), (f.key, f.init, f.states, f.vars))
 
+    def test_reads_the_declared_types(self):
+        # Setup
+        doc = diagram({"G": ["m", "n"]}, "G", edges=[edge("G", "G", "put?k!n")], types={"m": "K ⇸ V", "n": "N"},
+                      families=[family("m", "none", {"none": [], "open": ["bal"]}, key_type="K", types={"bal": "any"})])
+
+        # Execute
+        d = Diagram.from_json(doc)
+
+        # Assert
+        self.assertEqual(({"m": "K ⇸ V", "n": "N"}, {"put": ("k", "N")}, "K", {"bal": "any"}),
+                         (d.types, d.channels, d.families["m"].key_type, dict(d.families["m"].types)))
+
+    def test_refuses_what_the_types_do_not_declare(self):
+        tests = {
+            "a variable of no type": (dict(diagram({"G": []}, "G"), vars={"G": [{"name": "n", "type": ""}]}), "the variable n has no type"),
+            "a variable of two types": (dict(diagram({"G": [], "H": []}, "G"), vars={"G": [{"name": "n", "type": "N"}], "H": [{"name": "n", "type": "M"}]}),
+                                        "the variable n is of the type N and of the type M"),
+            "an undeclared channel with fields": (diagram({"G": []}, "G", edges=[edge("G", "G", "put?k")], channels={}),
+                                                  "the channel put carries fields, and the diagram declares no types of them"),
+            "an event of another number of fields": (diagram({"G": []}, "G", edges=[edge("G", "G", "put?k")], channels={"put": []}),
+                                                     "1 fields, but the channel put is declared with 0"),
+        }
+        for name, (doc, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    Diagram.from_json(doc)
+
     def test_refuses_families_that_do_not_fit_the_diagram(self):
         at = lambda state: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state=state)])
         tests = {
@@ -63,6 +91,8 @@ class DiagramTest(unittest.TestCase):
                                          "no key names the IDs of its map"),
             "a key a family does not have": (diagram({"G": ["m"]}, "G", families=[dict(family("m", "none", {"none": []}), ids="k")]),
                                              "keys it does not read, \\['ids'\\]"),
+            "IDs of no type": (diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": []}, key_type="")]),
+                               "its IDs have no type"),
             "@at of a state of no family's": (diagram({"G": ["m"]}, "G", edges=[at("shut")], families=[family("m", "none", {"none": [], "open": []})]),
                                               "@at\\(m'\\[…\\], shut\\), but shut is no state of the family of m"),
             "@at of the start state, which is absence": (diagram({"G": ["m"]}, "G", edges=[at("none")],
