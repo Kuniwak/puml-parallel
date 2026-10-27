@@ -51,10 +51,10 @@ func TestTypeParts(t *testing.T) {
 	m := MapOf(Named("K"), MapOf(Named("L"), AnyType))
 
 	// Assert
-	if !m.IsMap() || m.Key().String() != "K" || m.Val().String() != "L ⇸ any" {
-		t.Errorf("the parts of %s are %s and %s", m, m.Key(), m.Val())
+	if !m.IsMap() || m.Key.String() != "K" || m.Val.String() != "L ⇸ any" {
+		t.Errorf("the parts of %s are %s and %s", m, m.Key, m.Val)
 	}
-	if !m.Val().Val().IsAny() || Named("K").IsAny() || Named("K").IsMap() {
+	if !m.Val.Val.IsAny() || Named("K").IsAny() || Named("K").IsMap() {
 		t.Errorf("IsAny and IsMap tell the kinds of type apart wrongly")
 	}
 	if !m.Equal(MapOf(Named("K"), MapOf(Named("L"), Named(AnyName)))) || m.Equal(Named("K")) {

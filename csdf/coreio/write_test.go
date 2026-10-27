@@ -104,6 +104,29 @@ s0_s0 --> s1_s0 : go
 `,
 		},
 		{
+			name: "declared types and channels",
+			d: &core.Diagram{
+				States:   []string{"s"},
+				Vars:     map[string][]string{"s": {"m", "x"}},
+				Types:    map[string]core.Type{"m": core.MapOf(core.Named("K"), core.Named("V")), "x": core.AnyType},
+				Channels: map[string][]core.Type{"put": {core.Named("K"), core.MapOf(core.Named("K"), core.Named("V"))}, "stop": {}},
+				Init:     "s",
+				Edges:    []core.Edge{{Src: "s", Dst: "s", Event: core.Event{Channel: "stop"}}},
+			},
+			want: `@startuml
+state "s" as s
+s : m ; K ⇸ V
+s : x ; any
+[*] --> s
+s --> s : stop
+note as channels
+  channel put : K.(K ⇸ V)
+  channel stop
+end note
+@enduml
+`,
+		},
+		{
 			name: "states in an order of their own",
 			d: &core.Diagram{
 				States: []string{"z", "a"},

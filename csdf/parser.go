@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
 
@@ -81,11 +82,15 @@ func (p *Parser) parse() (*Diagram, error) {
 			}
 			diagram.States[state.ID] = state.State
 		} else if p.peekString("note") {
-			assumption, err := p.parseAssumeNote()
+			assumption, channels, err := p.parseNote()
 			if err != nil {
 				return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
 			}
-			diagram.Assumptions = append(diagram.Assumptions, assumption)
+			if channels != nil {
+				diagram.Channels = append(diagram.Channels, channels...)
+			} else {
+				diagram.Assumptions = append(diagram.Assumptions, assumption)
+			}
 		} else if p.peekString("[*]") {
 			startEdge, err := p.parseStartEdge()
 			if err != nil {
@@ -707,74 +712,139 @@ func (p *Parser) skipLine() {
 	}
 }
 
-// parseAssumeNote reads a note holding one assume directive:
+// parseNote reads a note holding one assume directive, or one or more
+// channel declarations (docs/SYNTAX.md, Channels):
 //
 //	note as <id>
 //	  assume <text>
 //	end note
 //
-// A note is PlantUML's own syntax, so the picture shows the assumption next to
-// the diagram. The core accepts no other note: one for the picture alone goes
-// in a CSDF-IGNORE region, as every other PlantUML-only line does.
-func (p *Parser) parseAssumeNote() (Assumption, error) {
-	const hint = "a note holds one assume directive (\"note as <id>\", \"assume <text>\", \"end note\"); a note for the picture goes in a CSDF-IGNORE region"
+//	note as <id>
+//	  channel <name> : <type>.<type>
+//	  channel <name>
+//	end note
+//
+// A note is PlantUML's own syntax, so the picture shows the assumption or
+// the declarations next to the diagram. The core accepts no other note: one
+// for the picture alone goes in a CSDF-IGNORE region, as every other
+// PlantUML-only line does. channels is nil for an assume note.
+func (p *Parser) parseNote() (Assumption, []ChannelDecl, error) {
+	const hint = "a note holds one assume directive (\"note as <id>\", \"assume <text>\", \"end note\") or channel declarations (\"channel <name> : <type>.<type>\"); a note for the picture goes in a CSDF-IGNORE region"
 	startLine, startCol := p.line, p.col
 	p.expectString("note")
 	if err := p.skipInlineTrivia(); err != nil {
-		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+		return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
 	}
 	if !p.expectString("as") {
-		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: an assume note is floating, not anchored to a state, at line %d, col %d: %s", startLine, startCol, hint)
+		return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: a note is floating, not anchored to a state, at line %d, col %d: %s", startLine, startCol, hint)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+		return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
 	}
 	id, err := p.parseName()
 	if err != nil {
-		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+		return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
 	}
 	if err := p.skipInlineTrivia(); err != nil {
-		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+		return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
 	}
 	if !p.expectNewlines() {
-		return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: expected newline after the note's id at line %d, col %d", p.line, p.col)
+		return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: expected newline after the note's id at line %d, col %d", p.line, p.col)
 	}
 
 	assumption := Assumption{ID: id}
 	read := false
+	var channels []ChannelDecl
 	for {
 		if p.isAtEnd() {
-			return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: unterminated assume note at line %d, col %d", startLine, startCol)
+			return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: unterminated note at line %d, col %d: %s", startLine, startCol, hint)
 		}
 		line := p.line
 		text, err := p.parseUntil('\n')
 		if err != nil {
-			return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: %w", err)
+			return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
 		}
 		p.expectNewlines()
 		switch {
 		case text == "":
 			continue
 		case strings.TrimSpace(strings.TrimPrefix(text, "end")) == "note" && strings.HasPrefix(text, "end"):
-			if !read {
-				return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: the note at line %d holds no assume directive: %s", startLine, hint)
+			if !read && channels == nil {
+				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: the note at line %d holds no assume directive and no channel declaration: %s", startLine, hint)
 			}
-			return assumption, nil
+			return assumption, channels, nil
 		case strings.HasPrefix(text, "assume ") || text == "assume":
 			if read {
-				return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: the note at line %d holds a second assume directive at line %d; write one note per assumption", startLine, line)
+				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: the note at line %d holds a second assume directive at line %d; write one note per assumption", startLine, line)
+			}
+			if channels != nil {
+				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: the note at line %d declares channels and holds an assume directive at line %d; write the assume directive in a note of its own", startLine, line)
 			}
 			body := strings.TrimSpace(strings.TrimPrefix(text, "assume"))
 			if body == "" {
-				return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: the assume directive at line %d has no text", line)
+				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: the assume directive at line %d has no text", line)
 			}
 			assumption.Text = Predicate(body)
 			assumption.Line = line
 			read = true
+		case strings.HasPrefix(text, "channel ") || text == "channel":
+			if read {
+				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: the note at line %d holds an assume directive and declares a channel at line %d; write the assume directive in a note of its own", startLine, line)
+			}
+			decl, err := parseChannelDecl(strings.TrimSpace(strings.TrimPrefix(text, "channel")), line)
+			if err != nil {
+				return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: %w", err)
+			}
+			channels = append(channels, decl)
 		default:
-			return Assumption{}, fmt.Errorf("csdf.Parser.parseAssumeNote: unexpected line %d in the note at line %d: %s", line, startLine, hint)
+			return Assumption{}, nil, fmt.Errorf("csdf.Parser.parseNote: unexpected line %d in the note at line %d: %s", line, startLine, hint)
 		}
 	}
+}
+
+// parseChannelDecl reads what follows "channel " in a channel declaration
+// written at line: "<name>" or "<name> : <type>.<type>…", one type per field.
+func parseChannelDecl(text string, line int) (ChannelDecl, error) {
+	name, types, hasTypes := strings.Cut(text, ":")
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ChannelDecl{}, fmt.Errorf("the channel declaration at line %d names no channel", line)
+	}
+	if err := ident.Check(name); err != nil {
+		return ChannelDecl{}, fmt.Errorf("the channel declaration at line %d: expected \"<name> : <type>.<type>\": %w", line, err)
+	}
+	decl := ChannelDecl{Name: name, Fields: []string{}, Line: line}
+	if !hasTypes {
+		return decl, nil
+	}
+	for _, t := range splitFieldTypes(types) {
+		t = strings.TrimSpace(t)
+		if _, err := core.ParseType(t); err != nil {
+			return ChannelDecl{}, fmt.Errorf("the channel declaration of %s at line %d: %w", name, line, err)
+		}
+		decl.Fields = append(decl.Fields, t)
+	}
+	return decl, nil
+}
+
+// splitFieldTypes splits text at each . outside parentheses.
+func splitFieldTypes(text string) []string {
+	var out []string
+	depth, start := 0, 0
+	for i, r := range text {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		case '.':
+			if depth == 0 {
+				out = append(out, text[start:i])
+				start = i + 1
+			}
+		}
+	}
+	return append(out, text[start:])
 }
 
 func (p *Parser) parseEndEdge() (EndEdge, error) {

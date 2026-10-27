@@ -96,10 +96,16 @@ type End struct {
 // its meaning too: the title of the diagram, and the label of each state
 // labelled apart from its ID.
 type Diagram struct {
-	Name     string
-	Labels   map[string]string
-	States   []string
-	Vars     map[string][]string
+	Name   string
+	Labels map[string]string
+	States []string
+	Vars   map[string][]string
+	// Types are the types the state lines declare, of each variable one
+	// for the whole diagram (docs/CLAUSE_DESIGN.md, Types).
+	Types map[string]Type
+	// Channels are the channels the channel notes declare, each with the
+	// types of its fields in order.
+	Channels map[string][]Type
 	Init     string
 	InitPost clause.And
 	// InitLine is where the reader read the start edge, as Edge.Line is.

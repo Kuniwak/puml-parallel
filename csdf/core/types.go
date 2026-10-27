@@ -18,36 +18,27 @@ const AnyName = ident.AnyWord
 // which the environment gives the values of (or AnyName), or a map type
 // Key ⇸ Val, a partial map from Key to Val. The zero Type is no type.
 type Type struct {
-	name     string
-	key, val *Type
+	Name     string
+	Key, Val *Type
 }
 
 // AnyType is the type AnyName.
 var AnyType = Named(AnyName)
 
 // Named is the type named name.
-func Named(name string) Type { return Type{name: name} }
+func Named(name string) Type { return Type{Name: name} }
 
 // MapOf is the map type key ⇸ val.
-func MapOf(key, val Type) Type { return Type{key: &key, val: &val} }
+func MapOf(key, val Type) Type { return Type{Key: &key, Val: &val} }
 
 // IsZero says whether t is no type.
-func (t Type) IsZero() bool { return t.name == "" && t.key == nil }
+func (t Type) IsZero() bool { return t.Name == "" && t.Key == nil }
 
 // IsMap says whether t is a map type.
-func (t Type) IsMap() bool { return t.key != nil }
+func (t Type) IsMap() bool { return t.Key != nil }
 
 // IsAny says whether t is AnyName.
-func (t Type) IsAny() bool { return t.name == AnyName }
-
-// Name is the name of a named type, "" for a map type.
-func (t Type) Name() string { return t.name }
-
-// Key is the type of the keys of a map type.
-func (t Type) Key() Type { return *t.key }
-
-// Val is the type of the values of a map type.
-func (t Type) Val() Type { return *t.val }
+func (t Type) IsAny() bool { return t.Name == AnyName }
 
 // Equal says whether t and o are one type.
 func (t Type) Equal(o Type) bool { return t.String() == o.String() }
@@ -56,13 +47,13 @@ func (t Type) Equal(o Type) bool { return t.String() == o.String() }
 // type is parenthesised only as a key.
 func (t Type) String() string {
 	if !t.IsMap() {
-		return t.name
+		return t.Name
 	}
-	k := t.Key().String()
-	if t.Key().IsMap() {
+	k := t.Key.String()
+	if t.Key.IsMap() {
 		k = "(" + k + ")"
 	}
-	return k + " ⇸ " + t.Val().String()
+	return k + " ⇸ " + t.Val.String()
 }
 
 // ParseType reads a type: a name (an identifier), a map type K ⇸ V (or

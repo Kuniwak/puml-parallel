@@ -2,6 +2,8 @@ package coreio
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
@@ -31,7 +33,11 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 		}
 		fmt.Fprintf(&b, "state %q as %s\n", label, s)
 		for _, v := range d.Vars[s] {
-			fmt.Fprintf(&b, "%s : %s\n", s, v)
+			if t, ok := d.Types[v]; ok {
+				fmt.Fprintf(&b, "%s : %s ; %s\n", s, v, t)
+			} else {
+				fmt.Fprintf(&b, "%s : %s\n", s, v)
+			}
 		}
 	}
 	post, err := clause.Print(d.InitPost)
@@ -67,8 +73,39 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 	for _, a := range d.Assumes {
 		fmt.Fprintf(&b, "note as %s\n  assume %s\nend note\n", a.ID, a.Text)
 	}
+	writeChannels(&b, d.Channels)
 	b.WriteString("@enduml\n")
 	return b.String(), nil
+}
+
+// writeChannels writes the channel note that declares channels, if there
+// is any, the channels sorted.
+func writeChannels(b *strings.Builder, channels map[string][]core.Type) {
+	if len(channels) == 0 {
+		return
+	}
+	b.WriteString("note as channels\n")
+	for _, c := range slices.Sorted(maps.Keys(channels)) {
+		b.WriteString("  channel " + c)
+		for i, t := range channels[c] {
+			sep := "."
+			if i == 0 {
+				sep = " : "
+			}
+			b.WriteString(sep + fieldType(t))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("end note\n")
+}
+
+// fieldType is t as a channel declaration writes a field's type: a map
+// type in parentheses, so that its . reads apart from the next field's.
+func fieldType(t core.Type) string {
+	if t.IsMap() {
+		return "(" + t.String() + ")"
+	}
+	return t.String()
 }
 
 // titled is what follows @startuml for a diagram named name.
