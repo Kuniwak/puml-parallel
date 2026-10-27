@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
 )
 
 // jsonTable is the JSON encoding of a Table. Every list is a list, never null,

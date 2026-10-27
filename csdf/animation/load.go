@@ -3,8 +3,8 @@ package animation
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 )
 
 // ReadDiagram reads the diagram a session explores, source, a .puml text

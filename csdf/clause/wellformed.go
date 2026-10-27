@@ -3,8 +3,8 @@ package clause
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/csdf/ident"
-	"github.com/Kuniwak/puml-parallel/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 )
 
 // WellFormed reports, as an error, what keeps f from being a clause the

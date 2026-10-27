@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 )
 
 func TestReadBytesReadsAPlantUMLPNG(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Kuniwak/puml-parallel/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/lts"
 )
 
 func TestReachableKeepsWhatAStepCanReachAndTheMeaning(t *testing.T) {

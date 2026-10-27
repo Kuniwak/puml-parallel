@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir"
 )
 
 func mustBuildIR(t *testing.T) obligationir.LivelockFree {

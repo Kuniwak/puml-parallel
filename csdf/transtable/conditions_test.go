@@ -3,7 +3,7 @@ package transtable_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/transtable"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/transtable"
 )
 
 func TestParseConditions(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
 func TestCanonicalOrdersStatesAndEdgesAsTheOldToolsPrinted(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf"
+	"github.com/Kuniwak/puml-parallel/v3/csdf"
 )
 
 func TestParseReportsWhereTheSyntaxErrorIs(t *testing.T) {

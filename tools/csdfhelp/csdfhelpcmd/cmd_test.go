@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/tools/toolsdoc"
-	"github.com/Kuniwak/puml-parallel/version"
+	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/tools/toolsdoc"
+	"github.com/Kuniwak/puml-parallel/v3/version"
 	"github.com/google/go-cmp/cmp"
 )
 

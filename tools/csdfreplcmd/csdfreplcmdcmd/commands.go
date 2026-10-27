@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/tools"
+	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
 )
 
 // Description is the top-level overview shown by "csdfreplcmd help". It mirrors

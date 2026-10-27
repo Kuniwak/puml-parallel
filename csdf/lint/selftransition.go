@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 )
 
 // SelfTransitionPostBreaksGuardRule reports a transition from a state back

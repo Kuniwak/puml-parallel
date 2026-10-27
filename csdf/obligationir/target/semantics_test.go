@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/csdf/obligationir/target"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir/target"
 )
 
 func read(t *testing.T, src string) *core.Diagram {

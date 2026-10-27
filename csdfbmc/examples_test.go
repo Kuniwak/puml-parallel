@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
-	"github.com/Kuniwak/puml-parallel/tools"
-	"github.com/Kuniwak/puml-parallel/tools/csdfparse/csdfparsecmd"
-	"github.com/Kuniwak/puml-parallel/tools/csdfpromote/csdfpromotecmd"
+	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfparse/csdfparsecmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfpromote/csdfpromotecmd"
 	"github.com/google/go-cmp/cmp"
 )
 

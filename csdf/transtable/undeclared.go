@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
 // UndeclaredStateError says that edges name states the diagram never

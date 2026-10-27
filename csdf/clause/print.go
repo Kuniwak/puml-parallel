@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
 )
 
 // Print writes f in the surface syntax (docs/SYNTAX.md, "Clauses"). It

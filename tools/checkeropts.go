@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
 )
 
 // DeclareCheckerOptions declares -checks, -evaluator, -evaluator-module

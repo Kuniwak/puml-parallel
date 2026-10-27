@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
 )
 
 // AtomWire is an atom as a glue receives it (docs/CLAUSE_DESIGN.md, P8): the

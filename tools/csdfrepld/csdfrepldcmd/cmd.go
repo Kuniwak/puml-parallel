@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Kuniwak/puml-parallel/cli"
-	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/csdf/animation/proto"
-	"github.com/Kuniwak/puml-parallel/tools"
-	"github.com/Kuniwak/puml-parallel/version"
+	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v3/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

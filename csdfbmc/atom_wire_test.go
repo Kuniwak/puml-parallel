@@ -3,7 +3,7 @@ package csdfbmc_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/google/go-cmp/cmp"
 )
 

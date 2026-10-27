@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
 
