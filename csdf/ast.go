@@ -3,6 +3,8 @@ package csdf
 import (
 	"cmp"
 	"slices"
+
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 type ID string
@@ -42,12 +44,11 @@ type Diagram struct {
 }
 
 // ChannelDecl declares a channel and the type of each of its fields, in
-// order, as written (core.ParseType reads each); a channel with no field
-// has none.
+// order; a channel with no field has none.
 type ChannelDecl struct {
-	Name   string   `json:"name"`
-	Fields []string `json:"fields"`
-	Line   int      `json:"line"` // 1-based source line of the declaration.
+	Name   string       `json:"name"`
+	Fields []types.Type `json:"fields"`
+	Line   int          `json:"line"` // 1-based source line of the declaration.
 }
 
 // Assumption is one assume note: a property of the runs of the diagram that no

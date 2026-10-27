@@ -813,13 +813,13 @@ func ParseChannelDecl(text string, line int) (ChannelDecl, error) {
 	if err := ident.Check(name); err != nil {
 		return ChannelDecl{}, fmt.Errorf("the channel declaration at line %d: expected \"<name> : <type>.<type>\": %w", line, err)
 	}
-	decl := ChannelDecl{Name: name, Fields: []string{}, Line: line}
+	decl := ChannelDecl{Name: name, Fields: []types.Type{}, Line: line}
 	if !hasTypes {
 		return decl, nil
 	}
-	for _, t := range splitFieldTypes(written) {
-		t = strings.TrimSpace(t)
-		if _, err := types.Parse(t); err != nil {
+	for _, written := range splitFieldTypes(written) {
+		t, err := types.Parse(strings.TrimSpace(written))
+		if err != nil {
 			return ChannelDecl{}, fmt.Errorf("the channel declaration of %s at line %d: %w", name, line, err)
 		}
 		decl.Fields = append(decl.Fields, t)

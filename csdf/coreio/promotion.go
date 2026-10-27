@@ -185,11 +185,7 @@ func (r *promotionReader) declare(mode, v, typ string) error {
 	if err != nil {
 		return fmt.Errorf("the variable %s of %s: %w", v, mode, err)
 	}
-	if u, ok := r.types[v]; ok && !u.Equal(t) {
-		return fmt.Errorf("the variable %s is declared of the type %s and of the type %s; a variable has one type in a diagram", v, u, t)
-	}
-	r.types[v] = t
-	return nil
+	return core.DeclareType(r.types, v, t)
 }
 
 func (r *promotionReader) includeLine(l string) error {
@@ -268,18 +264,10 @@ func (r *promotionReader) channelLine(l string) error {
 	if _, ok := r.p.Channels[decl.Name]; ok {
 		return fmt.Errorf("the channel %s is declared twice", decl.Name)
 	}
-	fields := []types.Type{}
-	for _, f := range decl.Fields {
-		t, err := types.Parse(f)
-		if err != nil {
-			return err
-		}
-		fields = append(fields, t)
-	}
 	if r.p.Channels == nil {
 		r.p.Channels = map[string][]types.Type{}
 	}
-	r.p.Channels[decl.Name] = fields
+	r.p.Channels[decl.Name] = decl.Fields
 	return nil
 }
 

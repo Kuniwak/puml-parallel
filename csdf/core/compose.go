@@ -210,21 +210,7 @@ func sharedChannels(l, r map[string][]types.Type) (map[string][]types.Type, erro
 
 // ChannelDecl is the declaration of the channel c with fields of the types
 // fields, as a channel note writes it.
-func ChannelDecl(c string, fields []types.Type) string {
-	s := c
-	for i, t := range fields {
-		sep := "."
-		if i == 0 {
-			sep = " : "
-		}
-		if t.IsMap() {
-			s += sep + "(" + t.String() + ")"
-		} else {
-			s += sep + t.String()
-		}
-	}
-	return s
-}
+func ChannelDecl(c string, fields []types.Type) string { return c + types.Fields(fields) }
 
 // pair is the ID of the state where l is in l and r in r, as csdfparallel
 // has always named it; its label says the pair.

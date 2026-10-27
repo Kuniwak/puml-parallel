@@ -32,6 +32,17 @@ func TypesDeclared(d *Diagram) error {
 	return nil
 }
 
+// DeclareType records in ts that v is of the type t; a variable declared
+// of another type before is an error, a variable having one type in a
+// diagram.
+func DeclareType(ts map[string]types.Type, v string, t types.Type) error {
+	if u, ok := ts[v]; ok && !u.Equal(t) {
+		return fmt.Errorf("the variable %s is declared of the type %s and of the type %s; a variable has one type in a diagram", v, u, t)
+	}
+	ts[v] = t
+	return nil
+}
+
 // typed reports, as an error, a field of e that the declarations of d do
 // not type, or a variable it sends of another type than its field.
 func (e Edge) typed(d *Diagram) error {

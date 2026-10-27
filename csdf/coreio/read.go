@@ -73,28 +73,19 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 			if d.Types == nil {
 				d.Types = map[string]types.Type{}
 			}
-			if u, ok := d.Types[string(v.Name)]; ok && !u.Equal(t) {
-				return nil, fmt.Errorf("line %d: the variable %s is declared of the type %s and of the type %s; a variable has one type in a diagram", s.State.Line, v.Name, u, t)
+			if err := core.DeclareType(d.Types, string(v.Name), t); err != nil {
+				return nil, fmt.Errorf("line %d: %w", s.State.Line, err)
 			}
-			d.Types[string(v.Name)] = t
 		}
 	}
 	for _, c := range src.Channels {
 		if _, ok := d.Channels[c.Name]; ok {
 			return nil, fmt.Errorf("line %d: the channel %s is declared twice", c.Line, c.Name)
 		}
-		fields := []types.Type{}
-		for _, f := range c.Fields {
-			t, err := types.Parse(f)
-			if err != nil {
-				return nil, fmt.Errorf("line %d: the channel %s: %w", c.Line, c.Name, err)
-			}
-			fields = append(fields, t)
-		}
 		if d.Channels == nil {
 			d.Channels = map[string][]types.Type{}
 		}
-		d.Channels[c.Name] = fields
+		d.Channels[c.Name] = c.Fields
 	}
 	for _, e := range src.Edges {
 		edge := edgeOf(e, clauses)

@@ -5,12 +5,14 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 func TestParseReadsAChannelNote(t *testing.T) {
 	d := mustParseAccepting("@startuml\n[*] --> s0\nnote as channels\n  channel put : ID.(K ⇸ V)\n  channel stop\nend note\n@enduml\n")
 
-	want := []ChannelDecl{{Name: "put", Fields: []string{"ID", "(K ⇸ V)"}, Line: 4}, {Name: "stop", Fields: []string{}, Line: 5}}
+	want := []ChannelDecl{{Name: "put", Fields: []types.Type{types.Named("ID"), types.MapOf(types.Named("K"), types.Named("V"))}, Line: 4}, {Name: "stop", Fields: []types.Type{}, Line: 5}}
 	if diff := cmp.Diff(want, d.Channels); diff != "" {
 		t.Error(diff)
 	}

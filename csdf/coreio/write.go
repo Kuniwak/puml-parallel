@@ -87,26 +87,9 @@ func writeChannels(b *strings.Builder, channels map[string][]types.Type) {
 	}
 	b.WriteString("note as channels\n")
 	for _, c := range slices.Sorted(maps.Keys(channels)) {
-		b.WriteString("  channel " + c)
-		for i, t := range channels[c] {
-			sep := "."
-			if i == 0 {
-				sep = " : "
-			}
-			b.WriteString(sep + fieldType(t))
-		}
-		b.WriteString("\n")
+		b.WriteString("  channel " + core.ChannelDecl(c, channels[c]) + "\n")
 	}
 	b.WriteString("end note\n")
-}
-
-// fieldType is t as a channel declaration writes a field's type: a map
-// type in parentheses, so that its . reads apart from the next field's.
-func fieldType(t types.Type) string {
-	if t.IsMap() {
-		return "(" + t.String() + ")"
-	}
-	return t.String()
 }
 
 // titled is what follows @startuml for a diagram named name.
