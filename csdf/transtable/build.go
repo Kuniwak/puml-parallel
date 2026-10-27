@@ -317,7 +317,7 @@ func (ix index) conjuncts(steps []int) ([]conjunct, error) {
 		}
 		binds := make([]obligation.Value, 0, len(after))
 		for _, v := range ix.d.Vars[e.Dst] {
-			binds = append(binds, obligation.After(v, i+1))
+			binds = append(binds, obligation.After(v, i+1, obligation.VarType(*ix.d, v)))
 		}
 		cs = append(cs, holds(logic.Rename(g, m)), conjunct{formula: logic.Rename(p, m), binds: binds, post: true})
 	}

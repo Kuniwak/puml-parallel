@@ -34,7 +34,7 @@ func at(v string, i int) logic.Var {
 	if i == 0 {
 		return logic.Var(v)
 	}
-	return obligation.After(v, i).Var
+	return obligation.AfterVar(v, i)
 }
 
 func primed(v string) logic.Var { return obligation.Var(clause.Free{Name: v, Primed: true}) }

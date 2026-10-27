@@ -1,6 +1,7 @@
 package obligation_test
 
 import (
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 	"strings"
 	"testing"
 
@@ -210,13 +211,15 @@ func TestAnEdgeThatReadsWhatItDoesNotBindIsRefused(t *testing.T) {
 	}
 }
 
-func TestEnabledTypesWhatItChoosesByTheTypeNamedLikeIt(t *testing.T) {
+func TestEnabledTypesWhatItChoosesByItsDeclaredType(t *testing.T) {
 	// Setup
-	d := core.Diagram{States: []string{"s"}, Vars: map[string][]string{"s": {"在庫"}}, Init: "s"}
+	d := core.Diagram{States: []string{"s"}, Vars: map[string][]string{"s": {"在庫"}}, Init: "s",
+		Types:    map[string]types.Type{"在庫": types.Named("個数")},
+		Channels: map[string][]types.Type{"OUT": {types.Named("注文量")}}}
 	e := core.Edge{Src: "s", Dst: "s",
 		Event: core.Event{Channel: "OUT", Fields: []core.Field{{Name: "数量"}}},
 		Guard: mustParse(t, "$在庫 ≥ $数量"), Post: mustParse(t, "$在庫' = $在庫 - $数量")}
-	want := []string{"数量", "在庫"}
+	want := []string{"注文量", "個数"}
 
 	// Execute
 	got, err := obligation.Enabled(d, e)

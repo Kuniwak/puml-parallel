@@ -219,9 +219,13 @@ var notation = func() logic.Notation {
 // obligation is.
 type run map[logic.Var]string
 
-func (r run) at(v string, i int) logic.Var { return r.add(obligation.After(v, i)) }
+func (r run) at(d *core.Diagram, v string, i int) logic.Var {
+	return r.add(obligation.After(v, i, obligation.VarType(*d, v)))
+}
 
-func (r run) received(k string, i int) logic.Var { return r.add(obligation.Received(k, i)) }
+func (r run) received(d *core.Diagram, e core.Event, k string, i int) logic.Var {
+	return r.add(obligation.Received(k, i, obligation.FieldType(*d, e, k)))
+}
 
 func (r run) add(v obligation.Value) logic.Var {
 	r[v.Var] = v.Type
@@ -259,7 +263,7 @@ func (r run) bind(f logic.Formula, q func([]logic.Var, []string, logic.Formula) 
 func (r run) before(d *core.Diagram, e core.Edge, n int) map[logic.Var]logic.Var {
 	m := map[logic.Var]logic.Var{}
 	for _, v := range d.Vars[e.Src] {
-		m[logic.Var(v)] = r.at(v, n)
+		m[logic.Var(v)] = r.at(d, v, n)
 	}
 	return m
 }
@@ -272,7 +276,7 @@ func (r run) startClause(d *core.Diagram) (logic.Formula, error) {
 	}
 	m := map[logic.Var]logic.Var{}
 	for _, v := range d.Vars[d.Init] {
-		m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(v, 0)
+		m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(d, v, 0)
 	}
 	return logic.Rename(f, m), nil
 }
@@ -293,10 +297,10 @@ func (r run) pathClauses(d *core.Diagram, path Path) (logic.Formula, error) {
 		}
 		m := r.before(d, e, i)
 		for _, v := range d.Vars[e.Dst] {
-			m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(v, i+1)
+			m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(d, v, i+1)
 		}
 		for _, f := range e.Event.Received() {
-			m[logic.Var(f)] = r.received(f, i+1)
+			m[logic.Var(f)] = r.received(d, e.Event, f, i+1)
 		}
 		conjuncts = append(conjuncts, logic.Rename(step, m))
 	}
@@ -337,7 +341,7 @@ func valuesOf(d *core.Diagram, s string, i int) string {
 	}
 	names := make([]string, len(vars))
 	for j, v := range vars {
-		names[j] = string(obligation.After(v, i).Var)
+		names[j] = string(obligation.AfterVar(v, i))
 	}
 	return strings.Join(names, ", ")
 }
