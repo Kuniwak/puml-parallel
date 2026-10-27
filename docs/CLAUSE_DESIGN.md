@@ -542,12 +542,24 @@ denotation of promotion. Encoding control this way preserves the expanded
 graph, once the renaming there has forgotten the values carried, since only
 transitions change it.
 
-Only tools write ∃; authors write atoms, builtins and ∧. Letting authors
-write ∃ later is an addition that breaks no diagram. A field computed from
-the state, such as a stock check reporting the values it was computed from,
-needs no ∃: an equality builtin determines it (Q5). A choice the system
-makes nondeterministically is the motivating case if authors are ever to
-write ∃; `!` keeps its meaning of sending a value already bound at the step.
+Authors write atoms, builtins, ∧ and ∃; tools write ∃ too, when hiding
+binds a field or promotion chains two moves. A choice the system makes
+nondeterministically is why authors write ∃: `@exists(x : T) (@eq(n', x))`
+says that after the step `n` is some value of `T`, and since it names `n'`
+it is no forgotten `@eq(n', n)`. Allowing it broke no diagram, a clause
+without ∃ meaning what it did. A field computed from the state, such as a
+stock check reporting the values it was computed from, still needs no ∃:
+an equality builtin determines it (Q5). `!` keeps its meaning of sending a
+value already bound at the step; an ∃ never makes a value sent.
+
+An author's ∃ binds a name apart from every name its clause could
+otherwise read (a state variable of the source or the target, a field of
+the event, an ID of a sync, an environment function the diagram applies)
+and from the names of enclosing ∃s, so that no name is read as two things.
+This is a rule of the surface only: the bound variable is an index (see
+Binding), and a tool's ∃ is held to none of it. Its type is a type form
+as a state variable declares one (a name, `any`, or `K ⇸ V`); csdfbmc enumerates it over `TYPES` and refuses `any`, the provers
+guard it with the type's predicate, and no axiom is added.
 
 Negation and disjunction are left undefined until an operator needs them;
 see the open questions.
@@ -575,6 +587,11 @@ must not be; partial-order reduction preserves divergence only with a cycle
 proviso, and must say so before it is used for one.
 
 ## Open questions
+
+- Whether a builtin sugar for a free choice, such as `@any(n')` for
+  `@exists(x : T) (@eq(n', x))`, earns its place. It is left out until the
+  ∃ form proves noisy in real diagrams: it would add a word meaning nothing
+  the ∃ does not, and the ∃ already names the type the choice ranges over.
 
 - Translation to logic (O8) and refinement (O11) may need negation; when
   they do, decide whether it belongs to the skeleton.
