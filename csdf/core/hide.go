@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Kuniwak/puml-parallel/csdf/types"
+
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
 
@@ -15,7 +17,16 @@ import (
 // on the value chosen. A sent field names a value already bound, so it is
 // dropped.
 func Hide(d *Diagram, channels []string) (*Diagram, error) {
-	out := &Diagram{Name: d.Name, Labels: d.Labels, States: d.States, Vars: d.Vars, Init: d.Init, InitPost: d.InitPost, Ends: d.Ends, Assumes: d.Assumes, Families: cloneFamilies(d.Families)}
+	out := &Diagram{Name: d.Name, Labels: d.Labels, States: d.States, Vars: d.Vars, Types: d.Types, Init: d.Init, InitPost: d.InitPost, Ends: d.Ends, Assumes: d.Assumes, Families: cloneFamilies(d.Families)}
+	for c, ts := range d.Channels {
+		if slices.Contains(channels, c) {
+			continue
+		}
+		if out.Channels == nil {
+			out.Channels = map[string][]types.Type{}
+		}
+		out.Channels[c] = ts
+	}
 	for _, e := range d.Edges {
 		if !slices.Contains(channels, e.Event.Channel) {
 			out.Edges = append(out.Edges, e)
@@ -28,12 +39,14 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 				continue
 			}
 			var err error
-			// Until fields carry types, a field's type is the one named
-			// like it.
-			if guard, err = Bind(guard, f.Name, f.Name); err != nil {
+			typ := f.Name
+			if ts, ok := d.Channels[e.Event.Channel]; ok && i < len(ts) {
+				typ = ts[i].String()
+			}
+			if guard, err = Bind(guard, f.Name, typ); err != nil {
 				return nil, fmt.Errorf("core.Hide: %s: %w", e.Event.Channel, err)
 			}
-			if post, err = Bind(post, f.Name, f.Name); err != nil {
+			if post, err = Bind(post, f.Name, typ); err != nil {
 				return nil, fmt.Errorf("core.Hide: %s: %w", e.Event.Channel, err)
 			}
 		}

@@ -79,7 +79,7 @@ func TestBuildLivelockFreeRefusesAStartPostReadingBeforeTheStart(t *testing.T) {
 
 func TestFormulaLivelockFreeReadsBackFromJSON(t *testing.T) {
 	// Setup
-	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n' = 10\na --> a : tau ; @exists(k : K) ($k < $n) ; $n' = $n - 1\n@enduml\n")
+	d, err := coreio.Read("@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : $n' = 10\na --> a : tau ; @exists(k : K) ($k < $n) ; $n' = $n - 1\n@enduml\n")
 	if err != nil {
 		t.Fatal(err)
 	}

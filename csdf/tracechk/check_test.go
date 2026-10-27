@@ -52,7 +52,7 @@ func TestCheck(t *testing.T) {
 	forked := "@startuml\nstate \"A\" as A\nstate \"B\" as B\nstate \"C\" as C\nstate \"D\" as D\n[*] --> A\nA --> B : p\nA --> C : p\nC --> D : q\n@enduml\n"
 	tauThenX := "@startuml\nstate \"a\" as a\nstate \"b\" as b\nstate \"c\" as c\n[*] --> a\na --> b : tau ; gt ; pt\nb --> c : x\n@enduml\n"
 	tauCycle := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : tau\nb --> a : tau\na --> a : x\nb --> b : x\n@enduml\n"
-	insert := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert?coin\n@enduml\n"
+	insert := "@startuml\nstate \"a\" as a\nstate \"b\" as b\n[*] --> a\na --> b : insert?coin\nnote as channels\n  channel insert : coin\nend note\n@enduml\n"
 
 	testCases := map[string]testCase{
 		"a linear trace is accepted with one path per prefix": {

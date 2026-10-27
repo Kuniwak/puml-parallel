@@ -13,11 +13,14 @@ import (
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count
+s0 : count ; count
 state "Done" as s1
-s1: result
+s1 : result ; result
 [*] --> s0 : $count' = 0
 s0 --> s1 : insert?coin ; @ne(count, 9) ∧ $count >= 0 ; $result' is done
+note as channels
+  channel insert : coin
+end note
 @enduml
 `
 
@@ -209,7 +212,7 @@ func TestAnEmptyClauseIsNoneInTheViewAsInTheText(t *testing.T) {
 const promotionGlobal = `@startuml G
 state "Run" as run {
   run : items ; ID ⇸ Item
-  state "items : ID ⇸ Item" as runItems <<promote>> {
+  state "items : (ID : ID) ⇸ Item" as runItems <<promote>> {
     !include item.puml
   }
 }
@@ -222,7 +225,7 @@ state "Run" as run {
 const promotionLocal = `@startuml item
 state "none" as itNone
 state "made" as itMade
-itMade : n
+itMade : n ; n
 [*] --> itNone : 準備済み
 itNone --> itMade : MAKE ; ; $n' は 0
 @enduml
@@ -547,7 +550,7 @@ func TestHandleReplayRefusesAnEnvironmentTheDaemonDoesNotWalk(t *testing.T) {
 	}
 }
 
-const endingDiagram = "@startuml\nstate \"Idle\" as s0\ns0: a\n[*] --> s0 : $a' == 0\ns0 --> [*] : @eq(a, a)\n@enduml\n"
+const endingDiagram = "@startuml\nstate \"Idle\" as s0\ns0 : a ; a\n[*] --> s0 : $a' == 0\ns0 --> [*] : @eq(a, a)\n@enduml\n"
 
 func TestHandleEndEndsTheRunAtAnEndEdge(t *testing.T) {
 	// Setup

@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // gated is a diagram with an edge whose clauses are generated builtins.
@@ -14,6 +15,8 @@ func gated(t *testing.T) *core.Diagram {
 	return &core.Diagram{
 		States:   []string{"G"},
 		Vars:     map[string][]string{"G": {"doors"}},
+		Types:    map[string]types.Type{"doors": types.MapOf(types.Named("Loc"), types.Named("Door"))},
+		Channels: map[string][]types.Type{"OPENS": {types.Named("Loc")}},
 		Init:     "G",
 		InitPost: mustParse(t, "@empty(doors')"),
 		Edges: []core.Edge{{Src: "G", Dst: "G", Event: core.Event{Channel: "OPENS", Fields: []core.Field{{Name: "loc"}}},

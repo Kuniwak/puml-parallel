@@ -2,8 +2,8 @@
 ' Literals of every kind, compared with state variables on a tau cycle, so
 ' the obligation spells each as the value it is.
 state "a" as a
-a : n
-a : r
+a : n ; n
+a : r ; r
 [*] --> a : @eq(n', 0) ∧ @eq(r', {"名前": "a\"b", "xs": [1.5, true, -3]})
 a --> a : tau ; @ne(n, 1.0) ∧ @ne(r, [0.1, 5e-324, -2.5e300, "", false, {}]) ; @eq(n', -12345678901234567890) ∧ @eq(r', r)
 @enduml

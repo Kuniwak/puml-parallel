@@ -14,8 +14,8 @@ import (
 
 func TestComposeTree(t *testing.T) {
 	diagrams := map[string]string{
-		"p.puml":   "@startuml\nstate \"p\" as p\np : n\n[*] --> p : $n' = 0\np --> p : put!n ; ; $n' = $n + 1\n@enduml\n",
-		"c.puml":   "@startuml\nstate \"c\" as c\nc : m\n[*] --> c : $m' = 0\nc --> c : put?k ; $k > $m ; @eq(m', k)\n@enduml\n",
+		"p.puml":   "@startuml\nstate \"p\" as p\np : n ; N\n[*] --> p : $n' = 0\np --> p : put!n ; ; $n' = $n + 1\nnote as channels\n  channel put : N\nend note\n@enduml\n",
+		"c.puml":   "@startuml\nstate \"c\" as c\nc : m ; N\n[*] --> c : $m' = 0\nc --> c : put?k ; $k > $m ; @eq(m', k)\nnote as channels\n  channel put : N\nend note\n@enduml\n",
 		"in.puml":  "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\nstate \"s2\" as s2\n[*] --> s0\ns0 --> s1 : in\ns1 --> s2 : sync\n@enduml\n",
 		"out.puml": "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\nstate \"s2\" as s2\n[*] --> s0\ns0 --> s1 : sync\ns1 --> s2 : out\n@enduml\n",
 		"one.puml": "@startuml\nstate \"s0\" as s0\nstate \"s1\" as s1\n[*] --> s0\ns0 --> s1 : sync\n@enduml\n",
@@ -35,7 +35,7 @@ func TestComposeTree(t *testing.T) {
 		// binds nothing new.
 		"a hidden channel of formulas": {
 			Expr: `{"op": "HIDE", "channels": ["put"], "proc": {"op": "INTERFACE_PARALLEL", "sync": ["put"], "procs": [{"op": "REFER", "path": "p.puml"}, {"op": "REFER", "path": "c.puml"}]}}`,
-			Want: "@startuml\nstate \"(p, c)\" as p_c\np_c : n\np_c : m\n[*] --> p_c : $n' = 0 ∧ $m' = 0\n" +
+			Want: "@startuml\nstate \"(p, c)\" as p_c\np_c : n ; N\np_c : m ; N\n[*] --> p_c : $n' = 0 ∧ $m' = 0\n" +
 				"p_c --> p_c : tau ; $n > $m ; $n > $m ∧ $n' = $n + 1 ∧ @eq(m', n)\n@enduml\n",
 		},
 		"the tree of in_out_tree.json": {

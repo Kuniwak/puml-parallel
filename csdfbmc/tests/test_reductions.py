@@ -18,7 +18,7 @@ WITH_SYMMETRY = WITHOUT_SYMMETRY + ({"por": True, "symmetry": True}, {"cone": Tr
 
 # ONE_WAY with a memo of the last ID opened, which nothing reads, and a
 # count every edge keeps.
-NOTED = dict(ONE_WAY, vars={"r": ["m", "memo", "n"]}, init_post=ONE_WAY["init_post"] + [exists("k", eq("memo'", bound(0))), atom("$n' == 0")],
+NOTED = dict(ONE_WAY, vars=fixture.typed_vars({"r": ["m", "memo", "n"]}), init_post=ONE_WAY["init_post"] + [exists("k", eq("memo'", bound(0))), atom("$n' == 0")],
              edges=[with_post(OPEN, eq("memo'", "k"), eq("n'", "n")), with_post(CLOSE, eq("memo'", "memo"), eq("n'", "n"))])
 
 

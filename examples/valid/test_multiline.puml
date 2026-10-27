@@ -3,12 +3,12 @@
 
 state "Initial" as s0
 
-s0: ready
+s0 : ready ; ready
 
 
 state "Processing" as s1
-s1: busy
-s1: counter
+s1 : busy ; busy
+s1 : counter ; counter
 
 [*] --> s0
 

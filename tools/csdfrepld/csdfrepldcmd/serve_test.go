@@ -15,11 +15,14 @@ import (
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count
+s0 : count ; count
 state "Done" as s1
-s1: result
+s1 : result ; result
 [*] --> s0 : $count' = 0
 s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
+note as channels
+  channel insert : coin
+end note
 @enduml
 `
 

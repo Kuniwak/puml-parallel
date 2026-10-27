@@ -695,7 +695,7 @@ func TestParseUnicodeIdentifiers(t *testing.T) {
 	input := `@startuml "ja"
 [*] --> 約定済み
 state "約定済み" as 約定済み
-約定済み: 約定内容
+約定済み : 約定内容 ; 約定内容
 約定済み --> [*]: 完了
 @enduml
 `

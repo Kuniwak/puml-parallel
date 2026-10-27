@@ -1,4 +1,5 @@
-"""The diagram as csdfparse prints it (core.DiagramDoc, version 3): its
+"""The diagram as csdfparse prints it (core.DiagramDoc, version 3), with the
+types it declares of its variables and its channels' fields: its
 clauses are formulas, a skeleton of ∧, ∃ and builtins over terms, with
 atoms a glue or the environment gives the meaning of (docs/CLAUSE_DESIGN.md);
 and, for a promoted diagram, the family of each map: what an instance in the
@@ -320,19 +321,40 @@ class End:
 class Family:
     """The family of a map: an instance in it is at one of states other
     than init, the start state, which is absence, and holds the vars of
-    that state as its fields. key is the ID parameter of the promote
-    directive: the name whose type keys the map."""
+    that state as its fields, of the types types gives. key is the ID
+    parameter of the promote directive, and key_type the type of the IDs
+    that key the map."""
     init: str
     states: tuple[str, ...]
     vars: FrozenMap   # local state -> the tuple of its variables, in declaration order
     key: str
+    key_type: str = ""
+    types: FrozenMap = field(default_factory=lambda: FrozenMap({}))   # local variable -> its type
+
+
+def _typed_vars(docs, where: str, types: dict[str, str]) -> tuple[str, ...]:
+    """The names of the variables docs declare, each {name, type}, their
+    types recorded in types; a variable of two types is refused."""
+    if not isinstance(docs, list):
+        raise ValueError(f"{where}: the variables {docs!r} are not a list")
+    names = []
+    for v in docs:
+        _fields(v, f"{where}: a variable", ("name", "type"))
+        if not isinstance(v["type"], str) or not v["type"]:
+            raise ValueError(f"{where}: the variable {v['name']} has no type")
+        if types.setdefault(v["name"], v["type"]) != v["type"]:
+            raise ValueError(f"{where}: the variable {v['name']} is declared of the type {types[v['name']]} and of the type {v['type']}; a variable has one type in a diagram")
+        names.append(v["name"])
+    return tuple(names)
 
 
 def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
-    _fields(doc, "a family", ("map", "key", "init", "states", "vars"))
+    _fields(doc, "a family", ("map", "key", "key_type", "init", "states", "vars"))
     m, states = doc["map"], tuple(doc["states"])
     if not isinstance(doc["key"], str) or not doc["key"]:
         raise ValueError(f"the family of {m}: no key names the IDs of its map")
+    if not isinstance(doc["key_type"], str) or not doc["key_type"]:
+        raise ValueError(f"the family of {m}: its IDs have no type")
     if m not in held:
         raise ValueError(f"the family of {m}: {m} is no variable of any state")
     if doc["init"] not in states:
@@ -341,7 +363,9 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
         raise ValueError(f"the family of {m}: its variables are of the states {sorted(doc['vars'])}, not of each of its states {list(states)}")
     if doc["vars"][doc["init"]]:
         raise ValueError(f"the family of {m}: its start state {doc['init']}, which is absence, holds variables")
-    return m, Family(doc["init"], states, FrozenMap({s: tuple(doc["vars"][s]) for s in states}), doc["key"])
+    types: dict[str, str] = {}
+    local = {s: _typed_vars(doc["vars"][s], f"the family of {m}", types) for s in states}
+    return m, Family(doc["init"], states, FrozenMap(local), doc["key"], doc["key_type"], FrozenMap(types))
 
 
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
@@ -375,13 +399,20 @@ class Diagram:
     ends: list[End]
     assumptions: list[dict]
     families: dict[str, Family] = field(default_factory=dict)   # map -> its family, for a promoted diagram
+    types: dict[str, str] = field(default_factory=dict)   # state variable -> its type, as types.Parse reads it
+    channels: dict[str, tuple[str, ...]] = field(default_factory=dict)   # channel -> the types of its fields
 
     @classmethod
     def from_json(cls, d: dict) -> "Diagram":
         if not isinstance(d, dict) or d.get("version") != VERSION:
             raise ValueError(f"the diagram JSON is version {d.get('version') if isinstance(d, dict) else None!r}, but csdfbmc reads "
                              f"version {VERSION}; write it with csdfparse (or csdfpromote -format json) of this release")
-        _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "init", "init_post", "init_line", "edges", "ends", "assumes", "families"))
+        _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "channels", "init", "init_post", "init_line", "edges", "ends", "assumes", "families"))
+        types: dict[str, str] = {}
+        vars_ = {s: _typed_vars(d["vars"][s], f"the state {s}", types) for s in d["states"]}
+        if not isinstance(d["channels"], dict) or not all(isinstance(ts, list) and all(isinstance(t, str) and t for t in ts) for ts in d["channels"].values()):
+            raise ValueError(f"the channels {d['channels']!r} are not each a list of the types of its fields")
+        channels = {c: tuple(ts) for c, ts in d["channels"].items()}
         edges = []
         for e in d["edges"]:
             _fields(e, "an edge", ("src", "dst", "channel", "fields", "label", "guard", "post", "line"))
@@ -389,7 +420,14 @@ class Diagram:
             edges.append(Edge(src=e["src"], dst=e["dst"], name=e["channel"], fields=fields, event=e["label"],
                               guard=formula_of(e["guard"]), post=formula_of(e["post"]), line=e["line"]))
         ends = [End(x["src"], formula_of(x["guard"])) for x in (_fields(x, "an end edge", ("src", "guard")) for x in d["ends"])]
-        held = {v for vs in d["vars"].values() for v in vs}
+        for e in edges:
+            if e.is_tau or not e.fields:
+                continue
+            if e.name not in channels:
+                raise ValueError(f"{e.describe()}: the channel {e.name} carries fields, and the diagram declares no types of them")
+            if len(channels[e.name]) != len(e.fields):
+                raise ValueError(f"{e.describe()}: {len(e.fields)} fields, but the channel {e.name} is declared with {len(channels[e.name])}")
+        held = {v for vs in vars_.values() for v in vs}
         families: dict[str, Family] = {}
         for doc in d["families"]:
             m, fam = _family_of(doc, held)
@@ -404,9 +442,9 @@ class Diagram:
         for x in ends:
             _check_at(x.guard, families, f"the end edge from {x.src}")
         return cls(name=d["name"], states=list(d["states"]), labels=dict(d["labels"]),
-                   vars={s: tuple(d["vars"][s]) for s in d["states"]}, start=d["init"], start_post=start_post,
+                   vars=vars_, start=d["init"], start_post=start_post,
                    edges=edges, ends=ends, assumptions=[_fields(a, "an assume note", ("id", "text")) for a in d["assumes"]],
-                   families=families)
+                   families=families, types=types, channels=channels)
 
     @classmethod
     def load(cls, path: str) -> "Diagram":

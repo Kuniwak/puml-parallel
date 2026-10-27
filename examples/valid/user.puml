@@ -1,13 +1,13 @@
 @startuml
 
 state "userIdle" as userIdle
-userIdle: wanted
+userIdle : wanted ; ProductSet
 state "userGonnaBuy" as userGonnaBuy
-userGonnaBuy: product
+userGonnaBuy : product ; Product
 state "userPaying" as userPaying
-userPaying: product
+userPaying : product ; Product
 state "userChoosing" as userChoosing
-userChoosing: product
+userChoosing : product ; Product
 state "userWaiting" as userWaiting
 
 [*] --> userIdle : $wanted' is empty
@@ -19,4 +19,11 @@ userPaying --> userChoosing : showPurchasable?products ; $products contains $pro
 userChoosing --> userWaiting : choose!product
 userWaiting --> userIdle : drop?product ; ; $wanted' is empty
 
+note as channels
+  channel choose : Product
+  channel drop : Product
+  channel insert : Coin
+  channel showAvailable : ProductSet
+  channel showPurchasable : ProductSet
+end note
 @enduml

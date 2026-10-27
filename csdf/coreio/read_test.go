@@ -12,6 +12,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 func mustParse(t *testing.T, text string) clause.And {
@@ -55,10 +56,13 @@ func TestReadAuthoredReadsADiagram(t *testing.T) {
 			name: "states, variables, the start edge and edges",
 			source: `@startuml
 state "数えている" as s
-s : x
+s : x ; N
 [*] --> s : $x' = 0
 s --> s : inc!x ; $x < 1 ; $x' = $x + 1
 s --> s : reset ; ; $x' = 0
+note as channels
+  channel inc : N
+end note
 @enduml
 `,
 			want: func(t *testing.T) *core.Diagram {
@@ -66,6 +70,8 @@ s --> s : reset ; ; $x' = 0
 					Labels:   map[string]string{"s": "数えている"},
 					States:   []string{"s"},
 					Vars:     map[string][]string{"s": {"x"}},
+					Types:    map[string]types.Type{"x": types.Named("N")},
+					Channels: map[string][]types.Type{"inc": {types.Named("N")}},
 					Init:     "s",
 					InitPost: mustParse(t, "$x' = 0"),
 					Edges: []core.Edge{
@@ -81,18 +87,23 @@ s --> s : reset ; ; $x' = 0
 			name: "received fields, a builtin and an end edge",
 			source: `@startuml
 state "a" as a
-a : m
+a : m ; K ⇸ V
 state "b" as b
-b : m
+b : m ; K ⇸ V
 [*] --> a : @empty(m')
 a --> b : put?k?v ; @notin(k, m) ; @update(m', m, k, v)
 b --> [*] : 片付いている
+note as channels
+  channel put : K.V
+end note
 @enduml
 `,
 			want: func(t *testing.T) *core.Diagram {
 				return &core.Diagram{
 					States:   []string{"a", "b"},
 					Vars:     map[string][]string{"a": {"m"}, "b": {"m"}},
+					Types:    map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("V"))},
+					Channels: map[string][]types.Type{"put": {types.Named("K"), types.Named("V")}},
 					Init:     "a",
 					InitPost: mustParse(t, "@empty(m')"),
 					Edges: []core.Edge{
@@ -151,7 +162,7 @@ s --> s : a ; @opaque
 			name: "a name nothing binds, such as a literal written as a name",
 			source: `@startuml
 state "s" as s
-s : n
+s : n ; n
 [*] --> s : @eq(n', 0)
 s --> s : a ; @eq(n, zero)
 @enduml
@@ -213,8 +224,8 @@ func TestReadHintsAtPromotionForAGlobalDiagram(t *testing.T) {
 
 func TestReadRefusesAFieldReceivedOverAStateVariable(t *testing.T) {
 	testCases := map[string]string{
-		"of the source":      "@startuml\nstate \"a\" as a\na : k\nstate \"b\" as b\n[*] --> a\na --> b : in?k\n@enduml\n",
-		"of the destination": "@startuml\nstate \"a\" as a\nstate \"b\" as b\nb : k\n[*] --> a\na --> b : in?k\n@enduml\n",
+		"of the source":      "@startuml\nstate \"a\" as a\na : k ; k\nstate \"b\" as b\n[*] --> a\na --> b : in?k\nnote as channels\n  channel in : k\nend note\n@enduml\n",
+		"of the destination": "@startuml\nstate \"a\" as a\nstate \"b\" as b\nb : k ; k\n[*] --> a\na --> b : in?k\nnote as channels\n  channel in : k\nend note\n@enduml\n",
 	}
 	for name, src := range testCases {
 		t.Run(name, func(t *testing.T) {

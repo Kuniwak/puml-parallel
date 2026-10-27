@@ -195,11 +195,14 @@ func assertGolden(t *testing.T, name string, actual []byte) {
 func TestRunExploresDiagram(t *testing.T) {
 	path := writeDiagram(t, `@startuml
 state "Initial" as s0
-s0: count
+s0 : count ; count
 state "Done" as s1
-s1: result
+s1 : result ; result
 [*] --> s0 : $count' = 0
 s0 --> s1 : insert?coin ; @ne(count, 9) ∧ $count >= 0 ; $result' is done
+note as channels
+  channel insert : coin
+end note
 @enduml
 `)
 	spy := cli.SpyProcInout()
@@ -233,7 +236,7 @@ s0 --> s1 : insert?coin ; @ne(count, 9) ∧ $count >= 0 ; $result' is done
 func TestRunReportsInputErrorsAndRecovers(t *testing.T) {
 	path := writeDiagram(t, `@startuml
 state "Initial" as s0
-s0: value
+s0 : value ; value
 [*] --> s0
 @enduml
 `)
@@ -313,7 +316,7 @@ state "Initial" as s0
 func TestRunDoesNotSubmitPartialLineAtEOF(t *testing.T) {
 	path := writeDiagram(t, `@startuml
 state "Initial" as s0
-s0: value
+s0 : value ; value
 [*] --> s0
 @enduml
 `)
@@ -446,10 +449,13 @@ func TestRunStepsADiagramOfTheNewBuiltins(t *testing.T) {
 	// Setup
 	path := writeDiagram(t, `@startuml
 state "Open" as s0
-s0: m
-s0: k
+s0 : m ; m
+s0 : k ; k
 [*] --> s0 : @empty(m') ∧ @eq(k', 0)
 s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k', x)
+note as channels
+  channel put : x
+end note
 @enduml
 `)
 	spy := cli.SpyProcInout()
@@ -504,7 +510,7 @@ func TestRunTakesAnEndEdgeAndGoesOnByAJump(t *testing.T) {
 	// Setup
 	path := writeDiagram(t, `@startuml
 state "Idle" as s0
-s0: a
+s0 : a ; a
 [*] --> s0 : $a' == 0
 s0 --> [*] : @eq(a, a)
 @enduml
@@ -625,7 +631,7 @@ func waitFor(t *testing.T, stdout *cli.LockedBuffer, want string) {
 func TestRunReplaysAFindingBeforeTheFirstPrompt(t *testing.T) {
 	path := writeDiagram(t, `@startuml
 state "counting" as a
-a: n
+a : n ; n
 state "stopped" as b
 [*] --> a : $n' = 2
 a --> a : dec ; $n > 0 ; $n' = $n - 1
@@ -670,7 +676,7 @@ func (s stubSuggester) Next(animation.State, int) ([]animation.Suggestion, error
 func TestRunShowsSuggestionsAndTakesOneWithHash(t *testing.T) {
 	path := writeDiagram(t, `@startuml
 state "counting" as a
-a: n
+a : n ; n
 state "stopped" as b
 [*] --> a : $n' = 2
 a --> a : dec ; $n > 0 ; $n' = $n - 1

@@ -31,7 +31,7 @@ func TestARefinementMeansWhatCSPSays(t *testing.T) {
 			Want: "\"procfun (I_b) =\n     STOP\"",
 		},
 		"an edge no value enables offers the events of an empty set": {
-			Impl: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : @eq(n', n')\na --> a : go ; @ne(n, n) ; @eq(n', n)\n@enduml\n",
+			Impl: "@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : @eq(n', n')\na --> a : go ; @ne(n, n) ; @eq(n', n)\n@enduml\n",
 			Want: `(? ev:{ev. ev = Alphabet Ev_go \<and> (\<exists>(v_n_u27u::val). type_n v_n_u27u \<and> csdf_wf v_n_u27u \<and> ((\<not> (v_n = v_n)) \<and> v_n_u27u = v_n))} -> `,
 		},
 		"an end edge is SKIP when its guard holds, and STOP otherwise": {
@@ -62,7 +62,7 @@ func TestARefinementMeansWhatCSPSays(t *testing.T) {
 
 func TestARefinementRefusesAChannelOfTwoArities(t *testing.T) {
 	// Setup: go carries one field in the spec and none in the impl.
-	spec := "@startuml\nstate \"s\" as s\n[*] --> s\ns --> s : go?k\n@enduml\n"
+	spec := "@startuml\nstate \"s\" as s\n[*] --> s\ns --> s : go?k\nnote as channels\n  channel go : k\nend note\n@enduml\n"
 	impl := "@startuml\nstate \"a\" as a\n[*] --> a\na --> a : go\n@enduml\n"
 
 	// Execute
@@ -76,7 +76,7 @@ func TestARefinementRefusesAChannelOfTwoArities(t *testing.T) {
 
 func TestARefinementProvesALemmaBothSidesNeedOnce(t *testing.T) {
 	// Setup: both sides start from an empty map.
-	src := "@startuml\nstate \"a\" as a\na : m\n[*] --> a : @empty(m')\n@enduml\n"
+	src := "@startuml\nstate \"a\" as a\na : m ; m\n[*] --> a : @empty(m')\n@enduml\n"
 	var sb strings.Builder
 
 	// Execute

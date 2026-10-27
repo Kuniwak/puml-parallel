@@ -6,14 +6,18 @@ A string representation of composable state transition models. It is a subset of
 Grammar Rules
 -------------
 ```abnf
-diagram = "@startuml" inlineTrivia 0*1(diagramName) LF trivia *((stateDecl / assumeDecl) trivia) startEdgeDecl trivia *((edgeDecl / assumeDecl) trivia) 0*1(endEdgeDecl trivia) *(assumeDecl trivia) "@enduml" LF
+diagram = "@startuml" inlineTrivia 0*1(diagramName) LF trivia *((stateDecl / noteDecl) trivia) startEdgeDecl trivia *((edgeDecl / noteDecl) trivia) 0*1(endEdgeDecl trivia) *(noteDecl trivia) "@enduml" LF
 diagramName = 1*(HTAB / unicode_char)
 stateDecl = "state" inlineSeparator stateName inlineSeparator "as" inlineSeparator stateID inlineTrivia LF trivia *(stateVarDecl trivia)
-stateVarDecl = stateID inlineTrivia ":" inlineTrivia var inlineTrivia 0*1(";" inlineTrivia varType) LF
+stateVarDecl = stateID inlineTrivia ":" inlineTrivia var inlineTrivia ";" inlineTrivia varType inlineTrivia LF
 startEdgeDecl = "[*]" inlineSeparator "-->" inlineSeparator stateID 0*1(inlineTrivia ":" inlineSeparator post) inlineTrivia LF
 edgeDecl = stateID inlineSeparator "-->" inlineSeparator stateID inlineTrivia ":" inlineTrivia event 0*1(inlineTrivia ";" inlineTrivia guard 0*1(inlineTrivia ";" inlineTrivia post)) inlineTrivia LF
 endEdgeDecl = stateID inlineSeparator "-->" inlineSeparator "[*]" 0*1(inlineTrivia ":" inlineSeparator guard) inlineTrivia LF
+noteDecl = assumeDecl / channelsDecl
 assumeDecl = "note" inlineSeparator "as" inlineSeparator noteID inlineTrivia LF *(inlineTrivia LF) inlineTrivia "assume" inlineSeparator assumption inlineTrivia LF *(inlineTrivia LF) inlineTrivia "end" inlineSeparator "note" inlineTrivia LF
+channelsDecl = "note" inlineSeparator "as" inlineSeparator noteID inlineTrivia LF 1*(*(inlineTrivia LF) inlineTrivia channelDecl inlineTrivia LF) *(inlineTrivia LF) inlineTrivia "end" inlineSeparator "note" inlineTrivia LF
+channelDecl = "channel" inlineSeparator channel 0*1(inlineTrivia ":" inlineTrivia fieldType *(inlineTrivia "." inlineTrivia fieldType))
+fieldType = typeAtom
 noteID = name
 assumption = 1*textElement
 stateName = DQUOTE 1*(unicode_char_except_dquote_and_backslash / escape_backslash / escape_dquote) DQUOTE
@@ -21,14 +25,16 @@ escape_backslash = "\\"
 escape_dquote = "\" DQUOTE
 stateID = name
 var = name
-varType = *textElement
+varType = type
+type = typeAtom 0*1(inlineTrivia ("⇸" / "->>") inlineTrivia type) ; ⇸ nests to the right
+typeAtom = id / "(" inlineTrivia type inlineTrivia ")" ; the id "any" is the type that constrains nothing
 event = channel *(inlineTrivia ("?" / "!") inlineTrivia field)
 channel = name
 field = name
 guard = *textElement
 post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
-name = id ; not starting with a digit, not true, false or null
+name = id ; not starting with a digit, not true, false, null or any
 id = 1*(unicode_letter / unicode_digit / "_")
 trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
@@ -50,7 +56,7 @@ unicode_char_except_semicolon = %x20-3A / %x3C-7F / %x80-10FFFF
 
 Line comments are accepted between declarations and state-variable lines.
 Block comments are accepted wherever horizontal whitespace is accepted, including
-inside `varType`, `event`, `guard`, and `post`. Comments are discarded while parsing.
+inside `event`, `guard`, and `post`. Comments are discarded while parsing.
 A line comment whose trimmed text is exactly `CSDF-IGNORE-BEGIN` opens an ignore region
 (taking precedence over a plain `line_comment`) that extends through the next line comment
 whose trimmed text is exactly `CSDF-IGNORE-END`. `ignore_line` matches any single line that
@@ -83,13 +89,37 @@ channel, a field, a note ID, the names in a clause, and the names in a
 global diagram's directives (docs/PROMOTION.md) and a composition
 expression's channels. A name is an identifier that does not start with a
 digit and is none of the reserved words `true`, `false` and `null`, which
-a clause reads as literals; so a name means the same wherever it is
-written, and a field or a variable is never mistaken for a value. A diagram
+a clause reads as literals, and `any`, the type that constrains nothing;
+so a name means the same wherever it is written, and a field or a variable
+is never mistaken for a value or a type. A diagram
 using such a name is refused, the error naming the reserved word or the
 leading digit. A digit may still follow the first character (`s0`, `item2`).
-A diagram read from JSON is held to the same rule. Type names (a
-variable's `varType`, the type of a `<<promote>>` title or of an
-`@exists`) are not names and are not held to it. A trace's event
+A diagram read from JSON is held to the same rule. Type names (in a
+variable's `varType`, a channel declaration, a `<<promote>>` title or an
+`@exists`) are not names and are only identifiers.
+
+Every state variable has a type, declared on its line after `;`, and one
+type in the whole diagram: two lines declaring one variable of two types
+are refused, as is a line declaring none. A type is a name the environment
+gives the values of (`TYPES` in a csdfbmc checks module), `any`, or a map
+type `K ⇸ V` (or `K ->> V`), a partial map from `K` to `V`, which nests to
+the right (`K ⇸ L ⇸ V` is `K ⇸ (L ⇸ V)`). `any` says nothing of the
+variable's values: a prover quantifies over it without a type guard, and
+csdfbmc refuses to enumerate it, so it works only where a clause gives the
+value (`@eq(n', 0)`). docs/CLAUSE_DESIGN.md gives the meaning.
+
+The types of an event's fields are declared per channel, in a floating
+note of `channel` lines: `channel put : ID.Count` declares the channel
+`put` with two fields, of the types `ID` and `Count`, by position; a map
+type is written in parentheses there (`channel put : (K ⇸ V)`), and
+`channel stop` declares a channel with none. Every channel whose events
+carry fields is declared, with the number of fields each of its events
+carries; a channel without fields may be left undeclared. A field received
+(`c?x`) is of its position's type; a state variable sent (`c!y`) is of the
+type of its position, unless that type is `any`. `tau` is internal and
+never declared. Composition refuses a channel its two sides declare apart,
+and hiding binds a hidden field by its declared type (`@exists(x : T)`).
+A note holds either one `assume` line or `channel` lines, not both. A trace's event
 (`csdftracechk`) may carry values where a diagram's names fields, so its
 fields may start with a digit; its channel is a name.
 
@@ -144,6 +174,7 @@ type Diagram struct {
 	StartEdge StartEdge
 	Edges     []Edge
 	EndEdge   *EndEdge
+	Channels  []ChannelDecl
 }
 
 type State struct {
@@ -174,6 +205,11 @@ type Assumption struct {
 	ID   string
 	Text string
 }
+
+type ChannelDecl struct {
+	Name   string
+	Fields []string
+}
 ```
 
 
@@ -184,7 +220,7 @@ Semantics
 | `diagram`                                  | `Diagram`          | Represents a declaration of a state transition model.                                                                                                                    |
 | `diagramName`                              | `string`           | Optional PlantUML diagram name written on the `@startuml` line. Any text up to the end of the line is accepted, quoted or not, and comment delimiters within it are plain text. Leading and trailing whitespace is removed. It carries no meaning, but it is retained so that printing a parsed diagram reproduces it. |
 | `stateDecl`                                | `State`            | Represents a state declaration.                                                                                                                                          |
-| `stateVarDecl`                             | `StateVar`         | Represents a state variable name and its optional type.                                                                                                                   |
+| `stateVarDecl`                             | `StateVar`         | Represents a state variable name and its type.                                                                                                                             |
 | `startEdgeDecl`                            | `StartEdge`        | Represents a declaration of transition to the initial state.                                                                                                             |
 | `edgeDecl`                                 | `Edge`             | Represents a declaration of a directed edge.                                                                                                                             |
 | `endEdgeDecl`                              | `EndEdge`          | Represents a declaration of transition to the end state.                                                                                                                 |
@@ -194,7 +230,8 @@ Semantics
 | `escape_dquote`                            | `rune`             | Represents `"`.                                                                                                                                                          |
 | `stateID`                                  | `StateID`          | Represents an ID string.                                                                                                                                                 |
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
-| `varType`                                  | `string`           | Represents an optional state-variable type. Leading and trailing whitespace is removed.                                                                                   |
+| `varType`                                  | `string`           | Represents the state variable's type (`type`). Leading and trailing whitespace is removed.                                                                                |
+| `channelsDecl`                             | `[]ChannelDecl`    | Declares channels, each `channelDecl` one: its name and the type of each of its fields, by position.                                                                     |
 | `event`                                    | `Event`            | An event: a channel and its `?` (received) and `!` (sent) fields, written without whitespace. `Event.Channel` and `Event.Fields` take it apart, and csdfparse writes them as `channel` and `fields` next to `event`. When it is exactly `tau`, it is an internal transition. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
@@ -309,19 +346,18 @@ A diagram whose clauses are in the syntax above has the structure of the
 grammar at the top of this document: states, their variables, a start edge,
 edges and one end edge. Each guard and post is a clause. A clause written by
 an author holds no `@exists` (`coreio.ReadAuthored`); one written by a tool
-may (`coreio.Read`). A variable's type, written after `;` on its line, is
-not read yet: a variable has the type named like it (`docs/CLAUSE_DESIGN.md`).
-An assume note is refused for now.
+may (`coreio.Read`). The types of the variables and the channel notes are
+read as above, and what they leave out or contradict is refused.
 
 A global diagram that promotes families is written as:
 
 ```
 @startuml
 state "稼働中" as running {
-  state "locations : l ⇸ Location" as runningLocations <<promote>> {
+  state "locations : (l : 場所ID) ⇸ Location" as runningLocations <<promote>> {
     !include local/LOCATION.puml
   }
-  state "shipments : s ⇸ Shipment" as runningShipments <<promote>> {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
     !include local/SHIPMENT.puml
   }
 }
@@ -334,11 +370,13 @@ end note
 ```
 
 - A composite state holds a `<<promote>>` block per family, titled
-  `map : ID ⇸ Type` (or `->>`) as in docs/PROMOTION.md: the map that holds
-  the instances, the name of an instance's ID, and the type of one instance,
-  which is not read yet. The block includes the family's local diagram, read
-  relative to the global file. The composite state may declare the maps it
-  holds, as `running : buys ; 約定ID ⇸ Buy`. Its states are the modes
+  `map : (ID : Key) ⇸ Type` (or `->>`) as in docs/PROMOTION.md: the map that
+  holds the instances, the name of an instance's ID, the type of the IDs, and
+  the type of one instance; the map is of the type `Key ⇸ Type`. A title
+  `map : ID ⇸ Type`, which gives the IDs no type, is refused with the form to
+  write. The block includes the family's local diagram, read relative to the
+  global file. The composite state may declare the maps it holds, as
+  `running : buys ; 約定ID ⇸ Buy`, of the type the block gives. Its states are the modes
   below, and its edges are the start edge and the hand-written edges between
   modes.
 - A local diagram keeps the contract of docs/PROMOTION.md: its start state
@@ -367,8 +405,11 @@ end note
   every family's map. Exactly one block of a map includes its local diagram;
   the others are bodyless. A mode holding a map without a block for it has
   the family frozen there.
-- A mode may declare variables that are no family's map (`mode : v`, inside
-  a composite mode or under a plain one): the controller's own variables.
+- A mode may declare variables that are no family's map (`mode : v ; T`,
+  inside a composite mode or under a plain one): the controller's own
+  variables, each of its type, one in every mode. A floating note of
+  `channel` lines declares the channels of the hand-written edges, as in a
+  diagram; a channel with fields is declared.
 - A hand-written edge between modes, `src --> dst : EVENT?f… ; guard ; post`,
   reads the maps as they are, its source's controller variables and its own
   received fields; its post writes its target's controller variables, and
@@ -411,7 +452,7 @@ compositeState  = "state" inlineSeparator stateName inlineSeparator "as" inlineS
 promoteBlock    = "state" inlineSeparator promoteTitle inlineSeparator "as" inlineSeparator stateID
                   inlineSeparator "<<promote>>"
                   0*1(inlineTrivia "{" LF trivia includeLine trivia "}") inlineTrivia LF
-promoteTitle    = DQUOTE var inlineTrivia ":" inlineTrivia param inlineTrivia ("⇸" / "->>") inlineTrivia typeName DQUOTE
+promoteTitle    = DQUOTE var inlineTrivia ":" inlineTrivia "(" inlineTrivia param inlineTrivia ":" inlineTrivia type inlineTrivia ")" inlineTrivia ("⇸" / "->>") inlineTrivia type DQUOTE
 includeLine     = "!include" inlineSeparator path inlineTrivia LF
 
 noteBlock       = "note" inlineSeparator ("as" inlineSeparator noteID / noteAnchor) inlineTrivia LF
@@ -427,7 +468,6 @@ mapRef          = var inlineTrivia "(" inlineTrivia param inlineTrivia ")"
 
 preprocessorLine = "!" *unicode_char_except_LF LF
 path            = 1*(unicode_char_except_space) / DQUOTE 1*(unicode_char_except_dquote) DQUOTE
-typeName        = 1*(unicode_char_except_space)
 param           = name
 eventName       = channel
 ```
@@ -436,7 +476,7 @@ eventName       = channel
 |:-------------------|:-------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `globalDiagram`    | `GlobalDiagram`    | A diagram together with the directives lifted out of it. What is left is a `Diagram` of the grammar above, with the composite states flattened into ordinary ones.                        |
 | `compositeState`   | `State`            | An ordinary state whose braces hold its state variables and the `<<promote>>` blocks of the families that move in it. Nesting anything else is an error.                                   |
-| `promoteBlock`     | `Promote`          | One family of instances. The title names the map, the parameter the instance ID is written as, and the type of one instance; the alias is a PlantUML identifier and carries no meaning. A block with no body only says that the family moves in that state too. |
+| `promoteBlock`     | `Promote`          | One family of instances. The title names the map, the parameter the instance ID is written as with the type of the IDs, and the type of one instance; the alias is a PlantUML identifier and carries no meaning. A block with no body only says that the family moves in that state too. |
 | `includeLine`      | `string`           | The local diagram of the family. Exactly one block per map carries it.                                                                                                                    |
 | `noteBlock`        | `Sync`/`Constrain` | A directive when its first non-empty line starts with `sync` or `constrain`; a note for the reader otherwise, and then discarded.                                                          |
 | `noteAnchor`       | `Anchor`           | The block the note points at, which is drawn as a line. A floating `note as <id>` points at nothing: PlantUML's state diagrams have no `<id> .. <state>` link.                              |

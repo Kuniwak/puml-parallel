@@ -47,7 +47,7 @@ s2_s1 --> s2_s2 : out
 			args: []string{"testdata/hidden.puml", "testdata/other.puml"},
 			want: `@startuml
 state "(a, b)" as a_b
-a_b : x
+a_b : x ; x
 [*] --> a_b : $x' = 0
 a_b --> a_b : go ; ; @eq(x', x)
 a_b --> a_b : tau ; @exists(y : y) ($y < 2) ; @exists(y : y) ($y < 2 ∧ $x' = $y)

@@ -5,7 +5,7 @@
 state "稼働中" as running {
   running : accounts ; 口座ID ⇸ Account
 
-  state "accounts : 口座ID ⇸ Account" as runningAccounts <<promote>> {
+  state "accounts : (口座ID : 口座ID) ⇸ Account" as runningAccounts <<promote>> {
     !include local/ACCOUNT.puml
   }
 }

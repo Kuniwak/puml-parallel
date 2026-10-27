@@ -21,11 +21,11 @@ func TestParseRefusesIllegalNames(t *testing.T) {
 			want: "does not start with a digit, as 0s",
 		},
 		"a state variable that is a reserved word": {
-			src:  "@startuml\nstate \"Initial\" as s0\ns0 : null\n[*] --> s0\n@enduml\n",
+			src:  "@startuml\nstate \"Initial\" as s0\ns0 : null ; null\n[*] --> s0\n@enduml\n",
 			want: "null is a reserved word",
 		},
 		"a state variable starting with a digit": {
-			src:  "@startuml\nstate \"Initial\" as s0\ns0 : 1x\n[*] --> s0\n@enduml\n",
+			src:  "@startuml\nstate \"Initial\" as s0\ns0 : 1x ; 1x\n[*] --> s0\n@enduml\n",
 			want: "does not start with a digit, as 1x",
 		},
 		"a channel that is a reserved word": {
@@ -33,7 +33,7 @@ func TestParseRefusesIllegalNames(t *testing.T) {
 			want: "false is a reserved word",
 		},
 		"a field starting with a digit": {
-			src:  "@startuml\nstate \"Initial\" as s0\n[*] --> s0\ns0 --> s0 : c?2x\n@enduml\n",
+			src:  "@startuml\nstate \"Initial\" as s0\n[*] --> s0\ns0 --> s0 : c?2x\nnote as channels\n  channel c : 2x\nend note\n@enduml\n",
 			want: "does not start with a digit, as 2x",
 		},
 	}

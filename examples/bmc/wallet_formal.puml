@@ -7,15 +7,15 @@
 ' 入庫回数 bounds the scenario, as the resend bound does: without it the
 ' running totals grow without end and the walk only stops at --max-states.
 state "待機中" as idle
-idle : 残高
-idle : 未戻しfee
-idle : 入庫回数
+idle : 残高 ; 残高
+idle : 未戻しfee ; 未戻しfee
+idle : 入庫回数 ; 入庫回数
 state "出庫送信中" as sending
-sending : 残高
-sending : 未戻しfee
-sending : 入庫回数
-sending : 送信量
-sending : 再送回数
+sending : 残高 ; 残高
+sending : 未戻しfee ; 未戻しfee
+sending : 入庫回数 ; 入庫回数
+sending : 送信量 ; 送信量
+sending : 再送回数 ; 再送回数
 
 [*] --> idle : $残高' == INITIAL ∧ $未戻しfee' == 0 ∧ $入庫回数' == 0
 
@@ -29,5 +29,9 @@ idle --> [*] : $未戻しfee == 0
 
 note as fair
   assume 手数料を上げて再送を続ければ、いつか確定する
+end note
+note as channels
+  channel 入庫 : 額
+  channel 出庫 : 数量
 end note
 @enduml

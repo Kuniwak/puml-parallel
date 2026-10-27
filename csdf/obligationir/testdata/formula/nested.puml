@@ -2,9 +2,12 @@
 ' A map of maps: each entry of m is a map of its own, updated in place by a
 ' tau, so the model's maps hold maps.
 state "s" as s
-s : m
-s : n
+s : m ; m
+s : n ; n
 [*] --> s : @empty(m') ∧ @empty(n')
 s --> s : put?k ; ; @update(m', m, k, n) ∧ @eq(n', n)
 s --> s : tau ; @exists(k : 鍵) (@in(k, m)) ; @exists(k : 鍵) (@update(m', m, k, n) ∧ @eq(n', n))
+note as channels
+  channel put : k
+end note
 @enduml

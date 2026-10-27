@@ -1,16 +1,16 @@
 @startuml
 
 state "vmIdle" as vmIdle
-vmIdle: availableProducts
+vmIdle : availableProducts ; ProductSet
 state "vmCoinsInserted" as vmCoinsInserted
-vmCoinsInserted: availableProducts
-vmCoinsInserted: coins
+vmCoinsInserted : availableProducts ; ProductSet
+vmCoinsInserted : coins ; CoinSet
 state "vmWaitingChoosing" as vmWaitingChoosing
-vmWaitingChoosing: availableProducts
-vmWaitingChoosing: coins
+vmWaitingChoosing : availableProducts ; ProductSet
+vmWaitingChoosing : coins ; CoinSet
 state "vmDropping" as vmDropping
-vmDropping: availableProducts
-vmDropping: dispensing
+vmDropping : availableProducts ; ProductSet
+vmDropping : dispensing ; Product
 
 [*] --> vmIdle : $availableProducts' are products initially in the vending machine
 vmIdle --> vmIdle : showAvailable!availableProducts ; ; $availableProducts' is $availableProducts
@@ -20,4 +20,11 @@ vmWaitingChoosing --> vmCoinsInserted : insert?coin ; ; $coins' is $coins with $
 vmWaitingChoosing --> vmDropping : choose?product ; $availableProducts contains $product ; $dispensing' is $product
 vmDropping --> vmIdle : drop?product ; $product is $dispensing ; $availableProducts' is $availableProducts minus $product
 
+note as channels
+  channel choose : Product
+  channel drop : Product
+  channel insert : Coin
+  channel showAvailable : ProductSet
+  channel showPurchasable : ProductSet
+end note
 @enduml

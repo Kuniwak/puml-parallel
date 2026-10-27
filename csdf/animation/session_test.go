@@ -11,11 +11,14 @@ import (
 
 const twoStateDiagram = `@startuml
 state "Initial" as s0
-s0: count
+s0 : count ; count
 state "Done" as s1
-s1: result
+s1 : result ; result
 [*] --> s0 : $count' = 0
 s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
+note as channels
+  channel insert : coin
+end note
 @enduml
 `
 
@@ -23,17 +26,20 @@ s0 --> s1 : insert?coin ; $count >= 0 ; $result' is done
 // old reader did not know.
 const builtinsDiagram = `@startuml
 state "Open" as s0
-s0: m
-s0: k
+s0 : m ; m
+s0 : k ; k
 [*] --> s0 : @empty(m') ∧ @eq(k', 0)
 s0 --> s0 : put?x ; @notin(m, x) ∧ @ne(x, k) ; @update(m', m, x, 1) ∧ @eq(k', x)
+note as channels
+  channel put : x
+end note
 @enduml
 `
 
 // endingDiagram has a state whose only exit is an end edge.
 const endingDiagram = `@startuml
 state "Idle" as s0
-s0: a
+s0 : a ; a
 [*] --> s0 : $a' == 0
 s0 --> [*] : @eq(a, a)
 @enduml
@@ -398,7 +404,7 @@ func TestEndTakesAnEndEdgeAndTheRunEnds(t *testing.T) {
 
 func TestEndRefusesAnEndEdgeABuiltinOfWhoseGuardIsFalse(t *testing.T) {
 	// Setup
-	session := newSession(t, "@startuml\nstate \"S\" as s0\ns0: a\ns0: b\n[*] --> s0 : @eq(a', b')\ns0 --> [*] : @ne(a, b)\n@enduml\n")
+	session := newSession(t, "@startuml\nstate \"S\" as s0\ns0 : a ; a\ns0 : b ; b\n[*] --> s0 : @eq(a', b')\ns0 --> [*] : @ne(a, b)\n@enduml\n")
 	if _, err := session.EnterValues("[1, 1]"); err != nil {
 		t.Fatalf("Setup: EnterValues() error = %v", err)
 	}

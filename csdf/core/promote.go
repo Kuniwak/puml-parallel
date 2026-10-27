@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // Family is a promoted family: its instances live in the map Map, an
@@ -15,11 +16,14 @@ import (
 // self-loop, an edge out of it creates an instance, an edge into it deletes
 // one, and Local has no end edge. An instance that does not exist has no
 // entry in the map. Frozen are the modes in which the family holds its map
-// but takes no event (docs/CLAUSE_DESIGN.md).
+// but takes no event (docs/CLAUSE_DESIGN.md). Key is the type of the IDs
+// and Val the type of one instance, as the title of a <<promote>> block
+// writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val.
 type Family struct {
-	Map, ID string
-	Local   *Diagram
-	Frozen  []string
+	Map, ID  string
+	Key, Val types.Type
+	Local    *Diagram
+	Frozen   []string
 }
 
 // States is what an instance of f may be: the local states of f.Local and
@@ -31,7 +35,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Key: f.ID, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars}
+	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types)}
 }
 
 // movesIn says whether f takes its events in mode.
@@ -72,10 +76,15 @@ type Constrain struct {
 // Assumes are the assume notes of the global diagram, which the expansion
 // carries. Labels label the modes, for the reader alone.
 type Promotion struct {
-	Labels     map[string]string
-	Assumes    []Assumption
-	Modes      []string
-	Vars       map[string][]string
+	Labels  map[string]string
+	Assumes []Assumption
+	Modes   []string
+	Vars    map[string][]string
+	// Types are the types of the controller's own variables, and Channels
+	// the channels of its hand-written edges, as the global diagram
+	// declares them.
+	Types      map[string]types.Type
+	Channels   map[string][]types.Type
 	Init       string
 	InitPost   clause.And
 	Edges      []Edge
@@ -98,6 +107,13 @@ type Promotion struct {
 // through the intermediate map, bound by ∃.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
 	out := &Diagram{States: slices.Clone(p.Modes), Labels: maps.Clone(p.Labels), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
+	out.Types = promotedTypes(p)
+	ch := channelTypes{}
+	for c, ts := range p.Channels {
+		if err := ch.add(c, ts, nil); err != nil {
+			return nil, nil, fmt.Errorf("core.Promote: %w", err)
+		}
+	}
 	var maps []string
 	var start []clause.Formula
 	var warnings []Warning
@@ -143,7 +159,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 			if !moves {
 				continue
 			}
-			edges, err := promoteSync(p, s, mode)
+			edges, err := promoteSync(p, s, mode, ch)
 			if err != nil {
 				return nil, nil, fmt.Errorf("core.Promote: sync %s: %w", s.Event, err)
 			}
@@ -165,7 +181,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 				continue
 			}
 			for _, m := range alone {
-				edge, err := promoteAlone(p, m, mode)
+				edge, err := promoteAlone(p, m, mode, ch)
 				if err != nil {
 					return nil, nil, fmt.Errorf("core.Promote: %s: %w", f.Map, err)
 				}
@@ -181,7 +197,86 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
 	out.Edges = append(out.Edges, switches...)
+	if len(ch) > 0 {
+		out.Channels = ch
+	}
 	return out, warnings, nil
+}
+
+// promotedTypes are the types of the variables of the global diagram of p:
+// each map of the type its family gives it, Key ⇸ Val, and the
+// controller's own variables of the types p declares; nil when p declares
+// none.
+func promotedTypes(p Promotion) map[string]types.Type {
+	out := maps.Clone(p.Types)
+	for _, f := range p.Families {
+		if f.Key.IsZero() || f.Val.IsZero() {
+			continue
+		}
+		if out == nil {
+			out = map[string]types.Type{}
+		}
+		out[f.Map] = types.MapOf(f.Key, f.Val)
+	}
+	return out
+}
+
+// channelTypes are the channels of a global diagram, each with the types
+// of its fields.
+type channelTypes map[string][]types.Type
+
+// add declares the channel c with fields of the types ts, the names of
+// the fields being names, or nil when the declaration is written; a
+// channel declared twice is declared alike.
+func (ch channelTypes) add(c string, ts []types.Type, names []string) error {
+	prev, ok := ch[c]
+	if !ok {
+		ch[c] = ts
+		return nil
+	}
+	if len(prev) != len(ts) {
+		return fmt.Errorf("the channel %s is declared %s and %s", c, ChannelDecl(c, prev), ChannelDecl(c, ts))
+	}
+	for i := range ts {
+		if i < len(prev) && !prev[i].Equal(ts[i]) {
+			if names != nil {
+				return fmt.Errorf("the field %s of %s is of the type %s and of the type %s", names[i], c, prev[i], ts[i])
+			}
+			return fmt.Errorf("the channel %s is declared %s and %s", c, ChannelDecl(c, prev), ChannelDecl(c, ts))
+		}
+	}
+	return nil
+}
+
+// declareEvent declares the channel of the generated event e, whose
+// fields are the IDs ids of the types of their families' keys, then the
+// fields of the local events of moves; it declares nothing when a type is
+// not known, as when a family's key or a local channel is undeclared, and
+// refuses a field that two moves give two types.
+func (ch channelTypes) declareEvent(e Event, ids map[string]types.Type, moves []move) error {
+	var ts []types.Type
+	var names []string
+	for _, f := range e.Fields {
+		t, ok := ids[f.Name]
+		if !ok {
+			for _, m := range moves {
+				decl, declared := m.f.Local.Channels[m.e.Event.Channel]
+				i := slices.IndexFunc(m.e.Event.Fields, func(g Field) bool { return g.Name == f.Name })
+				if i < 0 || !declared || i >= len(decl) {
+					continue
+				}
+				if ok && !t.Equal(decl[i]) {
+					return fmt.Errorf("the field %s of %s is of the type %s and of the type %s", f.Name, e.Channel, t, decl[i])
+				}
+				t, ok = decl[i], true
+			}
+		}
+		if !ok || t.IsZero() {
+			return nil
+		}
+		ts, names = append(ts, t), append(names, f.Name)
+	}
+	return ch.add(e.Channel, ts, names)
 }
 
 // constrain conjoins each constrain of p onto every edge that matches its
@@ -534,7 +629,7 @@ type move struct {
 	kind kind
 }
 
-func promoteAlone(p Promotion, m move, mode string) (Edge, error) {
+func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, error) {
 	f, e := m.f, m.e
 	if slices.ContainsFunc(e.Event.Fields, func(fl Field) bool { return fl.Name == f.ID }) {
 		return Edge{}, fmt.Errorf("%s has a field named like the ID %s", e.Event.Channel, f.ID)
@@ -568,7 +663,11 @@ func promoteAlone(p Promotion, m move, mode string) (Edge, error) {
 		return Edge{}, err
 	}
 	fields = append([]Field{{Name: f.ID}}, fields...)
-	return Edge{Src: mode, Dst: mode, Event: Event{Channel: e.Event.Channel, Fields: fields}, Guard: Conj(pins, guard), Post: Conj(post, Unchanged(p.Vars[mode]))}, nil
+	ev := Event{Channel: e.Event.Channel, Fields: fields}
+	if err := ch.declareEvent(ev, map[string]types.Type{f.ID: f.Key}, []move{m}); err != nil {
+		return Edge{}, err
+	}
+	return Edge{Src: mode, Dst: mode, Event: ev, Guard: Conj(pins, guard), Post: Conj(post, Unchanged(p.Vars[mode]))}, nil
 }
 
 // carried are the fields of m's local event on the global event, and the
@@ -605,7 +704,7 @@ func carried(m move) ([]Field, clause.And, error) {
 	return fields, clause.And{Conjuncts: pins}, nil
 }
 
-func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
+func promoteSync(p Promotion, s Sync, mode string, ch channelTypes) ([]Edge, error) {
 	if s.Event == Tau {
 		return nil, fmt.Errorf("tau is internal and cannot be synchronised")
 	}
@@ -683,6 +782,14 @@ func promoteSync(p Promotion, s Sync, mode string) ([]Edge, error) {
 		}
 		guard, post, err := step(p, c, ids)
 		if err != nil {
+			return nil, err
+		}
+		keys := map[string]types.Type{}
+		for _, tg := range s.Targets {
+			f, _ := familyOf(p, tg.Map)
+			keys[tg.ID] = f.Key
+		}
+		if err := ch.declareEvent(Event{Channel: s.Event, Fields: merged}, keys, c); err != nil {
 			return nil, err
 		}
 		out = append(out, Edge{

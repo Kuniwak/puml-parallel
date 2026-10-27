@@ -68,6 +68,7 @@ func TestCheck(t *testing.T) {
 		"a name":           {s: "s0"},
 		"a Unicode name":   {s: "在庫2"},
 		"a reserved word":  {s: "null", wantErr: "null is a reserved word"},
+		"the type any":     {s: "any", wantErr: "any is a reserved word"},
 		"a leading digit":  {s: "9a", wantErr: "does not start with a digit, as 9a"},
 		"no identifier":    {s: "a-b", wantErr: "is not an identifier"},
 		"the empty string": {s: "", wantErr: "is not an identifier"},

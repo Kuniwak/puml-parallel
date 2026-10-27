@@ -16,4 +16,8 @@ buyPosted : qty ; 数量
 buyNone --> buyBooked : BUY?数量 ; ; $qty' は $数量
 buyBooked --> buyPosted : BOOK?数量 ; ; $qty' は $qty
 buyPosted --> buyNone : SETTLE
+note as buyChannels
+  channel BOOK : 数量
+  channel BUY : 数量
+end note
 @enduml

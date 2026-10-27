@@ -20,7 +20,7 @@ def with_edge(d, i, e):
     """d with its i-th edge e."""
     edges = list(d["edges"])
     edges[i] = e
-    return dict(d, edges=edges)
+    return fixture.redeclared(dict(d, edges=edges))
 
 
 class LeftOutTest(unittest.TestCase):

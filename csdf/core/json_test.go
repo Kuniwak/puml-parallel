@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -146,7 +147,9 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 		"an edge with its event, guard and post": {
 			d: &Diagram{
 				Name: "D", States: []string{"s0", "s1"}, Vars: map[string][]string{"s1": {"n", "m"}},
-				Init: "s0", InitPost: clause.And{}, InitLine: 3,
+				Types:    map[string]types.Type{"n": types.Named("N"), "m": types.MapOf(types.Named("K"), types.Named("V"))},
+				Channels: map[string][]types.Type{"c": {types.Named("N"), types.Named("N")}},
+				Init:     "s0", InitPost: clause.And{}, InitLine: 3,
 				Edges: []Edge{{
 					Src: "s0", Dst: "s1",
 					Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "y"}}},
@@ -155,7 +158,8 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 				Assumes: []Assumption{{ID: "fair", Text: "いつか確定する"}},
 			},
 			want: `{
-"version": 3, "name": "D", "states": ["s0", "s1"], "labels": {}, "vars": {"s0": [], "s1": ["n", "m"]},
+"version": 3, "name": "D", "states": ["s0", "s1"], "labels": {}, "vars": {"s0": [], "s1": [{"name": "n", "type": "N"}, {"name": "m", "type": "K ⇸ V"}]},
+"channels": {"c": ["N", "N"]},
 "init": "s0", "init_post": [], "init_line": 3,
 "edges": [{"src": "s0", "dst": "s1", "channel": "c",
   "fields": [{"dir": "?", "name": "x"}, {"dir": "!", "name": "y"}], "label": "c?x!y",
@@ -166,29 +170,29 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 }`,
 		},
 		"a start edge with a post": {
-			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", InitPost: mustParse(t, "@empty(m')")},
-			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": ["m"]},
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Types: map[string]types.Type{"m": types.AnyType}, Init: "s0", InitPost: mustParse(t, "@empty(m')")},
+			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": [{"name": "m", "type": "any"}]}, "channels": {},
 "init": "s0", "init_post": [{"kind": "builtin", "op": "empty", "args": [{"kind": "free", "name": "m", "primed": true}]}], "init_line": 0,
 "edges": [], "ends": [], "assumes": [], "families": []}`,
 		},
 		"an end edge with a guard": {
-			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0", InitPost: clause.And{},
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Types: map[string]types.Type{"n": types.Named("N")}, Init: "s0", InitPost: clause.And{},
 				Ends: []End{{Src: "s0", Guard: mustParse(t, "$n == 0")}}},
-			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": ["n"]},
+			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {}, "vars": {"s0": [{"name": "n", "type": "N"}]}, "channels": {},
 "init": "s0", "init_post": [], "init_line": 0, "edges": [],
 "ends": [{"src": "s0", "guard": [{"kind": "atom", "pieces": ["", " == 0"], "holes": [0], "args": [{"kind": "free", "name": "n"}], "text": ["", " == 0"], "primed": [false], "function": "$_0 == 0"}]}],
 "assumes": [], "families": []}`,
 		},
 		"a promoted diagram with the local states of its family": {
-			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m"}}, Init: "G", InitPost: clause.And{},
-				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"bal"}}}}},
-			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": ["m"]},
+			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m"}}, Types: map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("Account"))}, Init: "G", InitPost: clause.And{},
+				Families: []FamilyStates{{Map: "m", Key: "k", KeyType: types.Named("K"), Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"bal"}}, Types: map[string]types.Type{"bal": types.Named("N")}}}},
+			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": [{"name": "m", "type": "K ⇸ Account"}]}, "channels": {},
 "init": "G", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [],
-"families": [{"map": "m", "key": "k", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": ["bal"]}}]}`,
+"families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": [{"name": "bal", "type": "N"}]}}]}`,
 		},
 		"labels only of the states labelled apart from their IDs": {
 			d: &Diagram{States: []string{"s0", "s1"}, Labels: map[string]string{"s1": "完了"}, Vars: map[string][]string{}, Init: "s0", InitPost: clause.And{}},
-			want: `{"version": 3, "name": "", "states": ["s0", "s1"], "labels": {"s1": "完了"}, "vars": {"s0": [], "s1": []},
+			want: `{"version": 3, "name": "", "states": ["s0", "s1"], "labels": {"s1": "完了"}, "vars": {"s0": [], "s1": []}, "channels": {},
 "init": "s0", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [], "families": []}`,
 		},
 	}
@@ -329,6 +333,7 @@ func validDoc(t *testing.T) DiagramDoc {
 	t.Helper()
 	doc, err := DiagramDocOf(&Diagram{
 		States: []string{"s0"}, Vars: map[string][]string{"s0": {"n"}}, Init: "s0", InitPost: mustParse(t, "@eq(n', 0)"),
+		Types: map[string]types.Type{"n": types.Named("N")}, Channels: map[string][]types.Type{"c": {types.Named("N")}},
 		Edges: []Edge{{Src: "s0", Dst: "s0", Event: Event{Channel: "c", Fields: []Field{{Name: "x"}}}, Guard: mustParse(t, "$n > 0")}},
 		Ends:  []End{{Src: "s0"}},
 	})
@@ -390,23 +395,33 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 			},
 			want: "does not start with a digit, as 9c",
 		},
+		"a variable without its type": {
+			edit: func(v map[string]any) {
+				v["vars"] = map[string]any{"s0": []any{map[string]any{"name": "n", "type": ""}}}
+			},
+			want: "the variable n of s0: types.Parse",
+		},
+		"a channel with fields that declares none": {
+			edit: func(v map[string]any) { v["channels"] = map[string]any{} },
+			want: "the channel c carries fields, and no channel note declares their types",
+		},
 		"a family without its key": {
 			edit: func(v map[string]any) {
-				v["vars"] = map[string]any{"s0": []any{"n", "m"}}
-				v["families"] = []any{map[string]any{"map": "m", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
+				v["vars"] = map[string]any{"s0": []any{map[string]any{"name": "n", "type": "N"}, map[string]any{"name": "m", "type": "K ⇸ V"}}}
+				v["families"] = []any{map[string]any{"map": "m", "key_type": "K", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
 			},
 			want: "the family of m: no key names the IDs of its map",
 		},
 		"a family of a map no state holds": {
 			edit: func(v map[string]any) {
-				v["families"] = []any{map[string]any{"map": "m", "key": "k", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
+				v["families"] = []any{map[string]any{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}}}
 			},
 			want: "the family of m: m is no variable of any state",
 		},
 		"a family without the variables of one of its states": {
 			edit: func(v map[string]any) {
-				v["vars"] = map[string]any{"s0": []any{"n", "m"}}
-				v["families"] = []any{map[string]any{"map": "m", "key": "k", "init": "none", "states": []any{"none", "open"}, "vars": map[string]any{"none": []any{}}}}
+				v["vars"] = map[string]any{"s0": []any{map[string]any{"name": "n", "type": "N"}, map[string]any{"name": "m", "type": "K ⇸ V"}}}
+				v["families"] = []any{map[string]any{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": []any{"none", "open"}, "vars": map[string]any{"none": []any{}}}}
 			},
 			want: "the family of m: its variables are of the states [none], not of each of its states [none open]",
 		},

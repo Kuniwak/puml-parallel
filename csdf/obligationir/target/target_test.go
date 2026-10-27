@@ -15,7 +15,7 @@ func mustBuildIR(t *testing.T) obligationir.LivelockFree {
 	t.Helper()
 	d, err := coreio.Read(`@startuml
 state "a" as a
-a : n
+a : n ; n
 [*] --> a : $n' = 10
 a --> a : tau ; $n > 0 ; $n' = $n - 1
 @enduml

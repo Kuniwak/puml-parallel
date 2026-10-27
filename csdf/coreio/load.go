@@ -169,6 +169,9 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
 	}
+	if err := core.TypesDeclared(d); err != nil {
+		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
+	}
 	canonical, err := Canonical(d)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)

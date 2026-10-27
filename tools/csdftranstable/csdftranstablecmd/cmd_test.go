@@ -32,6 +32,9 @@ state "a" as a
 state "b" as b
 [*] --> a
 a --> b : insert?coin ; g
+note as channels
+  channel insert : coin
+end note
 @enduml
 `,
 			Args: []string{"-expr-mode", "logical"},

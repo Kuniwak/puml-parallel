@@ -1,8 +1,11 @@
 @startuml
 state "a" as a
 state "b" as b
-b : coins
+b : coins ; coins
 [*] --> a
 a --> b : insert?coin ; ; $coins' holds only $coin
 b --> a : reset
+note as channels
+  channel insert : coin
+end note
 @enduml

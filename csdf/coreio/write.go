@@ -2,10 +2,13 @@ package coreio
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // Write writes d in the syntax Read reads, so that Read(Write(d)) is d up to
@@ -31,7 +34,11 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 		}
 		fmt.Fprintf(&b, "state %q as %s\n", label, s)
 		for _, v := range d.Vars[s] {
-			fmt.Fprintf(&b, "%s : %s\n", s, v)
+			if t, ok := d.Types[v]; ok {
+				fmt.Fprintf(&b, "%s : %s ; %s\n", s, v, t)
+			} else {
+				fmt.Fprintf(&b, "%s : %s\n", s, v)
+			}
 		}
 	}
 	post, err := clause.Print(d.InitPost)
@@ -67,8 +74,22 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 	for _, a := range d.Assumes {
 		fmt.Fprintf(&b, "note as %s\n  assume %s\nend note\n", a.ID, a.Text)
 	}
+	writeChannels(&b, d.Channels)
 	b.WriteString("@enduml\n")
 	return b.String(), nil
+}
+
+// writeChannels writes the channel note that declares channels, if there
+// is any, the channels sorted.
+func writeChannels(b *strings.Builder, channels map[string][]types.Type) {
+	if len(channels) == 0 {
+		return
+	}
+	b.WriteString("note as channels\n")
+	for _, c := range slices.Sorted(maps.Keys(channels)) {
+		b.WriteString("  channel " + core.ChannelDecl(c, channels[c]) + "\n")
+	}
+	b.WriteString("end note\n")
 }
 
 // titled is what follows @startuml for a diagram named name.

@@ -19,4 +19,7 @@ cycIdle --> cycCounting : BOOK?数量 ; ; $total' は $数量
 cycCounting --> cycCounting : BOOK?数量 ; ; $total' = $total + $数量
 cycCounting --> cycFixed : tau ; ; $total' は $total
 cycFixed --> cycIdle : REPORT
+note as cycleChannels
+  channel BOOK : 数量
+end note
 @enduml

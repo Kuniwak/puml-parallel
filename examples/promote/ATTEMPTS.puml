@@ -6,7 +6,7 @@
 state "稼働中" as running {
   running : attempts ; 試行ID ⇸ Attempt
 
-  state "attempts : 試行ID ⇸ Attempt" as runningAttempts <<promote>> {
+  state "attempts : (試行ID : 試行ID) ⇸ Attempt" as runningAttempts <<promote>> {
     !include local/ATTEMPT.puml
   }
 }

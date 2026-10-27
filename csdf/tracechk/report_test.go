@@ -25,7 +25,7 @@ func TestWriteMarkdown(t *testing.T) {
 		"a refusing branch says where and along which path": {
 			Diagram: `@startuml
 state "A" as A
-A : n
+A : n ; n
 state "B" as B
 state "C" as C
 state "D" as D
@@ -41,15 +41,18 @@ C --> D : q
 		"an accepted trace states one obligation per prefix path, each received field bound per step": {
 			Diagram: `@startuml
 state "a" as a
-a : n
+a : n ; n
 state "b" as b
-b : n
-b : m
+b : n ; n
+b : m ; m
 [*] --> a : $n' = 0
 a --> b : x?k ; $n < $k ; $n' = $n + $k ∧ $m' = 0
 b --> a : tau ; $m = 0 ; @eq(n', n)
 b --> b : y ; $m > 0 ; @eq(n', n) ∧ @eq(m', m)
 a --> a : y ; $n > 0 ; @eq(n', n)
+note as channels
+  channel x : k
+end note
 @enduml
 `,
 			Trace:  []string{"x?k", "y"},
@@ -100,17 +103,17 @@ func TestWriteMarkdownSpellsWhatEachObligationReads(t *testing.T) {
 		Want    string
 	}{
 		"a sent field is the value the step holds, and no field of its own": {
-			Diagram: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n' = 0\na --> a : out!n ; ; @eq(n', n)\n@enduml\n",
+			Diagram: "@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : $n' = 0\na --> a : out!n ; ; @eq(n', n)\nnote as channels\n  channel out : n\nend note\n@enduml\n",
 			Trace:   []string{"out!n", "out!n"},
 			Want:    "Obligation: ∀ n@0 n@1. \"$_0 = 0\"(n@0) ∧ n@1 = n@0 → ∃ n'. n' = n@1",
 		},
 		"a received field is a value of its step": {
-			Diagram: "@startuml\nstate \"a\" as a\na : n\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $k\n@enduml\n",
+			Diagram: "@startuml\nstate \"a\" as a\na : n ; n\n[*] --> a : $n' = 0\na --> a : in?k ; ; $n' = $k\nnote as channels\n  channel in : k\nend note\n@enduml\n",
 			Trace:   []string{"in?k", "in?k"},
 			Want:    "Obligation: ∀ n@0 n@1 k#1. \"$_0 = 0\"(n@0) ∧ \"$_0 = $_1\"(n@1, k#1) → ∃ k n'. \"$_0 = $_1\"(n', k)",
 		},
 		"a quantifier a disjunct follows is parenthesised": {
-			Diagram: "@startuml\nstate \"a\" as a\na : n\nstate \"b\" as b\nb : n\n[*] --> a : $n' = 0\na --> b : tau ; ; $n' = 1\na --> a : go ; ; $n' = 2\nb --> b : go ; ; @eq(n', n)\n@enduml\n",
+			Diagram: "@startuml\nstate \"a\" as a\na : n ; n\nstate \"b\" as b\nb : n ; n\n[*] --> a : $n' = 0\na --> b : tau ; ; $n' = 1\na --> a : go ; ; $n' = 2\nb --> b : go ; ; @eq(n', n)\n@enduml\n",
 			Trace:   []string{"go"},
 			Want:    "Obligation: ∀ n@0. \"$_0 = 0\"(n@0) → (∃ n'. \"$_0 = 1\"(n')) ∨ ∃ n'. \"$_0 = 2\"(n')",
 		},

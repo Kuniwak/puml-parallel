@@ -8,6 +8,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // ReadAuthored reads a diagram an author wrote: its clauses are read by
@@ -62,7 +63,29 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		}
 		for _, v := range s.State.Vars {
 			d.Vars[string(s.ID)] = append(d.Vars[string(s.ID)], string(v.Name))
+			if v.Type == "" {
+				continue
+			}
+			t, err := types.Parse(v.Type)
+			if err != nil {
+				return nil, fmt.Errorf("line %d: the variable %s of %s: %w", s.State.Line, v.Name, s.ID, err)
+			}
+			if d.Types == nil {
+				d.Types = map[string]types.Type{}
+			}
+			if err := core.DeclareType(d.Types, string(v.Name), t); err != nil {
+				return nil, fmt.Errorf("line %d: %w", s.State.Line, err)
+			}
 		}
+	}
+	for _, c := range src.Channels {
+		if _, ok := d.Channels[c.Name]; ok {
+			return nil, fmt.Errorf("line %d: the channel %s is declared twice", c.Line, c.Name)
+		}
+		if d.Channels == nil {
+			d.Channels = map[string][]types.Type{}
+		}
+		d.Channels[c.Name] = c.Fields
 	}
 	for _, e := range src.Edges {
 		edge := edgeOf(e, clauses)
@@ -80,6 +103,9 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
 	}
 	if err := d.NamesBound(); err != nil {
+		return nil, err
+	}
+	if err := core.TypesDeclared(d); err != nil {
 		return nil, err
 	}
 	return d, nil

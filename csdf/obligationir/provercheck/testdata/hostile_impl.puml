@@ -2,11 +2,14 @@
 ' The same hostile names on the other side, plus an end edge so the encoding's
 ' guarded SKIP is covered too.
 state "init" as init
-init: step
+init : step ; step
 state "vm_待機" as vm_待機
-vm_待機: and
+vm_待機 : and ; and
 [*] --> init : both are set initially
 init --> vm_待機 : tau ; step is positive ; and' is step
 vm_待機 --> init : choose?a_商品 ; ; step' is and
 vm_待機 --> [*] : nothing is left
+note as channels
+  channel choose : a_商品
+end note
 @enduml

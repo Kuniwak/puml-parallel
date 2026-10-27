@@ -1,7 +1,7 @@
 @startuml
 ' The countdown, assuming of its runs what no clause can say.
 state "a" as a
-a : n
+a : n ; n
 [*] --> a : $n' = 10
 a --> a : tau ; $n > 0 ; $n' = $n - 1
 note as steady

@@ -1,6 +1,6 @@
 @startuml
 state "s0" as s0
-s0 : x
+s0 : x ; x
 [*] --> s0 : $x' = 0
 s0 --> s0 : a ; ; @[x := 1]
 @enduml

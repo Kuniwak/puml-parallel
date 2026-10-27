@@ -5,4 +5,7 @@ state "Wide" as wide
 shut --> wide : open?k ; @ne(k, 0)
 wide --> shut : close
 wide --> wide : tau
+note as channels
+  channel open : k
+end note
 @enduml

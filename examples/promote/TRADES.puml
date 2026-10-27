@@ -9,10 +9,10 @@ state "稼働中" as running {
   running : buys ; 約定ID ⇸ Buy
   running : cycles ; 基準日 ⇸ Cycle
 
-  state "buys : 約定ID ⇸ Buy" as runningBuys <<promote>> {
+  state "buys : (約定ID : 約定ID) ⇸ Buy" as runningBuys <<promote>> {
     !include local/BUY.puml
   }
-  state "cycles : 基準日 ⇸ Cycle" as runningCycles <<promote>> {
+  state "cycles : (基準日 : 基準日) ⇸ Cycle" as runningCycles <<promote>> {
     !include local/CYCLE.puml
   }
 }

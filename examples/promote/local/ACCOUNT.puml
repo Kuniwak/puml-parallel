@@ -21,4 +21,7 @@ accNone --> accOpen : OPEN ; ; $balance' は 0
 accOpen --> accFrozen : FREEZE?理由 ; ; $reason' は $理由 ∧ $balance' は $balance
 accFrozen --> accOpen : UNFREEZE ; ; $balance' は $balance
 accOpen --> accNone : CLOSE ; $balance が 0
+note as accountChannels
+  channel FREEZE : 理由
+end note
 @enduml

@@ -1,7 +1,7 @@
 @startuml
 state "稼働中" as running
-running : buys
-running : cycles
+running : buys ; 約定ID ⇸ Buy
+running : cycles ; 基準日 ⇸ Cycle
 [*] --> running : @empty(buys') ∧ @empty(cycles')
 running --> running : BOOK?約定ID?基準日?数量 ; @at(buys[約定ID], buyBooked) ∧ @at(cycles[基準日], cycCounting) ∧ $基準日 は $約定ID の約定日である ; @frame(buys', buys, 約定ID) ∧ @at(buys'[約定ID], buyPosted) ∧ ${buys'[約定ID].qty} は ${buys[約定ID].qty} ∧ @frame(cycles', cycles, 基準日) ∧ @at(cycles'[基準日], cycCounting) ∧ ${cycles'[基準日].total} = ${cycles[基準日].total} + $数量
 running --> running : BOOK?約定ID?基準日?数量 ; @at(buys[約定ID], buyBooked) ∧ @notin(基準日, cycles) ∧ $基準日 は $約定ID の約定日である ; @frame(buys', buys, 約定ID) ∧ @at(buys'[約定ID], buyPosted) ∧ ${buys'[約定ID].qty} は ${buys[約定ID].qty} ∧ @frame(cycles', cycles, 基準日) ∧ @at(cycles'[基準日], cycCounting) ∧ ${cycles'[基準日].total} は $数量
@@ -9,4 +9,10 @@ running --> running : BUY?約定ID?数量 ; @notin(約定ID, buys) ∧ $数量 �
 running --> running : REPORT?基準日 ; @at(cycles[基準日], cycFixed) ; @eq(buys', buys) ∧ @frame(cycles', cycles, 基準日) ∧ @notin(基準日, cycles')
 running --> running : SETTLE?約定ID ; @at(buys[約定ID], buyPosted) ; @frame(buys', buys, 約定ID) ∧ @notin(約定ID, buys') ∧ @eq(cycles', cycles)
 running --> running : tau ; @exists(基準日 : 基準日) (@at(cycles[基準日], cycCounting)) ; @exists(基準日 : 基準日) (@at(cycles[基準日], cycCounting) ∧ @eq(buys', buys) ∧ @frame(cycles', cycles, 基準日) ∧ @at(cycles'[基準日], cycFixed) ∧ ${cycles'[基準日].total} は ${cycles[基準日].total})
+note as channels
+  channel BOOK : 約定ID.基準日.数量
+  channel BUY : 約定ID.数量
+  channel REPORT : 基準日
+  channel SETTLE : 約定ID
+end note
 @enduml

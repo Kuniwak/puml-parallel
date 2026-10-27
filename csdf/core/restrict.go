@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // Restrict is the promoted diagram d kept to the families of the maps keep,
@@ -66,6 +67,14 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 			}
 		}
 	}
+	for v, t := range d.Types {
+		if !gone[v] {
+			if out.Types == nil {
+				out.Types = map[string]types.Type{}
+			}
+			out.Types[v] = t
+		}
+	}
 	init, err := keepOf(d.InitPost, "[*]")
 	if err != nil {
 		return nil, nil, err
@@ -95,6 +104,14 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 	for _, e := range out.Edges {
 		if hidden[e.Event.Channel] {
 			return nil, nil, fmt.Errorf("core.Restrict: %s is taken by a kept family and by a left-out one alone, so it is not an event only the left-out families take", e.Event.Channel)
+		}
+	}
+	for c, ts := range d.Channels {
+		if !hidden[c] {
+			if out.Channels == nil {
+				out.Channels = map[string][]types.Type{}
+			}
+			out.Channels[c] = ts
 		}
 	}
 	return out, warnings, nil

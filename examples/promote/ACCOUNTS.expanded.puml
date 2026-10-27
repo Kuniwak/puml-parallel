@@ -1,9 +1,15 @@
 @startuml
 state "稼働中" as running
-running : accounts
+running : accounts ; 口座ID ⇸ Account
 [*] --> running : @empty(accounts')
 running --> running : CLOSE?口座ID ; @at(accounts[口座ID], accOpen) ∧ ${accounts[口座ID].balance} が 0 ; @frame(accounts', accounts, 口座ID) ∧ @notin(口座ID, accounts')
 running --> running : FREEZE?口座ID?理由 ; @at(accounts[口座ID], accOpen) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accFrozen) ∧ ${accounts'[口座ID].reason} は $理由 ∧ ${accounts'[口座ID].balance} は ${accounts[口座ID].balance}
 running --> running : OPEN?口座ID ; @notin(口座ID, accounts) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accOpen) ∧ ${accounts'[口座ID].balance} は 0
 running --> running : UNFREEZE?口座ID ; @at(accounts[口座ID], accFrozen) ; @frame(accounts', accounts, 口座ID) ∧ @at(accounts'[口座ID], accOpen) ∧ ${accounts'[口座ID].balance} は ${accounts[口座ID].balance}
+note as channels
+  channel CLOSE : 口座ID
+  channel FREEZE : 口座ID.理由
+  channel OPEN : 口座ID
+  channel UNFREEZE : 口座ID
+end note
 @enduml

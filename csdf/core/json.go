@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // DiagramJSONVersion is the version of the shape DiagramDoc writes; a
@@ -18,17 +19,21 @@ const DiagramJSONVersion = 3
 
 // DiagramDoc is a diagram in JSON, for a program such as csdfbmc: its
 // states in order, the labels of those labelled apart from their IDs, and
-// the variables of every state (an empty list for one with none); the start
-// state, its post and the line of the start edge; the edges; the end edges;
-// the assume notes; and, for a promoted diagram, the family of each map
-// (FamilyDoc), none for another. Every clause is a list of its conjuncts
-// (FormulaDoc). Version 2 added the families; version 3, the key of each.
+// the variables of every state with their types (an empty list for one
+// with none); the channels it declares, each with the types of its fields;
+// the start state, its post and the line of the start edge; the edges; the
+// end edges; the assume notes; and, for a promoted diagram, the family of
+// each map (FamilyDoc), none for another. Every clause is a list of its
+// conjuncts (FormulaDoc), and a type is written as types.Parse reads it.
+// Version 2 added the families; version 3, the key of each and the
+// declared types.
 type DiagramDoc struct {
 	Version  int                 `json:"version"`
 	Name     string              `json:"name"`
 	States   []string            `json:"states"`
 	Labels   map[string]string   `json:"labels"`
-	Vars     map[string][]string `json:"vars"`
+	Vars     map[string][]VarDoc `json:"vars"`
+	Channels map[string][]string `json:"channels"`
 	Init     string              `json:"init"`
 	InitPost []FormulaDoc        `json:"init_post"`
 	InitLine int                 `json:"init_line"`
@@ -39,16 +44,52 @@ type DiagramDoc struct {
 }
 
 // FamilyDoc is the family of the map Map (FamilyStates): the ID
-// parameter Key whose type keys the map, its local states
-// in order, the start state among them, which is absence, and the
-// variables of every local state, an instance's fields there (an empty
-// list for one with none).
+// parameter Key and KeyType, the type of the IDs that key the map, its
+// local states in order, the start state among them, which is absence, and
+// the variables of every local state with their types, an instance's
+// fields there (an empty list for one with none).
 type FamilyDoc struct {
-	Map    string              `json:"map"`
-	Key    string              `json:"key"`
-	Init   string              `json:"init"`
-	States []string            `json:"states"`
-	Vars   map[string][]string `json:"vars"`
+	Map     string              `json:"map"`
+	Key     string              `json:"key"`
+	KeyType string              `json:"key_type"`
+	Init    string              `json:"init"`
+	States  []string            `json:"states"`
+	Vars    map[string][]VarDoc `json:"vars"`
+}
+
+// VarDoc is a state variable and its type.
+type VarDoc struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// varDocs are vars with their types in ts, each of which has one.
+func varDocs(vars []string, ts map[string]types.Type) ([]VarDoc, error) {
+	out := []VarDoc{}
+	for _, v := range vars {
+		t, ok := ts[v]
+		if !ok {
+			return nil, fmt.Errorf("the variable %s has no type", v)
+		}
+		out = append(out, VarDoc{Name: v, Type: t.String()})
+	}
+	return out, nil
+}
+
+// readVars reads docs into the variables of s in vars and their types in
+// ts; a variable of two types is an error.
+func readVars(s string, docs []VarDoc, vars map[string][]string, ts map[string]types.Type) error {
+	for _, vd := range docs {
+		t, err := types.Parse(vd.Type)
+		if err != nil {
+			return fmt.Errorf("the variable %s of %s: %w", vd.Name, s, err)
+		}
+		if err := DeclareType(ts, vd.Name, t); err != nil {
+			return err
+		}
+		vars[s] = append(vars[s], vd.Name)
+	}
+	return nil
 }
 
 // EdgeDoc is an edge: its event as its channel and its fields in order,
@@ -375,16 +416,25 @@ func diagramDocOf(d *Diagram) (DiagramDoc, error) {
 	if err := d.wellFormed(); err != nil {
 		return DiagramDoc{}, err
 	}
+	if err := TypesDeclared(d); err != nil {
+		return DiagramDoc{}, err
+	}
 	doc := DiagramDoc{
 		Version: DiagramJSONVersion, Name: d.Name, States: append([]string{}, d.States...),
-		Labels: map[string]string{}, Vars: map[string][]string{},
+		Labels: map[string]string{}, Vars: map[string][]VarDoc{}, Channels: map[string][]string{},
 		Init: d.Init, InitLine: d.InitLine,
 		Edges: []EdgeDoc{}, Ends: []EndDoc{}, Assumes: []AssumptionDoc{}, Families: []FamilyDoc{},
 	}
+	var err error
 	for _, f := range d.Families {
-		fd := FamilyDoc{Map: f.Map, Key: f.Key, Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]string{}}
+		if f.KeyType.IsZero() {
+			return DiagramDoc{}, fmt.Errorf("the family of %s: its IDs have no type", f.Map)
+		}
+		fd := FamilyDoc{Map: f.Map, Key: f.Key, KeyType: f.KeyType.String(), Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]VarDoc{}}
 		for _, s := range f.States {
-			fd.Vars[s] = append([]string{}, f.Vars[s]...)
+			if fd.Vars[s], err = varDocs(f.Vars[s], f.Types); err != nil {
+				return DiagramDoc{}, fmt.Errorf("the family of %s, at %s: %w", f.Map, s, err)
+			}
 		}
 		doc.Families = append(doc.Families, fd)
 	}
@@ -392,9 +442,16 @@ func diagramDocOf(d *Diagram) (DiagramDoc, error) {
 		if l, ok := d.Labels[s]; ok {
 			doc.Labels[s] = l
 		}
-		doc.Vars[s] = append([]string{}, d.Vars[s]...)
+		if doc.Vars[s], err = varDocs(d.Vars[s], d.Types); err != nil {
+			return DiagramDoc{}, err
+		}
 	}
-	var err error
+	for c, ts := range d.Channels {
+		doc.Channels[c] = []string{}
+		for _, t := range ts {
+			doc.Channels[c] = append(doc.Channels[c], t.String())
+		}
+	}
 	if doc.InitPost, err = formulaDocsOf(d.InitPost); err != nil {
 		return DiagramDoc{}, fmt.Errorf("the start edge: %w", err)
 	}
@@ -446,10 +503,28 @@ func (doc DiagramDoc) diagram() (*Diagram, error) {
 			d.Labels[s] = l
 		}
 	}
-	for s, vs := range doc.Vars {
-		if len(vs) > 0 {
-			d.Vars[s] = append([]string{}, vs...)
+	ts := map[string]types.Type{}
+	for _, s := range slices.Sorted(maps.Keys(doc.Vars)) {
+		if err := readVars(s, doc.Vars[s], d.Vars, ts); err != nil {
+			return nil, err
 		}
+	}
+	if len(ts) > 0 {
+		d.Types = ts
+	}
+	for c, docs := range doc.Channels {
+		fields := []types.Type{}
+		for _, td := range docs {
+			t, err := types.Parse(td)
+			if err != nil {
+				return nil, fmt.Errorf("the channel %s: %w", c, err)
+			}
+			fields = append(fields, t)
+		}
+		if d.Channels == nil {
+			d.Channels = map[string][]types.Type{}
+		}
+		d.Channels[c] = fields
 	}
 	var err error
 	if d.InitPost, err = formulaOfDocs(doc.InitPost); err != nil {
@@ -486,18 +561,25 @@ func (doc DiagramDoc) diagram() (*Diagram, error) {
 		d.Assumes = append(d.Assumes, Assumption{ID: a.ID, Text: a.Text})
 	}
 	for _, fd := range doc.Families {
-		f := FamilyStates{Map: fd.Map, Key: fd.Key, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}}
+		key, err := types.Parse(fd.KeyType)
+		if err != nil {
+			return nil, fmt.Errorf("the family of %s: the type of its IDs: %w", fd.Map, err)
+		}
+		f := FamilyStates{Map: fd.Map, Key: fd.Key, KeyType: key, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}, Types: map[string]types.Type{}}
 		if !slices.Equal(slices.Sorted(maps.Keys(fd.Vars)), slices.Sorted(slices.Values(fd.States))) {
 			return nil, fmt.Errorf("the family of %s: its variables are of the states %v, not of each of its states %v", fd.Map, slices.Sorted(maps.Keys(fd.Vars)), fd.States)
 		}
-		for s, vs := range fd.Vars {
-			if len(vs) > 0 {
-				f.Vars[s] = append([]string{}, vs...)
+		for _, s := range slices.Sorted(maps.Keys(fd.Vars)) {
+			if err := readVars(s, fd.Vars[s], f.Vars, f.Types); err != nil {
+				return nil, fmt.Errorf("the family of %s: %w", fd.Map, err)
 			}
 		}
 		d.Families = append(d.Families, f)
 	}
 	if err := d.wellFormed(); err != nil {
+		return nil, err
+	}
+	if err := TypesDeclared(d); err != nil {
 		return nil, err
 	}
 	return d, nil

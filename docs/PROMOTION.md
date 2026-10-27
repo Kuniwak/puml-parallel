@@ -31,7 +31,7 @@ independent maps, which says almost nothing.
 `csdf/core` gives, as PlantUML or, with `-format json`, as the diagram JSON
 `csdfbmc` reads. The diagram JSON of an expansion (version 3) writes
 the family of each map as well (`families`): its `key`, the ID parameter of
-the promote directive (`<map> : <ID> ⇸ <Type>`), whose type, named like it or
+the promote directive (`<map> : (<ID> : <Key>) ⇸ <Type>`), whose type, named like it or
 through `TYPEOF`, is the domain of the map; its local states, its start
 state, which is absence, and the variables each local state holds, so that
 csdfbmc gives an instance at a local state exactly that state's variables,
@@ -89,10 +89,10 @@ state "稼働中" as running {
   running : buys ; 約定ID ⇸ Buy
   running : cycles ; 基準日 ⇸ Cycle
 
-  state "buys : 約定ID ⇸ Buy" as runningBuys <<promote>> {
+  state "buys : (約定ID : 約定ID) ⇸ Buy" as runningBuys <<promote>> {
     !include local/BUY.puml
   }
-  state "cycles : 基準日 ⇸ Cycle" as runningCycles <<promote>> {
+  state "cycles : (基準日 : 基準日) ⇸ Cycle" as runningCycles <<promote>> {
     !include local/CYCLE.puml
   }
 }
@@ -110,10 +110,14 @@ end note
 ```
 
 **`promote`** is a composite state with the `<<promote>>` stereotype, written
-inside the state its family moves in. Its title is `<map> : <ID> ⇸ <Type>`: the
-map the instances live in, the parameter the instance ID is written as, and the
-type of one instance. Its body is one `!include` naming the local diagram. `⇸`
-is U+21F8; `->>` is accepted in its place.
+inside the state its family moves in. Its title is
+`<map> : (<ID> : <Key>) ⇸ <Type>`: the map the instances live in, the parameter
+the instance ID is written as, the type of the IDs, and the type of one
+instance; the map is of the type `<Key> ⇸ <Type>`. A mode line declaring the
+map (`running : buys ; 約定ID ⇸ Buy`) gives it the same type, or the diagram is
+refused. Its body is one `!include` naming the local diagram. `⇸` is U+21F8;
+`->>` is accepted in its place. The title before the IDs had a type,
+`<map> : <ID> ⇸ <Type>`, is refused with the form to write.
 
 The map is named by the **title**, not by the PlantUML alias, because an alias
 has to be unique across the diagram and one map may have a block in several
@@ -159,7 +163,7 @@ carries the `!include`; the others are bodyless:
 state "縮退中" as degraded {
   degraded : accounts ; 口座ID ⇸ Account
 
-  state "accounts : 口座ID ⇸ Account" as degradedAccounts <<promote>>
+  state "accounts : (口座ID : 口座ID) ⇸ Account" as degradedAccounts <<promote>>
 }
 ```
 
@@ -404,7 +408,8 @@ Errors:
 
 | What                                                                    | Why                                                                            |
 |:------------------------------------------------------------------------|:--------------------------------------------------------------------------------|
-| A `<<promote>>` title that is not `<map> : <ID> ⇸ <Type>`                | There is no map to promote into.                                                |
+| A `<<promote>>` title that is not `<map> : (<ID> : <Key>) ⇸ <Type>`      | There is no map to promote into, or its IDs have no type.                       |
+| A map a mode declares of another type than its block's `<Key> ⇸ <Type>`  | A variable has one type.                                                        |
 | A `<<promote>>` body that is not one `!include`                          | A block names one local diagram or none.                                        |
 | A `<<promote>>` block outside any state                                  | The state it is written in is where the family moves.                           |
 | A map the state holds no variable for                                    | There is nowhere for the instances to live.                                     |
