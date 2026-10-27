@@ -73,6 +73,9 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 			if d.Types == nil {
 				d.Types = map[string]types.Type{}
 			}
+			if u, ok := d.Types[string(v.Name)]; ok && !u.Equal(t) {
+				return nil, fmt.Errorf("line %d: the variable %s is declared of the type %s and of the type %s; a variable has one type in a diagram", s.State.Line, v.Name, u, t)
+			}
 			d.Types[string(v.Name)] = t
 		}
 	}
@@ -109,6 +112,9 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
 	}
 	if err := d.NamesBound(); err != nil {
+		return nil, err
+	}
+	if err := core.TypesDeclared(d); err != nil {
 		return nil, err
 	}
 	return d, nil
