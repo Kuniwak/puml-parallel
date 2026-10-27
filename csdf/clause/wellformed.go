@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // WellFormed reports, as an error, what keeps f from being a clause the
@@ -30,8 +31,8 @@ func wellFormed(f Formula) error {
 		if err := ident.Check(f.Hint); err != nil {
 			return fmt.Errorf("the hint of an ∃: %w", err)
 		}
-		if !ident.Is(f.Type) {
-			return fmt.Errorf("the type %q of the ∃ %s is no identifier", f.Type, f.Hint)
+		if _, err := types.Parse(f.Type); err != nil {
+			return fmt.Errorf("the type of the ∃ %s: %w", f.Hint, err)
 		}
 		if len(f.Body.Conjuncts) == 0 {
 			return fmt.Errorf("the ∃ %s has an empty body", f.Hint)

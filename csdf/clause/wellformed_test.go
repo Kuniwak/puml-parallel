@@ -16,7 +16,7 @@ func TestWellFormed(t *testing.T) {
 		"an empty atom":                {f: and(atom()), want: "an empty atom"},
 		"empty text":                   {f: and(atom(Text(""), hole(pre("x")))), want: "empty text in an atom"},
 		"a hint that is no name":       {f: Exists{Hint: "", Type: "T", Body: and(eq(Bound{0}, pre("x")))}, want: "the hint of an ∃: \"\" is not an identifier"},
-		"an ∃ without a type":          {f: Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))}, want: "the type \"\" of the ∃ v is no identifier"},
+		"an ∃ without a type":          {f: Exists{Hint: "v", Body: and(eq(Bound{0}, pre("x")))}, want: "the type of the ∃ v: types.Parse: \"\" is no type"},
 		"an empty ∃ body":              {f: Exists{Hint: "v", Type: "T"}, want: "the ∃ v has an empty body"},
 		"a dangling index":             {f: and(eq(Bound{0}, pre("x"))), want: "clause.LocallyClosed: the index 0 is under 0 binders"},
 		"a builtin of the wrong arity": {f: and(Builtin{Op: OpEq, Args: []Term{pre("x")}}), want: "@eq takes 2 terms, not 1"},

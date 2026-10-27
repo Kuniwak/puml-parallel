@@ -6,6 +6,7 @@ import (
 	"unicode"
 
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 const (
@@ -134,9 +135,9 @@ func (p *parser) exists() (Formula, error) {
 	if err := p.expect(existsType); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)
 	}
-	typ := p.name()
-	if typ == "" {
-		return nil, fmt.Errorf("@exists at %d: expected the type %s ranges over", start, hint)
+	typ, err := p.existsType()
+	if err != nil {
+		return nil, fmt.Errorf("@exists at %d: the type %s ranges over: %w", start, hint, err)
 	}
 	if err := p.expect(") ("); err != nil {
 		return nil, fmt.Errorf("@exists at %d: %w", start, err)
@@ -158,6 +159,27 @@ func (p *parser) exists() (Formula, error) {
 		return nil, fmt.Errorf("@exists at %d: expected %q or the end at %d", start, conjSep, p.pos)
 	}
 	return Exists{Hint: hint, Type: typ, Body: body}, nil
+}
+
+// existsType reads the type of an ∃, up to the ) that closes the binder.
+func (p *parser) existsType() (string, error) {
+	start, depth := p.pos, 0
+	for ; p.pos < len(p.src); p.pos++ {
+		switch p.src[p.pos] {
+		case '(':
+			depth++
+		case ')':
+			depth--
+		}
+		if depth < 0 {
+			break
+		}
+	}
+	t, err := types.Parse(string(p.src[start:p.pos]))
+	if err != nil {
+		return "", err
+	}
+	return t.String(), nil
 }
 
 // closesBody reports whether the parser is at the ")" that closes the ∃

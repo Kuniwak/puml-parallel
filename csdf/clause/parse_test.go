@@ -150,6 +150,10 @@ func TestParseReadsExists(t *testing.T) {
 			text: "@exists(m : T) (@exists(k : T) (@in(k, m)))",
 			want: Exists{Hint: "m", Type: "T", Body: and(Exists{Hint: "k", Type: "T", Body: and(Builtin{Op: OpIn, Args: []Term{Bound{Index: 0}, Bound{Index: 1}}})})},
 		},
+		"a map type, its key a map type in parentheses": {
+			text: "@exists(m : (K ⇸ V) ⇸ W) (@empty(m))",
+			want: Exists{Hint: "m", Type: "(K ⇸ V) ⇸ W", Body: and(Builtin{Op: OpEmpty, Args: []Term{Bound{Index: 0}}})},
+		},
 		"parentheses in a body's text nest": {
 			text: "@exists(v : T) (f($v) > 0) ∧ $y",
 			want: Exists{Hint: "v", Type: "T", Body: and(atom(Text("f("), hole(Bound{Index: 0}), Text(") > 0")))},
