@@ -227,6 +227,31 @@ s : n ; N
 			want: "@exists binds n, which is a state variable of s; give it another name",
 		},
 		{
+			name: "an ∃ binding a state variable on the end edge",
+			source: `@startuml
+state "s" as s
+s : n ; N
+[*] --> s : @eq(n', 0)
+s --> [*] : @exists(n : N) (@eq(n, 0))
+@enduml
+`,
+			want: "the end edge from s: @exists binds n, which is a state variable of s; give it another name",
+		},
+		{
+			name: "an edge whose ∃ binds a field, named by its line and event",
+			source: `@startuml
+state "s" as s
+s : n ; N
+[*] --> s : @eq(n', 0)
+s --> s : c?k ; @exists(k : N) (@eq(n, k))
+note as channels
+  channel c : N
+end note
+@enduml
+`,
+			want: "line 5: s --> s : c?k: @exists binds k",
+		},
+		{
 			name: "an ∃ binding a reserved word",
 			source: `@startuml
 state "s" as s

@@ -200,7 +200,7 @@ func TestParseAuthoredRefusesABinderThatShadowsAnEnclosingOne(t *testing.T) {
 	_, err := ParseAuthored(text)
 
 	// Assert
-	assertErrorContains(t, err, "x is bound by an enclosing @exists; give it another name")
+	assertErrorContains(t, err, `clause.ParseAuthored: "@exists(x : T) (@exists(x : U) (@eq(n', x)))": @exists at 16: x is bound by an enclosing @exists; give it another name`)
 }
 
 func TestParseRefuses(t *testing.T) {

@@ -329,7 +329,8 @@ holeName = (unicode_letter / "_") *(unicode_letter / unicode_digit / "_")
 - The name an author binds is a name (not a reserved word, not starting
   with a digit), apart from every name the clause could otherwise read: a
   state variable of the source or the target, a field of the event, an ID of
-  a sync, an environment function a clause of the diagram applies, and the
+  a sync, an environment function a clause of the diagram applies (in a
+global diagram, every variable of any mode), and the
   name of an enclosing `@exists`, which it would shadow. A binder taking one
   is refused, so no name is read as two things. A tool's binder is held to
   none of this: its name is only a hint, chosen apart when printed.

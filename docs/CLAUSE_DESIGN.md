@@ -556,7 +556,9 @@ An author's ∃ binds a name apart from every name its clause could
 otherwise read (a state variable of the source or the target, a field of
 the event, an ID of a sync, an environment function the diagram applies)
 and from the names of enclosing ∃s, so that no name is read as two things.
-This is a rule of the surface only: the bound variable is an index (see
+A guard is held to the target's variables too, though it reads none of
+them, and a global diagram to all of its variables on every clause: one
+name stays one thing across the edge and the diagram. This is a rule of the surface only: the bound variable is an index (see
 Binding), and a tool's ∃ is held to none of it. Its type is a type form
 as a state variable declares one (a name, `any`, or `K ⇸ V`); csdfbmc enumerates it over `TYPES` and refuses `any`, the provers
 guard it with the type's predicate, and no axiom is added.

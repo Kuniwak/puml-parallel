@@ -163,3 +163,35 @@ func TestPostLeavesVariableFreeRuleReportsAPostItCannotPrintAsAnError(t *testing
 		t.Errorf("want the reason Print gave, got %q", findings[0].Message)
 	}
 }
+
+func TestPostLeavesVariableFreeRuleSuggestsAPostTheReaderAcceptsAndTheRuleKeepsSilentOn(t *testing.T) {
+	// Setup: an edge leaving n free, whose event receives x and whose guard
+	// applies x2, so the suggestion must bind neither.
+	source := func(post string) string {
+		return strings.Join([]string{
+			"@startuml", `state "s0" as s0`, "s0 : n ; Nat", "[*] --> s0 : @eq(n', 0)",
+			"s0 --> s0 : c?x ; @eq(x, x2(n)) ; " + post,
+			"note as channels", "  channel c : Nat", "end note", "@enduml", "",
+		}, "\n")
+	}
+	findings := lint.Run([]lint.Rule{lint.PostLeavesVariableFreeRule{}}, lint.NewInput("a.puml", []byte(source(""))))
+	if len(findings) != 1 {
+		t.Fatalf("want one finding, got %+v", findings)
+	}
+	_, suggested, ok := strings.Cut(findings[0].Message, "say so by binding it, such as `")
+	if !ok {
+		t.Fatalf("no suggestion in %q", findings[0].Message)
+	}
+	suggested = strings.TrimSuffix(suggested, "`.")
+
+	// Execute
+	in := lint.NewInput("a.puml", []byte(source(suggested)))
+
+	// Assert
+	if in.ParseErr != nil {
+		t.Fatalf("the suggestion %q is refused: %v", suggested, in.ParseErr)
+	}
+	if got := lint.Run([]lint.Rule{lint.PostLeavesVariableFreeRule{}}, in); len(got) != 0 {
+		t.Errorf("the suggestion %q still gets %+v", suggested, got)
+	}
+}

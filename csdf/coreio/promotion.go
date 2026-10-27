@@ -518,8 +518,9 @@ func (r *promotionReader) check() error {
 }
 
 // bindersApart reports, as an error, an ∃ of a clause of the global diagram
-// that binds a name the clause could otherwise read
-// (core.Diagram.BindersApart): a variable of the global diagram, a map
+// that binds a name a clause of it could read, as core.Diagram.BindersApart
+// does of a local diagram, but with every variable of the global diagram
+// taken on every clause, whatever its mode: a map, which every mode holds,
 // or the controller's own, a field of the event, an ID of a sync, or an
 // environment function a clause applies.
 func (r *promotionReader) bindersApart() error {
@@ -559,7 +560,7 @@ func (r *promotionReader) bindersApart() error {
 	for i, e := range r.p.Edges {
 		for _, c := range []clause.And{e.Guard, e.Post} {
 			if err := core.BindersApartFrom(c, global(fieldNames(e.Event), nil)); err != nil {
-				return fmt.Errorf("line %d: %s --> %s: %w", r.edgeAt[i], e.Src, e.Dst, err)
+				return fmt.Errorf("line %d: %s --> %s : %s: %w", r.edgeAt[i], e.Src, e.Dst, e.Event.Label(), err)
 			}
 		}
 	}

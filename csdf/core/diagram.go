@@ -383,7 +383,7 @@ func (d *Diagram) BindersApart() error {
 		sc := d.edgeScope(e)
 		for _, c := range []clause.And{e.Guard, e.Post} {
 			if err := sc.apart(c, fns); err != nil {
-				return fmt.Errorf("line %d: %s --> %s : %s: %w", e.Line, e.Src, e.Dst, e.Event.Channel, err)
+				return fmt.Errorf("line %d: %s --> %s : %s: %w", e.Line, e.Src, e.Dst, e.Event.Label(), err)
 			}
 		}
 	}
