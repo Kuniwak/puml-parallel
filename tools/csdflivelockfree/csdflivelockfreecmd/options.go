@@ -43,8 +43,8 @@ field_<name>. What stays uninterpreted is the environment: each atom becomes a
 predicate atom_<text> applied to its holes, each function fn_<name> and each type
 type_<name>, declared - "opaque" in Lean, "consts" in Isabelle - under a
 TODO(csdf) marker and a comment carrying the text it was named by. A state
-variable and a received field are of the type named like them, the convention
-until they carry types of their own. Nothing is ever defined as True on the
+variable and a received field are of the type the diagram declares of them,
+and one of the type any is quantified without restriction. Nothing is ever defined as True on the
 diagram's behalf, because that is not a placeholder but a different diagram.
 The builtins are defined, a map being a ValMap of the value type, and what the
 csdf_* predicates mean is proved from the definitions as csdf_lemma_<i>, so the

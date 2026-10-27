@@ -109,9 +109,10 @@ transition, whatever its fields. A hidden field is a value the `tau` chooses
 (`c?x` hidden is `⊓ x. τ`): a field the guard and post read through a hole
 (`$x`) is bound by `@exists` in both, the guard `g` becoming `∃x. g` and the
 post `∃x. (g ∧ p)`, so that the two agree on it
-([CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). Until fields carry their
-types, the bound field ranges over the type named like it, which is why it
-prints as `@exists(x : x) (…)`. The result is printed as PlantUML.
+([CLAUSE_DESIGN.md](./docs/CLAUSE_DESIGN.md)). The bound field ranges over the
+type its channel declares of it, `@exists(x : T) (…)` for `channel c : T`, so a
+hidden channel with fields must be declared; the declarations of the hidden
+channels are dropped. The result is printed as PlantUML.
 
 ```console
 $ csdfhide -channels 'sync' examples/valid/in.puml
@@ -350,9 +351,12 @@ name the skeleton declares:
 | `@exists(k : T) (…)` | `∃k. type_<T> k ∧ …` |
 | a state variable `x`, a value after the step `x'` | `v_x`, `v_x_u27u` |
 
-A state variable and a received field are of the type named like them, the convention
-until they carry types of their own, so the `step` relation chooses each of their values
-from its type. The atoms, functions and types are the environment: each is declared —
+A state variable and a received field are of the type the diagram declares of them
+(docs/SYNTAX.md), so the `step` relation chooses each of their values from its type,
+`type_<T> v`; a map type is one such type of its own, and a variable of the type `any`
+is chosen with no restriction, which is sound: the obligation over more values implies
+the one over fewer. The IR (version 3) carries the types beside the variables of each
+state (`types`) and on each received field (`type`). The atoms, functions and types are the environment: each is declared —
 `opaque` in Lean, `consts` in Isabelle — under a `TODO(csdf)` marker and a comment carrying
 the text it was named by, for a human or LLM to define and then discharge the proof.
 Nothing is defined as True on the diagram's behalf, because that is not a placeholder but a

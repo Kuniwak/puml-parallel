@@ -22,11 +22,23 @@ syntax.
   replaced the separate `DOMAINS` csdfbmc read: its checks module declares
   `TYPES`, `TYPEOF` and `ENVIRONMENT`, and `--env` gives the
   rest (README, bounded model checking).
-  Until event fields and state variables carry types of their own, each
-  has the type named like it (or the one `TYPEOF` gives); an obligation
-  that binds them types them so. A family's key (the promote directive's
-  ID parameter) is typed by its name the same way, so composing diagrams
-  whose same-named keys mean different types needs distinct key names.
+- A **type** is declared by the diagram, never taken from a name
+  (docs/SYNTAX.md): each state variable has one type in a diagram, written
+  on its state lines (`s : v ; T`); each field of an event has the type its
+  channel declares at its position (`channel c : T.U`); a family's IDs have
+  the type its promote title gives (`m : (ID : K) ⇸ V`), and its map the
+  type `K ⇸ V`. A type is a name the environment gives the values of, a map
+  type `K ⇸ V`, or `any`. Composition keeps the types of both sides and
+  refuses a channel they declare apart; hiding binds a hidden field by its
+  declared type.
+- **`any`** constrains nothing. Its meaning is the set of all values: a
+  prover quantifies over a variable of the type `any` without a type guard,
+  which is sound, since a property of every value holds of the values of
+  any type; a tool that expands a diagram (core.Expand, csdfbmc) refuses
+  only when it must enumerate the values of an `any` slot (a variable a
+  post leaves free, a received field, a value the environment chooses), and
+  works where a clause determines the value (`@eq(n', 0)`). `any` is
+  reserved, so no name is mistaken for it.
 
 ## Semantic ground
 
@@ -78,8 +90,7 @@ The two components of a parallel have separate state, so a state variable
 both name is two variables: composition renames the right side's apart,
 capture-free (P3), to a fresh name made from its own (`x` becomes `x2`),
 before pairing the states. A renamed variable keeps the type of the one it
-was named like, which an environment gives under the new name until
-binders and variables carry their types.
+was named like (docs/SYNTAX.md declares it).
 
 For promotion, op_sem is a CSP term built from the local diagram P:
 
