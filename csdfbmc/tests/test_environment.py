@@ -68,10 +68,10 @@ class OverTest(unittest.TestCase):
 
     def test_the_module_declares_the_functions_by_name(self):
         # Execute
-        env = over({"$_0 が凍結されていない": None, "q": True}, {})
+        env = over({"$_0 が停止されていない": None, "q": True}, {})
 
         # Assert
-        self.assertEqual(frozenset({"$_0 が凍結されていない", "q"}), env.declared)
+        self.assertEqual(frozenset({"$_0 が停止されていない", "q"}), env.declared)
 
     def test_a_declared_function_nothing_gives_is_undecided(self):
         # Execute

@@ -155,7 +155,7 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 					Event: Event{Channel: "c", Fields: []Field{{Name: "x"}, {Send: true, Name: "y"}}},
 					Guard: mustParse(t, "$x > 0"), Post: mustParse(t, "@eq(n', x)"), Line: 4,
 				}},
-				Assumes: []Assumption{{ID: "fair", Text: "いつか確定する"}},
+				Assumes: []Assumption{{ID: "fair", Text: "いつか完了する"}},
 			},
 			want: `{
 "version": 3, "name": "D", "states": ["s0", "s1"], "labels": {}, "vars": {"s0": [], "s1": [{"name": "n", "type": "N"}, {"name": "m", "type": "K ⇸ V"}]},
@@ -166,7 +166,7 @@ func jsonDiagrams(t *testing.T) map[string]struct {
   "guard": [{"kind": "atom", "pieces": ["", " > 0"], "holes": [0], "args": [{"kind": "free", "name": "x"}], "text": ["", " > 0"], "primed": [false], "function": "$_0 > 0"}],
   "post": [{"kind": "builtin", "op": "eq", "args": [{"kind": "free", "name": "n", "primed": true}, {"kind": "free", "name": "x"}]}],
   "line": 4}],
-"ends": [], "assumes": [{"id": "fair", "text": "いつか確定する"}], "families": []
+"ends": [], "assumes": [{"id": "fair", "text": "いつか完了する"}], "families": []
 }`,
 		},
 		"a start edge with a post": {
@@ -184,11 +184,11 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 "assumes": [], "families": []}`,
 		},
 		"a promoted diagram with the local states of its family": {
-			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m"}}, Types: map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("Account"))}, Init: "G", InitPost: clause.And{},
-				Families: []FamilyStates{{Map: "m", Key: "k", KeyType: types.Named("K"), Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"bal"}}, Types: map[string]types.Type{"bal": types.Named("N")}}}},
-			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": [{"name": "m", "type": "K ⇸ Account"}]}, "channels": {},
+			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m"}}, Types: map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("Member"))}, Init: "G", InitPost: clause.And{},
+				Families: []FamilyStates{{Map: "m", Key: "k", KeyType: types.Named("K"), Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"cnt"}}, Types: map[string]types.Type{"cnt": types.Named("N")}}}},
+			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": [{"name": "m", "type": "K ⇸ Member"}]}, "channels": {},
 "init": "G", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [],
-"families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": [{"name": "bal", "type": "N"}]}}]}`,
+"families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": [{"name": "cnt", "type": "N"}]}}]}`,
 		},
 		"labels only of the states labelled apart from their IDs": {
 			d: &Diagram{States: []string{"s0", "s1"}, Labels: map[string]string{"s1": "完了"}, Vars: map[string][]string{}, Init: "s0", InitPost: clause.And{}},
@@ -265,12 +265,12 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 		},
 		"a family with the variables of no state of it": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
-				{Map: "m", Key: "k", Init: "none", States: []string{"none"}, Vars: map[string][]string{"open": {"bal"}}}}},
+				{Map: "m", Key: "k", Init: "none", States: []string{"none"}, Vars: map[string][]string{"open": {"cnt"}}}}},
 			want: "the family of m: variables of open, which is none of its states",
 		},
 		"a family whose start state holds variables": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m"}}, Init: "s0", Families: []FamilyStates{
-				{Map: "m", Key: "k", Init: "none", States: []string{"none"}, Vars: map[string][]string{"none": {"bal"}}}}},
+				{Map: "m", Key: "k", Init: "none", States: []string{"none"}, Vars: map[string][]string{"none": {"cnt"}}}}},
 			want: "the family of m: its start state none, which is absence, holds variables",
 		},
 		"an @at of an entry at no state of its family": {

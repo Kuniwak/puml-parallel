@@ -13,7 +13,7 @@ func TestMangle(t *testing.T) {
 	}{
 		{name: "an identifier is left alone", in: "availableProducts", want: "availableProducts"},
 		{name: "an event with a field", in: "choose?product", want: "choose_u3fuproduct"},
-		{name: "a space", in: "pay now", want: "pay_u20unow"},
+		{name: "a space", in: "swap now", want: "swap_u20unow"},
 		{name: "a hyphen in an id", in: "vm-idle", want: "vm_u2duidle"},
 		{name: "an underscore doubles", in: "a_b", want: "a__b"},
 		{name: "a leading digit is left alone; the prefix supplies the letter", in: "1st", want: "1st"},

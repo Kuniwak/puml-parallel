@@ -73,7 +73,7 @@ class PythonGlueAtomTest(unittest.TestCase):
             "values of another number than the arguments": (
                 {"op": "guard", "atom": atom(["", " > 0"], [0], [False]), "values": [[1, 2]]}, "2 values"),
             "an atom that is not Python": (
-                {"op": "guard", "atom": atom(["", " が凍結されていない"], [0], [False]), "values": [[1]]}, "SyntaxError"),
+                {"op": "guard", "atom": atom(["", " が停止されていない"], [0], [False]), "values": [[1]]}, "SyntaxError"),
             "an atom outside the pure subset": (
                 {"op": "guard", "atom": atom(["open(", ")"], [0], [False]), "values": [["f"]]}, "calling open"),
             "text naming what stands for a hole": (
@@ -123,12 +123,12 @@ class DefinitionsTest(unittest.TestCase):
         self.addCleanup(d.cleanup)
         path = os.path.join(d.name, "defs.py")
         with open(path, "w", encoding="utf-8") as f:
-            f.write("FEE = 1\ndef fee(n):\n    return n + FEE\n")
+            f.write("STEP = 1\ndef step(n):\n    return n + STEP\n")
         handle = evaluator([path])
         handle({"op": "hello", "protocol": 2})
 
         # Execute
-        answer = handle({"op": "guard", "atom": atom(["fee(", ") > FEE"], [0], [False]), "values": [[1]]})
+        answer = handle({"op": "guard", "atom": atom(["step(", ") > STEP"], [0], [False]), "values": [[1]]})
 
         # Assert
         self.assertEqual({"results": [True]}, answer)

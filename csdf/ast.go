@@ -52,8 +52,8 @@ type ChannelDecl struct {
 }
 
 // Assumption is one assume note: a property of the runs of the diagram that no
-// guard can state, such as "a transaction whose fee keeps being raised is
-// eventually confirmed". It is opaque text like a predicate, and the tools
+// guard can state, such as "a job whose priority keeps being raised eventually
+// completes". It is opaque text like a predicate, and the tools
 // that compile proof obligations carry it as a hypothesis.
 type Assumption struct {
 	ID   string    `json:"id"`

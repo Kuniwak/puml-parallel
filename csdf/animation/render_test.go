@@ -101,15 +101,15 @@ func TestRenderStateValuePromptShowsWhatAnInstanceOfAFamilyHolds(t *testing.T) {
 		"\n" +
 		"Post State Group:\n" +
 		"  G\n" +
-		"    accounts', a map from IDs to instances {\"at\": <state>, \"fields\": {...}}:\n" +
-		"      at opened, holding balance\n" +
+		"    members', a map from IDs to instances {\"at\": <state>, \"fields\": {...}}:\n" +
+		"      at opened, holding count\n" +
 		"      at closed, holding nothing\n" +
 		"    total'\n" +
 		"\n" +
 		"Post Condition:\n" +
 		"  (none)\n" +
 		"\n" +
-		"Enter 2 values as a JSON array in declaration order: [<accounts>, <total>].\n" +
+		"Enter 2 values as a JSON array in declaration order: [<members>, <total>].\n" +
 		"\n"
 	if diff := cmp.Diff(want, buf.String()); diff != "" {
 		t.Errorf("RenderStateValuePrompt() mismatch (-want +got):\n%s", diff)

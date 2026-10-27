@@ -340,8 +340,8 @@ func TestParseEvents(t *testing.T) {
 		{name: "a channel alone", event: "reset", wantEvent: "reset", wantChannel: "reset"},
 		{name: "received and chosen fields", event: "c?x!y", wantEvent: "c?x!y", wantChannel: "c",
 			wantFields: []Field{{Dir: Received, Name: "x"}, {Dir: Sent, Name: "y"}}},
-		{name: "unicode, digits and snake case", event: "AUDIT_BEGIN?監査ID?item2", wantEvent: "AUDIT_BEGIN?監査ID?item2", wantChannel: "AUDIT_BEGIN",
-			wantFields: []Field{{Dir: Received, Name: "監査ID"}, {Dir: Received, Name: "item2"}}},
+		{name: "unicode, digits and snake case", event: "REVIEW_BEGIN?審査ID?item2", wantEvent: "REVIEW_BEGIN?審査ID?item2", wantChannel: "REVIEW_BEGIN",
+			wantFields: []Field{{Dir: Received, Name: "審査ID"}, {Dir: Received, Name: "item2"}}},
 		{name: "block comments and spaces between tokens removed", event: "send /' implementation detail '/ ? m", wantEvent: "send?m", wantChannel: "send",
 			wantFields: []Field{{Dir: Received, Name: "m"}}},
 	}
@@ -375,7 +375,7 @@ s0 --> s1 : ` + tt.event + ` ; ready ; done
 }
 
 func TestParseRejectsEventsOutsideTheGrammar(t *testing.T) {
-	for _, event := range []string{"finish(result)", "注文 accepted", "c?", "c?x?", "?x", "c!!y", "c x", "a.b"} {
+	for _, event := range []string{"finish(result)", "依頼 accepted", "c?", "c?x?", "?x", "c!!y", "c x", "a.b"} {
 		t.Run(event, func(t *testing.T) {
 			parser := newParser(`@startuml
 state "Initial" as s0
@@ -716,10 +716,10 @@ s0 --> s1 : e
 
 func TestParseUnicodeIdentifiers(t *testing.T) {
 	input := `@startuml "ja"
-[*] --> 約定済み
-state "約定済み" as 約定済み
-約定済み : 約定内容 ; 約定内容
-約定済み --> [*]: 完了
+[*] --> 受付済み
+state "受付済み" as 受付済み
+受付済み : 受付内容 ; 受付内容
+受付済み --> [*]: 完了
 @enduml
 `
 
@@ -728,15 +728,15 @@ state "約定済み" as 約定済み
 		t.Fatalf("parseAccepting() error = %v, want nil", err)
 	}
 
-	state, ok := diagram.States["約定済み"]
+	state, ok := diagram.States["受付済み"]
 	if !ok {
-		t.Fatalf("diagram.States has no state 約定済み, got %v", diagram.States)
+		t.Fatalf("diagram.States has no state 受付済み, got %v", diagram.States)
 	}
-	if len(state.Vars) != 1 || state.Vars[0].Name != "約定内容" {
-		t.Errorf("state.Vars = %v, want [約定内容]", state.Vars)
+	if len(state.Vars) != 1 || state.Vars[0].Name != "受付内容" {
+		t.Errorf("state.Vars = %v, want [受付内容]", state.Vars)
 	}
-	if diagram.StartEdge.Dst != "約定済み" {
-		t.Errorf("diagram.StartEdge.Dst = %q, want %q", diagram.StartEdge.Dst, "約定済み")
+	if diagram.StartEdge.Dst != "受付済み" {
+		t.Errorf("diagram.StartEdge.Dst = %q, want %q", diagram.StartEdge.Dst, "受付済み")
 	}
 }
 

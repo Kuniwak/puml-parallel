@@ -146,9 +146,9 @@ func TestAnEdgeThatReadsWhatItDoesNotBindIsRefused(t *testing.T) {
 		},
 		"a guard reading a name nothing binds": {
 			Edge: func(t *testing.T) core.Edge {
-				return core.Edge{Src: "s", Dst: "s", Event: core.Event{Channel: "GO"}, Guard: mustParse(t, "$残高 > 0")}
+				return core.Edge{Src: "s", Dst: "s", Event: core.Event{Channel: "GO"}, Guard: mustParse(t, "$水位 > 0")}
 			},
-			Want: "残高",
+			Want: "水位",
 		},
 		"a guard reading a value after the step": {
 			Edge: func(t *testing.T) core.Edge {
@@ -217,11 +217,11 @@ func TestEnabledTypesWhatItChoosesByItsDeclaredType(t *testing.T) {
 	// Setup
 	d := core.Diagram{States: []string{"s"}, Vars: map[string][]string{"s": {"在庫"}}, Init: "s",
 		Types:    map[string]types.Type{"在庫": types.Named("個数")},
-		Channels: map[string][]types.Type{"OUT": {types.Named("注文量")}}}
+		Channels: map[string][]types.Type{"OUT": {types.Named("要求量")}}}
 	e := core.Edge{Src: "s", Dst: "s",
 		Event: core.Event{Channel: "OUT", Fields: []core.Field{{Name: "数量"}}},
 		Guard: mustParse(t, "$在庫 ≥ $数量"), Post: mustParse(t, "$在庫' = $在庫 - $数量")}
-	want := []string{"注文量", "個数"}
+	want := []string{"要求量", "個数"}
 
 	// Execute
 	got, err := obligation.Enabled(d, e)

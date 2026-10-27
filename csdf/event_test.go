@@ -15,7 +15,7 @@ func TestParseEvent(t *testing.T) {
 		"a channel alone":            {text: "reset", want: "reset"},
 		"received and chosen fields": {text: "c?x!y", want: "c?x!y", wantFields: []Field{{Received, "x"}, {Sent, "y"}}},
 		"whitespace around ? and !":  {text: " c ? x ! y ", want: "c?x!y", wantFields: []Field{{Received, "x"}, {Sent, "y"}}},
-		"unicode and snake case":     {text: "AUDIT_BEGIN?監査ID", want: "AUDIT_BEGIN?監査ID", wantFields: []Field{{Received, "監査ID"}}},
+		"unicode and snake case":     {text: "REVIEW_BEGIN?審査ID", want: "REVIEW_BEGIN?審査ID", wantFields: []Field{{Received, "審査ID"}}},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {

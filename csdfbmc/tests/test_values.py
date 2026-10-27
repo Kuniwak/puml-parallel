@@ -44,9 +44,9 @@ class FrozenMapTest(unittest.TestCase):
 
 class DomainBuilderTest(unittest.TestCase):
     def test_record_enumerates_the_product_of_its_fields(self):
-        rs = record(状態=["A", "B"], 残高=range(0, 3))
+        rs = record(状態=["A", "B"], 在庫=range(0, 3))
         self.assertEqual(6, len(rs))
-        self.assertIn(FrozenMap({"状態": "B", "残高": 2}), rs)
+        self.assertIn(FrozenMap({"状態": "B", "在庫": 2}), rs)
         self.assertTrue(all(isinstance(r, FrozenMap) for r in rs))
 
     def test_partial_map_enumerates_every_partial_function_up_to_the_size(self):

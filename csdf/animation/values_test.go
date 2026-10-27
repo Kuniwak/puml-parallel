@@ -14,15 +14,15 @@ import (
 func jsonNumber(s string) json.Number { return json.Number(s) }
 
 // promotedDiagram is a diagram a promotion made: its state holds the map
-// accounts, whose instances are at opened, holding balance, or at closed.
+// members, whose instances are at opened, holding count, or at closed.
 func promotedDiagram() *core.Diagram {
 	return &core.Diagram{
 		States: []string{"G"},
-		Vars:   map[string][]string{"G": {"accounts", "total"}},
+		Vars:   map[string][]string{"G": {"members", "total"}},
 		Init:   "G",
 		Families: []core.FamilyStates{{
-			Map: "accounts", Key: "Account", Init: "none", States: []string{"none", "opened", "closed"},
-			Vars: map[string][]string{"opened": {"balance"}},
+			Map: "members", Key: "Member", Init: "none", States: []string{"none", "opened", "closed"},
+			Vars: map[string][]string{"opened": {"count"}},
 		}},
 		InitPost: clause.And{},
 	}
@@ -36,15 +36,15 @@ func TestEnterValuesTakesInstancesOfAFamily(t *testing.T) {
 	}
 
 	// Execute
-	state, err := session.EnterValues(`[{"a": {"at": "opened", "fields": {"balance": 3}}, "b": {"at": "closed", "fields": {}}}, 3]`)
+	state, err := session.EnterValues(`[{"a": {"at": "opened", "fields": {"count": 3}}, "b": {"at": "closed", "fields": {}}}, 3]`)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	want := State{ID: "G", Name: "G", Values: []Value{
-		{Name: "accounts", Value: map[string]any{
-			"a": map[string]any{"at": "opened", "fields": map[string]any{"balance": jsonNumber("3")}},
+		{Name: "members", Value: map[string]any{
+			"a": map[string]any{"at": "opened", "fields": map[string]any{"count": jsonNumber("3")}},
 			"b": map[string]any{"at": "closed", "fields": map[string]any{}},
 		}},
 		{Name: "total", Value: jsonNumber("3")},
@@ -62,15 +62,15 @@ func TestEnterValuesReadsNegativeZeroAsZero(t *testing.T) {
 	}
 
 	// Execute
-	state, err := session.EnterValues(`[{"a": {"at": "opened", "fields": {"balance": -0}}}, -0.0]`)
+	state, err := session.EnterValues(`[{"a": {"at": "opened", "fields": {"count": -0}}}, -0.0]`)
 
 	// Assert
 	if err != nil {
 		t.Fatalf("EnterValues() error = %v", err)
 	}
 	want := State{ID: "G", Name: "G", Values: []Value{
-		{Name: "accounts", Value: map[string]any{
-			"a": map[string]any{"at": "opened", "fields": map[string]any{"balance": jsonNumber("0")}},
+		{Name: "members", Value: map[string]any{
+			"a": map[string]any{"at": "opened", "fields": map[string]any{"count": jsonNumber("0")}},
 		}},
 		{Name: "total", Value: jsonNumber("0.0")},
 	}}
@@ -81,36 +81,36 @@ func TestEnterValuesReadsNegativeZeroAsZero(t *testing.T) {
 
 func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 	tests := map[string]struct {
-		accounts string
-		want     string
+		members string
+		want    string
 	}{
 		"not a map": {
-			accounts: `[]`,
-			want:     `accounts: a map of instances is a JSON object from IDs to {"at": <state>, "fields": {...}}`,
+			members: `[]`,
+			want:    `members: a map of instances is a JSON object from IDs to {"at": <state>, "fields": {...}}`,
 		},
 		"an instance of no at": {
-			accounts: `{"a": {"fields": {}}}`,
-			want:     `accounts["a"]: an instance is {"at": <state>, "fields": {...}}`,
+			members: `{"a": {"fields": {}}}`,
+			want:    `members["a"]: an instance is {"at": <state>, "fields": {...}}`,
 		},
 		"an instance of another key": {
-			accounts: `{"a": {"at": "closed", "fields": {}, "x": 1}}`,
-			want:     `accounts["a"]: an instance is {"at": <state>, "fields": {...}}`,
+			members: `{"a": {"at": "closed", "fields": {}, "x": 1}}`,
+			want:    `members["a"]: an instance is {"at": <state>, "fields": {...}}`,
 		},
 		"a state of no family": {
-			accounts: `{"a": {"at": "frozen", "fields": {}}}`,
-			want:     `accounts["a"]: "frozen" is no state of the family of accounts; it is at one of [opened, closed]`,
+			members: `{"a": {"at": "frozen", "fields": {}}}`,
+			want:    `members["a"]: "frozen" is no state of the family of members; it is at one of [opened, closed]`,
 		},
 		"the start state, which is absence": {
-			accounts: `{"a": {"at": "none", "fields": {}}}`,
-			want:     `accounts["a"]: "none" is the start state of the family of accounts, which is absence; leave the entry out`,
+			members: `{"a": {"at": "none", "fields": {}}}`,
+			want:    `members["a"]: "none" is the start state of the family of members, which is absence; leave the entry out`,
 		},
 		"a field the state does not hold": {
-			accounts: `{"a": {"at": "opened", "fields": {"balance": 1, "owner": "x"}}}`,
-			want:     `accounts["a"]: an instance at opened holds the fields [balance], got [balance, owner]`,
+			members: `{"a": {"at": "opened", "fields": {"count": 1, "owner": "x"}}}`,
+			want:    `members["a"]: an instance at opened holds the fields [count], got [count, owner]`,
 		},
 		"a field left out": {
-			accounts: `{"a": {"at": "opened", "fields": {}}}`,
-			want:     `accounts["a"]: an instance at opened holds the fields [balance], got []`,
+			members: `{"a": {"at": "opened", "fields": {}}}`,
+			want:    `members["a"]: an instance at opened holds the fields [count], got []`,
 		},
 	}
 	for name, tt := range tests {
@@ -122,7 +122,7 @@ func TestEnterValuesRefusesAnInstanceThatIsNoneOfTheFamilys(t *testing.T) {
 			}
 
 			// Execute
-			_, err = session.EnterValues(`[` + tt.accounts + `, 0]`)
+			_, err = session.EnterValues(`[` + tt.members + `, 0]`)
 
 			// Assert
 			var refused *RefusedValuesError

@@ -11,7 +11,7 @@ Assumption
 ----------
 What a diagram assumes of its runs as a whole, written as a floating note
 holding one `assume` line. A fairness assumption is the typical one: no guard
-can say that a transaction whose fee keeps being raised is eventually confirmed,
+can say that a job whose priority keeps being raised eventually completes,
 because a guard is about one step. The text is opaque, like a predicate, and
 the obligation compilers carry it as a hypothesis of the theorem.
 Refer to SYNTAX.md.
