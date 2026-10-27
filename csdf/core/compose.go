@@ -21,8 +21,14 @@ func Compose(l, r *Diagram, sync []string) (*Diagram, error) {
 		return nil, fmt.Errorf("core.Compose: a diagram with end edges is not composed yet")
 	}
 	r = renamedApart(l, r)
+	channels, err := sharedChannels(l.Channels, r.Channels)
+	if err != nil {
+		return nil, fmt.Errorf("core.Compose: %w", err)
+	}
 	out := &Diagram{
 		Vars:     map[string][]string{},
+		Types:    mergedTypes(l.Types, r.Types),
+		Channels: channels,
 		Init:     pair(l.Init, r.Init),
 		InitPost: Conj(l.InitPost, r.InitPost),
 		Assumes:  append(slices.Clone(l.Assumes), r.Assumes...),
@@ -142,6 +148,13 @@ func renamedApart(l, r *Diagram) *Diagram {
 			out.Families[i].Map = to
 		}
 	}
+	out.Types = map[string]Type{}
+	for v, t := range r.Types {
+		if to, ok := rename[v]; ok {
+			v = to
+		}
+		out.Types[v] = t
+	}
 	out.Vars = map[string][]string{}
 	for s, vs := range r.Vars {
 		for _, v := range vs {
@@ -158,6 +171,57 @@ func renamedApart(l, r *Diagram) *Diagram {
 		out.Edges[i] = e
 	}
 	return &out
+}
+
+// mergedTypes are the types of l and of r, which renamedApart has made
+// disjoint; nil when neither has any.
+func mergedTypes(l, r map[string]Type) map[string]Type {
+	if len(l) == 0 && len(r) == 0 {
+		return nil
+	}
+	out := maps.Clone(l)
+	if out == nil {
+		out = map[string]Type{}
+	}
+	maps.Copy(out, r)
+	return out
+}
+
+// sharedChannels are the channels l and r declare; a channel both declare
+// is one channel, so the two must declare it alike.
+func sharedChannels(l, r map[string][]Type) (map[string][]Type, error) {
+	if len(l) == 0 && len(r) == 0 {
+		return nil, nil
+	}
+	out := map[string][]Type{}
+	for c, ts := range l {
+		out[c] = slices.Clone(ts)
+	}
+	for _, c := range slices.Sorted(maps.Keys(r)) {
+		if lt, ok := l[c]; ok && !slices.EqualFunc(lt, r[c], Type.Equal) {
+			return nil, fmt.Errorf("the channel %s is declared %s on one side and %s on the other", c, ChannelDecl(c, lt), ChannelDecl(c, r[c]))
+		}
+		out[c] = slices.Clone(r[c])
+	}
+	return out, nil
+}
+
+// ChannelDecl is the declaration of the channel c with fields of the types
+// fields, as a channel note writes it.
+func ChannelDecl(c string, fields []Type) string {
+	s := c
+	for i, t := range fields {
+		sep := "."
+		if i == 0 {
+			sep = " : "
+		}
+		if t.IsMap() {
+			s += sep + "(" + t.String() + ")"
+		} else {
+			s += sep + t.String()
+		}
+	}
+	return s
 }
 
 // pair is the ID of the state where l is in l and r in r, as csdfparallel
