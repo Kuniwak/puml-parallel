@@ -55,7 +55,9 @@ func TestAnEdgeIsEnabledWhenSomeValuesPassItsGuardAndPost(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			d := core.Diagram{States: []string{"s", "t"}, Vars: map[string][]string{"s": {"在庫", "ok"}}, Init: "s"}
+			n := types.Named("個数")
+			d := core.Diagram{States: []string{"s", "t"}, Vars: map[string][]string{"s": {"在庫", "ok"}}, Init: "s",
+				Types: map[string]types.Type{"在庫": n, "ok": types.Named("真偽")}, Channels: map[string][]types.Type{"OUT": {n}, "SHOW": {n}}}
 			e := tc.Edge(t)
 
 			// Execute

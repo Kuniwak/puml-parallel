@@ -264,18 +264,19 @@ func fieldType(name, channel string, ids map[string]types.Type, moves []move) (t
 	}
 	var t types.Type
 	for _, m := range moves {
-		i := slices.IndexFunc(m.e.Event.Fields, func(g Field) bool { return g.Name == name })
-		if i < 0 {
-			continue
+		for i, g := range m.e.Event.Fields {
+			if g.Name != name {
+				continue
+			}
+			u, err := m.f.Local.FieldType(m.e.Event, i)
+			if err != nil {
+				return types.Type{}, fmt.Errorf("%s: the local %w", channel, err)
+			}
+			if !t.IsZero() && !t.Equal(u) {
+				return types.Type{}, fmt.Errorf("the field %s of %s is of the type %s and of the type %s", name, channel, t, u)
+			}
+			t = u
 		}
-		decl, declared := m.f.Local.Channels[m.e.Event.Channel]
-		if !declared || i >= len(decl) {
-			return types.Type{}, fmt.Errorf("%s: the field %s has no type: the local channel %s declares none", channel, name, m.e.Event.Channel)
-		}
-		if !t.IsZero() && !t.Equal(decl[i]) {
-			return types.Type{}, fmt.Errorf("the field %s of %s is of the type %s and of the type %s", name, channel, t, decl[i])
-		}
-		t = decl[i]
 	}
 	if t.IsZero() {
 		return types.Type{}, fmt.Errorf("%s: the field %s has no type", channel, name)
@@ -964,9 +965,9 @@ func MapType(f Family, ids []Value, env Env) ([]Value, error) {
 		}
 		fields := []map[string]Value{{}}
 		for _, v := range f.Local.Vars[state] {
-			t, ok := f.Local.Types[v]
-			if !ok {
-				return nil, fmt.Errorf("core.MapType: %s: the variable %s of %s has no type", f.Map, v, state)
+			t, err := f.Local.VarType(v)
+			if err != nil {
+				return nil, fmt.Errorf("core.MapType: %s, at %s: %w", f.Map, state, err)
 			}
 			vals, err := env.values(t.String())
 			if err != nil {

@@ -1,7 +1,9 @@
 package core
 
 import (
+	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
@@ -11,8 +13,10 @@ import (
 // their types: byName declares them so.
 
 // declaredByName is d with each variable declared of the type named like
-// it, and each channel with fields the types of the fields of its first
-// edge, each named like the field or, sent, like the variable's type.
+// it, and each channel with fields the types of the fields of its edges,
+// each named like the field or, sent, like the variable's type; two edges
+// of one channel that would type it apart are a mistake of the test, and
+// panic.
 func declaredByName(d *Diagram) *Diagram {
 	out := *d
 	out.Types = maps.Clone(d.Types)
@@ -27,8 +31,9 @@ func declaredByName(d *Diagram) *Diagram {
 		}
 	}
 	out.Channels = maps.Clone(d.Channels)
+	guessed := map[string]bool{}
 	for _, e := range d.Edges {
-		if _, ok := out.Channels[e.Event.Channel]; ok || len(e.Event.Fields) == 0 || e.Event.Channel == Tau {
+		if _, ok := out.Channels[e.Event.Channel]; ok && !guessed[e.Event.Channel] || len(e.Event.Fields) == 0 || e.Event.Channel == Tau {
 			continue
 		}
 		if out.Channels == nil {
@@ -42,7 +47,10 @@ func declaredByName(d *Diagram) *Diagram {
 				ts = append(ts, types.Named(f.Name))
 			}
 		}
-		out.Channels[e.Event.Channel] = ts
+		if prev, ok := out.Channels[e.Event.Channel]; ok && !slices.EqualFunc(prev, ts, types.Type.Equal) {
+			panic(fmt.Sprintf("declaredByName: the edges of %s type it %v and %v", e.Event.Channel, prev, ts))
+		}
+		out.Channels[e.Event.Channel], guessed[e.Event.Channel] = ts, true
 	}
 	return &out
 }

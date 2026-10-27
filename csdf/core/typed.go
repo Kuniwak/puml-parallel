@@ -78,3 +78,27 @@ func (e Edge) typed(d *Diagram) error {
 	}
 	return nil
 }
+
+// VarType is the type d declares of its state variable v; one it does not
+// declare is an error.
+func (d *Diagram) VarType(v string) (types.Type, error) {
+	t, ok := d.Types[v]
+	if !ok {
+		return types.Type{}, fmt.Errorf("the variable %s has no type", v)
+	}
+	return t, nil
+}
+
+// FieldType is the type d declares of the i-th field of e, by its position
+// on e's channel; a channel that declares none there is an error.
+func (d *Diagram) FieldType(e Event, i int) (types.Type, error) {
+	decl, ok := d.Channels[e.Channel]
+	if !ok || i < 0 || i >= len(decl) || i >= len(e.Fields) {
+		name := "?"
+		if 0 <= i && i < len(e.Fields) {
+			name = e.Fields[i].Name
+		}
+		return types.Type{}, fmt.Errorf("%s carries %s, but declares no type of it", e.Channel, name)
+	}
+	return decl[i], nil
+}

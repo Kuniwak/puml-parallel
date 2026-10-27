@@ -180,14 +180,14 @@ func EdgeSets(n Notation, states map[string]State, e Edge, ev, event string) (en
 		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: no state %s", e.Dst)
 	}
 	after = make([]string, len(dst.Vars))
-	for i, v := range dst.Vars {
+	for i, v := range dst.Names() {
 		after[i] = SpellVar(logic.Var(v + "'"))
 	}
 	step, err := n.SpellFormula(e.Step)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
 	}
-	typedAfter, err := n.Relativize(false, after, dst.Types, step)
+	typedAfter, err := n.Relativize(false, after, dst.Types(), step)
 	if err != nil {
 		return "", "", nil, fmt.Errorf("obligationir.EdgeSets: %w", err)
 	}
@@ -228,14 +228,14 @@ func InitSet(n Notation, ir LivelockFree) (body string, vars []string, err error
 		return "", nil, fmt.Errorf("obligationir.InitSet: no start state %s", ir.Init)
 	}
 	vars = make([]string, len(start.Vars))
-	for i, v := range start.Vars {
+	for i, v := range start.Names() {
 		vars[i] = SpellVar(logic.Var(v + "'"))
 	}
 	post, err := n.SpellFormula(ir.InitPost)
 	if err != nil {
 		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
 	}
-	body, err = n.Relativize(false, vars, start.Types, post)
+	body, err = n.Relativize(false, vars, start.Types(), post)
 	if err != nil {
 		return "", nil, fmt.Errorf("obligationir.InitSet: %w", err)
 	}

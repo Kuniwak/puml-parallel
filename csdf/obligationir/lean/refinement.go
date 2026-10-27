@@ -160,7 +160,7 @@ func writeProcessNames(w io.Writer, sides []side) {
 	for _, s := range sides {
 		for _, st := range s.ir.States {
 			io.WriteString(w, "  | "+s.names.Ctor(csdf.StateID(st.Name)))
-			for _, v := range st.Vars {
+			for _, v := range st.Names() {
 				io.WriteString(w, " ("+obligationir.VarName(v)+" : Val)")
 			}
 			if obligationir.IsMangled(st.Name) || len(st.Vars) > 0 {
@@ -213,7 +213,7 @@ func writeProcFun(w io.Writer, sides []side) error {
 // after the step when primed, without the PN. that a pattern takes.
 func processName(names obligationir.Side, st obligationir.State, primed bool) string {
 	parts := []string{names.Ctor(csdf.StateID(st.Name))}
-	for _, v := range st.Vars {
+	for _, v := range st.Names() {
 		if primed {
 			v += "'"
 		}

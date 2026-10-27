@@ -72,14 +72,14 @@ func TestExpandRefusesANameWithoutAType(t *testing.T) {
 	}{
 		"a state variable": {d: &Diagram{
 			States: []string{"s"}, Vars: map[string][]string{"s": {"y"}}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
-		}, want: "the variable y of s has no type"},
+		}, want: "s: the variable y has no type"},
 		"a state variable of a type the environment does not give": {d: &Diagram{
 			States: []string{"s"}, Vars: map[string][]string{"s": {"y"}}, Types: map[string]types.Type{"y": types.Named("Y")}, Init: "s", InitPost: mustParse(t, "@eq(y', y')"),
 		}, want: "no type Y"},
 		"a received field": {d: &Diagram{
 			States: []string{"s"}, Init: "s",
 			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "put", Fields: []Field{{Name: "y"}}}}},
-		}, want: "put receives y, but declares no type of it"},
+		}, want: "put carries y, but declares no type of it"},
 		"a variable bound by ∃": {d: &Diagram{
 			States: []string{"s"}, Init: "s",
 			Edges: []Edge{{Src: "s", Dst: "s", Event: Event{Channel: "go"}, Guard: mustParse(t, "@exists(v : Y) (@eq(v, v))")}},

@@ -208,7 +208,7 @@ func writeProcFun(w io.Writer, sides []side) error {
 // the step when primed.
 func processName(names obligationir.Side, st obligationir.State, primed bool) string {
 	parts := []string{names.Ctor(csdf.StateID(st.Name))}
-	for _, v := range st.Vars {
+	for _, v := range st.Names() {
 		if primed {
 			v += "'"
 		}

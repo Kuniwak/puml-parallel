@@ -125,17 +125,17 @@ theorem csdf_lemma_2 : ∀ (v_n : Val) (v_m : Val) (v_k1 : Val), csdf_frame1 v_n
 opaque assume_fair : Prop
 
 def init (s' : St) : Prop :=
-  ∃ (v_m_u27u : Val) (v_memo_u27u : Val), s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0))
+  ∃ (v_m_u27u : Val) (v_memo_u27u : Val), s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0))
 
 def step (s s' : St) : Prop :=
-  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_s v_m v_memo ∧ s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo))) ∨ (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_s v_m v_memo ∧ s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
+  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_s v_m v_memo ∧ s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo))) ∨ (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_s v_m v_memo ∧ s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
 
 inductive Reachable : St → Prop where
   | base (s : St) : init s → Reachable s
   | step (s s' : St) : Reachable s → step s s' → Reachable s'
 
 def tauStep (s s' : St) : Prop :=
-  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_s v_m v_memo ∧ s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
+  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_s v_m v_memo ∧ s' = .St_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
 
 theorem livelock_free (h_assume_fair : assume_fair) :
     WellFounded (fun s' s => Reachable s ∧ tauStep s s') := by

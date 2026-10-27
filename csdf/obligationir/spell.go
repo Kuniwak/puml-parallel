@@ -119,7 +119,7 @@ func Symbols(types []string, fs ...logic.Tree) ([]Symbol, error) {
 		found[s.Name] = s
 	}
 	for _, typ := range types {
-		if relativized(typ) {
+		if typed(typ) {
 			add(Symbol{Name: TypeName(typ), Text: typ, Arity: 1, Pred: true, Kind: KindType})
 		}
 	}
@@ -183,7 +183,13 @@ func Symbols(types []string, fs ...logic.Tree) ([]Symbol, error) {
 // relativized reports whether a quantifier over typ is restricted to the
 // values of typ. A type variable of an axiom ('map, 'key, 'value) is every
 // value, and so restricts nothing.
-func relativized(typ string) bool { return !strings.HasPrefix(typ, "'") && typ != types.AnyName }
+func relativized(typ string) bool { return !strings.HasPrefix(typ, "'") }
+
+// typed reports whether a value of the type typ is restricted to it: a
+// relativized type other than any, which constrains nothing
+// (docs/CLAUSE_DESIGN.md, Types). A value of any is still in the form the
+// model holds values in (Notation.Wellformed).
+func typed(typ string) bool { return relativized(typ) && typ != types.AnyName }
 
 // Notation is how a prover spells the connectives and the binders. Every
 // value is of one type, ValType; a quantifier over a type is relativized to
@@ -224,11 +230,11 @@ func (n Notation) Relativize(forall bool, vars []string, types []string, body st
 		if types[i] == "" {
 			return "", fmt.Errorf("obligationir.Relativize: %s has no type", v)
 		}
-		if relativized(types[i]) {
+		if typed(types[i]) {
 			guards = append(guards, TypeName(types[i])+" "+v)
-			if n.Wellformed != "" {
-				guards = append(guards, n.Wellformed+" "+v)
-			}
+		}
+		if relativized(types[i]) && n.Wellformed != "" {
+			guards = append(guards, n.Wellformed+" "+v)
 		}
 	}
 	if len(guards) == 0 {
@@ -427,7 +433,7 @@ func (ir LivelockFree) Symbols() ([]Symbol, error) {
 func (ir LivelockFree) types() []string {
 	var types []string
 	for _, s := range ir.States {
-		types = append(types, s.Types...)
+		types = append(types, s.Types()...)
 	}
 	for _, e := range ir.Edges {
 		types = append(types, e.ReceivedTypes()...)
@@ -443,18 +449,22 @@ func Uninterpreted(s Symbol) bool {
 
 // VarsComment is the state variables vars as a comment beside a constructor
 // lists them, or nothing when there are none.
-func VarsComment(vars []string) string {
+func VarsComment(vars []Var) string {
 	if len(vars) == 0 {
 		return ""
 	}
-	return " (" + strings.Join(vars, ", ") + ")"
+	names := make([]string, len(vars))
+	for i, v := range vars {
+		names[i] = v.Name
+	}
+	return " (" + strings.Join(names, ", ") + ")"
 }
 
 // stateTerm is the state s holding the variables vars, primed when after: the
 // constructor of s, spelled by ref, applied to them.
 func stateTerm(side Side, s State, after bool, ref func(string) string) (string, []string) {
 	vars := make([]string, len(s.Vars))
-	for i, v := range s.Vars {
+	for i, v := range s.Names() {
 		if after {
 			v += "'"
 		}
@@ -471,7 +481,7 @@ func InitDisjunct(n Notation, side Side, s State, post logic.Tree, ref func(stri
 	if err != nil {
 		return "", fmt.Errorf("obligationir.InitDisjunct: %w", err)
 	}
-	typed, err := n.Relativize(false, vars, s.Types, spelled)
+	typed, err := n.Relativize(false, vars, s.Types(), spelled)
 	if err != nil {
 		return "", fmt.Errorf("obligationir.InitDisjunct: %w", err)
 	}
@@ -528,7 +538,7 @@ func stepDisjunct(n Notation, side Side, states map[string]State, e Edge, ref fu
 		}
 		step = n.Exists(received, typed)
 	}
-	typed, err := n.Relativize(false, after, dstState.Types, step)
+	typed, err := n.Relativize(false, after, dstState.Types(), step)
 	if err != nil {
 		return "", err
 	}

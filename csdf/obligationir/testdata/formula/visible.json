@@ -1,1 +1,1 @@
-{"version":3,"structurally":true,"states":[{"name":"s0","vars":[],"types":[]},{"name":"s1","vars":[],"types":[]}],"init":"s0","init_post":{"op":"true"},"edges":[{"src":"s0","dst":"s1","channel":"a","fields":[],"step":{"op":"true"}}],"ends":[],"lemmas":[],"assumptions":[]}
+{"version":3,"structurally":true,"states":[{"name":"s0","vars":[]},{"name":"s1","vars":[]}],"init":"s0","init_post":{"op":"true"},"edges":[{"src":"s0","dst":"s1","channel":"a","fields":[],"step":{"op":"true"}}],"ends":[],"lemmas":[],"assumptions":[]}

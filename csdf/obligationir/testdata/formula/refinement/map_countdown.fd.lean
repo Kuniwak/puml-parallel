@@ -167,12 +167,12 @@ deriving Inhabited
 
 def procfun : PN → proc PN event
   | PN.S_s v_m v_memo =>
-    proc.Ext_pre_choice {ev | ∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (ev = event.Alphabet (alphabet.Ev_PUT v_k) ∧ (∃ (v_m_u27u : Val) (v_memo_u27u : Val), type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo)))}
-      (fun ev => Rep_int_choice_f (fun (v_m_u27u, v_memo_u27u) => event.Internal [v_m_u27u, v_memo_u27u]) {(v_m_u27u, v_memo_u27u) | ∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (ev = event.Alphabet (alphabet.Ev_PUT v_k) ∧ (type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo)))}
+    proc.Ext_pre_choice {ev | ∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (ev = event.Alphabet (alphabet.Ev_PUT v_k) ∧ (∃ (v_m_u27u : Val) (v_memo_u27u : Val), type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo)))}
+      (fun ev => Rep_int_choice_f (fun (v_m_u27u, v_memo_u27u) => event.Internal [v_m_u27u, v_memo_u27u]) {(v_m_u27u, v_memo_u27u) | ∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (ev = event.Alphabet (alphabet.Ev_PUT v_k) ∧ (type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo)))}
         (fun (v_m_u27u, v_memo_u27u) => proc.Proc_name (PN.S_s v_m_u27u v_memo_u27u)))
     [+]
-    proc.Ext_pre_choice {ev | ev = event.Alphabet alphabet.HTau ∧ (∃ (v_m_u27u : Val) (v_memo_u27u : Val), type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))}
-      (fun ev => Rep_int_choice_f (fun (v_m_u27u, v_memo_u27u) => event.Internal [v_m_u27u, v_memo_u27u]) {(v_m_u27u, v_memo_u27u) | ev = event.Alphabet alphabet.HTau ∧ (type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))}
+    proc.Ext_pre_choice {ev | ev = event.Alphabet alphabet.HTau ∧ (∃ (v_m_u27u : Val) (v_memo_u27u : Val), type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))}
+      (fun ev => Rep_int_choice_f (fun (v_m_u27u, v_memo_u27u) => event.Internal [v_m_u27u, v_memo_u27u]) {(v_m_u27u, v_memo_u27u) | ev = event.Alphabet alphabet.HTau ∧ (type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))}
         (fun (v_m_u27u, v_memo_u27u) => proc.Proc_name (PN.S_s v_m_u27u v_memo_u27u)))
   | PN.I_a v_n =>
     proc.Ext_pre_choice {ev | ev = event.Alphabet alphabet.HTau ∧ (∃ (v_n_u27u : Val), type_n v_n_u27u ∧ csdf_wf v_n_u27u ∧ (atom__u24u__0_u20u_u3eu_u20u0 v_n ∧ atom__u24u__0_u20u_u3du_u20u_u24u__1_u20u_u2du_u20u1 v_n_u27u v_n))}
@@ -187,7 +187,7 @@ instance Set_FPmode : HasFPmode where
 
 def SpecProc : proc PN event :=
   proc.Hiding
-    (Rep_int_choice_f (fun (v_m_u27u, v_memo_u27u) => event.Internal [v_m_u27u, v_memo_u27u]) {(v_m_u27u, v_memo_u27u) | type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0))}
+    (Rep_int_choice_f (fun (v_m_u27u, v_memo_u27u) => event.Internal [v_m_u27u, v_memo_u27u]) {(v_m_u27u, v_memo_u27u) | type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0))}
         (fun (v_m_u27u, v_memo_u27u) => proc.Proc_name (PN.S_s v_m_u27u v_memo_u27u)))
     {event.Alphabet alphabet.HTau}
 
@@ -201,17 +201,17 @@ inductive St_S where
   | St_S_s (v_m : Val) (v_memo : Val) -- s (m, memo)
 
 def init_S (s' : St_S) : Prop :=
-  ∃ (v_m_u27u : Val) (v_memo_u27u : Val), s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0))
+  ∃ (v_m_u27u : Val) (v_memo_u27u : Val), s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0))
 
 def step_S (s s' : St_S) : Prop :=
-  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_S_s v_m v_memo ∧ s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo))) ∨ (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_S_s v_m v_memo ∧ s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
+  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_S_s v_m v_memo ∧ s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ (∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ ((¬csdf_in v_k v_m) ∧ csdf_frame1 v_m_u27u v_m v_k ∧ csdf_in v_k v_m_u27u ∧ v_memo_u27u = v_memo))) ∨ (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_S_s v_m v_memo ∧ s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
 
 inductive Reachable_S : St_S → Prop where
   | base (s : St_S) : init_S s → Reachable_S s
   | step (s s' : St_S) : Reachable_S s → step_S s s' → Reachable_S s'
 
 def tauStep_S (s s' : St_S) : Prop :=
-  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_S_s v_m v_memo ∧ s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
+  (∃ (v_m : Val) (v_memo : Val) (v_m_u27u : Val) (v_memo_u27u : Val), s = .St_S_s v_m v_memo ∧ s' = .St_S_s v_m_u27u v_memo_u27u ∧ type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ ((∃ (v_k : Val), type__u9375u v_k ∧ csdf_wf v_k ∧ (csdf_in v_k v_m ∧ atom__u24u__0_u20u_u306fu_u53e4u_u3044u v_k)) ∧ v_m_u27u = v_m ∧ v_memo_u27u = v_memo))
 
 theorem livelock_free_S (h_assume_fair_S : assume_fair_S) :
     WellFounded (fun s' s => Reachable_S s ∧ tauStep_S s s') := by
@@ -220,7 +220,7 @@ theorem livelock_free_S (h_assume_fair_S : assume_fair_S) :
 -- Spec admits an initial valuation, so it does not denote DIV, which diverges on
 -- the empty trace and, as the Impl, would make the refinement vacuous. Stated
 -- under no hypothesis: it must not rest on an assumption.
-theorem initialisable_S : ∃ (v_m_u27u : Val) (v_memo_u27u : Val), type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0)) := by
+theorem initialisable_S : ∃ (v_m_u27u : Val) (v_memo_u27u : Val), type__u9375u_u20u_u21f8u_u20u_u5024u v_m_u27u ∧ csdf_wf v_m_u27u ∧ csdf_wf v_memo_u27u ∧ (csdf_empty v_m_u27u ∧ v_memo_u27u = (Val.ValInt 0)) := by
   sorry
 
 inductive St_I where

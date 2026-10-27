@@ -201,3 +201,20 @@ func TestAStateConstantIsNoFunctionOfTheEnvironment(t *testing.T) {
 		t.Errorf("csdf_state_S is %v, want a function of the environment: %v", kinds["csdf_state_S"], syms)
 	}
 }
+
+func TestRelativizeKeepsAValueOfAnyWellFormed(t *testing.T) {
+	// Setup
+	n := plain
+	n.Wellformed = "wf"
+
+	// Execute
+	got, err := n.Relativize(false, []string{"v_m"}, []string{"any"}, "B")
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "wf v_m and (B)"; got != want {
+		t.Errorf("Relativize = %q, want %q", got, want)
+	}
+}

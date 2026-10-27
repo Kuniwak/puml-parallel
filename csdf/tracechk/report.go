@@ -188,7 +188,11 @@ func writeObligation(sb *strings.Builder, d *core.Diagram, p PrefixPath) error {
 		if err != nil {
 			return err
 		}
-		conclusion = append(conclusion, logic.Rename(enabled, r.before(d, e, n)))
+		before, err := r.before(d, e, n)
+		if err != nil {
+			return err
+		}
+		conclusion = append(conclusion, logic.Rename(enabled, before))
 	}
 	along, err := r.pathClauses(d, p.Path)
 	if err != nil {
@@ -219,12 +223,22 @@ var notation = func() logic.Notation {
 // obligation is.
 type run map[logic.Var]string
 
-func (r run) at(d *core.Diagram, v string, i int) logic.Var {
-	return r.add(obligation.After(v, i, obligation.VarType(*d, v)))
+// at is the value of the state variable v of d after step i.
+func (r run) at(d *core.Diagram, v string, i int) (logic.Var, error) {
+	t, err := d.VarType(v)
+	if err != nil {
+		return "", err
+	}
+	return r.add(obligation.After(v, i, t)), nil
 }
 
-func (r run) received(d *core.Diagram, e core.Event, k string, i int) logic.Var {
-	return r.add(obligation.Received(k, i, obligation.FieldType(*d, e, k)))
+// received is the value the j-th field of e receives at step i.
+func (r run) received(d *core.Diagram, e core.Event, j, i int) (logic.Var, error) {
+	t, err := d.FieldType(e, j)
+	if err != nil {
+		return "", err
+	}
+	return r.add(obligation.Received(e.Fields[j].Name, i, t)), nil
 }
 
 func (r run) add(v obligation.Value) logic.Var {
@@ -260,12 +274,16 @@ func (r run) bind(f logic.Formula, q func([]logic.Var, []string, logic.Formula) 
 
 // before maps the variables of the source of e to their values after step n,
 // those e is taken from.
-func (r run) before(d *core.Diagram, e core.Edge, n int) map[logic.Var]logic.Var {
+func (r run) before(d *core.Diagram, e core.Edge, n int) (map[logic.Var]logic.Var, error) {
 	m := map[logic.Var]logic.Var{}
 	for _, v := range d.Vars[e.Src] {
-		m[logic.Var(v)] = r.at(d, v, n)
+		x, err := r.at(d, v, n)
+		if err != nil {
+			return nil, err
+		}
+		m[logic.Var(v)] = x
 	}
-	return m
+	return m, nil
 }
 
 // startClause is the post of the start edge over the values after step 0.
@@ -276,7 +294,11 @@ func (r run) startClause(d *core.Diagram) (logic.Formula, error) {
 	}
 	m := map[logic.Var]logic.Var{}
 	for _, v := range d.Vars[d.Init] {
-		m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(d, v, 0)
+		x, err := r.at(d, v, 0)
+		if err != nil {
+			return nil, fmt.Errorf("the start post: %w", err)
+		}
+		m[obligation.Var(clause.Free{Name: v, Primed: true})] = x
 	}
 	return logic.Rename(f, m), nil
 }
@@ -295,12 +317,26 @@ func (r run) pathClauses(d *core.Diagram, path Path) (logic.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		m := r.before(d, e, i)
-		for _, v := range d.Vars[e.Dst] {
-			m[obligation.Var(clause.Free{Name: v, Primed: true})] = r.at(d, v, i+1)
+		m, err := r.before(d, e, i)
+		if err != nil {
+			return nil, err
 		}
-		for _, f := range e.Event.Received() {
-			m[logic.Var(f)] = r.received(d, e.Event, f, i+1)
+		for _, v := range d.Vars[e.Dst] {
+			x, err := r.at(d, v, i+1)
+			if err != nil {
+				return nil, err
+			}
+			m[obligation.Var(clause.Free{Name: v, Primed: true})] = x
+		}
+		for j, f := range e.Event.Fields {
+			if f.Send {
+				continue
+			}
+			x, err := r.received(d, e.Event, j, i+1)
+			if err != nil {
+				return nil, err
+			}
+			m[logic.Var(f.Name)] = x
 		}
 		conjuncts = append(conjuncts, logic.Rename(step, m))
 	}

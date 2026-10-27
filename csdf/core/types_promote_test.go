@@ -120,7 +120,7 @@ func TestPromoteRefusesWhatItCannotType(t *testing.T) {
 		"a family whose IDs have no type": {Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{noKey}},
 			"the family of locations: its IDs or its instances have no type"},
 		"a local channel with fields no note declares": {Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{untypedLocal}},
-			"DEPART: the field q has no type: the local channel DEPART declares none"},
+			"DEPART: the local DEPART carries q, but declares no type of it"},
 		"a controller variable with no type": {Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{typedFamily}, Vars: map[string][]string{"G": {"count"}}},
 			"the controller variable count has no type"},
 	}
@@ -168,7 +168,7 @@ func TestHideRefusesAFieldOfAnUndeclaredChannel(t *testing.T) {
 	_, err := Hide(d, []string{"put"})
 
 	// Assert
-	if err == nil || !strings.Contains(err.Error(), "put receives v, but declares no type of it") {
+	if err == nil || !strings.Contains(err.Error(), "put carries v, but declares no type of it") {
 		t.Errorf("Hide: got %v, want a refusal of the undeclared field", err)
 	}
 }

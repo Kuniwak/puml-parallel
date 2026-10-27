@@ -43,13 +43,22 @@ func Enabled(d core.Diagram, e core.Edge) (logic.Formula, error) {
 	}
 	var chosen []logic.Var
 	var types []string
-	for _, f := range e.Event.Received() {
-		chosen = append(chosen, logic.Var(f))
-		types = append(types, FieldType(d, e.Event, f))
+	for i, f := range e.Event.Fields {
+		if f.Send {
+			continue
+		}
+		t, err := d.FieldType(e.Event, i)
+		if err != nil {
+			return nil, fmt.Errorf("obligation.Enabled: %w", err)
+		}
+		chosen, types = append(chosen, logic.Var(f.Name)), append(types, t.String())
 	}
 	for _, v := range d.Vars[e.Dst] {
-		chosen = append(chosen, Var(clause.Free{Name: v, Primed: true}))
-		types = append(types, VarType(d, v))
+		t, err := d.VarType(v)
+		if err != nil {
+			return nil, fmt.Errorf("obligation.Enabled: %w", err)
+		}
+		chosen, types = append(chosen, Var(clause.Free{Name: v, Primed: true})), append(types, t.String())
 	}
 	return logic.Simplify(logic.ExistsTyped(chosen, types, step)), nil
 }

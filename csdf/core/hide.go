@@ -40,11 +40,11 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 				continue
 			}
 			var err error
-			ts, ok := d.Channels[e.Event.Channel]
-			if !ok || i >= len(ts) {
-				return nil, fmt.Errorf("core.Hide: %s receives %s, but declares no type of it", e.Event.Channel, f.Name)
+			t, err := d.FieldType(e.Event, i)
+			if err != nil {
+				return nil, fmt.Errorf("core.Hide: %w", err)
 			}
-			typ := ts[i].String()
+			typ := t.String()
 			if guard, err = Bind(guard, f.Name, typ); err != nil {
 				return nil, fmt.Errorf("core.Hide: %s: %w", e.Event.Channel, err)
 			}

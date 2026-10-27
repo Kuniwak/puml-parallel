@@ -354,9 +354,9 @@ name the skeleton declares:
 A state variable and a received field are of the type the diagram declares of them
 (docs/SYNTAX.md), so the `step` relation chooses each of their values from its type,
 `type_<T> v`; a map type is one such type of its own, and a variable of the type `any`
-is chosen with no restriction, which is sound: the obligation over more values implies
-the one over fewer. The IR (version 3) carries the types beside the variables of each
-state (`types`) and on each received field (`type`). The atoms, functions and types are the environment: each is declared —
+is chosen with no restriction on its type (only that it is a value in the model's form,
+`csdf_wf`), which is sound: the obligation over more values implies the one over fewer.
+The IR (version 3) gives each state's `vars` as `{name, type}` and each field its `type`. The atoms, functions and types are the environment: each is declared —
 `opaque` in Lean, `consts` in Isabelle — under a `TODO(csdf)` marker and a comment carrying
 the text it was named by, for a human or LLM to define and then discharge the proof.
 Nothing is defined as True on the diagram's behalf, because that is not a placeholder but a
