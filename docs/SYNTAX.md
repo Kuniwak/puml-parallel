@@ -109,8 +109,8 @@ csdfbmc refuses to enumerate it, so it works only where a clause gives the
 value (`@eq(n', 0)`). docs/CLAUSE_DESIGN.md gives the meaning.
 
 The types of an event's fields are declared per channel, in a floating
-note of `channel` lines: `channel put : ID.Amount` declares the channel
-`put` with two fields, of the types `ID` and `Amount`, by position; a map
+note of `channel` lines: `channel put : ID.Count` declares the channel
+`put` with two fields, of the types `ID` and `Count`, by position; a map
 type is written in parentheses there (`channel put : (K ⇸ V)`), and
 `channel stop` declares a channel with none. Every channel whose events
 carry fields is declared, with the number of fields each of its events
