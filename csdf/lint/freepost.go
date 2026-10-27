@@ -2,6 +2,7 @@ package lint
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
@@ -19,10 +20,12 @@ import (
 // @frame, @update, @at, …), as a key or an argument of a function. A
 // self-transition may also be reported by self-transition-post-breaks-guard;
 // the two say different things: this one that the step forgets a value, that
-// one that the guard may not hold again. Whether that constrains it is up to the
-// atom, which is never evaluated here, so naming it is how an author says
-// the choice is intended: an atom such as `${v'} is chosen freely` silences
-// the rule. The start edge is checked as every other edge, against the
+// one that the guard may not hold again. An intended choice is said by
+// binding it, `@exists(x : T) (@eq(v', x))` over the declared type T of v,
+// which names v' and so silences the rule; the suggestion binds a name
+// apart from those the edge reads (core.Diagram.BindersApart). An atom
+// naming v' silences it too, but an atom is an environment function csdfbmc
+// refuses to leave undecided, so it is never suggested. The start edge is checked as every other edge, against the
 // variables of the start state. Findings are HINTs.
 type PostLeavesVariableFreeRule struct{}
 
@@ -42,8 +45,8 @@ func (r PostLeavesVariableFreeRule) Check(in *Input) []Finding {
 	if free := core.UnnamedAfter(d.InitPost, d.Vars[d.Init]); len(free) > 0 {
 		findings = append(findings, r.finding(in.File, d.InitLine, d.InitPost, free, func(post string) string {
 			return fmt.Sprintf(
-				"The start edge to state `%s` has the post `%s`, which does not name %s, so %s may start as any value of its type. Give it a start value in the post, such as `@eq(%[5]s, …)`; if any start value is intended, say so with an atom that names it, such as `${%[5]s} is chosen freely`.",
-				d.Init, post, quoted(primed(free), ", "), quoted(free, ", "), primed(free)[0],
+				"The start edge to state `%s` has the post `%s`, which does not name %s, so %s may start as any value of its type. Give it a start value in the post, such as `@eq(%[5]s, …)`; if any start value is intended, say so by binding it, such as `%[6]s`.",
+				d.Init, post, quoted(primed(free), ", "), quoted(free, ", "), primed(free)[0], choice(d, free[0], d.Vars[d.Init], nil, d.InitPost),
 			)
 		}))
 	}
@@ -54,8 +57,9 @@ func (r PostLeavesVariableFreeRule) Check(in *Input) []Finding {
 		}
 		findings = append(findings, r.finding(in.File, edge.Line, edge.Post, free, func(post string) string {
 			return fmt.Sprintf(
-				"The edge `%s` -> `%s` on `%s` has the post `%s`, which does not name %s, so after the step %s may be any value of its type. If it should not change, keep it in the post, such as `@eq(%[7]s, %[8]s)`; if the choice is intended, say so with an atom that names it, such as `${%[7]s} is chosen freely`.",
+				"The edge `%s` -> `%s` on `%s` has the post `%s`, which does not name %s, so after the step %s may be any value of its type. If it should not change, keep it in the post, such as `@eq(%[7]s, %[8]s)`; if the choice is intended, say so by binding it, such as `%[9]s`.",
 				edge.Src, edge.Dst, edge.Event.Label(), post, quoted(primed(free), ", "), quoted(free, ", "), primed(free)[0], free[0],
+				choice(d, free[0], append(slices.Clone(d.Vars[edge.Src]), d.Vars[edge.Dst]...), edge.Event.Fields, edge.Guard, edge.Post),
 			)
 		}))
 	}
@@ -78,6 +82,43 @@ func (r PostLeavesVariableFreeRule) finding(file string, line int, post clause.A
 	}
 	f.Message = message(printed)
 	return f
+}
+
+// choice is the post that says v takes any value of its declared type:
+// @exists(x : T) (@eq(v', x)), its binder named apart from vars, fields
+// and the names the clauses read, and from every environment function d
+// applies.
+func choice(d *core.Diagram, v string, vars []string, fields []core.Field, clauses ...clause.And) string {
+	taken := map[string]bool{}
+	all := []clause.And{d.InitPost}
+	for _, e := range d.Edges {
+		all = append(all, e.Guard, e.Post)
+	}
+	for _, e := range d.Ends {
+		all = append(all, e.Guard)
+	}
+	for _, c := range all {
+		for _, n := range clause.FunctionNames(c) {
+			taken[n] = true
+		}
+	}
+	for _, n := range vars {
+		taken[n] = true
+	}
+	for _, f := range fields {
+		taken[f.Name] = true
+	}
+	for _, c := range clauses {
+		for _, fv := range clause.FreeVars(c) {
+			taken[fv.Name] = true
+		}
+	}
+	x := clause.Fresh(taken, "x")
+	typ := "<type>"
+	if t, err := d.VarType(v); err == nil {
+		typ = t.String()
+	}
+	return fmt.Sprintf("@exists(%s : %s) (@eq(%s', %s))", x, typ, v, x)
 }
 
 // primed are names, each primed.

@@ -300,9 +300,12 @@ reads is not the state's and needs no keeping. An omitted post keeps nothing.
 anywhere in a term the post reads: in a hole of an atom, in `@eq`, `@frame`,
 `@update` or `@at`, as a key or an argument of a function. A post that names no `v'` lets
 `v` take any value of its type, which is how a nondeterministic choice is
-written but is more often a forgotten `@eq(v', v)`. The rule does not evaluate
-atoms, so naming the variable is how to say the choice is intended: an atom
-such as `${v'} is chosen freely` silences it. On the start edge the variables
+written but is more often a forgotten `@eq(v', v)`. An intended choice is said
+by binding it, `@exists(x : T) (@eq(v', x))` with `T` the declared type of `v`,
+which names `v'` and silences the rule; the finding suggests that form with the
+variable's type and a name apart from those the edge reads. An atom naming
+`v'` silences the rule as well, but it is not suggested: csdfbmc refuses an atom
+it cannot decide, and an atom is an environment function. On the start edge the variables
 are those of the start state, and the finding asks for a start value. A
 self-transition may be reported by both this rule and
 `self-transition-post-breaks-guard`: one says the step forgets a value, the
