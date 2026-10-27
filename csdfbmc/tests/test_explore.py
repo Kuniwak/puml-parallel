@@ -565,14 +565,19 @@ class DeclaredTypesTest(unittest.TestCase):
 
     def test_a_value_of_any_it_would_enumerate_is_refused(self):
         tests = {
-            "a variable the post leaves free": diagram({"a": ["memo"]}, "a", types={"memo": "any"}),
-            "a field received": diagram({"a": []}, "a", edges=[edge("a", "a", "put?x")], channels={"put": ["any"]}),
+            "a variable the post leaves free": (diagram({"a": ["memo"]}, "a", types={"memo": "any"}), "the type any constrains nothing"),
+            "a field received": (diagram({"a": []}, "a", edges=[edge("a", "a", "put?x")], channels={"put": ["any"]}), "the type any constrains nothing"),
+            "an ∃": (diagram({"a": []}, "a", edges=[edge("a", "a", "go", guard=[exists("any", eq(bound(0), lit(1)))])]),
+                     "an ∃ ranges over the type any"),
         }
-        for name, d in tests.items():
+        for name, (d, said) in tests.items():
             with self.subTest(name):
+                # Setup
+                checks = Checks(types={})
+
                 # Execute, Assert
-                with self.assertRaisesRegex((KeyError, PostError), "the type any constrains nothing and has no values to range over"):
-                    fixture.explorer(d, Checks(types={})).run()
+                with self.assertRaisesRegex(PostError, said):
+                    fixture.explorer(d, checks).run()
 
     def test_a_literal_compared_with_a_value_of_any_is_not_refused(self):
         # Setup

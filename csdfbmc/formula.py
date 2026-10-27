@@ -295,7 +295,10 @@ def _determines(ev: Evaluator, f, before, bound, frames, where, types, families)
                 if loc[0] == "entry":
                     raise PostError(f"{where}: the environment decides {f.function!r} over the types of its values after the step, "
                                     f"but {loc[1]}'[{loc[2]!r}], an entry, has no type; give its state with @at and its fields instead")
-        options = ev.atoms.post(f, before_args, [_loc_type(loc, types, families) for loc in locs])
+        try:
+            options = ev.atoms.post(f, before_args, [_loc_type(loc, types, families) for loc in locs])
+        except KeyError as e:
+            raise PostError(f"{where}: the environment decides {f.function!r} over the types of its values after the step: {e.args[0]}") from None
         for after in options:
             if len(after) != len(locs):
                 raise PostError(f"{where}: the post atom {f.function!r} gave {after!r}, not one value for each of its {len(locs)} values after the step")
@@ -305,9 +308,12 @@ def _determines(ev: Evaluator, f, before, bound, frames, where, types, families)
 
 def _loc_type(loc: tuple, types: Mapping[str, str], families: Mapping[str, Family]) -> str:
     """The type of the location loc, a variable or a field of an instance."""
-    if loc[0] == "var":
-        return types[loc[1]]
-    return families[loc[1]].types[loc[3]]
+    try:
+        if loc[0] == "var":
+            return types[loc[1]]
+        return families[loc[1]].types[loc[3]]
+    except KeyError:
+        raise PostError(f"{loc[1]}{'' if loc[0] == 'var' else '.' + str(loc[3])} has no declared type") from None
 
 
 def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, families) -> list[dict]:
@@ -333,7 +339,7 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
         if x not in frames:
             if parts:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
-            afters = [dict(f, **{x: v}) for f in afters for v in typed(types[x], f"{x}'")]
+            afters = [dict(f, **{x: v}) for f in afters for v in typed(_loc_type(("var", x), types, families), f"{x}'")]
             continue
         kept = _kept(frames[x])
         if kept is None:

@@ -33,13 +33,13 @@ def apply_given(given: Mapping[str, object]) -> Callable[[str, tuple], object]:
 class AtomMeaning:
     """The meaning of the atoms: environment decides the declared ones, the
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
-    domain gives the values of a type, for the values after the
+    carrier gives the values of a type, for the values after the
     step of a post atom the environment decides."""
 
-    def __init__(self, client: ClientLike, environment: Environment, domain: Callable[[str], list]):
+    def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list]):
         self.client = client
         self.environment = environment
-        self.domain = domain
+        self.carrier = carrier
         self.decided: dict[str, None] = {}
 
     def of_environment(self, atom: Atom) -> bool:
@@ -66,7 +66,7 @@ class AtomMeaning:
         if not self.of_environment(atom):
             return [tuple(freeze(v) for v in after) for after in self.client.post(atom.wire, [[visible(a) for a in before]])[0]]
         out = []
-        for after in itertools.product(*(self.domain(t) for t in types)):
+        for after in itertools.product(*(self.carrier(t) for t in types)):
             if self._decide(atom, tuple(visible(a) for a in self.merge(atom, before, list(after)))):
                 out.append(tuple(after))
         return out

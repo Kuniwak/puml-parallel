@@ -74,6 +74,7 @@ class Symmetry:
         self.perms = [dict(itertools.chain.from_iterable(zip(sorted(g), perm) for g, perm in zip(groups, combo)))
                       for combo in itertools.product(*(itertools.permutations(sorted(g)) for g in groups))]
         self.d = d
+        self.name_types = d.name_types()
         self._check_literals(d)
         self._check_types(checks)
         self.ids, self.fields, self.maps = self._holding(d, checks)
@@ -228,14 +229,14 @@ class Symmetry:
         """The values the argument t of the function of the environment
         name ranges over, for checking it: those of its type."""
         try:
-            if isinstance(t, Free) and t.name in self.d.name_types():
-                return [freeze(v) for u in sorted(self.d.name_types()[t.name]) for v in checks.carrier(u)]
+            if isinstance(t, Free) and t.name in self.name_types:
+                return [freeze(v) for u in sorted(self.name_types[t.name]) for v in checks.carrier(u)]
             if isinstance(t, Bound):
                 return [freeze(v) for v in checks.carrier(types[len(types) - 1 - t.index])]
         except KeyError:
             pass
         raise ValueError(f"the function of the environment {name!r} reads a symmetric ID, and --symmetry checks a function given "
-                         "by trying every value of its arguments, but an argument has no type to list them; give it a constant, "
+                         "by trying every value of its arguments, but an argument has no type to list them (it is of any, or of a type TYPES does not give); give it a constant, "
                          "pass it a typed name, or drop its type from SYMMETRIC")
 
     def _check_sources(self, checks: Checks) -> None:

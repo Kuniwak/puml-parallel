@@ -9,9 +9,9 @@ import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from csdfbmc.checks import Checks, apply
+from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
-from csdfbmc.formula import Evaluator, Missing, solve
+from csdfbmc.formula import Evaluator, Missing, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
@@ -229,6 +229,7 @@ class Explorer:
         self.ample = ample
         self.canonical = canonical
         self._check_fields()
+        self._check_exists()
         self._check_literals()
         self._check_environment()
 
@@ -247,6 +248,17 @@ class Explorer:
             for n in e.sent:
                 if n not in bound:
                     raise KeyError(f"{e.event} at line {e.line} sends {n!r}, which the step does not bind; it may send {sorted(bound)}")
+
+    def _check_exists(self) -> None:
+        """Refuses an ∃ over the type any, whose values the walk would have
+        to enumerate (docs/CLAUSE_DESIGN.md, Types)."""
+        clauses = [("the start edge", self.d.start_post)] + [(e.describe(), c) for e in self.d.edges for c in (e.guard, e.post)]
+        clauses += [(f"the end edge from {x.src}", x.guard) for x in self.d.ends]
+        for where, clause in clauses:
+            for _, types in conjuncts(clause):
+                if ANY in types:
+                    raise PostError(f"{where}: an ∃ ranges over the type any, which constrains nothing and has no values "
+                                    "to range over; bind it over a type TYPES gives")
 
     def _check_literals(self) -> None:
         """Refuses @eq or @ne of a literal and a variable whose type cannot
@@ -377,7 +389,7 @@ class Explorer:
         try:
             return self.checks.carrier(t)
         except KeyError as err:
-            raise KeyError(f"{e.describe()}: nothing determines the field {p}, so it ranges over its type {t}: {err.args[0]}") from None
+            raise PostError(f"{e.describe()}: nothing determines the field {p}, so it ranges over its type {t}: {err.args[0]}") from None
 
     def _label(self, e: Edge, before: dict) -> str:
         """The event as taken: each field, in the event's order, with the
