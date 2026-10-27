@@ -1,4 +1,4 @@
-package core
+package types
 
 import (
 	"strings"
@@ -27,20 +27,20 @@ func TestParseType(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got, err := ParseType(tt.text)
+			got, err := Parse(tt.text)
 
 			// Assert
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("ParseType(%q) = %v, %v; want an error containing %q", tt.text, got, err, tt.wantErr)
+					t.Fatalf("Parse(%q) = %v, %v; want an error containing %q", tt.text, got, err, tt.wantErr)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("ParseType(%q): %v", tt.text, err)
+				t.Fatalf("Parse(%q): %v", tt.text, err)
 			}
 			if got.String() != tt.want {
-				t.Errorf("ParseType(%q) = %s, want %s", tt.text, got, tt.want)
+				t.Errorf("Parse(%q) = %s, want %s", tt.text, got, tt.want)
 			}
 		})
 	}

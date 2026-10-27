@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Kuniwak/puml-parallel/csdf/types"
+
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
 )
@@ -102,10 +104,10 @@ type Diagram struct {
 	Vars   map[string][]string
 	// Types are the types the state lines declare, of each variable one
 	// for the whole diagram (docs/CLAUSE_DESIGN.md, Types).
-	Types map[string]Type
+	Types map[string]types.Type
 	// Channels are the channels the channel notes declare, each with the
 	// types of its fields in order.
-	Channels map[string][]Type
+	Channels map[string][]types.Type
 	Init     string
 	InitPost clause.And
 	// InitLine is where the reader read the start edge, as Edge.Line is.

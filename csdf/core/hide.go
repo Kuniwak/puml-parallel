@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Kuniwak/puml-parallel/csdf/types"
+
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
 
@@ -21,7 +23,7 @@ func Hide(d *Diagram, channels []string) (*Diagram, error) {
 			continue
 		}
 		if out.Channels == nil {
-			out.Channels = map[string][]Type{}
+			out.Channels = map[string][]types.Type{}
 		}
 		out.Channels[c] = ts
 	}

@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/Kuniwak/puml-parallel/csdf/types"
+
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 )
 
@@ -148,7 +150,7 @@ func renamedApart(l, r *Diagram) *Diagram {
 			out.Families[i].Map = to
 		}
 	}
-	out.Types = map[string]Type{}
+	out.Types = map[string]types.Type{}
 	for v, t := range r.Types {
 		if to, ok := rename[v]; ok {
 			v = to
@@ -175,13 +177,13 @@ func renamedApart(l, r *Diagram) *Diagram {
 
 // mergedTypes are the types of l and of r, which renamedApart has made
 // disjoint; nil when neither has any.
-func mergedTypes(l, r map[string]Type) map[string]Type {
+func mergedTypes(l, r map[string]types.Type) map[string]types.Type {
 	if len(l) == 0 && len(r) == 0 {
 		return nil
 	}
 	out := maps.Clone(l)
 	if out == nil {
-		out = map[string]Type{}
+		out = map[string]types.Type{}
 	}
 	maps.Copy(out, r)
 	return out
@@ -189,16 +191,16 @@ func mergedTypes(l, r map[string]Type) map[string]Type {
 
 // sharedChannels are the channels l and r declare; a channel both declare
 // is one channel, so the two must declare it alike.
-func sharedChannels(l, r map[string][]Type) (map[string][]Type, error) {
+func sharedChannels(l, r map[string][]types.Type) (map[string][]types.Type, error) {
 	if len(l) == 0 && len(r) == 0 {
 		return nil, nil
 	}
-	out := map[string][]Type{}
+	out := map[string][]types.Type{}
 	for c, ts := range l {
 		out[c] = slices.Clone(ts)
 	}
 	for _, c := range slices.Sorted(maps.Keys(r)) {
-		if lt, ok := l[c]; ok && !slices.EqualFunc(lt, r[c], Type.Equal) {
+		if lt, ok := l[c]; ok && !slices.EqualFunc(lt, r[c], types.Type.Equal) {
 			return nil, fmt.Errorf("the channel %s is declared %s on one side and %s on the other", c, ChannelDecl(c, lt), ChannelDecl(c, r[c]))
 		}
 		out[c] = slices.Clone(r[c])
@@ -208,7 +210,7 @@ func sharedChannels(l, r map[string][]Type) (map[string][]Type, error) {
 
 // ChannelDecl is the declaration of the channel c with fields of the types
 // fields, as a channel note writes it.
-func ChannelDecl(c string, fields []Type) string {
+func ChannelDecl(c string, fields []types.Type) string {
 	s := c
 	for i, t := range fields {
 		sep := "."

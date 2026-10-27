@@ -1,4 +1,6 @@
-package core
+// Package types is the types a diagram declares (docs/CLAUSE_DESIGN.md,
+// Types): of its state variables, and of the fields of its channels.
+package types
 
 import (
 	"fmt"
@@ -43,7 +45,7 @@ func (t Type) IsAny() bool { return t.Name == AnyName }
 // Equal says whether t and o are one type.
 func (t Type) Equal(o Type) bool { return t.String() == o.String() }
 
-// String writes t as ParseType reads it: ⇸ nests to the right, so a map
+// String writes t as Parse reads it: ⇸ nests to the right, so a map
 // type is parenthesised only as a key.
 func (t Type) String() string {
 	if !t.IsMap() {
@@ -56,9 +58,9 @@ func (t Type) String() string {
 	return k + " ⇸ " + t.Val.String()
 }
 
-// ParseType reads a type: a name (an identifier), a map type K ⇸ V (or
+// Parse reads a type: a name (an identifier), a map type K ⇸ V (or
 // K ->> V) that nests to the right, or a type in parentheses.
-func ParseType(text string) (Type, error) {
+func Parse(text string) (Type, error) {
 	r := typeReader{src: text}
 	t, err := r.typ()
 	if err == nil {
@@ -68,7 +70,7 @@ func ParseType(text string) (Type, error) {
 		}
 	}
 	if err != nil {
-		return Type{}, fmt.Errorf("core.ParseType: %q is no type: %w", text, err)
+		return Type{}, fmt.Errorf("types.Parse: %q is no type: %w", text, err)
 	}
 	return t, nil
 }

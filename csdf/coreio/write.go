@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // Write writes d in the syntax Read reads, so that Read(Write(d)) is d up to
@@ -80,7 +81,7 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 
 // writeChannels writes the channel note that declares channels, if there
 // is any, the channels sorted.
-func writeChannels(b *strings.Builder, channels map[string][]core.Type) {
+func writeChannels(b *strings.Builder, channels map[string][]types.Type) {
 	if len(channels) == 0 {
 		return
 	}
@@ -101,7 +102,7 @@ func writeChannels(b *strings.Builder, channels map[string][]core.Type) {
 
 // fieldType is t as a channel declaration writes a field's type: a map
 // type in parentheses, so that its . reads apart from the next field's.
-func fieldType(t core.Type) string {
+func fieldType(t types.Type) string {
 	if t.IsMap() {
 		return "(" + t.String() + ")"
 	}

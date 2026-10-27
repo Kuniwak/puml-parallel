@@ -8,6 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // written are diagrams with the text Write writes of them.
@@ -108,8 +109,8 @@ s0_s0 --> s1_s0 : go
 			d: &core.Diagram{
 				States:   []string{"s"},
 				Vars:     map[string][]string{"s": {"m", "x"}},
-				Types:    map[string]core.Type{"m": core.MapOf(core.Named("K"), core.Named("V")), "x": core.AnyType},
-				Channels: map[string][]core.Type{"put": {core.Named("K"), core.MapOf(core.Named("K"), core.Named("V"))}, "stop": {}},
+				Types:    map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("V")), "x": types.AnyType},
+				Channels: map[string][]types.Type{"put": {types.Named("K"), types.MapOf(types.Named("K"), types.Named("V"))}, "stop": {}},
 				Init:     "s",
 				Edges:    []core.Edge{{Src: "s", Dst: "s", Event: core.Event{Channel: "stop"}}},
 			},

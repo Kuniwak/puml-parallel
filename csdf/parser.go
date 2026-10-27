@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Kuniwak/puml-parallel/csdf/core"
 	"github.com/Kuniwak/puml-parallel/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 const (
@@ -805,7 +805,7 @@ func (p *Parser) parseNote() (Assumption, []ChannelDecl, error) {
 // parseChannelDecl reads what follows "channel " in a channel declaration
 // written at line: "<name>" or "<name> : <type>.<type>…", one type per field.
 func parseChannelDecl(text string, line int) (ChannelDecl, error) {
-	name, types, hasTypes := strings.Cut(text, ":")
+	name, written, hasTypes := strings.Cut(text, ":")
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ChannelDecl{}, fmt.Errorf("the channel declaration at line %d names no channel", line)
@@ -817,9 +817,9 @@ func parseChannelDecl(text string, line int) (ChannelDecl, error) {
 	if !hasTypes {
 		return decl, nil
 	}
-	for _, t := range splitFieldTypes(types) {
+	for _, t := range splitFieldTypes(written) {
 		t = strings.TrimSpace(t)
-		if _, err := core.ParseType(t); err != nil {
+		if _, err := types.Parse(t); err != nil {
 			return ChannelDecl{}, fmt.Errorf("the channel declaration of %s at line %d: %w", name, line, err)
 		}
 		decl.Fields = append(decl.Fields, t)

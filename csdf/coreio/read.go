@@ -8,6 +8,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/csdf"
 	"github.com/Kuniwak/puml-parallel/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/csdf/core"
+	"github.com/Kuniwak/puml-parallel/csdf/types"
 )
 
 // ReadAuthored reads a diagram an author wrote: its clauses are read by
@@ -65,12 +66,12 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 			if v.Type == "" {
 				continue
 			}
-			t, err := core.ParseType(v.Type)
+			t, err := types.Parse(v.Type)
 			if err != nil {
 				return nil, fmt.Errorf("line %d: the variable %s of %s: %w", s.State.Line, v.Name, s.ID, err)
 			}
 			if d.Types == nil {
-				d.Types = map[string]core.Type{}
+				d.Types = map[string]types.Type{}
 			}
 			d.Types[string(v.Name)] = t
 		}
@@ -79,16 +80,16 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		if _, ok := d.Channels[c.Name]; ok {
 			return nil, fmt.Errorf("line %d: the channel %s is declared twice", c.Line, c.Name)
 		}
-		fields := []core.Type{}
+		fields := []types.Type{}
 		for _, f := range c.Fields {
-			t, err := core.ParseType(f)
+			t, err := types.Parse(f)
 			if err != nil {
 				return nil, fmt.Errorf("line %d: the channel %s: %w", c.Line, c.Name, err)
 			}
 			fields = append(fields, t)
 		}
 		if d.Channels == nil {
-			d.Channels = map[string][]core.Type{}
+			d.Channels = map[string][]types.Type{}
 		}
 		d.Channels[c.Name] = fields
 	}
