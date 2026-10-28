@@ -1128,6 +1128,14 @@ $ csdfbmc attempts.json examples/bmc/attempts/checks.py \
 states: 104 (496 without it)
 ```
 
+`--jobs N` expands the states in N worker processes, each loading the
+diagram, the checks module and the glue anew, and walks the same states in
+the same order: the output is that of the walk without it. Only the
+expansion of a state (its transitions, through the clauses and the glue)
+runs in the workers; which states were met, the reductions and where the
+walk stops are decided in one process, so a large walk runs a few times
+sooner, and a small one slower, for starting the workers.
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.
