@@ -31,7 +31,7 @@ type glossed struct {
 func LoadTemplates(text string) (Templates, error) {
 	set, err := template.New("").Option("missingkey=error").Parse(text)
 	if err != nil {
-		return Templates{}, fmt.Errorf("coreio.LoadTemplates: %w", err)
+		return Templates{}, fmt.Errorf("coreio.LoadTemplates: the templates do not parse: %w", err)
 	}
 	for _, t := range set.Templates() {
 		name := t.Name()
@@ -40,7 +40,7 @@ func LoadTemplates(text string) (Templates, error) {
 		}
 		spec, ok := clause.Op(name).Spec()
 		if !ok {
-			return Templates{}, fmt.Errorf("coreio.LoadTemplates: %s is no builtin word; csdfpromote's templates are not the formula promotion's", name)
+			return Templates{}, fmt.Errorf("coreio.LoadTemplates: the template %s is not named after a builtin word; csdfpromote's templates are not the formula promotion's", name)
 		}
 		sample := glossed{Args: make([]string, spec.Terms), State: "S"}
 		for i := range sample.Args {
@@ -48,10 +48,10 @@ func LoadTemplates(text string) (Templates, error) {
 		}
 		var w strings.Builder
 		if err := t.Execute(&w, sample); err != nil {
-			return Templates{}, fmt.Errorf("coreio.LoadTemplates: %s cannot render: %w", name, err)
+			return Templates{}, fmt.Errorf("coreio.LoadTemplates: the template %s cannot render: %w", name, err)
 		}
 		if strings.ContainsAny(w.String(), "\r\n") {
-			return Templates{}, fmt.Errorf("coreio.LoadTemplates: %s writes a line break, which would end its line comment", name)
+			return Templates{}, fmt.Errorf("coreio.LoadTemplates: the template %s writes a line break, which would end its line comment", name)
 		}
 	}
 	return Templates{set: set}, nil
