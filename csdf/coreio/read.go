@@ -120,7 +120,8 @@ func readEdge(text string, line int, parse func(string) (clause.And, error)) (co
 
 // parseOnce gives a check that reads each predicate by parse, keeping what
 // it read, and clauses that give back what check kept, so no predicate is
-// read twice.
+// read twice. Edges whose clauses read the same share what was read, so
+// nothing may change a clause in place.
 func parseOnce(parse func(string) (clause.And, error)) (func(csdf.Predicate) error, func(csdf.Predicate) clause.And) {
 	read := map[csdf.Predicate]clause.And{}
 	check := func(p csdf.Predicate) error {
