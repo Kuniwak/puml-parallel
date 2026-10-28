@@ -110,6 +110,10 @@ class FrozenMap(Mapping):
         gone = kind_key(key)
         return FrozenMap(kv for kk, kv in self._d.items() if kk != gone)
 
+    def __reduce__(self):
+        # Built again from its entries, each key of its kind.
+        return FrozenMap, (tuple(self._d.values()),)
+
 
 class _Items(ItemsView):
     """The entries of a FrozenMap, an entry among them when its key and its
@@ -162,6 +166,9 @@ class FrozenSet(AbstractSet):
     def __repr__(self):
         return "{" + ", ".join(map(repr, self._d.values())) + "}" if self._d else "set()"
 
+    def __reduce__(self):
+        return FrozenSet, (tuple(self._d.values()),)
+
 
 class Strict(tuple):
     """A tuple equal and hashable by kind_key: a state, or what else the
@@ -187,6 +194,10 @@ class Strict(tuple):
         eq = self.__eq__(other)
         return eq if eq is NotImplemented else not eq
 
+    def __reduce__(self):
+        # Built again, so that its key is too.
+        return Strict, (tuple(self),)
+
 
 @dataclass(frozen=True)
 class Rec:
@@ -205,6 +216,10 @@ class _LeftOut:
 
     def __repr__(self):
         return "left out"
+
+    def __reduce__(self):
+        # The one value, not a copy: the walk tells it by identity.
+        return "LEFT_OUT"
 
 
 LEFT_OUT = _LeftOut()
