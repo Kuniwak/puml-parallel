@@ -6,7 +6,7 @@ import functools
 import inspect
 import itertools
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
 from csdfbmc.checks import ANY, Checks, apply
@@ -164,6 +164,22 @@ class Result:
         if self.ghost_names:
             text += " " + str(dict(zip(self.ghost_names, s[2])))
         return text
+
+
+@dataclass
+class Expansion:
+    """A state expanded (Explorer.expand). can_end is true when the state
+    has a transition, so that a state with none is asked whether it can
+    end only then; witness is the bound's (Explorer.bound_witness) of a
+    state with no way out."""
+    # (event name, event as taken, next state, edge, the values of its received fields)
+    transitions: list[tuple[str, str, State, Edge, dict]]
+    can_end: bool
+    witness: str | None
+    # The events as taken whose post admitted no successor.
+    empty_posts: list[str]
+    # The functions the environment decided, in order.
+    decided: list[str]
 
 
 class Explorer:
@@ -501,7 +517,28 @@ class Explorer:
 
     # -- the walk ----------------------------------------------------------------
 
-    def run(self) -> Result:
+    def expand(self, state: State) -> Expansion:
+        """What the walk learns of state apart from the states it met: its
+        transitions, the empty posts and the functions the environment
+        decided on the way, and, when it has no transition, whether it can
+        end and, if not, the bound's witness. Asked in the order the walk
+        asks them, so the same functions are decided."""
+        decided, empty_posts = self.meaning.decided, self.empty_posts
+        self.meaning.decided, self.empty_posts = {}, []
+        try:
+            transitions = self.transitions(state)
+            can_end = bool(transitions) or self.can_end(state)
+            witness = None if can_end else self.bound_witness(state)
+            return Expansion(transitions, can_end, witness, [label for _, label in self.empty_posts], list(self.meaning.decided))
+        finally:
+            self.meaning.decided, self.empty_posts = decided, empty_posts
+
+    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None) -> Result:
+        """The walk. expand_all expands the states of the queue not yet
+        expanded, in order (Explorer.expand, one at a time by default); the
+        walk may stop before taking them all."""
+        if expand_all is None:
+            expand_all = functools.partial(map, self.expand)
         self.empty_posts = []
         self.meaning.decided.clear()
         parents: dict[State, tuple[State, str, Edge] | None] = {}
@@ -537,33 +574,34 @@ class Explorer:
         stopped = False
         i = 0
         while i < len(queue) and not stopped:
-            s = queue[i]
-            i += 1
-            if self.first and violations:
-                stopped = True
-                break
-            succ = self.transitions(s)
-            succ = self.ample(s, succ, known)
-            if not succ and not self.can_end(s):
-                witness = self.bound_witness(s)
-                if witness is not None:
-                    bound_reached.append((s, witness))
-                else:
-                    deadlocks.append(s)
-                    if self.first:
-                        stopped = True
-                        break
-            for _, label, t, edge, _ in succ:
-                if known(t):
-                    continue
-                if len(order) >= self.max_states:
-                    truncated = True
-                    continue
-                parents[t] = (s, label, edge)
-                visit(t)
-            tau_next[s] = [met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
-            if self.avoid is not None and (self.within is None or s[0] in self.within):
-                avoid_next[s] = [met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
+            for s, x in zip(queue[i:], expand_all(queue[i:])):
+                i += 1
+                if self.first and violations:
+                    stopped = True
+                    break
+                self.empty_posts.extend((s, label) for label in x.empty_posts)
+                for name in x.decided:
+                    self.meaning.decided.setdefault(name)
+                succ = self.ample(s, x.transitions, known)
+                if not succ and not x.can_end:
+                    if x.witness is not None:
+                        bound_reached.append((s, x.witness))
+                    else:
+                        deadlocks.append(s)
+                        if self.first:
+                            stopped = True
+                            break
+                for _, label, t, edge, _ in succ:
+                    if known(t):
+                        continue
+                    if len(order) >= self.max_states:
+                        truncated = True
+                        continue
+                    parents[t] = (s, label, edge)
+                    visit(t)
+                tau_next[s] = [met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
+                if self.avoid is not None and (self.within is None or s[0] in self.within):
+                    avoid_next[s] = [met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,
