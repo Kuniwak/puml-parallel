@@ -76,10 +76,10 @@ func TestLoadTemplatesRefuses(t *testing.T) {
 	cases := []struct {
 		name, text, want string
 	}{
-		{"a template named after csdfpromote's clauses", `{{define "inDom"}}x{{end}}`, "inDom"},
-		{"a template that cannot render", `{{define "at"}}{{.Nope}}{{end}}`, "at"},
-		{"a template writing a line break", "{{define \"at\"}}a\nb{{end}}", "line break"},
-		{"a file that does not parse", `{{define "at"}}{{end`, "coreio.LoadTemplates"},
+		{"a template named after csdfpromote's clauses", `{{define "inDom"}}x{{end}}`, "coreio.LoadTemplates: the template inDom is not named after a builtin word"},
+		{"a template that cannot render", `{{define "at"}}{{.Nope}}{{end}}`, "coreio.LoadTemplates: the template at cannot render: "},
+		{"a template writing a line break", "{{define \"at\"}}a\nb{{end}}", "coreio.LoadTemplates: the template at writes a line break, which would end its line comment"},
+		{"a file that does not parse", `{{define "at"}}{{end`, "coreio.LoadTemplates: the templates do not parse: "},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
