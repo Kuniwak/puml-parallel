@@ -38,17 +38,10 @@ func Read(source string) (*core.Diagram, error) {
 // read reads source with the structure csdf.ParseSource reads, each clause by
 // parse.
 func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
-	check := func(p csdf.Predicate) error {
-		_, err := parse(string(p))
-		return err
-	}
+	check, clauses := parseOnce(parse)
 	src, err := csdf.ParseSource(source, check)
 	if err != nil {
 		return nil, err
-	}
-	clauses := func(p csdf.Predicate) clause.And {
-		f, _ := parse(string(p)) // check has read every predicate already
-		return f
 	}
 	d := &core.Diagram{
 		Name:     src.Name,
@@ -117,17 +110,32 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 
 // readEdge reads one edge line, written at line, its clauses by parse.
 func readEdge(text string, line int, parse func(string) (clause.And, error)) (core.Edge, error) {
-	read := map[csdf.Predicate]clause.And{}
-	check := func(p csdf.Predicate) error {
-		f, err := parse(string(p))
-		read[p] = f
-		return err
-	}
+	check, clauses := parseOnce(parse)
 	e, err := csdf.ParseEdgeLine(text, line, check)
 	if err != nil {
 		return core.Edge{}, err
 	}
-	return edgeOf(e, func(p csdf.Predicate) clause.And { return read[p] }), nil
+	return edgeOf(e, clauses), nil
+}
+
+// parseOnce gives a check that reads each predicate by parse, keeping what
+// it read, and clauses that give back what check kept, so no predicate is
+// read twice.
+func parseOnce(parse func(string) (clause.And, error)) (func(csdf.Predicate) error, func(csdf.Predicate) clause.And) {
+	read := map[csdf.Predicate]clause.And{}
+	check := func(p csdf.Predicate) error {
+		if _, ok := read[p]; ok {
+			return nil
+		}
+		f, err := parse(string(p))
+		if err != nil {
+			return err
+		}
+		read[p] = f
+		return nil
+	}
+	clauses := func(p csdf.Predicate) clause.And { return read[p] }
+	return check, clauses
 }
 
 func edgeOf(e csdf.Edge, clauses func(csdf.Predicate) clause.And) core.Edge {
