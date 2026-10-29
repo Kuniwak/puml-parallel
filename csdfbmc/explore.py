@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
-from csdfbmc.formula import Evaluator, Missing, PostError, solve
+from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
@@ -73,6 +73,9 @@ class Result:
     # left_out: the variables the cone of influence left out, each kept
     # at csdfbmc.values.LEFT_OUT.
     left_out: tuple[str, ...] = ()
+    # stats: per edge, what the walk took (EdgeStats.to_json), the most
+    # valuations checked first; None unless asked for.
+    stats: list[dict] | None = None
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -119,6 +122,7 @@ class Result:
             "groups": self.groups(),
             "stopped_early": self.stopped_early,
             "left_out": list(self.left_out),
+            **({"stats": self.stats} if self.stats is not None else {}),
         }
 
     def groups(self) -> list[dict]:
@@ -167,6 +171,31 @@ class Result:
 
 
 @dataclass
+class EdgeStats:
+    """What the walk took at one edge (csdfbmc --stats): the values of its
+    fields tried, those its guard held of, the valuations after the step
+    checked against its post, the successors they gave, and what nothing
+    determined, which ranged over its type: a field as ?name, a value
+    after the step as the post names it."""
+    tried: int = 0
+    guard_held: int = 0
+    checked: int = 0
+    successors: int = 0
+    ranged: set[str] = field(default_factory=set)
+
+    def add(self, other: "EdgeStats") -> None:
+        self.tried += other.tried
+        self.guard_held += other.guard_held
+        self.checked += other.checked
+        self.successors += other.successors
+        self.ranged |= other.ranged
+
+    def to_json(self, edge: Edge) -> dict:
+        return {"edge": edge.describe(), "tried": self.tried, "guard_held": self.guard_held, "checked": self.checked,
+                "successors": self.successors, "ranged": sorted(self.ranged)}
+
+
+@dataclass
 class Expansion:
     """A state expanded (Explorer.expand). can_end is true when the state
     has a transition, so that a state with none is asked whether it can
@@ -180,6 +209,8 @@ class Expansion:
     empty_posts: list[str]
     # The functions the environment decided, in order.
     decided: list[str]
+    # What each edge took, by its index in the diagram; None unless asked for.
+    stats: dict[int, EdgeStats] | None = None
 
 
 class Explorer:
@@ -224,7 +255,7 @@ class Explorer:
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
                  first: bool = False, left_out: tuple[str, ...],
-                 ample: Ample, canonical: Canonical):
+                 ample: Ample, canonical: Canonical, stats: bool = False):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
@@ -244,6 +275,9 @@ class Explorer:
         self.left_out = tuple(left_out)
         self.ample = ample
         self.canonical = canonical
+        # stats: what each edge took, by its index, when asked for (EdgeStats).
+        self.stats: dict[int, EdgeStats] | None = {} if stats else None
+        self._edge_index = {id(e): i for i, e in enumerate(diagram.edges)}
         self._check_fields()
         self._check_exists()
         self._check_literals()
@@ -355,10 +389,10 @@ class Explorer:
 
     # -- transitions ------------------------------------------------------------
 
-    def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
+    def _successor_values(self, post: tuple, before: dict, dst: str, where: str, tally: Tally | None = None) -> list[tuple]:
         names = self.d.vars[dst]
         out: dict = {}
-        for a in solve(self.ev, post, names, before, self.d.types, where, self.d.families, frozenset(self.left_out)):
+        for a in solve(self.ev, post, names, before, self.d.types, where, self.d.families, frozenset(self.left_out), tally):
             v = tuple(LEFT_OUT if n in self.left_out else freeze(a[n]) for n in names)
             out.setdefault(kind_key(v), v)
         return list(out.values())
@@ -378,9 +412,10 @@ class Explorer:
                         return y
         return None
 
-    def _offers(self, state: State, e: Edge) -> list[dict]:
+    def _offers(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[dict]:
         """The values of the fields e receives that the walk tries: each
-        ranges over its type, unless the guard determines it (Q5)."""
+        ranges over its type, unless the guard determines it (Q5); ranged,
+        when given, is told each field that does, as ?name."""
         alive: list[dict] = [{}]
         known = set(self.d.vars[state[0]])
         for p in e.params:
@@ -394,6 +429,8 @@ class Explorer:
                         pass  # the guard reads an entry its map does not have: false
                 else:
                     grown.extend(dict(params, **{p: v}) for v in self._field_values(e, p))
+                    if ranged is not None:
+                        ranged.add(f"?{p}")
             alive = grown
             known.add(p)
         return alive
@@ -419,18 +456,28 @@ class Explorer:
         of e enabled from state. With record, an empty post is kept."""
         out = []
         where = e.describe()
-        for params in self._offers(state, e):
+        stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
+        offers = self._offers(state, e, stats.ranged if stats else None)
+        for params in offers:
             before = self._before(state, params)
             if not self.ev.holds(e.guard, before):
                 continue
             label = self._label(e, before)
-            vals = self._successor_values(e.post, before, e.dst, where)
+            tally = Tally() if stats else None
+            vals = self._successor_values(e.post, before, e.dst, where, tally)
+            if stats:
+                stats.guard_held += 1
+                stats.checked += tally.checked
+                stats.successors += len(vals)
+                stats.ranged |= tally.ranged
             if not vals:
                 if record:
                     self.empty_posts.append((state, label))
                 continue
             ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
+        if stats:
+            stats.tried += len(offers)
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -523,15 +570,18 @@ class Explorer:
         decided on the way, and, when it has no transition, whether it can
         end and, if not, the bound's witness. Asked in the order the walk
         asks them, so the same functions are decided."""
-        decided, empty_posts = self.meaning.decided, self.empty_posts
+        decided, empty_posts, stats = self.meaning.decided, self.empty_posts, self.stats
         self.meaning.decided, self.empty_posts = {}, []
+        if stats is not None:
+            self.stats = {}
         try:
             transitions = self.transitions(state)
             can_end = bool(transitions) or self.can_end(state)
             witness = None if can_end else self.bound_witness(state)
-            return Expansion(transitions, can_end, witness, [label for _, label in self.empty_posts], list(self.meaning.decided))
+            return Expansion(transitions, can_end, witness, [label for _, label in self.empty_posts], list(self.meaning.decided),
+                             self.stats)
         finally:
-            self.meaning.decided, self.empty_posts = decided, empty_posts
+            self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
     def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None) -> Result:
         """The walk. expand_all expands the states of the queue not yet
@@ -541,6 +591,8 @@ class Explorer:
             expand_all = functools.partial(map, self.expand)
         self.empty_posts = []
         self.meaning.decided.clear()
+        if self.stats is not None:
+            self.stats = {}
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         order: list[State] = []
         queue: list[State] = []
@@ -582,6 +634,9 @@ class Explorer:
                 self.empty_posts.extend((s, label) for label in x.empty_posts)
                 for name in x.decided:
                     self.meaning.decided.setdefault(name)
+                if x.stats is not None:
+                    for edge, edge_stats in x.stats.items():
+                        self.stats.setdefault(edge, EdgeStats()).add(edge_stats)
                 succ = self.ample(s, x.transitions, known)
                 if not succ and not x.can_end:
                     if x.witness is not None:
@@ -613,6 +668,8 @@ class Explorer:
             avoid=self.avoid, ghost_names=self.ghost_names,
             empty_posts=self.empty_posts, stopped_early=stopped, bound_reached=bound_reached,
             left_out=self.left_out,
+            stats=None if self.stats is None else [
+                self.stats[i].to_json(self.d.edges[i]) for i in sorted(self.stats, key=lambda i: (-self.stats[i].checked, i))],
         )
 
 

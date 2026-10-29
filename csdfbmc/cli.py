@@ -85,6 +85,6 @@ def reductions(diagram: Diagram, checks: Checks, client, environment: Environmen
 def explorer(a: argparse.Namespace, diagram: Diagram, checks: Checks, client, environment: Environment) -> Explorer:
     """The walk csdfbmc's parsed arguments ask for, of what opened gives."""
     return Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
-                    within=a.within, first=a.first,
+                    within=a.within, first=a.first, stats=a.stats,
                     **reductions(diagram, checks, client, environment, cone=a.cone, por=a.por,
                                  avoid=a.avoid, symmetry=a.symmetry))
