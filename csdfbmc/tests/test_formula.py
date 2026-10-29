@@ -157,6 +157,18 @@ class SolveTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(want, got)
 
+    def test_a_conjunct_after_one_that_is_false_is_not_evaluated(self):
+        # Setup: the second conjunct, @in of what is no map, is an error
+        # wherever it is evaluated; the first, read after n is chosen, is
+        # false of every valuation, so the second is never reached.
+        post = [builtin("ne", "p'", "p'"), builtin("in", "n'", "x")]
+
+        # Execute
+        got = self.solve(post, ["n", "p"], {"x": 1})
+
+        # Assert
+        self.assertEqual([], got)
+
     def test_what_it_cannot_enumerate_is_refused(self):
         tests = {
             "a variable nothing determines, of no type": ([], ["q"], {}, "q', so it ranges over its type q: no type 'q' in TYPES"),
