@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from typing import Callable, Protocol
 
 from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, is_primed
-from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, same_value
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, kind_key, same_value
 
 
 class Missing(Exception):
@@ -215,11 +215,16 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
     at a state @at gives, it holds exactly that state's variables, of the
     types the family declares."""
     out: list[dict] = []
+    # The valuations found, by the kind_keys of their values in the order of
+    # names (same_value's), so that one found again is told at once.
+    seen: set[tuple] = set()
     for branch in _branches(post, (), ev.carrier):
         for after in _solve_branch(ev, branch, names, before, types, where, families):
             if all(ev._holds(f, before, after, bound) for f, bound in branch):
                 _check_instances(after, families, where)
-                if not any(all(same_value(after[n], o[n]) for n in names) for o in out):
+                key = tuple(kind_key(after[n]) for n in names)
+                if key not in seen:
+                    seen.add(key)
                     out.append(after)
     return out
 

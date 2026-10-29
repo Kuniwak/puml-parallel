@@ -142,6 +142,7 @@ class SolveTest(unittest.TestCase):
             "a variable nothing constrains, over its type": ([], ["n"], {}, [{"n": 0}, {"n": 1}, {"n": 2}]),
             "a variable only checked, over its type": ([builtin("ne", "n'", "x")], ["n"], {"x": 1}, [{"n": 0}, {"n": 2}]),
             "a choice under ∃": ([exists("T", eq("n'", fixture.bound(0)))], ["n"], {}, [{"n": 1}, {"n": 2}]),
+            "one valuation two choices under ∃ give": ([exists("T", eq("n'", lit(0)))], ["n"], {}, [{"n": 0}]),
             "two clauses that disagree": ([eq("n'", "x"), atom("$n' == $x + 1")], ["n"], {"x": 1}, []),
             "a post that reads an entry its map does not have": ([atom("$n' == ${}", fld(idx("m", "k"), "cnt"))], ["n"],
                                                                 {"m": FrozenMap(), "k": "a"}, []),
