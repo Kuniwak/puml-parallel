@@ -27,7 +27,7 @@ import itertools
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
-from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, is_primed
+from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, free_names, is_primed
 from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, kind_key, same_value
 
 
@@ -256,8 +256,28 @@ def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, wher
             return []
     out = []
     for a in joined:
-        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families))
+        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families, _pruning(ev, branch, before)))
     return out
+
+
+def _pruning(ev: Evaluator, branch: list[tuple], before) -> Callable[[list[dict], set[str]], list[dict]]:
+    """What drops, from the valuations of the variables chosen so far, those
+    the post is false of already: each time more are chosen, the conjuncts
+    of the branch that read no value after the step but theirs, from the
+    first on and in order, are evaluated as the whole post is, stopping at
+    the first false one, so that none is evaluated that the whole post
+    would not evaluate."""
+    reads = [free_names(f, primed=True) for f, _ in branch]
+    done = 0
+
+    def prune(afters: list[dict], chosen: set[str]) -> list[dict]:
+        nonlocal done
+        upto = done
+        while upto < len(branch) and reads[upto] <= chosen:
+            upto += 1
+        ready, done = branch[done:upto], upto
+        return [a for a in afters if all(ev._holds(f, before, a, bound) for f, bound in ready)]
+    return prune
 
 
 def _determines(ev: Evaluator, f, before, bound, frames, where, types, families) -> list[dict] | None:
@@ -321,7 +341,8 @@ def _loc_type(loc: tuple, types: Mapping[str, str], families: Mapping[str, Famil
         raise PostError(f"{loc[1]}{'' if loc[0] == 'var' else '.' + str(loc[3])} has no declared type") from None
 
 
-def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, families) -> list[dict]:
+def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, families,
+              prune: Callable[[list[dict], set[str]], list[dict]]) -> list[dict]:
     """The valuations after the step that the assignment a to locations
     makes: none when a contradicts itself, and one per value of its type for
     a variable or a field of an instance nothing determines. An instance
@@ -336,15 +357,17 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
             raise PostError(f"{where}: nothing in the post determines {what}, so it ranges over its type {type_}: "
                             f"{e.args[0]}") from None
 
+    chosen: set[str] = set()
     for x in names:
+        chosen.add(x)
         if Strict(("var", x)) in a:
-            afters = [dict(f, **{x: a[Strict(("var", x))]}) for f in afters]
+            afters = prune([dict(f, **{x: a[Strict(("var", x))]}) for f in afters], chosen)
             continue
         parts = [loc for loc in set(a) | mentioned if loc[0] != "var" and loc[1] == x]
         if x not in frames:
             if parts:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
-            afters = [dict(f, **{x: v}) for f in afters for v in typed(_loc_type(("var", x), types, families), f"{x}'")]
+            afters = prune([dict(f, **{x: v}) for f in afters for v in typed(_loc_type(("var", x), types, families), f"{x}'")], chosen)
             continue
         kept = _kept(frames[x])
         if kept is None:
@@ -376,7 +399,7 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
                 if name not in given:
                     records = [dict(r, **{name: v}) for r in records for v in typed(families[x].types[name], f"{x}'[{k!r}].{name}")]
             choices = [c.set(k, Rec(state, FrozenMap(r))) for c in choices for r in records]
-        afters = [dict(f, **{x: c}) for f in afters for c in choices]
+        afters = prune([dict(f, **{x: c}) for f in afters for c in choices], chosen)
     return afters
 
 
