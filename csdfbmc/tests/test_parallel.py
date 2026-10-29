@@ -68,3 +68,25 @@ class SameWalkTest(unittest.TestCase):
         # Assert
         self.assertEqual(2, raised.exception.code)
         self.assertIn("--jobs expects a positive number", err.getvalue())
+
+
+class StreamTest(unittest.TestCase):
+    def test_the_walk_asks_once_for_its_queue_as_it_grows(self):
+        # Setup
+        walk_ = fixture.example("attempts")
+        expected = fixture.example("attempts").run().to_json()
+        calls = []
+
+        def expand_all(queue, start):
+            calls.append(start)
+            j = start
+            while j < len(queue):
+                yield walk_.expand(queue[j])
+                j += 1
+
+        # Execute
+        actual = walk_.run(expand_all).to_json()
+
+        # Assert
+        self.assertEqual(expected, actual)
+        self.assertEqual([0], calls)
