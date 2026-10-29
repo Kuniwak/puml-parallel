@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N] [--progress SECONDS]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -27,7 +27,7 @@ import argparse
 import json
 import sys
 
-from csdfbmc import parallel
+from csdfbmc import parallel, progress
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened
 
 
@@ -117,15 +117,20 @@ def main(argv=None) -> int:
                     help="say, per edge, how many values it tried and checked, and what nothing determined, which ranged over its type")
     ap.add_argument("--jobs", type=int, default=1, metavar="N",
                     help="expand the states in N worker processes, each loading the inputs and the glue anew (default 1): the same walk, sooner when it is large")
+    ap.add_argument("--progress", type=float, default=30, metavar="SECONDS",
+                    help="say on stderr every SECONDS how far the walk got: the states, the frontier, the depth, "
+                         "the states per second and the field values tried since the last line (default 30; 0 says nothing)")
     a = ap.parse_args(argv)
     if a.jobs < 1:
         ap.error(f"--jobs expects a positive number, not {a.jobs}")
+    if a.progress < 0:
+        ap.error(f"--progress expects 0 or more seconds, not {a.progress:g}")
 
     try:
         with opened(a) as (diagram, checks, client, environment):
             walk = explorer(a, diagram, checks, client, environment)
-            with parallel.expanding(a, diagram, a.jobs) as expand_all:
-                result = walk.run(expand_all)
+            with parallel.expanding(a, diagram, a.jobs) as expand_all, progress.reporting(sys.stderr, a.progress) as said:
+                result = walk.run(expand_all, said)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

@@ -211,6 +211,8 @@ class Expansion:
     decided: list[str]
     # What each edge took, by its index in the diagram; None unless asked for.
     stats: dict[int, EdgeStats] | None = None
+    # The field values tried (Explorer.tried).
+    tried: int = 0
 
 
 class Explorer:
@@ -277,6 +279,9 @@ class Explorer:
         self.canonical = canonical
         # stats: what each edge took, by its index, when asked for (EdgeStats).
         self.stats: dict[int, EdgeStats] | None = {} if stats else None
+        # tried: the field values the walk tried, summed over its edges
+        # (--progress).
+        self.tried = 0
         self._edge_index = {id(e): i for i, e in enumerate(diagram.edges)}
         self._check_fields()
         self._check_exists()
@@ -476,6 +481,8 @@ class Explorer:
                 continue
             ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
+        if record:
+            self.tried += len(offers)
         if stats:
             stats.tried += len(offers)
         return out
@@ -571,6 +578,7 @@ class Explorer:
         end and, if not, the bound's witness. Asked in the order the walk
         asks them, so the same functions are decided."""
         decided, empty_posts, stats = self.meaning.decided, self.empty_posts, self.stats
+        tried = self.tried
         self.meaning.decided, self.empty_posts = {}, []
         if stats is not None:
             self.stats = {}
@@ -579,16 +587,22 @@ class Explorer:
             can_end = bool(transitions) or self.can_end(state)
             witness = None if can_end else self.bound_witness(state)
             return Expansion(transitions, can_end, witness, [label for _, label in self.empty_posts], list(self.meaning.decided),
-                             self.stats)
+                             self.stats, self.tried - tried)
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
-    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None) -> Result:
+    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None, progress=None) -> Result:
         """The walk. expand_all expands the states of the queue not yet
         expanded, in order (Explorer.expand, one at a time by default); the
-        walk may stop before taking them all."""
+        walk may stop before taking them all. progress, when given, is
+        updated with the counts after each state expanded
+        (csdfbmc.progress.Progress)."""
+        # Workers count the field values they try apart; this walk counts
+        # them as it tries them, so that a state it is stuck in shows.
+        workers = expand_all is not None
         if expand_all is None:
             expand_all = functools.partial(map, self.expand)
+        self.tried = 0
         self.empty_posts = []
         self.meaning.decided.clear()
         if self.stats is not None:
@@ -605,14 +619,16 @@ class Explorer:
         # met: a state as stored (its representative under symmetry) -> the
         # state the walk met first and expands.
         met: dict[State, State] = {}
+        depth: dict[State, int] = {}
 
         key = self.canonical
 
         def known(s: State) -> bool:
             return key(s) in met
 
-        def visit(s: State):
+        def visit(s: State, d: int):
             met[key(s)] = s
+            depth[s] = d
             parents.setdefault(s, None)
             order.append(s)
             queue.append(s)
@@ -621,13 +637,15 @@ class Explorer:
 
         for s in self.initial():
             if not known(s):
-                visit(s)
+                visit(s, 0)
 
         stopped = False
         i = 0
         while i < len(queue) and not stopped:
             for s, x in zip(queue[i:], expand_all(queue[i:])):
                 i += 1
+                if workers:
+                    self.tried += x.tried
                 if self.first and violations:
                     stopped = True
                     break
@@ -653,10 +671,12 @@ class Explorer:
                         truncated = True
                         continue
                     parents[t] = (s, label, edge)
-                    visit(t)
+                    visit(t, depth[s] + 1)
                 tau_next[s] = [met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
                 if self.avoid is not None and (self.within is None or s[0] in self.within):
                     avoid_next[s] = [met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
+                if progress is not None:
+                    progress.update(visited=len(order), frontier=len(queue) - i, depth=depth[s], tried=self.tried)
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,
