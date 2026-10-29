@@ -56,6 +56,10 @@ Checker options (the checker's --help lists them in full):
   --first              stop at the first deadlock or broken invariant
   --all                list every finding instead of one per shape with a count
   --json               print the result as JSON
+  --jobs N             expand the states in N worker processes; the
+                       result is the same as with one
+  --stats              say per edge how many values it tried and checked,
+                       and what ranged over its type
 
 The checks module defines TYPES (a type the diagram declares -> its finite
 values; TYPEOF is refused, the diagram declaring every type) and, when
