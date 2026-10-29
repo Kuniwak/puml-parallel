@@ -62,6 +62,9 @@ Checker options (the checker's --help lists them in full):
                        and what ranged over its type
   --progress SECONDS   say on stderr every SECONDS how far the walk got
                        (default 30; 0 says nothing)
+  --checkpoint FILE    write the walk to FILE as it goes, every
+                       --checkpoint-every SECONDS (default 60)
+  --resume FILE        take up the walk a --checkpoint wrote to FILE
 
 The checks module defines TYPES (a type the diagram declares -> its finite
 values; TYPEOF is refused, the diagram declaring every type) and, when

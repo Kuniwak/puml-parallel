@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N] [--progress SECONDS]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N] [--progress SECONDS] [--checkpoint FILE [--checkpoint-every SECONDS]] [--resume FILE]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -27,7 +27,7 @@ import argparse
 import json
 import sys
 
-from csdfbmc import parallel, progress
+from csdfbmc import checkpoint, parallel, progress
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened
 
 
@@ -120,17 +120,34 @@ def main(argv=None) -> int:
     ap.add_argument("--progress", type=float, default=30, metavar="SECONDS",
                     help="say on stderr every SECONDS how far the walk got: the states, the frontier, the depth, "
                          "the states per second, the field values tried and the valuations checked since the last line (default 30; 0 says nothing)")
+    ap.add_argument("--checkpoint", metavar="FILE",
+                    help="write the walk to FILE as it goes, every --checkpoint-every seconds and at its end, for --resume to take up")
+    ap.add_argument("--checkpoint-every", type=float, default=60, metavar="SECONDS",
+                    help="with --checkpoint, write it at most every SECONDS (default 60)")
+    ap.add_argument("--resume", metavar="FILE",
+                    help="take up the walk --checkpoint wrote to FILE, of the same inputs: it says what the whole walk says. "
+                         "FILE is a pickle, run as it is read: take up only those you wrote")
     a = ap.parse_args(argv)
     if a.jobs < 1:
         ap.error(f"--jobs expects a positive number, not {a.jobs}")
     if a.progress < 0:
         ap.error(f"--progress expects 0 or more seconds, not {a.progress:g}")
+    if a.checkpoint_every < 0:
+        ap.error(f"--checkpoint-every expects 0 or more seconds, not {a.checkpoint_every:g}")
 
     try:
         with opened(a) as (diagram, checks, client, environment):
             walk = explorer(a, diagram, checks, client, environment)
+            digest = checkpoint.fingerprint(a) if a.checkpoint or a.resume else None
+            resume = checkpoint.loads(checkpoint.load(a.resume, digest), diagram.edges) if a.resume else None
+            saving = None
+            if a.checkpoint:
+                saving = checkpoint.Every(a.checkpoint_every,
+                                          lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
             with parallel.expanding(a, diagram, a.jobs) as expand_all, progress.reporting(sys.stderr, a.progress) as said:
-                result = walk.run(expand_all, said)
+                result = walk.run(expand_all, said, resume=resume, checkpoint=saving)
+            if saving is not None:
+                saving.flush()
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

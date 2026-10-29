@@ -217,6 +217,38 @@ class Expansion:
     checked: int = 0
 
 
+@dataclass
+class Walk:
+    """What the walk (Explorer.run) learnt so far: the states it met and in
+    which order, how it reached each, its queue and how far it expanded it,
+    and what it found."""
+    # parents: state -> (previous state, event as taken, the edge) or None for
+    # a start state.
+    parents: dict[State, tuple[State, str, Edge] | None] = field(default_factory=dict)
+    order: list[State] = field(default_factory=list)
+    queue: list[State] = field(default_factory=list)
+    # i: the states of the queue expanded.
+    i: int = 0
+    tau_next: dict[State, list[State]] = field(default_factory=dict)
+    avoid_next: dict[State, list[State]] = field(default_factory=dict)
+    deadlocks: list[State] = field(default_factory=list)
+    bound_reached: list[tuple[State, str]] = field(default_factory=list)
+    violations: list[tuple[str, State]] = field(default_factory=list)
+    truncated: bool = False
+    # met: a state as stored (its representative under symmetry) -> the
+    # state the walk met first and expands.
+    met: dict[State, State] = field(default_factory=dict)
+    depth: dict[State, int] = field(default_factory=dict)
+    # The posts that admitted no successor (Explorer.empty_posts).
+    empty_posts: list[tuple[State, str]] = field(default_factory=list)
+    stats: dict[int, EdgeStats] | None = None
+    # The functions the environment decided, in order, and the values tried
+    # and checked (Explorer.tried, Explorer.checked), when it was saved.
+    decided: list[str] = field(default_factory=list)
+    tried: int = 0
+    checked: int = 0
+
+
 class Explorer:
     """Enumerates the states a diagram can reach (docs/CLAUSE_DESIGN.md, O7).
 
@@ -596,63 +628,58 @@ class Explorer:
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
-    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None, progress=None) -> Result:
+    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None, progress=None,
+            resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None) -> Result:
         """The walk. expand_all expands the states of the queue not yet
         expanded, in order (Explorer.expand, one at a time by default); the
         walk may stop before taking them all. progress, when given, is
         updated with the counts after each state expanded
-        (csdfbmc.progress.Progress)."""
+        (csdfbmc.progress.Progress). resume is a walk to take up, as
+        checkpoint was given it after a state of a walk of the same inputs:
+        checkpoint is given the walk after each state, as it is then; it
+        is the same Walk, changed as the walk goes on (csdfbmc.checkpoint)."""
         # Workers count the values they try and check apart; this walk counts
         # them as it tries them, so that a state it is stuck in shows.
         workers = expand_all is not None
         if expand_all is None:
             expand_all = functools.partial(map, self.expand)
-        self.tried = self.checked = 0
-        self.empty_posts = []
+        w = resume if resume is not None else Walk()
+        self.tried, self.checked = w.tried, w.checked
+        self.empty_posts = w.empty_posts
         self.meaning.decided.clear()
+        self.meaning.decided.update(dict.fromkeys(w.decided))
         if self.stats is not None:
-            self.stats = {}
-        parents: dict[State, tuple[State, str, Edge] | None] = {}
-        order: list[State] = []
-        queue: list[State] = []
-        tau_next: dict[State, list[State]] = {}
-        avoid_next: dict[State, list[State]] = {}
-        deadlocks: list[State] = []
-        bound_reached: list[tuple[State, str]] = []
-        violations: list[tuple[str, State]] = []
-        truncated = False
-        # met: a state as stored (its representative under symmetry) -> the
-        # state the walk met first and expands.
-        met: dict[State, State] = {}
-        depth: dict[State, int] = {}
+            if w.stats is None:
+                w.stats = {}
+            self.stats = w.stats
 
         key = self.canonical
 
         def known(s: State) -> bool:
-            return key(s) in met
+            return key(s) in w.met
 
         def visit(s: State, d: int):
-            met[key(s)] = s
-            depth[s] = d
-            parents.setdefault(s, None)
-            order.append(s)
-            queue.append(s)
+            w.met[key(s)] = s
+            w.depth[s] = d
+            w.parents.setdefault(s, None)
+            w.order.append(s)
+            w.queue.append(s)
             for name in self._check_invariants(s):
-                violations.append((name, s))
+                w.violations.append((name, s))
 
-        for s in self.initial():
-            if not known(s):
-                visit(s, 0)
+        if resume is None:
+            for s in self.initial():
+                if not known(s):
+                    visit(s, 0)
 
         stopped = False
-        i = 0
-        while i < len(queue) and not stopped:
-            for s, x in zip(queue[i:], expand_all(queue[i:])):
-                i += 1
+        while w.i < len(w.queue) and not stopped:
+            for s, x in zip(w.queue[w.i:], expand_all(w.queue[w.i:])):
+                w.i += 1
                 if workers:
                     self.tried += x.tried
                     self.checked += x.checked
-                if self.first and violations:
+                if self.first and w.violations:
                     stopped = True
                     break
                 self.empty_posts.extend((s, label) for label in x.empty_posts)
@@ -664,35 +691,38 @@ class Explorer:
                 succ = self.ample(s, x.transitions, known)
                 if not succ and not x.can_end:
                     if x.witness is not None:
-                        bound_reached.append((s, x.witness))
+                        w.bound_reached.append((s, x.witness))
                     else:
-                        deadlocks.append(s)
+                        w.deadlocks.append(s)
                         if self.first:
                             stopped = True
                             break
                 for _, label, t, edge, _ in succ:
                     if known(t):
                         continue
-                    if len(order) >= self.max_states:
-                        truncated = True
+                    if len(w.order) >= self.max_states:
+                        w.truncated = True
                         continue
-                    parents[t] = (s, label, edge)
-                    visit(t, depth[s] + 1)
-                tau_next[s] = [met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
+                    w.parents[t] = (s, label, edge)
+                    visit(t, w.depth[s] + 1)
+                w.tau_next[s] = [w.met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
                 if self.avoid is not None and (self.within is None or s[0] in self.within):
-                    avoid_next[s] = [met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
+                    w.avoid_next[s] = [w.met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
                 if progress is not None:
-                    progress.update(visited=len(order), frontier=len(queue) - i, depth=depth[s], tried=self.tried, checked=self.checked)
+                    progress.update(visited=len(w.order), frontier=len(w.queue) - w.i, depth=w.depth[s], tried=self.tried, checked=self.checked)
+                if checkpoint is not None:
+                    w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
+                    checkpoint(w)
 
         return Result(
-            states=order, parents=parents, deadlocks=deadlocks,
-            tau_cycles=_cycles(order, tau_next) if not stopped else [],
-            truncated=truncated, bound=self.max_states,
+            states=w.order, parents=w.parents, deadlocks=w.deadlocks,
+            tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
+            truncated=w.truncated, bound=self.max_states,
             environment={**self.environment.to_json(), "decided": list(self.meaning.decided)},
-            violations=violations,
-            avoiding_cycles=_cycles(order, avoid_next) if self.avoid is not None and not stopped else [],
+            violations=w.violations,
+            avoiding_cycles=_cycles(w.order, w.avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
-            empty_posts=self.empty_posts, stopped_early=stopped, bound_reached=bound_reached,
+            empty_posts=self.empty_posts, stopped_early=stopped, bound_reached=w.bound_reached,
             left_out=self.left_out,
             stats=None if self.stats is None else [
                 self.stats[i].to_json(self.d.edges[i]) for i in sorted(self.stats, key=lambda i: (-self.stats[i].checked, i))],
