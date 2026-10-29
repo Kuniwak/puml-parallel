@@ -1171,7 +1171,9 @@ csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values
 `--checkpoint FILE` writes the walk to FILE as it goes, at most every
 `--checkpoint-every` seconds (60 by default) and at its end, to a file
 beside it put in its place, so that a walk stopped while writing leaves
-the one before. `--resume FILE` takes the walk up where it was and says
+the one before. Where the system forks (macOS, Linux), a child forked for
+it writes the walk while the walk goes on, sharing its memory until the
+walk changes it. `--resume FILE` takes the walk up where it was and says
 what the whole walk would have, with workers or without:
 
 ```console

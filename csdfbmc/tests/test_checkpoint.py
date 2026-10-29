@@ -64,3 +64,51 @@ class CheckpointOptionTest(unittest.TestCase):
         # Assert
         self.assertEqual(2, code)
         self.assertIn("was written for other inputs", err)
+
+
+class EveryTest(unittest.TestCase):
+    def setUp(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        self.path = os.path.join(d.name, "written")
+
+    def write(self, w):
+        import time
+        with open(self.path, "a") as f:
+            f.write(f"{w}\n")
+        time.sleep(0.3)
+
+    def written(self):
+        with open(self.path) as f:
+            return f.read().split()
+
+    @unittest.skipUnless(hasattr(os, "fork"), "needs fork")
+    def test_a_write_due_while_the_last_is_going_on_waits_for_the_next(self):
+        # Setup
+        clock = type("Clock", (), {"now": 0.0, "__call__": lambda self: self.now})()
+        every = checkpoint.Every(5, self.write, clock)
+        clock.now = 10
+        every("first")
+        clock.now = 20
+
+        # Execute
+        every("second")
+        every.flush()
+
+        # Assert
+        self.assertEqual(["first", "second"], self.written())
+
+    def test_without_fork_it_writes_in_the_walk(self):
+        # Setup
+        clock = type("Clock", (), {"now": 0.0, "__call__": lambda self: self.now})()
+        every = checkpoint.Every(5, self.write, clock, fork=False)
+        clock.now = 10
+        every("first")
+        clock.now = 20
+
+        # Execute
+        every("second")
+        every.flush()
+
+        # Assert
+        self.assertEqual(["first", "second", "second"], self.written())

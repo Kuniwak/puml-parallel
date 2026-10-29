@@ -21,6 +21,8 @@ import json
 import os
 import pickle
 import time
+import traceback
+import warnings
 from collections.abc import Callable
 
 from csdfbmc.explore import Walk
@@ -81,20 +83,63 @@ def load(path: str, digest: str) -> bytes:
 
 class Every:
     """Writes the walk it is given (Explorer.run's checkpoint) with write,
-    at most every seconds; flush writes the last given."""
+    at most every seconds; flush writes the last given, once the write
+    going on is done.
 
-    def __init__(self, seconds: float, write: Callable[[Walk], None], clock: Callable[[], float] = time.monotonic):
-        self.seconds, self.write, self.clock = seconds, write, clock
+    With fork, a write runs in a child forked for it, which shares the
+    walk's memory until the walk changes it: the walk goes on at once
+    instead of waiting for a write of all it met. A write due while the
+    last is going on waits for the next state."""
+
+    def __init__(self, seconds: float, write: Callable[[Walk], None], clock: Callable[[], float] = time.monotonic,
+                 fork: bool = hasattr(os, "fork")):
+        self.seconds, self.write, self.clock, self.fork = seconds, write, clock, fork
         self.last = clock()
         self.walk: Walk | None = None
+        self.child: int | None = None
 
     def __call__(self, w: Walk) -> None:
         self.walk = w
         now = self.clock()
-        if now - self.last >= self.seconds:
+        if now - self.last < self.seconds or self._writing():
+            return
+        if self.fork:
+            self._fork(w)
+        else:
             self.write(w)
-            self.last = now
+        self.last = now
 
     def flush(self) -> None:
+        self._wait()
         if self.walk is not None:
             self.write(self.walk)
+
+    def _fork(self, w: Walk) -> None:
+        with warnings.catch_warnings():
+            # The child only writes w: it takes no lock another thread holds.
+            warnings.simplefilter("ignore", DeprecationWarning)
+            pid = os.fork()
+        if pid == 0:
+            code = 0
+            try:
+                self.write(w)
+            except BaseException:  # noqa: BLE001 - said, and the walk goes on
+                traceback.print_exc()
+                code = 1
+            finally:
+                os._exit(code)
+        self.child = pid
+
+    def _writing(self) -> bool:
+        if self.child is None:
+            return False
+        pid, _ = os.waitpid(self.child, os.WNOHANG)
+        if pid == 0:
+            return True
+        self.child = None
+        return False
+
+    def _wait(self) -> None:
+        if self.child is not None:
+            os.waitpid(self.child, 0)
+            self.child = None
