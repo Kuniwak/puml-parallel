@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--jobs N]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -83,6 +83,15 @@ def print_every(result) -> None:
         print(f"post admits no successor: {label} at {result.describe(s)}, after {result.trace_to(s)}")
 
 
+def print_stats(stats: list[dict]) -> None:
+    """What each edge took, the most valuations checked first."""
+    print("stats per edge, most valuations checked first:")
+    for s in stats:
+        ranged = f"; ranged over their types: {', '.join(s['ranged'])}" if s["ranged"] else ""
+        print(f"  {s['edge']}: tried {s['tried']}, guard held {s['guard_held']}, valuations checked {s['checked']}, "
+              f"successors {s['successors']}{ranged}")
+
+
 def print_environment(env: dict) -> None:
     """What reproduces the run: the functions given, then the
     functions the environment decided a clause by."""
@@ -104,6 +113,8 @@ def main(argv=None) -> int:
     ap.add_argument("--por", action="store_true", help="take the transitions of an instance that moves independently alone: fewer states, the same findings")
     ap.add_argument("--symmetry", action="store_true", help="store a state by one renaming of the IDs of the types the checks module's SYMMETRIC lists: fewer states, the same findings")
     ap.add_argument("--cone", action="store_true", help="leave out the variables outside the cone of influence: fewer states, the same findings")
+    ap.add_argument("--stats", action="store_true",
+                    help="say, per edge, how many values it tried and checked, and what nothing determined, which ranged over its type")
     ap.add_argument("--jobs", type=int, default=1, metavar="N",
                     help="expand the states in N worker processes, each loading the inputs and the glue anew (default 1): the same walk, sooner when it is large")
     a = ap.parse_args(argv)
@@ -140,6 +151,8 @@ def main(argv=None) -> int:
         else:
             print_groups(result)
         print_environment(result.environment)
+        if result.stats is not None:
+            print_stats(result.stats)
     found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles
     return 1 if found else 0
 

@@ -24,6 +24,7 @@ determines a value is an optimisation of the meaning, never a part of it.
 from __future__ import annotations
 
 import itertools
+from dataclasses import dataclass, field
 from collections.abc import Mapping
 from typing import Callable, Protocol
 
@@ -152,6 +153,15 @@ class _Absent:
 ABSENT = _Absent()
 
 
+@dataclass
+class Tally:
+    """What solving posts took (csdfbmc --stats): the valuations after the
+    step it checked against the whole post, and what nothing determined,
+    which ranged over its type, as a message names it."""
+    checked: int = 0
+    ranged: set[str] = field(default_factory=set)
+
+
 class PostError(ValueError):
     """A post that leaves part of the state after the step unconstrained in a
     way the walk cannot enumerate."""
@@ -208,7 +218,7 @@ def _join(joined: list[dict], options: list[dict]) -> list[dict]:
 
 def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
           types: Mapping[str, str], where: str, families: Mapping[str, Family],
-          left_out: frozenset[str] = frozenset()) -> list[dict]:
+          left_out: frozenset[str] = frozenset(), tally: Tally | None = None) -> list[dict]:
     """The valuations of names, the variables of the state after the step,
     that post allows from before. types gives the type the diagram declares
     of each variable, whose values ev.carrier gives; where names the edge in
@@ -218,13 +228,16 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
     influence, csdfbmc.cone) that no conjunct reads after the step and
     nothing determines holds LEFT_OUT instead of each value of its type,
     which the walk would keep at LEFT_OUT anyway; a type with no value
-    still admits no successor, and no type is still refused."""
+    still admits no successor, and no type is still refused. tally, when
+    given, is told what solving took."""
     out: list[dict] = []
     # The valuations found, by the kind_keys of their values in the order of
     # names (same_value's), so that one found again is told at once.
     seen: set[tuple] = set()
     for branch in _branches(post, (), ev.carrier):
-        for after in _solve_branch(ev, branch, names, before, types, where, families, left_out):
+        for after in _solve_branch(ev, branch, names, before, types, where, families, left_out, tally):
+            if tally is not None:
+                tally.checked += 1
             if all(ev._holds(f, before, after, bound) for f, bound in branch):
                 _check_instances(after, families, where)
                 key = tuple(kind_key(after[n]) for n in names)
@@ -234,7 +247,7 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
     return out
 
 
-def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, where, families, left_out) -> list[dict]:
+def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, where, families, left_out, tally) -> list[dict]:
     options: list[list[dict]] = []
     frames: dict[str, list[tuple]] = {}
     mentioned: set[tuple] = set()
@@ -261,7 +274,7 @@ def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, wher
             return []
     out = []
     for a in joined:
-        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families, _pruning(ev, branch, before), left_out))
+        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families, _pruning(ev, branch, before), left_out, tally))
     return out
 
 
@@ -347,7 +360,7 @@ def _loc_type(loc: tuple, types: Mapping[str, str], families: Mapping[str, Famil
 
 
 def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, families,
-              prune: Callable[[list[dict], set[str]], list[dict]], left_out: frozenset[str]) -> list[dict]:
+              prune: Callable[[list[dict], set[str]], list[dict]], left_out: frozenset[str], tally: Tally | None) -> list[dict]:
     """The valuations after the step that the assignment a to locations
     makes: none when a contradicts itself, and one per value of its type for
     a variable or a field of an instance nothing determines. An instance
@@ -355,7 +368,9 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
     state."""
     afters: list[dict] = [{}]
 
-    def typed(type_: str, what: str) -> list:
+    def typed(type_: str, what: str, ranged: bool = True) -> list:
+        if ranged and tally is not None:
+            tally.ranged.add(what)
         try:
             return ev.carrier(type_)
         except KeyError as e:
@@ -372,8 +387,9 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
         if x not in frames:
             if parts:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
-            values = typed(_loc_type(("var", x), types, families), f"{x}'")
-            if x in left_out and Strict(("var", x)) not in mentioned:
+            unread = x in left_out and Strict(("var", x)) not in mentioned
+            values = typed(_loc_type(("var", x), types, families), f"{x}'", ranged=not unread)
+            if unread:
                 # No conjunct reads x': its value is never looked at.
                 values = values[:1] and [LEFT_OUT]
             afters = prune([dict(f, **{x: v}) for f in afters for v in values], chosen)
