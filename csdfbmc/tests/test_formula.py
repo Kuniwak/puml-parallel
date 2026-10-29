@@ -10,7 +10,7 @@ from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Family, formula_of
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx, lit
-from csdfbmc.values import FrozenMap, Rec, same_value
+from csdfbmc.values import LEFT_OUT, FrozenMap, Rec, same_value
 
 TYPES = {"T": [1, 2], "n": [0, 1, 2], "p": [0, 1], "k": ["a", "b"], "cnt": [0, 1]}
 # Every map from the keys "a" and "b" to an instance open or closed with a
@@ -156,6 +156,37 @@ class SolveTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(want, got)
+
+    def test_a_variable_left_out_that_no_conjunct_reads_after_the_step_is_not_enumerated(self):
+        tests = {
+            "read by no conjunct": ([eq("n'", "x")], {"x": 1}, [{"n": 1, "q": LEFT_OUT}]),
+            "checked by a conjunct, so over its type": ([eq("n'", "x"), builtin("ne", "q'", "x")], {"x": 1},
+                                                        [{"n": 1, "q": 0}, {"n": 1, "q": 2}]),
+        }
+        for name, (post, before, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = solve(evaluator(), formula_of(post), ("n", "q"), before, {"n": "n", "q": "n"}, "the edge", FAMILIES,
+                            left_out=frozenset({"q"}))
+
+                # Assert
+                self.assertEqual(want, got)
+
+    def test_a_variable_left_out_of_an_empty_type_or_none_is_as_without_the_cone(self):
+        tests = {"an empty type": ({"q": "none_of"}, []), "no type": ({"q": "q"}, None)}
+        empty = Checks(types=dict(TYPES, none_of=[])).carrier
+        ev = Evaluator(AtomMeaning(fixture.glue(), environment.NONE, empty), empty, apply_given({}))
+        for name, (types, want) in tests.items():
+            with self.subTest(name):
+                def run():
+                    return solve(ev, formula_of([]), ("q",), {}, types, "the edge", FAMILIES, left_out=frozenset({"q"}))
+
+                # Execute, Assert
+                if want is None:
+                    with self.assertRaisesRegex(PostError, "no type 'q' in TYPES"):
+                        run()
+                else:
+                    self.assertEqual(want, run())
 
     def test_a_conjunct_after_one_that_is_false_is_not_evaluated(self):
         # Setup: the second conjunct, @in of what is no map, is an error

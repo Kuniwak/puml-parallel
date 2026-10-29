@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from typing import Callable, Protocol
 
 from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, free_names, is_primed
-from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, kind_key, same_value
+from csdfbmc.values import LEFT_OUT, FrozenMap, FrozenSet, Rec, Strict, kind_key, same_value
 
 
 class Missing(Exception):
@@ -207,19 +207,24 @@ def _join(joined: list[dict], options: list[dict]) -> list[dict]:
 
 
 def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
-          types: Mapping[str, str], where: str, families: Mapping[str, Family]) -> list[dict]:
+          types: Mapping[str, str], where: str, families: Mapping[str, Family],
+          left_out: frozenset[str] = frozenset()) -> list[dict]:
     """The valuations of names, the variables of the state after the step,
     that post allows from before. types gives the type the diagram declares
     of each variable, whose values ev.carrier gives; where names the edge in
     a refusal; families gives, for each map, what an instance in it may be:
     at a state @at gives, it holds exactly that state's variables, of the
-    types the family declares."""
+    types the family declares. A variable of left_out (outside the cone of
+    influence, csdfbmc.cone) that no conjunct reads after the step and
+    nothing determines holds LEFT_OUT instead of each value of its type,
+    which the walk would keep at LEFT_OUT anyway; a type with no value
+    still admits no successor, and no type is still refused."""
     out: list[dict] = []
     # The valuations found, by the kind_keys of their values in the order of
     # names (same_value's), so that one found again is told at once.
     seen: set[tuple] = set()
     for branch in _branches(post, (), ev.carrier):
-        for after in _solve_branch(ev, branch, names, before, types, where, families):
+        for after in _solve_branch(ev, branch, names, before, types, where, families, left_out):
             if all(ev._holds(f, before, after, bound) for f, bound in branch):
                 _check_instances(after, families, where)
                 key = tuple(kind_key(after[n]) for n in names)
@@ -229,7 +234,7 @@ def solve(ev: Evaluator, post: tuple, names: tuple[str, ...], before: Mapping,
     return out
 
 
-def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, where, families) -> list[dict]:
+def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, where, families, left_out) -> list[dict]:
     options: list[list[dict]] = []
     frames: dict[str, list[tuple]] = {}
     mentioned: set[tuple] = set()
@@ -256,7 +261,7 @@ def _solve_branch(ev: Evaluator, branch: list[tuple], names, before, types, wher
             return []
     out = []
     for a in joined:
-        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families, _pruning(ev, branch, before)))
+        out.extend(_assemble(ev, a, names, frames, mentioned, types, where, families, _pruning(ev, branch, before), left_out))
     return out
 
 
@@ -342,7 +347,7 @@ def _loc_type(loc: tuple, types: Mapping[str, str], families: Mapping[str, Famil
 
 
 def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, families,
-              prune: Callable[[list[dict], set[str]], list[dict]]) -> list[dict]:
+              prune: Callable[[list[dict], set[str]], list[dict]], left_out: frozenset[str]) -> list[dict]:
     """The valuations after the step that the assignment a to locations
     makes: none when a contradicts itself, and one per value of its type for
     a variable or a field of an instance nothing determines. An instance
@@ -367,7 +372,11 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
         if x not in frames:
             if parts:
                 raise PostError(f"{where}: the post gives {x}' only in part; say what the rest is with @frame or @update")
-            afters = prune([dict(f, **{x: v}) for f in afters for v in typed(_loc_type(("var", x), types, families), f"{x}'")], chosen)
+            values = typed(_loc_type(("var", x), types, families), f"{x}'")
+            if x in left_out and Strict(("var", x)) not in mentioned:
+                # No conjunct reads x': its value is never looked at.
+                values = values[:1] and [LEFT_OUT]
+            afters = prune([dict(f, **{x: v}) for f in afters for v in values], chosen)
             continue
         kept = _kept(frames[x])
         if kept is None:
