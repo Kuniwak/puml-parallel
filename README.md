@@ -1155,6 +1155,19 @@ stats per edge, most valuations checked first:
   idle --> printing : 印刷?枚数 (line 23): tried 2160, guard held 632, valuations checked 632, successors 632; ranged over their types: ?枚数
 ```
 
+`--progress SECONDS` says on stderr, every SECONDS (30 by default; 0 says
+nothing), how far the walk got: the states it met, the frontier (those met
+but not yet expanded), the depth, the states per second, the field
+values tried and the valuations checked since the last line, and the time
+spent. A walk whose states per second fall while the values tried or
+checked stay high is stuck
+enumerating a transition (see `--stats`); one whose frontier keeps growing
+meets ever more states:
+
+```console
+csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values tried and 86280 valuations checked in the last 1s, 0:00:02 elapsed
+```
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.

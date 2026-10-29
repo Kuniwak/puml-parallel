@@ -60,6 +60,8 @@ Checker options (the checker's --help lists them in full):
                        result is the same as with one
   --stats              say per edge how many values it tried and checked,
                        and what ranged over its type
+  --progress SECONDS   say on stderr every SECONDS how far the walk got
+                       (default 30; 0 says nothing)
 
 The checks module defines TYPES (a type the diagram declares -> its finite
 values; TYPEOF is refused, the diagram declaring every type) and, when
