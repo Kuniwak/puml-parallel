@@ -1168,6 +1168,23 @@ meets ever more states:
 csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values tried and 86280 valuations checked in the last 1s, 0:00:02 elapsed
 ```
 
+`--checkpoint FILE` writes the walk to FILE as it goes, at most every
+`--checkpoint-every` seconds (60 by default) and at its end, to a file
+beside it put in its place, so that a walk stopped while writing leaves
+the one before. `--resume FILE` takes the walk up where it was and says
+what the whole walk would have, with workers or without:
+
+```console
+$ csdfbmc big.json checks.py --evaluator-module csdfbmc.python_glue --checkpoint walk.ckpt
+^C
+$ csdfbmc big.json checks.py --evaluator-module csdfbmc.python_glue --resume walk.ckpt --checkpoint walk.ckpt
+```
+
+A checkpoint names the diagram, the checks module and the options that
+change the walk it was written for, and is refused for others; a glue
+that reads its atoms otherwise is not told. A checkpoint is a Python
+pickle, which runs code as it is read: take up only those you wrote.
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.

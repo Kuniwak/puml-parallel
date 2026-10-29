@@ -242,6 +242,11 @@ class Walk:
     # The posts that admitted no successor (Explorer.empty_posts).
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
     stats: dict[int, EdgeStats] | None = None
+    # The functions the environment decided, in order, and the values tried
+    # and checked (Explorer.tried, Explorer.checked), when it was saved.
+    decided: list[str] = field(default_factory=list)
+    tried: int = 0
+    checked: int = 0
 
 
 class Explorer:
@@ -623,23 +628,30 @@ class Explorer:
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
-    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None, progress=None) -> Result:
+    def run(self, expand_all: Callable[[list[State]], Iterable[Expansion]] | None = None, progress=None,
+            resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None) -> Result:
         """The walk. expand_all expands the states of the queue not yet
         expanded, in order (Explorer.expand, one at a time by default); the
         walk may stop before taking them all. progress, when given, is
         updated with the counts after each state expanded
-        (csdfbmc.progress.Progress)."""
+        (csdfbmc.progress.Progress). resume is a walk to take up, as
+        checkpoint was given it after a state of a walk of the same inputs:
+        checkpoint is given the walk after each state, as it is then; it
+        is the same Walk, changed as the walk goes on (csdfbmc.checkpoint)."""
         # Workers count the values they try and check apart; this walk counts
         # them as it tries them, so that a state it is stuck in shows.
         workers = expand_all is not None
         if expand_all is None:
             expand_all = functools.partial(map, self.expand)
-        w = Walk()
-        self.tried = self.checked = 0
+        w = resume if resume is not None else Walk()
+        self.tried, self.checked = w.tried, w.checked
         self.empty_posts = w.empty_posts
         self.meaning.decided.clear()
+        self.meaning.decided.update(dict.fromkeys(w.decided))
         if self.stats is not None:
-            self.stats = w.stats = {}
+            if w.stats is None:
+                w.stats = {}
+            self.stats = w.stats
 
         key = self.canonical
 
@@ -655,9 +667,10 @@ class Explorer:
             for name in self._check_invariants(s):
                 w.violations.append((name, s))
 
-        for s in self.initial():
-            if not known(s):
-                visit(s, 0)
+        if resume is None:
+            for s in self.initial():
+                if not known(s):
+                    visit(s, 0)
 
         stopped = False
         while w.i < len(w.queue) and not stopped:
@@ -697,6 +710,9 @@ class Explorer:
                     w.avoid_next[s] = [w.met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
                 if progress is not None:
                     progress.update(visited=len(w.order), frontier=len(w.queue) - w.i, depth=w.depth[s], tried=self.tried, checked=self.checked)
+                if checkpoint is not None:
+                    w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
+                    checkpoint(w)
 
         return Result(
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
