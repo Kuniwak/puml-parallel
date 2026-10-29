@@ -11,6 +11,7 @@ walks without workers, in the same order, and reports the same.
 from __future__ import annotations
 
 import argparse
+import collections
 import contextlib
 import multiprocessing
 from collections.abc import Callable, Iterable, Iterator
@@ -26,6 +27,12 @@ _explorer = None
 _failed: Exception | None = None
 _index: dict[int, int] = {}
 _stack = contextlib.ExitStack()
+
+# The states a task expands, and the tasks given out ahead of the walk per
+# worker: small enough that the walk soon has the first of them, enough to
+# keep every worker busy.
+CHUNK = 8
+AHEAD = 4
 
 
 def _start(a: argparse.Namespace) -> None:
@@ -53,6 +60,10 @@ def _expand(state: State) -> Expansion | Exception:
     return x
 
 
+def _expand_chunk(states: list[State]) -> list[Expansion | Exception]:
+    return [_expand(s) for s in states]
+
+
 def _received(x: Expansion | Exception, edges: list) -> Expansion:
     if isinstance(x, Exception):
         raise x
@@ -61,15 +72,28 @@ def _received(x: Expansion | Exception, edges: list) -> Expansion:
 
 
 @contextlib.contextmanager
-def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int) -> Iterator[Callable[[list[State]], Iterable[Expansion]] | None]:
+def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int) -> Iterator[Callable[[list[State], int], Iterable[Expansion]] | None]:
     """What expands the walk's states in jobs workers (Explorer.run's
     expand_all), each building its walk of the arguments a; None, the walk's
-    own expansion, for one job. The workers stop on leaving."""
+    own expansion, for one job. The workers stop on leaving.
+
+    The states are given out in chunks of CHUNK, AHEAD per worker ahead of
+    the walk, as the walk adds them, and taken back in order: a level of
+    the walk follows the one before without waiting for the workers to
+    start on it."""
     if jobs == 1:
         yield None
         return
     with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start, initargs=(a,)) as pool:
-        def expand_all(states: list[State]) -> Iterable[Expansion]:
-            chunk = max(1, len(states) // (jobs * 4))
-            return (_received(x, diagram.edges) for x in pool.imap(_expand, states, chunk))
+        def expand_all(queue: list[State], start: int) -> Iterator[Expansion]:
+            pending: collections.deque = collections.deque()
+            given = start
+            while True:
+                while len(pending) < jobs * AHEAD and given < len(queue):
+                    pending.append(pool.apply_async(_expand_chunk, (queue[given:given + CHUNK],)))
+                    given = min(given + CHUNK, len(queue))
+                if not pending:
+                    return
+                for x in pending.popleft().get():
+                    yield _received(x, diagram.edges)
         yield expand_all
