@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
+from csdfbmc.values import LEFT_OUT, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -130,6 +130,29 @@ class KindTest(unittest.TestCase):
         for name, count in tests.items():
             with self.subTest(name):
                 self.assertEqual(3, count())
+
+    def test_a_plain_value_is_keyed_by_its_own_type(self):
+        import enum
+
+        class Level(enum.IntEnum):
+            LOW = 1
+
+        class Name(str):
+            pass
+
+        tests = {
+            "an int": (1, (int, 1)),
+            "a bool": (True, (bool, True)),
+            "a string": ("a", (str, "a")),
+            "None": (None, (type(None), None)),
+            "a negative zero": (-0.0, (float, 0.0)),
+            "an int of a subclass": (Level.LOW, (Level, Level.LOW)),
+            "a string of a subclass": (Name("a"), (Name, "a")),
+        }
+        for name, (value, key) in tests.items():
+            with self.subTest(name):
+                self.assertEqual(key, kind_key(value))
+                self.assertIs(key[0], kind_key(value)[0])
 
     def test_a_map_reads_the_entry_of_the_key_of_its_kind(self):
         m = FrozenMap([(1, "a"), (True, "b")])
