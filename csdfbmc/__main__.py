@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--jobs N]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -27,8 +27,8 @@ import argparse
 import json
 import sys
 
-from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened, reductions
-from csdfbmc.explore import Explorer
+from csdfbmc import parallel
+from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened
 
 
 # The reductions, by their options: each walks fewer states and finds the
@@ -104,14 +104,17 @@ def main(argv=None) -> int:
     ap.add_argument("--por", action="store_true", help="take the transitions of an instance that moves independently alone: fewer states, the same findings")
     ap.add_argument("--symmetry", action="store_true", help="store a state by one renaming of the IDs of the types the checks module's SYMMETRIC lists: fewer states, the same findings")
     ap.add_argument("--cone", action="store_true", help="leave out the variables outside the cone of influence: fewer states, the same findings")
+    ap.add_argument("--jobs", type=int, default=1, metavar="N",
+                    help="expand the states in N worker processes, each loading the inputs and the glue anew (default 1): the same walk, sooner when it is large")
     a = ap.parse_args(argv)
+    if a.jobs < 1:
+        ap.error(f"--jobs expects a positive number, not {a.jobs}")
 
     try:
         with opened(a) as (diagram, checks, client, environment):
-            result = Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
-                              within=a.within, first=a.first,
-                              **reductions(diagram, checks, client, environment, cone=a.cone, por=a.por,
-                                           avoid=a.avoid, symmetry=a.symmetry)).run()
+            walk = explorer(a, diagram, checks, client, environment)
+            with parallel.expanding(a, diagram, a.jobs) as expand_all:
+                result = walk.run(expand_all)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

@@ -1,8 +1,9 @@
 """Hashable values for records and finite partial functions, and the builders
 that enumerate their domains from the domains of their fields."""
+import pickle
 import unittest
 
-from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
+from csdfbmc.values import LEFT_OUT, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -172,3 +173,30 @@ class KindTest(unittest.TestCase):
 
         # Assert
         self.assertFalse(found)
+
+
+class PickleTest(unittest.TestCase):
+    """A state crosses to a worker process (csdfbmc --jobs) and back as it was."""
+
+    def test_a_state_is_the_same_state_after_a_round_trip(self):
+        tests = {
+            "a map of instances": FrozenMap({"t1": Rec("open", FrozenMap(優先度=1)), True: 1}),
+            "a set": FrozenSet([1, True, 1.0]),
+            "a state": Strict(("a", (FrozenMap({1: "x"}), True), (1,))),
+        }
+        for name, value in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = pickle.loads(pickle.dumps(value))
+
+                # Assert
+                self.assertEqual(type(value), type(got))
+                self.assertTrue(same_value(value, got))
+                self.assertEqual(hash(value), hash(got))
+
+    def test_left_out_stays_the_one_value(self):
+        # Execute
+        got = pickle.loads(pickle.dumps(Strict((LEFT_OUT,))))
+
+        # Assert
+        self.assertIs(LEFT_OUT, got[0])

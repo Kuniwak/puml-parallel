@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from typing import Iterator
 
 from csdfbmc import cone as cones
-from csdfbmc.explore import as_met, every_transition
+from csdfbmc.explore import Explorer, as_met, every_transition
 from csdfbmc.por import PartialOrder
 from csdfbmc.symmetry import Symmetry
 from csdfbmc.model import Diagram
@@ -80,3 +80,11 @@ def reductions(diagram: Diagram, checks: Checks, client, environment: Environmen
     return {"left_out": cones.left_out(diagram, checks) if cone else (),
             "ample": PartialOrder(diagram, checks, avoid).ample if por else every_transition,
             "canonical": Symmetry(diagram, checks, client, environment).canonical if symmetry else as_met}
+
+
+def explorer(a: argparse.Namespace, diagram: Diagram, checks: Checks, client, environment: Environment) -> Explorer:
+    """The walk csdfbmc's parsed arguments ask for, of what opened gives."""
+    return Explorer(diagram, checks, client, environment=environment, max_states=a.max_states, avoid=a.avoid,
+                    within=a.within, first=a.first,
+                    **reductions(diagram, checks, client, environment, cone=a.cone, por=a.por,
+                                 avoid=a.avoid, symmetry=a.symmetry))
