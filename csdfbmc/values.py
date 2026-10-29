@@ -25,6 +25,14 @@ def kind_key(value):
     Literals), so -0.0 and 0.0 have one key. Every value a state holds, every
     key and element of a map or set, and every state is compared and hashed
     by its kind_key."""
+    # Most values are plain: keyed at once, before the checks of the
+    # containers, which the abstract ones make slow. A subclass goes the
+    # long way and is keyed alike.
+    t = type(value)
+    if t is str or t is int or t is bool or value is None:
+        return (t, value)
+    if t is float:
+        return (float, value + 0.0)
     if isinstance(value, Rec):
         return (Rec, value.state, kind_key(value.fields))
     if isinstance(value, FrozenMap):
