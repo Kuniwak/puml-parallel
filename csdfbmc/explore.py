@@ -358,7 +358,7 @@ class Explorer:
     def _successor_values(self, post: tuple, before: dict, dst: str, where: str) -> list[tuple]:
         names = self.d.vars[dst]
         out: dict = {}
-        for a in solve(self.ev, post, names, before, self.d.types, where, self.d.families):
+        for a in solve(self.ev, post, names, before, self.d.types, where, self.d.families, frozenset(self.left_out)):
             v = tuple(LEFT_OUT if n in self.left_out else freeze(a[n]) for n in names)
             out.setdefault(kind_key(v), v)
         return list(out.values())
