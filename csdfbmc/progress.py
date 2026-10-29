@@ -1,8 +1,9 @@
 """How far csdfbmc's walk got, said on stderr every so many seconds
 (--progress): the states it met, the frontier, the depth, the states per
-second and the field values tried since the last line, and the time spent.
-The field values tried tell a walk stuck enumerating a transition from one
-whose states grow: the first tries many while it meets few states.
+second, the field values tried and the valuations checked since the
+last line, and the time spent.
+The values tried and checked tell a walk stuck enumerating a transition
+from one whose states grow: the first tries many while it meets few states.
 """
 from __future__ import annotations
 
@@ -21,22 +22,22 @@ class Progress:
     def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic):
         self.out, self.clock = out, clock
         self.started = self.last_time = clock()
-        self.visited = self.frontier = self.depth = self.tried = 0
-        self.last_visited = self.last_tried = 0
+        self.visited = self.frontier = self.depth = self.tried = self.checked = 0
+        self.last_visited = self.last_tried = self.last_checked = 0
 
-    def update(self, visited: int, frontier: int, depth: int, tried: int) -> None:
-        self.visited, self.frontier, self.depth, self.tried = visited, frontier, depth, tried
+    def update(self, visited: int, frontier: int, depth: int, tried: int, checked: int) -> None:
+        self.visited, self.frontier, self.depth, self.tried, self.checked = visited, frontier, depth, tried, checked
 
     def report(self) -> None:
         now = self.clock()
-        visited, tried = self.visited, self.tried
+        visited, tried, checked = self.visited, self.tried, self.checked
         span = now - self.last_time
         rate = (visited - self.last_visited) / span if span > 0 else 0.0
         elapsed = int(now - self.started)
         print(f"csdfbmc: {visited} states, frontier {self.frontier}, depth {self.depth}, {rate:.1f} states/s, "
-              f"{tried - self.last_tried} field values tried in the last {span:.0f}s, "
+              f"{tried - self.last_tried} field values tried and {checked - self.last_checked} valuations checked in the last {span:.0f}s, "
               f"{elapsed // 3600}:{elapsed // 60 % 60:02}:{elapsed % 60:02} elapsed", file=self.out, flush=True)
-        self.last_time, self.last_visited, self.last_tried = now, visited, tried
+        self.last_time, self.last_visited, self.last_tried, self.last_checked = now, visited, tried, checked
 
 
 @contextlib.contextmanager

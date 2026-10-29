@@ -211,8 +211,10 @@ class Expansion:
     decided: list[str]
     # What each edge took, by its index in the diagram; None unless asked for.
     stats: dict[int, EdgeStats] | None = None
-    # The field values tried (Explorer.tried).
+    # The field values tried and the valuations checked (Explorer.tried,
+    # Explorer.checked).
     tried: int = 0
+    checked: int = 0
 
 
 class Explorer:
@@ -279,9 +281,10 @@ class Explorer:
         self.canonical = canonical
         # stats: what each edge took, by its index, when asked for (EdgeStats).
         self.stats: dict[int, EdgeStats] | None = {} if stats else None
-        # tried: the field values the walk tried, summed over its edges
+        # tried, checked: the field values the walk tried and the valuations
+        # after a step it checked against a post, summed over its edges
         # (--progress).
-        self.tried = 0
+        self.tried = self.checked = 0
         self._edge_index = {id(e): i for i, e in enumerate(diagram.edges)}
         self._check_fields()
         self._check_exists()
@@ -468,8 +471,10 @@ class Explorer:
             if not self.ev.holds(e.guard, before):
                 continue
             label = self._label(e, before)
-            tally = Tally() if stats else None
+            tally = Tally()
             vals = self._successor_values(e.post, before, e.dst, where, tally)
+            if record:
+                self.checked += tally.checked
             if stats:
                 stats.guard_held += 1
                 stats.checked += tally.checked
@@ -578,7 +583,7 @@ class Explorer:
         end and, if not, the bound's witness. Asked in the order the walk
         asks them, so the same functions are decided."""
         decided, empty_posts, stats = self.meaning.decided, self.empty_posts, self.stats
-        tried = self.tried
+        tried, checked = self.tried, self.checked
         self.meaning.decided, self.empty_posts = {}, []
         if stats is not None:
             self.stats = {}
@@ -587,7 +592,7 @@ class Explorer:
             can_end = bool(transitions) or self.can_end(state)
             witness = None if can_end else self.bound_witness(state)
             return Expansion(transitions, can_end, witness, [label for _, label in self.empty_posts], list(self.meaning.decided),
-                             self.stats, self.tried - tried)
+                             self.stats, self.tried - tried, self.checked - checked)
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
@@ -597,12 +602,12 @@ class Explorer:
         walk may stop before taking them all. progress, when given, is
         updated with the counts after each state expanded
         (csdfbmc.progress.Progress)."""
-        # Workers count the field values they try apart; this walk counts
+        # Workers count the values they try and check apart; this walk counts
         # them as it tries them, so that a state it is stuck in shows.
         workers = expand_all is not None
         if expand_all is None:
             expand_all = functools.partial(map, self.expand)
-        self.tried = 0
+        self.tried = self.checked = 0
         self.empty_posts = []
         self.meaning.decided.clear()
         if self.stats is not None:
@@ -646,6 +651,7 @@ class Explorer:
                 i += 1
                 if workers:
                     self.tried += x.tried
+                    self.checked += x.checked
                 if self.first and violations:
                     stopped = True
                     break
@@ -676,7 +682,7 @@ class Explorer:
                 if self.avoid is not None and (self.within is None or s[0] in self.within):
                     avoid_next[s] = [met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
                 if progress is not None:
-                    progress.update(visited=len(order), frontier=len(queue) - i, depth=depth[s], tried=self.tried)
+                    progress.update(visited=len(order), frontier=len(queue) - i, depth=depth[s], tried=self.tried, checked=self.checked)
 
         return Result(
             states=order, parents=parents, deadlocks=deadlocks,

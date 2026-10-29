@@ -119,7 +119,7 @@ def main(argv=None) -> int:
                     help="expand the states in N worker processes, each loading the inputs and the glue anew (default 1): the same walk, sooner when it is large")
     ap.add_argument("--progress", type=float, default=30, metavar="SECONDS",
                     help="say on stderr every SECONDS how far the walk got: the states, the frontier, the depth, "
-                         "the states per second and the field values tried since the last line (default 30; 0 says nothing)")
+                         "the states per second, the field values tried and the valuations checked since the last line (default 30; 0 says nothing)")
     a = ap.parse_args(argv)
     if a.jobs < 1:
         ap.error(f"--jobs expects a positive number, not {a.jobs}")
