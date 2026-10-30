@@ -20,6 +20,11 @@ class PythonGlueAtomTest(unittest.TestCase):
         tests = {
             "two lists of values": (atom(["", " > ", ""], [0, 1], [False, False]), [[3, 2], [1, 2]], [True, False]),
             "no holes": (atom(["1 < 2"], [], []), [[]], [True]),
+            "holes read inside a generator expression": (
+                atom(["all(", "[k] == ", "[k] for k in ('a', 'b'))"], [0, 1], [False, False]),
+                [[{"a": 1, "b": 2}, {"a": 1, "b": 2}], [{"a": 1, "b": 2}, {"a": 1, "b": 3}]], [True, False]),
+            "holes read inside a comprehension": (
+                atom(["[x + ", " for x in (1, 2)] == [2, 3]"], [0], [False]), [[1], [2]], [True, False]),
         }
         for name, (a, values, want) in tests.items():
             with self.subTest(name):
