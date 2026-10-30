@@ -359,7 +359,7 @@ result:
 | Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
 | Q4 | Narrowed types for values | approximating the environment and bounded checking (O7) |
-| Q5 | The fields an equality builtin determines: `f = t` where f is a field of the event and t a term over the state and other determined fields | computing f instead of enumerating it (O7) |
+| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t` or `f[k] = t` where f is a field of the event, k a literal key and t a term over the state and other determined fields | computing f, or its part k, instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
 
@@ -383,7 +383,11 @@ Q5 is read only from builtins, never from atoms, whose text the tools do not
 interpret. It is more than speed: a field computed from its equality does
 not depend on its type, so bounded checking no longer misses a step because
 the value the state requires lies outside the declared type (an error of
-the Q4 approximation, not of the meaning).
+the Q4 approximation, not of the meaning). The parts of a record are values of their
+own: a part an equality determines is computed, and only the parts none
+determines range over their values, which a type built by `record` gives;
+a type that gives no parts is ranged over as a whole unless equalities
+determine every part.
 
 Natural language and formal languages fit the same frame (P15): an atom
 without a glue is an uninterpreted predicate of its arguments. There is no
