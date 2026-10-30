@@ -44,7 +44,9 @@ class Glue:
         if source not in self._compiled:
             check_pure(source, f"<atom {source!r}>")
             self._compiled[source] = compile(ast.parse(source, mode="eval"), f"<atom {source!r}>", "eval")
-        return eval(self._compiled[source], self.globals, dict(binding))
+        # The holes are globals, not locals, so that a comprehension or a
+        # generator expression, a scope of its own, reads them too.
+        return eval(self._compiled[source], {**self.globals, **binding})
 
     def atom_guard(self, atom: dict, values: list) -> bool:
         source, names = _atom_source(atom)
