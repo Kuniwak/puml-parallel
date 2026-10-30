@@ -50,6 +50,7 @@ def print_groups(result) -> None:
                 print(f"deadlock at {g['example']} after {g['trace']}")
             else:
                 print(f"deadlock{n} at {g['at']} after {g['after']}{first}")
+            print_stuck(g["stuck"])
         elif g["kind"] == "bound_reached":
             if g["count"] == 1:
                 print(f"bound reached at {g['example']} after {g['trace']}{beyond(g['witness'])}")
@@ -68,9 +69,26 @@ def print_groups(result) -> None:
             print(f"post admits no successor{n}: {g['event']} at {g['at']}{first}")
 
 
+def print_stuck(stuck: list[dict]) -> None:
+    """Why each edge out of a deadlock takes no step (Explorer.why_stuck)."""
+    for why in stuck:
+        if why["reason"] == "state":
+            text = f"guard false on the state: {why['conjunct']}"
+        elif why["reason"] == "post":
+            text = "the guard holds, but the post admits no successor"
+        elif why["conjunct"] is None:
+            text = f"no value of {', '.join('?' + f for f in why['fields'])} to try"
+        else:
+            text = f"no value of {', '.join('?' + f for f in why['fields'])} satisfies {why['conjunct']} (tried {why['tried']})"
+        if "hint" in why:
+            text += f"; {why['hint']}"
+        print(f"  stuck: {why['edge']}: {text}")
+
+
 def print_every(result) -> None:
     for s in result.deadlocks:
         print(f"deadlock at {result.describe(s)} after {result.trace_to(s)}")
+        print_stuck(result.stuck.get(s, []))
     for s, w in result.bound_reached:
         print(f"bound reached at {result.describe(s)} after {result.trace_to(s)}{beyond(w)}")
     for cycle in result.tau_cycles:

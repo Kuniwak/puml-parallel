@@ -837,6 +837,7 @@ $ csdfbmc printer_formal.json examples/bmc/printer_formal_defs.py \
     --evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"
 states: 22
 deadlock ×3 at printing after 印刷; first after ['印刷(枚数=3)']
+  stuck: printing --> idle : 排紙 (line 14): guard false on the state: 用紙 - 印刷枚数 >= WASTE
 ```
 
 The checker knows no language by name: it reads every atom through a glue,
@@ -988,6 +989,17 @@ Only the values listed in `beyond` are tried, no other value outside the
 sample: with `sample([0, 1, 2, 3], beyond=[4])`, a state whose way out
 needs 8, say a count a post has taken past the sample, is still reported as
 a deadlock. List such a value in `beyond`, or widen the sample.
+
+Under the first deadlock of each shape, a `stuck:` line per edge out of it
+says why the edge takes no step: `guard false on the state: C`, C the
+conjunct of the guard first false, which reads no field; `no value of ?x
+satisfies C (tried N)`, C the conjunct first false for the most of the N
+values of the fields tried; or `the guard holds, but the post admits no
+successor`. A field whose type is a plain list, not a sample, adds how to
+tell the bound from a deadlock. The conjuncts are evaluated in their order,
+each up to the first false, as a step evaluates them. In `--json`, the
+deadlock and its group carry `stuck`, a list of `{"edge", "reason"
+("state", "fields" or "post"), "fields", "conjunct", "tried", "hint"}`.
 
 This is sound with no restriction on how the diagram tells values apart. A
 state reported as the bound reached comes with a witness: a value of the

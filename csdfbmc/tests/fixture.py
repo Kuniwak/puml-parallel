@@ -223,7 +223,7 @@ def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
 def findings(result) -> set:
     """The findings of a walk by their shape, without their counts, traces
     or examples: what a reduction must leave as it is."""
-    return {tuple(sorted((k, tuple(v) if isinstance(v, list) else v) for k, v in g.items() if k not in ("count", "trace", "example")))
+    return {tuple(sorted((k, tuple(v) if isinstance(v, list) else v) for k, v in g.items() if k not in ("count", "trace", "example", "stuck")))
             for g in result.groups()}
 
 

@@ -108,6 +108,36 @@ def _positive_zero(v):
 Term = Free | Bound | Index | Field | App | Lit
 
 
+_INFIX = {"eq": "==", "ne": "!="}
+
+
+def show(t) -> str:
+    """A term or a clause as text for a message: a builtin @eq or @ne
+    infix, any other @op(args), an atom its text with its arguments."""
+    if isinstance(t, Free):
+        return t.name + ("'" if t.primed else "")
+    if isinstance(t, Bound):
+        return f"_{t.index}"
+    if isinstance(t, Index):
+        return f"{show(t.map)}[{show(t.key)}]"
+    if isinstance(t, Field):
+        return f"{show(t.of)}.{t.name}"
+    if isinstance(t, App):
+        return f"{t.fn}({', '.join(show(a) for a in t.args)})"
+    if isinstance(t, Lit):
+        return t.text
+    if isinstance(t, Builtin):
+        if t.op in _INFIX:
+            return f"{show(t.args[0])} {_INFIX[t.op]} {show(t.args[1])}"
+        state = [t.state] if t.state else []
+        return f"@{t.op}({', '.join([*(show(a) for a in t.args), *state])})"
+    if isinstance(t, Exists):
+        return f"@exists({t.type}) ({', '.join(show(c) for c in t.body)})"
+    if isinstance(t, Atom):
+        return t.text[0] + "".join(show(t.args[h]) + piece for h, piece in zip(t.holes, t.text[1:]))
+    raise TypeError(f"no text for {t!r}")
+
+
 @dataclass(frozen=True)
 class Atom:
     """An atom as a glue receives it, text and holes and which arguments are

@@ -99,7 +99,7 @@ func TestThePrinterExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
 				t.Fatalf("want exit status 1 (a deadlock found), got %v\n%s", err, out)
 			}
-			if want := "states: 22\ndeadlock ×3 at printing after 印刷; first after ['印刷(枚数=3)']\n"; string(out) != want {
+			if want := "states: 22\ndeadlock ×3 at printing after 印刷; first after ['印刷(枚数=3)']\n  stuck: printing --> idle : 排紙 (line 14): guard false on the state: 用紙 - 印刷枚数 >= WASTE\n"; string(out) != want {
 				t.Errorf("want the deadlock and its trace, got:\n%s", out)
 			}
 		})

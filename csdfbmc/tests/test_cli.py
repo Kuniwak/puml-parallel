@@ -278,7 +278,9 @@ class SampleReportTest(unittest.TestCase):
         tests = {
             "grouped": ((), (), 0, "states: 5\nbound reached ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']" + why + "\n"),
             "every one": (("--all",), (), 0, f"states: 5\nbound reached at {closed % 0}\nbound reached at {closed % 1}\n"),
-            "a deadlock when no value beyond enables a step": ((), (atom("$k != 'b'"),), 1, "states: 5\ndeadlock ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']\n"),
+            "a deadlock when no value beyond enables a step": ((), (atom("$k != 'b'"),), 1, "states: 5\ndeadlock ×2 at r after CLOSE; first after ['OPEN(k=a)', 'CLOSE(k=a)']\n"
+                "  stuck: r --> r : OPEN?k (line 0): no value of ?k satisfies @notin(k, m) (tried 1)\n"
+                "  stuck: r --> r : CLOSE?k (line 0): no value of ?k satisfies @at(m[k], open) (tried 1)\n"),
         }
         for name, (args, guard, want_code, want) in tests.items():
             with self.subTest(name):
