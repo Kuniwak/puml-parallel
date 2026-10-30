@@ -979,6 +979,11 @@ is no finding, so it does not set the exit status. Otherwise it is a
 deadlock. The values are only tried: the walk adds no state for them, so
 the state count is the same.
 
+Only the values listed in `beyond` are tried, no other value outside the
+sample: with `sample([0, 1, 2, 3], beyond=[4])`, a state whose way out
+needs 8, say a count a post has taken past the sample, is still reported as
+a deadlock. List such a value in `beyond`, or widen the sample.
+
 This is sound with no restriction on how the diagram tells values apart. A
 state reported as the bound reached comes with a witness: a value of the
 real type that gives the state a way out, so it is not a deadlock of the
