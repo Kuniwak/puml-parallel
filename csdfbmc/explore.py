@@ -13,9 +13,9 @@ from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Lit, conjuncts, free_names
+from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import LEFT_OUT, Strict, kind_key, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Strict, kind_key, record, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -445,21 +445,59 @@ class Explorer:
     def _determined(self, e: Edge, p: str, known: set[str]):
         """The term an equality builtin of e's guard determines the field p
         by, from the names known (Q5); None when none does."""
+        for x, y in self._equalities(e, known):
+            if x == Free(p):
+                return y
+        return None
+
+    def _determined_parts(self, e: Edge, p: str, known: set[str]) -> dict:
+        """The terms equality builtins of e's guard determine the parts of
+        the field p by, p[k] for a literal key k, from the names known (Q5),
+        by their keys."""
+        parts: dict = {}
+        for x, y in self._equalities(e, known):
+            if isinstance(x, Index) and x.map == Free(p) and isinstance(x.key, Lit):
+                parts.setdefault(x.key.value, y)
+        return parts
+
+    def _equalities(self, e: Edge, known: set[str]):
+        """Each side of an equality builtin of e's guard with the other, when
+        the other reads only the names known, before the step."""
         for c in e.guard:
             if isinstance(c, Builtin) and c.op == "eq":
                 for x, y in ((c.args[0], c.args[1]), (c.args[1], c.args[0])):
-                    if x == Free(p) and free_names(y, primed=False) <= known and not free_names(y, primed=True):
-                        return y
+                    if free_names(y, primed=False) <= known and not free_names(y, primed=True):
+                        yield x, y
+
+    def _record_parts(self, e: Edge, p: str, determined: dict) -> tuple[list, dict] | None:
+        """The keys of the records the field p ranges over, in order, and
+        the values each key no equality determines ranges over; None when
+        its type does not say them. A type record(…) says the values of each
+        part; a list of records that all have the keys determined, or the
+        type any, says those keys, all determined."""
+        t = self.d.field_type(e, p)
+        if t == ANY:
+            return list(determined), {}
+        values = self.checks.types.get(t)
+        if isinstance(values, Built) and values.build is record:
+            if not set(determined) <= set(values.parts):
+                return None
+            return list(values.parts), {k: list(v) for k, v in values.parts.items() if k not in determined}
+        if values and all(isinstance(v, FrozenMap) and set(v) == set(determined) for v in values):
+            return list(values[0]), {}
         return None
 
     def _offers(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[dict]:
         """The values of the fields e receives that the walk tries: each
-        ranges over its type, unless the guard determines it (Q5); ranged,
-        when given, is told each field that does, as ?name."""
+        ranges over its type, unless the guard determines it, or the parts of
+        a record it is, which the rest of the record ranges over (Q5);
+        ranged, when given, is told each field that ranges, as ?name."""
         alive: list[dict] = [{}]
         known = set(self.d.vars[state[0]])
         for p in e.params:
             term = self._determined(e, p, known)
+            parts = self._determined_parts(e, p, known) if term is None else {}
+            shape = self._record_parts(e, p, parts) if parts else None
             grown = []
             for params in alive:
                 if term is not None:
@@ -467,13 +505,29 @@ class Explorer:
                         grown.append(dict(params, **{p: self.ev.value(term, self._before(state, params), {}, ())}))
                     except Missing:
                         pass  # the guard reads an entry its map does not have: false
+                elif shape is not None:
+                    grown.extend(dict(params, **{p: r}) for r in self._records(state, params, parts, *shape))
                 else:
                     grown.extend(dict(params, **{p: v}) for v in self._field_values(e, p))
-                    if ranged is not None:
-                        ranged.add(f"?{p}")
+            if term is None and (shape is None or shape[1]) and ranged is not None:
+                ranged.add(f"?{p}")
             alive = grown
             known.add(p)
         return alive
+
+    def _records(self, state: State, params: dict, parts: dict, keys: list, ranging: dict) -> list:
+        """The records of the keys keys whose determined parts are those the
+        terms parts give and whose others range over ranging."""
+        before = self._before(state, params)
+        try:
+            computed = {k: self.ev.value(t, before, {}, ()) for k, t in parts.items()}
+        except Missing:
+            return []  # the guard reads an entry its map does not have: false
+        out = []
+        for combo in itertools.product(*ranging.values()):
+            chosen = {**dict(zip(ranging, combo)), **computed}
+            out.append(FrozenMap((k, chosen[k]) for k in keys))
+        return out
 
     def _field_values(self, e: Edge, p: str) -> list:
         """The values the field p of e ranges over: those of the type its

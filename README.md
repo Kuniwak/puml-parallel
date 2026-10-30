@@ -880,7 +880,12 @@ disagree admit no successor. A clause that reads an entry its map does not
 have (`m[k]` with `k` not in `m`) is false, never a default value. A field
 an event receives ranges over its type, except one an equality of the guard
 determines from the state and the fields before it (`@eq(x, n)`), which is
-computed, whatever its type holds. A sent field (`c!y`) sends the value `y`
+computed, whatever its type holds. So are the parts of a record field
+equalities of the guard determine (`@eq(w["count"], n)`, a literal key):
+the other parts range over their values in a type `record(…)`; a list of
+records, or the type `any`, gives no parts to range over, so the field is
+computed only when equalities determine every key its records have, and
+otherwise ranges over the type. A sent field (`c!y`) sends the value `y`
 has at the step. A field hidden by `csdfhide` is bound by `∃` in the guard
 and the post, and ranges over the type the `∃` names.
 

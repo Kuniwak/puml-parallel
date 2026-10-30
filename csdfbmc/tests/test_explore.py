@@ -171,6 +171,51 @@ class FieldTest(unittest.TestCase):
         # Assert
         self.assertEqual(["report(x=5)"], [label for _, label, _, _ in fixture.explorer(d).successors(result.states[0])])
 
+    def test_the_parts_of_a_record_field_equalities_of_the_guard_determine_are_computed(self):
+        # Setup: the count the state holds, 8, lies outside the record's part.
+        d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(8))], edges=[
+            edge("a", "a", "warn?w", guard=[eq(idx("w", lit("to")), "t"), eq(idx("w", lit("count")), "n")],
+                 post=[eq("t'", "t"), eq("n'", "n")])], types={"t": "T", "n": "N"}, channels={"warn": ["W"]})
+        tests = {
+            "a record": record(to=["p", "q"], count=[0, 1, 2, 3]),
+            "a list of records": [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(4)],
+        }
+        for name, w in tests.items():
+            with self.subTest(name):
+                checks = Checks(types={"T": ["p", "q"], "N": list(range(9)), "W": w})
+
+                # Execute
+                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", ("p", 8), ()))]
+
+                # Assert
+                self.assertEqual(["warn(w={'to': 'p', 'count': 8})"], labels)
+
+    def test_a_part_no_equality_determines_ranges_over_the_values_of_the_part(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(8))], edges=[
+            edge("a", "a", "warn?w", guard=[eq(idx("w", lit("count")), "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"warn": ["W"]})
+        checks = Checks(types={"N": list(range(9)), "W": record(to=["p", "q"], count=[0, 1])})
+
+        # Execute
+        labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8,), ()))]
+
+        # Assert
+        self.assertEqual(["warn(w={'to': 'p', 'count': 8})", "warn(w={'to': 'q', 'count': 8})"], labels)
+
+    def test_a_list_of_records_some_part_of_which_no_equality_determines_is_enumerated(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(8))], edges=[
+            edge("a", "a", "warn?w", guard=[eq(idx("w", lit("count")), "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"warn": ["W"]})
+        checks = Checks(types={"N": list(range(9)), "W": [FrozenMap({"to": "p", "count": c}) for c in range(4)]})
+
+        # Execute
+        labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8,), ()))]
+
+        # Assert
+        self.assertEqual([], labels)
+
     def test_a_sent_field_sends_the_value_the_step_binds(self):
         # Setup
         d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 3")], edges=[edge("a", "a", "show!n", post=[eq("n'", "n")])])
