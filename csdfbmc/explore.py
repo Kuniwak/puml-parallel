@@ -13,9 +13,9 @@ from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names
+from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Strict, kind_key, record, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -76,6 +76,9 @@ class Result:
     # stats: per edge, what the walk took (EdgeStats.to_json), the most
     # valuations checked first; None unless asked for.
     stats: list[dict] | None = None
+    # stuck: for the first deadlock of each shape (groups), why each edge
+    # out of it takes no step (Explorer.why_stuck).
+    stuck: dict[State, list[dict]] = field(default_factory=dict)
 
     def trace_to(self, state: State) -> list[str]:
         """The events from the start state to state, as the walk first reached it."""
@@ -111,7 +114,7 @@ class Result:
             "states": len(self.states),
             "truncated": self.truncated,
             "bound": self.bound,
-            "deadlocks": [at(s) for s in self.deadlocks],
+            "deadlocks": [{**at(s), **({"stuck": self.stuck[s]} if s in self.stuck else {})} for s in self.deadlocks],
             "bound_reached": [{"witness": w, **at(s)} for s, w in self.bound_reached],
             "tau_cycles": [{"cycle": [st(s) for s in cycle], **at(cycle[0])} for cycle in self.tau_cycles],
             "violations": [{"invariant": name, **at(s)} for name, s in self.violations],
@@ -146,7 +149,8 @@ class Result:
             return p[2].name if p is not None else ""
 
         for s in self.deadlocks:
-            add(("deadlock", s[0], last_event(s)), lambda s=s: {"kind": "deadlock", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s)})
+            add(("deadlock", s[0], last_event(s)), lambda s=s: {"kind": "deadlock", "at": s[0], "after": last_event(s), "trace": self.trace_to(s), "example": self.describe(s),
+                                                                "stuck": self.stuck.get(s, [])})
         for s, w in self.bound_reached:
             add(("bound_reached", s[0], last_event(s)), lambda s=s, w=w: {"kind": "bound_reached", "at": s[0], "after": last_event(s), "witness": w,
                                                                           "trace": self.trace_to(s), "example": self.describe(s)})
@@ -633,6 +637,61 @@ class Explorer:
             return "the end edge"
         return next(filter(None, (wider._enabling(state, e) for e in self.d.out_edges(state[0]))), None)
 
+    def why_stuck(self, state: State) -> list[dict]:
+        """Why each edge out of state takes no step, as JSON: the conjunct of
+        its guard first false on the state, when it reads no field
+        ("state"); else the conjunct first false for the most values of the
+        fields tried ("fields"), with a hint for a field whose type is a
+        plain list, which no value beyond a sample widens; or that the
+        guard holds and the post admits nothing ("post"). The conjuncts are
+        evaluated in their order, each up to the first false, as a step
+        evaluates them."""
+        out = []
+        for e in self.d.out_edges(state[0]):
+            offers = self._offers(state, e)
+            first_false: dict[int, int] = {}
+            held = False
+            for params in offers:
+                before = self._before(state, params)
+                i = next((i for i, c in enumerate(e.guard) if not self.ev.holds((c,), before)), None)
+                if i is None:
+                    held = True
+                else:
+                    first_false[i] = first_false.get(i, 0) + 1
+            why: dict = {"edge": e.describe()}
+            if held:
+                why["reason"] = "post"
+            elif first_false:
+                i = max(first_false, key=lambda i: (first_false[i], -i))
+                c = e.guard[i]
+                fields = [p for p in e.params if p in free_names(c, primed=False)]
+                if fields:
+                    why.update(reason="fields", fields=fields)
+                else:
+                    why["reason"] = "state"
+                why["conjunct"] = show(c)
+            else:
+                why.update(reason="fields", fields=list(e.params), conjunct=None)
+            why["tried"] = len(offers)
+            hint = self._plain_list_hint(e, why.get("fields", []))
+            if hint:
+                why["hint"] = hint
+            out.append(why)
+        return out
+
+    def _plain_list_hint(self, e: Edge, fields: list[str]) -> str:
+        """For the fields of e whose types are plain lists, which a value
+        beyond a sample never widens: how to tell the bound from a deadlock."""
+        plain = []
+        for p in fields:
+            t = self.d.field_type(e, p)
+            if t != ANY and t in self.checks.types and not samples_in(self.checks.types[t]) and t not in plain:
+                plain.append(t)
+        if not plain:
+            return ""
+        return (f"{', '.join(plain)} {'is a plain list' if len(plain) == 1 else 'are plain lists'}: give it as "
+                "sample(values, beyond=[...]) for a value outside it to tell the bound from a deadlock")
+
     def can_end(self, state: State) -> bool:
         return any(end.src == state[0] and self.ev.holds(end.guard, self._before(state)) for end in self.d.ends)
 
@@ -775,7 +834,14 @@ class Explorer:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)
 
+        firsts: dict[tuple, State] = {}
+        for s in w.deadlocks:
+            p = w.parents[s]
+            firsts.setdefault((s[0], p[2].name if p is not None else ""), s)
+        stuck = {s: self.why_stuck(s) for s in firsts.values()}
+
         return Result(
+            stuck=stuck,
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
             tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
             truncated=w.truncated, bound=self.max_states,
