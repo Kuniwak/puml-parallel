@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
+from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -223,3 +223,57 @@ class PickleTest(unittest.TestCase):
 
         # Assert
         self.assertIs(LEFT_OUT, got[0])
+
+
+class InternerTest(unittest.TestCase):
+    """The walk keeps a value equal to one it keeps already as that one."""
+
+    def test_an_equal_value_is_the_one_kept_before(self):
+        # Setup
+        intern = Interner()
+        first = intern(Strict(("a", FrozenMap({"t1": Rec("open", FrozenMap(優先度=1))}))))
+
+        # Execute
+        got = intern(Strict(("b", FrozenMap({"t1": Rec("open", FrozenMap(優先度=1))}))))
+
+        # Assert
+        self.assertIs(first[1], got[1])
+
+    def test_a_part_equal_to_a_part_kept_before_is_that_part(self):
+        # Setup
+        intern = Interner()
+        first = intern(FrozenMap({"t1": Rec("open", FrozenMap(優先度=1)), "t2": (1, "x")}))
+
+        # Execute
+        got = intern(FrozenMap({"t1": Rec("open", FrozenMap(優先度=1)), "t2": (2, "x")}))
+
+        # Assert
+        self.assertIs(first["t1"], got["t1"])
+
+    def test_values_of_other_kinds_stay_apart(self):
+        # Setup
+        intern = Interner()
+        intern(FrozenMap({"n": 1, "m": (1,)}))
+        value = FrozenMap({"n": True, "m": (True,)})
+
+        # Execute
+        got = intern(value)
+
+        # Assert
+        self.assertTrue(same_value(value, got))
+
+    def test_a_value_is_kept_as_it_was(self):
+        tests = {
+            "a map of instances": FrozenMap({"t1": Rec("open", FrozenMap(優先度=1)), True: 1}),
+            "a set": FrozenSet([1, True, 1.0]),
+            "a state": Strict(("a", (FrozenMap({1: "x"}), True), (1,), LEFT_OUT)),
+        }
+        for name, value in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = Interner()(value)
+
+                # Assert
+                self.assertEqual(type(value), type(got))
+                self.assertTrue(same_value(value, got))
+                self.assertEqual(hash(value), hash(got))

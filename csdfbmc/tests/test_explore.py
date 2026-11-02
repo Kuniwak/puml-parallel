@@ -6,7 +6,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.formula import PostError
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx, lit
-from csdfbmc.values import FrozenMap, Rec, record, sample
+from csdfbmc.values import FrozenMap, Rec, kind_key, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -46,6 +46,21 @@ MEMBERS = diagram({"r": ["m"]}, "r", init_post=[builtin("empty", "m'")], edges=[
 ], families=[family("m", "none", {"none": [], "open": ["cnt"], "closed": ["cnt"]})])
 
 
+def parts(value):
+    """value and every container in it, all the way down."""
+    if isinstance(value, Rec):
+        yield value
+        yield from parts(value.fields)
+    elif isinstance(value, FrozenMap):
+        yield value
+        for v in value.values():
+            yield from parts(v)
+    elif isinstance(value, tuple):
+        yield value
+        for v in value:
+            yield from parts(v)
+
+
 class WalkTest(unittest.TestCase):
     def test_reaches_every_valuation_the_clauses_admit(self):
         # Execute
@@ -53,6 +68,16 @@ class WalkTest(unittest.TestCase):
 
         # Assert
         self.assertEqual([("a", (2,), ()), ("a", (1,), ()), ("a", (0,), ()), ("b", (), ())], result.states)
+
+    def test_the_states_met_share_their_equal_values(self):
+        # Execute
+        result = fixture.example("attempts").run()
+
+        # Assert
+        kept = {}
+        for s in result.states:
+            for v in parts(s[1]):
+                self.assertIs(kept.setdefault(kind_key(v), v), v)
 
     def test_reports_a_state_with_no_way_out_as_a_deadlock(self):
         # Execute
