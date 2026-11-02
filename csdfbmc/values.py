@@ -218,6 +218,36 @@ class Rec:
     fields: "FrozenMap"
 
 
+class Interner:
+    """Gives each value back as the one equal to it (same_value) it gave
+    before, all the way down: the states the walk keeps share the parts
+    they have in common instead of a copy each. A state itself is built
+    again of its parts, not kept, the walk keeping each state once."""
+
+    def __init__(self):
+        self._kept: dict = {}
+
+    def __call__(self, value):
+        if isinstance(value, Strict):
+            return Strict(self(v) for v in value)
+        if not isinstance(value, (Rec, FrozenMap, FrozenSet, tuple)):
+            return value
+        k = kind_key(value)
+        kept = self._kept.get(k)
+        if kept is None:
+            kept = self._kept[k] = self._built(value)
+        return kept
+
+    def _built(self, value):
+        if isinstance(value, Rec):
+            return Rec(value.state, self(value.fields))
+        if isinstance(value, FrozenMap):
+            return FrozenMap((self(k), self(v)) for k, v in value._d.values())
+        if isinstance(value, FrozenSet):
+            return FrozenSet(self(v) for v in value)
+        return tuple(self(v) for v in value)
+
+
 class _LeftOut:
     """The value the walk keeps for a variable the cone of influence leaves
     out (csdfbmc.cone): one value, whatever the variable held."""

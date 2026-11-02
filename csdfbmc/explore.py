@@ -15,7 +15,7 @@ from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -774,14 +774,16 @@ class Explorer:
             self.stats = w.stats
 
         key = self.canonical
+        intern = Interner()
 
         def known(s: State) -> bool:
             return key(s) in w.met
 
-        def visit(s: State, d: int):
+        def visit(s: State, d: int, parent: tuple[State, str, Edge] | None = None):
+            s = intern(s)
             w.met[key(s)] = s
             w.depth[s] = d
-            w.parents.setdefault(s, None)
+            w.parents[s] = parent
             w.order.append(s)
             w.queue.append(s)
             for name in self._check_invariants(s):
@@ -823,8 +825,7 @@ class Explorer:
                 if len(w.order) >= self.max_states:
                     w.truncated = True
                     continue
-                w.parents[t] = (s, label, edge)
-                visit(t, w.depth[s] + 1)
+                visit(t, w.depth[s] + 1, (s, label, edge))
             w.tau_next[s] = [w.met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
                 w.avoid_next[s] = [w.met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
