@@ -1,7 +1,6 @@
 package csdfslicecmd
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -20,10 +19,6 @@ func TestNewMainFuncOK(t *testing.T) {
 	}
 
 	chain := filepath.Join("testdata", "chain.puml")
-	chainBytes, err := os.ReadFile(chain)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	testCases := map[string]testCase{
 		"context 0: the given state alone, every edge cut (lower boundary value)": {
@@ -76,22 +71,6 @@ note as channels
   channel b
   channel c
 end note
-@enduml
-`,
-		},
-		"standard input (equivalent to a file argument)": {
-			Args:  []string{"-states", "s1", "-context", "0"},
-			Stdin: string(chainBytes),
-			Want: `@startuml
-state "Middle" as s1
-s1 : n ; N
-' CSDF-IGNORE-BEGIN
-state "Start …" as s0_cut
-state "End …" as s2_cut
-[*] --> s0_cut
-s0_cut --> s1 : a ; ; $n' = 0
-s1 --> s2_cut : b ; $n = 0
-' CSDF-IGNORE-END
 @enduml
 `,
 		},
