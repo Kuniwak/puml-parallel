@@ -196,7 +196,8 @@ func (r *promotionReader) includeLine(l string) error {
 	if m == nil || r.depth != 2 || r.family.Local != nil {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
-	src, err := r.include(pumlline.Unquote(strings.TrimSpace(m[1])))
+	path := pumlline.Unquote(strings.TrimSpace(m[1]))
+	src, err := r.include(path)
 	if err != nil {
 		return err
 	}
@@ -204,7 +205,7 @@ func (r *promotionReader) includeLine(l string) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", m[1], err)
 	}
-	r.family.Local = local
+	r.family.Include, r.family.Local = path, local
 	return nil
 }
 
