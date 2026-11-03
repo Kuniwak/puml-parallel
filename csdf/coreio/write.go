@@ -14,7 +14,8 @@ import (
 // Write writes d in the syntax Read reads, so that Read(Write(d)) is d up to
 // α-equivalence of its clauses: Read keeps the states in the order Write
 // writes them, which is d's. A state is named by its ID. The syntax holds
-// one end edge, so a diagram with more is an error.
+// one end edge, so a diagram with more is an error. A diagram with no
+// initial state, a slice (core.Slice), is written without a start edge.
 func Write(d *core.Diagram) (string, error) {
 	return write(d, func(core.Edge) (string, error) { return "", nil })
 }
@@ -41,11 +42,13 @@ func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, erro
 			}
 		}
 	}
-	post, err := clause.Print(d.InitPost)
-	if err != nil {
-		return "", fmt.Errorf("coreio.Write: the start edge: %w", err)
+	if d.Init != "" {
+		post, err := clause.Print(d.InitPost)
+		if err != nil {
+			return "", fmt.Errorf("coreio.Write: the start edge: %w", err)
+		}
+		b.WriteString("[*] --> " + d.Init + labelled(post) + "\n")
 	}
-	b.WriteString("[*] --> " + d.Init + labelled(post) + "\n")
 	for _, e := range d.Edges {
 		guard, err := clause.Print(e.Guard)
 		if err != nil {

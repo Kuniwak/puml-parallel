@@ -11,11 +11,12 @@ import (
 // the states within the context, the edges between them, the end edges from
 // them, the channels those edges use and every assumption; its Init is empty
 // when the initial state is outside. Cut are the edges with one end inside
-// and the other outside. A slice means something else than the diagram it
+// and the other outside. From is the diagram the slice was cut from. A slice means something else than the diagram it
 // was cut from - what is reachable changes - so it is for reading only.
 type Sliced struct {
 	Diagram *Diagram
 	Cut     []Edge
+	From    *Diagram
 }
 
 // Slice is the part of d within context edges of any of states, the edges
@@ -69,7 +70,7 @@ func Slice(d *Diagram, states []string, context int) (*Sliced, error) {
 			out.Ends = append(out.Ends, e)
 		}
 	}
-	return &Sliced{Diagram: out, Cut: cut}, nil
+	return &Sliced{Diagram: out, Cut: cut, From: d}, nil
 }
 
 // neighbourhood is the set of the states within context edges of any of
