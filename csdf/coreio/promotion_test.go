@@ -447,3 +447,22 @@ end note
 		})
 	}
 }
+
+func TestReadPromotionWithoutIncludeKeepsThePathAndLoadsNothing(t *testing.T) {
+	p, err := ReadPromotion(`@startuml
+state "稼働中" as running {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+}
+[*] --> running
+@enduml
+`, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Include: "local/SHIPMENT.puml"}}
+	if diff := cmp.Diff(want, p.Families); diff != "" {
+		t.Error(diff)
+	}
+}

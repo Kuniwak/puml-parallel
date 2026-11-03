@@ -53,6 +53,8 @@ func ReadPromotion(source string, include Include) (core.Promotion, error) {
 }
 
 // Include is the source of the file an !include names, by the path written.
+// A nil Include reads none: the path is kept and the local diagram left
+// out, for printing the global diagram as written.
 type Include func(path string) (string, error)
 
 type promotionReader struct {
@@ -197,6 +199,10 @@ func (r *promotionReader) includeLine(l string) error {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
 	path := pumlline.Unquote(strings.TrimSpace(m[1]))
+	if r.include == nil {
+		r.family.Include = path
+		return nil
+	}
 	src, err := r.include(path)
 	if err != nil {
 		return err
