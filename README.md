@@ -1274,8 +1274,9 @@ csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values
 ```
 
 With `--random-walk`, the line says the walks taken in, their steps, the
-deepest, the walks per second, the findings so far, the time spent and
-the memory held:
+deepest, the walks per second, the findings so far (deadlocks, broken
+invariants and empty posts; not a bound reached), the time spent and the
+memory held:
 
 ```console
 csdfbmc: 1200 walks, 840000 steps, deepest 1000, 40.0 walks/s, 2 findings, 0:00:30 elapsed, 0.2 GB resident

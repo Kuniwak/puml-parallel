@@ -168,7 +168,7 @@ class RandomWalks:
                 else:
                     violations.append((what, s))
             if progress is not None:
-                progress.update(walks=done, steps=steps, deepest=deepest, findings=len(seen_findings) + len(seen_posts))
+                progress.update(walks=done, steps=steps, deepest=deepest, findings=len(deadlocks) + len(violations) + len(empty_posts))
             if met and first and kind != "bound_reached":
                 stopped = True
                 break

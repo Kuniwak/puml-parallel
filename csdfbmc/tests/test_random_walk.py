@@ -103,6 +103,26 @@ class RandomWalkTest(unittest.TestCase):
         self.assertEqual([{"walks": 1, "steps": 3, "deepest": 3, "findings": 1},
                           {"walks": 2, "steps": 6, "deepest": 3, "findings": 1}], said.updates)
 
+    def test_the_progress_counts_no_bound_reached_as_a_finding(self):
+        from csdfbmc.checks import Checks
+        from csdfbmc.tests.fixture import atom, bound, builtin, end, exists
+        from csdfbmc.values import sample
+        from csdfbmc.tests.test_explore import OPENING
+        # Setup
+        d = dict(OPENING, edges=OPENING["edges"][:2], ends=[end("r", guard=[exists("k", builtin("notin", bound(0), "m"), atom("${} == 'b'", bound(0)))])])
+        updates = []
+
+        class Said:
+            def update(self, **counts):
+                updates.append(counts)
+
+        # Execute
+        got = walks(d, Checks(types={"k": sample(["a"], beyond=["b"])}), max_depth=30).run(1, progress=Said())
+
+        # Assert
+        self.assertNotEqual([], got.result.bound_reached)
+        self.assertEqual(0, updates[-1]["findings"])
+
 
 def command(test, *args):
     from csdfbmc.__main__ import main
