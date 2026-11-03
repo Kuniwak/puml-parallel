@@ -747,6 +747,15 @@ class Explorer:
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
+    def stuck(self, deadlocks: list[State], parents: dict) -> dict[State, list[dict]]:
+        """Why each edge out of the first deadlock of each shape (Result.groups)
+        takes no step (why_stuck)."""
+        firsts: dict[tuple, State] = {}
+        for s in deadlocks:
+            p = parents[s]
+            firsts.setdefault((s[0], p[2].name if p is not None else ""), s)
+        return {s: self.why_stuck(s) for s in firsts.values()}
+
     def run(self, expand_all: Callable[[list[State], int], Iterable[Expansion]] | None = None, progress=None,
             resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None) -> Result:
         """The walk. expand_all(queue, start) expands the states of the
@@ -835,14 +844,8 @@ class Explorer:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)
 
-        firsts: dict[tuple, State] = {}
-        for s in w.deadlocks:
-            p = w.parents[s]
-            firsts.setdefault((s[0], p[2].name if p is not None else ""), s)
-        stuck = {s: self.why_stuck(s) for s in firsts.values()}
-
         return Result(
-            stuck=stuck,
+            stuck=self.stuck(w.deadlocks, w.parents),
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
             tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
             truncated=w.truncated, bound=self.max_states,
