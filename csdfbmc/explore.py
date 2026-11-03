@@ -853,14 +853,14 @@ class Explorer:
                 for edge, edge_stats in x.stats.items():
                     self.stats.setdefault(edge, EdgeStats()).add(edge_stats)
             succ = self.ample(s, x.transitions, known)
-            if not succ and not x.can_end:
-                if x.witness is not None:
-                    w.bound_reached.append((s, x.witness))
-                else:
-                    w.deadlocks.append(s)
-                    if self.first:
-                        stopped = True
-                        break
+            end = dead_end(succ, x)
+            if end == DEADLOCK:
+                w.deadlocks.append(s)
+                if self.first:
+                    stopped = True
+                    break
+            elif end is not None:
+                w.bound_reached.append((s, end[1]))
             for _, label, t, edge, _ in succ:
                 if known(t):
                     continue
@@ -895,6 +895,18 @@ class Explorer:
             stats=None if self.stats is None else [
                 self.stats[i].to_json(self.d.edges[i]) for i in sorted(self.stats, key=lambda i: (-self.stats[i].checked, i))],
         )
+
+
+DEADLOCK = ("deadlock", None)
+
+
+def dead_end(succ: list, x: Expansion) -> tuple[str, str | None] | None:
+    """What a state is with only succ of its expansion x to take: DEADLOCK,
+    ("bound_reached", witness) when a value beyond a sample would take it
+    on, or None when it has a way out or can end."""
+    if succ or x.can_end:
+        return None
+    return ("bound_reached", x.witness) if x.witness is not None else DEADLOCK
 
 
 def _cycles(states: list[State], next_: dict[State, list[State]]) -> list[list[State]]:

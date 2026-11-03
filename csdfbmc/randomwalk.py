@@ -19,7 +19,7 @@ import random
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
-from csdfbmc.explore import Explorer, Result, State
+from csdfbmc.explore import Explorer, Result, State, dead_end
 from csdfbmc.model import Edge
 from csdfbmc.stopping import never
 
@@ -108,8 +108,7 @@ class RandomWalks:
             weighted = [(t, self.weights.get(t[0], 1)) for t in succ]
             weighted = [(t, w) for t, w in weighted if w > 0]
             if not weighted:
-                if not succ and not e.can_end:
-                    out.finding = ("bound_reached", e.witness) if e.witness is not None else ("deadlock", None)
+                out.finding = dead_end(succ, e)
                 break
             name, label, s, edge, _ = rng.choices([t for t, _ in weighted], [w for _, w in weighted])[0]
             out.steps.append((label, edge, s))
