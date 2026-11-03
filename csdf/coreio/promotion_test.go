@@ -84,6 +84,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
+				Name:   "MOVE",
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{
@@ -464,5 +465,15 @@ state "稼働中" as running {
 	want := []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Include: "local/SHIPMENT.puml"}}
 	if diff := cmp.Diff(want, p.Families); diff != "" {
 		t.Error(diff)
+	}
+}
+
+func TestReadPromotionKeepsTheName(t *testing.T) {
+	p, err := ReadPromotion("@startuml MOVE\nstate \"稼働中\" as running {\n}\n[*] --> running\n@enduml\n", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "MOVE" {
+		t.Errorf("want the name MOVE, got %q", p.Name)
 	}
 }

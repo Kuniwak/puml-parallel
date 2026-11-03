@@ -77,8 +77,10 @@ type Constrain struct {
 // the global start edge, which may only say that maps are empty, as they
 // start, and give the start mode's controller variables their values.
 // Assumes are the assume notes of the global diagram, which the expansion
-// carries. Labels label the modes, for the reader alone.
+// carries. Labels label the modes, and Name, what follows @startuml, the
+// diagram, for the reader alone.
 type Promotion struct {
+	Name    string
 	Labels  map[string]string
 	Assumes []Assumption
 	Modes   []string

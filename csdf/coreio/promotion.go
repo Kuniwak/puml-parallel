@@ -105,7 +105,10 @@ func (r *promotionReader) run(lines []string) error {
 
 func (r *promotionReader) line(l string) error {
 	switch {
-	case l == "" || strings.HasPrefix(l, "'"), strings.HasPrefix(l, "@startuml"), l == "@enduml":
+	case strings.HasPrefix(l, "@startuml"):
+		r.p.Name = strings.TrimSpace(strings.TrimPrefix(l, "@startuml"))
+		return nil
+	case l == "" || strings.HasPrefix(l, "'"), l == "@enduml":
 		return nil
 	case r.note != noNote:
 		return r.noteLine(l)
