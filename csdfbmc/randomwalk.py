@@ -45,7 +45,7 @@ class Outcome:
 
 
 @dataclass
-class Walks:
+class RandomWalkReport:
     """What the walks found (result, in the form of a breadth-first walk's)
     and how far they went."""
     result: Result
@@ -87,18 +87,18 @@ def load_weights(path: str, diagram) -> dict[str, float]:
 
 class RandomWalks:
     def __init__(self, explorer: Explorer, max_depth: int, weights: dict[str, float], seed: int):
-        self.x, self.max_depth, self.weights, self.seed = explorer, max_depth, weights, seed
+        self.explorer, self.max_depth, self.weights, self.seed = explorer, max_depth, weights, seed
 
     def walk(self, i: int) -> Outcome:
         """The i-th walk."""
         rng = random.Random(f"{self.seed}/{i}")
-        x = self.x
+        x = self.explorer
         starts, decided = x.initial_deciding()
         s = rng.choice(starts)
         out = Outcome(start=s)
         out.decided = decided
         on_path = {s}
-        broken = x._check_invariants(s)
+        broken = x.check_invariants(s)
         while not broken and len(out.steps) < self.max_depth:
             e = x.expand(s)
             out.decided.extend(name for name in e.decided if name not in out.decided)
@@ -114,21 +114,22 @@ class RandomWalks:
             out.steps.append((label, edge, s))
             out.fired[name] += 1
             on_path.add(s)
-            broken = x._check_invariants(s)
+            broken = x.check_invariants(s)
         if broken:
             out.finding = ("violation", broken[0])
         return out
 
-    def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False) -> Walks:
+    def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False) -> RandomWalkReport:
         """walks walks, taken by take (in order; one after another here by
         default), stopping at the first finding with first."""
-        x = self.x
+        x = self.explorer
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         deadlocks: list[State] = []
         bound_reached: list[tuple[State, str]] = []
         violations: list[tuple[str, State]] = []
         empty_posts: list[tuple[State, str]] = []
-        seen: set = set()
+        seen_posts: set[tuple[State, str]] = set()
+        seen_findings: set[tuple[str, str | None, State]] = set()
         fired: collections.Counter = collections.Counter()
         done = steps = deepest = 0
         stopped = False
@@ -140,8 +141,8 @@ class RandomWalks:
             x.note_decided(out.decided)
             kept = []
             for s, label in out.empty_posts:
-                if (s, label) not in seen:
-                    seen.add((s, label))
+                if (s, label) not in seen_posts:
+                    seen_posts.add((s, label))
                     kept.append((s, label))
             if out.finding is not None or kept:
                 _trace(parents, out)
@@ -149,9 +150,9 @@ class RandomWalks:
             if out.finding is not None:
                 kind, what = out.finding
                 s = out.last()
-                if (kind, what, s) in seen:
+                if (kind, what, s) in seen_findings:
                     continue
-                seen.add((kind, what, s))
+                seen_findings.add((kind, what, s))
                 if kind == "deadlock":
                     deadlocks.append(s)
                 elif kind == "bound_reached":
@@ -163,11 +164,11 @@ class RandomWalks:
                     break
         result = Result(
             stuck=x.stuck(deadlocks, parents), states=[], parents=parents, deadlocks=deadlocks, tau_cycles=[],
-            truncated=False, bound=0, environment={**x.environment.to_json(), "decided": list(x.meaning.decided)},
+            truncated=False, bound=0, environment=x.environment_report(),
             violations=violations, ghost_names=x.ghost_names, empty_posts=empty_posts, stopped_early=stopped,
             bound_reached=bound_reached, left_out=x.left_out)
         events = sorted({e.name for e in x.d.edges if not e.is_tau})
-        return Walks(result=result, seed=self.seed, walks=done, steps=steps, deepest=deepest,
+        return RandomWalkReport(result=result, seed=self.seed, walks=done, steps=steps, deepest=deepest,
                      fired={name: fired[name] for name in sorted(fired, key=lambda n: (-fired[n], n))},
                      never_fired=[name for name in events if name not in fired])
 

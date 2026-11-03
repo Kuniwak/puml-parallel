@@ -32,6 +32,7 @@ import sys
 
 from csdfbmc import checkpoint, parallel, progress
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened, random_walks
+from csdfbmc.randomwalk import RandomWalkReport
 
 # The bound on the states of a breadth-first walk unless given.
 MAX_STATES = 100_000
@@ -227,9 +228,9 @@ def main(argv=None) -> int:
 def main_random_walks(a: argparse.Namespace) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
-            walks = random_walks(a, explorer(a, diagram, checks, client, environment))
+            walker = random_walks(a, explorer(a, diagram, checks, client, environment))
             with parallel.walking(a, diagram, a.jobs) as take:
-                got = walks.run(a.walks, take, first=a.first)
+                got = walker.run(a.walks, take, first=a.first)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
@@ -237,17 +238,17 @@ def main_random_walks(a: argparse.Namespace) -> int:
     return report(a, got.result, head, got)
 
 
-def report(a: argparse.Namespace, result, head: str, walks=None) -> int:
+def report(a: argparse.Namespace, result, head: str, walks: RandomWalkReport | None = None) -> int:
     """Prints result, a breadth-first walk's or the random walks' (walks),
     as the arguments a ask; the exit status."""
     used = [name for name in REDUCTIONS if getattr(a, name)]
     if a.json:
-        report = result.to_json()
+        said = result.to_json()
         if walks is not None:
             # The walks keep no states to count; they say how far they went.
-            del report["states"]
-            report["random_walk"] = walks.to_json()
-        json.dump({**report, "reductions": used}, sys.stdout, ensure_ascii=False)
+            del said["states"]
+            said["random_walk"] = walks.to_json()
+        json.dump({**said, "reductions": used}, sys.stdout, ensure_ascii=False)
         print()
     else:
         if result.stopped_early:

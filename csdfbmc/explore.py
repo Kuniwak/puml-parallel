@@ -426,7 +426,7 @@ class Explorer:
                 out.append(env[ghost])
         return tuple(out)
 
-    def _check_invariants(self, state: State) -> list[str]:
+    def check_invariants(self, state: State) -> list[str]:
         env = self._ghost_env(state)
         return [name for name, fn in self.checks.invariants.items()
                 if self.checks.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}")]
@@ -764,6 +764,11 @@ class Explorer:
         for name in names:
             self.meaning.decided.setdefault(name)
 
+    def environment_report(self) -> dict:
+        """What reproduces the walk (Result.environment): the functions of
+        the environment given, and those it decided an atom by, in order."""
+        return {**self.environment.to_json(), "decided": list(self.meaning.decided)}
+
     def stuck(self, deadlocks: list[State], parents: dict) -> dict[State, list[dict]]:
         """Why each edge out of the first deadlock of each shape (Result.groups)
         takes no step (why_stuck)."""
@@ -812,7 +817,7 @@ class Explorer:
             w.parents[s] = parent
             w.order.append(s)
             w.queue.append(s)
-            for name in self._check_invariants(s):
+            for name in self.check_invariants(s):
                 w.violations.append((name, s))
 
         if resume is None:
@@ -865,7 +870,7 @@ class Explorer:
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
             tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
             truncated=w.truncated, bound=self.max_states,
-            environment={**self.environment.to_json(), "decided": list(self.meaning.decided)},
+            environment=self.environment_report(),
             violations=w.violations,
             avoiding_cycles=_cycles(w.order, w.avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,

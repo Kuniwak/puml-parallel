@@ -86,9 +86,13 @@ class RandomWalkTest(unittest.TestCase):
         self.assertEqual(1, got.result.groups()[0]["count"])
 
 
-def run(test, *args):
+def command(test, *args):
     from csdfbmc.__main__ import main
-    return fixture.run_main(test, main, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", *args, checks=CHECKS)
+    return fixture.run_main(test, main, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", *args, checks=CHECKS)
+
+
+def run(test, *args):
+    return command(test, "--random-walk", *args)
 
 
 def tsv(test, text):
@@ -168,23 +172,15 @@ class RandomWalkOptionTest(unittest.TestCase):
                 self.assertEqual(2, code)
                 self.assertIn("weight", err)
 
-    def test_options_of_a_breadth_first_walk_are_refused(self):
-        for args in (("--avoid", "inc"), ("--symmetry",), ("--max-states", "5"), ("--stats",), ("--checkpoint", "x"), ("--resume", "x")):
+    def test_options_of_the_other_walk_are_refused(self):
+        tests = [("--random-walk", *args) for args in (("--avoid", "inc"), ("--symmetry",), ("--max-states", "5"), ("--stats",),
+                                                         ("--checkpoint", "x"), ("--resume", "x"))]
+        tests += [("--walks", "3"), ("--max-depth", "3"), ("--seed", "1"), ("--weight-tsv", "x")]
+        for args in tests:
             with self.subTest(args=args):
                 # Execute
                 with self.assertRaises(SystemExit) as cm:
-                    run(self, *args)
-
-                # Assert
-                self.assertEqual(2, cm.exception.code)
-
-    def test_options_of_random_walks_need_random_walk(self):
-        from csdfbmc.__main__ import main
-        for args in (("--walks", "3"), ("--max-depth", "3"), ("--seed", "1"), ("--weight-tsv", "x")):
-            with self.subTest(args=args):
-                # Execute
-                with self.assertRaises(SystemExit) as cm:
-                    fixture.run_main(self, main, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", *args, checks=CHECKS)
+                    command(self, *args)
 
                 # Assert
                 self.assertEqual(2, cm.exception.code)
