@@ -71,6 +71,49 @@ def _received(x: Expansion | Exception, edges: list) -> Expansion:
     return x
 
 
+# The random walks of this worker, which its pool built (_start_walks).
+_walks = None
+
+
+def _start_walks(a: argparse.Namespace) -> None:
+    """Builds the random walks of this worker, as _start its walk."""
+    global _walks
+    _start(a)
+    if _failed is None:
+        _walks = cli.random_walks(a, _explorer)
+
+
+def _walk(i: int):
+    """The i-th random walk, its edges by their index in the diagram, or
+    what walking it raised."""
+    if _failed is not None:
+        return _failed
+    try:
+        out = _walks.walk(i)
+    except Exception as e:  # noqa: BLE001 - passed on to the walks
+        return e
+    out.steps = [(label, _index[id(edge)], s) for label, edge, s in out.steps]
+    return out
+
+
+@contextlib.contextmanager
+def walking(a: argparse.Namespace, diagram: Diagram, jobs: int):
+    """What takes the random walks in jobs workers (RandomWalks.run's take),
+    in order, each worker building its walks of the arguments a; None, the
+    walks' own, for one job. The workers stop on leaving."""
+    if jobs == 1:
+        yield None
+        return
+    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
+        def take(indices: range):
+            for out in pool.imap(_walk, indices, chunksize=CHUNK):
+                if isinstance(out, Exception):
+                    raise out
+                out.steps = [(label, diagram.edges[i], s) for label, i, s in out.steps]
+                yield out
+        yield take
+
+
 @contextlib.contextmanager
 def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int) -> Iterator[Callable[[list[State], int], Iterable[Expansion]] | None]:
     """What expands the walk's states in jobs workers (Explorer.run's

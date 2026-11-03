@@ -65,6 +65,11 @@ Checker options (the checker's --help lists them in full):
   --checkpoint FILE    write the walk to FILE as it goes, every
                        --checkpoint-every SECONDS (default 60)
   --resume FILE        take up the walk a --checkpoint wrote to FILE
+  --random-walk        take --walks N walks (default 1000) at random, up to
+                       --max-depth D steps (default 1000), each step as
+                       likely as its event's weight (--weight-tsv FILE,
+                       default 1), drawn by --seed S: findings deep, never
+                       that there are none
 
 The checks module defines TYPES (a type the diagram declares -> its finite
 values; TYPEOF is refused, the diagram declaring every type) and, when

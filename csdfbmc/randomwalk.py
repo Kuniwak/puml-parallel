@@ -60,6 +60,29 @@ class Walks:
                 "fired": self.fired, "never_fired": self.never_fired}
 
 
+def load_weights(path: str, diagram) -> dict[str, float]:
+    """The weights of the events a TSV at path gives, a line per event: its
+    name and a weight of 0 or more. An event the diagram has no edge of is
+    refused, as a name mistyped would be."""
+    names = {e.name for e in diagram.edges}
+    weights: dict[str, float] = {}
+    with open(path, encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            cols = line.rstrip("\n").split("\t")
+            try:
+                weight = float(cols[1]) if len(cols) == 2 else None
+            except ValueError:
+                weight = None
+            if weight is None or weight < 0:
+                raise ValueError(f"{path}:{n}: a weight line is an event and a weight of 0 or more, separated by a tab, not {line.rstrip()!r}")
+            if cols[0] not in names:
+                raise ValueError(f"{path}:{n}: no edge of the diagram has the event {cols[0]!r} this weight is for")
+            weights[cols[0]] = weight
+    return weights
+
+
 class RandomWalks:
     def __init__(self, explorer: Explorer, max_depth: int, weights: dict[str, float], seed: int):
         self.x, self.max_depth, self.weights, self.seed = explorer, max_depth, weights, seed

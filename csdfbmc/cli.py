@@ -88,3 +88,11 @@ def explorer(a: argparse.Namespace, diagram: Diagram, checks: Checks, client, en
                     within=a.within, first=a.first, stats=a.stats,
                     **reductions(diagram, checks, client, environment, cone=a.cone, por=a.por,
                                  avoid=a.avoid, symmetry=a.symmetry))
+
+
+def random_walks(a: argparse.Namespace, explorer: Explorer):
+    """The random walks csdfbmc --random-walk's parsed arguments ask for,
+    over explorer's states."""
+    from csdfbmc.randomwalk import RandomWalks, load_weights
+    weights = load_weights(a.weight_tsv, explorer.d) if a.weight_tsv else {}
+    return RandomWalks(explorer, max_depth=a.max_depth, weights=weights, seed=a.seed)

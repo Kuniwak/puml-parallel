@@ -1,4 +1,4 @@
-"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N] [--progress SECONDS] [--checkpoint FILE [--checkpoint-every SECONDS]] [--resume FILE]
+"""python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N] [--progress SECONDS] [--checkpoint FILE [--checkpoint-every SECONDS]] [--resume FILE] [--random-walk [--walks N] [--max-depth D] [--seed S] [--weight-tsv FILE]]
 
 Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
@@ -20,15 +20,28 @@ alone (csdfbmc.por), and --symmetry stores a state by one renaming of the
 IDs of the types SYMMETRIC lists (csdfbmc.symmetry); each finds the same
 findings; their counts, the states and --all are those of the reduced
 walk, which a line naming the reductions says.
+--random-walk takes walks at random instead (csdfbmc.randomwalk), for
+findings deeper than the breadth-first walk reaches.
 Exits 1 when it finds any, 2 on a usage or
 loading error.
 """
 import argparse
 import json
+import random
 import sys
 
 from csdfbmc import checkpoint, parallel, progress
-from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened
+from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened, random_walks
+
+# The bound on the states of a breadth-first walk unless given.
+MAX_STATES = 100_000
+
+# The options of a breadth-first walk alone, by their destinations: the
+# random walks keep no graph of the states, nor the states.
+BREADTH_FIRST_ONLY = ("avoid", "within", "symmetry", "max_states", "stats", "checkpoint", "resume")
+
+# The options of the random walks alone.
+RANDOM_WALK_ONLY = ("walks", "max_depth", "seed", "weight_tsv")
 
 
 # The reductions, by their options: each walks fewer states and finds the
@@ -110,6 +123,13 @@ def print_stats(stats: list[dict]) -> None:
               f"successors {s['successors']}{ranged}")
 
 
+def print_fired(walks) -> None:
+    """How often the random walks fired each event, and which never."""
+    print(f"fired: {', '.join(f'{name} {n}' for name, n in walks.fired.items()) or 'nothing'}")
+    if walks.never_fired:
+        print(f"never fired: {', '.join(walks.never_fired)}")
+
+
 def print_environment(env: dict) -> None:
     """What reproduces the run: the functions given, then the
     functions the environment decided a clause by."""
@@ -122,7 +142,7 @@ def print_environment(env: dict) -> None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
-    ap.add_argument("--max-states", type=int, default=100_000, help="stop after this many states (default 100000)")
+    ap.add_argument("--max-states", type=int, help=f"stop after this many states (default {MAX_STATES})")
     ap.add_argument("--avoid", metavar="EVENT", help="also report the cycles that never perform EVENT (a livelock under a fairness bound)")
     ap.add_argument("--within", metavar="STATE", action="append", help="with --avoid, look for the cycles among these control states only (repeatable)")
     ap.add_argument("--first", action="store_true", help="stop at the first deadlock or broken invariant (cycles are then not looked for)")
@@ -145,7 +165,33 @@ def main(argv=None) -> int:
     ap.add_argument("--resume", metavar="FILE",
                     help="take up the walk --checkpoint wrote to FILE, of the same inputs: it says what the whole walk says. "
                          "FILE is a pickle, run as it is read: take up only those you wrote")
+    ap.add_argument("--random-walk", action="store_true",
+                    help="instead of the breadth-first walk, take --walks walks from the start, each step one of the ways out at random, "
+                         "as likely as its event's weight, up to --max-depth steps: findings deep, with the memory of one path; "
+                         "never that there are none, nor cycles")
+    ap.add_argument("--walks", type=int, metavar="N", help="with --random-walk, take N walks (default 1000)")
+    ap.add_argument("--max-depth", type=int, metavar="D", help="with --random-walk, end a walk after D steps (default 1000)")
+    ap.add_argument("--seed", type=int, metavar="S",
+                    help="with --random-walk, the seed the walks are drawn by, the same walks with any --jobs (default: one drawn and said)")
+    ap.add_argument("--weight-tsv", metavar="FILE",
+                    help="with --random-walk, the weights of the events, a line each: the event and a weight of 0 or more, "
+                         "separated by a tab (default 1)")
     a = ap.parse_args(argv)
+    if a.random_walk:
+        given = [name for name in BREADTH_FIRST_ONLY if getattr(a, name)]
+        if given:
+            ap.error(f"--random-walk takes no {', '.join('--' + n.replace('_', '-') for n in given)}: "
+                     "the random walks keep no graph of the states")
+        a.walks = 1000 if a.walks is None else a.walks
+        a.max_depth = 1000 if a.max_depth is None else a.max_depth
+        a.seed = random.randrange(2 ** 32) if a.seed is None else a.seed
+        if a.walks < 1 or a.max_depth < 1:
+            ap.error("--walks and --max-depth expect a positive number")
+    else:
+        given = [name for name in RANDOM_WALK_ONLY if getattr(a, name) is not None]
+        if given:
+            ap.error(f"{', '.join('--' + n.replace('_', '-') for n in given)} need --random-walk")
+        a.max_states = MAX_STATES if a.max_states is None else a.max_states
     if a.jobs < 1:
         ap.error(f"--jobs expects a positive number, not {a.jobs}")
     if a.progress < 0:
@@ -153,6 +199,8 @@ def main(argv=None) -> int:
     if a.checkpoint_every < 0:
         ap.error(f"--checkpoint-every expects 0 or more seconds, not {a.checkpoint_every:g}")
 
+    if a.random_walk:
+        return main_random_walks(a)
     try:
         with opened(a) as (diagram, checks, client, environment):
             walk = explorer(a, diagram, checks, client, environment)
@@ -170,14 +218,34 @@ def main(argv=None) -> int:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
 
+    head = f"states: {len(result.states)}"
+    if result.truncated:
+        head += " (truncated at the bound)"
+    return report(a, result, head)
+
+
+def main_random_walks(a: argparse.Namespace) -> int:
+    try:
+        with opened(a) as (diagram, checks, client, environment):
+            walks = random_walks(a, explorer(a, diagram, checks, client, environment))
+            with parallel.walking(a, diagram, a.jobs) as take:
+                got = walks.run(a.walks, take, first=a.first)
+    except LOADING_ERRORS as e:
+        print(f"csdfbmc: {e}", file=sys.stderr)
+        return 2
+    head = f"random walks: {got.walks}, steps: {got.steps}, deepest: {got.deepest}, seed: {got.seed}"
+    return report(a, got.result, head, got)
+
+
+def report(a: argparse.Namespace, result, head: str, walks=None) -> int:
+    """Prints result, a breadth-first walk's or the random walks' (walks),
+    as the arguments a ask; the exit status."""
     used = [name for name in REDUCTIONS if getattr(a, name)]
     if a.json:
-        json.dump({**result.to_json(), "reductions": used}, sys.stdout, ensure_ascii=False)
+        extra = {"states": walks.steps, "random_walk": walks.to_json()} if walks is not None else {}
+        json.dump({**result.to_json(), **extra, "reductions": used}, sys.stdout, ensure_ascii=False)
         print()
     else:
-        head = f"states: {len(result.states)}"
-        if result.truncated:
-            head += " (truncated at the bound)"
         if result.stopped_early:
             head += " (stopped at the first finding)"
         print(head)
@@ -193,6 +261,8 @@ def main(argv=None) -> int:
         print_environment(result.environment)
         if result.stats is not None:
             print_stats(result.stats)
+        if walks is not None:
+            print_fired(walks)
     found = result.deadlocks or result.tau_cycles or result.violations or result.avoiding_cycles
     return 1 if found else 0
 

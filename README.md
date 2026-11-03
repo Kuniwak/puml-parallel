@@ -1211,6 +1211,29 @@ change the walk it was written for, and is refused for others; a glue
 that reads its atoms otherwise is not told. A checkpoint is a Python
 pickle, which runs code as it is read: take up only those you wrote.
 
+`--random-walk` trades the breadth-first walk's completeness for depth: it
+takes `--walks N` walks (1000 by default) from the start, each step one of
+the ways out the walk would take, chosen at random as likely as its
+event's weight, until `--max-depth D` steps (1000 by default), a state
+with no way out, or a broken invariant. A walk keeps its own path alone,
+so the memory stays that of one path and the findings' traces. It reports
+deadlocks, broken invariants and empty posts as the breadth-first walk
+does, never that there are none, and no cycles, which need the graph of
+the states: `--avoid`, `--within`, `--symmetry`, `--max-states`,
+`--stats`, `--checkpoint` and `--resume` are refused with it. Walk i draws
+from `--seed S` and i alone, so a seed gives the same walks with any
+`--jobs`; without one, one is drawn and said. `--weight-tsv FILE` gives
+the weights, a line per event: its name and a weight of 0 or more,
+separated by a tab (1 for the others; an event no edge has is refused).
+The report says how often each event fired and which never did:
+
+```console
+$ csdfbmc big.json checks.py --evaluator-module csdfbmc.python_glue --random-walk --walks 100 --max-depth 200 --seed 1 --jobs 8
+random walks: 100, steps: 20000, deepest: 200, seed: 1
+fired: TICK 15214, SUBMIT 2390, DONE 2396
+never fired: RESUBMIT
+```
+
 In a checkout, `python3 -m csdfbmc` runs the same checker from the sources.
 The Python tests run with `python3 -m unittest discover -s csdfbmc/tests -t .`,
 and `go test ./...` runs them too when a `python3` is on the PATH.
