@@ -126,6 +126,20 @@ class RandomWalkOptionTest(unittest.TestCase):
         self.assertEqual({"walks": 4, "steps": 8, "deepest": 2, "seed": 9, "fired": {"inc": 8}, "never_fired": []},
                          json.loads(actual)["random_walk"])
 
+    def test_the_functions_the_environment_decided_are_said_as_the_breadth_first_walk_says_them(self):
+        from csdfbmc.tests.test_cli import DECLARED, UNKNOWN_GUARD, walk
+        # Setup
+        common = ("--evaluator-module", "csdfbmc.python_glue", "--env", "$_0 が 正=true", "--json")
+        _, out, _ = walk(self, *common, d=UNKNOWN_GUARD, checks=DECLARED)
+        expected = json.loads(out)["environment"]
+        for jobs in ("1", "2"):
+            with self.subTest(jobs=jobs):
+                # Execute
+                _, out, err = walk(self, *common, "--random-walk", "--walks", "2", "--jobs", jobs, d=UNKNOWN_GUARD, checks=DECLARED)
+
+                # Assert
+                self.assertEqual(expected, json.loads(out)["environment"], err)
+
     def test_a_weight_of_zero_keeps_an_event_from_firing(self):
         # Execute
         code, out, err = run(self, "--walks", "2", "--seed", "1", "--weight-tsv", tsv(self, "inc\t0\n"))

@@ -91,12 +91,15 @@ class RandomWalks:
         """The i-th walk."""
         rng = random.Random(f"{self.seed}/{i}")
         x = self.x
-        s = rng.choice(x.initial())
+        starts, decided = x.initial_deciding()
+        s = rng.choice(starts)
         out = Outcome(start=s)
+        out.decided = decided
         on_path = {s}
         broken = x._check_invariants(s)
         while not broken and len(out.steps) < self.max_depth:
             e = x.expand(s)
+            out.decided.extend(name for name in e.decided if name not in out.decided)
             out.empty_posts.extend((s, label) for label in e.empty_posts)
             succ = x.ample(s, e.transitions, on_path.__contains__)
             weighted = [(t, self.weights.get(t[0], 1)) for t in succ]
@@ -112,7 +115,6 @@ class RandomWalks:
             broken = x._check_invariants(s)
         if broken:
             out.finding = ("violation", broken[0])
-        out.decided = list(x.meaning.decided)
         return out
 
     def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False) -> Walks:
@@ -133,8 +135,7 @@ class RandomWalks:
             steps += len(out.steps)
             deepest = max(deepest, len(out.steps))
             fired.update(out.fired)
-            for name in out.decided:
-                x.meaning.decided.setdefault(name)
+            x.note_decided(out.decided)
             kept = []
             for s, label in out.empty_posts:
                 if (s, label) not in seen:

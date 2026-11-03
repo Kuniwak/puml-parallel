@@ -747,6 +747,23 @@ class Explorer:
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
+    def initial_deciding(self) -> tuple[list[State], list[str]]:
+        """The start states (initial) and the functions the environment
+        decided on the way, apart from those it decided before, as expand
+        gives them for a state."""
+        decided = self.meaning.decided
+        self.meaning.decided = {}
+        try:
+            return self.initial(), list(self.meaning.decided)
+        finally:
+            self.meaning.decided = decided
+
+    def note_decided(self, names: Iterable[str]) -> None:
+        """Takes the functions the environment decided apart (expand,
+        initial_deciding) into those the result names, in order."""
+        for name in names:
+            self.meaning.decided.setdefault(name)
+
     def stuck(self, deadlocks: list[State], parents: dict) -> dict[State, list[dict]]:
         """Why each edge out of the first deadlock of each shape (Result.groups)
         takes no step (why_stuck)."""
@@ -814,8 +831,7 @@ class Explorer:
                 stopped = True
                 break
             self.empty_posts.extend((s, label) for label in x.empty_posts)
-            for name in x.decided:
-                self.meaning.decided.setdefault(name)
+            self.note_decided(x.decided)
             if x.stats is not None:
                 for edge, edge_stats in x.stats.items():
                     self.stats.setdefault(edge, EdgeStats()).add(edge_stats)
