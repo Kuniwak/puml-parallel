@@ -1211,6 +1211,12 @@ change the walk it was written for, and is refused for others; a glue
 that reads its atoms otherwise is not told. A checkpoint is a Python
 pickle, which runs code as it is read: take up only those you wrote.
 
+SIGINT (^C) or SIGTERM stops a walk, breadth-first or random, where it is:
+it reports what it found until then, its first line saying `(stopped by
+SIGTERM)` (`"stopped_by"` in the JSON), and writes its last
+`--checkpoint`, so that `timeout 2h csdfbmc ...` bounds a run by time
+and leaves its report.
+
 `--random-walk` trades the breadth-first walk's completeness for depth: it
 takes `--walks N` walks (1000 by default) from the start, each step one of
 the ways out the walk would take, chosen at random as likely as its

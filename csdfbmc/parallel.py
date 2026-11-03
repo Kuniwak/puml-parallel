@@ -14,6 +14,7 @@ import argparse
 import collections
 import contextlib
 import multiprocessing
+import signal
 from collections.abc import Callable, Iterable, Iterator
 
 from csdfbmc import cli
@@ -39,6 +40,9 @@ def _start(a: argparse.Namespace) -> None:
     """Builds the walk of this worker. What it raises is kept for the walk
     to raise: a pool restarts a worker whose start fails, forever."""
     global _explorer, _failed, _index
+    # A ^C reaches the workers too; the walk alone stops on it
+    # (csdfbmc.stopping), and leaving it stops them.
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         _explorer = cli.explorer(a, *_stack.enter_context(cli.opened(a)))
         _index = {id(e): i for i, e in enumerate(_explorer.d.edges)}

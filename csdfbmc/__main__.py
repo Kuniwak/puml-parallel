@@ -20,6 +20,8 @@ alone (csdfbmc.por), and --symmetry stores a state by one renaming of the
 IDs of the types SYMMETRIC lists (csdfbmc.symmetry); each finds the same
 findings; their counts, the states and --all are those of the reduced
 walk, which a line naming the reductions says.
+SIGINT or SIGTERM stops the walk where it is, with the report of what it
+found until then (csdfbmc.stopping).
 --random-walk takes walks at random instead (csdfbmc.randomwalk), for
 findings deeper than the breadth-first walk reaches.
 Exits 1 when it finds any, 2 on a usage or
@@ -33,6 +35,7 @@ import sys
 from csdfbmc import checkpoint, parallel, progress
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened, random_walks
 from csdfbmc.randomwalk import RandomWalkReport
+from csdfbmc.stopping import on_signals
 
 # The bound on the states of a breadth-first walk unless given.
 MAX_STATES = 100_000
@@ -211,8 +214,9 @@ def main(argv=None) -> int:
             if a.checkpoint:
                 saving = checkpoint.Every(a.checkpoint_every,
                                           lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
-            with parallel.expanding(a, diagram, a.jobs) as expand_all, progress.reporting(sys.stderr, a.progress) as said:
-                result = walk.run(expand_all, said, resume=resume, checkpoint=saving)
+            with parallel.expanding(a, diagram, a.jobs) as expand_all, progress.reporting(sys.stderr, a.progress) as said, \
+                    on_signals() as stop:
+                result = walk.run(expand_all, said, resume=resume, checkpoint=saving, stop=stop)
             if saving is not None:
                 saving.flush()
     except LOADING_ERRORS as e:
@@ -229,8 +233,8 @@ def main_random_walks(a: argparse.Namespace) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             walker = random_walks(a, explorer(a, diagram, checks, client, environment))
-            with parallel.walking(a, diagram, a.jobs) as take:
-                got = walker.run(a.walks, take, first=a.first)
+            with parallel.walking(a, diagram, a.jobs) as take, on_signals() as stop:
+                got = walker.run(a.walks, take, first=a.first, stop=stop)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2
@@ -253,6 +257,8 @@ def report(a: argparse.Namespace, result, head: str, walks: RandomWalkReport | N
     else:
         if result.stopped_early:
             head += " (stopped at the first finding)"
+        if result.stopped_by is not None:
+            head += f" (stopped by {result.stopped_by})"
         print(head)
         if used:
             print(f"reduced by {', '.join('--' + name for name in used)}: the findings are those of the full walk; "

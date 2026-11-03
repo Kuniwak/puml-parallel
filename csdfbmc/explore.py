@@ -65,6 +65,9 @@ class Result:
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
     # stopped_early: the walk stopped at the first finding (first=True).
     stopped_early: bool = False
+    # stopped_by: the signal the walk was stopped by (csdfbmc.stopping),
+    # what it found until then reported; None when it was not.
+    stopped_by: str | None = None
     # bound_reached: states with no way out that a value beyond a sample
     # (csdfbmc.values.sample) gives one, with the witness, the step it
     # enables or "the end edge": the bound, not the diagram, ends them, so
@@ -124,6 +127,7 @@ class Result:
             "environment": self.environment,
             "groups": self.groups(),
             "stopped_early": self.stopped_early,
+            "stopped_by": self.stopped_by,
             "left_out": list(self.left_out),
             **({"stats": self.stats} if self.stats is not None else {}),
         }
@@ -779,7 +783,8 @@ class Explorer:
         return {s: self.why_stuck(s) for s in firsts.values()}
 
     def run(self, expand_all: Callable[[list[State], int], Iterable[Expansion]] | None = None, progress=None,
-            resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None) -> Result:
+            resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None,
+            stop: Callable[[], str | None] = lambda: None) -> Result:
         """The walk. expand_all(queue, start) expands the states of the
         queue from start on, in order, as the walk adds to it, and ends when
         it gives the last state the walk added (Explorer.expand, one at a
@@ -788,7 +793,9 @@ class Explorer:
         (csdfbmc.progress.Progress). resume is a walk to take up, as
         checkpoint was given it after a state of a walk of the same inputs:
         checkpoint is given the walk after each state, as it is then; it
-        is the same Walk, changed as the walk goes on (csdfbmc.checkpoint)."""
+        is the same Walk, changed as the walk goes on (csdfbmc.checkpoint).
+        stop is asked before each state: the walk ends there when it names a
+        signal (csdfbmc.stopping), and reports what it found until then."""
         # Workers count the values they try and check apart; this walk counts
         # them as it tries them, so that a state it is stuck in shows.
         workers = expand_all is not None
@@ -826,7 +833,11 @@ class Explorer:
                     visit(s, 0)
 
         stopped = False
+        stopped_by = None
         for x in expand_all(w.queue, w.i):
+            stopped_by = stop()
+            if stopped_by is not None:
+                break
             s = w.queue[w.i]
             w.i += 1
             if workers:
@@ -874,7 +885,7 @@ class Explorer:
             violations=w.violations,
             avoiding_cycles=_cycles(w.order, w.avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
-            empty_posts=self.empty_posts, stopped_early=stopped, bound_reached=w.bound_reached,
+            empty_posts=self.empty_posts, stopped_early=stopped, stopped_by=stopped_by, bound_reached=w.bound_reached,
             left_out=self.left_out,
             stats=None if self.stats is None else [
                 self.stats[i].to_json(self.d.edges[i]) for i in sorted(self.stats, key=lambda i: (-self.stats[i].checked, i))],
