@@ -121,10 +121,12 @@ class RandomWalks:
         return out
 
     def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False,
-            stop: Callable[[], str | None] = never) -> RandomWalkReport:
+            stop: Callable[[], str | None] = never, progress=None) -> RandomWalkReport:
         """walks walks, taken by take (in order; one after another here by
         default), stopping at the first finding with first. stop is asked
-        before each walk is taken in, as Explorer.run asks it."""
+        before each walk is taken in, as Explorer.run asks it. progress,
+        when given, is told how far the walks got after each
+        (csdfbmc.progress.WalkProgress)."""
         x = self.explorer
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         deadlocks: list[State] = []
@@ -154,11 +156,10 @@ class RandomWalks:
             if out.finding is not None or kept:
                 _trace(parents, out)
                 empty_posts.extend(kept)
-            if out.finding is not None:
+            met = out.finding is not None and (*out.finding, out.last()) not in seen_findings
+            if met:
                 kind, what = out.finding
                 s = out.last()
-                if (kind, what, s) in seen_findings:
-                    continue
                 seen_findings.add((kind, what, s))
                 if kind == "deadlock":
                     deadlocks.append(s)
@@ -166,9 +167,11 @@ class RandomWalks:
                     bound_reached.append((s, what))
                 else:
                     violations.append((what, s))
-                if first and kind != "bound_reached":
-                    stopped = True
-                    break
+            if progress is not None:
+                progress.update(walks=done, steps=steps, deepest=deepest, findings=len(deadlocks) + len(violations) + len(empty_posts))
+            if met and first and kind != "bound_reached":
+                stopped = True
+                break
         if stopped_by is None:
             # take ends early when it is stopped (csdfbmc.parallel).
             stopped_by = stop()
