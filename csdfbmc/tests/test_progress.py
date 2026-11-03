@@ -8,7 +8,6 @@ import sys
 
 from csdfbmc.progress import Progress, WalkProgress, resident
 from csdfbmc.tests import fixture
-from csdfbmc.tests.test_random_walk import command
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
 
@@ -155,7 +154,7 @@ class ProgressOptionTest(unittest.TestCase):
             p.report()
 
         # Execute
-        code, _, err = command(self, "--random-walk", "--walks", "3", "--seed", "5", reporting=reporting)
+        code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5", checks=CHECKS, reporting=reporting)
 
         # Assert
         self.assertEqual(1, code, err)

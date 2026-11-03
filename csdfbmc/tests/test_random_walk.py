@@ -114,10 +114,7 @@ class RandomWalkTest(unittest.TestCase):
 
 
 def command(test, *args, **seams):
-    """csdfbmc on args, with seams in place of what main takes by default."""
-    import functools
-    from csdfbmc.__main__ import main
-    return fixture.run_main(test, functools.partial(main, **seams), FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", *args, checks=CHECKS)
+    return fixture.command(test, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", *args, checks=CHECKS, **seams)
 
 
 def run(test, *args):

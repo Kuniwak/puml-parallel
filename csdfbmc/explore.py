@@ -899,7 +899,7 @@ class Explorer:
 DEADLOCK = ("deadlock", None)
 
 
-def dead_end(succ: list, x: Expansion) -> tuple[str, str | None] | None:
+def dead_end(succ: list[tuple[str, str, State, Edge, dict]], x: Expansion) -> tuple[str, str | None] | None:
     """What a state is with only succ of its expansion x to take: DEADLOCK,
     ("bound_reached", witness) when a value beyond a sample would take it
     on, or None when it has a way out or can end."""

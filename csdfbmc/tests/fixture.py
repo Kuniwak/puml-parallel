@@ -198,6 +198,15 @@ def explorer(d, checks=None, cone=False, por=False, symmetry=False, **options):
                                                                avoid=options.get("avoid"), symmetry=symmetry))
 
 
+def command(test, diagram, *args, checks="TYPES = {}\n", **seams):
+    """csdfbmc's main run on diagram and checks as run_main runs it, with
+    seams in place of what main takes by default (its stopping and
+    reporting)."""
+    import functools
+    from csdfbmc.__main__ import main
+    return run_main(test, functools.partial(main, **seams), diagram, *args, checks=checks)
+
+
 def run_main(test, main, diagram, *args, checks="TYPES = {}\n"):
     """main (csdfbmc's or csdfbmc next's) run on diagram, a diagram written by
     hand, and a checks module of the text checks, both written to files that

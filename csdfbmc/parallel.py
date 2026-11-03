@@ -73,8 +73,10 @@ def _sent(x: Expansion | Outcome) -> Expansion | Outcome:
     """x with its edges by their index in the diagram, to send to the walk."""
     if isinstance(x, Expansion):
         x.transitions = [(name, label, t, _index[id(edge)], params) for name, label, t, edge, params in x.transitions]
-    else:
+    elif isinstance(x, Outcome):
         x.steps = [(label, _index[id(edge)], s) for label, edge, s in x.steps]
+    else:
+        raise TypeError(f"no edges of a {type(x).__name__} to send")
     return x
 
 
@@ -85,8 +87,10 @@ def _received(x: Expansion | Outcome | Exception, edges: list) -> Expansion | Ou
         raise x
     if isinstance(x, Expansion):
         x.transitions = [(name, label, t, edges[i], params) for name, label, t, i, params in x.transitions]
-    else:
+    elif isinstance(x, Outcome):
         x.steps = [(label, edges[i], s) for label, i, s in x.steps]
+    else:
+        raise TypeError(f"no edges of a {type(x).__name__} to take back")
     return x
 
 
