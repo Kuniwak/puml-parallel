@@ -5,7 +5,7 @@ import unittest
 
 import sys
 
-from csdfbmc.progress import Progress, resident
+from csdfbmc.progress import Progress, WalkProgress, resident
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
@@ -67,6 +67,38 @@ class ProgressTest(unittest.TestCase):
 
         # Assert
         self.assertTrue(out.getvalue().endswith(", 0:00:30 elapsed, 18.3 GB resident, 1.4 KB/state\n"), out.getvalue())
+
+
+class WalkProgressTest(unittest.TestCase):
+    def test_a_line_says_the_walks_steps_deepest_rate_findings_and_time(self):
+        # Setup
+        clock, out = Clock(), io.StringIO()
+        p = WalkProgress(out, clock, resident=lambda: None)
+        clock.now = 30.0
+        p.update(walks=120, steps=4000, deepest=80, findings=2)
+
+        # Execute
+        p.report()
+
+        # Assert
+        self.assertEqual("csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed\n", out.getvalue())
+
+    def test_the_rate_is_of_the_last_interval_and_the_memory_is_said_in_all(self):
+        # Setup
+        clock, out = Clock(), io.StringIO()
+        p = WalkProgress(out, clock, resident=lambda: 1_200_000_000)
+        clock.now = 30.0
+        p.update(walks=120, steps=4000, deepest=80, findings=2)
+        p.report()
+        clock.now = 90.0
+        p.update(walks=180, steps=6000, deepest=90, findings=3)
+
+        # Execute
+        p.report()
+
+        # Assert
+        self.assertEqual("csdfbmc: 180 walks, 6000 steps, deepest 90, 1.0 walks/s, 3 findings, 0:01:30 elapsed, 1.2 GB resident\n",
+                         out.getvalue().splitlines(True)[1])
 
 
 class ResidentTest(unittest.TestCase):

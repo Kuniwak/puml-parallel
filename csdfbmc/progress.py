@@ -81,6 +81,33 @@ class Progress:
         self.last_time, self.last_visited, self.last_tried, self.last_checked = now, visited, tried, checked
 
 
+class WalkProgress:
+    """Progress of random walks (--random-walk): the walks taken in, their
+    steps, the deepest, the walks per second, the findings, the time spent
+    and the memory held."""
+
+    def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
+                 resident: Callable[[], int | None] = resident):
+        self.out, self.clock, self.resident = out, clock, resident
+        self.started = self.last_time = clock()
+        self.walks = self.steps = self.deepest = self.findings = self.last_walks = 0
+
+    def update(self, walks: int, steps: int, deepest: int, findings: int) -> None:
+        self.walks, self.steps, self.deepest, self.findings = walks, steps, deepest, findings
+
+    def report(self) -> None:
+        now = self.clock()
+        walks = self.walks
+        span = now - self.last_time
+        rate = (walks - self.last_walks) / span if span > 0 else 0.0
+        elapsed = int(now - self.started)
+        held = self.resident()
+        memory = f", {held / 1e9:.1f} GB resident" if held is not None else ""
+        print(f"csdfbmc: {walks} walks, {self.steps} steps, deepest {self.deepest}, {rate:.1f} walks/s, {self.findings} findings, "
+              f"{elapsed // 3600}:{elapsed // 60 % 60:02}:{elapsed % 60:02} elapsed{memory}", file=self.out, flush=True)
+        self.last_time, self.last_walks = now, walks
+
+
 @contextlib.contextmanager
 def reporting(out: TextIO, seconds: float) -> Iterator[Progress | None]:
     """A Progress said on out every seconds by a thread of its own, which
