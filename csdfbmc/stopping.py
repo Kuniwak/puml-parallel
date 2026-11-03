@@ -11,11 +11,17 @@ from collections.abc import Callable, Iterator
 SIGNALS = (signal.SIGINT, signal.SIGTERM)
 
 
+def never() -> None:
+    """What a walk asks whether to stop when nothing stops it."""
+    return None
+
+
 @contextlib.contextmanager
 def on_signals() -> Iterator[Callable[[], str | None]]:
     """What the walk asks whether to stop (Explorer.run's stop): the name of
-    the first of SIGNALS received while inside, or None. The handlers before
-    are put back on leaving."""
+    the first of SIGNALS received while inside, or None; those after it are
+    ignored, so that the report and the checkpoint are written whole. The
+    handlers before are put back on leaving."""
     received: list[str] = []
 
     def handle(signum, _frame):

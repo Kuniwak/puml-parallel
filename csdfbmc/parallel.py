@@ -14,12 +14,14 @@ import argparse
 import collections
 import contextlib
 import multiprocessing
+import multiprocessing.pool
 import signal
 from collections.abc import Callable, Iterable, Iterator
 
 from csdfbmc import cli
 from csdfbmc.explore import Expansion, State
 from csdfbmc.model import Diagram
+from csdfbmc.stopping import never
 
 # The walk of this worker, which its pool built (_start), or what building
 # it raised; the index of each edge of its diagram, by identity; and what
@@ -34,6 +36,10 @@ _stack = contextlib.ExitStack()
 # keep every worker busy.
 CHUNK = 8
 AHEAD = 4
+
+# How often, in seconds, the walk waiting for a worker asks whether to stop:
+# a worker killed by a signal sent to the whole group never answers.
+POLL = 1.0
 
 
 def _start(a: argparse.Namespace) -> None:
@@ -100,26 +106,53 @@ def _walk(i: int):
     return out
 
 
+def _walk_chunk(indices: range) -> list:
+    return [_walk(i) for i in indices]
+
+
+def _waited(result: multiprocessing.pool.AsyncResult, stop: Callable[[], str | None]):
+    """What result gives once a worker has it, or None when stop names a
+    signal first."""
+    while True:
+        try:
+            return result.get(timeout=POLL)
+        except multiprocessing.TimeoutError:
+            if stop() is not None:
+                return None
+
+
 @contextlib.contextmanager
-def walking(a: argparse.Namespace, diagram: Diagram, jobs: int):
+def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable[[], str | None] = never):
     """What takes the random walks in jobs workers (RandomWalks.run's take),
     in order, each worker building its walks of the arguments a; None, the
-    walks' own, for one job. The workers stop on leaving."""
+    walks' own, for one job. It ends early when stop names a signal. The
+    workers stop on leaving."""
     if jobs == 1:
         yield None
         return
     with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
         def take(indices: range):
-            for out in pool.imap(_walk, indices, chunksize=CHUNK):
-                if isinstance(out, Exception):
-                    raise out
-                out.steps = [(label, diagram.edges[i], s) for label, i, s in out.steps]
-                yield out
+            pending: collections.deque = collections.deque()
+            given = indices.start
+            while True:
+                while len(pending) < jobs * AHEAD and given < indices.stop:
+                    pending.append(pool.apply_async(_walk_chunk, (range(given, min(given + CHUNK, indices.stop)),)))
+                    given = min(given + CHUNK, indices.stop)
+                if not pending:
+                    return
+                chunk = _waited(pending.popleft(), stop)
+                if chunk is None:
+                    return
+                for out in chunk:
+                    if isinstance(out, Exception):
+                        raise out
+                    out.steps = [(label, diagram.edges[i], s) for label, i, s in out.steps]
+                    yield out
         yield take
 
 
 @contextlib.contextmanager
-def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int) -> Iterator[Callable[[list[State], int], Iterable[Expansion]] | None]:
+def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable[[], str | None] = never) -> Iterator[Callable[[list[State], int], Iterable[Expansion]] | None]:
     """What expands the walk's states in jobs workers (Explorer.run's
     expand_all), each building its walk of the arguments a; None, the walk's
     own expansion, for one job. The workers stop on leaving.
@@ -127,7 +160,7 @@ def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int) -> Iterator[Ca
     The states are given out in chunks of CHUNK, AHEAD per worker ahead of
     the walk, as the walk adds them, and taken back in order: a level of
     the walk follows the one before without waiting for the workers to
-    start on it."""
+    start on it. It ends early when stop names a signal."""
     if jobs == 1:
         yield None
         return
@@ -141,6 +174,9 @@ def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int) -> Iterator[Ca
                     given = min(given + CHUNK, len(queue))
                 if not pending:
                     return
-                for x in pending.popleft().get():
+                chunk = _waited(pending.popleft(), stop)
+                if chunk is None:
+                    return
+                for x in chunk:
                     yield _received(x, diagram.edges)
         yield expand_all

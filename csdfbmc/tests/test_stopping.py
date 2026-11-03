@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import unittest
+from unittest import mock
 
 from csdfbmc.randomwalk import RandomWalks
 from csdfbmc.stopping import on_signals
@@ -12,19 +13,41 @@ from csdfbmc.tests.test_explore import BUMPING, COUNTER
 
 
 class OnSignalsTest(unittest.TestCase):
-    def test_says_the_signal_received_and_puts_the_handler_back_on_leaving(self):
+    def test_says_the_first_signal_received_and_puts_the_handlers_back_on_leaving(self):
+        tests = {"SIGTERM": [signal.SIGTERM], "SIGINT": [signal.SIGINT], "the first of two": [signal.SIGTERM, signal.SIGINT]}
+        for name, sent in tests.items():
+            with self.subTest(name):
+                # Setup
+                before = {s: signal.getsignal(s) for s in (signal.SIGINT, signal.SIGTERM)}
+
+                # Execute
+                with on_signals() as stop:
+                    quiet = stop()
+                    for s in sent:
+                        os.kill(os.getpid(), s)
+                    got = stop()
+
+                # Assert
+                self.assertEqual((None, sent[0].name), (quiet, got))
+                self.assertEqual(before, {s: signal.getsignal(s) for s in before})
+
+
+class WaitedTest(unittest.TestCase):
+    def test_a_worker_that_never_answers_is_left_when_a_signal_comes(self):
+        import multiprocessing
+        from csdfbmc import parallel
+
         # Setup
-        before = signal.getsignal(signal.SIGTERM)
+        class Silent:
+            def get(self, timeout):
+                raise multiprocessing.TimeoutError
 
         # Execute
-        with on_signals() as stop:
-            quiet = stop()
-            os.kill(os.getpid(), signal.SIGTERM)
-            got = stop()
+        with mock.patch.object(parallel, "POLL", 0.01):
+            got = parallel._waited(Silent(), lambda: "SIGTERM")
 
         # Assert
-        self.assertEqual((None, "SIGTERM"), (quiet, got))
-        self.assertIs(before, signal.getsignal(signal.SIGTERM))
+        self.assertIsNone(got)
 
 
 class StopTest(unittest.TestCase):
@@ -59,7 +82,6 @@ class StopTest(unittest.TestCase):
 class StopOptionTest(unittest.TestCase):
     def test_a_run_stopped_by_a_signal_says_so_and_what_it_found(self):
         import contextlib
-        from unittest import mock
         from csdfbmc.tests.test_random_walk import command
         for args in ((), ("--random-walk", "--seed", "1"), ("--jobs", "2")):
             with self.subTest(args=args):

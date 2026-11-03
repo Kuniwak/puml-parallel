@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.explore import Explorer, Result, State
 from csdfbmc.model import Edge
+from csdfbmc.stopping import never
 
 
 @dataclass
@@ -120,7 +121,7 @@ class RandomWalks:
         return out
 
     def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False,
-            stop: Callable[[], str | None] = lambda: None) -> RandomWalkReport:
+            stop: Callable[[], str | None] = never) -> RandomWalkReport:
         """walks walks, taken by take (in order; one after another here by
         default), stopping at the first finding with first. stop is asked
         before each walk is taken in, as Explorer.run asks it."""
@@ -168,6 +169,9 @@ class RandomWalks:
                 if first and kind != "bound_reached":
                     stopped = True
                     break
+        if stopped_by is None:
+            # take ends early when it is stopped (csdfbmc.parallel).
+            stopped_by = stop()
         result = Result(
             stuck=x.stuck(deadlocks, parents), states=[], parents=parents, deadlocks=deadlocks, tau_cycles=[],
             truncated=False, bound=0, environment=x.environment_report(),

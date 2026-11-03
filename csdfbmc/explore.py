@@ -15,6 +15,7 @@ from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
 from csdfbmc.protocol import ClientLike
+from csdfbmc.stopping import never
 from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
@@ -784,7 +785,7 @@ class Explorer:
 
     def run(self, expand_all: Callable[[list[State], int], Iterable[Expansion]] | None = None, progress=None,
             resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None,
-            stop: Callable[[], str | None] = lambda: None) -> Result:
+            stop: Callable[[], str | None] = never) -> Result:
         """The walk. expand_all(queue, start) expands the states of the
         queue from start on, in order, as the walk adds to it, and ends when
         it gives the last state the walk added (Explorer.expand, one at a
@@ -875,6 +876,10 @@ class Explorer:
             if checkpoint is not None:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)
+
+        if stopped_by is None:
+            # expand_all ends early when it is stopped (csdfbmc.parallel).
+            stopped_by = stop()
 
         return Result(
             stuck=self.stuck(w.deadlocks, w.parents),

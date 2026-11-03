@@ -102,6 +102,8 @@ func runRelaying(cmd *exec.Cmd, signals <-chan os.Signal) error {
 		case err := <-done:
 			return err
 		case s := <-signals:
+			// Windows cannot send a signal to a process; ^C reaches the
+			// checker from the console there.
 			_ = cmd.Process.Signal(s)
 		}
 	}

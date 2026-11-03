@@ -203,8 +203,15 @@ def main(argv=None) -> int:
     if a.checkpoint_every < 0:
         ap.error(f"--checkpoint-every expects 0 or more seconds, not {a.checkpoint_every:g}")
 
-    if a.random_walk:
-        return main_random_walks(a)
+    # Inside, a signal stops the walk where it is, and one after it is
+    # ignored while the report and the checkpoint are written.
+    with on_signals() as stop:
+        if a.random_walk:
+            return main_random_walks(a, stop)
+        return main_walk(a, stop)
+
+
+def main_walk(a: argparse.Namespace, stop) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             walk = explorer(a, diagram, checks, client, environment)
@@ -214,8 +221,7 @@ def main(argv=None) -> int:
             if a.checkpoint:
                 saving = checkpoint.Every(a.checkpoint_every,
                                           lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
-            with parallel.expanding(a, diagram, a.jobs) as expand_all, progress.reporting(sys.stderr, a.progress) as said, \
-                    on_signals() as stop:
+            with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, progress.reporting(sys.stderr, a.progress) as said:
                 result = walk.run(expand_all, said, resume=resume, checkpoint=saving, stop=stop)
             if saving is not None:
                 saving.flush()
@@ -229,11 +235,11 @@ def main(argv=None) -> int:
     return report(a, result, head)
 
 
-def main_random_walks(a: argparse.Namespace) -> int:
+def main_random_walks(a: argparse.Namespace, stop) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             walker = random_walks(a, explorer(a, diagram, checks, client, environment))
-            with parallel.walking(a, diagram, a.jobs) as take, on_signals() as stop:
+            with parallel.walking(a, diagram, a.jobs, stop) as take:
                 got = walker.run(a.walks, take, first=a.first, stop=stop)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
