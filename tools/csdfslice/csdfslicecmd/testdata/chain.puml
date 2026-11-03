@@ -1,0 +1,15 @@
+@startuml
+state "Start" as s0
+state "Middle" as s1
+s1 : n ; N
+state "End" as s2
+[*] --> s0
+s0 --> s1 : a ; ; $n' = 0
+s1 --> s2 : b ; $n = 0
+s2 --> s0 : c
+note as channels
+  channel a
+  channel b
+  channel c
+end note
+@enduml

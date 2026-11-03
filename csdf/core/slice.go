@@ -24,7 +24,7 @@ type Sliced struct {
 func Slice(d *Diagram, states []string, context int) (*Sliced, error) {
 	for _, s := range states {
 		if !slices.Contains(d.States, s) {
-			return nil, fmt.Errorf("core.Slice: unknown state %q", s)
+			return nil, fmt.Errorf("core.Slice: %w", fmt.Errorf("unknown state %q", s))
 		}
 	}
 	in := neighbourhood(d, states, context)
