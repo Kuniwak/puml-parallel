@@ -3,7 +3,6 @@ package coreio
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -124,9 +123,7 @@ func TestWritePromotionExpandsAsTheSourceAndIsIdempotent(t *testing.T) {
 			if again := writePromotion(t, sorted); again != sorted {
 				t.Errorf("not idempotent (-once +twice):\n%s", cmp.Diff(sorted, again))
 			}
-			// The order of the families is the order of the conjuncts and of
-			// the maps of the expansion, which means nothing.
-			if want, got := unordered(expand(t, string(raw), dir)), unordered(expand(t, sorted, dir)); want != got {
+			if want, got := expand(t, string(raw), dir), expand(t, sorted, dir); want != got {
 				t.Errorf("expands otherwise (-source +sorted):\n%s", cmp.Diff(want, got))
 			}
 		})
@@ -161,52 +158,6 @@ func expand(t *testing.T, source, dir string) string {
 		t.Fatal(err)
 	}
 	return text
-}
-
-// unordered is the lines of a written diagram sorted, the conjuncts of each
-// clause on an edge sorted, at every depth.
-func unordered(text string) string {
-	lines := strings.Split(text, "\n")
-	for i, l := range lines {
-		head, label, ok := strings.Cut(l, " : ")
-		if !ok || !strings.Contains(head, "-->") {
-			continue
-		}
-		parts := strings.Split(label, " ; ")
-		for j := range parts {
-			parts[j] = conjunctsSorted(parts[j])
-		}
-		lines[i] = head + " : " + strings.Join(parts, " ; ")
-	}
-	slices.Sort(lines)
-	return strings.Join(lines, "\n")
-}
-
-// conjunctsSorted is the clause text c with its conjuncts sorted, and those
-// of the body of each @exists.
-func conjunctsSorted(c string) string {
-	var conjuncts []string
-	depth, from := 0, 0
-	for i, r := range c {
-		switch r {
-		case '(', '{':
-			depth++
-		case ')', '}':
-			depth--
-		}
-		if depth == 0 && strings.HasPrefix(c[i:], " ∧ ") {
-			conjuncts = append(conjuncts, c[from:i])
-			from = i + len(" ∧ ")
-		}
-	}
-	conjuncts = append(conjuncts, c[from:])
-	for i, f := range conjuncts {
-		if head, body, ok := strings.Cut(f, ") ("); ok && strings.HasPrefix(f, "@exists(") && strings.HasSuffix(body, ")") {
-			conjuncts[i] = head + ") (" + conjunctsSorted(strings.TrimSuffix(body, ")")) + ")"
-		}
-	}
-	slices.Sort(conjuncts)
-	return strings.Join(conjuncts, " ∧ ")
 }
 
 func TestWritePromotionRefusesAGeneratedIDThatClashes(t *testing.T) {
