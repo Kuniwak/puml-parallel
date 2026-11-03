@@ -299,7 +299,7 @@ vmDropping : dispensing ; Product
 ' CSDF-IGNORE-BEGIN
 state "vmIdle …" as vmIdle_cut
 state "vmWaitingChoosing …" as vmWaitingChoosing_cut
-[*] --> vmIdle_cut
+[*] --> vmIdle_cut : $availableProducts' are products initially in the vending machine
 vmDropping --> vmIdle_cut : drop?product ; $product is $dispensing ; $availableProducts' is $availableProducts minus $product
 vmWaitingChoosing_cut --> vmDropping : choose?product ; $availableProducts contains $product ; $dispensing' is $product
 ' CSDF-IGNORE-END
@@ -313,7 +313,10 @@ region, so the other tools refuse it. An unknown state is an error, and a
 diagram that holds promotion directives is refused as `csdfsort` refuses it.
 
 In CI, the states a change touches can be taken from the `csdfsort` textconv
-diff above and their neighbourhood rendered for the review. This picks the
+diff above and their neighbourhood rendered for the review. The pipeline
+below assumes that textconv is configured as shown there (`diff=csdf` in
+`.gitattributes` and `diff.csdf.textconv`); without it `git diff` shows the
+raw text and the lines it picks need not be canonical. It picks the
 states of the added and removed state, variable and transition lines; a state
 the change removed is unknown to the new diagram, so slice the old revision
 for those.
