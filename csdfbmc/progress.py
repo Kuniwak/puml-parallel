@@ -57,58 +57,74 @@ def _hms(seconds: float) -> str:
     return f"{s // 3600}:{s // 60 % 60:02}:{s % 60:02}"
 
 
-class Progress:
-    """The counts the walk last gave (update), said by report. A report
-    reads them as they are, so that a walk stuck in one state is said to
-    be."""
+class _Line:
+    """The counts last given (update), said in a line by report every so
+    often. A report reads them as they are, so that a walk stuck is said to
+    be. The counts are kept as one tuple, so that a report never mixes two
+    updates'."""
 
-    def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
+    def __init__(self, out: TextIO, counts: tuple[int, ...], clock: Callable[[], float] = time.monotonic,
                  resident: Callable[[], int | None] = resident):
         self.out, self.clock, self.resident = out, clock, resident
         self.started = self.last_time = clock()
-        self.visited = self.frontier = self.depth = self.tried = self.checked = 0
-        self.last_visited = self.last_tried = self.last_checked = 0
+        self.counts = self.last = counts
+
+    def report(self) -> None:
+        now, counts = self.clock(), self.counts
+        span = now - self.last_time
+        print(f"csdfbmc: {self.said(counts, self.last, span)}, {_hms(now - self.started)} elapsed{self.memory(self.resident(), counts)}",
+              file=self.out, flush=True)
+        self.last_time, self.last = now, counts
+
+    def said(self, counts: tuple[int, ...], last: tuple[int, ...], span: float) -> str:
+        raise NotImplementedError
+
+    def memory(self, held: int | None, counts: tuple[int, ...]) -> str:
+        return f", {held / 1e9:.1f} GB resident" if held is not None else ""
+
+
+def _rate(now: int, last: int, span: float) -> float:
+    return (now - last) / span if span > 0 else 0.0
+
+
+class Progress(_Line):
+    """How far a breadth-first walk got: the states it met, the frontier,
+    the depth, the states per second, the values tried and checked since
+    the last line, and the memory in all and per state."""
+
+    def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
+                 resident: Callable[[], int | None] = resident):
+        super().__init__(out, (0, 0, 0, 0, 0), clock, resident)
 
     def update(self, visited: int, frontier: int, depth: int, tried: int, checked: int) -> None:
-        self.visited, self.frontier, self.depth, self.tried, self.checked = visited, frontier, depth, tried, checked
+        self.counts = (visited, frontier, depth, tried, checked)
 
-    def report(self) -> None:
-        now = self.clock()
-        visited, tried, checked = self.visited, self.tried, self.checked
-        span = now - self.last_time
-        rate = (visited - self.last_visited) / span if span > 0 else 0.0
-        held = self.resident()
-        memory = f", {held / 1e9:.1f} GB resident, {held / max(visited, 1) / 1e3:.1f} KB/state" if held is not None else ""
-        print(f"csdfbmc: {visited} states, frontier {self.frontier}, depth {self.depth}, {rate:.1f} states/s, "
-              f"{tried - self.last_tried} field values tried and {checked - self.last_checked} valuations checked in the last {span:.0f}s, "
-              f"{_hms(now - self.started)} elapsed{memory}", file=self.out, flush=True)
-        self.last_time, self.last_visited, self.last_tried, self.last_checked = now, visited, tried, checked
+    def said(self, counts, last, span):
+        visited, frontier, depth, tried, checked = counts
+        return (f"{visited} states, frontier {frontier}, depth {depth}, {_rate(visited, last[0], span):.1f} states/s, "
+                f"{tried - last[3]} field values tried and {checked - last[4]} valuations checked in the last {span:.0f}s")
+
+    def memory(self, held, counts):
+        if held is None:
+            return ""
+        return f"{super().memory(held, counts)}, {held / max(counts[0], 1) / 1e3:.1f} KB/state"
 
 
-class WalkProgress:
-    """Progress of random walks (--random-walk): the walks taken in, their
-    steps, the deepest, the walks per second, the findings, the time spent
-    and the memory held."""
+class WalkProgress(_Line):
+    """How far random walks (--random-walk) got: the walks taken in, their
+    steps, the deepest, the walks per second, the findings and the memory
+    in all."""
 
     def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
                  resident: Callable[[], int | None] = resident):
-        self.out, self.clock, self.resident = out, clock, resident
-        self.started = self.last_time = clock()
-        self.walks = self.steps = self.deepest = self.findings = self.last_walks = 0
+        super().__init__(out, (0, 0, 0, 0), clock, resident)
 
     def update(self, walks: int, steps: int, deepest: int, findings: int) -> None:
-        self.walks, self.steps, self.deepest, self.findings = walks, steps, deepest, findings
+        self.counts = (walks, steps, deepest, findings)
 
-    def report(self) -> None:
-        now = self.clock()
-        walks = self.walks
-        span = now - self.last_time
-        rate = (walks - self.last_walks) / span if span > 0 else 0.0
-        held = self.resident()
-        memory = f", {held / 1e9:.1f} GB resident" if held is not None else ""
-        print(f"csdfbmc: {walks} walks, {self.steps} steps, deepest {self.deepest}, {rate:.1f} walks/s, {self.findings} findings, "
-              f"{_hms(now - self.started)} elapsed{memory}", file=self.out, flush=True)
-        self.last_time, self.last_walks = now, walks
+    def said(self, counts, last, span):
+        walks, steps, deepest, findings = counts
+        return f"{walks} walks, {steps} steps, deepest {deepest}, {_rate(walks, last[0], span):.1f} walks/s, {findings} findings"
 
 
 @contextlib.contextmanager
