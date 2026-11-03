@@ -426,7 +426,7 @@ class Explorer:
                 out.append(env[ghost])
         return tuple(out)
 
-    def _check_invariants(self, state: State) -> list[str]:
+    def check_invariants(self, state: State) -> list[str]:
         env = self._ghost_env(state)
         return [name for name, fn in self.checks.invariants.items()
                 if self.checks.binds(fn, env) and not apply(fn, env, what=f"the invariant {name!r}")]
@@ -747,6 +747,37 @@ class Explorer:
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
+    def initial_deciding(self) -> tuple[list[State], list[str]]:
+        """The start states (initial) and the functions the environment
+        decided on the way, apart from those it decided before, as expand
+        gives them for a state."""
+        decided = self.meaning.decided
+        self.meaning.decided = {}
+        try:
+            return self.initial(), list(self.meaning.decided)
+        finally:
+            self.meaning.decided = decided
+
+    def note_decided(self, names: Iterable[str]) -> None:
+        """Takes the functions the environment decided apart (expand,
+        initial_deciding) into those the result names, in order."""
+        for name in names:
+            self.meaning.decided.setdefault(name)
+
+    def environment_report(self) -> dict:
+        """What reproduces the walk (Result.environment): the functions of
+        the environment given, and those it decided an atom by, in order."""
+        return {**self.environment.to_json(), "decided": list(self.meaning.decided)}
+
+    def stuck(self, deadlocks: list[State], parents: dict) -> dict[State, list[dict]]:
+        """Why each edge out of the first deadlock of each shape (Result.groups)
+        takes no step (why_stuck)."""
+        firsts: dict[tuple, State] = {}
+        for s in deadlocks:
+            p = parents[s]
+            firsts.setdefault((s[0], p[2].name if p is not None else ""), s)
+        return {s: self.why_stuck(s) for s in firsts.values()}
+
     def run(self, expand_all: Callable[[list[State], int], Iterable[Expansion]] | None = None, progress=None,
             resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None) -> Result:
         """The walk. expand_all(queue, start) expands the states of the
@@ -786,7 +817,7 @@ class Explorer:
             w.parents[s] = parent
             w.order.append(s)
             w.queue.append(s)
-            for name in self._check_invariants(s):
+            for name in self.check_invariants(s):
                 w.violations.append((name, s))
 
         if resume is None:
@@ -805,8 +836,7 @@ class Explorer:
                 stopped = True
                 break
             self.empty_posts.extend((s, label) for label in x.empty_posts)
-            for name in x.decided:
-                self.meaning.decided.setdefault(name)
+            self.note_decided(x.decided)
             if x.stats is not None:
                 for edge, edge_stats in x.stats.items():
                     self.stats.setdefault(edge, EdgeStats()).add(edge_stats)
@@ -835,18 +865,12 @@ class Explorer:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)
 
-        firsts: dict[tuple, State] = {}
-        for s in w.deadlocks:
-            p = w.parents[s]
-            firsts.setdefault((s[0], p[2].name if p is not None else ""), s)
-        stuck = {s: self.why_stuck(s) for s in firsts.values()}
-
         return Result(
-            stuck=stuck,
+            stuck=self.stuck(w.deadlocks, w.parents),
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
             tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
             truncated=w.truncated, bound=self.max_states,
-            environment={**self.environment.to_json(), "decided": list(self.meaning.decided)},
+            environment=self.environment_report(),
             violations=w.violations,
             avoiding_cycles=_cycles(w.order, w.avoid_next) if self.avoid is not None and not stopped else [],
             avoid=self.avoid, ghost_names=self.ghost_names,
