@@ -148,7 +148,15 @@ class RandomWalkOptionTest(unittest.TestCase):
         self.assertEqual(0, code, err)
         self.assertIn("fired: nothing\nnever fired: inc\n", out)
 
-    def test_a_weight_of_an_event_the_diagram_lacks_is_refused(self):
+    def test_a_weight_line_is_read_as_tsv(self):
+        # Execute
+        code, out, err = run(self, "--walks", "2", "--seed", "1", "--weight-tsv", tsv(self, '"inc"\t0\n'))
+
+        # Assert
+        self.assertEqual(0, code, err)
+        self.assertIn("never fired: inc\n", out)
+
+    def test_a_malformed_weight_line_is_refused(self):
         tests = {"an unknown event": "incc\t2\n", "no weight": "inc\n", "a negative weight": "inc\t-1\n"}
         for name, text in tests.items():
             with self.subTest(name):

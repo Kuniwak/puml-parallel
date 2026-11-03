@@ -14,6 +14,7 @@ gives the same walks whatever order, or process, they are taken in.
 from __future__ import annotations
 
 import collections
+import csv
 import random
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -66,17 +67,18 @@ def load_weights(path: str, diagram) -> dict[str, float]:
     refused, as a name mistyped would be."""
     names = {e.name for e in diagram.edges}
     weights: dict[str, float] = {}
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f, 1):
-            if not line.strip():
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = csv.reader(f, delimiter="\t")
+        for cols in rows:
+            n = rows.line_num
+            if not cols:
                 continue
-            cols = line.rstrip("\n").split("\t")
             try:
                 weight = float(cols[1]) if len(cols) == 2 else None
             except ValueError:
                 weight = None
             if weight is None or weight < 0:
-                raise ValueError(f"{path}:{n}: a weight line is an event and a weight of 0 or more, separated by a tab, not {line.rstrip()!r}")
+                raise ValueError(f"{path}:{n}: a weight line is an event and a weight of 0 or more, separated by a tab, not the columns {cols!r}")
             if cols[0] not in names:
                 raise ValueError(f"{path}:{n}: no edge of the diagram has the event {cols[0]!r} this weight is for")
             weights[cols[0]] = weight
