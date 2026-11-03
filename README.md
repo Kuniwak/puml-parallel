@@ -240,7 +240,22 @@ the formula syntax of [SYNTAX.md](./docs/SYNTAX.md) included; a clause in the
 old syntax (`@opaque`, a renaming `@[from := to]`) is refused with the reader's
 error.
 
+A global diagram holding promotion directives ([Promotion](docs/PROMOTION.md))
+is printed as written, not expanded, so it diffs as the author edited it. The
+modes are ordered by id, each holding its controller's variables in their
+declared order, then its maps by name, then its `<<promote>>` blocks by map;
+the `!include` sits in the block of the first mode its family moves in. The
+start edge and the hand-written edges follow in the order above, then the
+`sync` notes by event, the `constrain` notes by their line, the assume notes
+and the channel note. Blocks and directive notes get ids of their own
+(`<mode>_<map>`, `sync_<event>`, `constrain<n>`), and lines for the picture
+alone, comments and prose notes, are left out. The included files are not
+read, so it works on a file with no directory around it. `csdfpromote` expands
+the output as it expands the input, up to the order of conjuncts, which
+follows the order of the families.
+
 ```console
+$ csdfsort examples/promote/RECEIPTS.puml
 $ csdfsort examples/valid/client.puml
 $ csdfsort < examples/valid/client.puml
 $ csdfsort - < examples/valid/client.puml
@@ -262,16 +277,10 @@ $ git config diff.csdf.textconv csdfsort
 $ git diff
 ```
 
-`csdfsort` refuses a diagram that holds promotion directives, and `csdfpromote`
-one that holds none. To see what a change to a promoted diagram does to the
-expanded machine, give those files a driver of their own that expands first:
-
-```console
-$ printf '#!/bin/sh\ncsdfpromote "$1" | csdfsort\n' > csdf-expand-textconv
-$ chmod +x csdf-expand-textconv
-$ echo 'examples/promote/*.puml diff=csdfpromote' >> .gitattributes
-$ git config diff.csdfpromote.textconv "$PWD/csdf-expand-textconv"
-```
+A global diagram holding promotion directives diffs as written: its
+`<<promote>>` blocks, `sync` and `constrain` notes and edges, not its
+expansion, whose edges each carry a frame condition over every map. Its local
+diagrams are files of their own and diff as any other diagram.
 
 Outside git, `diff <(csdfsort old.puml) <(csdfsort new.puml)` does the same,
 and its exit status tells whether the diagrams differ. A diff to be processed
@@ -310,7 +319,8 @@ A slice does not mean what the diagram means: what is reachable, and what is
 refused, changes with the states left out. It is for rendering only. When the
 initial state is outside, the slice has no start edge outside the ignore
 region, so the other tools refuse it. An unknown state is an error, and a
-diagram that holds promotion directives is refused as `csdfsort` refuses it.
+diagram that holds promotion directives is refused; run `csdfpromote` on it
+first.
 
 In CI, the states a change touches can be taken from the `csdfsort` textconv
 diff above and their neighbourhood rendered for the review. The pipeline
