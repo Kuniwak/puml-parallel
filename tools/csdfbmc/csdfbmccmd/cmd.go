@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
+	"syscall"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
 	"github.com/Kuniwak/puml-parallel/v3/csdfbmc"
@@ -39,7 +41,10 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		cmd.Stdin = inout.Stdin
 		cmd.Stdout = inout.Stdout
 		cmd.Stderr = inout.Stderr
-		if err := cmd.Run(); err != nil {
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+		defer signal.Stop(signals)
+		if err := runRelaying(cmd, signals); err != nil {
 			var exit *exec.ExitError
 			if errors.As(err, &exit) {
 				// The checker has said what it found or what went wrong.
@@ -81,4 +86,25 @@ func cacheRoot(env cli.EnvFunc) string {
 		return root
 	}
 	return os.TempDir()
+}
+
+// runRelaying runs cmd and passes each signal of signals on to it until it
+// ends: the checker stops on SIGINT or SIGTERM with the report of what it
+// found, which a launcher killed in its place would never wait for.
+func runRelaying(cmd *exec.Cmd, signals <-chan os.Signal) error {
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	for {
+		select {
+		case err := <-done:
+			return err
+		case s := <-signals:
+			// Windows cannot send a signal to a process; ^C reaches the
+			// checker from the console there.
+			_ = cmd.Process.Signal(s)
+		}
+	}
 }

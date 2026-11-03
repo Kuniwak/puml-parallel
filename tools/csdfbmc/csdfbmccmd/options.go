@@ -88,6 +88,10 @@ N-th outgoing edge of the given runtime state, as
 {"candidates": [{"params": {...}, "values": [...]}, ...]}. csdfrepl and
 csdfrepld call it when given -checks.
 
+SIGINT or SIGTERM stops the walk where it is: it reports what it found until
+then and writes its last --checkpoint, so "timeout 2h csdfbmc ..." bounds a
+run by time.
+
 The exit status is the checker's: 0 when nothing was found, 1 when a
 deadlock, tau cycle, broken invariant or avoiding cycle was, 2 when the
 inputs could not be read. The sources are unpacked once per version under

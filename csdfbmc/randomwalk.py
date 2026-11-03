@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.explore import Explorer, Result, State
 from csdfbmc.model import Edge
+from csdfbmc.stopping import never
 
 
 @dataclass
@@ -119,9 +120,11 @@ class RandomWalks:
             out.finding = ("violation", broken[0])
         return out
 
-    def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False) -> RandomWalkReport:
+    def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False,
+            stop: Callable[[], str | None] = never) -> RandomWalkReport:
         """walks walks, taken by take (in order; one after another here by
-        default), stopping at the first finding with first."""
+        default), stopping at the first finding with first. stop is asked
+        before each walk is taken in, as Explorer.run asks it."""
         x = self.explorer
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         deadlocks: list[State] = []
@@ -133,7 +136,11 @@ class RandomWalks:
         fired: collections.Counter = collections.Counter()
         done = steps = deepest = 0
         stopped = False
+        stopped_by = None
         for out in (take or (lambda r: map(self.walk, r)))(range(walks)):
+            stopped_by = stop()
+            if stopped_by is not None:
+                break
             done += 1
             steps += len(out.steps)
             deepest = max(deepest, len(out.steps))
@@ -162,10 +169,13 @@ class RandomWalks:
                 if first and kind != "bound_reached":
                     stopped = True
                     break
+        if stopped_by is None:
+            # take ends early when it is stopped (csdfbmc.parallel).
+            stopped_by = stop()
         result = Result(
             stuck=x.stuck(deadlocks, parents), states=[], parents=parents, deadlocks=deadlocks, tau_cycles=[],
             truncated=False, bound=0, environment=x.environment_report(),
-            violations=violations, ghost_names=x.ghost_names, empty_posts=empty_posts, stopped_early=stopped,
+            violations=violations, ghost_names=x.ghost_names, empty_posts=empty_posts, stopped_early=stopped, stopped_by=stopped_by,
             bound_reached=bound_reached, left_out=x.left_out)
         events = sorted({e.name for e in x.d.edges if not e.is_tau})
         return RandomWalkReport(result=result, seed=self.seed, walks=done, steps=steps, deepest=deepest,
