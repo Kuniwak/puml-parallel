@@ -113,9 +113,11 @@ class RandomWalkTest(unittest.TestCase):
         self.assertEqual(0, updates[-1]["findings"])
 
 
-def command(test, *args):
+def command(test, *args, **seams):
+    """csdfbmc on args, with seams in place of what main takes by default."""
+    import functools
     from csdfbmc.__main__ import main
-    return fixture.run_main(test, main, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", *args, checks=CHECKS)
+    return fixture.run_main(test, functools.partial(main, **seams), FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", *args, checks=CHECKS)
 
 
 def run(test, *args):

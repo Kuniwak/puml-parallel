@@ -3,12 +3,12 @@ walk got."""
 import contextlib
 import io
 import unittest
-from unittest import mock
 
 import sys
 
 from csdfbmc.progress import Progress, WalkProgress, resident
 from csdfbmc.tests import fixture
+from csdfbmc.tests.test_random_walk import command
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
 
@@ -155,8 +155,7 @@ class ProgressOptionTest(unittest.TestCase):
             p.report()
 
         # Execute
-        with mock.patch("csdfbmc.__main__.progress.reporting", reporting):
-            code, _, err = walk(self, "--random-walk", "--walks", "3", "--seed", "5")
+        code, _, err = command(self, "--random-walk", "--walks", "3", "--seed", "5", reporting=reporting)
 
         # Assert
         self.assertEqual(1, code, err)
