@@ -222,7 +222,7 @@ def main_walk(a: argparse.Namespace, stop) -> int:
                 saving = checkpoint.Every(a.checkpoint_every,
                                           lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
             with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, progress.reporting(sys.stderr, a.progress, progress.Progress) as said:
-                result = walk.run(expand_all, said, resume=resume, checkpoint=saving, stop=stop)
+                result = walk.run(expand_all, said.update, resume=resume, checkpoint=saving, stop=stop)
             if saving is not None:
                 saving.flush()
     except LOADING_ERRORS as e:
@@ -241,7 +241,7 @@ def main_random_walks(a: argparse.Namespace, stop) -> int:
             walker = random_walks(a, explorer(a, diagram, checks, client, environment))
             with parallel.walking(a, diagram, a.jobs, stop) as take, \
                     progress.reporting(sys.stderr, a.progress, progress.WalkProgress) as said:
-                got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said)
+                got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

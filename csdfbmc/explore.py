@@ -14,6 +14,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
+from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import never
 from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
@@ -783,15 +784,14 @@ class Explorer:
             firsts.setdefault((s[0], p[2].name if p is not None else ""), s)
         return {s: self.why_stuck(s) for s in firsts.values()}
 
-    def run(self, expand_all: Callable[[list[State], int], Iterable[Expansion]] | None = None, progress=None,
+    def run(self, expand_all: Callable[[list[State], int], Iterable[Expansion]] | None = None, progress: Callable[..., None] = unsaid,
             resume: Walk | None = None, checkpoint: Callable[[Walk], None] | None = None,
             stop: Callable[[], str | None] = never) -> Result:
         """The walk. expand_all(queue, start) expands the states of the
         queue from start on, in order, as the walk adds to it, and ends when
         it gives the last state the walk added (Explorer.expand, one at a
-        time by default); the walk may stop before taking them all. progress, when given, is
-        updated with the counts after each state expanded
-        (csdfbmc.progress.Progress). resume is a walk to take up, as
+        time by default); the walk may stop before taking them all. progress is
+        told the counts after each state expanded (Progress.update). resume is a walk to take up, as
         checkpoint was given it after a state of a walk of the same inputs:
         checkpoint is given the walk after each state, as it is then; it
         is the same Walk, changed as the walk goes on (csdfbmc.checkpoint).
@@ -871,8 +871,7 @@ class Explorer:
             w.tau_next[s] = [w.met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
                 w.avoid_next[s] = [w.met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
-            if progress is not None:
-                progress.update(visited=len(w.order), frontier=len(w.queue) - w.i, depth=w.depth[s], tried=self.tried, checked=self.checked)
+            progress(visited=len(w.order), frontier=len(w.queue) - w.i, depth=w.depth[s], tried=self.tried, checked=self.checked)
             if checkpoint is not None:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)

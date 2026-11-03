@@ -137,12 +137,8 @@ class ProgressOptionTest(unittest.TestCase):
         from csdfbmc.tests.fixture import explorer, load
         seen = []
 
-        class Recorder:
-            def update(self, **counts):
-                seen.append(counts)
-
         # Execute
-        explorer(load(FORGETFUL), Checks(types={"N": [0, 1, 2], "Q": [0, 1]})).run(progress=Recorder())
+        explorer(load(FORGETFUL), Checks(types={"N": [0, 1, 2], "Q": [0, 1]})).run(progress=lambda **counts: seen.append(counts))
 
         # Assert
         self.assertEqual(5, len(seen))
