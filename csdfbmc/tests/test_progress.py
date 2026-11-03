@@ -3,7 +3,9 @@ walk got."""
 import io
 import unittest
 
-from csdfbmc.progress import Progress
+import sys
+
+from csdfbmc.progress import Progress, resident
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
@@ -25,7 +27,7 @@ class ProgressTest(unittest.TestCase):
     def test_a_line_says_the_states_frontier_depth_rate_values_tried_and_checked_and_time(self):
         # Setup
         clock, out = Clock(), io.StringIO()
-        p = Progress(out, clock)
+        p = Progress(out, clock, resident=lambda: None)
         clock.now = 30.0
         p.update(visited=120, frontier=40, depth=3, tried=900, checked=5000)
 
@@ -39,7 +41,7 @@ class ProgressTest(unittest.TestCase):
     def test_the_rate_and_the_values_tried_are_of_the_last_interval(self):
         # Setup
         clock, out = Clock(), io.StringIO()
-        p = Progress(out, clock)
+        p = Progress(out, clock, resident=lambda: None)
         clock.now = 30.0
         p.update(visited=120, frontier=40, depth=3, tried=900, checked=5000)
         p.report()
@@ -52,6 +54,34 @@ class ProgressTest(unittest.TestCase):
         # Assert
         self.assertEqual("csdfbmc: 180 states, frontier 10, depth 4, 1.0 states/s, "
                          "100 field values tried and 300 valuations checked in the last 60s, 0:01:30 elapsed\n", out.getvalue().splitlines(True)[1])
+
+    def test_a_line_says_the_memory_resident_in_all_and_per_state(self):
+        # Setup
+        clock, out = Clock(), io.StringIO()
+        p = Progress(out, clock, resident=lambda: 18_300_000_000)
+        clock.now = 30.0
+        p.update(visited=12_800_000, frontier=40, depth=3, tried=900, checked=5000)
+
+        # Execute
+        p.report()
+
+        # Assert
+        self.assertTrue(out.getvalue().endswith(", 0:00:30 elapsed, 18.3 GB resident, 1.4 KB/state\n"), out.getvalue())
+
+
+class ResidentTest(unittest.TestCase):
+    @unittest.skipUnless(sys.platform in ("darwin", "linux"), "read on macOS and Linux")
+    def test_reads_the_memory_this_process_holds(self):
+        # Setup
+        before = resident()
+        held = b"x" * 200_000_000
+
+        # Execute
+        after = resident()
+
+        # Assert
+        self.assertGreater(after - before, 150_000_000)
+        del held
 
 
 class ProgressOptionTest(unittest.TestCase):

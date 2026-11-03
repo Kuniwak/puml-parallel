@@ -137,7 +137,7 @@ def main(argv=None) -> int:
                     help="expand the states in N worker processes, each loading the inputs and the glue anew (default 1): the same walk, sooner when it is large")
     ap.add_argument("--progress", type=float, default=30, metavar="SECONDS",
                     help="say on stderr every SECONDS how far the walk got: the states, the frontier, the depth, "
-                         "the states per second, the field values tried and the valuations checked since the last line (default 30; 0 says nothing)")
+                         "the states per second, the field values tried and the valuations checked since the last line, the time spent and, on macOS and Linux, the memory held in all and per state (default 30; 0 says nothing)")
     ap.add_argument("--checkpoint", metavar="FILE",
                     help="write the walk to FILE as it goes, every --checkpoint-every seconds and at its end, for --resume to take up")
     ap.add_argument("--checkpoint-every", type=float, default=60, metavar="SECONDS",
