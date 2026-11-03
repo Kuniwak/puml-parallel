@@ -79,11 +79,17 @@ func writeState(b *strings.Builder, d *core.Diagram, s string) {
 		label = s
 	}
 	fmt.Fprintf(b, "state %q as %s\n", label, s)
+	writeVars(b, "", d, s)
+}
+
+// writeVars writes the variables of the state s of d with their types, each
+// line after indent.
+func writeVars(b *strings.Builder, indent string, d *core.Diagram, s string) {
 	for _, v := range d.Vars[s] {
 		if t, ok := d.Types[v]; ok {
-			fmt.Fprintf(b, "%s : %s ; %s\n", s, v, t)
+			fmt.Fprintf(b, "%s%s : %s ; %s\n", indent, s, v, t)
 		} else {
-			fmt.Fprintf(b, "%s : %s\n", s, v)
+			fmt.Fprintf(b, "%s%s : %s\n", indent, s, v)
 		}
 	}
 }
