@@ -221,7 +221,7 @@ def main_walk(a: argparse.Namespace, stop) -> int:
             if a.checkpoint:
                 saving = checkpoint.Every(a.checkpoint_every,
                                           lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
-            with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, progress.reporting(sys.stderr, a.progress) as said:
+            with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, progress.reporting(sys.stderr, a.progress, progress.Progress) as said:
                 result = walk.run(expand_all, said, resume=resume, checkpoint=saving, stop=stop)
             if saving is not None:
                 saving.flush()

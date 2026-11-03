@@ -128,8 +128,8 @@ class WalkProgress(_Line):
 
 
 @contextlib.contextmanager
-def reporting(out: TextIO, seconds: float, make=Progress) -> Iterator[Progress | WalkProgress | None]:
-    """A progress made by make (a Progress by default) said on out every
+def reporting(out: TextIO, seconds: float, make: Callable[[TextIO], _Line]) -> Iterator[_Line | None]:
+    """A progress line made by make (Progress or WalkProgress) said on out every
     seconds by a thread of its own, which stops on leaving; None for 0
     seconds."""
     if seconds == 0:
