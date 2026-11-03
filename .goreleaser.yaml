@@ -121,6 +121,21 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/v3/version.Version={{ .Version }}
 
+  - id: csdfslice
+    main: ./tools/csdfslice/main.go
+    binary: csdfslice
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/v3/version.Version={{ .Version }}
+
   - id: csdflint
     main: ./tools/csdflint/main.go
     binary: csdflint
@@ -286,6 +301,7 @@ archives:
       - csdfevents
       - csdfrepl
       - csdfsort
+      - csdfslice
       - csdflint
       - csdflivelockfree
       - csdftracechk

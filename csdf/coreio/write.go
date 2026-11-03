@@ -22,61 +22,94 @@ func Write(d *core.Diagram) (string, error) {
 // write is Write, with the line comment gloss gives written above each
 // edge it gives one for.
 func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, error) {
-	if len(d.Ends) > 1 {
-		return "", fmt.Errorf("coreio.Write: %d end edges; the syntax holds one end edge", len(d.Ends))
-	}
 	var b strings.Builder
+	if err := writeBody(&b, d, gloss, true); err != nil {
+		return "", err
+	}
+	b.WriteString("@enduml\n")
+	return b.String(), nil
+}
+
+// writeBody writes d as write does, but for the closing @enduml, so that a
+// caller may add lines before it; it writes the start edge if start.
+func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (string, error), start bool) error {
+	if len(d.Ends) > 1 {
+		return fmt.Errorf("coreio.Write: %d end edges; the syntax holds one end edge", len(d.Ends))
+	}
 	b.WriteString("@startuml" + titled(d.Name) + "\n")
 	for _, s := range d.States {
-		label, ok := d.Labels[s]
-		if !ok {
-			label = s
-		}
-		fmt.Fprintf(&b, "state %q as %s\n", label, s)
-		for _, v := range d.Vars[s] {
-			if t, ok := d.Types[v]; ok {
-				fmt.Fprintf(&b, "%s : %s ; %s\n", s, v, t)
-			} else {
-				fmt.Fprintf(&b, "%s : %s\n", s, v)
-			}
+		writeState(b, d, s)
+	}
+	if start {
+		if err := writeStart(b, d.Init, d.InitPost); err != nil {
+			return fmt.Errorf("coreio.Write: %w", err)
 		}
 	}
-	post, err := clause.Print(d.InitPost)
-	if err != nil {
-		return "", fmt.Errorf("coreio.Write: the start edge: %w", err)
-	}
-	b.WriteString("[*] --> " + d.Init + labelled(post) + "\n")
 	for _, e := range d.Edges {
-		guard, err := clause.Print(e.Guard)
-		if err != nil {
-			return "", fmt.Errorf("coreio.Write: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
-		}
-		post, err := clause.Print(e.Post)
-		if err != nil {
-			return "", fmt.Errorf("coreio.Write: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
-		}
 		g, err := gloss(e)
 		if err != nil {
-			return "", fmt.Errorf("coreio.Write: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+			return fmt.Errorf("coreio.Write: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
 		}
 		if g != "" {
 			b.WriteString("' " + g + "\n")
 		}
-		fmt.Fprintf(&b, "%s --> %s : %s\n", e.Src, e.Dst, edgeLabel(event(e.Event), guard, post))
+		if err := writeEdge(b, e); err != nil {
+			return fmt.Errorf("coreio.Write: %w", err)
+		}
 	}
 	for _, e := range d.Ends {
 		guard, err := clause.Print(e.Guard)
 		if err != nil {
-			return "", fmt.Errorf("coreio.Write: the end edge from %s: %w", e.Src, err)
+			return fmt.Errorf("coreio.Write: the end edge from %s: %w", e.Src, err)
 		}
 		b.WriteString(e.Src + " --> [*]" + labelled(guard) + "\n")
 	}
 	for _, a := range d.Assumes {
-		fmt.Fprintf(&b, "note as %s\n  assume %s\nend note\n", a.ID, a.Text)
+		fmt.Fprintf(b, "note as %s\n  assume %s\nend note\n", a.ID, a.Text)
 	}
-	writeChannels(&b, d.Channels)
-	b.WriteString("@enduml\n")
-	return b.String(), nil
+	writeChannels(b, d.Channels)
+	return nil
+}
+
+// writeState writes the state s of d: its declaration, labelled with its
+// label or its ID, and its variables with their types.
+func writeState(b *strings.Builder, d *core.Diagram, s string) {
+	label, ok := d.Labels[s]
+	if !ok {
+		label = s
+	}
+	fmt.Fprintf(b, "state %q as %s\n", label, s)
+	for _, v := range d.Vars[s] {
+		if t, ok := d.Types[v]; ok {
+			fmt.Fprintf(b, "%s : %s ; %s\n", s, v, t)
+		} else {
+			fmt.Fprintf(b, "%s : %s\n", s, v)
+		}
+	}
+}
+
+// writeStart writes the start edge to init with post.
+func writeStart(b *strings.Builder, init string, post clause.And) error {
+	text, err := clause.Print(post)
+	if err != nil {
+		return fmt.Errorf("the start edge: %w", err)
+	}
+	b.WriteString("[*] --> " + init + labelled(text) + "\n")
+	return nil
+}
+
+// writeEdge writes the edge e as src --> dst : event ; guard ; post.
+func writeEdge(b *strings.Builder, e core.Edge) error {
+	guard, err := clause.Print(e.Guard)
+	if err != nil {
+		return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+	}
+	post, err := clause.Print(e.Post)
+	if err != nil {
+		return fmt.Errorf("%s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+	}
+	fmt.Fprintf(b, "%s --> %s : %s\n", e.Src, e.Dst, edgeLabel(event(e.Event), guard, post))
+	return nil
 }
 
 // writeChannels writes the channel note that declares channels, if there

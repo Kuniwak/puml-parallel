@@ -15,6 +15,7 @@ import (
 	replcmd "github.com/Kuniwak/puml-parallel/v3/tools/csdfrepl/csdfreplcmd"
 	clientcmd "github.com/Kuniwak/puml-parallel/v3/tools/csdfreplcmd/csdfreplcmdcmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfrepld/csdfrepldcmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfslice/csdfslicecmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfsort/csdfsortcmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdftracechk/csdftracechkcmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdftranstable/csdftranstablecmd"
@@ -63,6 +64,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfsort",
 			Summary: "Prints a Composable State Diagram in canonical order without changing its meaning.",
 			Run:     tools.NewCommandFunc(csdfsortcmd.NewParseOptionsFunc(), csdfsortcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfslice",
+			Summary: "Prints the part of a Composable State Diagram around some of its states, for rendering only.",
+			Run:     tools.NewCommandFunc(csdfslicecmd.NewParseOptionsFunc(), csdfslicecmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdflint",
