@@ -1180,14 +1180,16 @@ stats per edge, most valuations checked first:
 `--progress SECONDS` says on stderr, every SECONDS (30 by default; 0 says
 nothing), how far the walk got: the states it met, the frontier (those met
 but not yet expanded), the depth, the states per second, the field
-values tried and the valuations checked since the last line, and the time
-spent. A walk whose states per second fall while the values tried or
+values tried and the valuations checked since the last line, the time
+spent and, on macOS and Linux, the memory the walk holds (its resident
+set size) in all and per state, from which a `--max-states` that fits the
+machine follows. A walk whose states per second fall while the values tried or
 checked stay high is stuck
 enumerating a transition (see `--stats`); one whose frontier keeps growing
 meets ever more states:
 
 ```console
-csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values tried and 86280 valuations checked in the last 1s, 0:00:02 elapsed
+csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values tried and 86280 valuations checked in the last 1s, 0:00:02 elapsed, 0.1 GB resident, 9.8 KB/state
 ```
 
 `--checkpoint FILE` writes the walk to FILE as it goes, at most every
