@@ -32,8 +32,8 @@ func TestEachOperationCarriesTheLocalStatesOfTheFamilies(t *testing.T) {
 				return d, err
 			},
 			want: []FamilyStates{
-				{Map: "locations", Key: "loc", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
 				{Map: "doors", Key: "d", Init: "none", States: []string{"none", "shut", "wide"}, Vars: map[string][]string{}},
+				{Map: "locations", Key: "loc", Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"stock"}}},
 			},
 		},
 		"Restrict keeps those of the kept families only": {

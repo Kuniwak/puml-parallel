@@ -18,11 +18,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		diagram, err := coreio.ReadBytes(opts.Bytes)
-		if err != nil {
-			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
-		}
-		text, err := coreio.WriteCanonical(diagram)
+		text, err := coreio.WriteCanonicalBytes(opts.Bytes)
 		if err != nil {
 			return fmt.Errorf("csdfsortcmd.NewMainFunc: %w", err)
 		}

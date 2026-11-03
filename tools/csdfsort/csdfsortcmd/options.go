@@ -30,7 +30,9 @@ meaning: states ordered by id, transitions ordered by source, event,
 destination, guard, then post. Use it to keep hand-written diagrams free of
 reordering noise in diffs. The output has the same order and rendering as
 csdfhide; a clause in the old syntax (@opaque, @[from := to]) is
-refused.
+refused. A global diagram holding promotion directives is printed as
+written, not expanded, its directives in canonical order too; the files it
+!includes are not read.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:

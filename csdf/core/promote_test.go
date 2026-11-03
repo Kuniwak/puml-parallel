@@ -1080,3 +1080,32 @@ func TestPromoteIsTheParallelOfTheInstances(t *testing.T) {
 		})
 	}
 }
+
+// The order of the <<promote>> blocks is how the diagram was drawn, so the
+// expansion takes the families by map name, whatever their order.
+func TestPromoteTakesTheFamiliesByMapName(t *testing.T) {
+	// Setup
+	locations := Family{Map: "locations", ID: "loc", Local: location(t)}
+	shipments := Family{Map: "shipments", ID: "s", Local: shipment(t)}
+	moving := func(fs ...Family) Promotion {
+		return Promotion{Modes: []string{"G"}, Init: "G", Families: fs, Syncs: []Sync{{Event: "MOVE", Targets: []Target{
+			{Map: "shipments", ID: "s", Event: "MOVE"},
+			{Map: "locations", ID: "from", Event: "DEPART"},
+		}}}}
+	}
+
+	// Execute
+	want, _, err := promote(moving(locations, shipments))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := promote(moving(shipments, locations))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Assert
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Promote (-by name +reversed):\n%s", diff)
+	}
+}

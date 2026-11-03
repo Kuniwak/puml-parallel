@@ -151,7 +151,9 @@ Every predicate of the expansion is its clauses joined by the connective ` ∧ `
 (see [SYNTAX.md](./docs/SYNTAX.md)): the generated ones are builtins
 (`@in`, `@at`, `@frame`, …), and the author's are copied with a local
 variable `v` of the instance `x` of the map `m` written into their holes as
-`${m[x].v}`. `-template` glosses the builtins in a line comment above each
+`${m[x].v}`. The maps are taken by name, whatever the order of their
+blocks, so the expansion, the order of its variables and conjuncts included,
+does not change when the blocks are reordered. `-template` glosses the builtins in a line comment above each
 edge. `-format json` writes the expansion as JSON instead, as `csdfparse`
 prints a diagram, its clauses as formulas, with the family of each map (its
 local states and the variables each holds, `families`): the shape `csdfbmc`
@@ -164,8 +166,9 @@ The PUML expansion is read by `csdflivelockfree`, `csdfrefinement`,
 $ csdfpromote -format json examples/promote/RECEIPTS.puml
 ```
 
-Every other tool refuses a diagram that still holds directives, and says to run
-`csdfpromote` first. See [Promotion](docs/PROMOTION.md) for the semantics, the
+Every other tool but `csdfsort`, which prints it as written, and `csdfrepl`,
+which explores its expansion, refuses a diagram that still holds directives,
+and says to run `csdfpromote` first. See [Promotion](docs/PROMOTION.md) for the semantics, the
 local-diagram contract, and the diagnostics.
 
 ## Composing a whole system
@@ -240,7 +243,26 @@ the formula syntax of [SYNTAX.md](./docs/SYNTAX.md) included; a clause in the
 old syntax (`@opaque`, a renaming `@[from := to]`) is refused with the reader's
 error.
 
+A global diagram holding promotion directives ([Promotion](docs/PROMOTION.md))
+is printed as written, not expanded, so it diffs as the author edited it. The
+modes are ordered by id, each holding the variables it declares, maps
+included, in their declared order, then its `<<promote>>` blocks by map, the
+`!include` kept in the block that has it. The start edge and the hand-written
+edges follow in the order above, then the `sync` notes by event, the
+`constrain` notes by their line, the assume notes and the channel note. Block
+aliases and note ids are kept. The included files are not read, so it works on
+a file with no directory around it, and `csdfpromote` expands the output
+exactly as it expands the input.
+
+The output is for diffing, not a replacement for the source: comments, notes
+for the picture, prose under a directive and preprocessor lines such as
+`!define` are left out, and an anchored note floats, under the id
+`sync_<event>` or `constrain<n>` (its place among the constrain notes); an id
+so made that names something else already is an error. Do not overwrite the
+source with it.
+
 ```console
+$ csdfsort examples/promote/RECEIPTS.puml
 $ csdfsort examples/valid/client.puml
 $ csdfsort < examples/valid/client.puml
 $ csdfsort - < examples/valid/client.puml
@@ -262,16 +284,10 @@ $ git config diff.csdf.textconv csdfsort
 $ git diff
 ```
 
-`csdfsort` refuses a diagram that holds promotion directives, and `csdfpromote`
-one that holds none. To see what a change to a promoted diagram does to the
-expanded machine, give those files a driver of their own that expands first:
-
-```console
-$ printf '#!/bin/sh\ncsdfpromote "$1" | csdfsort\n' > csdf-expand-textconv
-$ chmod +x csdf-expand-textconv
-$ echo 'examples/promote/*.puml diff=csdfpromote' >> .gitattributes
-$ git config diff.csdfpromote.textconv "$PWD/csdf-expand-textconv"
-```
+A global diagram holding promotion directives diffs as written: its
+`<<promote>>` blocks, `sync` and `constrain` notes and edges, not its
+expansion, whose edges each carry a frame condition over every map. Its local
+diagrams are files of their own and diff as any other diagram.
 
 Outside git, `diff <(csdfsort old.puml) <(csdfsort new.puml)` does the same,
 and its exit status tells whether the diagrams differ. A diff to be processed
@@ -310,7 +326,8 @@ A slice does not mean what the diagram means: what is reachable, and what is
 refused, changes with the states left out. It is for rendering only. When the
 initial state is outside, the slice has no start edge outside the ignore
 region, so the other tools refuse it. An unknown state is an error, and a
-diagram that holds promotion directives is refused as `csdfsort` refuses it.
+diagram that holds promotion directives is refused; run `csdfpromote` on it
+first.
 
 In CI, the states a change touches can be taken from the `csdfsort` textconv
 diff above and their neighbourhood rendered for the review. The pipeline

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Kuniwak/puml-parallel/v3/csdf"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v3/pngsrc"
 )
 
 // Canonical is d with its states ordered by ID and its edges by source,
@@ -60,4 +62,27 @@ func WriteCanonical(d *core.Diagram) (string, error) {
 		return "", fmt.Errorf("coreio.WriteCanonical: %w", err)
 	}
 	return text, nil
+}
+
+// WriteCanonicalBytes writes the diagram in raw, a .puml text or a .png with
+// its source embedded, in its canonical order: a global diagram as written
+// (WritePromotion), reading none of the files it includes, any other as
+// WriteCanonical writes it.
+func WriteCanonicalBytes(raw []byte) (string, error) {
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return "", fmt.Errorf("coreio.WriteCanonicalBytes: reading PlantUML source: %w", err)
+	}
+	if csdf.HoldsPromotionDirectives(src) {
+		w, err := ReadPromotionAsWritten(src)
+		if err != nil {
+			return "", fmt.Errorf("coreio.WriteCanonicalBytes: %w", err)
+		}
+		return WritePromotion(w)
+	}
+	d, err := Read(src)
+	if err != nil {
+		return "", fmt.Errorf("coreio.WriteCanonicalBytes: %w", err)
+	}
+	return WriteCanonical(d)
 }

@@ -84,6 +84,7 @@ end note
 @enduml
 `,
 			want: core.Promotion{
+				Name:   "MOVE",
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{

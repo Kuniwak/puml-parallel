@@ -39,17 +39,30 @@ var (
 // variable a mode declares has a type, a map the type its block gives it.
 // Clauses are read as authored.
 func ReadPromotion(source string, include Include) (core.Promotion, error) {
+	if include == nil {
+		return core.Promotion{}, errors.New("coreio.ReadPromotion: no Include to read the local diagrams by")
+	}
 	if err := csdf.CheckIgnoreRegions(source); err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
-	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}, types: map[string]types.Type{}}
-	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
-		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
-	}
-	if err := r.check(); err != nil {
+	r, err := readPromotion(source, include)
+	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
 	return r.p, nil
+}
+
+// readPromotion reads source as ReadPromotion does, each !include read by
+// include unless it is nil, the reader kept for what it saw as written.
+func readPromotion(source string, include Include) (*promotionReader, error) {
+	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}, types: map[string]types.Type{}, aliases: map[string]map[string]string{}, includes: map[string]string{}, includeIn: map[string]string{}}
+	if err := r.run(strings.Split(csdf.BlankIgnoreRegions(source), "\n")); err != nil {
+		return nil, err
+	}
+	if err := r.check(); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 // Include is the source of the file an !include names, by the path written.
@@ -69,6 +82,15 @@ type promotionReader struct {
 	types    map[string]types.Type      // the type of each variable the modes declare
 	lineNo   int                        // the line being read
 	edgeAt   []int                      // the line of each hand-written edge
+	// What is for the reader alone, kept for printing the diagram as
+	// written: the alias of each block, by mode and map, the path each map
+	// includes and the mode of the block that includes it, and the ID of
+	// the note of each sync and constrain, "" for an anchored one.
+	aliases      map[string]map[string]string
+	includes     map[string]string
+	includeIn    map[string]string
+	syncIDs      []string
+	constrainIDs []string
 }
 
 // noteKind is what the note being read is, once its first line says.
@@ -103,7 +125,10 @@ func (r *promotionReader) run(lines []string) error {
 
 func (r *promotionReader) line(l string) error {
 	switch {
-	case l == "" || strings.HasPrefix(l, "'"), strings.HasPrefix(l, "@startuml"), l == "@enduml":
+	case strings.HasPrefix(l, "@startuml"):
+		r.p.Name = strings.TrimSpace(strings.TrimPrefix(l, "@startuml"))
+		return nil
+	case l == "" || strings.HasPrefix(l, "'"), l == "@enduml":
 		return nil
 	case r.note != noNote:
 		return r.noteLine(l)
@@ -137,7 +162,7 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if pumlline.Close.MatchString(l) && r.depth > 0 {
-		if r.depth == 2 && r.family.Local == nil {
+		if r.depth == 2 && r.includes[r.family.Map] == "" {
 			return fmt.Errorf("the block of %s includes no local diagram", r.family.Map)
 		}
 		r.depth--
@@ -193,10 +218,15 @@ func (r *promotionReader) includeLine(l string) error {
 		return fmt.Errorf("%s is not read: a <<promote>> block includes its local diagram with !include", word)
 	}
 	m := pumlline.Include.FindStringSubmatch(l)
-	if m == nil || r.depth != 2 || r.family.Local != nil {
+	if m == nil || r.depth != 2 || r.includes[r.family.Map] != "" {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
-	src, err := r.include(pumlline.Unquote(strings.TrimSpace(m[1])))
+	path := pumlline.Unquote(strings.TrimSpace(m[1]))
+	r.includes[r.family.Map], r.includeIn[r.family.Map] = path, r.mode()
+	if r.include == nil {
+		return nil
+	}
+	src, err := r.include(path)
 	if err != nil {
 		return err
 	}
@@ -315,6 +345,7 @@ func (r *promotionReader) sync(event, targets, guard string) error {
 	}
 	s.Guard = g
 	r.p.Syncs = append(r.p.Syncs, s)
+	r.syncIDs = append(r.syncIDs, r.noteID)
 	return nil
 }
 
@@ -337,6 +368,7 @@ func (r *promotionReader) constrain(l string) error {
 		return fmt.Errorf("constrain %s: %w", head, err)
 	}
 	r.p.Constrains = append(r.p.Constrains, core.Constrain{Event: eventOf(e), Guard: g})
+	r.constrainIDs = append(r.constrainIDs, r.noteID)
 	return nil
 }
 
@@ -403,8 +435,12 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 		return fmt.Errorf("%s: the blocks of %s give it the type %s and the type %s", alias, t[1], m, n)
 	}
 	r.holds[mode][t[1]], r.moves[mode][t[1]] = true, true
+	if r.aliases[mode] == nil {
+		r.aliases[mode] = map[string]string{}
+	}
+	r.aliases[mode][t[1]] = alias
 	if body {
-		if f.Local != nil {
+		if r.includes[f.Map] != "" {
 			return fmt.Errorf("a second <<promote>> block of %s with a body; one block includes its local diagram", t[1])
 		}
 		r.family = f
@@ -502,7 +538,7 @@ func (r *promotionReader) check() error {
 	}
 	for i := range r.p.Families {
 		f := &r.p.Families[i]
-		if f.Local == nil {
+		if r.includes[f.Map] == "" {
 			return fmt.Errorf("no block of %s includes its local diagram", f.Map)
 		}
 		for _, mode := range r.p.Modes {

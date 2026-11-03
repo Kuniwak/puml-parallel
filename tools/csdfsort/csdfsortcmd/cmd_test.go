@@ -1,6 +1,7 @@
 package csdfsortcmd
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -160,22 +161,51 @@ func TestNewMainFuncRefuses(t *testing.T) {
 	}
 }
 
-// A global diagram's edges are not the whole of its behaviour, so every tool but
-// csdfpromote has to refuse one. The refusal comes from the reader, which every
-// tool goes through, and it says what the author is missing.
-func TestNewMainFuncRefusesAGlobalDiagram(t *testing.T) {
+// csdfsort prints a global diagram as written, so that a review diff shows
+// what the author edited. It reads no included file: as a git textconv it
+// gets a blob with no directory around it.
+func TestNewMainFuncPrintsAGlobalDiagramAsWritten(t *testing.T) {
 	// Setup
+	source, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "promote", "RECEIPTS.puml"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader(string(source)))
 
 	// Execute
-	exitStatus := cmdFunc([]string{"../../../examples/promote/RECEIPTS.puml"}, spy.New())
+	exitStatus := cmdFunc([]string{}, spy.New())
 
 	// Assert
-	if exitStatus != 1 {
-		t.Fatalf("want 1, got %d", exitStatus)
+	if exitStatus != 0 {
+		t.Log(spy.Stderr.String())
+		t.Fatalf("want 0, got %d", exitStatus)
 	}
-	if !strings.Contains(spy.Stderr.String(), "run csdfpromote on it first") {
-		t.Errorf("want the hint on stderr, got %q", spy.Stderr.String())
+	want := `@startuml RECEIPTS
+state "稼働中" as running {
+  running : receipts ; ReceiptId ⇸ Receipt
+  running : cycles ; Date ⇸ Cycle
+  state "cycles : (基準日 : Date) ⇸ Cycle" as runningCycles <<promote>> {
+    !include local/CYCLE.puml
+  }
+  state "receipts : (入荷ID : ReceiptId) ⇸ Receipt" as runningReceipts <<promote>> {
+    !include local/RECEIPT.puml
+  }
+}
+[*] --> running
+note as sync1
+  sync LOG : receipts(入荷ID), cycles(基準日)
+end note
+note as cons2
+  constrain LOG?入荷ID?基準日?数量 ; $基準日 は $入荷ID の入荷日である
+end note
+note as constrain2
+  constrain RECEIVE?入荷ID?数量 ; $数量 は箱入数の倍数である
+end note
+@enduml
+`
+	if diff := cmp.Diff(want, spy.Stdout.String()); diff != "" {
+		t.Error(diff)
 	}
 }
