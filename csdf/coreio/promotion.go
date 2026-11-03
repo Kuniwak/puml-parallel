@@ -137,7 +137,7 @@ func (r *promotionReader) line(l string) error {
 		return nil
 	}
 	if pumlline.Close.MatchString(l) && r.depth > 0 {
-		if r.depth == 2 && r.family.Local == nil {
+		if r.depth == 2 && r.family.Include == "" {
 			return fmt.Errorf("the block of %s includes no local diagram", r.family.Map)
 		}
 		r.depth--
@@ -193,7 +193,7 @@ func (r *promotionReader) includeLine(l string) error {
 		return fmt.Errorf("%s is not read: a <<promote>> block includes its local diagram with !include", word)
 	}
 	m := pumlline.Include.FindStringSubmatch(l)
-	if m == nil || r.depth != 2 || r.family.Local != nil {
+	if m == nil || r.depth != 2 || r.family.Include != "" {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
 	path := pumlline.Unquote(strings.TrimSpace(m[1]))
@@ -405,7 +405,7 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 	}
 	r.holds[mode][t[1]], r.moves[mode][t[1]] = true, true
 	if body {
-		if f.Local != nil {
+		if f.Include != "" {
 			return fmt.Errorf("a second <<promote>> block of %s with a body; one block includes its local diagram", t[1])
 		}
 		r.family = f
@@ -503,7 +503,7 @@ func (r *promotionReader) check() error {
 	}
 	for i := range r.p.Families {
 		f := &r.p.Families[i]
-		if f.Local == nil {
+		if f.Include == "" {
 			return fmt.Errorf("no block of %s includes its local diagram", f.Map)
 		}
 		for _, mode := range r.p.Modes {
