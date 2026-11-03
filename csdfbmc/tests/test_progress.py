@@ -1,7 +1,9 @@
 """csdfbmc --progress: a line on stderr every so many seconds of how far the
 walk got."""
+import contextlib
 import io
 import unittest
+from unittest import mock
 
 import sys
 
@@ -70,35 +72,31 @@ class ProgressTest(unittest.TestCase):
 
 
 class WalkProgressTest(unittest.TestCase):
-    def test_a_line_says_the_walks_steps_deepest_rate_findings_and_time(self):
-        # Setup
-        clock, out = Clock(), io.StringIO()
-        p = WalkProgress(out, clock, resident=lambda: None)
-        clock.now = 30.0
-        p.update(walks=120, steps=4000, deepest=80, findings=2)
+    def test_a_line_says_the_walks_steps_deepest_rate_findings_time_and_memory(self):
+        tests = {
+            "the first line": ([], 30.0, None, "csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed\n"),
+            "the rate is of the last interval": ([(30.0, (60, 2000, 70, 1))], 90.0, None,
+                                                 "csdfbmc: 120 walks, 4000 steps, deepest 80, 1.0 walks/s, 2 findings, 0:01:30 elapsed\n"),
+            "the memory in all": ([], 30.0, 1_200_000_000,
+                                  "csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed, 1.2 GB resident\n"),
+        }
+        for name, (before, now, held, expected) in tests.items():
+            with self.subTest(name):
+                # Setup
+                clock, out = Clock(), io.StringIO()
+                p = WalkProgress(out, clock, resident=lambda: held)
+                for at, counts in before:
+                    clock.now = at
+                    p.update(*counts)
+                    p.report()
+                clock.now = now
+                p.update(walks=120, steps=4000, deepest=80, findings=2)
 
-        # Execute
-        p.report()
+                # Execute
+                p.report()
 
-        # Assert
-        self.assertEqual("csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed\n", out.getvalue())
-
-    def test_the_rate_is_of_the_last_interval_and_the_memory_is_said_in_all(self):
-        # Setup
-        clock, out = Clock(), io.StringIO()
-        p = WalkProgress(out, clock, resident=lambda: 1_200_000_000)
-        clock.now = 30.0
-        p.update(walks=120, steps=4000, deepest=80, findings=2)
-        p.report()
-        clock.now = 90.0
-        p.update(walks=180, steps=6000, deepest=90, findings=3)
-
-        # Execute
-        p.report()
-
-        # Assert
-        self.assertEqual("csdfbmc: 180 walks, 6000 steps, deepest 90, 1.0 walks/s, 3 findings, 0:01:30 elapsed, 1.2 GB resident\n",
-                         out.getvalue().splitlines(True)[1])
+                # Assert
+                self.assertEqual(expected, out.getvalue().splitlines(True)[-1])
 
 
 class ResidentTest(unittest.TestCase):
@@ -151,14 +149,11 @@ class ProgressOptionTest(unittest.TestCase):
         self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "checked": 6}, seen[-1])
 
     def test_random_walks_say_their_progress_in_lines_of_their_own(self):
-        import contextlib
-        from unittest import mock
-        from csdfbmc.progress import WalkProgress
         # Setup
         out = io.StringIO()
 
         @contextlib.contextmanager
-        def reporting(_, seconds, make=Progress):
+        def reporting(_, seconds, make):
             p = make(out, resident=lambda: None)
             yield p
             p.report()
