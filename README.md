@@ -166,8 +166,9 @@ The PUML expansion is read by `csdflivelockfree`, `csdfrefinement`,
 $ csdfpromote -format json examples/promote/RECEIPTS.puml
 ```
 
-Every other tool refuses a diagram that still holds directives, and says to run
-`csdfpromote` first. See [Promotion](docs/PROMOTION.md) for the semantics, the
+Every other tool but `csdfsort`, which prints it as written, and `csdfrepl`,
+which explores its expansion, refuses a diagram that still holds directives,
+and says to run `csdfpromote` first. See [Promotion](docs/PROMOTION.md) for the semantics, the
 local-diagram contract, and the diagnostics.
 
 ## Composing a whole system
@@ -244,17 +245,21 @@ error.
 
 A global diagram holding promotion directives ([Promotion](docs/PROMOTION.md))
 is printed as written, not expanded, so it diffs as the author edited it. The
-modes are ordered by id, each holding its controller's variables in their
-declared order, then its maps by name, then its `<<promote>>` blocks by map;
-the `!include` sits in the block of the first mode its family moves in. The
-start edge and the hand-written edges follow in the order above, then the
-`sync` notes by event, the `constrain` notes by their line, the assume notes
-and the channel note. Blocks and directive notes get ids of their own
-(`<mode>_<map>`, `sync_<event>`, `constrain<n>`), and lines for the picture
-alone, comments and prose notes, are left out. The included files are not
-read, so it works on a file with no directory around it. `csdfpromote` expands
-the output as it expands the input, up to the order of conjuncts, which
-follows the order of the families.
+modes are ordered by id, each holding the variables it declares, maps
+included, in their declared order, then its `<<promote>>` blocks by map, the
+`!include` kept in the block that has it. The start edge and the hand-written
+edges follow in the order above, then the `sync` notes by event, the
+`constrain` notes by their line, the assume notes and the channel note. Block
+aliases and note ids are kept. The included files are not read, so it works on
+a file with no directory around it, and `csdfpromote` expands the output
+exactly as it expands the input.
+
+The output is for diffing, not a replacement for the source: comments, notes
+for the picture, prose under a directive and preprocessor lines such as
+`!define` are left out, and an anchored note floats, under the id
+`sync_<event>` or `constrain<n>` (its place among the constrain notes); an id
+so made that names something else already is an error. Do not overwrite the
+source with it.
 
 ```console
 $ csdfsort examples/promote/RECEIPTS.puml
