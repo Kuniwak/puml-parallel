@@ -151,7 +151,9 @@ Every predicate of the expansion is its clauses joined by the connective ` ∧ `
 (see [SYNTAX.md](./docs/SYNTAX.md)): the generated ones are builtins
 (`@in`, `@at`, `@frame`, …), and the author's are copied with a local
 variable `v` of the instance `x` of the map `m` written into their holes as
-`${m[x].v}`. `-template` glosses the builtins in a line comment above each
+`${m[x].v}`. The maps are taken by name, whatever the order of their
+blocks, so the expansion, the order of its variables and conjuncts included,
+does not change when the blocks are reordered. `-template` glosses the builtins in a line comment above each
 edge. `-format json` writes the expansion as JSON instead, as `csdfparse`
 prints a diagram, its clauses as formulas, with the family of each map (its
 local states and the variables each holds, `families`): the shape `csdfbmc`

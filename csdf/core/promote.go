@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"slices"
@@ -106,8 +107,10 @@ type Promotion struct {
 // m[x].v: promotion substitutes it into the holes of the local clauses (O3),
 // so that two instances of one family in one sync are told apart, and the
 // sync says their IDs differ (@ne). Two moves of one map in one step chain
-// through the intermediate map, bound by ∃.
+// through the intermediate map, bound by ∃. The families are taken by map
+// name, their order in p being how the diagram was drawn.
 func Promote(p Promotion) (*Diagram, []Warning, error) {
+	p.Families = slices.SortedStableFunc(slices.Values(p.Families), func(a, b Family) int { return cmp.Compare(a.Map, b.Map) })
 	out := &Diagram{States: slices.Clone(p.Modes), Labels: maps.Clone(p.Labels), Init: p.Init, Vars: map[string][]string{}, Assumes: slices.Clone(p.Assumes)}
 	out.Types = promotedTypes(p)
 	ch := channelTypes{}
