@@ -277,6 +277,55 @@ Outside git, `diff <(csdfsort old.puml) <(csdfsort new.puml)` does the same,
 and its exit status tells whether the diagrams differ. A diff to be processed
 by a program can be taken from the JSON of `csdfparse` with `jq`.
 
+### Slicing a diagram
+
+`csdfslice` prints the part of a diagram around the given states, so a reader
+can look at the neighbourhood of a change instead of the whole picture. It
+keeps the states within `-context` edges (1 by default) of any given state,
+edges followed in either direction, the edges between them, the end edge from
+them, the channels those edges use, and every assumption, in the order and
+rendering of `csdfsort`. Every edge that leaves the slice is drawn to a
+placeholder state labelled with the state it was cut from and `…`, and so is
+the start edge when the initial state is outside the slice. The placeholders
+and those edges sit in a `CSDF-IGNORE` region (see
+[SYNTAX.md](./docs/SYNTAX.md)): PlantUML draws them, the tools do not read them.
+
+```console
+$ csdfslice -states vmDropping -context 0 examples/valid/vending_machine.puml
+@startuml
+state "vmDropping" as vmDropping
+vmDropping : availableProducts ; ProductSet
+vmDropping : dispensing ; Product
+' CSDF-IGNORE-BEGIN
+state "vmIdle …" as vmIdle_cut
+state "vmWaitingChoosing …" as vmWaitingChoosing_cut
+[*] --> vmIdle_cut
+vmDropping --> vmIdle_cut : drop?product ; $product is $dispensing ; $availableProducts' is $availableProducts minus $product
+vmWaitingChoosing_cut --> vmDropping : choose?product ; $availableProducts contains $product ; $dispensing' is $product
+' CSDF-IGNORE-END
+@enduml
+```
+
+A slice does not mean what the diagram means: what is reachable, and what is
+refused, changes with the states left out. It is for rendering only. When the
+initial state is outside, the slice has no start edge outside the ignore
+region, so the other tools refuse it. An unknown state is an error, and a
+diagram that holds promotion directives is refused as `csdfsort` refuses it.
+
+In CI, the states a change touches can be taken from the `csdfsort` textconv
+diff above and their neighbourhood rendered for the review. This picks the
+states of the added and removed state, variable and transition lines; a state
+the change removed is unknown to the new diagram, so slice the old revision
+for those.
+
+```console
+$ git diff -U0 origin/master -- examples/valid/vending_machine.puml \
+    | awk '/^[-+][^-+]/ { if ($2 == "-->") print substr($1, 2) "\n" $3; else if ($1 ~ /^[-+]state$/) print $NF; else if ($2 == ":") print substr($1, 2) }' \
+    | grep -v '^\[\*\]$' | sort -u | paste -sd, - \
+    | xargs -I{} csdfslice -states {} examples/valid/vending_machine.puml \
+    | plantuml -pipe -tpng > slice.png
+```
+
 ## Linting
 
 `csdflint` checks diagrams and writes what it finds as a TSV table with the
