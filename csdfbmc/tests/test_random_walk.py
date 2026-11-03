@@ -85,6 +85,24 @@ class RandomWalkTest(unittest.TestCase):
         self.assertEqual([("b", (), ())], got.result.deadlocks)
         self.assertEqual(1, got.result.groups()[0]["count"])
 
+    def test_tells_the_progress_how_far_the_walks_got_after_each_walk(self):
+        # Setup
+        class Said:
+            def __init__(self):
+                self.updates = []
+
+            def update(self, **counts):
+                self.updates.append(counts)
+
+        said = Said()
+
+        # Execute
+        walks(COUNTER).run(2, progress=said)
+
+        # Assert
+        self.assertEqual([{"walks": 1, "steps": 3, "deepest": 3, "findings": 1},
+                          {"walks": 2, "steps": 6, "deepest": 3, "findings": 1}], said.updates)
+
 
 def command(test, *args):
     from csdfbmc.__main__ import main

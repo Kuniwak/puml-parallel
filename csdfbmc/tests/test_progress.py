@@ -149,3 +149,24 @@ class ProgressOptionTest(unittest.TestCase):
         # Assert
         self.assertEqual(5, len(seen))
         self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "checked": 6}, seen[-1])
+
+    def test_random_walks_say_their_progress_in_lines_of_their_own(self):
+        import contextlib
+        from unittest import mock
+        from csdfbmc.progress import WalkProgress
+        # Setup
+        out = io.StringIO()
+
+        @contextlib.contextmanager
+        def reporting(_, seconds, make=Progress):
+            p = make(out, resident=lambda: None)
+            yield p
+            p.report()
+
+        # Execute
+        with mock.patch("csdfbmc.__main__.progress.reporting", reporting):
+            code, _, err = walk(self, "--random-walk", "--walks", "3", "--seed", "5")
+
+        # Assert
+        self.assertEqual(1, code, err)
+        self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")

@@ -112,13 +112,14 @@ class WalkProgress:
 
 
 @contextlib.contextmanager
-def reporting(out: TextIO, seconds: float) -> Iterator[Progress | None]:
-    """A Progress said on out every seconds by a thread of its own, which
-    stops on leaving; None for 0 seconds."""
+def reporting(out: TextIO, seconds: float, make=Progress) -> Iterator[Progress | WalkProgress | None]:
+    """A progress made by make (a Progress by default) said on out every
+    seconds by a thread of its own, which stops on leaving; None for 0
+    seconds."""
     if seconds == 0:
         yield None
         return
-    p, stop = Progress(out), threading.Event()
+    p, stop = make(out), threading.Event()
 
     def tick():
         while not stop.wait(seconds):
