@@ -248,6 +248,35 @@ $ csdfsort - < examples/valid/client.puml
 
 A file argument, a `-` argument, and stdin are all equivalent.
 
+### Reviewing a change to a diagram
+
+Since `csdfsort` writes one transition per line in canonical order and reads
+PNG as well, it can serve as a git `textconv`. `git diff` then shows which
+states and transitions were added, removed or changed, with no noise from
+reordering or reformatting; a transition whose guard or post changed shows as
+an adjacent `-`/`+` pair.
+
+```console
+$ printf '*.puml diff=csdf\n*.png diff=csdf\n' >> .gitattributes
+$ git config diff.csdf.textconv csdfsort
+$ git diff
+```
+
+`csdfsort` refuses a diagram that holds promotion directives, and `csdfpromote`
+one that holds none. To see what a change to a promoted diagram does to the
+expanded machine, give those files a driver of their own that expands first:
+
+```console
+$ printf '#!/bin/sh\ncsdfpromote "$1" | csdfsort\n' > csdf-expand-textconv
+$ chmod +x csdf-expand-textconv
+$ echo 'examples/promote/*.puml diff=csdfpromote' >> .gitattributes
+$ git config diff.csdfpromote.textconv "$PWD/csdf-expand-textconv"
+```
+
+Outside git, `diff <(csdfsort old.puml) <(csdfsort new.puml)` does the same,
+and its exit status tells whether the diagrams differ. A diff to be processed
+by a program can be taken from the JSON of `csdfparse` with `jq`.
+
 ## Linting
 
 `csdflint` checks diagrams and writes what it finds as a TSV table with the
