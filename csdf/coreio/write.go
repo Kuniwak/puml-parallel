@@ -14,8 +14,7 @@ import (
 // Write writes d in the syntax Read reads, so that Read(Write(d)) is d up to
 // α-equivalence of its clauses: Read keeps the states in the order Write
 // writes them, which is d's. A state is named by its ID. The syntax holds
-// one end edge, so a diagram with more is an error. A diagram with no
-// initial state, a slice (core.Slice), is written without a start edge.
+// one end edge, so a diagram with more is an error.
 func Write(d *core.Diagram) (string, error) {
 	return write(d, func(core.Edge) (string, error) { return "", nil })
 }
@@ -24,7 +23,7 @@ func Write(d *core.Diagram) (string, error) {
 // edge it gives one for.
 func write(d *core.Diagram, gloss func(core.Edge) (string, error)) (string, error) {
 	var b strings.Builder
-	if err := writeBody(&b, d, gloss, d.Init != ""); err != nil {
+	if err := writeBody(&b, d, gloss, true); err != nil {
 		return "", err
 	}
 	b.WriteString("@enduml\n")

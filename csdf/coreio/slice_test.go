@@ -15,7 +15,8 @@ state "B" as b
 state "C" as c
 c : n ; N
 state "a_cut" as a_cut
-[*] --> a_cut
+a_cut : m ; N
+[*] --> a_cut : $m' = 0
 a_cut --> a : w
 a --> b : x
 b --> c : y ; ; $n' = 1
@@ -48,14 +49,15 @@ end note
 ' CSDF-IGNORE-BEGIN
 state "A …" as a_cut_cut
 state "a_cut …" as a_cut_cut_cut
-[*] --> a_cut_cut_cut
+[*] --> a_cut_cut_cut : $m' = 0
 a_cut_cut --> b : x
 ' CSDF-IGNORE-END
 @enduml
 `},
 		"the initial state inside: the start edge as it is": {[]string{"a_cut"}, 0, `@startuml
 state "a_cut" as a_cut
-[*] --> a_cut
+a_cut : m ; N
+[*] --> a_cut : $m' = 0
 ' CSDF-IGNORE-BEGIN
 state "A …" as a_cut_cut
 a_cut --> a_cut_cut : w
@@ -93,10 +95,11 @@ a_cut --> a_cut_cut : w
 const chainSorted = `@startuml
 state "A" as a
 state "a_cut" as a_cut
+a_cut : m ; N
 state "B" as b
 state "C" as c
 c : n ; N
-[*] --> a_cut
+[*] --> a_cut : $m' = 0
 a --> b : x
 a_cut --> a : w
 b --> c : y ; ; $n' = 1

@@ -35,22 +35,44 @@ func decoratedChain() *Diagram {
 
 func TestSlice(t *testing.T) {
 	x, y, z := chain().Edges[0], chain().Edges[1], chain().Edges[2]
+	redrawn := func(e Edge, src, dst string) Edge {
+		e.Src, e.Dst = src, dst
+		return e
+	}
 	cases := map[string]struct {
-		d       *Diagram
-		states  []string
-		context int
-		want    *Diagram
-		wantCut []Edge
+		d               *Diagram
+		states          []string
+		context         int
+		want            *Diagram
+		wantCut         []Edge
+		wantOutside     []Placeholder
+		wantOutsideInit string
 	}{
 		"context 0 keeps only the given state and cuts the edges at it (lower boundary value)": {
 			d: chain(), states: []string{"b"}, context: 0,
-			want:    &Diagram{States: []string{"b"}},
-			wantCut: []Edge{x, y},
+			want:            &Diagram{States: []string{"b"}},
+			wantCut:         []Edge{redrawn(x, "a_cut", "b"), redrawn(y, "b", "c_cut")},
+			wantOutside:     []Placeholder{{ID: "a_cut", Label: "a …"}, {ID: "c_cut", Label: "c …"}},
+			wantOutsideInit: "a_cut",
 		},
 		"context 1 follows edges both ways (representative value)": {
 			d: chain(), states: []string{"c"}, context: 1,
-			want:    &Diagram{States: []string{"b", "c", "d"}, Edges: []Edge{y, z}},
-			wantCut: []Edge{x},
+			want:            &Diagram{States: []string{"b", "c", "d"}, Edges: []Edge{y, z}},
+			wantCut:         []Edge{redrawn(x, "a_cut", "b")},
+			wantOutside:     []Placeholder{{ID: "a_cut", Label: "a …"}},
+			wantOutsideInit: "a_cut",
+		},
+		"a placeholder's ID collides with no name of the diagram": {
+			d: &Diagram{
+				States: []string{"a", "a_cut"},
+				Init:   "a_cut",
+				Edges:  []Edge{{Src: "a_cut", Dst: "a", Event: Event{Channel: "w"}}},
+			},
+			states: []string{"a"}, context: 0,
+			want:            &Diagram{States: []string{"a"}},
+			wantCut:         []Edge{{Src: "a_cut_cut_cut", Dst: "a", Event: Event{Channel: "w"}}},
+			wantOutside:     []Placeholder{{ID: "a_cut_cut_cut", Label: "a_cut …"}},
+			wantOutsideInit: "a_cut_cut_cut",
 		},
 		"two given states join their neighbourhoods": {
 			d: chain(), states: []string{"a", "d"}, context: 1,
@@ -68,7 +90,8 @@ func TestSlice(t *testing.T) {
 				Ends:     []End{{Src: "b"}},
 				Assumes:  []Assumption{{ID: "fair", Text: "fairness"}},
 			},
-			wantCut: []Edge{z},
+			wantCut:     []Edge{redrawn(z, "c", "d_cut")},
+			wantOutside: []Placeholder{{ID: "d_cut", Label: "Dee …"}},
 		},
 	}
 	for name, c := range cases {
@@ -88,6 +111,12 @@ func TestSlice(t *testing.T) {
 			}
 			if diff := cmp.Diff(c.wantCut, got.Cut); diff != "" {
 				t.Errorf("Cut (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(c.wantOutside, got.Outside); diff != "" {
+				t.Errorf("Outside (-want +got):\n%s", diff)
+			}
+			if got.OutsideInit != c.wantOutsideInit {
+				t.Errorf("OutsideInit: want %q, got %q", c.wantOutsideInit, got.OutsideInit)
 			}
 		})
 	}
