@@ -21,6 +21,7 @@ from collections.abc import Callable, Iterable, Iterator
 from csdfbmc import cli
 from csdfbmc.explore import Expansion, State
 from csdfbmc.model import Diagram
+from csdfbmc.randomwalk import Outcome
 from csdfbmc.stopping import never
 
 # The walk of this worker, which its pool built (_start), or what building
@@ -56,29 +57,41 @@ def _start(a: argparse.Namespace) -> None:
         _failed = e
 
 
-def _expand(state: State) -> Expansion | Exception:
-    """The expansion of state, its edges by their index in the diagram, or
-    what expanding it raised: the walk raises it only if it gets to the
-    state."""
+def _in_worker(work: Callable, arg):
+    """What work gives for arg with its edges sent by their index in the
+    diagram (_sent), or what building the walk or working raised: the walk
+    raises it only if it gets to the result."""
     if _failed is not None:
         return _failed
     try:
-        x = _explorer.expand(state)
+        return _sent(work(arg))
     except Exception as e:  # noqa: BLE001 - passed on to the walk
         return e
-    x.transitions = [(name, label, t, _index[id(edge)], params) for name, label, t, edge, params in x.transitions]
+
+
+def _sent(x: Expansion | Outcome) -> Expansion | Outcome:
+    """x with its edges by their index in the diagram, to send to the walk."""
+    if isinstance(x, Expansion):
+        x.transitions = [(name, label, t, _index[id(edge)], params) for name, label, t, edge, params in x.transitions]
+    else:
+        x.steps = [(label, _index[id(edge)], s) for label, edge, s in x.steps]
     return x
 
 
-def _expand_chunk(states: list[State]) -> list[Expansion | Exception]:
-    return [_expand(s) for s in states]
-
-
-def _received(x: Expansion | Exception, edges: list) -> Expansion:
+def _received(x: Expansion | Outcome | Exception, edges: list) -> Expansion | Outcome:
+    """x as _in_worker sent it, its edges back from their indices; what
+    the worker raised is raised."""
     if isinstance(x, Exception):
         raise x
-    x.transitions = [(name, label, t, edges[i], params) for name, label, t, i, params in x.transitions]
+    if isinstance(x, Expansion):
+        x.transitions = [(name, label, t, edges[i], params) for name, label, t, i, params in x.transitions]
+    else:
+        x.steps = [(label, edges[i], s) for label, i, s in x.steps]
     return x
+
+
+def _expand_chunk(states: list[State]) -> list:
+    return [_in_worker(_explorer.expand, s) for s in states]
 
 
 # The random walks of this worker, which its pool built (_start_walks).
@@ -93,21 +106,8 @@ def _start_walks(a: argparse.Namespace) -> None:
         _walks = cli.random_walks(a, _explorer)
 
 
-def _walk(i: int):
-    """The i-th random walk, its edges by their index in the diagram, or
-    what walking it raised."""
-    if _failed is not None:
-        return _failed
-    try:
-        out = _walks.walk(i)
-    except Exception as e:  # noqa: BLE001 - passed on to the walks
-        return e
-    out.steps = [(label, _index[id(edge)], s) for label, edge, s in out.steps]
-    return out
-
-
 def _walk_chunk(indices: range) -> list:
-    return [_walk(i) for i in indices]
+    return [_in_worker(_walks.walk, i) for i in indices]
 
 
 def _waited(result: multiprocessing.pool.AsyncResult, stop: Callable[[], str | None]):
@@ -144,10 +144,7 @@ def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable[[
                 if chunk is None:
                     return
                 for out in chunk:
-                    if isinstance(out, Exception):
-                        raise out
-                    out.steps = [(label, diagram.edges[i], s) for label, i, s in out.steps]
-                    yield out
+                    yield _received(out, diagram.edges)
         yield take
 
 
