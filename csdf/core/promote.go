@@ -19,12 +19,9 @@ import (
 // but takes no event (docs/CLAUSE_DESIGN.md). Key is the type of the IDs
 // and Val the type of one instance, as the title of a <<promote>> block
 // writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val.
-// Include is the path the !include of Local writes, for printing the global
-// diagram as written.
 type Family struct {
 	Map, ID  string
 	Key, Val types.Type
-	Include  string
 	Local    *Diagram
 	Frozen   []string
 }

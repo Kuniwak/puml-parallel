@@ -184,20 +184,20 @@ func TestNewMainFuncPrintsAGlobalDiagramAsWritten(t *testing.T) {
 	}
 	want := `@startuml RECEIPTS
 state "稼働中" as running {
-  running : cycles ; Date ⇸ Cycle
   running : receipts ; ReceiptId ⇸ Receipt
-  state "cycles : (基準日 : Date) ⇸ Cycle" as running_cycles <<promote>> {
+  running : cycles ; Date ⇸ Cycle
+  state "cycles : (基準日 : Date) ⇸ Cycle" as runningCycles <<promote>> {
     !include local/CYCLE.puml
   }
-  state "receipts : (入荷ID : ReceiptId) ⇸ Receipt" as running_receipts <<promote>> {
+  state "receipts : (入荷ID : ReceiptId) ⇸ Receipt" as runningReceipts <<promote>> {
     !include local/RECEIPT.puml
   }
 }
 [*] --> running
-note as sync_LOG
+note as sync1
   sync LOG : receipts(入荷ID), cycles(基準日)
 end note
-note as constrain1
+note as cons2
   constrain LOG?入荷ID?基準日?数量 ; $基準日 は $入荷ID の入荷日である
 end note
 note as constrain2

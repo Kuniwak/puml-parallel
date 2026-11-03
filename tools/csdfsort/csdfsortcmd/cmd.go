@@ -38,7 +38,7 @@ func canonical(raw []byte) (string, error) {
 		return "", fmt.Errorf("reading PlantUML source: %w", err)
 	}
 	if csdf.HoldsPromotionDirectives(src) {
-		prom, err := coreio.ReadPromotion(src, nil)
+		prom, err := coreio.ReadPromotionAsWritten(src)
 		if err != nil {
 			return "", err
 		}

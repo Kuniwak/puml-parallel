@@ -11,7 +11,8 @@ import (
 )
 
 func TestWritePromotionCanonical(t *testing.T) {
-	p, err := ReadPromotion(`@startuml G
+	// Setup
+	source := `@startuml G
 ' a comment for the picture
 state "稼働中" as running {
   running : n ; Nat
@@ -49,41 +50,46 @@ note as c
   prose under the directive
 end note
 @enduml
-`, nil)
+`
+	p, err := ReadPromotionAsWritten(source)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	// Execute
 	got, err := WritePromotion(p)
+
+	// Assert
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := `@startuml G
 state "縮退中" as degraded {
-  degraded : members ; MemberId ⇸ Member
   degraded : reviews ; ReviewId ⇸ Review
-  state "members : (m : MemberId) ⇸ Member" as degraded_members <<promote>> {
+  degraded : members ; MemberId ⇸ Member
+  state "members : (m : MemberId) ⇸ Member" as dM <<promote>> {
     !include local/MEMBER.puml
   }
 }
 state "稼働中" as running {
   running : n ; Nat
-  running : members ; MemberId ⇸ Member
   running : reviews ; ReviewId ⇸ Review
-  state "members : (m : MemberId) ⇸ Member" as running_members <<promote>>
-  state "reviews : (r : ReviewId) ⇸ Review" as running_reviews <<promote>> {
+  running : members ; MemberId ⇸ Member
+  state "members : (m : MemberId) ⇸ Member" as rM <<promote>>
+  state "reviews : (r : ReviewId) ⇸ Review" as rR <<promote>> {
     !include local/REVIEW.puml
   }
 }
 [*] --> running : $n' = 0
 degraded --> running : RECOVER
 running --> degraded : DEGRADE
-note as sync_BEGIN
+note as s1
   sync BEGIN : reviews(r), members(m).BEGIN_REVIEW ; $n > 0
 end note
-note as sync_REVIEW_END
+note as s2
   sync REVIEW_END : reviews(r).END, members(m)
 end note
-note as constrain1
+note as c
   constrain BEGIN?r?m ; $m は y
 end note
 note as constrain2
@@ -129,7 +135,7 @@ func TestWritePromotionExpandsAsTheSourceAndIsIdempotent(t *testing.T) {
 
 func writePromotion(t *testing.T, source string) string {
 	t.Helper()
-	p, err := ReadPromotion(source, nil)
+	p, err := ReadPromotionAsWritten(source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,4 +207,31 @@ func conjunctsSorted(c string) string {
 	}
 	slices.Sort(conjuncts)
 	return strings.Join(conjuncts, " ∧ ")
+}
+
+func TestWritePromotionRefusesAGeneratedIDThatClashes(t *testing.T) {
+	// Setup
+	p, err := ReadPromotionAsWritten(`@startuml
+state "稼働中" as constrain1 {
+  state "receipts : (r : ReceiptId) ⇸ Receipt" as rR <<promote>> {
+    !include local/RECEIPT.puml
+  }
+}
+[*] --> constrain1
+note bottom of rR
+  constrain RECEIVE?r ; $r は x
+end note
+@enduml
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	_, err = WritePromotion(p)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "constrain1") {
+		t.Errorf("want an error naming constrain1, got %v", err)
+	}
 }
