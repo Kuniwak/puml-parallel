@@ -242,8 +242,12 @@ def report(a: argparse.Namespace, result, head: str, walks=None) -> int:
     as the arguments a ask; the exit status."""
     used = [name for name in REDUCTIONS if getattr(a, name)]
     if a.json:
-        extra = {"states": walks.steps, "random_walk": walks.to_json()} if walks is not None else {}
-        json.dump({**result.to_json(), **extra, "reductions": used}, sys.stdout, ensure_ascii=False)
+        report = result.to_json()
+        if walks is not None:
+            # The walks keep no states to count; they say how far they went.
+            del report["states"]
+            report["random_walk"] = walks.to_json()
+        json.dump({**report, "reductions": used}, sys.stdout, ensure_ascii=False)
         print()
     else:
         if result.stopped_early:

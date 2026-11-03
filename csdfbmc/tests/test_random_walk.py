@@ -125,6 +125,7 @@ class RandomWalkOptionTest(unittest.TestCase):
         self.assertEqual(json.loads(expected), json.loads(actual))
         self.assertEqual({"walks": 4, "steps": 8, "deepest": 2, "seed": 9, "fired": {"inc": 8}, "never_fired": []},
                          json.loads(actual)["random_walk"])
+        self.assertNotIn("states", json.loads(actual), "the walks count no states")
 
     def test_the_functions_the_environment_decided_are_said_as_the_breadth_first_walk_says_them(self):
         from csdfbmc.tests.test_cli import DECLARED, UNKNOWN_GUARD, walk
