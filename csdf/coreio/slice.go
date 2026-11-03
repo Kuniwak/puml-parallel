@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 )
 
@@ -17,12 +16,18 @@ import (
 // placeholder if the initial state is outside. A placeholder's ID is the
 // state's ID with a suffix no name of the diagram ends up colliding with.
 func WriteSlice(s *core.Sliced) (string, error) {
-	text, err := WriteCanonical(s.Diagram)
+	canonical, err := Canonical(s.Diagram)
 	if err != nil {
 		return "", fmt.Errorf("coreio.WriteSlice: %w", err)
 	}
+	var b strings.Builder
+	noGloss := func(core.Edge) (string, error) { return "", nil }
+	if err := writeBody(&b, canonical, noGloss, canonical.Init != ""); err != nil {
+		return "", fmt.Errorf("coreio.WriteSlice: %w", err)
+	}
 	if len(s.Cut) == 0 && s.Diagram.Init != "" {
-		return text, nil
+		b.WriteString("@enduml\n")
+		return b.String(), nil
 	}
 	suffix := freshSuffix(s)
 	placeholder := func(state string) string {
@@ -53,25 +58,17 @@ func WriteSlice(s *core.Sliced) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("coreio.WriteSlice: %w", err)
 	}
-	var b strings.Builder
-	b.WriteString(strings.TrimSuffix(text, "@enduml\n"))
 	b.WriteString("' CSDF-IGNORE-BEGIN\n")
 	for _, st := range stubs.States {
-		fmt.Fprintf(&b, "state %q as %s\n", stubs.Labels[st], st)
+		writeState(&b, stubs, st)
 	}
 	if s.Diagram.Init == "" {
 		b.WriteString("[*] --> " + placeholder(s.From.Init) + "\n")
 	}
 	for _, e := range stubs.Edges {
-		guard, err := clause.Print(e.Guard)
-		if err != nil {
-			return "", fmt.Errorf("coreio.WriteSlice: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
+		if err := writeEdge(&b, e); err != nil {
+			return "", fmt.Errorf("coreio.WriteSlice: %w", err)
 		}
-		post, err := clause.Print(e.Post)
-		if err != nil {
-			return "", fmt.Errorf("coreio.WriteSlice: %s --> %s : %s: %w", e.Src, e.Dst, e.Event.Channel, err)
-		}
-		fmt.Fprintf(&b, "%s --> %s : %s\n", e.Src, e.Dst, edgeLabel(event(e.Event), guard, post))
 	}
 	b.WriteString("' CSDF-IGNORE-END\n@enduml\n")
 	return b.String(), nil
