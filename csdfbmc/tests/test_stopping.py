@@ -89,8 +89,7 @@ class StopOptionTest(unittest.TestCase):
                 stopped = contextlib.nullcontext(lambda: "SIGTERM")
 
                 # Execute
-                with mock.patch("csdfbmc.__main__.on_signals", return_value=stopped):
-                    code, out, err = command(self, *args)
+                code, out, err = command(self, *args, stopping=lambda: stopped)
 
                 # Assert
                 self.assertEqual(0, code, err)

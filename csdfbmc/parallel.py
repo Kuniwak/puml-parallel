@@ -21,6 +21,7 @@ from collections.abc import Callable, Iterable, Iterator
 from csdfbmc import cli
 from csdfbmc.explore import Expansion, State
 from csdfbmc.model import Diagram
+from csdfbmc.randomwalk import Outcome
 from csdfbmc.stopping import never
 
 # The walk of this worker, which its pool built (_start), or what building
@@ -56,29 +57,45 @@ def _start(a: argparse.Namespace) -> None:
         _failed = e
 
 
-def _expand(state: State) -> Expansion | Exception:
-    """The expansion of state, its edges by their index in the diagram, or
-    what expanding it raised: the walk raises it only if it gets to the
-    state."""
+def _in_worker(work: Callable, arg):
+    """What work gives for arg with its edges sent by their index in the
+    diagram (_sent), or what building the walk or working raised: the walk
+    raises it only if it gets to the result."""
     if _failed is not None:
         return _failed
     try:
-        x = _explorer.expand(state)
+        return _sent(work(arg))
     except Exception as e:  # noqa: BLE001 - passed on to the walk
         return e
-    x.transitions = [(name, label, t, _index[id(edge)], params) for name, label, t, edge, params in x.transitions]
+
+
+def _sent(x: Expansion | Outcome) -> Expansion | Outcome:
+    """x with its edges by their index in the diagram, to send to the walk."""
+    if isinstance(x, Expansion):
+        x.transitions = [(name, label, t, _index[id(edge)], params) for name, label, t, edge, params in x.transitions]
+    elif isinstance(x, Outcome):
+        x.steps = [(label, _index[id(edge)], s) for label, edge, s in x.steps]
+    else:
+        raise TypeError(f"no edges of a {type(x).__name__} to send")
     return x
 
 
-def _expand_chunk(states: list[State]) -> list[Expansion | Exception]:
-    return [_expand(s) for s in states]
-
-
-def _received(x: Expansion | Exception, edges: list) -> Expansion:
+def _received(x: Expansion | Outcome | Exception, edges: list) -> Expansion | Outcome:
+    """x as _in_worker sent it, its edges back from their indices; what
+    the worker raised is raised."""
     if isinstance(x, Exception):
         raise x
-    x.transitions = [(name, label, t, edges[i], params) for name, label, t, i, params in x.transitions]
+    if isinstance(x, Expansion):
+        x.transitions = [(name, label, t, edges[i], params) for name, label, t, i, params in x.transitions]
+    elif isinstance(x, Outcome):
+        x.steps = [(label, edges[i], s) for label, i, s in x.steps]
+    else:
+        raise TypeError(f"no edges of a {type(x).__name__} to take back")
     return x
+
+
+def _expand_chunk(states: list[State]) -> list:
+    return [_in_worker(_explorer.expand, s) for s in states]
 
 
 # The random walks of this worker, which its pool built (_start_walks).
@@ -93,21 +110,8 @@ def _start_walks(a: argparse.Namespace) -> None:
         _walks = cli.random_walks(a, _explorer)
 
 
-def _walk(i: int):
-    """The i-th random walk, its edges by their index in the diagram, or
-    what walking it raised."""
-    if _failed is not None:
-        return _failed
-    try:
-        out = _walks.walk(i)
-    except Exception as e:  # noqa: BLE001 - passed on to the walks
-        return e
-    out.steps = [(label, _index[id(edge)], s) for label, edge, s in out.steps]
-    return out
-
-
 def _walk_chunk(indices: range) -> list:
-    return [_walk(i) for i in indices]
+    return [_in_worker(_walks.walk, i) for i in indices]
 
 
 def _waited(result: multiprocessing.pool.AsyncResult, stop: Callable[[], str | None]):
@@ -121,6 +125,23 @@ def _waited(result: multiprocessing.pool.AsyncResult, stop: Callable[[], str | N
                 return None
 
 
+def _in_order(pool: multiprocessing.pool.Pool, task: Callable, next_chunk: Callable, jobs: int,
+              stop: Callable[[], str | None]) -> Iterator:
+    """What task gives for each chunk next_chunk gives (None while it has
+    none), the chunks given out AHEAD per worker ahead and the results
+    taken back in order. It ends early when stop names a signal."""
+    pending: collections.deque = collections.deque()
+    while True:
+        while len(pending) < jobs * AHEAD and (chunk := next_chunk()) is not None:
+            pending.append(pool.apply_async(task, (chunk,)))
+        if not pending:
+            return
+        results = _waited(pending.popleft(), stop)
+        if results is None:
+            return
+        yield from results
+
+
 @contextlib.contextmanager
 def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable[[], str | None] = never):
     """What takes the random walks in jobs workers (RandomWalks.run's take),
@@ -132,22 +153,9 @@ def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable[[
         return
     with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
         def take(indices: range):
-            pending: collections.deque = collections.deque()
-            given = indices.start
-            while True:
-                while len(pending) < jobs * AHEAD and given < indices.stop:
-                    pending.append(pool.apply_async(_walk_chunk, (range(given, min(given + CHUNK, indices.stop)),)))
-                    given = min(given + CHUNK, indices.stop)
-                if not pending:
-                    return
-                chunk = _waited(pending.popleft(), stop)
-                if chunk is None:
-                    return
-                for out in chunk:
-                    if isinstance(out, Exception):
-                        raise out
-                    out.steps = [(label, diagram.edges[i], s) for label, i, s in out.steps]
-                    yield out
+            chunks = iter(indices[i:i + CHUNK] for i in range(0, len(indices), CHUNK))
+            for out in _in_order(pool, _walk_chunk, lambda: next(chunks, None), jobs, stop):
+                yield _received(out, diagram.edges)
         yield take
 
 
@@ -166,17 +174,16 @@ def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable
         return
     with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start, initargs=(a,)) as pool:
         def expand_all(queue: list[State], start: int) -> Iterator[Expansion]:
-            pending: collections.deque = collections.deque()
             given = start
-            while True:
-                while len(pending) < jobs * AHEAD and given < len(queue):
-                    pending.append(pool.apply_async(_expand_chunk, (queue[given:given + CHUNK],)))
-                    given = min(given + CHUNK, len(queue))
-                if not pending:
-                    return
-                chunk = _waited(pending.popleft(), stop)
-                if chunk is None:
-                    return
-                for x in chunk:
-                    yield _received(x, diagram.edges)
+
+            def added():
+                # The walk adds to the queue as it takes the expansions in.
+                nonlocal given
+                if given >= len(queue):
+                    return None
+                chunk, given = queue[given:given + CHUNK], min(given + CHUNK, len(queue))
+                return chunk
+
+            for x in _in_order(pool, _expand_chunk, added, jobs, stop):
+                yield _received(x, diagram.edges)
         yield expand_all

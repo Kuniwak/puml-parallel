@@ -52,6 +52,10 @@ def _mach_resident() -> int | None:
     return info.resident_size
 
 
+def unsaid(**counts: int) -> None:
+    """Says nothing of how far a walk got."""
+
+
 def _hms(seconds: float) -> str:
     s = int(seconds)
     return f"{s // 3600}:{s // 60 % 60:02}:{s % 60:02}"
@@ -128,14 +132,14 @@ class WalkProgress(_Line):
 
 
 @contextlib.contextmanager
-def reporting(out: TextIO, seconds: float, make: Callable[[TextIO], _Line]) -> Iterator[_Line | None]:
+def reporting(out: TextIO, seconds: float, make: Callable[[TextIO], _Line]) -> Iterator[_Line]:
     """A progress line made by make (Progress or WalkProgress) said on out every
-    seconds by a thread of its own, which stops on leaving; None for 0
-    seconds."""
-    if seconds == 0:
-        yield None
-        return
+    seconds by a thread of its own, which stops on leaving; never said for
+    0 seconds."""
     p, stop = make(out), threading.Event()
+    if seconds == 0:
+        yield p
+        return
 
     def tick():
         while not stop.wait(seconds):

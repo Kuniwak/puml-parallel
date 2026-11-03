@@ -3,7 +3,6 @@ walk got."""
 import contextlib
 import io
 import unittest
-from unittest import mock
 
 import sys
 
@@ -137,12 +136,8 @@ class ProgressOptionTest(unittest.TestCase):
         from csdfbmc.tests.fixture import explorer, load
         seen = []
 
-        class Recorder:
-            def update(self, **counts):
-                seen.append(counts)
-
         # Execute
-        explorer(load(FORGETFUL), Checks(types={"N": [0, 1, 2], "Q": [0, 1]})).run(progress=Recorder())
+        explorer(load(FORGETFUL), Checks(types={"N": [0, 1, 2], "Q": [0, 1]})).run(progress=lambda **counts: seen.append(counts))
 
         # Assert
         self.assertEqual(5, len(seen))
@@ -159,8 +154,7 @@ class ProgressOptionTest(unittest.TestCase):
             p.report()
 
         # Execute
-        with mock.patch("csdfbmc.__main__.progress.reporting", reporting):
-            code, _, err = walk(self, "--random-walk", "--walks", "3", "--seed", "5")
+        code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5", checks=CHECKS, reporting=reporting)
 
         # Assert
         self.assertEqual(1, code, err)

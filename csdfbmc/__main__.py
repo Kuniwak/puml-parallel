@@ -143,7 +143,10 @@ def print_environment(env: dict) -> None:
         print(f"decided by the environment: {name}")
 
 
-def main(argv=None) -> int:
+def main(argv=None, stopping=on_signals, reporting=progress.reporting) -> int:
+    """csdfbmc on argv; stopping is what a signal stops the walk by
+    (csdfbmc.stopping.on_signals), and reporting what says its progress
+    (csdfbmc.progress.reporting)."""
     ap = argparse.ArgumentParser(prog="csdfbmc", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
     ap.add_argument("--max-states", type=int, help=f"stop after this many states (default {MAX_STATES})")
@@ -205,13 +208,13 @@ def main(argv=None) -> int:
 
     # Inside, a signal stops the walk where it is, and one after it is
     # ignored while the report and the checkpoint are written.
-    with on_signals() as stop:
+    with stopping() as stop:
         if a.random_walk:
-            return main_random_walks(a, stop)
-        return main_walk(a, stop)
+            return main_random_walks(a, stop, reporting)
+        return main_walk(a, stop, reporting)
 
 
-def main_walk(a: argparse.Namespace, stop) -> int:
+def main_walk(a: argparse.Namespace, stop, reporting) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             walk = explorer(a, diagram, checks, client, environment)
@@ -221,8 +224,8 @@ def main_walk(a: argparse.Namespace, stop) -> int:
             if a.checkpoint:
                 saving = checkpoint.Every(a.checkpoint_every,
                                           lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
-            with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, progress.reporting(sys.stderr, a.progress, progress.Progress) as said:
-                result = walk.run(expand_all, said, resume=resume, checkpoint=saving, stop=stop)
+            with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, reporting(sys.stderr, a.progress, progress.Progress) as said:
+                result = walk.run(expand_all, said.update, resume=resume, checkpoint=saving, stop=stop)
             if saving is not None:
                 saving.flush()
     except LOADING_ERRORS as e:
@@ -235,13 +238,13 @@ def main_walk(a: argparse.Namespace, stop) -> int:
     return report(a, result, head)
 
 
-def main_random_walks(a: argparse.Namespace, stop) -> int:
+def main_random_walks(a: argparse.Namespace, stop, reporting) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             walker = random_walks(a, explorer(a, diagram, checks, client, environment))
             with parallel.walking(a, diagram, a.jobs, stop) as take, \
-                    progress.reporting(sys.stderr, a.progress, progress.WalkProgress) as said:
-                got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said)
+                    reporting(sys.stderr, a.progress, progress.WalkProgress) as said:
+                got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)
         return 2

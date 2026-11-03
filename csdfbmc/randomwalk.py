@@ -19,8 +19,9 @@ import random
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
-from csdfbmc.explore import Explorer, Result, State
+from csdfbmc.explore import Explorer, Result, State, dead_end
 from csdfbmc.model import Edge
+from csdfbmc.progress import unsaid
 from csdfbmc.stopping import never
 
 
@@ -108,8 +109,7 @@ class RandomWalks:
             weighted = [(t, self.weights.get(t[0], 1)) for t in succ]
             weighted = [(t, w) for t, w in weighted if w > 0]
             if not weighted:
-                if not succ and not e.can_end:
-                    out.finding = ("bound_reached", e.witness) if e.witness is not None else ("deadlock", None)
+                out.finding = dead_end(succ, e)
                 break
             name, label, s, edge, _ = rng.choices([t for t, _ in weighted], [w for _, w in weighted])[0]
             out.steps.append((label, edge, s))
@@ -121,12 +121,11 @@ class RandomWalks:
         return out
 
     def run(self, walks: int, take: Callable[[range], Iterable[Outcome]] | None = None, first: bool = False,
-            stop: Callable[[], str | None] = never, progress=None) -> RandomWalkReport:
+            stop: Callable[[], str | None] = never, progress: Callable[..., None] = unsaid) -> RandomWalkReport:
         """walks walks, taken by take (in order; one after another here by
         default), stopping at the first finding with first. stop is asked
-        before each walk is taken in, as Explorer.run asks it. progress,
-        when given, is told how far the walks got after each
-        (csdfbmc.progress.WalkProgress)."""
+        before each walk is taken in, as Explorer.run asks it. progress is
+        told how far the walks got after each (WalkProgress.update)."""
         x = self.explorer
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         deadlocks: list[State] = []
@@ -167,8 +166,7 @@ class RandomWalks:
                     bound_reached.append((s, what))
                 else:
                     violations.append((what, s))
-            if progress is not None:
-                progress.update(walks=done, steps=steps, deepest=deepest, findings=len(deadlocks) + len(violations) + len(empty_posts))
+            progress(walks=done, steps=steps, deepest=deepest, findings=len(deadlocks) + len(violations) + len(empty_posts))
             if met and first and kind != "bound_reached":
                 stopped = True
                 break
