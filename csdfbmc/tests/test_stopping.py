@@ -161,27 +161,67 @@ class SignalledCommandTest(unittest.TestCase):
         with open(checks, "w", encoding="utf-8") as f:
             f.write("TYPES = {}\n")
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        # A file, not a pipe: a glue left behind would hold a pipe open.
+        err = tempfile.TemporaryFile("w+", encoding="utf-8")
+        self.addCleanup(err.close)
         proc = subprocess.Popen([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc", path, checks, "--progress", "0",
                                  *(a.replace("MARKER", marker) for a in args)],
-                                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
-        self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, signal.SIGKILL))
+                                cwd=root, stdout=subprocess.PIPE, stderr=err, text=True, start_new_session=True)
+        self.addCleanup(self.killed, proc)
         deadline = time.monotonic() + 60
         while not os.path.exists(marker):
             if proc.poll() is not None or time.monotonic() > deadline:
-                self.fail(f"csdfbmc never started a step: {proc.communicate()}")
+                self.fail(f"csdfbmc never started a step: {self.killed(proc)}")
             time.sleep(0.05)
+        proc.err, proc.marker = err, marker
+        self.addCleanup(self.left, proc, signal.SIGKILL)
         return proc
+
+    @staticmethod
+    def left(proc, kill=0):
+        """The processes that said they were in a step (slow_glue) and are
+        still there, sent kill (0 sends nothing)."""
+        with open(proc.marker, encoding="utf-8") as f:
+            pids = {int(line) for line in f}
+        alive = set()
+        for pid in pids:
+            try:
+                os.kill(pid, kill)
+                alive.add(pid)
+            except ProcessLookupError:
+                pass
+        return alive
+
+    @staticmethod
+    def killed(proc):
+        """proc and what is left of its group killed, and waited for."""
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass  # the group is gone, or holds only zombies
+        proc.kill()
+        return proc.communicate()[0], SignalledCommandTest.said(proc)
+
+    @staticmethod
+    def said(proc):
+        proc.err.seek(0)
+        return proc.err.read()
 
     def test_stops_within_seconds_with_what_it_found(self):
         import subprocess
         import time
+        import shlex
+        import sys
         module = ("--evaluator-module", "csdfbmc.tests.slow_glue MARKER")
+        command = ("--evaluator", shlex.join([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc.tests.slow_glue", "MARKER"]))
         tests = {
             "random walks, SIGTERM": (signal.SIGTERM, *module, "--random-walk", "--seed", "1", "--walks", "4"),
             "random walks, SIGINT": (signal.SIGINT, *module, "--random-walk", "--seed", "1", "--walks", "4"),
             "random walks, two jobs": (signal.SIGTERM, *module, "--random-walk", "--seed", "1", "--walks", "4", "--jobs", "2"),
             "breadth first": (signal.SIGTERM, *module),
             "breadth first, two jobs": (signal.SIGTERM, *module, "--jobs", "2"),
+            "a glue command, random walks": (signal.SIGTERM, *command, "--random-walk", "--seed", "1", "--walks", "4"),
+            "a glue command, two jobs": (signal.SIGTERM, *command, "--jobs", "2"),
         }
         for name, (sent, *args) in tests.items():
             with self.subTest(name):
@@ -192,15 +232,18 @@ class SignalledCommandTest(unittest.TestCase):
                 os.killpg(proc.pid, sent)
                 started = time.monotonic()
                 try:
-                    out, err = proc.communicate(timeout=30)
+                    out, err = proc.communicate(timeout=30)[0], self.said(proc)
                 except subprocess.TimeoutExpired:
-                    os.killpg(proc.pid, signal.SIGKILL)
-                    out, err = proc.communicate()
+                    out, err = self.killed(proc)
 
                 # Assert
                 self.assertLess(time.monotonic() - started, 10, err)
                 self.assertEqual(0, proc.returncode, err)
                 self.assertIn(f" (stopped by {sent.name})\n", out.splitlines(True)[0])
+                deadline = time.monotonic() + 5
+                while self.left(proc) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertEqual(set(), self.left(proc), "left in the middle of a step")
 
 
 class StopOptionTest(unittest.TestCase):

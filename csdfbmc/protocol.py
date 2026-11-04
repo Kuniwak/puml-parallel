@@ -221,8 +221,12 @@ class CommandTransport:
 
     def __init__(self, argv: list[str], *, cwd: str | None = None, env: dict | None = None):
         try:
+            # A process group of its own: a signal sent to the checker's
+            # group, as timeout and a terminal send it, stops the checker,
+            # which kills the glue if it is cut in the middle of a request
+            # and else closes it; the glue ends when its input does.
             self._proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
-                                          encoding="utf-8", bufsize=1, cwd=cwd, env=env)
+                                          encoding="utf-8", bufsize=1, cwd=cwd, env=env, process_group=0)
         except OSError as e:
             raise EvaluatorError(f"cannot start the glue {argv!r}: {e}") from e
         self._argv = argv

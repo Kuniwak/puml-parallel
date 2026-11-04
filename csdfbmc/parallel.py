@@ -16,6 +16,7 @@ import contextlib
 import multiprocessing
 import multiprocessing.pool
 import os
+import signal
 from collections.abc import Callable, Iterable, Iterator
 
 from csdfbmc import cli
@@ -43,6 +44,10 @@ AHEAD = 4
 POLL = 1.0
 
 
+def _ended(signum, _frame):
+    raise SystemExit(128 + signum)
+
+
 def _start(a: argparse.Namespace) -> None:
     """Builds the walk of this worker. What it raises is kept for the walk
     to raise: a pool restarts a worker whose start fails, forever."""
@@ -53,6 +58,10 @@ def _start(a: argparse.Namespace) -> None:
     # it (csdfbmc.stopping), and leaving it stops the workers. One killed
     # before this holds no lock: it takes one only for its first task.
     os.setsid()
+    # The pool stops a worker with SIGTERM: it ends as a signal ends the
+    # walk, so that a glue command cut in the middle of a request is
+    # killed with it (csdfbmc.protocol.CommandTransport).
+    signal.signal(signal.SIGTERM, _ended)
     try:
         _explorer = cli.explorer(a, *_stack.enter_context(cli.opened(a)))
         _index = {id(e): i for i, e in enumerate(_explorer.d.edges)}
