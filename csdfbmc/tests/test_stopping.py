@@ -4,7 +4,6 @@ import json
 import os
 import signal
 import unittest
-from unittest import mock
 
 from csdfbmc.randomwalk import RandomWalks
 from csdfbmc.stopping import on_signals
@@ -43,8 +42,7 @@ class WaitedTest(unittest.TestCase):
                 raise multiprocessing.TimeoutError
 
         # Execute
-        with mock.patch.object(parallel, "POLL", 0.01):
-            got = parallel._waited(Silent(), lambda: "SIGTERM")
+        got = parallel._waited(Silent(), lambda: "SIGTERM")
 
         # Assert
         self.assertIsNone(got)
