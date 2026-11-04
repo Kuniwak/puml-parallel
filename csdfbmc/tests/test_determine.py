@@ -50,7 +50,7 @@ class DetermineTest(unittest.TestCase):
         for name, (guard, want) in tests.items():
             with self.subTest(name):
                 # Execute
-                got = determine(tuple(guard), ["v", "w"], {"n"})
+                got = determine(tuple(guard), ["v", "w"], {"n"}, frozenset())
 
                 # Assert
                 self.assertEqual(want, got)

@@ -18,7 +18,7 @@ class Bind:
     term: object
 
 
-def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozenset = frozenset()) -> dict[int, Bind]:
+def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozenset) -> dict[int, Bind]:
     """The equalities of guard that bind a field, by their places in it.
 
     An equality builtin binds a field f, f = t, or its part f[k] for a
