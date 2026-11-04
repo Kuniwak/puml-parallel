@@ -12,10 +12,10 @@ def run(levels, checks):
     asked, pruned = [], []
 
     def at(d, check):
-        return None if check is None else lambda prefix: asked.append((d, prefix)) or check(prefix)
+        return None if check is None else lambda prefix, bound: {} if asked.append((d, prefix)) or check(prefix) else None
 
-    out = list(pruned_product([lambda prefix, vs=vs: vs(prefix) if callable(vs) else vs for vs in levels],
-                              [at(d, c) for d, c in enumerate(checks)], pruned.append))
+    out = [t for t, _ in pruned_product([lambda prefix, vs=vs: vs(prefix) if callable(vs) else vs for vs in levels],
+                                        [at(d, c) for d, c in enumerate(checks)], pruned.append)]
     return out, asked, pruned
 
 
@@ -74,6 +74,22 @@ class PrunedProductTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(([(2, 0)], [(1, (2,))], []), (out, asked, pruned))
+
+    def test_a_step_binds_names_the_deeper_steps_and_the_tuple_carry(self):
+        # Setup
+        seen = []
+
+        def deeper(prefix, bound):
+            seen.append((prefix, bound))
+            return {} if bound["s"] + prefix[1] == 3 else None
+
+        # Execute
+        out = list(pruned_product([lambda p: [1, 2], lambda p: [1, 2]],
+                                  [None, lambda prefix, bound: {"s": prefix[0]}, deeper], lambda p: None))
+
+        # Assert
+        self.assertEqual([((1, 2), {"s": 1}), ((2, 1), {"s": 2})], out)
+        self.assertEqual([((1, 1), {"s": 1}), ((1, 2), {"s": 1}), ((2, 1), {"s": 2}), ((2, 2), {"s": 2})], seen)
 
 
 if __name__ == "__main__":

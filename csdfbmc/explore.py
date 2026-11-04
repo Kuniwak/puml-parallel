@@ -543,11 +543,11 @@ class Explorer:
             return dict(zip(names, prefix))
 
         def check(lo: int, hi: int) -> Callable[[tuple], bool]:
-            return lambda prefix: self.ev.holds(e.guard[lo:hi], self._before(state, params(prefix)))
+            return lambda prefix, bound: {} if self.ev.holds(e.guard[lo:hi], self._before(state, params(prefix))) else None
 
         levels = [lambda prefix, p=p, how=how: self._field_offers(state, e, params(prefix), p, *how) for p, *how in plan]
         checks = [check(ready[d], ready[d + 1]) if ready[d + 1] > ready[d] else None for d in range(len(plan))] + [None]
-        for prefix in pruned_product(levels, checks, lambda prefix: on_prune(self._product_size(e, plan[len(prefix):]))):
+        for prefix, _ in pruned_product(levels, checks, lambda prefix: on_prune(self._product_size(e, plan[len(prefix):]))):
             yield params(prefix), ready[len(plan)]
 
     def _product_size(self, e: Edge, plan: list[tuple]) -> int:
