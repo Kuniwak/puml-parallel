@@ -540,19 +540,24 @@ class Explorer:
                 break
             forced |= unshaped
         whole = {b.field for b in binds.values() if b.key is None}
-        levels: list = []
-        ranged = set()
-        for p in e.params:
-            if p in whole:
-                continue
-            if p in shapes:
-                levels += [((p, k), list(vs)) for k, vs in shapes[p][1].items()]
-                ranges = bool(shapes[p][1])
-            else:
-                levels.append((p, self._field_values(e, p)))
-                ranges = True
-            if ranges:
-                ranged.add(f"?{p}")
+
+        def levels_of(shapes: dict) -> tuple[list, set]:
+            levels: list = []
+            ranged = set()
+            for p in e.params:
+                if p in whole:
+                    continue
+                if p in shapes:
+                    levels += [((p, k), list(vs)) for k, vs in shapes[p][1].items()]
+                    ranges = bool(shapes[p][1])
+                else:
+                    levels.append((p, self._field_values(e, p)))
+                    ranges = True
+                if ranges:
+                    ranged.add(f"?{p}")
+            return levels, ranged
+
+        levels, ranged = levels_of(shapes)
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         steps, inside = place(e.guard, binds, [name for name, _ in levels])
         return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged))
