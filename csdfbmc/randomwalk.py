@@ -173,7 +173,7 @@ class RandomWalks:
                 stopped = True
                 break
         if stopped_by is None:
-            # take ends early when it is stopped (csdfbmc.parallel).
+            # A signal ends the loop early (csdfbmc.stopping.interrupted).
             stopped_by = stop()
         result = Result(
             stuck=x.stuck(deadlocks, parents) if stopped_by is None else {}, states=[], parents=parents, deadlocks=deadlocks, tau_cycles=[],

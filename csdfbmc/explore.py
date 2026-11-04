@@ -881,7 +881,7 @@ class Explorer:
                 checkpoint(w)
 
         if stopped_by is None:
-            # expand_all ends early when it is stopped (csdfbmc.parallel).
+            # A signal ends the loop early (csdfbmc.stopping.interrupted).
             stopped_by = stop()
 
         return Result(

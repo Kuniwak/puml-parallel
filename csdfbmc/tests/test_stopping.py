@@ -73,23 +73,6 @@ class InterruptedTest(unittest.TestCase):
                 self.assertLess(time.monotonic() - started, 5)
 
 
-class WaitedTest(unittest.TestCase):
-    def test_a_worker_that_never_answers_is_left_when_a_signal_comes(self):
-        import multiprocessing
-        from csdfbmc import parallel
-
-        # Setup
-        class Silent:
-            def get(self, timeout):
-                raise multiprocessing.TimeoutError
-
-        # Execute
-        got = parallel._waited(Silent(), lambda: "SIGTERM")
-
-        # Assert
-        self.assertIsNone(got)
-
-
 class StopTest(unittest.TestCase):
     def test_a_walk_asked_to_stop_ends_and_says_why(self):
         # Execute
