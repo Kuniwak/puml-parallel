@@ -298,7 +298,6 @@ class TransportTest(unittest.TestCase):
         self.assertIn("99", str(cm.exception))
 
 
-
 class CommandTransportTest(unittest.TestCase):
     def test_a_signal_while_the_glue_answers_leaves_the_answers_in_step(self):
         from csdfbmc.protocol import CommandTransport

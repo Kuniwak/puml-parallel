@@ -31,25 +31,46 @@ class OnSignalsTest(unittest.TestCase):
                 self.assertEqual(before, {s: signal.getsignal(s) for s in before})
 
 
+def signalled_after(first):
+    """first, then a SIGTERM to this process while the next is being made,
+    which takes far longer than a test may wait."""
+    import time
+    yield first
+    os.kill(os.getpid(), signal.SIGTERM)
+    time.sleep(30)
+
+
 class InterruptedTest(unittest.TestCase):
-    def test_a_signal_ends_the_items_while_the_next_is_being_made(self):
+    def test_a_signal_ends_what_is_being_made_and_what_was_made_is_kept(self):
         import time
+        walk, walks = fixture.explorer(COUNTER), RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1)
 
-        # Setup
-        def slow():
-            yield 1
-            os.kill(os.getpid(), signal.SIGTERM)
-            time.sleep(30)
-            yield 2
+        def items(stop):
+            return list(interrupted(signalled_after(1))), stop()
 
-        # Execute
-        started = time.monotonic()
-        with on_signals() as stop:
-            got = list(interrupted(slow()))
+        def breadth_first(stop):
+            result = walk.run(lambda queue, i: signalled_after(walk.expand(queue[i])), stop=stop)
+            return result.states, result.stopped_by
 
-        # Assert
-        self.assertEqual(([1], "SIGTERM"), (got, stop()))
-        self.assertLess(time.monotonic() - started, 5)
+        def random_walks(stop):
+            got = walks.run(10, take=lambda indices: signalled_after(walks.walk(indices[0])), stop=stop)
+            return got.walks, got.result.stopped_by
+
+        tests = {
+            "items": (items, ([1], "SIGTERM")),
+            "a breadth-first walk": (breadth_first, ([("a", (2,), ()), ("a", (1,), ())], "SIGTERM")),
+            "random walks": (random_walks, (1, "SIGTERM")),
+        }
+        for name, (run, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                started = time.monotonic()
+                with on_signals() as stop:
+                    got = run(stop)
+
+                # Assert
+                self.assertEqual(want, got)
+                self.assertLess(time.monotonic() - started, 5)
 
 
 class WaitedTest(unittest.TestCase):
@@ -96,47 +117,6 @@ class StopTest(unittest.TestCase):
 
         # Assert
         self.assertEqual((2, "SIGINT"), (got.walks, got.result.stopped_by))
-
-    def test_a_walk_ends_at_a_signal_while_a_state_is_being_expanded(self):
-        import time
-
-        # Setup
-        walk = fixture.explorer(COUNTER)
-
-        def slow(queue, start):
-            yield walk.expand(queue[start])
-            os.kill(os.getpid(), signal.SIGTERM)
-            time.sleep(30)
-
-        # Execute
-        started = time.monotonic()
-        with on_signals() as stop:
-            result = walk.run(slow, stop=stop)
-
-        # Assert
-        self.assertEqual("SIGTERM", result.stopped_by)
-        self.assertEqual([("a", (2,), ()), ("a", (1,), ())], result.states)
-        self.assertLess(time.monotonic() - started, 5)
-
-    def test_random_walks_end_at_a_signal_while_a_walk_is_being_taken(self):
-        import time
-
-        # Setup
-        walks = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1)
-
-        def slow(indices):
-            yield walks.walk(indices[0])
-            os.kill(os.getpid(), signal.SIGTERM)
-            time.sleep(30)
-
-        # Execute
-        started = time.monotonic()
-        with on_signals() as stop:
-            got = walks.run(10, take=slow, stop=stop)
-
-        # Assert
-        self.assertEqual((1, "SIGTERM"), (got.walks, got.result.stopped_by))
-        self.assertLess(time.monotonic() - started, 5)
 
 
 # COUNTER whose decrement takes far longer than a test may wait: a guard
