@@ -1,4 +1,5 @@
 """The walk: the states a diagram reaches, and what it finds among them."""
+import itertools
 import unittest
 
 from csdfbmc import environment
@@ -198,15 +199,17 @@ class FieldTest(unittest.TestCase):
 
     def test_the_parts_of_a_record_field_equalities_of_the_guard_determine_are_computed(self):
         # Setup: the count the state holds, 8, lies outside the record's part.
-        d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(8))], edges=[
-            edge("a", "a", "warn?w", guard=[eq(idx("w", lit("to")), "t"), eq(idx("w", lit("count")), "n")],
-                 post=[eq("t'", "t"), eq("n'", "n")])], types={"t": "T", "n": "N"}, channels={"warn": ["W"]})
-        tests = {
+        to, count = eq(idx("w", lit("to")), "t"), eq(idx("w", lit("count")), "n")
+        guards = {"together": [to, count], "apart by a conjunct over the state": [to, atom("$n > 0"), count]}
+        types = {
             "a record": record(to=["p", "q"], count=[0, 1, 2, 3]),
             "a list of records": [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(4)],
         }
-        for name, w in tests.items():
-            with self.subTest(name):
+        for (gname, guard), (tname, w) in itertools.product(guards.items(), types.items()):
+            with self.subTest(guard=gname, type=tname):
+                d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(8))], edges=[
+                    edge("a", "a", "warn?w", guard=guard, post=[eq("t'", "t"), eq("n'", "n")])],
+                    types={"t": "T", "n": "N"}, channels={"warn": ["W"]})
                 checks = Checks(types={"T": ["p", "q"], "N": list(range(9)), "W": w})
 
                 # Execute
@@ -214,6 +217,20 @@ class FieldTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual(["warn(w={'to': 'p', 'count': 8})"], labels)
+
+    def test_an_equality_determines_its_field_after_a_conjunct_over_a_later_field(self):
+        # Setup
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(5))], edges=[
+            edge("a", "a", "c?v?w", guard=[atom("$w > 0"), eq("v", "n")], post=[eq("n'", "n")])],
+            channels={"c": ["V", "W"]})
+        x = fixture.explorer(d, Checks(types={"V": [0], "W": [0, 1, 2]}), stats=True)
+
+        # Execute
+        labels = [label for _, label, _, _ in x.successors(("a", (5,), ()))]
+
+        # Assert
+        self.assertEqual(["c(v=5, w=1)", "c(v=5, w=2)"], labels)
+        self.assertEqual((3, ["?w"]), (x.stats[0].tried, sorted(x.stats[0].ranged)))
 
     def test_a_part_no_equality_determines_ranges_over_the_values_of_the_part(self):
         # Setup
@@ -411,40 +428,99 @@ class PruningTest(unittest.TestCase):
         self.assertEqual([], transitions)
 
     def test_the_environment_decides_its_functions_in_the_order_the_full_product_would(self):
-        # Setup: f holds of k = 2 only, g of j = 1 only; h reads k but comes
-        # after g, which reads j.
-        d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
-            edge("q", "q", "c?k?j", guard=[atom("$k は f"), atom("$j は g"), atom("$k は h"), atom("$k $j は i")], post=[eq("n'", "n")])],
-            channels={"c": ["K", "J"]})
-        env = environment.over({"$_0 は f": lambda k: k == 2, "$_0 は g": lambda j: j == 1, "$_0 は h": True, "$_0 $_1 は i": True}, {})
-        x = fixture.explorer(d, Checks(types={"K": [1, 2, 3], "J": [2, 1]}), environment=env)
-        state = ("q", (0,), ())
-        e = x.d.edges[0]
-        for params in x._offers(state, e):
-            if x.ev.holds(e.guard, x._before(state, params)):
-                break
-        full = list(x.meaning.decided)
-        x.meaning.decided = {}
+        tests = {
+            # f holds of k = 2 only, g of j = 1 only; h reads k but comes
+            # after g, which reads j.
+            "conjuncts over the fields in turn": (
+                "c?k?j", {"c": ["K", "J"]}, [atom("$k は f"), atom("$j は g"), atom("$k は h"), atom("$k $j は i")],
+                {"$_0 は f": lambda k: k == 2, "$_0 は g": lambda j: j == 1, "$_0 は h": True, "$_0 $_1 は i": True},
+                {"K": [1, 2, 3], "J": [2, 1]}),
+            # v is k, bound where @eq is, after f decided k.
+            "an equality after conjuncts the environment decides": (
+                "c?k?v?j", {"c": ["K", "V", "J"]}, [atom("$k は f"), eq("v", "k"), atom("$v $j は g")],
+                {"$_0 は f": lambda k: k == 2, "$_0 $_1 は g": lambda v, j: j == 1},
+                {"K": [1, 2, 3], "V": [0], "J": [2, 1]}),
+        }
+        for name, (event, channels, guard, fns, types) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
+                    edge("q", "q", event, guard=guard, post=[eq("n'", "n")])], channels=channels)
 
-        # Execute
-        transitions = x.transitions(state)
+                def explorer():
+                    return fixture.explorer(d, Checks(types=types), environment=environment.over(fns, {}))
+                state = ("q", (0,), ())
+                full = explorer()
+                full.why_stuck(state)
+                x = explorer()
 
-        # Assert
-        self.assertEqual((1, ["$_0 は f", "$_0 は g", "$_0 は h", "$_0 $_1 は i"]), (len(transitions), list(x.meaning.decided)))
-        self.assertEqual(full, list(x.meaning.decided))
+                # Execute
+                transitions = x.transitions(state)
 
-    def test_a_conjunct_is_not_evaluated_when_a_later_field_has_no_value(self):
+                # Assert
+                self.assertEqual(1, len(transitions))
+                self.assertEqual(list(full.meaning.decided), list(x.meaning.decided))
+
+    def test_nothing_is_evaluated_when_a_later_field_has_no_value(self):
+        tests = {
+            "a conjunct": [atom("$k は f"), atom("$r == 0")],
+            "a conjunct before an equality": [atom("$k は f"), eq("v", "k"), atom("$r == 0")],
+        }
+        for name, guard in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
+                    edge("q", "q", "c?k?v?r", guard=guard, post=[eq("n'", "n")])],
+                    channels={"c": ["K", "V", "R"]})
+                x = fixture.explorer(d, Checks(types={"K": [1, 2], "V": [0], "R": []}),
+                                     environment=environment.over({"$_0 は f": True}, {}))
+
+                # Execute
+                transitions = x.transitions(("q", (0,), ()))
+
+                # Assert
+                self.assertEqual(([], {}), (transitions, x.meaning.decided))
+
+    # c?id?v: v is m[id].y, which only an instance at b has.
+    DETERMINED = diagram({"q": ["m"]}, "q", init_post=[builtin("empty", "m'")], edges=[
+        edge("q", "q", "c?id?v", guard=[builtin("at", idx("m", "id"), state="b"), eq("v", fld(idx("m", "id"), "y"))],
+             post=[builtin("frame", "m'", "m")])],
+        families=[family("m", "none", {"none": [], "a": ["x"], "b": ["x", "y"]}, key="id")], channels={"c": ["id", "V"]})
+    DETERMINED_TYPES = {"id": [1], "V": [0, 1]}
+
+    def test_a_term_an_equality_determines_is_computed_only_where_the_conjuncts_before_it_hold(self):
+        tests = {
+            "the instance elsewhere, so the conjunct before is false": (inst("a", x=0), []),
+            "the instance there": (inst("b", x=0, y=7), ["c(id=1, v=7)"]),
+        }
+        for name, (instance, labels) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(self.DETERMINED, Checks(types=self.DETERMINED_TYPES))
+
+                # Execute
+                got = [label for _, label, _, _ in x.successors(("q", (FrozenMap({1: instance}),), ()))]
+
+                # Assert
+                self.assertEqual(labels, got)
+
+    def test_a_term_that_fails_where_the_guard_reaches_it_is_an_error(self):
+        # Setup: the instance is at b without y.
+        x = fixture.explorer(self.DETERMINED, Checks(types=self.DETERMINED_TYPES))
+
+        # Execute / Assert
+        with self.assertRaisesRegex(ValueError, "has no field y"):
+            x.transitions(("q", (FrozenMap({1: inst("b", x=0)}),), ()))
+
+    def test_why_stuck_names_the_conjunct_before_the_equality_that_is_false(self):
         # Setup
-        d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
-            edge("q", "q", "c?k?r", guard=[atom("$k は f"), atom("$r == 0")], post=[eq("n'", "n")])],
-            channels={"c": ["K", "R"]})
-        x = fixture.explorer(d, Checks(types={"K": [1, 2], "R": []}), environment=environment.over({"$_0 は f": True}, {}))
+        x = fixture.explorer(self.DETERMINED, Checks(types=self.DETERMINED_TYPES))
 
         # Execute
-        transitions = x.transitions(("q", (0,), ()))
+        why = x.why_stuck(("q", (FrozenMap({1: inst("a", x=0)}),), ()))
 
         # Assert
-        self.assertEqual(([], {}), (transitions, x.meaning.decided))
+        self.assertEqual([("fields", ["id"], 1)], [(w["reason"], w["fields"], w["tried"]) for w in why])
 
     def test_why_stuck_counts_every_value_of_the_full_product(self):
         # Setup

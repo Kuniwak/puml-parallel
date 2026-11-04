@@ -15,6 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
+from csdfbmc.determine import determine
 from csdfbmc.product import pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -181,6 +182,27 @@ class Result:
         if self.ghost_names:
             text += " " + str(dict(zip(self.ghost_names, s[2])))
         return text
+
+
+@dataclass(frozen=True)
+class _Plan:
+    """How the fields an event receives take their values
+    (Explorer._field_plan). levels: (the field, or (field, key) for a part
+    of one, the values it ranges over), in the event's order. steps: (the
+    depth of the levels it reads, the place of its conjunct in the guard,
+    the Bind it makes or None), in the guard's order. inside: how many
+    leading steps the product asks. keys: the keys of the records of each
+    field equalities bind parts of. last_part: the place of the last
+    equality binding a part of each such field."""
+    levels: list
+    steps: list
+    inside: int
+    keys: dict
+    last_part: dict
+
+    def size(self, depth: int) -> int:
+        """How many values the levels from depth on give in all."""
+        return math.prod(len(vs) for _, vs in self.levels[depth:])
 
 
 @dataclass
@@ -462,33 +484,6 @@ class Explorer:
         vals = self._successor_values(self.d.start_post, {}, self.d.start, "the start edge")
         return [Strict((self.d.start, v, ghosts)) for v in vals]
 
-    def _determined(self, e: Edge, p: str, known: set[str]):
-        """The term an equality builtin of e's guard determines the field p
-        by, from the names known (Q5); None when none does."""
-        for x, y in self._equalities(e, known):
-            if x == Free(p):
-                return y
-        return None
-
-    def _determined_parts(self, e: Edge, p: str, known: set[str]) -> dict:
-        """The terms equality builtins of e's guard determine the parts of
-        the field p by, p[k] for a literal key k, from the names known (Q5),
-        by their keys."""
-        parts: dict = {}
-        for x, y in self._equalities(e, known):
-            if isinstance(x, Index) and x.map == Free(p) and isinstance(x.key, Lit):
-                parts.setdefault(x.key.value, y)
-        return parts
-
-    def _equalities(self, e: Edge, known: set[str]):
-        """Each side of an equality builtin of e's guard with the other, when
-        the other reads only the names known, before the step."""
-        for c in e.guard:
-            if isinstance(c, Builtin) and c.op == "eq":
-                for x, y in ((c.args[0], c.args[1]), (c.args[1], c.args[0])):
-                    if free_names(y, primed=False) <= known and not free_names(y, primed=True):
-                        yield x, y
-
     def _record_parts(self, e: Edge, p: str, determined: dict) -> tuple[list, dict] | None:
         """The keys of the records the field p ranges over, in order, and
         the values each key no equality determines ranges over; None when
@@ -507,103 +502,116 @@ class Explorer:
             return list(values[0]), {}
         return None
 
-    def _offers(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[dict]:
-        """The values of the fields e receives that the walk tries: each
-        ranges over its type, unless the guard determines it, or the parts of
-        a record it is, which the rest of the record ranges over (Q5);
-        ranged, when given, is told each field that ranges, as ?name."""
-        alive: list[dict] = [{}]
-        for p, *how in self._field_plan(state, e, ranged):
-            alive = [dict(params, **{p: v}) for params in alive for v in self._field_offers(state, e, params, p, *how)]
-        return alive
+    def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> "_Plan":
+        """How the fields e receives take their values (Q5): those no
+        equality of the guard binds range over their types, in the event's
+        order, and so do the parts of a record no equality binds; each
+        conjunct of the guard is a step, at the depth where what it reads
+        is bound, in the guard's order. ranged, when given, is told each
+        field that ranges, as ?name. The parts of a field are bound only
+        when its type says the keys of its records (_record_parts);
+        otherwise the field ranges."""
+        known = set(self.d.vars[state[0]])
+        forced: frozenset = frozenset()
+        while True:
+            binds = determine(e.guard, list(e.params), known, forced)
+            parts: dict = {}
+            for b in binds.values():
+                if b.key is not None:
+                    parts.setdefault(b.field, {})[b.key] = b.term
+            shapes = {f: self._record_parts(e, f, ks) for f, ks in parts.items()}
+            unshaped = {f for f, shape in shapes.items() if shape is None}
+            if not unshaped:
+                break
+            forced |= unshaped
+        whole = {b.field for b in binds.values() if b.key is None}
+        levels: list = []
+        for p in e.params:
+            if p in whole:
+                continue
+            if p in shapes:
+                levels += [((p, k), list(vs)) for k, vs in shapes[p][1].items()]
+                ranges = bool(shapes[p][1])
+            else:
+                levels.append((p, self._field_values(e, p)))
+                ranges = True
+            if ranges and ranged is not None:
+                ranged.add(f"?{p}")
+        depth = {name: d + 1 for d, (name, _) in enumerate(levels)}
+        last_part = {b.field: i for i, b in binds.items() if b.key is not None}
+        steps, at = [], 0
+        for i, c in enumerate(e.guard):
+            b = binds.get(i)
+            reads = free_names(b.term if b else c, primed=False)
+            if b is not None and last_part.get(b.field) == i:
+                reads = reads | {(b.field, k) for k in shapes[b.field][1]}
+            at = max([at] + [depth[n] for n in reads if n in depth])
+            steps.append((at, i, b))
+        inside = max([sum(1 for d, _, _ in steps if d < len(levels))] + [j + 1 for j, (_, _, b) in enumerate(steps) if b is not None])
+        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part)
+
+    def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
+        """The values of the fields of e the prefix of the levels and the
+        steps have bound, in the event's order."""
+        ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
+        return {p: ranging[p] if p in ranging else bound[p] for p in e.params if p in ranging or p in bound}
+
+    def _step(self, state: State, e: Edge, plan: "_Plan", i: int, b, prefix: tuple, bound: dict) -> bool:
+        """Whether the i-th conjunct of e's guard holds of the prefix and
+        what the steps before bound: an equality that binds computes its
+        term and adds what it binds to bound; one whose term reads an entry
+        its map does not have is false."""
+        before = self._before(state, self._params(e, plan, prefix, bound))
+        if b is None:
+            return self.ev.holds((e.guard[i],), before)
+        try:
+            value = self.ev.value(b.term, before, {}, ())
+        except Missing:
+            return False  # the guard reads an entry its map does not have: false
+        if b.key is None:
+            bound[b.field] = value
+            return True
+        bound[(b.field, b.key)] = value
+        if plan.last_part[b.field] == i:
+            ranging = {name[1]: v for (name, _), v in zip(plan.levels, prefix) if isinstance(name, tuple) and name[0] == b.field}
+            bound[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
+        return True
 
     def _guarded_offers(self, state: State, e: Edge, on_prune: Callable[[int], None], ranged: set[str] | None = None):
-        """The values of the fields e receives, as _offers gives them and in
-        its order, each with the number of the leading conjuncts of the
-        guard that hold of them. The leading conjuncts that read only the
-        fields before the last are evaluated as pruned_product asks them;
-        values of those fields they reject are dropped with every value of
-        the later fields, and on_prune is told how many values of the full
+        """The values of the fields e receives, each with the number of the
+        leading conjuncts of the guard that hold of them, in the order of
+        the product of the values the fields range over (_field_plan). The
+        steps of the conjuncts that read only the levels before the last,
+        and those up to the last that binds, are asked as pruned_product
+        asks them; values they reject are dropped with every value of the
+        later levels, and on_prune is told how many values of the full
         product that drops. The rest of the guard is the caller's."""
         plan = self._field_plan(state, e, ranged)
-        names = [p for p, *_ in plan]
-        reads = [free_names(c, primed=False) for c in e.guard]
-        known = set(self.d.vars[state[0]])
-        # ready[d + 1]: the leading conjuncts that read only the state and
-        # the first d fields; ready[0] is none.
-        ready = [0]
-        for p in [None] + names[:-1]:
-            known.add(p)
-            held = ready[-1]
-            while held < len(reads) and reads[held] <= known:
-                held += 1
-            ready.append(held)
+        groups: dict[int, list] = {}
+        for d, i, b in plan.steps[:plan.inside]:
+            groups.setdefault(d, []).append((i, b))
 
-        def params(prefix: tuple) -> dict:
-            return dict(zip(names, prefix))
+        def step(group: list) -> Callable[[tuple, dict], dict | None]:
+            def run(prefix: tuple, bound: dict) -> dict | None:
+                for i, b in group:
+                    if not self._step(state, e, plan, i, b, prefix, bound):
+                        return None
+                return bound
+            return run
 
-        def check(lo: int, hi: int) -> Callable[[tuple], bool]:
-            return lambda prefix, bound: {} if self.ev.holds(e.guard[lo:hi], self._before(state, params(prefix))) else None
+        levels = [lambda prefix, vs=vs: vs for _, vs in plan.levels]
+        steps = [step(groups[d]) if d in groups else None for d in range(len(levels) + 1)]
+        for prefix, bound in pruned_product(levels, steps, lambda prefix: on_prune(plan.size(len(prefix)))):
+            yield self._params(e, plan, prefix, bound), plan.inside
 
-        levels = [lambda prefix, p=p, how=how: self._field_offers(state, e, params(prefix), p, *how) for p, *how in plan]
-        checks = [check(ready[d], ready[d + 1]) if ready[d + 1] > ready[d] else None for d in range(len(plan))] + [None]
-        for prefix, _ in pruned_product(levels, checks, lambda prefix: on_prune(self._product_size(e, plan[len(prefix):]))):
-            yield params(prefix), ready[len(plan)]
-
-    def _product_size(self, e: Edge, plan: list[tuple]) -> int:
-        """How many values the fields plan says range give in all: one for
-        a field, or a part, a term determines, whatever it computes."""
-        size = 1
-        for p, term, _, shape in plan:
-            if term is not None:
-                continue
-            if shape is not None:
-                size *= math.prod(len(v) for v in shape[1].values())
-            else:
-                size *= len(self._field_values(e, p))
-        return size
-
-    def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[tuple]:
-        """How each field e receives takes its values, in order: (the field,
-        the term the guard determines it by, the terms it determines its
-        parts by, the shape of the record they are parts of) (_offers)."""
-        plan = []
-        known = set(self.d.vars[state[0]])
-        for p in e.params:
-            term = self._determined(e, p, known)
-            parts = self._determined_parts(e, p, known) if term is None else {}
-            shape = self._record_parts(e, p, parts) if parts else None
-            if term is None and (shape is None or shape[1]) and ranged is not None:
-                ranged.add(f"?{p}")
-            plan.append((p, term, parts, shape))
-            known.add(p)
-        return plan
-
-    def _field_offers(self, state: State, e: Edge, params: dict, p: str, term, parts: dict, shape) -> list:
-        """The values the field p takes after the fields params, as its plan
-        says (_field_plan)."""
-        if term is not None:
-            try:
-                return [self.ev.value(term, self._before(state, params), {}, ())]
-            except Missing:
-                return []  # the guard reads an entry its map does not have: false
-        if shape is not None:
-            return self._records(state, params, parts, *shape)
-        return self._field_values(e, p)
-
-    def _records(self, state: State, params: dict, parts: dict, keys: list, ranging: dict) -> list:
-        """The records of the keys keys whose determined parts are those the
-        terms parts give and whose others range over ranging."""
-        before = self._before(state, params)
-        try:
-            computed = {k: self.ev.value(t, before, {}, ()) for k, t in parts.items()}
-        except Missing:
-            return []  # the guard reads an entry its map does not have: false
-        out = []
-        for combo in itertools.product(*ranging.values()):
-            chosen = {**dict(zip(ranging, combo)), **computed}
-            out.append(FrozenMap((k, chosen[k]) for k in keys))
-        return out
+    def _first_false(self, state: State, e: Edge) -> Iterator[int | None]:
+        """For every value of the full product of the fields e receives, in
+        order, the place of the conjunct of its guard first false, evaluated
+        left to right; None when the guard holds."""
+        plan = self._field_plan(state, e)
+        for prefix in itertools.product(*(vs for _, vs in plan.levels)):
+            bound: dict = {}
+            yield next((i for _, i, b in plan.steps if not self._step(state, e, plan, i, b, prefix, bound)), None)
 
     def _field_values(self, e: Edge, p: str) -> list:
         """The values the field p of e ranges over: those of the type its
@@ -727,12 +735,11 @@ class Explorer:
         evaluates them."""
         out = []
         for e in self.d.out_edges(state[0]):
-            offers = self._offers(state, e)
             first_false: dict[int, int] = {}
             held = False
-            for params in offers:
-                before = self._before(state, params)
-                i = next((i for i, c in enumerate(e.guard) if not self.ev.holds((c,), before)), None)
+            tried = 0
+            for i in self._first_false(state, e):
+                tried += 1
                 if i is None:
                     held = True
                 else:
@@ -751,7 +758,7 @@ class Explorer:
                 why["conjunct"] = show(c)
             else:
                 why.update(reason="fields", fields=list(e.params), conjunct=None)
-            why["tried"] = len(offers)
+            why["tried"] = tried
             hint = self._plain_list_hint(e, why.get("fields", []))
             if hint:
                 why["hint"] = hint

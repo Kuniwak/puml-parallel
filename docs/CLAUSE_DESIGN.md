@@ -359,7 +359,7 @@ result:
 | Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
 | Q4 | Narrowed types for values | approximating the environment and bounded checking (O7) |
-| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t` or `f[k] = t` where f is a field of the event, k a literal key and t a term over the state and other determined fields | computing f, or its part k, instead of enumerating it (O7) |
+| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t` or `f[k] = t` where f is a field of the event, k a literal key and t a term over the state and the other fields, when no conjunct before the equality reads f; t is computed where evaluating the guard in order reaches the equality | computing f, or its part k, instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
 
