@@ -76,3 +76,18 @@ def interrupted(items: Iterable[T]) -> Iterator[T]:
         except (StopIteration, Stopped):
             return
         yield x
+
+
+@contextlib.contextmanager
+def deferred() -> Iterator[None]:
+    """Inside, a signal raises nothing where the program is; one that would
+    have (interrupted) raises Stopped on leaving instead: what must not be
+    cut in two, as a request and its answer, is taken whole."""
+    global _interruptible
+    before, _interruptible = _interruptible, False
+    try:
+        yield
+    finally:
+        _interruptible = before
+    if before and _received is not None:
+        raise Stopped(_received)

@@ -298,5 +298,35 @@ class TransportTest(unittest.TestCase):
         self.assertIn("99", str(cm.exception))
 
 
+
+class CommandTransportTest(unittest.TestCase):
+    def test_a_signal_while_the_glue_answers_leaves_the_answers_in_step(self):
+        from csdfbmc.protocol import CommandTransport
+        from csdfbmc.stopping import interrupted, on_signals
+
+        # Setup: the glue answers each request with its count, and the
+        # second is signalled while it is being answered.
+        glue = CommandTransport([sys.executable, "-c", (
+            "import os, signal, sys, time\n"
+            "for n, _ in enumerate(sys.stdin):\n"
+            "    if n == 1:\n"
+            "        os.kill(os.getppid(), signal.SIGTERM)\n"
+            "        time.sleep(0.5)\n"
+            "    print('{\"n\": %d}' % n, flush=True)\n")])
+        self.addCleanup(glue.close)
+
+        def asked():
+            yield glue({"op": "first"})
+            yield glue({"op": "second"})
+
+        # Execute
+        with on_signals():
+            got = list(interrupted(asked()))
+        after = glue({"op": "third"})
+
+        # Assert
+        self.assertEqual(([{"n": 0}], {"n": 2}), (got, after))
+
+
 if __name__ == "__main__":
     unittest.main()

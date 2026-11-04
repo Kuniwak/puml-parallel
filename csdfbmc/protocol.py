@@ -66,6 +66,7 @@ import subprocess
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
+from csdfbmc import stopping
 from csdfbmc.values import FrozenMap, FrozenSet, kind_key, unsigned_zero
 
 _TAGS = ("tuple", "set", "map")
@@ -229,10 +230,13 @@ class CommandTransport:
 
     def __call__(self, request: dict) -> dict:
         op = request.get("op")
+        # A signal between the request and its answer would leave the
+        # answer to the next request (csdfbmc.stopping).
         try:
-            self._proc.stdin.write(json.dumps(request_to_wire(request), ensure_ascii=False) + "\n")
-            self._proc.stdin.flush()
-            line = self._proc.stdout.readline()
+            with stopping.deferred():
+                self._proc.stdin.write(json.dumps(request_to_wire(request), ensure_ascii=False) + "\n")
+                self._proc.stdin.flush()
+                line = self._proc.stdout.readline()
         except (OSError, ValueError) as e:
             raise EvaluatorError(f"the glue {self._argv!r} stopped: {e}") from e
         if not line:
