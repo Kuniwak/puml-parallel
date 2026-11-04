@@ -20,8 +20,8 @@ alone (csdfbmc.por), and --symmetry stores a state by one renaming of the
 IDs of the types SYMMETRIC lists (csdfbmc.symmetry); each finds the same
 findings; their counts, the states and --all are those of the reduced
 walk, which a line naming the reductions says.
-SIGINT or SIGTERM stops the walk where it is, with the report of what it
-found until then (csdfbmc.stopping).
+SIGINT or SIGTERM stops the walk where it is, even in the middle of a
+step, with the report of what it found until then (csdfbmc.stopping).
 --random-walk takes walks at random instead (csdfbmc.randomwalk), for
 findings deeper than the breadth-first walk reaches.
 Exits 1 when it finds any, 2 on a usage or
@@ -224,7 +224,7 @@ def main_walk(a: argparse.Namespace, stop, reporting) -> int:
             if a.checkpoint:
                 saving = checkpoint.Every(a.checkpoint_every,
                                           lambda w: checkpoint.save(a.checkpoint, digest, checkpoint.dumps(w, diagram.edges)))
-            with parallel.expanding(a, diagram, a.jobs, stop) as expand_all, reporting(sys.stderr, a.progress, progress.Progress) as said:
+            with parallel.expanding(a, diagram, a.jobs) as expand_all, reporting(sys.stderr, a.progress, progress.Progress) as said:
                 result = walk.run(expand_all, said.update, resume=resume, checkpoint=saving, stop=stop)
             if saving is not None:
                 saving.flush()
@@ -242,7 +242,7 @@ def main_random_walks(a: argparse.Namespace, stop, reporting) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
             walker = random_walks(a, explorer(a, diagram, checks, client, environment))
-            with parallel.walking(a, diagram, a.jobs, stop) as take, \
+            with parallel.walking(a, diagram, a.jobs) as take, \
                     reporting(sys.stderr, a.progress, progress.WalkProgress) as said:
                 got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:

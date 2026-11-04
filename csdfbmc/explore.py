@@ -16,7 +16,7 @@ from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
-from csdfbmc.stopping import never
+from csdfbmc.stopping import interrupted, never
 from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
@@ -82,7 +82,8 @@ class Result:
     # valuations checked first; None unless asked for.
     stats: list[dict] | None = None
     # stuck: for the first deadlock of each shape (groups), why each edge
-    # out of it takes no step (Explorer.why_stuck).
+    # out of it takes no step (Explorer.why_stuck); none when a signal
+    # stopped the walk, which asks the glue nothing more.
     stuck: dict[State, list[dict]] = field(default_factory=dict)
 
     def trace_to(self, state: State) -> list[str]:
@@ -796,7 +797,8 @@ class Explorer:
         checkpoint is given the walk after each state, as it is then; it
         is the same Walk, changed as the walk goes on (csdfbmc.checkpoint).
         stop is asked before each state: the walk ends there when it names a
-        signal (csdfbmc.stopping), and reports what it found until then."""
+        signal (csdfbmc.stopping), and reports what it found until then; a
+        signal ends a state being expanded too (csdfbmc.stopping.interrupted)."""
         # Workers count the values they try and check apart; this walk counts
         # them as it tries them, so that a state it is stuck in shows.
         workers = expand_all is not None
@@ -833,9 +835,15 @@ class Explorer:
                 if not known(s):
                     visit(s, 0)
 
+        # What expand sets aside while it expands a state, and puts back
+        # unless a signal cuts it short.
+        kept = self.meaning.decided, self.empty_posts, self.stats
+
         stopped = False
         stopped_by = None
-        for x in expand_all(w.queue, w.i):
+        # A signal ends the expansion of a state where it is; the state
+        # stays in the queue, unexpanded, and the walk as it was before it.
+        for x in interrupted(expand_all(w.queue, w.i)):
             stopped_by = stop()
             if stopped_by is not None:
                 break
@@ -876,12 +884,13 @@ class Explorer:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)
 
+        self.meaning.decided, self.empty_posts, self.stats = kept
         if stopped_by is None:
-            # expand_all ends early when it is stopped (csdfbmc.parallel).
+            # A signal ends the loop early (csdfbmc.stopping.interrupted).
             stopped_by = stop()
 
         return Result(
-            stuck=self.stuck(w.deadlocks, w.parents),
+            stuck=self.stuck(w.deadlocks, w.parents) if stopped_by is None else {},
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
             tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
             truncated=w.truncated, bound=self.max_states,
