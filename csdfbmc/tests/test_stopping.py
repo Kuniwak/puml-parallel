@@ -139,6 +139,65 @@ class StopTest(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 5)
 
 
+# COUNTER whose decrement takes far longer than a test may wait: a guard
+# that counts to a billion, a step at a time, as a heavy step does.
+SLOW = dict(COUNTER, edges=[fixture.edge("a", "a", "dec", guard=[fixture.atom("$n > 0"), fixture.atom("all(i >= 0 for i in range(10 ** 9))")],
+                                         post=[fixture.atom("$n' == $n - 1")])] + COUNTER["edges"][1:])
+
+
+class SignalledCommandTest(unittest.TestCase):
+    """csdfbmc run as a command and signalled in the middle of a step, as
+    timeout signals its process group and a terminal its foreground one."""
+
+    def started(self, *args):
+        import subprocess
+        import sys
+        import tempfile
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        path, checks = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(SLOW, f)
+        with open(checks, "w", encoding="utf-8") as f:
+            f.write("TYPES = {}\n")
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        proc = subprocess.Popen([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc", path, checks, "--evaluator-module", "csdfbmc.python_glue",
+                                 "--progress", "0", *args], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
+        self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, signal.SIGKILL))
+        return proc
+
+    def test_stops_within_seconds_with_what_it_found(self):
+        import subprocess
+        import time
+        tests = {
+            "random walks, SIGTERM": (signal.SIGTERM, "--random-walk", "--seed", "1", "--walks", "4"),
+            "random walks, SIGINT": (signal.SIGINT, "--random-walk", "--seed", "1", "--walks", "4"),
+            "random walks, two jobs": (signal.SIGTERM, "--random-walk", "--seed", "1", "--walks", "4", "--jobs", "2"),
+            "breadth first": (signal.SIGTERM,),
+            "breadth first, two jobs": (signal.SIGTERM, "--jobs", "2"),
+        }
+        for name, (sent, *args) in tests.items():
+            with self.subTest(name):
+                # Setup: the run is in the middle of its first step.
+                proc = self.started(*args)
+                time.sleep(2)
+
+                # Execute
+                os.killpg(proc.pid, sent)
+                started = time.monotonic()
+                try:
+                    out, err = proc.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                    out, err = proc.communicate()
+
+                # Assert
+                self.assertLess(time.monotonic() - started, 5, err)
+                self.assertEqual(0, proc.returncode, err)
+                self.assertIn(f" (stopped by {sent.name})\n", out.splitlines(True)[0])
+
+
 class StopOptionTest(unittest.TestCase):
     def test_a_run_stopped_by_a_signal_says_so_and_what_it_found(self):
         import contextlib
