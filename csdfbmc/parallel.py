@@ -14,12 +14,11 @@ import argparse
 import collections
 import contextlib
 import multiprocessing
-import multiprocessing.context
 import multiprocessing.pool
-import signal
+import os
 from collections.abc import Callable, Iterable, Iterator
 
-from csdfbmc import cli, stopping
+from csdfbmc import cli
 from csdfbmc.explore import Expansion, State
 from csdfbmc.model import Diagram
 from csdfbmc.randomwalk import Outcome
@@ -44,38 +43,16 @@ AHEAD = 4
 POLL = 1.0
 
 
-class _Worker(multiprocessing.context.SpawnProcess):
-    """A worker that the signals which stop the walk (csdfbmc.stopping)
-    never reach: a ^C, or timeout's SIGTERM, goes to the whole process
-    group, and a pool whose worker it killed hangs on leaving, waiting for
-    a lock the worker held. It is born with them blocked, ignores them once
-    started (_start), and is killed when the pool stops it."""
-
-    def start(self) -> None:
-        # The signal mask, unlike the handlers, outlives the exec: the
-        # worker has them blocked until it ignores them.
-        before = signal.pthread_sigmask(signal.SIG_BLOCK, stopping.SIGNALS)
-        try:
-            super().start()
-        finally:
-            signal.pthread_sigmask(signal.SIG_SETMASK, before)
-
-    def terminate(self) -> None:
-        self.kill()
-
-
-class _Context(multiprocessing.context.SpawnContext):
-    Process = _Worker
-
-
 def _start(a: argparse.Namespace) -> None:
     """Builds the walk of this worker. What it raises is kept for the walk
     to raise: a pool restarts a worker whose start fails, forever."""
     global _explorer, _failed, _index
-    # The walk alone stops on a signal, and leaving it stops the workers.
-    for s in stopping.SIGNALS:
-        signal.signal(s, signal.SIG_IGN)
-    signal.pthread_sigmask(signal.SIG_UNBLOCK, stopping.SIGNALS)
+    # A session of its own, first: a ^C, or timeout's SIGTERM, goes to the
+    # whole process group, and a pool whose worker it killed hangs on
+    # leaving, waiting for a lock the worker held. The walk alone stops on
+    # it (csdfbmc.stopping), and leaving it stops the workers. One killed
+    # before this holds no lock: it takes one only for its first task.
+    os.setsid()
     try:
         _explorer = cli.explorer(a, *_stack.enter_context(cli.opened(a)))
         _index = {id(e): i for i, e in enumerate(_explorer.d.edges)}
@@ -177,7 +154,7 @@ def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable[[
     if jobs == 1:
         yield None
         return
-    with _Context().Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
+    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
         def take(indices: range):
             chunks = iter(indices[i:i + CHUNK] for i in range(0, len(indices), CHUNK))
             for out in _in_order(pool, _walk_chunk, lambda: next(chunks, None), jobs, stop):
@@ -198,7 +175,7 @@ def expanding(a: argparse.Namespace, diagram: Diagram, jobs: int, stop: Callable
     if jobs == 1:
         yield None
         return
-    with _Context().Pool(jobs, initializer=_start, initargs=(a,)) as pool:
+    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start, initargs=(a,)) as pool:
         def expand_all(queue: list[State], start: int) -> Iterator[Expansion]:
             given = start
 
