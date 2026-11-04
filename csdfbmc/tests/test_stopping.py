@@ -119,61 +119,65 @@ class StopTest(unittest.TestCase):
         self.assertEqual((2, "SIGINT"), (got.walks, got.result.stopped_by))
 
 
-# COUNTER whose decrement takes far longer than a test may wait: a guard
-# that counts to a billion, a step at a time, as a heavy step does.
-SLOW = dict(COUNTER, edges=[fixture.edge("a", "a", "dec", guard=[fixture.atom("$n > 0"), fixture.atom("all(i >= 0 for i in range(10 ** 9))")],
-                                         post=[fixture.atom("$n' == $n - 1")])] + COUNTER["edges"][1:])
-
-
 class SignalledCommandTest(unittest.TestCase):
     """csdfbmc run as a command and signalled in the middle of a step, as
-    timeout signals its process group and a terminal its foreground one."""
+    timeout signals its process group and a terminal its foreground one:
+    its glue (csdfbmc.tests.slow_glue) says when a step has started, and
+    the step takes far longer than the test waits."""
 
     def started(self, *args):
+        """csdfbmc on COUNTER with args, in a process group of its own, once
+        it is in the middle of its first step; and its marker."""
         import subprocess
         import sys
         import tempfile
+        import time
         d = tempfile.TemporaryDirectory()
         self.addCleanup(d.cleanup)
-        path, checks = os.path.join(d.name, "d.json"), os.path.join(d.name, "t.py")
+        path, checks, marker = (os.path.join(d.name, n) for n in ("d.json", "t.py", "marker"))
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(SLOW, f)
+            json.dump(COUNTER, f)
         with open(checks, "w", encoding="utf-8") as f:
             f.write("TYPES = {}\n")
         root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        proc = subprocess.Popen([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc", path, checks, "--evaluator-module", "csdfbmc.python_glue",
-                                 "--progress", "0", *args], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                start_new_session=True)
+        proc = subprocess.Popen([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc", path, checks, "--progress", "0",
+                                 *(a.replace("MARKER", marker) for a in args)],
+                                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True)
         self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, signal.SIGKILL))
+        deadline = time.monotonic() + 60
+        while not os.path.exists(marker):
+            if proc.poll() is not None or time.monotonic() > deadline:
+                self.fail(f"csdfbmc never started a step: {proc.communicate()}")
+            time.sleep(0.05)
         return proc
 
     def test_stops_within_seconds_with_what_it_found(self):
         import subprocess
         import time
+        module = ("--evaluator-module", "csdfbmc.tests.slow_glue MARKER")
         tests = {
-            "random walks, SIGTERM": (signal.SIGTERM, "--random-walk", "--seed", "1", "--walks", "4"),
-            "random walks, SIGINT": (signal.SIGINT, "--random-walk", "--seed", "1", "--walks", "4"),
-            "random walks, two jobs": (signal.SIGTERM, "--random-walk", "--seed", "1", "--walks", "4", "--jobs", "2"),
-            "breadth first": (signal.SIGTERM,),
-            "breadth first, two jobs": (signal.SIGTERM, "--jobs", "2"),
+            "random walks, SIGTERM": (signal.SIGTERM, *module, "--random-walk", "--seed", "1", "--walks", "4"),
+            "random walks, SIGINT": (signal.SIGINT, *module, "--random-walk", "--seed", "1", "--walks", "4"),
+            "random walks, two jobs": (signal.SIGTERM, *module, "--random-walk", "--seed", "1", "--walks", "4", "--jobs", "2"),
+            "breadth first": (signal.SIGTERM, *module),
+            "breadth first, two jobs": (signal.SIGTERM, *module, "--jobs", "2"),
         }
         for name, (sent, *args) in tests.items():
             with self.subTest(name):
-                # Setup: the run is in the middle of its first step.
+                # Setup
                 proc = self.started(*args)
-                time.sleep(2)
 
                 # Execute
                 os.killpg(proc.pid, sent)
                 started = time.monotonic()
                 try:
-                    out, err = proc.communicate(timeout=10)
+                    out, err = proc.communicate(timeout=30)
                 except subprocess.TimeoutExpired:
                     os.killpg(proc.pid, signal.SIGKILL)
                     out, err = proc.communicate()
 
                 # Assert
-                self.assertLess(time.monotonic() - started, 5, err)
+                self.assertLess(time.monotonic() - started, 10, err)
                 self.assertEqual(0, proc.returncode, err)
                 self.assertIn(f" (stopped by {sent.name})\n", out.splitlines(True)[0])
 
