@@ -20,8 +20,8 @@ alone (csdfbmc.por), and --symmetry stores a state by one renaming of the
 IDs of the types SYMMETRIC lists (csdfbmc.symmetry); each finds the same
 findings; their counts, the states and --all are those of the reduced
 walk, which a line naming the reductions says.
-SIGINT or SIGTERM stops the walk where it is, with the report of what it
-found until then (csdfbmc.stopping).
+SIGINT or SIGTERM stops the walk where it is, even in the middle of a
+step, with the report of what it found until then (csdfbmc.stopping).
 --random-walk takes walks at random instead (csdfbmc.randomwalk), for
 findings deeper than the breadth-first walk reaches.
 Exits 1 when it finds any, 2 on a usage or

@@ -1318,11 +1318,14 @@ change the walk it was written for, and is refused for others; a glue
 that reads its atoms otherwise is not told. A checkpoint is a Python
 pickle, which runs code as it is read: take up only those you wrote.
 
-SIGINT (^C) or SIGTERM stops a walk, breadth-first or random, before its
-next state or walk: it reports what it found until then, its first line saying `(stopped by
+SIGINT (^C) or SIGTERM stops a walk, breadth-first or random, at once,
+however long the state or walk it is in the middle of takes, which it
+leaves out: it reports what it found until then, its first line saying `(stopped by
 SIGTERM)` (`"stopped_by"` in the JSON), and writes its last
 `--checkpoint`, so that `timeout 2h csdfbmc ...` bounds a run by time
-and leaves its report.
+and leaves its report. With `--jobs`, the workers ignore both, so that a
+signal sent to the whole process group, as `timeout` and a terminal send
+it, stops the walk alone, which then stops them.
 
 `--random-walk` trades the breadth-first walk's completeness for depth: it
 takes `--walks N` walks (1000 by default) from the start, each step one of
