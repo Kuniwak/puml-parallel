@@ -193,12 +193,14 @@ class _Plan:
     the Bind it makes or None), in the guard's order. inside: how many
     leading steps the product asks. keys: the keys of the records of each
     field equalities bind parts of. last_part: the place of the last
-    equality binding a part of each such field."""
+    equality binding a part of each such field. ranged: each field that
+    ranges, as ?name."""
     levels: list
     steps: list
     inside: int
     keys: dict
     last_part: dict
+    ranged: frozenset
 
     def size(self, depth: int) -> int:
         """How many values the levels from depth on give in all."""
@@ -360,6 +362,8 @@ class Explorer:
         # (--progress).
         self.tried = self.checked = 0
         self._edge_index = {id(e): i for i, e in enumerate(diagram.edges)}
+        # The plans of the edges' fields, by (state id, id of the edge).
+        self._plans: dict = {}
         self._check_fields()
         self._check_exists()
         self._check_literals()
@@ -503,15 +507,26 @@ class Explorer:
         return None
 
     def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> "_Plan":
+        """The plan of e from the state state is at (_make_plan), made once
+        for each; ranged, when given, is told each field that ranges, as
+        ?name."""
+        key = (state[0], id(e))
+        if key not in self._plans:
+            self._plans[key] = self._make_plan(state[0], e)
+        plan = self._plans[key]
+        if ranged is not None:
+            ranged |= plan.ranged
+        return plan
+
+    def _make_plan(self, sid: str, e: Edge) -> "_Plan":
         """How the fields e receives take their values (Q5): those no
         equality of the guard binds range over their types, in the event's
         order, and so do the parts of a record no equality binds; each
         conjunct of the guard is a step, at the depth where what it reads
-        is bound, in the guard's order. ranged, when given, is told each
-        field that ranges, as ?name. The parts of a field are bound only
+        is bound, in the guard's order. The parts of a field are bound only
         when its type says the keys of its records (_record_parts);
         otherwise the field ranges."""
-        known = set(self.d.vars[state[0]])
+        known = set(self.d.vars[sid])
         forced: frozenset = frozenset()
         while True:
             binds = determine(e.guard, list(e.params), known, forced)
@@ -526,6 +541,7 @@ class Explorer:
             forced |= unshaped
         whole = {b.field for b in binds.values() if b.key is None}
         levels: list = []
+        ranged = set()
         for p in e.params:
             if p in whole:
                 continue
@@ -535,11 +551,11 @@ class Explorer:
             else:
                 levels.append((p, self._field_values(e, p)))
                 ranges = True
-            if ranges and ranged is not None:
+            if ranges:
                 ranged.add(f"?{p}")
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         steps, inside = place(e.guard, binds, [name for name, _ in levels])
-        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part)
+        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged))
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the
@@ -547,12 +563,12 @@ class Explorer:
         ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
         return {p: ranging[p] if p in ranging else bound[p] for p in e.params if p in ranging or p in bound}
 
-    def _step(self, state: State, e: Edge, plan: "_Plan", i: int, b, prefix: tuple, bound: dict) -> bool:
-        """Whether the i-th conjunct of e's guard holds of the prefix and
-        what the steps before bound: an equality that binds computes its
-        term and adds what it binds to bound; one whose term reads an entry
-        its map does not have is false."""
-        before = self._before(state, self._params(e, plan, prefix, bound))
+    def _step(self, e: Edge, plan: "_Plan", i: int, b, prefix: tuple, bound: dict, before: dict) -> bool:
+        """Whether the i-th conjunct of e's guard holds of before, the
+        state with the fields the prefix and the steps before bound: an
+        equality that binds computes its term and adds what it binds to
+        bound, and the field to before; one whose term reads an entry its
+        map does not have is false."""
         if b is None:
             return self.ev.holds((e.guard[i],), before)
         try:
@@ -560,12 +576,12 @@ class Explorer:
         except Missing:
             return False  # the guard reads an entry its map does not have: false
         if b.key is None:
-            bound[b.field] = value
+            bound[b.field] = before[b.field] = value
             return True
         bound[(b.field, b.key)] = value
         if plan.last_part[b.field] == i:
             ranging = {name[1]: v for (name, _), v in zip(plan.levels, prefix) if isinstance(name, tuple) and name[0] == b.field}
-            bound[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
+            bound[b.field] = before[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
         return True
 
     def _guarded_offers(self, state: State, e: Edge, on_prune: Callable[[int], None], ranged: set[str] | None = None):
@@ -584,8 +600,9 @@ class Explorer:
 
         def step(group: list) -> Callable[[tuple, dict], dict | None]:
             def run(prefix: tuple, bound: dict) -> dict | None:
+                before = self._before(state, self._params(e, plan, prefix, bound))
                 for i, b in group:
-                    if not self._step(state, e, plan, i, b, prefix, bound):
+                    if not self._step(e, plan, i, b, prefix, bound, before):
                         return None
                 return bound
             return run
@@ -602,7 +619,8 @@ class Explorer:
         plan = self._field_plan(state, e)
         for prefix in itertools.product(*(vs for _, vs in plan.levels)):
             bound: dict = {}
-            yield next((i for _, i, b in plan.steps if not self._step(state, e, plan, i, b, prefix, bound)), None)
+            before = self._before(state, self._params(e, plan, prefix, bound))
+            yield next((i for _, i, b in plan.steps if not self._step(e, plan, i, b, prefix, bound, before)), None)
 
     def _field_values(self, e: Edge, p: str) -> list:
         """The values the field p of e ranges over: those of the type its
