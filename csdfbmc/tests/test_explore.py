@@ -223,7 +223,7 @@ class FieldTest(unittest.TestCase):
         d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(5))], edges=[
             edge("a", "a", "c?v?w", guard=[atom("$w > 0"), eq("v", "n")], post=[eq("n'", "n")])],
             channels={"c": ["V", "W"]})
-        x = fixture.explorer(d, Checks(types={"V": [0], "W": [0, 1, 2]}), stats=True)
+        x = fixture.explorer(d, Checks(types={"V": [4, 5], "W": [0, 1, 2]}), stats=True)
 
         # Execute
         labels = [label for _, label, _, _ in x.successors(("a", (5,), ()))]
@@ -427,40 +427,6 @@ class PruningTest(unittest.TestCase):
         # Assert
         self.assertEqual([], transitions)
 
-    def test_the_environment_decides_its_functions_in_the_order_the_full_product_would(self):
-        tests = {
-            # f holds of k = 2 only, g of j = 1 only; h reads k but comes
-            # after g, which reads j.
-            "conjuncts over the fields in turn": (
-                "c?k?j", {"c": ["K", "J"]}, [atom("$k は f"), atom("$j は g"), atom("$k は h"), atom("$k $j は i")],
-                {"$_0 は f": lambda k: k == 2, "$_0 は g": lambda j: j == 1, "$_0 は h": True, "$_0 $_1 は i": True},
-                {"K": [1, 2, 3], "J": [2, 1]}),
-            # v is k, bound where @eq is, after f decided k.
-            "an equality after conjuncts the environment decides": (
-                "c?k?v?j", {"c": ["K", "V", "J"]}, [atom("$k は f"), eq("v", "k"), atom("$v $j は g")],
-                {"$_0 は f": lambda k: k == 2, "$_0 $_1 は g": lambda v, j: j == 1},
-                {"K": [1, 2, 3], "V": [0], "J": [2, 1]}),
-        }
-        for name, (event, channels, guard, fns, types) in tests.items():
-            with self.subTest(name):
-                # Setup
-                d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
-                    edge("q", "q", event, guard=guard, post=[eq("n'", "n")])], channels=channels)
-
-                def explorer():
-                    return fixture.explorer(d, Checks(types=types), environment=environment.over(fns, {}))
-                state = ("q", (0,), ())
-                full = explorer()
-                full.why_stuck(state)
-                x = explorer()
-
-                # Execute
-                transitions = x.transitions(state)
-
-                # Assert
-                self.assertEqual(1, len(transitions))
-                self.assertEqual(list(full.meaning.decided), list(x.meaning.decided))
-
     def test_nothing_is_evaluated_when_a_later_field_has_no_value(self):
         tests = {
             "a conjunct": [atom("$k は f"), atom("$r == 0")],
@@ -472,7 +438,7 @@ class PruningTest(unittest.TestCase):
                 d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
                     edge("q", "q", "c?k?v?r", guard=guard, post=[eq("n'", "n")])],
                     channels={"c": ["K", "V", "R"]})
-                x = fixture.explorer(d, Checks(types={"K": [1, 2], "V": [0], "R": []}),
+                x = fixture.explorer(d, Checks(types={"K": [1, 2], "V": [1, 2], "R": []}),
                                      environment=environment.over({"$_0 は f": True}, {}))
 
                 # Execute
@@ -531,6 +497,77 @@ class PruningTest(unittest.TestCase):
 
         # Assert
         self.assertEqual([24], [w["tried"] for w in why])
+
+
+def naive(x, state, e):
+    """The guard of e evaluated in full, as the language says, apart from
+    the walk: every value of the product of the fields' carriers, in the
+    event's order, each conjunct left to right up to the first false. The
+    labels it holds of, or the error it raises."""
+    labels = []
+    try:
+        for combo in itertools.product(*(x._field_values(e, p) for p in e.params)):
+            before = x._before(state, dict(zip(e.params, combo)))
+            if all(x.ev.holds((c,), before) for c in e.guard):
+                labels.append(x._label(e, before))
+    except ValueError as err:
+        return str(err)
+    return labels
+
+
+def pruned(x, state):
+    """The labels of the steps the walk takes from state, or the error it raises."""
+    try:
+        return [label for _, label, _, _ in x.successors(state)]
+    except ValueError as err:
+        return str(err)
+
+
+class OracleTest(unittest.TestCase):
+    """The walk against the guard evaluated over the full product, the
+    values equalities determine lying in their carriers."""
+
+    def test_the_steps_errors_and_decided_functions_are_those_of_the_full_product(self):
+        # f holds of k = 2 only, g of j = 1 only; used: the functions a
+        # case's guard applies.
+        fns = {"$_0 は f": lambda k: k == 2, "$_0 は g": lambda j: j == 1, "$_0 は h": True, "$_0 $_1 は i": True}
+        family_m = [family("m", "none", {"none": [], "a": ["x"], "b": ["x", "y"]}, key="k")]
+        at_b, term_y = builtin("at", idx("m", "k"), state="b"), eq("v", fld(idx("m", "k"), "y"))
+        tests = {
+            "conjuncts at different depths": (
+                "c?k?j", ["K", "J"], [atom("$k は f"), atom("$j は g"), atom("$k は h"), atom("$k $j は i")], [], (0,), "fghi"),
+            "a binding whose term reads another bound field": (
+                "c?k?v?j", ["K", "V", "J"], [atom("$k は f"), eq("v", "k"), eq("j", "v"), atom("$v $j は i")], [], (0,), "fi"),
+            "a binding after conjuncts at a deeper depth": (
+                "c?k?v?j", ["K", "V", "J"], [atom("$j は g"), atom("$k は f"), eq("v", "k"), atom("$v は h")], [], (0,), "fgh"),
+            "an empty carrier after a binding": (
+                "c?k?v?r", ["K", "V", "R"], [atom("$k は f"), eq("v", "k"), atom("$r == 0")], [], (0,), "f"),
+            "the #157 shape, the conjunct before false": (
+                "c?k?v", ["K", "V"], [at_b, term_y], family_m, (FrozenMap({1: inst("a", x=0)}),), ""),
+            "the #157 shape, the conjunct before true": (
+                "c?k?v", ["K", "V"], [at_b, term_y], family_m, (FrozenMap({1: inst("b", x=0, y=2)}),), ""),
+            "an error after a false conjunct": (
+                "c?k?v", ["K", "V"], [at_b, term_y], family_m, (FrozenMap({1: inst("a", x=0), 2: inst("b", x=0)}),), ""),
+        }
+        types = {"K": [1, 2, 3], "V": [1, 2, 3], "J": [1, 2, 3], "R": [], "x": [0], "y": [0]}
+        for name, (event, channel, guard, families, values, used) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
+                    edge("q", "q", event, guard=guard, post=[eq("m'", "m")])], families=families, channels={"c": channel})
+
+                def explorer():
+                    return fixture.explorer(d, Checks(types=types), environment=environment.over({k: f for k, f in fns.items() if k[-1] in used}, {}))
+                state = ("q", values, ())
+                full, x = explorer(), explorer()
+                want = naive(full, state, full.d.edges[0])
+
+                # Execute
+                got = pruned(x, state)
+
+                # Assert
+                self.assertEqual(want, got)
+                self.assertEqual(list(full.meaning.decided), list(x.meaning.decided))
 
 
 class EnvironmentTest(unittest.TestCase):
