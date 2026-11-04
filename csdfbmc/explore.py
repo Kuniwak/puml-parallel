@@ -15,7 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import determine
+from csdfbmc.determine import determine, place
 from csdfbmc.product import pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -537,17 +537,8 @@ class Explorer:
                 ranges = True
             if ranges and ranged is not None:
                 ranged.add(f"?{p}")
-        depth = {name: d + 1 for d, (name, _) in enumerate(levels)}
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
-        steps, at = [], 0
-        for i, c in enumerate(e.guard):
-            b = binds.get(i)
-            reads = free_names(b.term if b else c, primed=False)
-            if b is not None and last_part.get(b.field) == i:
-                reads = reads | {(b.field, k) for k in shapes[b.field][1]}
-            at = max([at] + [depth[n] for n in reads if n in depth])
-            steps.append((at, i, b))
-        inside = max([sum(1 for d, _, _ in steps if d < len(levels))] + [j + 1 for j, (_, _, b) in enumerate(steps) if b is not None])
+        steps, inside = place(e.guard, binds, [name for name, _ in levels])
         return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part)
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:

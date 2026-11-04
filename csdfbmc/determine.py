@@ -81,3 +81,27 @@ def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
             continue
         found.append((not all(order[g] < order[f] for g in names & order.keys()), Bind(f, key, y)))
     return min(found, key=lambda t: t[0])[1] if found else None
+
+
+def place(guard: tuple, binds: dict[int, Bind], levels: list) -> tuple[list, int]:
+    """(the steps of guard, the number of leading steps the product asks).
+
+    levels names the levels of the product in order: a field that ranges,
+    or (field, key) for a part of one that ranges. A step is (the depth of
+    the levels it reads, its place in guard, its Bind or None), in guard's
+    order; the depth never decreases, and the last equality binding a part
+    of a field reads the levels of its other parts. The product asks every
+    step of a depth below the last, and those of the last up to the last
+    Bind; the rest are the caller's."""
+    depth = {name: d + 1 for d, name in enumerate(levels)}
+    last_part = {b.field: i for i, b in binds.items() if b.key is not None}
+    steps, at = [], 0
+    for i, c in enumerate(guard):
+        b = binds.get(i)
+        reads: set = free_names(b.term if b else c, primed=False)
+        if b is not None and last_part.get(b.field) == i:
+            reads = reads | {n for n in levels if isinstance(n, tuple) and n[0] == b.field}
+        at = max([at] + [depth[n] for n in reads if n in depth])
+        steps.append((at, i, b))
+    inside = max([sum(1 for d, _, _ in steps if d < len(levels))] + [j + 1 for j, (_, _, b) in enumerate(steps) if b is not None])
+    return steps, inside
