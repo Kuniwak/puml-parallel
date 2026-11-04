@@ -371,6 +371,16 @@ class PruningTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((steps, tried), (len(transitions), x.tried))
 
+    def test_the_stats_say_how_many_values_of_those_tried_were_dropped_unenumerated(self):
+        # Setup: id 1 is at s, so only the 12 values with id 2 are dropped.
+        x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES), stats=True)
+
+        # Execute
+        x.transitions(("q", (FrozenMap({1: inst("s", v=2)}),), ()))
+
+        # Assert
+        self.assertEqual((24, 12), (x.stats[0].tried, x.stats[0].pruned))
+
     def test_the_leading_conjuncts_are_evaluated_once_for_the_fields_they_read(self):
         # Setup
         x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))

@@ -1268,7 +1268,9 @@ walk stops are decided in one process, so a large walk runs a few times
 sooner, and a small one slower, for starting the workers.
 
 `--stats` says, per edge, the most valuations checked first, how many
-values of its fields the walk tried, how many its guard held of, how many
+values of its fields the walk tried, how many of those it dropped without
+enumerating them because the guard's leading conjuncts rejected the
+fields before them, how many its guard held of, how many
 valuations after the step it checked against its post, and how many
 successors they gave; and what nothing determined, which ranged over its
 type: a field as `?name`, a value after the step as the post names it.
@@ -1281,9 +1283,9 @@ $ csdfbmc printer_retry_formal.json printer_retry_formal_checks.py \
     --evaluator-module "csdfbmc.python_glue printer_retry_formal_checks.py" --stats
 …
 stats per edge, most valuations checked first:
-  printing --> printing : 再試行 (line 24): tried 1896, guard held 1264, valuations checked 1264, successors 1264
+  printing --> printing : 再試行 (line 24): tried 1896, pruned 0, guard held 1264, valuations checked 1264, successors 1264
   …
-  idle --> printing : 印刷?枚数 (line 23): tried 2160, guard held 632, valuations checked 632, successors 632; ranged over their types: ?枚数
+  idle --> printing : 印刷?枚数 (line 23): tried 2160, pruned 0, guard held 632, valuations checked 632, successors 632; ranged over their types: ?枚数
 ```
 
 `--progress SECONDS` says on stderr, every SECONDS (30 by default; 0 says

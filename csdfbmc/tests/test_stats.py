@@ -26,7 +26,7 @@ class StatsTest(unittest.TestCase):
         # Assert
         self.assertEqual(1, code, err)
         self.assertIn("stats per edge, most valuations checked first:\n"
-                      "  a --> a : inc (line 7): tried 5, guard held 3, valuations checked 6, successors 6; "
+                      "  a --> a : inc (line 7): tried 5, pruned 0, guard held 3, valuations checked 6, successors 6; "
                       "ranged over their types: q'\n", out)
 
     def test_the_json_gives_them_too_with_workers_or_without(self):
@@ -36,7 +36,7 @@ class StatsTest(unittest.TestCase):
                 _, out, err = walk(self, "--stats", "--json", *args)
 
                 # Assert
-                self.assertEqual([{"edge": "a --> a : inc (line 7)", "tried": 5, "guard_held": 3, "checked": 6,
+                self.assertEqual([{"edge": "a --> a : inc (line 7)", "tried": 5, "pruned": 0, "guard_held": 3, "checked": 6,
                                    "successors": 6, "ranged": ["q'"]}], json.loads(out)["stats"], err)
 
     def test_without_it_nothing_is_said(self):
