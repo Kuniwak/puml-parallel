@@ -5,6 +5,7 @@ import dataclasses
 import functools
 import inspect
 import itertools
+import math
 import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
@@ -260,6 +261,47 @@ class Walk:
     checked: int = 0
 
 
+def pruned_product(levels: list[Callable[[tuple], list]], checks: list[Callable[[tuple], bool] | None],
+                   on_prune: Callable[[tuple], None]) -> Iterator[tuple]:
+    """The tuples of the product levels give, in order: levels[d] gives the
+    values at depth d after the prefix so far. checks[d], when not None,
+    decides whether the prefixes of length d are kept; it is asked of a
+    prefix once, at the first complete tuple below it, the shallowest first,
+    so that the checks are asked in the order asking them of every complete
+    tuple would, but not again, and never of a prefix no complete tuple
+    extends. A prefix it rejects is told on_prune, and nothing below it is
+    enumerated further."""
+    n = len(levels)
+    verdicts: list[bool | None] = [None] * (n + 1)
+    prefix: list = []
+
+    def rejected_at() -> int | None:
+        for d in range(n + 1):
+            if checks[d] is not None and verdicts[d] is None:
+                verdicts[d] = checks[d](tuple(prefix[:d]))
+            if verdicts[d] is False:
+                return d
+        return None
+
+    def grow(d: int) -> Iterator[tuple]:
+        if d == n:
+            at = rejected_at()
+            if at is None:
+                yield tuple(prefix)
+            else:
+                on_prune(tuple(prefix[:at]))
+            return
+        for v in levels[d](tuple(prefix)):
+            prefix.append(v)
+            verdicts[d + 1] = None
+            yield from grow(d + 1)
+            prefix.pop()
+            if False in verdicts[:d + 1]:
+                return
+
+    yield from grow(0)
+
+
 class Explorer:
     """Enumerates the states a diagram can reach (docs/CLAUSE_DESIGN.md, O7).
 
@@ -508,6 +550,51 @@ class Explorer:
             alive = [dict(params, **{p: v}) for params in alive for v in self._field_offers(state, e, params, p, *how)]
         return alive
 
+    def _guarded_offers(self, state: State, e: Edge, on_prune: Callable[[int], None], ranged: set[str] | None = None):
+        """The values of the fields e receives, as _offers gives them and in
+        its order, each with the number of the leading conjuncts of the
+        guard that hold of them. The leading conjuncts that read only the
+        fields bound so far are evaluated as pruned_product asks them, and
+        values they reject are dropped with every value of the later fields:
+        on_prune is told how many values of the full product that drops."""
+        plan = self._field_plan(state, e, ranged)
+        names = [p for p, *_ in plan]
+        reads = [free_names(c, primed=False) for c in e.guard]
+        known = set(self.d.vars[state[0]])
+        ready = []
+        for p in [None] + names:
+            if p is not None:
+                known.add(p)
+            held = ready[-1] if ready else 0
+            while held < len(reads) and reads[held] <= known:
+                held += 1
+            ready.append(held)
+
+        def params(prefix: tuple) -> dict:
+            return dict(zip(names, prefix))
+
+        def check(lo: int, hi: int) -> Callable[[tuple], bool]:
+            return lambda prefix: self.ev.holds(e.guard[lo:hi], self._before(state, params(prefix)))
+
+        levels = [lambda prefix, p=p, how=how: self._field_offers(state, e, params(prefix), p, *how) for p, *how in plan]
+        checks = [check(ready[d - 1] if d else 0, ready[d]) if ready[d] > (ready[d - 1] if d else 0) else None
+                  for d in range(len(plan) + 1)]
+        for prefix in pruned_product(levels, checks, lambda prefix: on_prune(self._product_size(e, plan[len(prefix):]))):
+            yield params(prefix), ready[-1]
+
+    def _product_size(self, e: Edge, plan: list[tuple]) -> int:
+        """How many values the fields plan says range give in all: one for
+        a field, or a part, a term determines, whatever it computes."""
+        size = 1
+        for p, term, _, shape in plan:
+            if term is not None:
+                continue
+            if shape is not None:
+                size *= math.prod(len(v) for v in shape[1].values())
+            else:
+                size *= len(self._field_values(e, p))
+        return size
+
     def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[tuple]:
         """How each field e receives takes its values, in order: (the field,
         the term the guard determines it by, the terms it determines its
@@ -572,10 +659,16 @@ class Explorer:
         out = []
         where = e.describe()
         stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
-        offers = self._offers(state, e, stats.ranged if stats else None)
-        for params in offers:
+        tried = 0
+
+        def pruned(size: int) -> None:
+            nonlocal tried
+            tried += size
+
+        for params, held in self._guarded_offers(state, e, pruned, stats.ranged if stats else None):
+            tried += 1
             before = self._before(state, params)
-            if not self.ev.holds(e.guard, before):
+            if not self.ev.holds(e.guard[held:], before):
                 continue
             label = self._label(e, before)
             tally = Tally()
@@ -594,9 +687,9 @@ class Explorer:
             ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
         if record:
-            self.tried += len(offers)
+            self.tried += tried
         if stats:
-            stats.tried += len(offers)
+            stats.tried += tried
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -619,9 +712,9 @@ class Explorer:
         """The first transition of e from state, as taken, its ghosts left
         aside; None when it has none."""
         where = e.describe()
-        for params in self._offers(state, e):
+        for params, held in self._guarded_offers(state, e, lambda size: None):
             before = self._before(state, params)
-            if self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where):
+            if self.ev.holds(e.guard[held:], before) and self._successor_values(e.post, before, e.dst, where):
                 return self._label(e, before)
         return None
 

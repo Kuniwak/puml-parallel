@@ -334,6 +334,119 @@ class FamilyTest(unittest.TestCase):
         self.assertIn(("r", (FrozenMap({"a": inst("open", cnt=0), "b": inst("open", cnt=0)}),), ()), result.states)
 
 
+class PruningTest(unittest.TestCase):
+    """The guard drops the values of the fields so far once its leading
+    conjuncts, which read only the fields bound, are false; it is evaluated
+    in the order and on the values evaluating it in full would."""
+
+    # c?id?op?r: @at(m[id], s) reads only id; the atom reads r too.
+    FAMILY = diagram({"q": ["m"]}, "q", init_post=[builtin("empty", "m'")], edges=[
+        edge("q", "q", "c?id?op?r", guard=[builtin("at", idx("m", "id"), state="s"), atom("${} == ${}", "r", fld(idx("m", "id"), "v"))],
+             post=[builtin("frame", "m'", "m")])],
+        families=[family("m", "none", {"none": [], "s": ["v"]}, key="id")], channels={"c": ["id", "OP", "R"]})
+    FAMILY_TYPES = {"id": [1, 2], "OP": ["x", "y", "z"], "R": [0, 1, 2, 3], "v": [0]}
+
+    # c?id?r: the first conjunct reads r, the last field, so @at, which
+    # reads only id and would refuse m[id], no instance, is not evaluated.
+    LATE_FIRST = diagram({"q": ["m"]}, "q", init_post=[eq("m'", lit({}))], edges=[
+        edge("q", "q", "c?id?r", guard=[atom("$r == 9"), builtin("at", idx("m", "id"), state="s")], post=[eq("m'", "m")])],
+        channels={"c": ["id", "R"]})
+
+    def test_the_steps_and_the_values_tried_are_those_of_the_full_product(self):
+        tests = {
+            "the leading conjunct false for every id": (self.FAMILY, self.FAMILY_TYPES, ("q", (FrozenMap(),), ()), 0, 24),
+            "the leading conjunct true for one id": (self.FAMILY, self.FAMILY_TYPES,
+                                                     ("q", (FrozenMap({1: inst("s", v=2)}),), ()), 3, 24),
+            "a bound-only conjunct after one reading a later field": (self.LATE_FIRST, {"id": [1, 2], "R": [0, 1]},
+                                                                      ("q", (FrozenMap({1: 5, 2: 5}),), ()), 0, 4),
+        }
+        for name, (d, types, state, steps, tried) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(d, Checks(types=types))
+
+                # Execute
+                transitions = x.transitions(state)
+
+                # Assert
+                self.assertEqual((steps, tried), (len(transitions), x.tried))
+
+    def test_the_leading_conjuncts_are_evaluated_once_for_the_fields_they_read(self):
+        # Setup
+        x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
+        calls = []
+        holds = x.ev.holds
+        x.ev.holds = lambda clause, before, *rest: calls.append(len(clause)) or holds(clause, before, *rest)
+
+        # Execute
+        x.transitions(("q", (FrozenMap(),), ()))
+
+        # Assert
+        self.assertEqual([1, 1], calls)
+
+    def test_a_term_an_equality_determines_is_not_computed_below_values_the_leading_conjuncts_reject(self):
+        # Setup: r is t[op].x, which t["y"], no record, does not have; the
+        # first op reaches a complete value, the guard rejects the id there,
+        # and t["y"].x is never read.
+        d = diagram({"q": ["m", "t"]}, "q", init_post=[builtin("empty", "m'"), eq("t'", "t")], edges=[
+            edge("q", "q", "c?id?op?r", guard=[builtin("at", idx("m", "id"), state="s"), eq("r", fld(idx("t", "op"), "x"))],
+                 post=[builtin("frame", "m'", "m"), eq("t'", "t")])],
+            families=[family("m", "none", {"none": [], "s": ["v"]}, key="id")], channels={"c": ["id", "OP", "R"]})
+        x = fixture.explorer(d, Checks(types={"id": [1, 2], "OP": ["x", "y"], "v": [0]}))
+
+        # Execute
+        transitions = x.transitions(("q", (FrozenMap(), FrozenMap({"x": FrozenMap({"x": 0}), "y": 5})), ()))
+
+        # Assert
+        self.assertEqual([], transitions)
+
+    def test_the_environment_decides_its_functions_in_the_order_the_full_product_would(self):
+        # Setup: f holds of k = 2 only, g of j = 1 only; h reads k but comes
+        # after g, which reads j.
+        d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
+            edge("q", "q", "c?k?j", guard=[atom("$k は f"), atom("$j は g"), atom("$k は h"), atom("$k $j は i")], post=[eq("n'", "n")])],
+            channels={"c": ["K", "J"]})
+        env = environment.over({"$_0 は f": lambda k: k == 2, "$_0 は g": lambda j: j == 1, "$_0 は h": True, "$_0 $_1 は i": True}, {})
+        x = fixture.explorer(d, Checks(types={"K": [1, 2, 3], "J": [2, 1]}), environment=env)
+        state = ("q", (0,), ())
+        e = x.d.edges[0]
+        for params in x._offers(state, e):
+            if x.ev.holds(e.guard, x._before(state, params)):
+                break
+        full = list(x.meaning.decided)
+        x.meaning.decided = {}
+
+        # Execute
+        transitions = x.transitions(state)
+
+        # Assert
+        self.assertEqual((1, ["$_0 は f", "$_0 は g", "$_0 は h", "$_0 $_1 は i"]), (len(transitions), list(x.meaning.decided)))
+        self.assertEqual(full, list(x.meaning.decided))
+
+    def test_a_conjunct_is_not_evaluated_when_a_later_field_has_no_value(self):
+        # Setup
+        d = diagram({"q": ["n"]}, "q", init_post=[eq("n'", lit(0))], edges=[
+            edge("q", "q", "c?k?r", guard=[atom("$k は f"), atom("$r == 0")], post=[eq("n'", "n")])],
+            channels={"c": ["K", "R"]})
+        x = fixture.explorer(d, Checks(types={"K": [1, 2], "R": []}), environment=environment.over({"$_0 は f": True}, {}))
+
+        # Execute
+        transitions = x.transitions(("q", (0,), ()))
+
+        # Assert
+        self.assertEqual(([], {}), (transitions, x.meaning.decided))
+
+    def test_why_stuck_counts_every_value_of_the_full_product(self):
+        # Setup
+        x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
+
+        # Execute
+        why = x.why_stuck(("q", (FrozenMap(),), ()))
+
+        # Assert
+        self.assertEqual([24], [w["tried"] for w in why])
+
+
 class EnvironmentTest(unittest.TestCase):
     """An atom the checks module declares is a function of the environment;
     every other atom is the glue's."""

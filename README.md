@@ -984,9 +984,20 @@ equalities of the guard determine (`@eq(w["count"], n)`, a literal key):
 the other parts range over their values in a type `record(…)`; a list of
 records, or the type `any`, gives no parts to range over, so the field is
 computed only when equalities determine every key its records have, and
-otherwise ranges over the type. A sent field (`c!y`) sends the value `y`
-has at the step. A field hidden by `csdfhide` is bound by `∃` in the guard
-and the post, and ranges over the type the `∃` names.
+otherwise ranges over the type. The fields range in the event's order,
+and the guard drops values before the later fields range: the leading
+conjuncts that read only the fields bound so far are evaluated once for
+those values, at the first complete values of the fields below them, and
+if one is false no other value of the later fields is tried with them.
+They are not evaluated when the later fields have no value. So the
+conjuncts are evaluated in order, on the values evaluating the guard in
+full would read, only less often; a conjunct after one that reads a later
+field waits for it. A term an equality of the guard determines a field by
+is computed only on the way to those first complete values and below
+values the leading conjuncts do not reject, so a term that would fail
+below rejected values is not computed there. A sent field (`c!y`) sends
+the value `y` has at the step. A field hidden by `csdfhide` is bound by
+`∃` in the guard and the post, and ranges over the type the `∃` names.
 
 The checks module is Python too, checked against the same subset before it is
 imported. `TYPES` maps a type to the finite set of its values (its carrier
