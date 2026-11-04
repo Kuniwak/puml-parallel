@@ -978,24 +978,30 @@ every valuation is then checked against the whole post, so two clauses that
 disagree admit no successor. A clause that reads an entry its map does not
 have (`m[k]` with `k` not in `m`) is false, never a default value. A field
 an event receives ranges over its type, except one an equality of the guard
-determines from the state and the fields before it (`@eq(x, n)`), which is
-computed, whatever its type holds. So are the parts of a record field
-equalities of the guard determine (`@eq(w["count"], n)`, a literal key):
+binds (`@eq(x, n)`) to a term over the state and the fields, when no
+conjunct before the equality reads the field: it is computed, whatever its
+type holds. So are the parts of a record field equalities of the guard bind
+(`@eq(w["count"], n)`, a literal key), until a conjunct reads the field:
 the other parts range over their values in a type `record(…)`; a list of
 records, or the type `any`, gives no parts to range over, so the field is
-computed only when equalities determine every key its records have, and
-otherwise ranges over the type. The fields range in the event's order,
-and the guard drops values before the later fields range: the leading
-conjuncts that read only the fields bound so far are evaluated once for
-those values, at the first complete values of the fields below them, and
-if one is false no other value of the later fields is tried with them.
-They are not evaluated when the later fields have no value. So the
-conjuncts are evaluated in order, on the values evaluating the guard in
-full would read, only less often; a conjunct after one that reads a later
-field waits for it. A term an equality of the guard determines a field by
-is computed only on the way to those first complete values and below
-values the leading conjuncts do not reject, so a term that would fail
-below rejected values is not computed there. A sent field (`c!y`) sends
+computed only when equalities bind every key its records have, and
+otherwise ranges over its type. A field whose type names no keys of its
+records that way ranges over its type, and what the equalities bind is
+read again with it ranging. The fields that range do so in the event's
+order, and the guard is read in its order as the fields it reads are
+bound: a conjunct, or an equality that binds, is evaluated once for the
+values it reads, at the first complete values of the fields below them,
+after the conjuncts before it, and if it is false no other value of the
+later fields is tried with them. Nothing is evaluated when a later field
+has no value. An equality that binds computes its term where evaluating
+the guard in order reaches it, so only for values the conjuncts before it
+hold of: `@at(m[k], s) ∧ @eq(v, m[k].y)` reads no `y` of an instance not
+at `s`. A term that reads an entry its map does not have makes its
+equality false; another error of it is an error there. So the conjuncts
+are evaluated in order, on the values evaluating the guard in full would
+read, only less often. That holds as long as a value an equality binds
+lies in its field's type: a bound value is taken whatever the type holds,
+where the full product over the type would have none. A sent field (`c!y`) sends
 the value `y` has at the step. A field hidden by `csdfhide` is bound by
 `∃` in the guard and the post, and ranges over the type the `∃` names.
 
