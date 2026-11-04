@@ -398,6 +398,39 @@ class PruningTest(unittest.TestCase):
         # Assert
         self.assertEqual((24, 12), (x.stats[0].tried, x.stats[0].pruned))
 
+    # c?id?r: the last conjunct reads only the part k of r, the first of its record.
+    PART = diagram({"q": ["m"]}, "q", init_post=[eq("m'", lit({}))], edges=[
+        edge("q", "q", "c?id?r", guard=[builtin("notin", "id", "m"), builtin("in", fld("r", "k"), "m")], post=[eq("m'", "m")])],
+        channels={"c": ["ID", "R"]})
+    PART_TYPES = {"ID": [1, 2], "R": record(k=[0, 1, 2], a=[0, 1], b=[0, 1])}
+
+    def test_a_conjunct_reading_one_part_of_a_record_drops_the_values_of_its_other_parts(self):
+        # Setup: m is empty, so @in(r.k, m) is false once r.k is bound.
+        x = fixture.explorer(self.PART, Checks(types=self.PART_TYPES), stats=True)
+
+        # Execute
+        x.transitions(("q", (FrozenMap(),), ()))
+
+        # Assert
+        self.assertEqual((24, 24), (x.stats[0].tried, x.stats[0].pruned))
+
+    def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
+        tests = {
+            "the record a hole of an atom": atom("${}['k'] in ${}", "r", "m"),
+            "the record a term": builtin("in", "r", "m"),
+        }
+        for name, conjunct in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "id", "m"), conjunct])])
+                x = fixture.explorer(d, Checks(types=self.PART_TYPES), stats=True)
+
+                # Execute
+                x.transitions(("q", (FrozenMap(),), ()))
+
+                # Assert
+                self.assertEqual((24, 0), (x.stats[0].tried, x.stats[0].pruned))
+
     def test_the_leading_conjuncts_are_evaluated_once_for_the_fields_they_read(self):
         # Setup
         x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
@@ -548,8 +581,25 @@ class OracleTest(unittest.TestCase):
                 "c?k?v", ["K", "V"], [at_b, term_y], family_m, (FrozenMap({1: inst("b", x=0, y=2)}),), ""),
             "an error after a false conjunct": (
                 "c?k?v", ["K", "V"], [at_b, term_y], family_m, (FrozenMap({1: inst("a", x=0), 2: inst("b", x=0)}),), ""),
+            "a conjunct reading one part of a record": (
+                "c?j?p", ["J", "P"], [atom("$j は g"), atom("${} は f", fld("p", "k")), atom("${} は h", fld("p", "j"))], [], (0,), "fgh"),
+            "a conjunct reading the whole record after one reading a part": (
+                "c?p?j", ["P", "J"], [atom("${} は f", fld("p", "k")), atom("$p は h"), atom("$j は g")], [], (0,), "fgh"),
+            "a part read as an entry": (
+                "c?j?p", ["J", "P"], [atom("$j は g"), atom("${} は f", idx("p", lit("k"))), atom("${} は h", fld("p", "j"))], [], (0,), "fgh"),
+            "a part read by a key that is not a literal": (
+                "c?j?p", ["J", "P"], [atom("${} は f", fld("p", "k")), atom("${} は g", idx("p", "j"))], [], (0,), "fg"),
+            "a builtin reading the whole record after a part": (
+                "c?p?j", ["P", "J"], [atom("${} は f", fld("p", "k")), eq("p", lit({"k": 2, "j": 1})), atom("$j は g")], [], (0,), "fg"),
+            "a record with a determined part and one whose parts range": (
+                "c?q?p", ["P", "P"], [eq(idx("q", lit("k")), lit(2)), atom("${} は f", fld("p", "k")), atom("${} は g", fld("q", "j")),
+                                      atom("${} は h", fld("p", "j"))], [], (0,), "fgh"),
+            "an equality from a part": (
+                "c?p?v", ["P", "V"], [atom("${} は f", fld("p", "k")), eq("v", fld("p", "j")), atom("$v は g")], [], (0,), "fg"),
+            "an error reading a part of a part after a false conjunct": (
+                "c?p", ["P"], [atom("${} は f", fld("p", "k")), atom("${} は g", fld(fld("p", "j"), "z"))], [], (0,), "fg"),
         }
-        types = {"K": [1, 2, 3], "V": [1, 2, 3], "J": [1, 2, 3], "R": [], "x": [0], "y": [0]}
+        types = {"K": [1, 2, 3], "V": [1, 2, 3], "J": [1, 2, 3], "R": [], "P": record(k=[1, 2, 3], j=[1, 2]), "x": [0], "y": [0]}
         for name, (event, channel, guard, families, values, used) in tests.items():
             with self.subTest(name):
                 # Setup

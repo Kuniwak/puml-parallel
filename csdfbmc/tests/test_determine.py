@@ -3,8 +3,8 @@ guard's order."""
 import json
 import unittest
 
-from csdfbmc.determine import Bind, determine, place
-from csdfbmc.model import Builtin, Free, Index, Lit
+from csdfbmc.determine import Bind, decides_early, determine, part_reads, place
+from csdfbmc.model import Builtin, Field, Free, Index, Lit
 
 
 def eq(x, y):
@@ -85,6 +85,46 @@ class PlaceTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual((want, inside), got)
+
+
+class PartReadsTest(unittest.TestCase):
+    def test_a_part_with_a_literal_key_is_read_as_the_part_and_anything_else_as_the_whole(self):
+        parts = {("r", "a"), ("r", "b")}
+        tests = {
+            "a field": (Field(Free("r"), "a"), {("r", "a")}),
+            "an entry with a literal key": (part("r", "a"), {("r", "a")}),
+            "an entry with a key not literal": (Index(Free("r"), Free("x")), {"r", "x"}),
+            "a part of a part": (Field(Field(Free("r"), "a"), "c"), {("r", "a")}),
+            "a key not among the parts": (Field(Free("r"), "z"), {"r"}),
+            "the variable after the step": (Field(Free("r", primed=True), "a"), set()),
+            "the whole variable": (Free("r"), {"r"}),
+            "a part of another variable": (Field(Free("s"), "a"), {"s"}),
+        }
+        for name, (t, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, part_reads(t, parts))
+
+
+class DecidesEarlyTest(unittest.TestCase):
+    def test_a_field_s_parts_range_one_by_one_only_when_a_step_reads_one_before_the_last(self):
+        levels = ["w", ("r", "a"), ("r", "b")]
+        reads_a, reads_b = other_of(Field(Free("r"), "a")), other_of(Field(Free("r"), "b"))
+        tests = {
+            "a part before the last": ([reads_a], [(2, 0, None)], True),
+            "the last part": ([reads_b], [(3, 0, None)], False),
+            "a part read after the whole": ([other("r"), reads_a], [(3, 0, None), (3, 1, None)], False),
+            "no step reads a part": ([other("w")], [(1, 0, None)], False),
+        }
+        for name, (guard, steps, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, decides_early(tuple(guard), levels, steps, "r"))
+
+
+def other_of(*terms):
+    """A conjunct that reads terms and binds nothing."""
+    return Builtin("at", terms, state="s")
 
 
 if __name__ == "__main__":

@@ -90,18 +90,39 @@ def place(guard: tuple, binds: dict[int, Bind], levels: list) -> tuple[list, int
     or (field, key) for a part of one that ranges. A step is (the depth of
     the levels it reads, its place in guard, its Bind or None), in guard's
     order; the depth never decreases, and the last equality binding a part
-    of a field reads the levels of its other parts. The product asks every
+    of a field reads the levels of its other parts. A conjunct reads the
+    level of a part where it reads the part, f.k or f["k"] (part_reads),
+    and every level of the field where it reads the field otherwise. The product asks every
     step of a depth below the last, and those of the last up to the last
     Bind; the rest are the caller's."""
     depth = {name: d + 1 for d, name in enumerate(levels)}
+    for d, name in enumerate(levels):
+        if isinstance(name, tuple):
+            depth[name[0]] = d + 1
     last_part = {b.field: i for i, b in binds.items() if b.key is not None}
     steps, at = [], 0
     for i, c in enumerate(guard):
         b = binds.get(i)
-        reads: set = free_names(b.term if b else c, primed=False)
+        reads: set = part_reads(b.term if b else c, depth.keys())
         if b is not None and last_part.get(b.field) == i:
             reads = reads | {n for n in levels if isinstance(n, tuple) and n[0] == b.field}
         at = max([at] + [depth[n] for n in reads if n in depth])
         steps.append((at, i, b))
     inside = max([sum(1 for d, _, _ in steps if d < len(levels))] + [j + 1 for j, (_, _, b) in enumerate(steps) if b is not None])
     return steps, inside
+
+
+def part_reads(t, parts) -> set:
+    """What t reads before the step: free_names, with a part f.k or
+    f["k"] of f, k a literal, as (f, k) when (f, k) is in parts; a part of
+    a part reads the outer part."""
+    return free_names(t, primed=False, parts=parts)
+
+
+def decides_early(guard: tuple, levels: list, steps: list, f: str) -> bool:
+    """Whether one of steps, as place makes them of guard over levels,
+    reads a part of the field f at a depth before the level of its last
+    part, so that ranging over f's parts one by one decides it earlier."""
+    parts = {name for name in levels if isinstance(name, tuple) and name[0] == f}
+    last = max(d + 1 for d, name in enumerate(levels) if name in parts)
+    return any(d < last and part_reads(guard[i], parts) & parts for d, i, _ in steps)
