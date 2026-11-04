@@ -5,6 +5,7 @@ import dataclasses
 import functools
 import inspect
 import itertools
+import math
 import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
@@ -14,6 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
+from csdfbmc.product import pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
@@ -183,12 +185,18 @@ class Result:
 
 @dataclass
 class EdgeStats:
-    """What the walk took at one edge (csdfbmc --stats): the values of its
-    fields tried, those its guard held of, the valuations after the step
-    checked against its post, the successors they gave, and what nothing
-    determined, which ranged over its type: a field as ?name, a value
-    after the step as the post names it."""
+    """What the walk took at one edge (csdfbmc --stats).
+
+    tried: the values of its fields in the full product the walk ranges
+    over, enumerated or not. pruned: those of them dropped without being
+    enumerated, because the guard's leading conjuncts rejected the values
+    of the fields before them (Explorer._guarded_offers). guard_held: the
+    values the whole guard held of. checked: the valuations after the step
+    checked against its post. successors: the successors they gave.
+    ranged: what nothing determined, which ranged over its type, a field as
+    ?name, a value after the step as the post names it."""
     tried: int = 0
+    pruned: int = 0
     guard_held: int = 0
     checked: int = 0
     successors: int = 0
@@ -196,13 +204,14 @@ class EdgeStats:
 
     def add(self, other: "EdgeStats") -> None:
         self.tried += other.tried
+        self.pruned += other.pruned
         self.guard_held += other.guard_held
         self.checked += other.checked
         self.successors += other.successors
         self.ranged |= other.ranged
 
     def to_json(self, edge: Edge) -> dict:
-        return {"edge": edge.describe(), "tried": self.tried, "guard_held": self.guard_held, "checked": self.checked,
+        return {"edge": edge.describe(), "tried": self.tried, "pruned": self.pruned, "guard_held": self.guard_held, "checked": self.checked,
                 "successors": self.successors, "ranged": sorted(self.ranged)}
 
 
@@ -504,27 +513,83 @@ class Explorer:
         a record it is, which the rest of the record ranges over (Q5);
         ranged, when given, is told each field that ranges, as ?name."""
         alive: list[dict] = [{}]
+        for p, *how in self._field_plan(state, e, ranged):
+            alive = [dict(params, **{p: v}) for params in alive for v in self._field_offers(state, e, params, p, *how)]
+        return alive
+
+    def _guarded_offers(self, state: State, e: Edge, on_prune: Callable[[int], None], ranged: set[str] | None = None):
+        """The values of the fields e receives, as _offers gives them and in
+        its order, each with the number of the leading conjuncts of the
+        guard that hold of them. The leading conjuncts that read only the
+        fields before the last are evaluated as pruned_product asks them;
+        values of those fields they reject are dropped with every value of
+        the later fields, and on_prune is told how many values of the full
+        product that drops. The rest of the guard is the caller's."""
+        plan = self._field_plan(state, e, ranged)
+        names = [p for p, *_ in plan]
+        reads = [free_names(c, primed=False) for c in e.guard]
+        known = set(self.d.vars[state[0]])
+        # ready[d + 1]: the leading conjuncts that read only the state and
+        # the first d fields; ready[0] is none.
+        ready = [0]
+        for p in [None] + names[:-1]:
+            known.add(p)
+            held = ready[-1]
+            while held < len(reads) and reads[held] <= known:
+                held += 1
+            ready.append(held)
+
+        def params(prefix: tuple) -> dict:
+            return dict(zip(names, prefix))
+
+        def check(lo: int, hi: int) -> Callable[[tuple], bool]:
+            return lambda prefix: self.ev.holds(e.guard[lo:hi], self._before(state, params(prefix)))
+
+        levels = [lambda prefix, p=p, how=how: self._field_offers(state, e, params(prefix), p, *how) for p, *how in plan]
+        checks = [check(ready[d], ready[d + 1]) if ready[d + 1] > ready[d] else None for d in range(len(plan))] + [None]
+        for prefix in pruned_product(levels, checks, lambda prefix: on_prune(self._product_size(e, plan[len(prefix):]))):
+            yield params(prefix), ready[len(plan)]
+
+    def _product_size(self, e: Edge, plan: list[tuple]) -> int:
+        """How many values the fields plan says range give in all: one for
+        a field, or a part, a term determines, whatever it computes."""
+        size = 1
+        for p, term, _, shape in plan:
+            if term is not None:
+                continue
+            if shape is not None:
+                size *= math.prod(len(v) for v in shape[1].values())
+            else:
+                size *= len(self._field_values(e, p))
+        return size
+
+    def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[tuple]:
+        """How each field e receives takes its values, in order: (the field,
+        the term the guard determines it by, the terms it determines its
+        parts by, the shape of the record they are parts of) (_offers)."""
+        plan = []
         known = set(self.d.vars[state[0]])
         for p in e.params:
             term = self._determined(e, p, known)
             parts = self._determined_parts(e, p, known) if term is None else {}
             shape = self._record_parts(e, p, parts) if parts else None
-            grown = []
-            for params in alive:
-                if term is not None:
-                    try:
-                        grown.append(dict(params, **{p: self.ev.value(term, self._before(state, params), {}, ())}))
-                    except Missing:
-                        pass  # the guard reads an entry its map does not have: false
-                elif shape is not None:
-                    grown.extend(dict(params, **{p: r}) for r in self._records(state, params, parts, *shape))
-                else:
-                    grown.extend(dict(params, **{p: v}) for v in self._field_values(e, p))
             if term is None and (shape is None or shape[1]) and ranged is not None:
                 ranged.add(f"?{p}")
-            alive = grown
+            plan.append((p, term, parts, shape))
             known.add(p)
-        return alive
+        return plan
+
+    def _field_offers(self, state: State, e: Edge, params: dict, p: str, term, parts: dict, shape) -> list:
+        """The values the field p takes after the fields params, as its plan
+        says (_field_plan)."""
+        if term is not None:
+            try:
+                return [self.ev.value(term, self._before(state, params), {}, ())]
+            except Missing:
+                return []  # the guard reads an entry its map does not have: false
+        if shape is not None:
+            return self._records(state, params, parts, *shape)
+        return self._field_values(e, p)
 
     def _records(self, state: State, params: dict, parts: dict, keys: list, ranging: dict) -> list:
         """The records of the keys keys whose determined parts are those the
@@ -562,10 +627,16 @@ class Explorer:
         out = []
         where = e.describe()
         stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
-        offers = self._offers(state, e, stats.ranged if stats else None)
-        for params in offers:
+        tried = pruned = 0
+
+        def drop(size: int) -> None:
+            nonlocal pruned
+            pruned += size
+
+        for params, held in self._guarded_offers(state, e, drop, stats.ranged if stats else None):
+            tried += 1
             before = self._before(state, params)
-            if not self.ev.holds(e.guard, before):
+            if not self.ev.holds(e.guard[held:], before):
                 continue
             label = self._label(e, before)
             tally = Tally()
@@ -584,9 +655,10 @@ class Explorer:
             ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
         if record:
-            self.tried += len(offers)
+            self.tried += tried + pruned
         if stats:
-            stats.tried += len(offers)
+            stats.tried += tried + pruned
+            stats.pruned += pruned
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -609,9 +681,9 @@ class Explorer:
         """The first transition of e from state, as taken, its ghosts left
         aside; None when it has none."""
         where = e.describe()
-        for params in self._offers(state, e):
+        for params, held in self._guarded_offers(state, e, lambda size: None):
             before = self._before(state, params)
-            if self.ev.holds(e.guard, before) and self._successor_values(e.post, before, e.dst, where):
+            if self.ev.holds(e.guard[held:], before) and self._successor_values(e.post, before, e.dst, where):
                 return self._label(e, before)
         return None
 

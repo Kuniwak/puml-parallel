@@ -123,7 +123,7 @@ def print_stats(stats: list[dict]) -> None:
     print("stats per edge, most valuations checked first:")
     for s in stats:
         ranged = f"; ranged over their types: {', '.join(s['ranged'])}" if s["ranged"] else ""
-        print(f"  {s['edge']}: tried {s['tried']}, guard held {s['guard_held']}, valuations checked {s['checked']}, "
+        print(f"  {s['edge']}: tried {s['tried']}, pruned {s['pruned']}, guard held {s['guard_held']}, valuations checked {s['checked']}, "
               f"successors {s['successors']}{ranged}")
 
 
