@@ -188,12 +188,20 @@ def is_primed(t: Term) -> bool:
     return isinstance(r, Free) and r.primed
 
 
-def free_names(t, primed: bool | None = None) -> set[str]:
+def free_names(t, primed: bool | None = None, parts=frozenset()) -> set:
     """The free variables of a term or formula, those primed or not when
-    primed says which."""
-    out: set[str] = set()
+    primed says which; a part of a variable, f.k or f["k"] with k a
+    literal, as (f, k) instead when (f, k) is in parts, and a part of that
+    part as it."""
+    out: set = set()
 
     def walk(x):
+        if parts and isinstance(x, (Field, Index)):
+            f = x.of if isinstance(x, Field) else x.map
+            key = x.name if isinstance(x, Field) else x.key.value if isinstance(x.key, Lit) else None
+            if isinstance(f, Free) and (primed is None or f.primed == primed) and (f.name, key) in parts:
+                out.add((f.name, key))
+                return
         if isinstance(x, Free):
             if primed is None or x.primed == primed:
                 out.add(x.name)
