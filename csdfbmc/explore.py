@@ -504,27 +504,37 @@ class Explorer:
         a record it is, which the rest of the record ranges over (Q5);
         ranged, when given, is told each field that ranges, as ?name."""
         alive: list[dict] = [{}]
+        for p, *how in self._field_plan(state, e, ranged):
+            alive = [dict(params, **{p: v}) for params in alive for v in self._field_offers(state, e, params, p, *how)]
+        return alive
+
+    def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> list[tuple]:
+        """How each field e receives takes its values, in order: (the field,
+        the term the guard determines it by, the terms it determines its
+        parts by, the shape of the record they are parts of) (_offers)."""
+        plan = []
         known = set(self.d.vars[state[0]])
         for p in e.params:
             term = self._determined(e, p, known)
             parts = self._determined_parts(e, p, known) if term is None else {}
             shape = self._record_parts(e, p, parts) if parts else None
-            grown = []
-            for params in alive:
-                if term is not None:
-                    try:
-                        grown.append(dict(params, **{p: self.ev.value(term, self._before(state, params), {}, ())}))
-                    except Missing:
-                        pass  # the guard reads an entry its map does not have: false
-                elif shape is not None:
-                    grown.extend(dict(params, **{p: r}) for r in self._records(state, params, parts, *shape))
-                else:
-                    grown.extend(dict(params, **{p: v}) for v in self._field_values(e, p))
             if term is None and (shape is None or shape[1]) and ranged is not None:
                 ranged.add(f"?{p}")
-            alive = grown
+            plan.append((p, term, parts, shape))
             known.add(p)
-        return alive
+        return plan
+
+    def _field_offers(self, state: State, e: Edge, params: dict, p: str, term, parts: dict, shape) -> list:
+        """The values the field p takes after the fields params, as its plan
+        says (_field_plan)."""
+        if term is not None:
+            try:
+                return [self.ev.value(term, self._before(state, params), {}, ())]
+            except Missing:
+                return []  # the guard reads an entry its map does not have: false
+        if shape is not None:
+            return self._records(state, params, parts, *shape)
+        return self._field_values(e, p)
 
     def _records(self, state: State, params: dict, parts: dict, keys: list, ranging: dict) -> list:
         """The records of the keys keys whose determined parts are those the
