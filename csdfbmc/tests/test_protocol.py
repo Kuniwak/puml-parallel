@@ -299,18 +299,20 @@ class TransportTest(unittest.TestCase):
 
 
 class CommandTransportTest(unittest.TestCase):
-    def test_a_signal_while_the_glue_answers_leaves_the_answers_in_step(self):
+    def test_a_glue_signalled_in_the_middle_of_a_request_is_killed_and_answers_no_more(self):
+        import time
         from csdfbmc.protocol import CommandTransport
         from csdfbmc.stopping import interrupted, on_signals
 
         # Setup: the glue answers each request with its count, and the
-        # second is signalled while it is being answered.
+        # second is signalled while it is being answered, which takes far
+        # longer than the test waits.
         glue = CommandTransport([sys.executable, "-c", (
             "import os, signal, sys, time\n"
             "for n, _ in enumerate(sys.stdin):\n"
             "    if n == 1:\n"
             "        os.kill(os.getppid(), signal.SIGTERM)\n"
-            "        time.sleep(0.5)\n"
+            "        time.sleep(30)\n"
             "    print('{\"n\": %d}' % n, flush=True)\n")])
         self.addCleanup(glue.close)
 
@@ -319,12 +321,16 @@ class CommandTransportTest(unittest.TestCase):
             yield glue({"op": "second"})
 
         # Execute
+        started = time.monotonic()
         with on_signals():
             got = list(interrupted(asked()))
-        after = glue({"op": "third"})
 
         # Assert
-        self.assertEqual(([{"n": 0}], {"n": 2}), (got, after))
+        self.assertEqual([{"n": 0}], got)
+        self.assertLess(time.monotonic() - started, 5)
+        with self.assertRaises(EvaluatorError) as cm:
+            glue({"op": "third"})
+        self.assertIn("killed in the middle of a request", str(cm.exception))
 
 
 if __name__ == "__main__":

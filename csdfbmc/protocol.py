@@ -66,7 +66,6 @@ import subprocess
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
-from csdfbmc import stopping
 from csdfbmc.values import FrozenMap, FrozenSet, kind_key, unsigned_zero
 
 _TAGS = ("tuple", "set", "map")
@@ -227,18 +226,26 @@ class CommandTransport:
         except OSError as e:
             raise EvaluatorError(f"cannot start the glue {argv!r}: {e}") from e
         self._argv = argv
+        # What cut a request in two, after which the glue is killed.
+        self._cut: str | None = None
 
     def __call__(self, request: dict) -> dict:
         op = request.get("op")
-        # A signal between the request and its answer would leave the
-        # answer to the next request (csdfbmc.stopping).
+        if self._cut is not None:
+            raise EvaluatorError(f"the glue {self._argv!r} was killed in the middle of a request, cut by {self._cut}")
         try:
-            with stopping.deferred():
-                self._proc.stdin.write(json.dumps(request_to_wire(request), ensure_ascii=False) + "\n")
-                self._proc.stdin.flush()
-                line = self._proc.stdout.readline()
+            self._proc.stdin.write(json.dumps(request_to_wire(request), ensure_ascii=False) + "\n")
+            self._proc.stdin.flush()
+            line = self._proc.stdout.readline()
         except (OSError, ValueError) as e:
             raise EvaluatorError(f"the glue {self._argv!r} stopped: {e}") from e
+        except BaseException as e:
+            # Cut between the request and its answer, as by a signal
+            # (csdfbmc.stopping): the answer would go to the next request,
+            # so there is none, and the glue is not waited for.
+            self._cut = type(e).__name__
+            self._proc.kill()
+            raise
         if not line:
             raise EvaluatorError(f"the glue {self._argv!r} stopped without answering {op}")
         try:

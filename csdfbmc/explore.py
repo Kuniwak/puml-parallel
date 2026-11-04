@@ -82,7 +82,8 @@ class Result:
     # valuations checked first; None unless asked for.
     stats: list[dict] | None = None
     # stuck: for the first deadlock of each shape (groups), why each edge
-    # out of it takes no step (Explorer.why_stuck).
+    # out of it takes no step (Explorer.why_stuck); none when a signal
+    # stopped the walk, which asks the glue nothing more.
     stuck: dict[State, list[dict]] = field(default_factory=dict)
 
     def trace_to(self, state: State) -> list[str]:
@@ -884,7 +885,7 @@ class Explorer:
             stopped_by = stop()
 
         return Result(
-            stuck=self.stuck(w.deadlocks, w.parents),
+            stuck=self.stuck(w.deadlocks, w.parents) if stopped_by is None else {},
             states=w.order, parents=w.parents, deadlocks=w.deadlocks,
             tau_cycles=_cycles(w.order, w.tau_next) if not stopped else [],
             truncated=w.truncated, bound=self.max_states,

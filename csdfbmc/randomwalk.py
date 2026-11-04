@@ -176,7 +176,7 @@ class RandomWalks:
             # take ends early when it is stopped (csdfbmc.parallel).
             stopped_by = stop()
         result = Result(
-            stuck=x.stuck(deadlocks, parents), states=[], parents=parents, deadlocks=deadlocks, tau_cycles=[],
+            stuck=x.stuck(deadlocks, parents) if stopped_by is None else {}, states=[], parents=parents, deadlocks=deadlocks, tau_cycles=[],
             truncated=False, bound=0, environment=x.environment_report(),
             violations=violations, ghost_names=x.ghost_names, empty_posts=empty_posts, stopped_early=stopped, stopped_by=stopped_by,
             bound_reached=bound_reached, left_out=x.left_out)

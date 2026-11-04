@@ -108,6 +108,27 @@ class StopTest(unittest.TestCase):
         self.assertIsNone(result.stopped_by)
         self.assertEqual([("b", (), ())], result.deadlocks)
 
+    def test_a_walk_stopped_by_a_signal_does_not_ask_why_a_deadlock_is_stuck(self):
+        # The glue may have been killed in the middle of a request, and
+        # asking it takes as long as a step.
+        def stopped_at_the_end(asked):
+            # The signal comes after the last state or walk, asked once each.
+            answers = iter([None] * asked)
+            return lambda: next(answers, "SIGTERM")
+
+        tests = {
+            "breadth first": lambda: fixture.explorer(COUNTER).run(stop=stopped_at_the_end(4)),
+            "random walks": lambda: RandomWalks(fixture.explorer(COUNTER), max_depth=4, weights={}, seed=1).run(
+                1, stop=stopped_at_the_end(1)).result,
+        }
+        for name, run in tests.items():
+            with self.subTest(name):
+                # Execute
+                result = run()
+
+                # Assert
+                self.assertEqual(("SIGTERM", [("b", (), ())], {}), (result.stopped_by, result.deadlocks, result.stuck))
+
     def test_random_walks_asked_to_stop_end_and_say_why(self):
         # Setup
         asked = iter([None, None, "SIGINT"])
