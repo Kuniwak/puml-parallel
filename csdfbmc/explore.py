@@ -16,7 +16,7 @@ from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
-from csdfbmc.stopping import never
+from csdfbmc.stopping import interrupted, never
 from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
@@ -796,7 +796,8 @@ class Explorer:
         checkpoint is given the walk after each state, as it is then; it
         is the same Walk, changed as the walk goes on (csdfbmc.checkpoint).
         stop is asked before each state: the walk ends there when it names a
-        signal (csdfbmc.stopping), and reports what it found until then."""
+        signal (csdfbmc.stopping), and reports what it found until then; a
+        signal ends a state being expanded too (csdfbmc.stopping.interrupted)."""
         # Workers count the values they try and check apart; this walk counts
         # them as it tries them, so that a state it is stuck in shows.
         workers = expand_all is not None
@@ -835,7 +836,9 @@ class Explorer:
 
         stopped = False
         stopped_by = None
-        for x in expand_all(w.queue, w.i):
+        # A signal ends the expansion of a state where it is; the state
+        # stays in the queue, unexpanded, and the walk as it was before it.
+        for x in interrupted(expand_all(w.queue, w.i)):
             stopped_by = stop()
             if stopped_by is not None:
                 break

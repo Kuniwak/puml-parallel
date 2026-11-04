@@ -6,7 +6,7 @@ import signal
 import unittest
 
 from csdfbmc.randomwalk import RandomWalks
-from csdfbmc.stopping import on_signals
+from csdfbmc.stopping import interrupted, on_signals
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_explore import BUMPING, COUNTER
 
@@ -29,6 +29,27 @@ class OnSignalsTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((None, sent[0].name), (quiet, got))
                 self.assertEqual(before, {s: signal.getsignal(s) for s in before})
+
+
+class InterruptedTest(unittest.TestCase):
+    def test_a_signal_ends_the_items_while_the_next_is_being_made(self):
+        import time
+
+        # Setup
+        def slow():
+            yield 1
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(30)
+            yield 2
+
+        # Execute
+        started = time.monotonic()
+        with on_signals() as stop:
+            got = list(interrupted(slow()))
+
+        # Assert
+        self.assertEqual(([1], "SIGTERM"), (got, stop()))
+        self.assertLess(time.monotonic() - started, 5)
 
 
 class WaitedTest(unittest.TestCase):
@@ -75,6 +96,47 @@ class StopTest(unittest.TestCase):
 
         # Assert
         self.assertEqual((2, "SIGINT"), (got.walks, got.result.stopped_by))
+
+    def test_a_walk_ends_at_a_signal_while_a_state_is_being_expanded(self):
+        import time
+
+        # Setup
+        walk = fixture.explorer(COUNTER)
+
+        def slow(queue, start):
+            yield walk.expand(queue[start])
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(30)
+
+        # Execute
+        started = time.monotonic()
+        with on_signals() as stop:
+            result = walk.run(slow, stop=stop)
+
+        # Assert
+        self.assertEqual("SIGTERM", result.stopped_by)
+        self.assertEqual([("a", (2,), ()), ("a", (1,), ())], result.states)
+        self.assertLess(time.monotonic() - started, 5)
+
+    def test_random_walks_end_at_a_signal_while_a_walk_is_being_taken(self):
+        import time
+
+        # Setup
+        walks = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1)
+
+        def slow(indices):
+            yield walks.walk(indices[0])
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(30)
+
+        # Execute
+        started = time.monotonic()
+        with on_signals() as stop:
+            got = walks.run(10, take=slow, stop=stop)
+
+        # Assert
+        self.assertEqual((1, "SIGTERM"), (got.walks, got.result.stopped_by))
+        self.assertLess(time.monotonic() - started, 5)
 
 
 class StopOptionTest(unittest.TestCase):

@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from csdfbmc.explore import Explorer, Result, State, dead_end
 from csdfbmc.model import Edge
 from csdfbmc.progress import unsaid
-from csdfbmc.stopping import never
+from csdfbmc.stopping import interrupted, never
 
 
 @dataclass
@@ -124,7 +124,8 @@ class RandomWalks:
             stop: Callable[[], str | None] = never, progress: Callable[..., None] = unsaid) -> RandomWalkReport:
         """walks walks, taken by take (in order; one after another here by
         default), stopping at the first finding with first. stop is asked
-        before each walk is taken in, as Explorer.run asks it. progress is
+        before each walk is taken in, as Explorer.run asks it, and a signal
+        ends a walk being taken (csdfbmc.stopping.interrupted). progress is
         told how far the walks got after each (WalkProgress.update)."""
         x = self.explorer
         parents: dict[State, tuple[State, str, Edge] | None] = {}
@@ -138,7 +139,8 @@ class RandomWalks:
         done = steps = deepest = 0
         stopped = False
         stopped_by = None
-        for out in (take or (lambda r: map(self.walk, r)))(range(walks)):
+        # A signal ends a walk being taken where it is, which is left out.
+        for out in interrupted((take or (lambda r: map(self.walk, r)))(range(walks))):
             stopped_by = stop()
             if stopped_by is not None:
                 break
