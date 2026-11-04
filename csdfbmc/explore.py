@@ -835,6 +835,10 @@ class Explorer:
                 if not known(s):
                     visit(s, 0)
 
+        # What expand sets aside while it expands a state, and puts back
+        # unless a signal cuts it short.
+        kept = self.meaning.decided, self.empty_posts, self.stats
+
         stopped = False
         stopped_by = None
         # A signal ends the expansion of a state where it is; the state
@@ -880,6 +884,7 @@ class Explorer:
                 w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
                 checkpoint(w)
 
+        self.meaning.decided, self.empty_posts, self.stats = kept
         if stopped_by is None:
             # A signal ends the loop early (csdfbmc.stopping.interrupted).
             stopped_by = stop()

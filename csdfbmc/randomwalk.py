@@ -139,6 +139,9 @@ class RandomWalks:
         done = steps = deepest = 0
         stopped = False
         stopped_by = None
+        # What a walk sets aside while it is taken (Explorer.initial_deciding,
+        # Explorer.expand), and puts back unless a signal cuts it short.
+        decided = x.meaning.decided
         # A signal ends a walk being taken where it is, which is left out.
         for out in interrupted((take or (lambda r: map(self.walk, r)))(range(walks))):
             stopped_by = stop()
@@ -172,6 +175,7 @@ class RandomWalks:
             if met and first and kind != "bound_reached":
                 stopped = True
                 break
+        x.meaning.decided = decided
         if stopped_by is None:
             # A signal ends the loop early (csdfbmc.stopping.interrupted).
             stopped_by = stop()

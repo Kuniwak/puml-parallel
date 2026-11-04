@@ -123,6 +123,55 @@ class StopTest(unittest.TestCase):
         self.assertEqual((2, "SIGINT"), (got.walks, got.result.stopped_by))
 
 
+class CutExpansionTest(unittest.TestCase):
+    def test_a_state_cut_in_the_middle_of_its_expansion_leaves_the_walk_as_the_state_before_did(self):
+        from csdfbmc import checkpoint
+
+        # Setup: the second state is cut where expand has set aside what the
+        # walk found for what the state finds.
+        walk = fixture.explorer(COUNTER)
+        written = []
+
+        def cut(queue, i):
+            import time
+            yield walk.expand(queue[i])
+            walk.meaning.decided, walk.empty_posts = {"set aside": None}, [("set aside", "dec")]
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(30)
+
+        def saved(w):
+            written.append((checkpoint.dumps(w, walk.d.edges), w))
+
+        # Execute
+        with on_signals() as stop:
+            result = walk.run(cut, checkpoint=saved, stop=stop)
+
+        # Assert: the walk the last checkpoint writes on leaving (Every.flush)
+        # is the one written after the last state, and the report is of it.
+        (data, w), = written
+        self.assertEqual(data, checkpoint.dumps(w, walk.d.edges))
+        self.assertEqual(("SIGTERM", [], []), (result.stopped_by, result.empty_posts, result.environment["decided"]))
+
+    def test_a_walk_cut_in_the_middle_leaves_the_random_walks_as_the_walk_before_did(self):
+        import time
+
+        # Setup
+        walks = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1)
+
+        def cut(indices):
+            yield walks.walk(indices[0])
+            walks.explorer.meaning.decided = {"set aside": None}
+            os.kill(os.getpid(), signal.SIGTERM)
+            time.sleep(30)
+
+        # Execute
+        with on_signals() as stop:
+            got = walks.run(10, take=cut, stop=stop)
+
+        # Assert
+        self.assertEqual((1, []), (got.walks, got.result.environment["decided"]))
+
+
 class SignalledCommandTest(unittest.TestCase):
     """csdfbmc run as a command and signalled in the middle of a step, as
     timeout signals its process group and a terminal its foreground one:
