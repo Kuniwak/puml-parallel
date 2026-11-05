@@ -992,8 +992,15 @@ order, and the guard is read in its order as the fields it reads are
 bound: a conjunct, or an equality that binds, is evaluated once for the
 values it reads, at the first complete values of the fields below them,
 after the conjuncts before it, and if it is false no other value of the
-later fields is tried with them. Nothing is evaluated when a later field
-has no value. An equality that binds computes its term where evaluating
+later fields is tried with them. A conjunct that reads a received record
+only by its parts (`r.k`, or `r["k"]` with a literal key; a part of a part
+reads the part) is evaluated once those parts are bound: the parts of a
+record no equality binds then range one by one, in the order of its type
+`record(…)`, so `@in(r.k, m)` false of a value of `r.k` drops every value of
+the other parts with it. An atom that reads the whole record, `r` as a hole
+(`${r}['k'] in ${m}`), is opaque and waits for every part; write the part as
+a term, `@in(r.k, m)`, for it to prune. Nothing is evaluated when a later
+field has no value. An equality that binds computes its term where evaluating
 the guard in order reaches it, so only for values the conjuncts before it
 hold of: `@at(m[k], s) ∧ @eq(v, m[k].y)` reads no `y` of an instance not
 at `s`. A term that reads an entry its map does not have makes its

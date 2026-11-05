@@ -15,7 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import determine, place
+from csdfbmc.determine import decides_early, determine, part_reads, place
 from csdfbmc.product import pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -194,13 +194,16 @@ class _Plan:
     leading steps the product asks. keys: the keys of the records of each
     field equalities bind parts of. last_part: the place of the last
     equality binding a part of each such field. ranged: each field that
-    ranges, as ?name."""
+    ranges, as ?name. records: for each field whose parts range though no
+    equality binds one, its keys and its records by the kind_keys of their
+    parts in that order."""
     levels: list
     steps: list
     inside: int
     keys: dict
     last_part: dict
     ranged: frozenset
+    records: dict
 
     def size(self, depth: int) -> int:
         """How many values the levels from depth on give in all."""
@@ -525,7 +528,10 @@ class Explorer:
         conjunct of the guard is a step, at the depth where what it reads
         is bound, in the guard's order. The parts of a field are bound only
         when its type says the keys of its records (_record_parts);
-        otherwise the field ranges."""
+        otherwise the field ranges. The parts of a record no equality binds
+        range one by one when a conjunct the product asks reads only some of
+        them, r.k, before the last, so that it is decided before the rest
+        range."""
         known = set(self.d.vars[sid])
         forced: frozenset = frozenset()
         while True:
@@ -540,27 +546,49 @@ class Explorer:
                 break
             forced |= unshaped
         whole = {b.field for b in binds.values() if b.key is None}
-        levels: list = []
-        ranged = set()
+        split = {}
         for p in e.params:
-            if p in whole:
-                continue
-            if p in shapes:
-                levels += [((p, k), list(vs)) for k, vs in shapes[p][1].items()]
-                ranges = bool(shapes[p][1])
-            else:
-                levels.append((p, self._field_values(e, p)))
-                ranges = True
-            if ranges:
-                ranged.add(f"?{p}")
-        last_part = {b.field: i for i, b in binds.items() if b.key is not None}
+            if p not in whole and p not in shapes:
+                shape = self._record_parts(e, p, {})
+                if shape and shape[1] and any(isinstance(n, tuple) for n in part_reads(e.guard, {(p, k) for k in shape[1]})):
+                    split[p] = shape
+
+        def levels_of(shapes: dict) -> tuple[list, set]:
+            levels: list = []
+            ranged = set()
+            for p in e.params:
+                if p in whole:
+                    continue
+                if p in shapes:
+                    levels += [((p, k), list(vs)) for k, vs in shapes[p][1].items()]
+                    ranges = bool(shapes[p][1])
+                else:
+                    levels.append((p, self._field_values(e, p)))
+                    ranges = True
+                if ranges:
+                    ranged.add(f"?{p}")
+            return levels, ranged
+
+        levels, ranged = levels_of(shapes | split)
         steps, inside = place(e.guard, binds, [name for name, _ in levels])
-        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged))
+        useful = {f: shape for f, shape in split.items() if decides_early(e.guard, [name for name, _ in levels], steps[:inside], f)}
+        if useful != split:
+            split = useful
+            levels, ranged = levels_of(shapes | split)
+            steps, inside = place(e.guard, binds, [name for name, _ in levels])
+        shapes = shapes | split
+        last_part = {b.field: i for i, b in binds.items() if b.key is not None}
+        records = {f: (shape[0], {tuple(kind_key(r[k]) for k in shape[0]): r for r in self._field_values(e, f)}) for f, shape in split.items()}
+        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records)
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the
         steps have bound, in the event's order."""
         ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
+        if plan.records:
+            for f, (keys, records) in plan.records.items():
+                got = [(k, ranging[(f, k)]) for k in keys if (f, k) in ranging]
+                ranging[f] = records[tuple(kind_key(v) for _, v in got)] if len(got) == len(keys) else FrozenMap(got)
         return {p: ranging[p] if p in ranging else bound[p] for p in e.params if p in ranging or p in bound}
 
     def _step(self, e: Edge, plan: "_Plan", i: int, b, prefix: tuple, bound: dict, before: dict) -> bool:
