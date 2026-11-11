@@ -612,15 +612,14 @@ class Explorer:
             bound[b.field] = before[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
         return True
 
-    def _guarded_offers(self, state: State, e: Edge, on_prune: Callable[[int], None], ranged: set[str] | None = None):
+    def _guarded_offers(self, state: State, e: Edge, ranged: set[str] | None = None):
         """The values of the fields e receives, each with the number of the
         leading conjuncts of the guard that hold of them, in the order of
         the product of the values the fields range over (_field_plan). The
         steps of the conjuncts that read only the levels before the last,
         and those up to the last that binds, are asked as pruned_product
         asks them; values they reject are dropped with every value of the
-        later levels, and on_prune is told how many values of the full
-        product that drops. The rest of the guard is the caller's."""
+        later levels. The rest of the guard is the caller's."""
         plan = self._field_plan(state, e, ranged)
         groups: dict[int, list] = {}
         for d, i, b in plan.steps[:plan.inside]:
@@ -637,7 +636,7 @@ class Explorer:
 
         levels = [lambda prefix, vs=vs: vs for _, vs in plan.levels]
         steps = [step(groups[d]) if d in groups else None for d in range(len(levels) + 1)]
-        for prefix, bound in pruned_product(levels, steps, lambda prefix: on_prune(plan.size(len(prefix)))):
+        for prefix, bound in pruned_product(levels, steps, lambda prefix: None):
             yield self._params(e, plan, prefix, bound), plan.inside
 
     def _first_false(self, state: State, e: Edge) -> Iterator[int | None]:
@@ -672,13 +671,8 @@ class Explorer:
         out = []
         where = e.describe()
         stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
-        tried = pruned = 0
-
-        def drop(size: int) -> None:
-            nonlocal pruned
-            pruned += size
-
-        for params, held in self._guarded_offers(state, e, drop, stats.ranged if stats else None):
+        tried = 0
+        for params, held in self._guarded_offers(state, e, stats.ranged if stats else None):
             tried += 1
             before = self._before(state, params)
             if not self.ev.holds(e.guard[held:], before):
@@ -699,11 +693,13 @@ class Explorer:
                 continue
             ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
+        # Every value of the full product is offered or dropped under a prefix the guard rejects.
+        full = self._field_plan(state, e).size(0)
         if record:
-            self.tried += tried + pruned
+            self.tried += full
         if stats:
-            stats.tried += tried + pruned
-            stats.pruned += pruned
+            stats.tried += full
+            stats.pruned += full - tried
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -726,7 +722,7 @@ class Explorer:
         """The first transition of e from state, as taken, its ghosts left
         aside; None when it has none."""
         where = e.describe()
-        for params, held in self._guarded_offers(state, e, lambda size: None):
+        for params, held in self._guarded_offers(state, e):
             before = self._before(state, params)
             if self.ev.holds(e.guard[held:], before) and self._successor_values(e.post, before, e.dst, where):
                 return self._label(e, before)
