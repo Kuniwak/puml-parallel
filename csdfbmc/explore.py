@@ -7,7 +7,7 @@ import inspect
 import itertools
 import math
 import sys
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from csdfbmc.checks import ANY, Checks, apply
@@ -15,8 +15,8 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import decides_early, determine, part_reads, place
-from csdfbmc.product import pruned_product
+from csdfbmc.determine import Witness, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
@@ -196,7 +196,10 @@ class _Plan:
     equality binding a part of each such field. ranged: each field that
     ranges, as ?name. records: for each field whose parts range though no
     equality binds one, its keys and its records by the kind_keys of their
-    parts in that order."""
+    parts in that order. draws: the map term each level a leading
+    membership decides is drawn from, by its place in levels (draws).
+    witness: the ∃ that draws levels from the entries of a map, or None
+    (witness)."""
     levels: list
     steps: list
     inside: int
@@ -204,6 +207,8 @@ class _Plan:
     last_part: dict
     ranged: frozenset
     records: dict
+    draws: dict
+    witness: Witness | None
 
     def size(self, depth: int) -> int:
         """How many values the levels from depth on give in all."""
@@ -531,7 +536,8 @@ class Explorer:
         otherwise the field ranges. The parts of a record no equality binds
         range one by one when a conjunct the product asks reads only some of
         them, r.k, before the last, so that it is decided before the rest
-        range."""
+        range, or when an ∃ draws some of them from the entries of a map
+        (witness)."""
         known = set(self.d.vars[sid])
         forced: frozenset = frozenset()
         while True:
@@ -570,16 +576,22 @@ class Explorer:
             return levels, ranged
 
         levels, ranged = levels_of(shapes | split)
-        steps, inside = place(e.guard, binds, [name for name, _ in levels])
-        useful = {f: shape for f, shape in split.items() if decides_early(e.guard, [name for name, _ in levels], steps[:inside], f)}
+        names = [name for name, _ in levels]
+        steps, inside = place(e.guard, binds, names)
+        # The ∃ that would draw parts were every candidate record split.
+        candidate = witness(e.guard, names, known)
+        drawn = {names[d][0] for d in candidate.levels if isinstance(names[d], tuple)} if candidate else set()
+        useful = {f: shape for f, shape in split.items() if f in drawn or decides_early(e.guard, names, steps[:inside], f)}
         if useful != split:
             split = useful
             levels, ranged = levels_of(shapes | split)
-            steps, inside = place(e.guard, binds, [name for name, _ in levels])
+            names = [name for name, _ in levels]
+            steps, inside = place(e.guard, binds, names)
         shapes = shapes | split
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         records = {f: (shape[0], {tuple(kind_key(r[k]) for k in shape[0]): r for r in self._field_values(e, f)}) for f, shape in split.items()}
-        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records)
+        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records,
+                     draws(e.guard, names, known), witness(e.guard, names, known))
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the
@@ -612,16 +624,14 @@ class Explorer:
             bound[b.field] = before[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
         return True
 
-    def _guarded_offers(self, state: State, e: Edge, on_prune: Callable[[int], None], ranged: set[str] | None = None):
+    def _guarded_offers(self, state: State, e: Edge, plan: "_Plan"):
         """The values of the fields e receives, each with the number of the
         leading conjuncts of the guard that hold of them, in the order of
-        the product of the values the fields range over (_field_plan). The
+        the product of the values the fields range over (plan). The
         steps of the conjuncts that read only the levels before the last,
         and those up to the last that binds, are asked as pruned_product
         asks them; values they reject are dropped with every value of the
-        later levels, and on_prune is told how many values of the full
-        product that drops. The rest of the guard is the caller's."""
-        plan = self._field_plan(state, e, ranged)
+        later levels. The rest of the guard is the caller's."""
         groups: dict[int, list] = {}
         for d, i, b in plan.steps[:plan.inside]:
             groups.setdefault(d, []).append((i, b))
@@ -636,9 +646,66 @@ class Explorer:
             return run
 
         levels = [lambda prefix, vs=vs: vs for _, vs in plan.levels]
+        for d, m in plan.draws.items():
+            levels[d] = self._drawn(state, plan, d, m)
+        if plan.witness is not None:
+            for d, level in self._witnessed(state, plan, plan.witness).items():
+                levels[d] = level
         steps = [step(groups[d]) if d in groups else None for d in range(len(levels) + 1)]
-        for prefix, bound in pruned_product(levels, steps, lambda prefix: on_prune(plan.size(len(prefix)))):
+        for prefix, bound in pruned_product(levels, steps):
             yield self._params(e, plan, prefix, bound), plan.inside
+
+    def _map_at(self, state: State, m) -> Mapping | None:
+        """The value of the term m, over the state only, in state when it is
+        a map; None when it is not one or reading it fails, so that nothing
+        is drawn from it and the guard evaluates m where it reads it."""
+        try:
+            mv = self.ev.value(m, self._before(state), {}, ())
+        except (ValueError, Missing):
+            return None
+        return mv if isinstance(mv, Mapping) else None
+
+    def _drawn(self, state: State, plan: "_Plan", d: int, m) -> Callable[[tuple], list]:
+        """The level d of plan drawn from the map m is at in state: its
+        values m has as keys, in its order; the first of its values when m
+        has none, so that the membership is still asked and rejects it. The
+        whole level when m is no map (_map_at), for the guard to say so."""
+        vs = plan.levels[d][1]
+        mv = self._map_at(state, m)
+        if mv is None:
+            return lambda prefix: vs
+        kept = keys_among(vs, mv)
+        return lambda prefix: kept
+
+    def _witnessed(self, state: State, plan: "_Plan", w: Witness) -> dict[int, Callable[[tuple], list]]:
+        """The levels w binds drawn from the entries of its map in state:
+        at each, the values of its type that some entry j gives, with the
+        levels before it the values j gives there, in the type's order; the
+        first of its values when no entry gives one, so that the ∃ is still
+        asked and rejects it. A value an entry gives outside the type is no
+        value of the full product, so that entry gives none. Nothing is
+        drawn when the map is no map (_map_at), the type has no carrier, or
+        a term fails other than by reading an entry its map does not have,
+        for the guard to say so where it reads it."""
+        before = self._before(state)
+        mv = self._map_at(state, w.map)
+        try:
+            js = self.ev.carrier(w.type) if mv is not None else None
+        except KeyError:
+            return {}
+        if js is None:
+            return {}
+        entries = []
+        for j in js:
+            if j not in mv:
+                continue
+            try:
+                entries.append(dict(zip(w.levels, (self.ev.value(t, before, {}, (j,)) for t in w.terms))))
+            except Missing:
+                continue
+            except ValueError:
+                return {}
+        return entry_levels({d: plan.levels[d][1] for d in w.levels}, entries)
 
     def _first_false(self, state: State, e: Edge) -> Iterator[int | None]:
         """For every value of the full product of the fields e receives, in
@@ -672,13 +739,9 @@ class Explorer:
         out = []
         where = e.describe()
         stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
-        tried = pruned = 0
-
-        def drop(size: int) -> None:
-            nonlocal pruned
-            pruned += size
-
-        for params, held in self._guarded_offers(state, e, drop, stats.ranged if stats else None):
+        tried = 0
+        plan = self._field_plan(state, e, stats.ranged if stats else None)
+        for params, held in self._guarded_offers(state, e, plan):
             tried += 1
             before = self._before(state, params)
             if not self.ev.holds(e.guard[held:], before):
@@ -699,11 +762,13 @@ class Explorer:
                 continue
             ghosts = self._ghosts_after(state, e.name, params)
             out.append((params, label, [Strict((e.dst, v, ghosts)) for v in vals]))
+        # Every value of the full product is offered or dropped under a prefix the guard rejects.
+        full = plan.size(0)
         if record:
-            self.tried += tried + pruned
+            self.tried += full
         if stats:
-            stats.tried += tried + pruned
-            stats.pruned += pruned
+            stats.tried += full
+            stats.pruned += full - tried
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -726,7 +791,7 @@ class Explorer:
         """The first transition of e from state, as taken, its ghosts left
         aside; None when it has none."""
         where = e.describe()
-        for params, held in self._guarded_offers(state, e, lambda size: None):
+        for params, held in self._guarded_offers(state, e, self._field_plan(state, e)):
             before = self._before(state, params)
             if self.ev.holds(e.guard[held:], before) and self._successor_values(e.post, before, e.dst, where):
                 return self._label(e, before)

@@ -999,7 +999,16 @@ record no equality binds then range one by one, in the order of its type
 `record(…)`, so `@in(r.k, m)` false of a value of `r.k` drops every value of
 the other parts with it. An atom that reads the whole record, `r` as a hole
 (`${r}['k'] in ${m}`), is opaque and waits for every part; write the part as
-a term, `@in(r.k, m)`, for it to prune. Nothing is evaluated when a later
+a term, `@in(r.k, m)`, for it to prune. A field or part `t` that a
+membership `@in(t, m)` reads first, `m` over the state only, with no
+conjunct before it reading `t` or a later field, takes only the values of
+its type that are keys of `m`. Likewise "some entry of `m` matches the
+received record", written `@exists(j : K) (@in(j, m) ∧ @eq(r.k, m[j].id) ∧
+@eq(r.a, m[j].x))` with `m` over the state, takes for the fields or parts
+its equalities bind only the values the entries of `m` give, when those
+are next to each other in the event and no conjunct before it reads them
+or a later field; the same condition as an atom is opaque and tries every
+value. Nothing is evaluated when a later
 field has no value. An equality that binds computes its term where evaluating
 the guard in order reaches it, so only for values the conjuncts before it
 hold of: `@at(m[k], s) ∧ @eq(v, m[k].y)` reads no `y` of an instance not

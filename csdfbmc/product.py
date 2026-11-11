@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 
+from csdfbmc.values import kind_key
+
 # A step of the prefixes of one length: given the prefix and what the
 # steps of the shorter prefixes bound, what it binds besides, or None when
 # it rejects the prefix.
@@ -12,7 +14,7 @@ Step = Callable[[tuple, dict], "dict | None"]
 
 
 def pruned_product(levels: list[Callable[[tuple], list]], steps: list[Step | None],
-                   on_prune: Callable[[tuple], None]) -> Iterator[tuple[tuple, dict]]:
+                   on_prune: Callable[[tuple], None] = lambda prefix: None) -> Iterator[tuple[tuple, dict]]:
     """The tuples of the product levels give, in order, each with what the
     steps bound of it: levels[d] gives the values at depth d after the
     prefix so far. steps[d], when not None, is asked of the prefixes of
@@ -58,3 +60,37 @@ def pruned_product(levels: list[Callable[[tuple], list]], steps: list[Step | Non
                 return
 
     yield from grow(0)
+
+
+def keys_among(values: list, m) -> list:
+    """The values m has as keys, in values' order; the first of values
+    when it has none, so that a step reading the level still meets one
+    value and can reject it (csdfbmc.explore, a level drawn from a map)."""
+    return [v for v in values if v in m] or values[:1]
+
+
+def entry_levels(values: dict[int, list], entries) -> dict[int, Callable[[tuple], list]]:
+    """The levels values names, by their depths, drawn from entries: each
+    entry gives a value at every one of those depths, and the level at a
+    depth gives, after a prefix, the values of its list that the entries
+    agreeing with the prefix at the shallower of those depths give, in the
+    list's order; the first of its list when none does, so that a step
+    reading the level still meets one value and can reject it. A value an
+    entry gives outside the list of its depth makes the entry give none.
+    Values are told apart by kind_key."""
+    ordered = sorted(values)
+    at = {d: {kind_key(v): n for n, v in enumerate(values[d])} for d in ordered}
+    places = set()
+    for got in entries:
+        p = tuple(at[d].get(kind_key(got[d])) for d in ordered)
+        if None not in p:
+            places.add(p)
+
+    def level(s: int) -> Callable[[tuple], list]:
+        vs = values[ordered[s]]
+
+        def of(prefix: tuple) -> list:
+            head = tuple(at[d][kind_key(prefix[d])] for d in ordered[:s])
+            return [vs[n] for n in sorted({p[s] for p in places if p[:s] == head})] or vs[:1]
+        return of
+    return {d: level(s) for s, d in enumerate(ordered)}

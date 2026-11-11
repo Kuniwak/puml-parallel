@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from csdfbmc.model import Builtin, Free, Index, Lit, free_names
+from csdfbmc.model import Bound, Builtin, Exists, Field, Free, Index, Lit, free_names
 
 
 @dataclass(frozen=True)
@@ -126,3 +126,137 @@ def decides_early(guard: tuple, levels: list, steps: list, f: str) -> bool:
     parts = {name for name in levels if isinstance(name, tuple) and name[0] == f}
     last = max(d + 1 for d, name in enumerate(levels) if name in parts)
     return any(d < last and part_reads(guard[i], parts) & parts for d, i, _ in steps)
+
+
+def draws(guard: tuple, levels: list, known: set[str]) -> dict[int, object]:
+    """The levels a membership of guard decides, by their places in
+    levels, each with the map term m of the first @in(t, m) where t is the
+    level, a field or a part of one with a literal key, m reads only the
+    names known before the step, and no conjunct before it reads the level
+    or a later one. The values of such a level outside m are rejected by
+    that conjunct before anything else of the guard reads them, so drawing
+    the level from m drops only values evaluating the guard in full would
+    reject there."""
+    names = set(levels)
+    out: dict[int, object] = {}
+    deepest = -1
+    for c in guard:
+        if isinstance(c, Builtin) and c.op == "in":
+            t, m = c.args
+            d = _level_of(t, levels, names)
+            if d is not None and d > deepest and d not in out and not free_names(m, primed=True) and free_names(m, primed=False) <= known:
+                out[d] = m
+        deepest = _deepest(c, levels, names, deepest)
+    return out
+
+
+def _level_of(t, levels: list, names: set) -> int | None:
+    """The place in levels of the level t is, a field or a part of one with
+    a literal key; None when t is no level."""
+    read = part_reads(t, names)
+    return levels.index(next(iter(read))) if _is_level(t) and len(read) == 1 and read <= names else None
+
+
+def _deepest(c, levels: list, names: set, deepest: int) -> int:
+    """The deepest place in levels the conjunct c or one before it reads,
+    deepest being that of those before it."""
+    return max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
+
+
+def _is_level(t) -> bool:
+    """Whether t is a field, or a part of one by a literal key."""
+    if isinstance(t, Free):
+        return not t.primed
+    if isinstance(t, Field):
+        return isinstance(t.of, Free) and not t.of.primed
+    return isinstance(t, Index) and isinstance(t.map, Free) and not t.map.primed and isinstance(t.key, Lit)
+
+
+def _reads(read: set, level) -> bool:
+    """Whether what a conjunct reads, as part_reads says it, reads level."""
+    return level in read or (isinstance(level, tuple) and level[0] in read)
+
+
+@dataclass(frozen=True)
+class Witness:
+    """The conjunct at place in the guard, ∃ j : type. @in(j, map) ∧ l = t
+    ∧ …, holds of the values of the levels it binds exactly when they are
+    those the terms take at an entry j of map: levels, by their places in
+    the levels of the product, in the order of its equalities, and terms,
+    the term each is equal to, over j and the state."""
+    place: int
+    levels: tuple
+    map: object
+    type: str
+    terms: tuple
+
+
+def witness(guard: tuple, levels: list, known: set[str]) -> Witness | None:
+    """The first ∃ of guard that draws levels from the entries of a map,
+    when no conjunct before it reads one of those levels or a later one:
+    its body is @in(j, m), j its bound name and m over the names known
+    before the step, then equalities, each of a level not bound before in
+    it, a field or a part of one with a literal key, and a term over j
+    and the names known, applying no function; and the levels it binds are
+    next to each other in levels. The values of those levels no entry
+    gives make the ∃ false before anything else of the guard reads them,
+    so drawing them from the entries drops only values evaluating the
+    guard in full would reject there."""
+    names = set(levels)
+    deepest = -1
+    for i, c in enumerate(guard):
+        if isinstance(c, Exists):
+            w = _witness(i, c, levels, names, known)
+            if w is not None and min(w.levels) > deepest:
+                return w
+        deepest = _deepest(c, levels, names, deepest)
+    return None
+
+
+def _witness(i: int, c, levels: list, names: set, known: set[str]) -> Witness | None:
+    """The Witness the ∃ c at place i makes, when its body has the shape
+    witness asks, the levels set aside."""
+    if len(c.body) < 2 or not (isinstance(c.body[0], Builtin) and c.body[0].op == "in"):
+        return None
+    j, m = c.body[0].args
+    if j != Bound(0) or not _over(m, known, set()):
+        return None
+    bound, terms = [], []
+    for e in c.body[1:]:
+        if not (isinstance(e, Builtin) and e.op == "eq"):
+            return None
+        found = _equal_level(e, levels, names, known)
+        if found is None or found[0] in bound:
+            return None
+        bound.append(found[0])
+        terms.append(found[1])
+    if max(bound) - min(bound) + 1 != len(bound):
+        return None
+    return Witness(i, tuple(bound), m, c.type, tuple(terms))
+
+
+def _equal_level(e, levels: list, names: set, known: set[str]) -> tuple[int, object] | None:
+    """(the place of the level, the term) of the equality e, one side a
+    level and the other a term over the bound index 0 and the names known;
+    None when it is not one."""
+    for x, y in ((e.args[0], e.args[1]), (e.args[1], e.args[0])):
+        d = _level_of(x, levels, names)
+        if d is not None and _over(y, known, {0}):
+            return d, y
+    return None
+
+
+def _over(t, known: set[str], indices: set[int]) -> bool:
+    """Whether t is a term over the names known before the step and the
+    bound indices given, applying no function."""
+    if isinstance(t, Free):
+        return not t.primed and t.name in known
+    if isinstance(t, Bound):
+        return t.index in indices
+    if isinstance(t, Lit):
+        return True
+    if isinstance(t, Index):
+        return _over(t.map, known, indices) and _over(t.key, known, indices)
+    if isinstance(t, Field):
+        return _over(t.of, known, indices)
+    return False
