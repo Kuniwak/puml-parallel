@@ -576,20 +576,22 @@ class Explorer:
             return levels, ranged
 
         levels, ranged = levels_of(shapes | split)
-        steps, inside = place(e.guard, binds, [name for name, _ in levels])
         names = [name for name, _ in levels]
-        w = witness(e.guard, names, known)
-        drawn = {names[d][0] for d in w.levels if isinstance(names[d], tuple)} if w else set()
+        steps, inside = place(e.guard, binds, names)
+        # The ∃ that would draw parts were every candidate record split.
+        candidate = witness(e.guard, names, known)
+        drawn = {names[d][0] for d in candidate.levels if isinstance(names[d], tuple)} if candidate else set()
         useful = {f: shape for f, shape in split.items() if f in drawn or decides_early(e.guard, names, steps[:inside], f)}
         if useful != split:
             split = useful
             levels, ranged = levels_of(shapes | split)
-            steps, inside = place(e.guard, binds, [name for name, _ in levels])
+            names = [name for name, _ in levels]
+            steps, inside = place(e.guard, binds, names)
         shapes = shapes | split
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         records = {f: (shape[0], {tuple(kind_key(r[k]) for k in shape[0]): r for r in self._field_values(e, f)}) for f, shape in split.items()}
         return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records,
-                     draws(e.guard, [name for name, _ in levels], known), witness(e.guard, [name for name, _ in levels], known))
+                     draws(e.guard, names, known), witness(e.guard, names, known))
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the

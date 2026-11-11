@@ -141,14 +141,27 @@ def draws(guard: tuple, levels: list, known: set[str]) -> dict[int, object]:
     out: dict[int, object] = {}
     deepest = -1
     for c in guard:
-        if isinstance(c, Builtin) and c.op == "in" and _is_level(c.args[0]):
+        if isinstance(c, Builtin) and c.op == "in":
             t, m = c.args
-            read = part_reads(t, names)
-            d = levels.index(next(iter(read))) if len(read) == 1 and read <= names else None
+            d = _level_of(t, levels, names)
             if d is not None and d > deepest and d not in out and not free_names(m, primed=True) and free_names(m, primed=False) <= known:
                 out[d] = m
-        deepest = max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
+        deepest = _deepest(c, levels, names, deepest)
     return out
+
+
+def _level_of(t, levels: list, names: set) -> int | None:
+    """The place in levels of the level t is, a field or a part of one with
+    a literal key; None when t is no level."""
+    read = part_reads(t, names)
+    return levels.index(next(iter(read))) if _is_level(t) and len(read) == 1 and read <= names else None
+
+
+def _deepest(c, levels: list, names: set, deepest: int) -> int:
+    """The deepest place in levels the conjunct c or one before it reads,
+    deepest being that of those before it."""
+    return max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
+
 
 def _is_level(t) -> bool:
     """Whether t is a field, or a part of one by a literal key."""
@@ -196,7 +209,7 @@ def witness(guard: tuple, levels: list, known: set[str]) -> Witness | None:
             w = _witness(i, c, levels, names, known)
             if w is not None and min(w.levels) > deepest:
                 return w
-        deepest = max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
+        deepest = _deepest(c, levels, names, deepest)
     return None
 
 
@@ -212,12 +225,7 @@ def _witness(i: int, c, levels: list, names: set, known: set[str]) -> Witness | 
     for e in c.body[1:]:
         if not (isinstance(e, Builtin) and e.op == "eq"):
             return None
-        found = None
-        for x, y in ((e.args[0], e.args[1]), (e.args[1], e.args[0])):
-            read = part_reads(x, names)
-            if _is_level(x) and len(read) == 1 and read <= names and _over(y, known, {0}):
-                found = (levels.index(next(iter(read))), y)
-                break
+        found = _equal_level(e, levels, names, known)
         if found is None or found[0] in bound:
             return None
         bound.append(found[0])
@@ -225,6 +233,17 @@ def _witness(i: int, c, levels: list, names: set, known: set[str]) -> Witness | 
     if max(bound) - min(bound) + 1 != len(bound):
         return None
     return Witness(i, tuple(bound), m, c.type, tuple(terms))
+
+
+def _equal_level(e, levels: list, names: set, known: set[str]) -> tuple[int, object] | None:
+    """(the place of the level, the term) of the equality e, one side a
+    level and the other a term over the bound index 0 and the names known;
+    None when it is not one."""
+    for x, y in ((e.args[0], e.args[1]), (e.args[1], e.args[0])):
+        d = _level_of(x, levels, names)
+        if d is not None and _over(y, known, {0}):
+            return d, y
+    return None
 
 
 def _over(t, known: set[str], indices: set[int]) -> bool:
