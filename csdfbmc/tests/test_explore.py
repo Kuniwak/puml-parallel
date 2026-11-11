@@ -437,33 +437,25 @@ class PruningTest(unittest.TestCase):
     ENTRY_TYPES = {"K": [1, 2, 3], "R": record(k=list(range(20)), a=list(range(5)), b=[0, 1])}
 
     def test_the_parts_an_entry_of_a_map_decides_are_drawn_from_its_entries(self):
-        # Setup: two entries, so the ∃ is asked once of each of their two
-        # values of (r.k, r.a), and each goes with both values of r.b.
-        x = fixture.explorer(self.ENTRY, Checks(types=self.ENTRY_TYPES))
-        asked = []
-        holds = x.ev.holds
-        x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
+        # The ∃ is asked once of each of the two entries' values of (r.k, r.a).
+        tests = {
+            "a part the ∃ leaves, which ranges": (self.ENTRY_TYPES["R"], 4),
+            "every part bound by the ∃": (record(k=list(range(20)), a=list(range(5))), 2),
+        }
         m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+        for name, (r, steps) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=r)))
+                asked = []
+                holds = x.ev.holds
+                x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
 
-        # Execute
-        transitions = x.transitions(("q", (m,), ()))
+                # Execute
+                transitions = x.transitions(("q", (m,), ()))
 
-        # Assert
-        self.assertEqual((2, 4), (len(asked), len(transitions)))
-
-    def test_every_part_an_entry_of_a_map_decides_is_drawn_from_its_entries(self):
-        # Setup: R has no part the ∃ leaves, so it is asked of the two entries only.
-        x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=record(k=list(range(20)), a=list(range(5))))))
-        asked = []
-        holds = x.ev.holds
-        x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
-        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
-
-        # Execute
-        transitions = x.transitions(("q", (m,), ()))
-
-        # Assert
-        self.assertEqual((2, 2), (len(asked), len(transitions)))
+                # Assert
+                self.assertEqual((2, steps), (len(asked), len(transitions)))
 
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
         tests = {
