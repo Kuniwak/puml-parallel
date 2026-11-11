@@ -429,6 +429,42 @@ class PruningTest(unittest.TestCase):
         self.assertEqual((["notin", "notin", "in"], 4, (24, 20)),
                          (asked, len(transitions), (x.stats[0].tried, x.stats[0].pruned)))
 
+    # c?r: some entry of m has id r.k and x r.a.
+    ENTRY = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
+        edge("q", "q", "c?r", guard=[exists("K", builtin("in", bound(0), "m"), eq(fld("r", "k"), fld(idx("m", bound(0)), "id")),
+                                            eq(fld("r", "a"), fld(idx("m", bound(0)), "x")))], post=[eq("m'", "m")])],
+        channels={"c": ["R"]})
+    ENTRY_TYPES = {"K": [1, 2, 3], "R": record(k=list(range(20)), a=list(range(5)), b=[0, 1])}
+
+    def test_the_parts_an_entry_of_a_map_decides_are_drawn_from_its_entries(self):
+        # Setup: two entries, so the ∃ is asked once of each of their two
+        # values of (r.k, r.a), and each goes with both values of r.b.
+        x = fixture.explorer(self.ENTRY, Checks(types=self.ENTRY_TYPES))
+        asked = []
+        holds = x.ev.holds
+        x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
+        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        self.assertEqual((2, 4), (len(asked), len(transitions)))
+
+    def test_every_part_an_entry_of_a_map_decides_is_drawn_from_its_entries(self):
+        # Setup: R has no part the ∃ leaves, so it is asked of the two entries only.
+        x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=record(k=list(range(20)), a=list(range(5))))))
+        asked = []
+        holds = x.ev.holds
+        x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
+        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        self.assertEqual((2, 2), (len(asked), len(transitions)))
+
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
         tests = {
             "the record a hole of an atom": atom("${}['k'] in ${}", "r", "m"),
@@ -547,6 +583,17 @@ class PruningTest(unittest.TestCase):
         self.assertEqual([24], [w["tried"] for w in why])
 
 
+def some_entry():
+    """∃ an entry of m whose id is p.k and whose x is p.j."""
+    return exists("K", builtin("in", bound(0), "m"), eq(fld("p", "k"), fld(idx("m", bound(0)), "id")),
+                  eq(fld("p", "j"), fld(idx("m", bound(0)), "x")))
+
+
+def entries(*pairs):
+    """A map from 1 on of entries with the ids and xs given."""
+    return FrozenMap({n: FrozenMap({"id": i, "x": x}) for n, (i, x) in enumerate(pairs, 1)})
+
+
 def refuse_three(j):
     """An environment function that fails at 3."""
     if j == 3:
@@ -631,6 +678,22 @@ class OracleTest(unittest.TestCase):
                 "c?j?k", ["J", "K"], [atom("$j は g"), builtin("in", "k", "m"), atom("$k は f")], [], (FrozenMap(),), "fg"),
             "a membership of no map": (
                 "c?k", ["K"], [builtin("in", "k", "m")], [], (5,), ""),
+            "parts drawn from entries": (
+                "c?p?j", ["P", "J"], [some_entry(), atom("${} は h", fld("p", "j")), atom("$j は g")], [],
+                (entries((1, 2), (3, 1), (3, 2)),), "gh"),
+            "parts drawn from entries, one outside the type": (
+                "c?p", ["P"], [some_entry(), atom("${} は h", fld("p", "k"))], [], (entries((9, 1), (2, 2)),), "h"),
+            "no entry, after a conjunct over an earlier field": (
+                "c?j?p", ["J", "P"], [atom("$j は g"), some_entry(), atom("${} は h", fld("p", "k"))], [], (FrozenMap(),), "gh"),
+            "an entry without the field, after a false conjunct": (
+                "c?j?p", ["J", "P"], [atom("$j は f"), some_entry()], [], (FrozenMap({1: FrozenMap({"id": 1})}),), "f"),
+            "an entry without the field": (
+                "c?p", ["P"], [some_entry()], [], (FrozenMap({1: FrozenMap({"id": 2})}),), ""),
+            "entries after a conjunct reading a later field, before one reading both": (
+                "c?p?j", ["P", "J"], [atom("$j は e"), some_entry(), atom("${} $j は i", fld("p", "k"))], [],
+                (entries((2, 1)),), "ei"),
+            "entries of no map": (
+                "c?p", ["P"], [some_entry()], [], (5,), ""),
             "an error reading a part of a part after a false conjunct": (
                 "c?p", ["P"], [atom("${} は f", fld("p", "k")), atom("${} は g", fld(fld("p", "j"), "z"))], [], (0,), "fg"),
         }

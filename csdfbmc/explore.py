@@ -15,7 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import decides_early, determine, draws, part_reads, place
+from csdfbmc.determine import Witness, decides_early, determine, draws, part_reads, place, witness
 from csdfbmc.product import pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -197,7 +197,9 @@ class _Plan:
     ranges, as ?name. records: for each field whose parts range though no
     equality binds one, its keys and its records by the kind_keys of their
     parts in that order. draws: the map term each level a leading
-    membership decides is drawn from, by its place in levels (draws)."""
+    membership decides is drawn from, by its place in levels (draws).
+    witness: the ∃ that draws levels from the entries of a map, or None
+    (witness)."""
     levels: list
     steps: list
     inside: int
@@ -206,6 +208,7 @@ class _Plan:
     ranged: frozenset
     records: dict
     draws: dict
+    witness: Witness | None
 
     def size(self, depth: int) -> int:
         """How many values the levels from depth on give in all."""
@@ -533,7 +536,8 @@ class Explorer:
         otherwise the field ranges. The parts of a record no equality binds
         range one by one when a conjunct the product asks reads only some of
         them, r.k, before the last, so that it is decided before the rest
-        range."""
+        range, or when an ∃ draws some of them from the entries of a map
+        (witness)."""
         known = set(self.d.vars[sid])
         forced: frozenset = frozenset()
         while True:
@@ -573,7 +577,10 @@ class Explorer:
 
         levels, ranged = levels_of(shapes | split)
         steps, inside = place(e.guard, binds, [name for name, _ in levels])
-        useful = {f: shape for f, shape in split.items() if decides_early(e.guard, [name for name, _ in levels], steps[:inside], f)}
+        names = [name for name, _ in levels]
+        w = witness(e.guard, names, known)
+        drawn = {names[d][0] for d in w.levels if isinstance(names[d], tuple)} if w else set()
+        useful = {f: shape for f, shape in split.items() if f in drawn or decides_early(e.guard, names, steps[:inside], f)}
         if useful != split:
             split = useful
             levels, ranged = levels_of(shapes | split)
@@ -582,7 +589,7 @@ class Explorer:
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         records = {f: (shape[0], {tuple(kind_key(r[k]) for k in shape[0]): r for r in self._field_values(e, f)}) for f, shape in split.items()}
         return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records,
-                     draws(e.guard, [name for name, _ in levels], known))
+                     draws(e.guard, [name for name, _ in levels], known), witness(e.guard, [name for name, _ in levels], known))
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the
@@ -640,6 +647,9 @@ class Explorer:
         levels = [lambda prefix, vs=vs: vs for _, vs in plan.levels]
         for d, m in plan.draws.items():
             levels[d] = self._drawn(state, plan, d, m)
+        if plan.witness is not None:
+            for d, level in self._witnessed(state, plan, plan.witness).items():
+                levels[d] = level
         steps = [step(groups[d]) if d in groups else None for d in range(len(levels) + 1)]
         for prefix, bound in pruned_product(levels, steps, lambda prefix: None):
             yield self._params(e, plan, prefix, bound), plan.inside
@@ -655,6 +665,49 @@ class Explorer:
             return lambda prefix: vs
         kept = [v for v in vs if v in mv] or vs[:1]
         return lambda prefix: kept
+
+    def _witnessed(self, state: State, plan: "_Plan", w: Witness) -> dict[int, Callable[[tuple], list]]:
+        """The levels w binds drawn from the entries of its map in state:
+        at each, the values of its type that some entry j gives, with the
+        levels before it the values j gives there, in the type's order; the
+        first of its values when no entry gives one, so that the ∃ is still
+        asked and rejects it. A value an entry gives outside the type is no
+        value of the full product, so that entry gives none. Nothing is
+        drawn when the map is no map, the type has no carrier, or a term
+        fails other than by reading an entry its map does not have, for the
+        guard to say so where it reads it."""
+        before = self._before(state)
+        try:
+            mv = self.ev.value(w.map, before, {}, ())
+            js = self.ev.carrier(w.type) if isinstance(mv, Mapping) else None
+        except (KeyError, ValueError, Missing):
+            return {}
+        if js is None:
+            return {}
+        at = {d: {kind_key(v): n for n, v in enumerate(plan.levels[d][1])} for d in w.levels}
+        ordered = sorted(w.levels)
+        entries = set()
+        for j in js:
+            if j not in mv:
+                continue
+            try:
+                got = dict(zip(w.levels, (self.ev.value(t, before, {}, (j,)) for t in w.terms)))
+            except Missing:
+                continue
+            except ValueError:
+                return {}
+            places = tuple(at[d].get(kind_key(got[d])) for d in ordered)
+            if None not in places:
+                entries.add(places)
+
+        def level(s: int) -> Callable[[tuple], list]:
+            d, vs = ordered[s], plan.levels[ordered[s]][1]
+
+            def values(prefix: tuple) -> list:
+                head = tuple(at[e][kind_key(prefix[e])] for e in ordered[:s])
+                return [vs[n] for n in sorted({p[s] for p in entries if p[:s] == head})] or vs[:1]
+            return values
+        return {d: level(s) for s, d in enumerate(ordered)}
 
     def _first_false(self, state: State, e: Edge) -> Iterator[int | None]:
         """For every value of the full product of the fields e receives, in

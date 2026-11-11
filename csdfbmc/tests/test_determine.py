@@ -3,8 +3,8 @@ guard's order."""
 import json
 import unittest
 
-from csdfbmc.determine import Bind, decides_early, determine, draws, part_reads, place
-from csdfbmc.model import Builtin, Field, Free, Index, Lit
+from csdfbmc.determine import Bind, Witness, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.model import App, Bound, Builtin, Exists, Field, Free, Index, Lit
 
 
 def eq(x, y):
@@ -146,6 +146,40 @@ class DrawsTest(unittest.TestCase):
             with self.subTest(name):
                 # Execute / Assert
                 self.assertEqual(want, draws(tuple(guard), levels, {"m", "n"}))
+
+
+class WitnessTest(unittest.TestCase):
+    def test_the_levels_an_entry_of_a_map_decides_are_drawn_from_its_entries(self):
+        M, J = Free("m"), Bound(0)
+        k, a, b = Field(Free("r"), "k"), Field(Free("r"), "a"), Field(Free("r"), "b")
+        idk, x = Field(Index(M, J), "id"), Field(Index(M, J), "x")
+        levels = ["v", ("r", "k"), ("r", "a"), ("r", "b")]
+
+        def some(*body):
+            return Exists("K", (Builtin("in", (J, M)),) + body)
+        tests = {
+            "parts by entries": ([some(eq(k, idk), eq(a, x))], Witness(0, (1, 2), M, "K", (idk, x))),
+            "either side": ([some(eq(idk, k))], Witness(0, (1,), M, "K", (idk,))),
+            "a field": ([some(eq(V, idk))], Witness(0, (0,), M, "K", (idk,))),
+            "after a conjunct over earlier levels": ([other("v"), some(eq(k, idk))], Witness(1, (1,), M, "K", (idk,))),
+            "the levels in the guard's order": ([some(eq(a, x), eq(k, idk))], Witness(0, (2, 1), M, "K", (x, idk))),
+            "levels apart": ([some(eq(k, idk), eq(b, x))], None),
+            "a level twice": ([some(eq(k, idk), eq(k, x))], None),
+            "no membership first": ([Exists("K", (eq(k, idk), Builtin("in", (J, M))))], None),
+            "a membership of another bound name": ([Exists("K", (Builtin("in", (Bound(1), M)), eq(k, idk)))], None),
+            "a map over a field": ([Exists("K", (Builtin("in", (J, V)), eq(k, idk)))], None),
+            "a term over a field": ([some(eq(k, Index(V, J)))], None),
+            "a term applying a function": ([some(eq(k, App("f", (J,))))], None),
+            "a term after the step": ([some(eq(k, Index(Free("m", primed=True), J)))], None),
+            "a conjunct not an equality": ([some(eq(k, idk), other("n"))], None),
+            "no equality": ([some()], None),
+            "after a conjunct reading a level it binds": ([other_of(k), some(eq(k, idk))], None),
+            "after a conjunct reading a later level": ([other_of(b), some(eq(k, idk))], None),
+        }
+        for name, (guard, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, witness(tuple(guard), levels, {"m", "n"}))
 
 
 def other_of(*terms):
