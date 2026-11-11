@@ -16,7 +16,7 @@ from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
 from csdfbmc.determine import Witness, decides_early, determine, draws, part_reads, place, witness
-from csdfbmc.product import pruned_product
+from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
@@ -672,7 +672,7 @@ class Explorer:
         mv = self._map_at(state, m)
         if mv is None:
             return lambda prefix: vs
-        kept = [v for v in vs if v in mv] or vs[:1]
+        kept = keys_among(vs, mv)
         return lambda prefix: kept
 
     def _witnessed(self, state: State, plan: "_Plan", w: Witness) -> dict[int, Callable[[tuple], list]]:
@@ -693,30 +693,17 @@ class Explorer:
             return {}
         if js is None:
             return {}
-        at = {d: {kind_key(v): n for n, v in enumerate(plan.levels[d][1])} for d in w.levels}
-        ordered = sorted(w.levels)
-        entries = set()
+        entries = []
         for j in js:
             if j not in mv:
                 continue
             try:
-                got = dict(zip(w.levels, (self.ev.value(t, before, {}, (j,)) for t in w.terms)))
+                entries.append(dict(zip(w.levels, (self.ev.value(t, before, {}, (j,)) for t in w.terms))))
             except Missing:
                 continue
             except ValueError:
                 return {}
-            places = tuple(at[d].get(kind_key(got[d])) for d in ordered)
-            if None not in places:
-                entries.add(places)
-
-        def level(s: int) -> Callable[[tuple], list]:
-            d, vs = ordered[s], plan.levels[ordered[s]][1]
-
-            def values(prefix: tuple) -> list:
-                head = tuple(at[e][kind_key(prefix[e])] for e in ordered[:s])
-                return [vs[n] for n in sorted({p[s] for p in entries if p[:s] == head})] or vs[:1]
-            return values
-        return {d: level(s) for s, d in enumerate(ordered)}
+        return entry_levels({d: plan.levels[d][1] for d in w.levels}, entries)
 
     def _first_false(self, state: State, e: Edge) -> Iterator[int | None]:
         """For every value of the full product of the fields e receives, in

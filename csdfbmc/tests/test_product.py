@@ -3,7 +3,7 @@ dropped, the checks asked as asking them of every complete tuple would."""
 import itertools
 import unittest
 
-from csdfbmc.product import pruned_product
+from csdfbmc.product import entry_levels, keys_among, pruned_product
 
 
 def run(levels, checks):
@@ -90,6 +90,36 @@ class PrunedProductTest(unittest.TestCase):
         # Assert
         self.assertEqual([((1, 2), {"s": 1}), ((2, 1), {"s": 2})], out)
         self.assertEqual([((1, 1), {"s": 1}), ((1, 2), {"s": 1}), ((2, 1), {"s": 2}), ((2, 2), {"s": 2})], seen)
+
+
+class KeysAmongTest(unittest.TestCase):
+    def test_the_values_a_map_has_as_keys_or_the_first(self):
+        tests = {
+            "some keys, in the values' order": ([1, 2, 3, 4], {4: 0, 2: 0, 9: 0}, [2, 4]),
+            "no key": ([1, 2], {9: 0}, [1]),
+            "no values": ([], {1: 0}, []),
+        }
+        for name, (values, m, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, keys_among(values, m))
+
+
+class EntryLevelsTest(unittest.TestCase):
+    def test_each_level_gives_the_values_the_entries_agreeing_with_the_prefix_give(self):
+        values = {1: [1, 2, 3], 2: ["a", "b"]}
+        tests = {
+            "the first level": ([{1: 3, 2: "a"}, {1: 1, 2: "b"}], 1, (0,), [1, 3]),
+            "a later level after the prefix": ([{1: 3, 2: "a"}, {1: 3, 2: "b"}, {1: 1, 2: "a"}], 2, (0, 3), ["a", "b"]),
+            "an entry outside the values": ([{1: 9, 2: "a"}, {1: 2, 2: "c"}, {1: 2, 2: "b"}], 1, (0,), [2]),
+            "a value of another kind": ([{1: True, 2: "a"}], 1, (0,), [1]),
+            "no entry": ([], 1, (0,), [1]),
+            "no entry agreeing with the prefix": ([{1: 3, 2: "a"}], 2, (0, 1), ["a"]),
+        }
+        for name, (entries, d, prefix, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, entry_levels(values, entries)[d](prefix))
 
 
 if __name__ == "__main__":
