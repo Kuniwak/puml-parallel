@@ -676,6 +676,10 @@ class OracleTest(unittest.TestCase):
                 "c?k?j", ["K", "J"], [atom("$j は e"), builtin("in", "k", "m"), atom("$k $j は i")], [], (FrozenMap({2: 0}),), "ei"),
             "a membership of an empty map after a conjunct over an earlier field": (
                 "c?j?k", ["J", "K"], [atom("$j は g"), builtin("in", "k", "m"), atom("$k は f")], [], (FrozenMap(),), "fg"),
+            "a membership of an entry the map does not have": (
+                "c?j?k", ["J", "K"], [atom("$j は f"), builtin("in", "k", idx("m", lit("z")))], [], (FrozenMap(),), "f"),
+            "a membership of an entry of no map, after a conjunct over an earlier field": (
+                "c?j?k", ["J", "K"], [atom("$j は f"), builtin("in", "k", idx("m", lit("z")))], [], (5,), "f"),
             "a membership of no map": (
                 "c?k", ["K"], [builtin("in", "k", "m")], [], (5,), ""),
             "parts drawn from entries": (

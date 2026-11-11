@@ -654,14 +654,24 @@ class Explorer:
         for prefix, bound in pruned_product(levels, steps, lambda prefix: None):
             yield self._params(e, plan, prefix, bound), plan.inside
 
+    def _map_at(self, state: State, m) -> Mapping | None:
+        """The value of the term m, over the state only, in state when it is
+        a map; None when it is not one or reading it fails, so that nothing
+        is drawn from it and the guard evaluates m where it reads it."""
+        try:
+            mv = self.ev.value(m, self._before(state), {}, ())
+        except (ValueError, Missing):
+            return None
+        return mv if isinstance(mv, Mapping) else None
+
     def _drawn(self, state: State, plan: "_Plan", d: int, m) -> Callable[[tuple], list]:
         """The level d of plan drawn from the map m is at in state: its
         values m has as keys, in its order; the first of its values when m
         has none, so that the membership is still asked and rejects it. The
-        whole level when m is not a map, for the guard to refuse it."""
+        whole level when m is no map (_map_at), for the guard to say so."""
         vs = plan.levels[d][1]
-        mv = self.ev.value(m, self._before(state), {}, ())
-        if not isinstance(mv, Mapping):
+        mv = self._map_at(state, m)
+        if mv is None:
             return lambda prefix: vs
         kept = [v for v in vs if v in mv] or vs[:1]
         return lambda prefix: kept
@@ -673,14 +683,14 @@ class Explorer:
         first of its values when no entry gives one, so that the ∃ is still
         asked and rejects it. A value an entry gives outside the type is no
         value of the full product, so that entry gives none. Nothing is
-        drawn when the map is no map, the type has no carrier, or a term
-        fails other than by reading an entry its map does not have, for the
-        guard to say so where it reads it."""
+        drawn when the map is no map (_map_at), the type has no carrier, or
+        a term fails other than by reading an entry its map does not have,
+        for the guard to say so where it reads it."""
         before = self._before(state)
+        mv = self._map_at(state, w.map)
         try:
-            mv = self.ev.value(w.map, before, {}, ())
-            js = self.ev.carrier(w.type) if isinstance(mv, Mapping) else None
-        except (KeyError, ValueError, Missing):
+            js = self.ev.carrier(w.type) if mv is not None else None
+        except KeyError:
             return {}
         if js is None:
             return {}
