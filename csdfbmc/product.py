@@ -12,7 +12,7 @@ Step = Callable[[tuple, dict], "dict | None"]
 
 
 def pruned_product(levels: list[Callable[[tuple], list]], steps: list[Step | None],
-                   on_prune: Callable[[tuple], None]) -> Iterator[tuple[tuple, dict]]:
+                   on_prune: Callable[[tuple], None] = lambda prefix: None) -> Iterator[tuple[tuple, dict]]:
     """The tuples of the product levels give, in order, each with what the
     steps bound of it: levels[d] gives the values at depth d after the
     prefix so far. steps[d], when not None, is asked of the prefixes of
