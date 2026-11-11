@@ -3,7 +3,7 @@ guard's order."""
 import json
 import unittest
 
-from csdfbmc.determine import Bind, decides_early, determine, part_reads, place
+from csdfbmc.determine import Bind, decides_early, determine, draws, part_reads, place
 from csdfbmc.model import Builtin, Field, Free, Index, Lit
 
 
@@ -120,6 +120,32 @@ class DecidesEarlyTest(unittest.TestCase):
             with self.subTest(name):
                 # Execute / Assert
                 self.assertEqual(want, decides_early(tuple(guard), levels, steps, "r"))
+
+
+class DrawsTest(unittest.TestCase):
+    def test_a_level_a_leading_membership_decides_is_drawn_from_the_map(self):
+        M = Free("m")
+        k = Field(Free("r"), "k")
+        levels = ["v", ("r", "k"), ("r", "a")]
+        tests = {
+            "a field": ([Builtin("in", (V, M))], {0: M}),
+            "a part read as a field": ([Builtin("in", (k, M))], {1: M}),
+            "a part read as an entry": ([Builtin("in", (part("r", "k"), M))], {1: M}),
+            "after a conjunct over earlier levels": ([other("v"), Builtin("in", (k, M))], {1: M}),
+            "the first membership of a level": ([Builtin("in", (V, M)), Builtin("in", (V, N))], {0: M}),
+            "a map over a field": ([Builtin("in", (k, Free("v")))], {}),
+            "a map after the step": ([Builtin("in", (V, Free("m", primed=True)))], {}),
+            "not a level": ([Builtin("in", (N, M))], {}),
+            "a part of a part": ([Builtin("in", (Field(k, "z"), M))], {}),
+            "a non-membership": ([Builtin("notin", (V, M))], {}),
+            "after a conjunct reading the level": ([other_of(k), Builtin("in", (k, M))], {}),
+            "after a conjunct reading the whole record": ([other("r"), Builtin("in", (k, M))], {}),
+            "after a conjunct reading a later level": ([other_of(Field(Free("r"), "a")), Builtin("in", (k, M))], {}),
+        }
+        for name, (guard, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, draws(tuple(guard), levels, {"m", "n"}))
 
 
 def other_of(*terms):

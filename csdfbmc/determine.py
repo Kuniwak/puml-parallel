@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from csdfbmc.model import Builtin, Free, Index, Lit, free_names
+from csdfbmc.model import Builtin, Field, Free, Index, Lit, free_names
 
 
 @dataclass(frozen=True)
@@ -126,3 +126,39 @@ def decides_early(guard: tuple, levels: list, steps: list, f: str) -> bool:
     parts = {name for name in levels if isinstance(name, tuple) and name[0] == f}
     last = max(d + 1 for d, name in enumerate(levels) if name in parts)
     return any(d < last and part_reads(guard[i], parts) & parts for d, i, _ in steps)
+
+
+def draws(guard: tuple, levels: list, known: set[str]) -> dict[int, object]:
+    """The levels a membership of guard decides, by their places in
+    levels, each with the map term m of the first @in(t, m) where t is the
+    level, a field or a part of one with a literal key, m reads only the
+    names known before the step, and no conjunct before it reads the level
+    or a later one. The values of such a level outside m are rejected by
+    that conjunct before anything else of the guard reads them, so drawing
+    the level from m drops only values evaluating the guard in full would
+    reject there."""
+    names = set(levels)
+    out: dict[int, object] = {}
+    deepest = -1
+    for c in guard:
+        if isinstance(c, Builtin) and c.op == "in" and _is_level(c.args[0]):
+            t, m = c.args
+            read = part_reads(t, names)
+            d = levels.index(next(iter(read))) if len(read) == 1 and read <= names else None
+            if d is not None and d > deepest and d not in out and not free_names(m, primed=True) and free_names(m, primed=False) <= known:
+                out[d] = m
+        deepest = max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
+    return out
+
+def _is_level(t) -> bool:
+    """Whether t is a field, or a part of one by a literal key."""
+    if isinstance(t, Free):
+        return not t.primed
+    if isinstance(t, Field):
+        return isinstance(t.of, Free) and not t.of.primed
+    return isinstance(t, Index) and isinstance(t.map, Free) and not t.map.primed and isinstance(t.key, Lit)
+
+
+def _reads(read: set, level) -> bool:
+    """Whether what a conjunct reads, as part_reads says it, reads level."""
+    return level in read or (isinstance(level, tuple) and level[0] in read)

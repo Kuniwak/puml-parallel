@@ -7,7 +7,7 @@ import inspect
 import itertools
 import math
 import sys
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 
 from csdfbmc.checks import ANY, Checks, apply
@@ -15,7 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import decides_early, determine, part_reads, place
+from csdfbmc.determine import decides_early, determine, draws, part_reads, place
 from csdfbmc.product import pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -196,7 +196,8 @@ class _Plan:
     equality binding a part of each such field. ranged: each field that
     ranges, as ?name. records: for each field whose parts range though no
     equality binds one, its keys and its records by the kind_keys of their
-    parts in that order."""
+    parts in that order. draws: the map term each level a leading
+    membership decides is drawn from, by its place in levels (draws)."""
     levels: list
     steps: list
     inside: int
@@ -204,6 +205,7 @@ class _Plan:
     last_part: dict
     ranged: frozenset
     records: dict
+    draws: dict
 
     def size(self, depth: int) -> int:
         """How many values the levels from depth on give in all."""
@@ -579,7 +581,8 @@ class Explorer:
         shapes = shapes | split
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         records = {f: (shape[0], {tuple(kind_key(r[k]) for k in shape[0]): r for r in self._field_values(e, f)}) for f, shape in split.items()}
-        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records)
+        return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records,
+                     draws(e.guard, [name for name, _ in levels], known))
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the
@@ -635,9 +638,23 @@ class Explorer:
             return run
 
         levels = [lambda prefix, vs=vs: vs for _, vs in plan.levels]
+        for d, m in plan.draws.items():
+            levels[d] = self._drawn(state, plan, d, m)
         steps = [step(groups[d]) if d in groups else None for d in range(len(levels) + 1)]
         for prefix, bound in pruned_product(levels, steps, lambda prefix: None):
             yield self._params(e, plan, prefix, bound), plan.inside
+
+    def _drawn(self, state: State, plan: "_Plan", d: int, m) -> Callable[[tuple], list]:
+        """The level d of plan drawn from the map m is at in state: its
+        values m has as keys, in its order; the first of its values when m
+        has none, so that the membership is still asked and rejects it. The
+        whole level when m is not a map, for the guard to refuse it."""
+        vs = plan.levels[d][1]
+        mv = self.ev.value(m, self._before(state), {}, ())
+        if not isinstance(mv, Mapping):
+            return lambda prefix: vs
+        kept = [v for v in vs if v in mv] or vs[:1]
+        return lambda prefix: kept
 
     def _first_false(self, state: State, e: Edge) -> Iterator[int | None]:
         """For every value of the full product of the fields e receives, in
