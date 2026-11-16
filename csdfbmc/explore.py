@@ -195,8 +195,8 @@ class _Plan:
     field equalities bind parts of. last_part: the place of the last
     equality binding a part of each such field. ranged: each field that
     ranges, as ?name. records: for each field whose parts range though no
-    equality binds one, its keys and its records by the kind_keys of their
-    parts in that order. draws: the map term each level a leading
+    equality binds one, its keys, of which its record is made from the
+    values its parts take. draws: the map term each level a leading
     membership decides is drawn from, by its place in levels (draws).
     witness: the ∃ that draws levels from the entries of a map, or None
     (witness)."""
@@ -589,7 +589,7 @@ class Explorer:
             steps, inside = place(e.guard, binds, names)
         shapes = shapes | split
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
-        records = {f: (shape[0], {tuple(kind_key(r[k]) for k in shape[0]): r for r in self._field_values(e, f)}) for f, shape in split.items()}
+        records = {f: shape[0] for f, shape in split.items()}
         return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records,
                      draws(e.guard, names, known), witness(e.guard, names, known))
 
@@ -598,9 +598,8 @@ class Explorer:
         steps have bound, in the event's order."""
         ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
         if plan.records:
-            for f, (keys, records) in plan.records.items():
-                got = [(k, ranging[(f, k)]) for k in keys if (f, k) in ranging]
-                ranging[f] = records[tuple(kind_key(v) for _, v in got)] if len(got) == len(keys) else FrozenMap(got)
+            for f, keys in plan.records.items():
+                ranging[f] = FrozenMap((k, ranging[(f, k)]) for k in keys if (f, k) in ranging)
         return {p: ranging[p] if p in ranging else bound[p] for p in e.params if p in ranging or p in bound}
 
     def _step(self, e: Edge, plan: "_Plan", i: int, b, prefix: tuple, bound: dict, before: dict) -> bool:
