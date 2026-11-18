@@ -2,6 +2,7 @@ package csdflintcmd_test
 
 import (
 	"encoding/csv"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -148,9 +149,65 @@ func TestNewMainFuncListsTheRules(t *testing.T) {
 		t.Log(spy.Stderr.String())
 		t.Errorf("want 0, got %d", exitStatus)
 	}
-	for _, want := range []string{"syntax-error: ", "self-transition-divergence: ", "self-transition-post-breaks-guard: "} {
+	for _, want := range []string{"syntax-error: ", "self-transition-divergence: ", "self-transition-post-breaks-guard: ", "atom-not-in-language: "} {
 		if !strings.Contains(spy.Stdout.String(), want) {
 			t.Errorf("want %q, got %q", want, spy.Stdout.String())
 		}
+	}
+}
+
+// pythonGlue is the reference glue as a command line csdflint runs from this
+// directory.
+func pythonGlue(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not on the PATH")
+	}
+	return "sh -c 'cd ../../.. && exec python3 -E -s -B -m csdfbmc.python_glue'"
+}
+
+func TestNewMainFuncReportsTheAtomsTheGlueDoesNotRead(t *testing.T) {
+	// Arrange
+	path := filepath.Join("testdata", "atoms.puml")
+
+	// Act
+	exitStatus, spy := run("-evaluator", pythonGlue(t), path)
+
+	// Assert
+	if exitStatus != 1 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 1, got %d", exitStatus)
+	}
+	var got []string
+	for _, line := range strings.Split(strings.TrimSpace(spy.Stdout.String()), "\n")[1:] {
+		cols := strings.Split(line, "\t")
+		if cols[3] == "atom-not-in-language" {
+			got = append(got, strings.Join(cols[1:5], " "))
+		}
+	}
+	want := []string{
+		"5 5 atom-not-in-language ERROR",
+		"6 6 atom-not-in-language ERROR",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("findings mismatch (-want +got):\n%s\n%s", diff, spy.Stdout.String())
+	}
+	for _, said := range []string{"LIMIT is neither a builtin nor a definition", "a post atom of this glue is"} {
+		if !strings.Contains(spy.Stdout.String(), said) {
+			t.Errorf("want %q said, got %q", said, spy.Stdout.String())
+		}
+	}
+}
+
+func TestNewMainFuncFailsWithTwoOnAGlueItCannotStart(t *testing.T) {
+	// Arrange & Act
+	exitStatus, spy := run("-evaluator", "sh -c 'exit 0'", filepath.Join("testdata", "clean.puml"))
+
+	// Assert
+	if exitStatus != 2 {
+		t.Errorf("want 2, got %d", exitStatus)
+	}
+	if !strings.Contains(spy.Stderr.String(), "the glue ended without answering") {
+		t.Errorf("want why the glue was refused, got %q", spy.Stderr.String())
 	}
 }

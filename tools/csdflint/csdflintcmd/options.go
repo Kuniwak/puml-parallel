@@ -13,6 +13,9 @@ type Options struct {
 	Common *tools.CommonOptions
 	// ListRules asks for the catalog of rules instead of a run of them.
 	ListRules bool
+	// Evaluator is the command line of a glue every atom is asked about
+	// (rule atom-not-in-language); empty asks nothing of the atoms.
+	Evaluator string
 	Inputs    []tools.FileInput
 }
 
@@ -26,6 +29,8 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 
 		var listRules bool
 		flags.BoolVar(&listRules, "list-rules", false, "list the rules and exit")
+		var evaluator string
+		flags.StringVar(&evaluator, "evaluator", "", "the command line of a glue of the evaluator protocol, such as python3 -m csdfbmc.python_glue defs.py, asked whether it reads each atom (rule atom-not-in-language)")
 
 		flags.Usage = func() {
 			w := flags.Output()
@@ -36,7 +41,9 @@ the columns file, start_line, end_line, rule, severity and message.
 No file argument, and a "-" argument, both mean standard input. Clauses are
 read as formulas (docs/CLAUSE_DESIGN.md), so the old @opaque and
 @[from := to] are syntax errors. No rule evaluates an atom: a rule concludes
-only what the builtins and the shape of a formula decide.
+only what the builtins and the shape of a formula decide. Given -evaluator,
+csdflint also asks that glue, without values, whether it reads each atom,
+as csdfbmc would read it, and walks no state.
 
 A message is written to be read by a person and by an AI reviewing a diagram it
 wrote itself, so it says what would settle the question, not only what looks
@@ -58,6 +65,7 @@ Examples:
   $ csdflint path/to/file.puml
   $ csdflint path/to/*.puml
   $ csdflint < path/to/file.puml
+  $ csdflint -evaluator "python3 -m csdfbmc.python_glue defs.py" path/to/file.puml
   $ csdflint -list-rules
 `)
 		}
@@ -90,6 +98,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdflintcmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Inputs: inputs}, nil
+		return &Options{Common: commonOpts, Evaluator: evaluator, Inputs: inputs}, nil
 	}
 }

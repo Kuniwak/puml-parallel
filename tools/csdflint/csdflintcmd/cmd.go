@@ -3,9 +3,13 @@ package csdflintcmd
 import (
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/glue"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v3/tools"
 	"github.com/Kuniwak/puml-parallel/v3/version"
 )
 
@@ -22,10 +26,19 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		rules := lint.DefaultRules()
 
 		if opts.ListRules {
-			for _, rule := range rules {
+			for _, rule := range append(rules, lint.AtomNotInLanguageRule{}) {
 				fmt.Fprintf(inout.Stdout, "%s: %s\n", rule.ID(), rule.Description())
 			}
 			return nil
+		}
+
+		if opts.Evaluator != "" {
+			c, err := startGlue(opts.Evaluator)
+			if err != nil {
+				return &tools.ExitStatusError{Status: 2, Message: err.Error()}
+			}
+			defer c.Close()
+			rules = append(rules, lint.AtomNotInLanguageRule{Glue: c})
 		}
 
 		inputs := make([]*lint.Input, 0, len(opts.Inputs))
@@ -45,4 +58,19 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 		return nil
 	}
+}
+
+// startGlue starts the glue the command line names, its errors on the
+// tool's standard error.
+func startGlue(line string) (*glue.Client, error) {
+	words, err := glue.SplitCommand(line)
+	if err != nil {
+		return nil, err
+	}
+	if len(words) == 0 {
+		return nil, errors.New("-evaluator expects the command line of a glue")
+	}
+	cmd := exec.Command(words[0], words[1:]...)
+	cmd.Stderr = os.Stderr
+	return glue.Start(cmd)
 }
