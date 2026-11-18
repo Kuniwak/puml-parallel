@@ -79,3 +79,14 @@ class ShapesTest(unittest.TestCase):
 
         # Verify
         self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["high"]}})
+
+    def test_an_attribute_of_a_maps_value_is_a_field_of_the_maps_value_type(self):
+        # Setup
+        d = diagram({"s": ["m"]}, "s", edges=[edge("s", "s", "go?k", guard=[atom("$m[$k]['level'] == 'high'")])],
+                    types={"m": "K ⇸ Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["high"]}})

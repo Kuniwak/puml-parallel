@@ -70,15 +70,19 @@ def _atoms(clauses):
 
 
 def _path(node, holes):
-    path = []
-    while isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
-        path.append(node.slice.value)
-        node = node.value
+    """The type node reads an attribute of and the attributes, or None."""
     if isinstance(node, ast.Name) and node.id.startswith("_") and node.id[1:].isdigit():
-        hole = holes[int(node.id[1:])]
-        if hole is not None:
-            return hole[0], hole[1] + list(reversed(path))
-    return None
+        return holes[int(node.id[1:])]
+    if not isinstance(node, ast.Subscript):
+        return None
+    of = _path(node.value, holes)
+    if of is None:
+        return None
+    if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+        return of[0], of[1] + [node.slice.value]
+    # A value of a map type K ⇸ V looked up is of V.
+    _, arrow, value = of[0].partition("⇸")
+    return (value.strip(), []) if arrow and not of[1] else None
 
 
 def _term_types(doc, e, var_types):
