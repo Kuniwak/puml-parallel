@@ -1,8 +1,13 @@
 """csdfbmc shapes: the attribute trees of the values that the formal clauses
 reveal, read from the clauses' syntax alone."""
+import io
+import json
+import os
+import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 
-from csdfbmc.shapes import shapes
+from csdfbmc.shapes import main, shapes
 from csdfbmc.tests.fixture import atom, diagram, edge, eq, family, fld, idx
 
 
@@ -137,3 +142,34 @@ class ShapesTest(unittest.TestCase):
         self.assertEqual(got, {"types": {"Nat": {"kind": "scalar", "examples": [0]}, "Inst": {"kind": "scalar"},
                                          "K": {"kind": "scalar"}},
                                "vars": {"m": "K ⇸ Inst", "n": "Nat", "r": "Role"}})
+
+
+class CommandTest(unittest.TestCase):
+    def run_main(self, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = main(list(args))
+        return code, out.getvalue(), err.getvalue()
+
+    def test_the_command_prints_the_shapes_of_the_diagram_as_json(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", init_post=[atom("$r' == {'level': 'low'}")], types={"r": "Role"})
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = os.path.join(tmp.name, "d.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+
+        # Execute
+        code, out, _ = self.run_main(path)
+
+        # Verify
+        self.assertEqual((code, json.loads(out)), (0, shapes(d)))
+
+    def test_the_command_exits_2_on_a_diagram_it_cannot_read(self):
+        # Execute
+        code, _, err = self.run_main("/no/such/diagram.json")
+
+        # Verify
+        self.assertEqual(code, 2)
+        self.assertIn("csdfbmc shapes:", err)

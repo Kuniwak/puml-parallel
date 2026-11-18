@@ -1,11 +1,16 @@
-"""What the formal clauses of a diagram reveal of the values of its types:
+"""python -m csdfbmc.shapes <diagram.json>
+
+What the formal clauses of a diagram reveal of the values of its types:
 the attributes they read and the constants they compare them with.
 
 The reading is syntactic: an attribute no clause mentions is absent, and a
 value is known only where a clause compares an attribute with a constant."""
 from __future__ import annotations
 
+import argparse
 import ast
+import json
+import sys
 
 # The operators whose operands are numbers.
 ARITHMETIC = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)
@@ -13,8 +18,13 @@ ORDER = (ast.Lt, ast.LtE, ast.Gt, ast.GtE)
 
 
 def shapes(doc: dict) -> dict:
-    """The attribute tree of every type of doc, a diagram as csdfparse
-    prints it, as {"types": {type: node}}."""
+    """What the clauses of doc, a diagram as csdfparse or csdfpromote
+    -format json prints it, reveal: {"types": {type: node}, "vars": {variable:
+    type}}. A node is {"kind": "record", "fields": {attribute: node}},
+    {"kind": "collection", "items": node} or {"kind": "scalar"}, the last
+    with "examples", the constants it is compared with, and "numeric": true
+    when it is ordered or computed with. A type no clause reads anything of
+    is absent; a map type K ⇸ V is no shape, its values being of V."""
     var_types = {v["name"]: v["type"] for vs in doc["vars"].values() for v in vs}
     families = {f["map"]: {v["name"]: v["type"] for vs in f["vars"].values() for v in vs} for f in doc.get("families", [])}
     trees: dict = {}
@@ -171,3 +181,23 @@ def _node(n):
     if n.get("numeric"):
         out["numeric"] = True
     return out
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="csdfbmc shapes", description=__doc__.split("\n\n")[1])
+    ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output, or csdfpromote -format json's), its clauses in Python")
+    a = ap.parse_args(argv)
+    try:
+        with open(a.diagram, encoding="utf-8") as f:
+            doc = json.load(f)
+        got = shapes(doc)
+    except (OSError, ValueError, KeyError) as e:
+        print(f"csdfbmc shapes: {e}", file=sys.stderr)
+        return 2
+    json.dump(got, sys.stdout, ensure_ascii=False, indent=2)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
