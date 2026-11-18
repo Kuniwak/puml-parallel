@@ -113,3 +113,13 @@ class ShapesTest(unittest.TestCase):
         # Verify
         self.assertEqual(got["types"]["Role"]["fields"],
                          {"tags": {"kind": "collection", "items": {"kind": "scalar", "examples": ["admin"]}}})
+
+    def test_the_start_states_post_reveals_attributes_too(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", init_post=[atom("$r' == {'level': 'low'}")], types={"r": "Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["low"]}})

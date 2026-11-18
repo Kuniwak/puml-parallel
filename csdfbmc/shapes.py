@@ -18,7 +18,8 @@ def shapes(doc: dict) -> dict:
     var_types = {v["name"]: v["type"] for vs in doc["vars"].values() for v in vs}
     families = {f["map"]: {v["name"]: v["type"] for vs in f["vars"].values() for v in vs} for f in doc.get("families", [])}
     trees: dict = {}
-    for e in doc["edges"]:
+    start = {"fields": [], "guard": [], "post": doc.get("init_post", [])}
+    for e in [start, *doc["edges"]]:
         types = _term_types(doc, e, var_types)
         for term in _fields(e.get("guard", []) + e.get("post", [])):
             found = _resolved(term, types, families)
