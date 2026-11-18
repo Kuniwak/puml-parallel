@@ -78,8 +78,12 @@ func newMainFunc(render RenderSVG) cli.MainFunc[*Options] {
 		if title == "" {
 			title = strings.TrimSuffix(name, filepath.Ext(name))
 		}
+		engine, err := replweb.CommittedEngine()
+		if err != nil {
+			return err
+		}
 		return replweb.WriteStaticPage(inout.Stdout, replweb.Page{
 			Title: title, Path: name, Diagram: []byte(source), Includes: includes, SVG: svg, Highlights: highlights,
-		})
+		}, engine)
 	}
 }

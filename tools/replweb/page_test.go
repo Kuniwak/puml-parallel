@@ -16,7 +16,11 @@ import (
 func writeTestPage(t *testing.T, page Page) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := WriteStaticPage(&buf, page); err != nil {
+	engine, err := CommittedEngine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteStaticPage(&buf, page, engine); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
