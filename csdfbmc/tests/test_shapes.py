@@ -3,7 +3,7 @@ reveal, read from the clauses' syntax alone."""
 import unittest
 
 from csdfbmc.shapes import shapes
-from csdfbmc.tests.fixture import atom, diagram, edge
+from csdfbmc.tests.fixture import atom, diagram, edge, eq, fld
 
 
 class ShapesTest(unittest.TestCase):
@@ -54,3 +54,16 @@ class ShapesTest(unittest.TestCase):
 
         # Verify
         self.assertEqual(got["types"]["Job"]["fields"], {"pages": {"kind": "scalar", "examples": [1]}})
+
+    def test_a_builtin_terms_attribute_is_a_field_of_its_type(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", edges=[edge("s", "s", "go", guard=[eq(fld("r", "owner"), "r"), atom("${} == 'me'", fld(fld("r", "scope"), "kind"))])],
+                    types={"r": "Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"],
+                         {"owner": {"kind": "scalar"},
+                          "scope": {"kind": "record", "fields": {"kind": {"kind": "scalar", "examples": ["me"]}}}})

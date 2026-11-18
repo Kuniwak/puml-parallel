@@ -18,8 +18,13 @@ def shapes(doc: dict) -> dict:
     var_types = {v["name"]: v["type"] for vs in doc["vars"].values() for v in vs}
     trees: dict = {}
     for e in doc["edges"]:
+        types = _term_types(doc, e, var_types)
+        for term in _fields(e.get("guard", []) + e.get("post", [])):
+            found = _resolved(term, types)
+            if found:
+                _add(trees, *found)
         for a in _atoms(e.get("guard", []) + e.get("post", [])):
-            holes = [_resolved(a["args"][h], _term_types(doc, e, var_types)) for h in a["holes"]]
+            holes = [_resolved(a["args"][h], types) for h in a["holes"]]
             source = a["pieces"][0] + "".join(f" _{i} " + p for i, p in enumerate(a["pieces"][1:]))
             try:
                 tree = ast.parse(source.strip(), mode="eval")
@@ -87,7 +92,22 @@ def _resolved(term, types):
     """The type a term's value is of and the attributes read of it, or None."""
     if term["kind"] == "free" and term["name"] in types:
         return types[term["name"]], []
+    if term["kind"] == "field":
+        of = _resolved(term["of"], types)
+        return of and (of[0], of[1] + [term["name"]])
     return None
+
+
+def _fields(x):
+    """The field terms in clauses, outermost first."""
+    if isinstance(x, dict):
+        if x.get("kind") == "field":
+            yield x
+        for v in x.values():
+            yield from _fields(v)
+    elif isinstance(x, list):
+        for v in x:
+            yield from _fields(v)
 
 
 def _add(trees, t, path):
