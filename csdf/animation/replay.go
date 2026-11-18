@@ -167,7 +167,8 @@ func (s *Session) matchStep(step ReplayStep) (int, error) {
 // LoadReplays reads csdfbmc's JSON output and flattens its findings, in the
 // order the output lists them: deadlocks, tau cycles, broken invariants,
 // avoiding cycles, empty posts, unconstrained posts; then the states where
-// the bound of a sample type was reached, which are no findings but may be
+// the bound of a sample type was reached and the paths a person explored
+// (csdfreplweb saves one under "paths"), which are no findings but may be
 // looked at too.
 func LoadReplays(bs []byte) ([]Finding, error) {
 	type entry struct {
@@ -186,6 +187,7 @@ func LoadReplays(bs []byte) ([]Finding, error) {
 		EmptyPosts     []entry `json:"empty_posts"`
 		Unconstrained  []entry `json:"unconstrained"`
 		BoundReached   []entry `json:"bound_reached"`
+		Paths          []entry `json:"paths"`
 	}
 	if err := json.Unmarshal(bs, &out); err != nil {
 		return nil, fmt.Errorf("animation.LoadReplays: not csdfbmc --json output: %w", err)
@@ -204,6 +206,7 @@ func LoadReplays(bs []byte) ([]Finding, error) {
 	add("empty_post", out.EmptyPosts, func(e entry) string { return e.Event })
 	add("unconstrained", out.Unconstrained, func(e entry) string { return e.Event + " leaves " + strings.Join(e.Variables, ", ") })
 	add("bound_reached", out.BoundReached, none)
+	add("path", out.Paths, none)
 	return findings, nil
 }
 
