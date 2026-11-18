@@ -16,15 +16,16 @@ def shapes(doc: dict) -> dict:
     """The attribute tree of every type of doc, a diagram as csdfparse
     prints it, as {"types": {type: node}}."""
     var_types = {v["name"]: v["type"] for vs in doc["vars"].values() for v in vs}
+    families = {f["map"]: {v["name"]: v["type"] for vs in f["vars"].values() for v in vs} for f in doc.get("families", [])}
     trees: dict = {}
     for e in doc["edges"]:
         types = _term_types(doc, e, var_types)
         for term in _fields(e.get("guard", []) + e.get("post", [])):
-            found = _resolved(term, types)
+            found = _resolved(term, types, families)
             if found:
                 _add(trees, *found)
         for a in _atoms(e.get("guard", []) + e.get("post", [])):
-            holes = [_resolved(a["args"][h], types) for h in a["holes"]]
+            holes = [_resolved(a["args"][h], types, families) for h in a["holes"]]
             source = a["pieces"][0] + "".join(f" _{i} " + p for i, p in enumerate(a["pieces"][1:]))
             try:
                 tree = ast.parse(source.strip(), mode="eval")
@@ -88,12 +89,17 @@ def _term_types(doc, e, var_types):
     return {**var_types, **dict(zip(names, types))} if len(names) == len(types) else var_types
 
 
-def _resolved(term, types):
+def _resolved(term, types, families):
     """The type a term's value is of and the attributes read of it, or None."""
     if term["kind"] == "free" and term["name"] in types:
         return types[term["name"]], []
+    of = term.get("of", {})
+    if term["kind"] == "field" and of.get("kind") == "index" and of["map"].get("name") in families:
+        # An instance of a family is the map of its variables.
+        instance = families[of["map"]["name"]]
+        return (instance[term["name"]], []) if term["name"] in instance else None
     if term["kind"] == "field":
-        of = _resolved(term["of"], types)
+        of = _resolved(term["of"], types, families)
         return of and (of[0], of[1] + [term["name"]])
     return None
 

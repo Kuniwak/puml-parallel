@@ -3,7 +3,7 @@ reveal, read from the clauses' syntax alone."""
 import unittest
 
 from csdfbmc.shapes import shapes
-from csdfbmc.tests.fixture import atom, diagram, edge, eq, fld
+from csdfbmc.tests.fixture import atom, diagram, edge, eq, family, fld, idx
 
 
 class ShapesTest(unittest.TestCase):
@@ -67,3 +67,15 @@ class ShapesTest(unittest.TestCase):
         self.assertEqual(got["types"]["Role"]["fields"],
                          {"owner": {"kind": "scalar"},
                           "scope": {"kind": "record", "fields": {"kind": {"kind": "scalar", "examples": ["me"]}}}})
+
+    def test_an_attribute_of_an_instances_variable_is_a_field_of_the_variables_type(self):
+        # Setup
+        f = family("m", "none", {"none": [], "on": ["r"]}, types={"r": "Role"})
+        d = diagram({"s": ["m"]}, "s", edges=[edge("s", "s", "go?k", guard=[atom("${}['level'] == 'high'", fld(idx("m", "k"), "r"))])],
+                    families=[f], types={"m": "K ⇸ Inst"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["high"]}})
