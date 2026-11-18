@@ -12,6 +12,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v3/pngsrc"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
@@ -71,20 +72,11 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 			return nil
 		}
 
-		raw, err := os.ReadFile(opts.File)
+		source, includes, d, err := readDiagram(opts.File)
 		if err != nil {
-			return fmt.Errorf("csdfreplwebcmd: cannot read the diagram: %w", err)
-		}
-		source, err := pngsrc.Extract(raw)
-		if err != nil {
-			return fmt.Errorf("csdfreplwebcmd: %q: %w", opts.File, err)
+			return err
 		}
 		dir := filepath.Dir(opts.File)
-		includes := map[string]string{}
-		d, _, err := animation.ReadDiagram([]byte(source), coreio.RecordingIncluder(coreio.FileIncluder(dir), includes))
-		if err != nil {
-			return fmt.Errorf("csdfreplwebcmd: %q: %w", opts.File, err)
-		}
 		svg, err := render(opts.PumlExec, dir, []byte(source))
 		if err != nil {
 			return err
@@ -118,6 +110,27 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 			Python: python, Shapes: shapes,
 		}, engine)
 	}
+}
+
+// readDiagram reads the diagram file is, a .puml text or a .png, as the
+// session explores it: its source, the source of every file a promotion in
+// it includes, by the path its !include writes, read relative to file, and
+// the diagram.
+func readDiagram(file string) (string, map[string]string, *core.Diagram, error) {
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: cannot read the diagram: %w", err)
+	}
+	source, err := pngsrc.Extract(raw)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: %q: %w", file, err)
+	}
+	includes := map[string]string{}
+	d, _, err := animation.ReadDiagram([]byte(source), coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(file)), includes))
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: %q: %w", file, err)
+	}
+	return source, includes, d, nil
 }
 
 // shapesOf is the JSON of the file -shapes names, or nil when none is.
