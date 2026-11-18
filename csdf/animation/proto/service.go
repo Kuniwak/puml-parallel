@@ -329,6 +329,7 @@ func viewResponse(e *entry) Response {
 		case errors.Is(err, animation.ErrNoSuggester):
 		case err != nil:
 			animation.RenderError(&buf, err.Error())
+			view.Pending.SuggestError = err.Error()
 		default:
 			animation.RenderSuggestions(&buf, suggestions)
 			view.Pending.Suggestions = suggestions

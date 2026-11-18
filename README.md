@@ -1576,7 +1576,8 @@ is `"(none)"` in both); `statevar`
 instead takes its values via `-json <json-array>` or `-json-file <file>`. A daemon
 started with `-checks CHECKS.py` and a glue (`-evaluator` or `-evaluator-module`)
 asks `csdfbmc` at every value prompt what values the clauses admit:
-`read` lists them under `suggestions`, and `statevar -pick N` enters the N-th.
+`read` lists them under `suggestions` (and why it could not, under
+`suggest_error`), and `statevar -pick N` enters the N-th.
 `session new` explores a promotion as its expansion, as `csdfrepl` does: the
 client reads each `!include` relative to the file and sends it along, for the
 daemon reads no file of its own, and prints the promotion's warnings on its

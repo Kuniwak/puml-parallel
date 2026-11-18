@@ -156,6 +156,9 @@ type Pending struct {
 	// Suggestions are the values the checker admits for this prompt, when
 	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`
+	// SuggestError is why the checker could not suggest values, when it
+	// failed.
+	SuggestError string `json:"suggest_error,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).

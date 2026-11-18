@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -620,5 +621,30 @@ func TestHandleEndEndsTheRunAtAnEndEdge(t *testing.T) {
 	}
 	if again.OK || !strings.Contains(again.Error, "the run has ended") {
 		t.Errorf("end after the end = %+v, want a refusal", again)
+	}
+}
+
+type failingSuggester struct{ animation.NoSuggester }
+
+func (failingSuggester) Initial() ([]animation.Suggestion, error) {
+	return nil, errors.New("the checker broke")
+}
+
+func TestASuggesterThatFailsSaysWhyInTheView(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
+		return failingSuggester{}, animation.NoCleanup, nil
+	})
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
+	}
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	if view := decodeView(t, read); view.Pending == nil || view.Pending.SuggestError != "the checker broke" {
+		t.Errorf("read view = %+v, want the checker's error", view.Pending)
 	}
 }
