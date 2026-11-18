@@ -139,6 +139,11 @@ class DiagramTest(unittest.TestCase):
             "a missing key": (lambda d: d.pop("labels"), "lacks \\['labels'\\]"),
             "an @at with both a state and states": (lambda d: d["init_post"].append(builtin("at", "t'", state="A", states=["A", "B"])),
                                                     "both a state and states"),
+            "an @at with an empty state and states": (lambda d: d["init_post"].append(builtin("at", "t'", state="", states=["A", "B"])),
+                                                      "both a state and states"),
+            "an @at with an empty state": (lambda d: d["init_post"].append(builtin("at", "t'", state="")), "whose state is empty"),
+            "an @at with states of one": (lambda d: d["init_post"].append(builtin("at", "t'", states=["A"])), "states of 1, not 2 or more"),
+            "an @at with no states": (lambda d: d["init_post"].append(builtin("at", "t'", states=[])), "states of 0, not 2 or more"),
             "a key of another kind": (lambda d: d["init_post"].append(dict(builtin("empty", "m'"), type="T")), "keys it does not read, \\['type'\\]"),
         }
         for name, (edit, said) in tests.items():

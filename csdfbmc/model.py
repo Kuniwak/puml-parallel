@@ -407,10 +407,17 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
 
 def _states(doc: dict) -> tuple:
     """The states of a builtin's document: its one state as state, or two
-    or more as states, as core.BuiltinDoc writes them."""
-    if doc.get("state") and doc.get("states"):
+    or more as states, as core.BuiltinDoc writes them; each form is held to
+    its own count."""
+    if "state" in doc and "states" in doc:
         raise ValueError(f"a builtin with both a state and states: {doc!r}")
-    return (doc["state"],) if doc.get("state") else tuple(doc.get("states", ()))
+    if "state" in doc:
+        if doc["state"] == "":
+            raise ValueError(f"a builtin whose state is empty: {doc!r}")
+        return (doc["state"],)
+    if "states" in doc and len(doc["states"]) < 2:
+        raise ValueError(f"a builtin with states of {len(doc['states'])}, not 2 or more: {doc!r}")
+    return tuple(doc.get("states", ()))
 
 
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
