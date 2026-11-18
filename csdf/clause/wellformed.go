@@ -2,6 +2,7 @@ package clause
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
@@ -69,8 +70,8 @@ func wellFormedBuiltin(b Builtin) error {
 	if len(b.Args) < spec.Terms || (!spec.Variadic && len(b.Args) > spec.Terms) {
 		return fmt.Errorf("@%s takes %d terms, not %d", b.Op, spec.Terms, len(b.Args))
 	}
-	if spec.State != (len(b.States) > 0) {
-		return fmt.Errorf("@%s: a state %q where the table says state = %v", b.Op, b.States, spec.State)
+	if !spec.State && len(b.States) > 0 {
+		return fmt.Errorf("@%s: the states %s, but it takes none", b.Op, strings.Join(b.States, ", "))
 	}
 	for _, s := range b.States {
 		if err := ident.Check(s); err != nil {
