@@ -1328,8 +1328,9 @@ csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values
 ```
 
 With `--random-walk`, the line says the walks taken in, the steps taken
-so far (those of the walks in progress included, in workers too), the
-deepest, the walks per second, the findings so far (deadlocks, broken
+so far (those of the walks in progress included, in workers too, and of
+walks taken but left out when the walks stop, so that it may exceed the
+steps the report says), the deepest, the walks per second, the findings so far (deadlocks, broken
 invariants and empty posts; not a bound reached), the time spent and the
 memory held:
 
