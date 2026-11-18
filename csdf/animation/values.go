@@ -29,12 +29,14 @@ type State struct {
 	Values []Value `json:"values"`
 }
 
-// Target is a state awaiting values: its ID, its label, and the names of
-// its variables in declaration order.
+// Target is a state awaiting values: its ID, its label, the names of its
+// variables in declaration order, and the type of each variable the
+// diagram declares one of, as the diagram writes it.
 type Target struct {
-	ID   string   `json:"state_id"`
-	Name string   `json:"state_name"`
-	Vars []string `json:"vars"`
+	ID    string            `json:"state_id"`
+	Name  string            `json:"state_name"`
+	Vars  []string          `json:"vars"`
+	Types map[string]string `json:"types,omitempty"`
 }
 
 // RefusedValuesError says why entered values do not fit the target state;
@@ -59,7 +61,16 @@ func StateName(d *core.Diagram, id string) string {
 
 // targetOf is the state id of d awaiting values.
 func targetOf(d *core.Diagram, id string) Target {
-	return Target{ID: id, Name: StateName(d, id), Vars: slices.Clone(d.Vars[id])}
+	t := Target{ID: id, Name: StateName(d, id), Vars: slices.Clone(d.Vars[id])}
+	for _, v := range t.Vars {
+		if typ, ok := d.Types[v]; ok && !typ.IsZero() {
+			if t.Types == nil {
+				t.Types = map[string]string{}
+			}
+			t.Types[v] = typ.String()
+		}
+	}
+	return t
 }
 
 // Family is the family whose instances the map name holds, if any.
