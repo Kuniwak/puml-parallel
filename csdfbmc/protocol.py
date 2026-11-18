@@ -179,7 +179,7 @@ def NO_LINT(atom: dict, role: str) -> str | None:
 
 
 def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Callable[[dict, list], list[list]],
-                 symmetric: AtomSymmetric, lint: AtomLint = NO_LINT) -> Handle:
+                 symmetric: AtomSymmetric, lint: AtomLint) -> Handle:
     """The Handle of a glue: guard(atom, values) and post(atom, values)
     evaluate an atom under one list of values of its arguments,
     symmetric(atom, params, maps, groups) answers what symmetry reduction

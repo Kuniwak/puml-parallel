@@ -7,13 +7,19 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 )
 
-// AtomLinter is a glue asked whether an atom is of its language: the lint
-// request of the evaluator protocol (csdfbmc/protocol.py). Lint returns why
-// the atom is not one the glue reads in role, "guard" or "post", or "" when
-// it is; an error is a glue that answered with one.
-type AtomLinter interface {
-	Lint(atom clause.AtomWire, role string) (string, error)
-}
+// Role is the clause an atom is in, as the lint request names it.
+type Role string
+
+const (
+	RoleGuard Role = "guard"
+	RolePost  Role = "post"
+)
+
+// AtomLint asks a glue whether an atom is of its language: the lint request
+// of the evaluator protocol (csdfbmc/protocol.py). It returns why the glue
+// does not read atom in role, or "" when it does; an error is a glue that
+// answered with one.
+type AtomLint func(atom clause.AtomWire, role Role) (string, error)
 
 // AtomNotInLanguageRule reports an atom the glue does not read. It is the
 // one rule that consults the language of the atoms, and only when a glue is
@@ -23,7 +29,7 @@ type AtomLinter interface {
 // csdfbmc is written in the glue's language alone. Each distinct atom is
 // asked once per role. Findings are ERRORs.
 type AtomNotInLanguageRule struct {
-	Glue AtomLinter
+	Lint AtomLint
 }
 
 func (AtomNotInLanguageRule) ID() string { return "atom-not-in-language" }
@@ -39,28 +45,28 @@ func (r AtomNotInLanguageRule) Check(in *Input) []Finding {
 	}
 	answers := map[string]string{}
 	var findings []Finding
-	check := func(f clause.And, role string, line int) {
-		eachAtom(f, func(a clause.Atom) {
+	check := func(f clause.And, role Role, line int) {
+		clause.EachAtom(f, func(a clause.Atom) {
 			if why := r.why(a, role, answers); why != "" {
 				findings = append(findings, Finding{File: in.File, StartLine: line, EndLine: line, RuleID: r.ID(), Severity: SeverityError,
 					Message: fmt.Sprintf("The %s atom `%s` is not one the glue reads: %s. Write it in the glue's language, or fix the glue's arguments if it reads a name they should define.", role, printedAtom(a), why)})
 			}
 		})
 	}
-	check(d.InitPost, "post", d.InitLine)
+	check(d.InitPost, RolePost, d.InitLine)
 	for _, e := range d.Edges {
-		check(e.Guard, "guard", e.Line)
-		check(e.Post, "post", e.Line)
+		check(e.Guard, RoleGuard, e.Line)
+		check(e.Post, RolePost, e.Line)
 	}
 	for _, e := range d.Ends {
 		// An end edge keeps no line.
-		check(e.Guard, "guard", 0)
+		check(e.Guard, RoleGuard, 0)
 	}
 	return findings
 }
 
 // why asks the glue about a in role once, remembering the answer in answers.
-func (r AtomNotInLanguageRule) why(a clause.Atom, role string, answers map[string]string) string {
+func (r AtomNotInLanguageRule) why(a clause.Atom, role Role, answers map[string]string) string {
 	wire, _, err := clause.Wire(a)
 	if err != nil {
 		return err.Error()
@@ -69,30 +75,16 @@ func (r AtomNotInLanguageRule) why(a clause.Atom, role string, answers map[strin
 	if err != nil {
 		return err.Error()
 	}
-	key := role + string(b)
+	key := string(role) + string(b)
 	if why, ok := answers[key]; ok {
 		return why
 	}
-	why, err := r.Glue.Lint(wire, role)
+	why, err := r.Lint(wire, role)
 	if err != nil {
 		why = "the glue answered " + err.Error()
 	}
 	answers[key] = why
 	return why
-}
-
-// eachAtom calls visit on each atom of f, under any ∃.
-func eachAtom(f clause.Formula, visit func(clause.Atom)) {
-	switch f := f.(type) {
-	case clause.And:
-		for _, c := range f.Conjuncts {
-			eachAtom(c, visit)
-		}
-	case clause.Exists:
-		eachAtom(f.Body, visit)
-	case clause.Atom:
-		visit(f)
-	}
 }
 
 func printedAtom(a clause.Atom) string {

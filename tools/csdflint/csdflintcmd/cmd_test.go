@@ -178,11 +178,17 @@ func TestNewMainFuncReportsTheAtomsTheGlueDoesNotRead(t *testing.T) {
 		t.Log(spy.Stderr.String())
 		t.Errorf("want 1, got %d", exitStatus)
 	}
+	r := csv.NewReader(strings.NewReader(spy.Stdout.String()))
+	r.Comma = '\t'
+	r.LazyQuotes = true
+	rows, err := r.ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
 	var got []string
-	for _, line := range strings.Split(strings.TrimSpace(spy.Stdout.String()), "\n")[1:] {
-		cols := strings.Split(line, "\t")
-		if cols[3] == "atom-not-in-language" {
-			got = append(got, strings.Join(cols[1:5], " "))
+	for _, row := range rows[1:] {
+		if row[3] == "atom-not-in-language" {
+			got = append(got, strings.Join(row[1:5], " "))
 		}
 	}
 	want := []string{
@@ -199,15 +205,31 @@ func TestNewMainFuncReportsTheAtomsTheGlueDoesNotRead(t *testing.T) {
 	}
 }
 
-func TestNewMainFuncFailsWithTwoOnAGlueItCannotStart(t *testing.T) {
-	// Arrange & Act
-	exitStatus, spy := run("-evaluator", "sh -c 'exit 0'", filepath.Join("testdata", "clean.puml"))
-
-	// Assert
-	if exitStatus != 2 {
-		t.Errorf("want 2, got %d", exitStatus)
+func TestNewMainFuncFailsWithTwoOnAGlueItCannotUse(t *testing.T) {
+	type testCase struct {
+		Evaluator string
+		WantSaid  string
 	}
-	if !strings.Contains(spy.Stderr.String(), "the glue ended without answering") {
-		t.Errorf("want why the glue was refused, got %q", spy.Stderr.String())
+	testCases := map[string]testCase{
+		"a glue that ends at once": {Evaluator: "sh -c 'exit 0'", WantSaid: "the glue ended without answering"},
+		"a glue that does not answer lint": {
+			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2}"; cat > /dev/null'`,
+			WantSaid:  "the fake glue does not answer lint",
+		},
+		"a blank command line": {Evaluator: "  ", WantSaid: "the command line of a glue is empty"},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange & Act
+			exitStatus, spy := run("-evaluator", tc.Evaluator, filepath.Join("testdata", "clean.puml"))
+
+			// Assert
+			if exitStatus != 2 {
+				t.Errorf("want 2, got %d", exitStatus)
+			}
+			if !strings.Contains(spy.Stderr.String(), tc.WantSaid) {
+				t.Errorf("want %q said, got %q", tc.WantSaid, spy.Stderr.String())
+			}
+		})
 	}
 }

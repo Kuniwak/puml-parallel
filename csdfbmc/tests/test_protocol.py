@@ -10,7 +10,7 @@ import sys
 import unittest
 import warnings
 
-from csdfbmc.protocol import (NO_CLOSE, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
+from csdfbmc.protocol import (NO_CLOSE, NO_LINT, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
                               start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
 from csdfbmc.values import FrozenMap, same_value
@@ -179,7 +179,7 @@ class HandlerTest(unittest.TestCase):
     """A glue speaks protocol 2 after its hello agreed on it, and only that."""
 
     def handle(self):
-        return atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC)
+        return atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC, lint=NO_LINT)
 
     def test_a_request_it_does_not_speak_is_refused(self):
         tests = {

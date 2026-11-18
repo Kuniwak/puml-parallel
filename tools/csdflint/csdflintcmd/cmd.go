@@ -3,10 +3,10 @@ package csdflintcmd
 import (
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
+	"io"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/glue"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/lint"
 	"github.com/Kuniwak/puml-parallel/v3/tools"
@@ -23,22 +23,23 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		rules := lint.DefaultRules()
-
 		if opts.ListRules {
-			for _, rule := range append(rules, lint.AtomNotInLanguageRule{}) {
-				fmt.Fprintf(inout.Stdout, "%s: %s\n", rule.ID(), rule.Description())
+			for _, rule := range lint.Catalog() {
+				fmt.Fprintf(inout.Stdout, "%s: %s\n", rule.ID, rule.Description)
 			}
 			return nil
 		}
 
+		rules := lint.DefaultRules()
 		if opts.Evaluator != "" {
-			c, err := startGlue(opts.Evaluator)
+			c, err := startGlue(opts.Evaluator, inout.Stderr)
 			if err != nil {
 				return &tools.ExitStatusError{Status: 2, Message: err.Error()}
 			}
 			defer c.Close()
-			rules = append(rules, lint.AtomNotInLanguageRule{Glue: c})
+			rules = append(rules, lint.AtomNotInLanguageRule{Lint: func(atom clause.AtomWire, role lint.Role) (string, error) {
+				return c.Lint(atom, string(role))
+			}})
 		}
 
 		inputs := make([]*lint.Input, 0, len(opts.Inputs))
@@ -60,17 +61,16 @@ func NewMainFunc() cli.MainFunc[*Options] {
 	}
 }
 
-// startGlue starts the glue the command line names, its errors on the
-// tool's standard error.
-func startGlue(line string) (*glue.Client, error) {
-	words, err := glue.SplitCommand(line)
+// startGlue starts the glue the command line names, which has to answer
+// lint, its errors on stderr.
+func startGlue(line string, stderr io.Writer) (*glue.Client, error) {
+	c, err := glue.StartCommandLine(line, stderr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("-evaluator: %w", err)
 	}
-	if len(words) == 0 {
-		return nil, errors.New("-evaluator expects the command line of a glue")
+	if !c.Supports("lint") {
+		c.Close()
+		return nil, fmt.Errorf("-evaluator: the %s glue does not answer lint, which csdflint asks of every atom", c.Language())
 	}
-	cmd := exec.Command(words[0], words[1:]...)
-	cmd.Stderr = os.Stderr
-	return glue.Start(cmd)
+	return c, nil
 }

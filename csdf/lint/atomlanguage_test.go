@@ -9,21 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// refusing is a glue that refuses every atom whose text holds bad, saying
-// so with the role it was asked in, and counts what it was asked.
-type refusing struct {
-	bad   string
-	asked int
-}
-
-func (r *refusing) Lint(atom clause.AtomWire, role string) (string, error) {
-	r.asked++
-	if strings.Contains(strings.Join(atom.Text, ""), r.bad) {
-		return "not a " + role, nil
-	}
-	return "", nil
-}
-
 func TestAtomNotInLanguageRule(t *testing.T) {
 	// Setup
 	source := strings.Join([]string{
@@ -36,10 +21,18 @@ func TestAtomNotInLanguageRule(t *testing.T) {
 		"@enduml",
 		"",
 	}, "\n")
-	glue := &refusing{bad: "LIMIT"}
+	// A glue refusing every atom whose text holds LIMIT.
+	asked := 0
+	refusing := func(atom clause.AtomWire, role lint.Role) (string, error) {
+		asked++
+		if strings.Contains(strings.Join(atom.Text, ""), "LIMIT") {
+			return "not a " + string(role), nil
+		}
+		return "", nil
+	}
 
 	// Execute
-	findings := lint.Run([]lint.Rule{lint.AtomNotInLanguageRule{Glue: glue}}, lint.NewInput("a.puml", []byte(source)))
+	findings := lint.Run([]lint.Rule{lint.AtomNotInLanguageRule{Lint: refusing}}, lint.NewInput("a.puml", []byte(source)))
 
 	// Assert
 	message := "The guard atom `$n > LIMIT` is not one the glue reads: not a guard. Write it in the glue's language, or fix the glue's arguments if it reads a name they should define."
@@ -50,7 +43,7 @@ func TestAtomNotInLanguageRule(t *testing.T) {
 	if diff := cmp.Diff(want, findings); diff != "" {
 		t.Errorf("findings mismatch (-want +got):\n%s", diff)
 	}
-	if glue.asked != 3 {
-		t.Errorf("want each distinct atom asked once, 3 in all, got %d", glue.asked)
+	if asked != 3 {
+		t.Errorf("want each distinct atom asked once, 3 in all, got %d", asked)
 	}
 }

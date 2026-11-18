@@ -48,15 +48,15 @@ func TestLintAsksTheGlueWhetherAnAtomIsOfItsLanguage(t *testing.T) {
 		"a post of another shape": {Atom: "$n' > 0", Role: "post", WantWhy: "a post atom of this glue is"},
 	}
 
-	// Setup
-	c, err := glue.Start(pythonGlue(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer c.Close()
-
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
+			// Setup
+			c, err := glue.Start(pythonGlue(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+
 			// Execute
 			why, err := c.Lint(wire(t, tc.Atom), tc.Role)
 
@@ -71,16 +71,17 @@ func TestLintAsksTheGlueWhetherAnAtomIsOfItsLanguage(t *testing.T) {
 	}
 }
 
-func TestStartRefusesAGlueThatDoesNotAnswerLint(t *testing.T) {
-	// Setup: a glue whose hello lists no lint.
-	cmd := exec.Command("sh", "-c", `read line; echo '{"language": "fake", "protocol": 2}'; cat > /dev/null`)
+func TestSupportsSaysWhatTheHelloListed(t *testing.T) {
+	// Setup
+	c, err := glue.Start(pythonGlue(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
 
-	// Execute
-	_, err := glue.Start(cmd)
-
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "does not answer lint") {
-		t.Errorf("want a refusal of a glue without lint, got %v", err)
+	// Execute, Assert
+	if !c.Supports("lint") || c.Supports("beyond") {
+		t.Errorf("want lint supported and beyond not")
 	}
 }
 
@@ -112,12 +113,21 @@ func TestSplitCommandReadsWordsAsAShellDoes(t *testing.T) {
 	}
 }
 
-func TestSplitCommandRefusesAnUnclosedQuote(t *testing.T) {
-	// Execute
-	_, err := glue.SplitCommand(`glue 'a`)
+func TestSplitCommandRefusesWhatAShellCannotRead(t *testing.T) {
+	testCases := map[string]string{
+		"an unclosed single quote": `glue 'a`,
+		"an unclosed double quote": `glue "a`,
+		"a trailing backslash":     `glue a\`,
+	}
+	for name, line := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := glue.SplitCommand(line)
 
-	// Assert
-	if err == nil {
-		t.Error("want an error for an unclosed quote")
+			// Assert
+			if err == nil {
+				t.Errorf("want an error for %q", line)
+			}
+		})
 	}
 }

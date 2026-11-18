@@ -21,16 +21,32 @@ import (
 const Protocol = 2
 
 // Client is a glue started as a command, after its hello agreed on the
-// protocol and listed lint among what it answers.
+// protocol.
 type Client struct {
 	cmd      *exec.Cmd
 	in       io.WriteCloser
 	out      *bufio.Scanner
 	language string
+	supports []string
+}
+
+// StartCommandLine starts the glue the command line names, read into words
+// by SplitCommand, its standard error written to stderr.
+func StartCommandLine(line string, stderr io.Writer) (*Client, error) {
+	words, err := SplitCommand(line)
+	if err != nil {
+		return nil, fmt.Errorf("glue.StartCommandLine: %w", err)
+	}
+	if len(words) == 0 {
+		return nil, errors.New("glue.StartCommandLine: the command line of a glue is empty")
+	}
+	cmd := exec.Command(words[0], words[1:]...)
+	cmd.Stderr = stderr
+	return Start(cmd)
 }
 
 // Start runs cmd as a glue and greets it; a glue that does not speak the
-// protocol or does not answer lint is refused and stopped.
+// protocol is refused and stopped.
 func Start(cmd *exec.Cmd) (*Client, error) {
 	in, err := cmd.StdinPipe()
 	if err != nil {
@@ -61,16 +77,21 @@ func Start(cmd *exec.Cmd) (*Client, error) {
 		err = fmt.Errorf("the glue refused the hello: %s", *hello.Error)
 	case hello.Protocol != Protocol:
 		err = fmt.Errorf("the glue speaks protocol %d, not %d", hello.Protocol, Protocol)
-	case !slices.Contains(hello.Supports, "lint"):
-		err = fmt.Errorf("the %s glue does not answer lint, which csdflint asks of every atom", hello.Language)
 	}
 	if err != nil {
 		c.Close()
 		return nil, fmt.Errorf("glue.Start: %w", err)
 	}
-	c.language = hello.Language
+	c.language, c.supports = hello.Language, hello.Supports
 	return c, nil
 }
+
+// Language is the language the glue's hello named.
+func (c *Client) Language() string { return c.language }
+
+// Supports reports whether the glue's hello listed op among the optional
+// requests it answers.
+func (c *Client) Supports(op string) bool { return slices.Contains(c.supports, op) }
 
 // Lint returns why the glue does not read atom in role, "guard" or "post",
 // or "" when it does; an error is a glue that answered with one, or did not
