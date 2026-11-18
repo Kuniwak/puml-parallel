@@ -18,3 +18,16 @@ class ShapesTest(unittest.TestCase):
         # Verify
         self.assertEqual(got["types"]["Role"],
                          {"kind": "record", "fields": {"level": {"kind": "scalar", "examples": ["high"]}}})
+
+    def test_the_keys_of_a_dict_a_post_builds_are_fields_of_the_variables_type(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", edges=[edge("s", "s", "go", post=[atom("$r' == {'scope': 'all', 'level': $r['level']}")])],
+                    types={"r": "Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"],
+                         {"kind": "record", "fields": {"scope": {"kind": "scalar", "examples": ["all"]},
+                                                       "level": {"kind": "scalar"}}})

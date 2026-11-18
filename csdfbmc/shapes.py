@@ -30,8 +30,10 @@ def shapes(doc: dict) -> dict:
                         if found:
                             leaf = _add(trees, *found)
                             for c in consts:
-                                if c not in leaf.setdefault("examples", []):
-                                    leaf["examples"].append(c)
+                                _example(leaf, c)
+                            for other in sides:
+                                if isinstance(other, ast.Dict):
+                                    _built(leaf, other)
     return {"types": {t: _node(n) for t, n in trees.items()}}
 
 
@@ -62,6 +64,29 @@ def _add(trees, t, path):
     for a in path:
         n = n["fields"].setdefault(a, {"fields": {}})
     return n
+
+
+def _example(leaf, value):
+    if value not in leaf.setdefault("examples", []):
+        leaf["examples"].append(value)
+
+
+def _built(n, d: ast.Dict):
+    """Adds to n the keys of the dict d builds, with the constants it puts
+    under them, of either branch of a conditional."""
+    for k, v in zip(d.keys, d.values):
+        if not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+            continue
+        field = n["fields"].setdefault(k.value, {"fields": {}})
+        branches = [v]
+        while branches:
+            x = branches.pop()
+            if isinstance(x, ast.IfExp):
+                branches += [x.body, x.orelse]
+            elif isinstance(x, ast.Constant):
+                _example(field, x.value)
+            elif isinstance(x, ast.Dict):
+                _built(field, x)
 
 
 def _node(n):
