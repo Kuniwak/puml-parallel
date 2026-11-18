@@ -258,6 +258,7 @@
     renderHistory();
     renderControls();
     renderDiagram();
+    centreOnStep();
   }
 
   function valuesList(values, before) {
@@ -704,7 +705,51 @@
       box.scrollTop = drag.top - (e.clientY - drag.y);
     });
     window.addEventListener("pointerup", () => { drag = null; });
-    fit();
+    apply();
+  }
+
+  // focusOf is what the drawing centres on: the edges of the last step,
+  // else the state being entered or the current one, unless that state is
+  // larger than the pane (the mode of a promotion), then the start edge.
+  function focusOf(v) {
+    const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
+    if (last && last.kind === "step") {
+      const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
+      if (links.length > 0) return links;
+    }
+    const box = document.getElementById("diagram");
+    const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
+    const state = svgElement(highlights.states[id]);
+    if (state) {
+      const r = state.getBoundingClientRect();
+      if (r.width <= box.clientWidth && r.height <= box.clientHeight) return [state];
+    }
+    return [svgElement(highlights.start)].filter(Boolean);
+  }
+
+  // centreOn scrolls the pane so that the box around nodes is in its
+  // middle, as far as the edges of the drawing allow.
+  function centreOn(nodes) {
+    if (nodes.length === 0) return;
+    const box = document.getElementById("diagram");
+    const rects = nodes.map((n) => n.getBoundingClientRect());
+    const left = Math.min(...rects.map((r) => r.left));
+    const right = Math.max(...rects.map((r) => r.right));
+    const top = Math.min(...rects.map((r) => r.top));
+    const bottom = Math.max(...rects.map((r) => r.bottom));
+    const pane = box.getBoundingClientRect();
+    box.scrollLeft += (left + right) / 2 - (pane.left + box.clientWidth / 2);
+    box.scrollTop += (top + bottom) / 2 - (pane.top + box.clientHeight / 2);
+  }
+
+  // centreOnStep centres the drawing once per step, not on every redraw.
+  function centreOnStep() {
+    const v = app.view;
+    if (!v) return;
+    const key = app.entries.length + ":" + v.mode;
+    if (app.centredAt === key) return;
+    app.centredAt = key;
+    centreOn(focusOf(v));
   }
 
   function setupLanguages() {
