@@ -401,7 +401,18 @@ func errorResponse(message string) Response {
 // errorFromErr surfaces err with the deepest (prefix-free) message by default,
 // or the full wrapped chain when the service is in debug mode.
 func (s *Service) errorFromErr(err error) Response {
-	return errorResponse(tools.UserFacingError(err, s.debug))
+	resp := errorResponse(tools.UserFacingError(err, s.debug))
+	var refused *animation.RefusedValuesError
+	switch {
+	case errors.As(err, &refused):
+		resp.Code = ErrorCodeRefusedValues
+		resp.Args = map[string]string{"reason": refused.Reason}
+	case errors.Is(err, animation.ErrIndexOutOfRange):
+		resp.Code = ErrorCodeIndexOutOfRange
+	case errors.Is(err, animation.ErrEnded):
+		resp.Code = ErrorCodeEnded
+	}
+	return resp
 }
 
 func removeString(items []string, target string) []string {
