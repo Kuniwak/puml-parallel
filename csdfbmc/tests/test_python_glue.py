@@ -147,6 +147,17 @@ class LintTest(unittest.TestCase):
                 self.assertEqual(said is None, answer.get("ok"), answer)
                 self.assertIn(said or "", answer.get("why", ""))
 
+    def test_lint_refuses_a_role_it_does_not_know(self):
+        # Setup
+        handle = evaluator([])
+        handle({"op": "hello", "protocol": 2})
+
+        # Execute
+        answer = handle({"op": "lint", "atom": atom(["", " > 0"], [0], [False]), "role": "Post"})
+
+        # Assert
+        self.assertIn("'guard' or 'post'", answer.get("error", ""))
+
     def test_lint_reads_the_names_of_the_definitions(self):
         # Setup
         d = tempfile.TemporaryDirectory()

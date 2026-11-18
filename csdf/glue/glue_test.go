@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/glue"
@@ -91,11 +92,12 @@ func TestSplitCommandReadsWordsAsAShellDoes(t *testing.T) {
 		Want []string
 	}
 	testCases := map[string]testCase{
-		"words":         {Line: "python3 -m csdfbmc.python_glue", Want: []string{"python3", "-m", "csdfbmc.python_glue"}},
-		"single quotes": {Line: "glue 'a b.py'", Want: []string{"glue", "a b.py"}},
-		"double quotes": {Line: `glue "a \"b\".py"`, Want: []string{"glue", `a "b".py`}},
-		"a backslash":   {Line: `glue a\ b.py`, Want: []string{"glue", "a b.py"}},
-		"an empty word": {Line: `glue ''`, Want: []string{"glue", ""}},
+		"words":             {Line: "python3 -m csdfbmc.python_glue", Want: []string{"python3", "-m", "csdfbmc.python_glue"}},
+		"single quotes":     {Line: "glue 'a b.py'", Want: []string{"glue", "a b.py"}},
+		"double quotes":     {Line: `glue "a \"b\".py"`, Want: []string{"glue", `a "b".py`}},
+		"a backslash":       {Line: `glue a\ b.py`, Want: []string{"glue", "a b.py"}},
+		"a carriage return": {Line: "glue\r\na.py\r", Want: []string{"glue", "a.py"}},
+		"an empty word":     {Line: `glue ''`, Want: []string{"glue", ""}},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -127,6 +129,73 @@ func TestSplitCommandRefusesWhatAShellCannotRead(t *testing.T) {
 			// Assert
 			if err == nil {
 				t.Errorf("want an error for %q", line)
+			}
+		})
+	}
+}
+
+// fakeGlue is a glue that says hello with lint and then runs script.
+func fakeGlue(script string) *exec.Cmd {
+	return exec.Command("sh", "-c", `read line; echo '{"language": "fake", "protocol": 2, "supports": ["lint"]}'; `+script)
+}
+
+func TestLintRefusesAnAnswerItCannotTrust(t *testing.T) {
+	testCases := map[string]string{
+		"ok false without why": `read line; echo '{"ok": false}'; cat > /dev/null`,
+		"ok false, why empty":  `read line; echo '{"ok": false, "why": ""}'; cat > /dev/null`,
+		"neither ok nor error": `read line; echo '{}'; cat > /dev/null`,
+		"an error":             `read line; echo '{"error": "boom"}'; cat > /dev/null`,
+		"no answer":            `exit 0`,
+	}
+	for name, script := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			c, err := glue.Start(fakeGlue(script))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+
+			// Execute
+			_, err = c.Lint(clause.AtomWire{Text: []string{"x"}, Holes: []int{}, Primed: []bool{}}, "guard")
+
+			// Assert
+			if err == nil {
+				t.Error("want an error")
+			}
+		})
+	}
+}
+
+func TestCloseReadsWhatTheGlueStillWritesAndSaysHowItEnded(t *testing.T) {
+	type testCase struct {
+		Script  string
+		WantErr bool
+	}
+	testCases := map[string]testCase{
+		"a glue writing more than a pipe holds after its input ends": {Script: `cat > /dev/null; head -c 1000000 /dev/zero`, WantErr: false},
+		"a glue that fails": {Script: `cat > /dev/null; exit 3`, WantErr: true},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			c, err := glue.Start(fakeGlue(tc.Script))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			done := make(chan error, 1)
+			go func() { done <- c.Close() }()
+
+			// Assert
+			select {
+			case err := <-done:
+				if (err != nil) != tc.WantErr {
+					t.Errorf("want an error %v, got %v", tc.WantErr, err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("Close did not return")
 			}
 		})
 	}

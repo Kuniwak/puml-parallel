@@ -68,6 +68,8 @@ class Glue:
         """Why the atom is not Python of the pure subset in role, guard or
         post, or reads a name that is neither a hole, a builtin nor a
         definition; None when it is not so."""
+        if role not in ("guard", "post"):
+            raise ValueError(f"lint asks of an atom in the role 'guard' or 'post', not {role!r}")
         try:
             source, names = _atom_source(atom)
             check_pure(source, f"<atom {source!r}>")

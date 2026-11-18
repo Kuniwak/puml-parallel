@@ -379,8 +379,10 @@ the glue's `lint` whether it reads each atom of every guard and post, as
 csdfbmc would read it, and walks no state, so it answers before csdfbmc
 would build its start state. Which atoms are environment functions is not
 written in the diagram, so every atom is asked: lint with a glue a diagram
-written in its language alone. A glue that cannot be started or does not
-answer `lint` is refused with exit status 2. The rules are:
+written in its language alone. A glue that cannot be started, does not
+answer `lint`, or fails on the way exits csdflint with status 2, since the
+atoms are then not all checked. An end edge keeps no line, so a finding on
+its guard has the line 0. The rules are:
 
 | Rule | Severity | Reports |
 | --- | --- | --- |

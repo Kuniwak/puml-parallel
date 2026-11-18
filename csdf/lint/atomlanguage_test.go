@@ -1,6 +1,7 @@
 package lint_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -45,5 +46,27 @@ func TestAtomNotInLanguageRule(t *testing.T) {
 	}
 	if asked != 3 {
 		t.Errorf("want each distinct atom asked once, 3 in all, got %d", asked)
+	}
+}
+
+func TestAtomNotInLanguageRuleHandsAGlueFailureToFail(t *testing.T) {
+	// Setup
+	source := "@startuml\nstate \"s0\" as s0\ns0 : n ; Nat\n[*] --> s0 : $n' == 0\n@enduml\n"
+	boom := errors.New("boom")
+	var failed []error
+	rule := lint.AtomNotInLanguageRule{
+		Lint: func(clause.AtomWire, lint.Role) (string, error) { return "", boom },
+		Fail: func(err error) { failed = append(failed, err) },
+	}
+
+	// Execute
+	findings := lint.Run([]lint.Rule{rule}, lint.NewInput("a.puml", []byte(source)))
+
+	// Assert
+	if len(findings) != 0 {
+		t.Errorf("want no finding for a glue that failed, got %+v", findings)
+	}
+	if len(failed) != 1 || !errors.Is(failed[0], boom) {
+		t.Errorf("want the failure handed to Fail once, got %v", failed)
 	}
 }

@@ -31,15 +31,17 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		rules := lint.DefaultRules()
+		var glueErr error
 		if opts.Evaluator != "" {
 			c, err := startGlue(opts.Evaluator, inout.Stderr)
 			if err != nil {
 				return &tools.ExitStatusError{Status: 2, Message: err.Error()}
 			}
 			defer c.Close()
-			rules = append(rules, lint.AtomNotInLanguageRule{Lint: func(atom clause.AtomWire, role lint.Role) (string, error) {
-				return c.Lint(atom, string(role))
-			}})
+			rules = append(rules, lint.AtomNotInLanguageRule{
+				Lint: func(atom clause.AtomWire, role lint.Role) (string, error) { return c.Lint(atom, string(role)) },
+				Fail: func(err error) { glueErr = errors.Join(glueErr, err) },
+			})
 		}
 
 		inputs := make([]*lint.Input, 0, len(opts.Inputs))
@@ -50,6 +52,10 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		if err := lint.WriteTSV(inout.Stdout, findings); err != nil {
 			return fmt.Errorf("csdflintcmd.NewMainFunc: %w", err)
+		}
+
+		if glueErr != nil {
+			return &tools.ExitStatusError{Status: 2, Message: fmt.Sprintf("-evaluator: the glue failed, so the atoms are not all checked: %v", glueErr)}
 		}
 
 		// The findings are written either way: a run that fails still has to say

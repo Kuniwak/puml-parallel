@@ -18,7 +18,7 @@ const (
 // AtomLint asks a glue whether an atom is of its language: the lint request
 // of the evaluator protocol (csdfbmc/protocol.py). It returns why the glue
 // does not read atom in role, or "" when it does; an error is a glue that
-// answered with one.
+// could not answer, or answered with one.
 type AtomLint func(atom clause.AtomWire, role Role) (string, error)
 
 // AtomNotInLanguageRule reports an atom the glue does not read. It is the
@@ -27,9 +27,12 @@ type AtomLint func(atom clause.AtomWire, role Role) (string, error)
 // is walked. Which atoms are environment functions is not written in the
 // diagram (docs/CLAUSE_DESIGN.md), so every atom is asked; a diagram for
 // csdfbmc is written in the glue's language alone. Each distinct atom is
-// asked once per role. Findings are ERRORs.
+// asked once per role. Findings are ERRORs. A glue that fails says nothing
+// of the atoms: its error goes to Fail, not into a finding, and nothing more
+// is asked of it.
 type AtomNotInLanguageRule struct {
 	Lint AtomLint
+	Fail func(error)
 }
 
 func (AtomNotInLanguageRule) ID() string { return "atom-not-in-language" }
@@ -44,10 +47,20 @@ func (r AtomNotInLanguageRule) Check(in *Input) []Finding {
 		return nil
 	}
 	answers := map[string]string{}
+	failed := false
 	var findings []Finding
 	check := func(f clause.And, role Role, line int) {
 		clause.EachAtom(f, func(a clause.Atom) {
-			if why := r.why(a, role, answers); why != "" {
+			if failed {
+				return
+			}
+			why, err := r.why(a, role, answers)
+			if err != nil {
+				failed = true
+				r.Fail(err)
+				return
+			}
+			if why != "" {
 				findings = append(findings, Finding{File: in.File, StartLine: line, EndLine: line, RuleID: r.ID(), Severity: SeverityError,
 					Message: fmt.Sprintf("The %s atom `%s` is not one the glue reads: %s. Write it in the glue's language, or fix the glue's arguments if it reads a name they should define.", role, printedAtom(a), why)})
 			}
@@ -66,25 +79,27 @@ func (r AtomNotInLanguageRule) Check(in *Input) []Finding {
 }
 
 // why asks the glue about a in role once, remembering the answer in answers.
-func (r AtomNotInLanguageRule) why(a clause.Atom, role Role, answers map[string]string) string {
+// An atom the glue cannot be sent is not one it reads; an error is the
+// glue's.
+func (r AtomNotInLanguageRule) why(a clause.Atom, role Role, answers map[string]string) (string, error) {
 	wire, _, err := clause.Wire(a)
 	if err != nil {
-		return err.Error()
+		return err.Error(), nil
 	}
 	b, err := json.Marshal(wire)
 	if err != nil {
-		return err.Error()
+		return err.Error(), nil
 	}
 	key := string(role) + string(b)
 	if why, ok := answers[key]; ok {
-		return why
+		return why, nil
 	}
 	why, err := r.Lint(wire, role)
 	if err != nil {
-		why = "the glue answered " + err.Error()
+		return "", err
 	}
 	answers[key] = why
-	return why
+	return why, nil
 }
 
 func printedAtom(a clause.Atom) string {

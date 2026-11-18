@@ -216,12 +216,16 @@ func TestNewMainFuncFailsWithTwoOnAGlueItCannotUse(t *testing.T) {
 			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2}"; cat > /dev/null'`,
 			WantSaid:  "the fake glue does not answer lint",
 		},
+		"a glue that ends after its hello": {
+			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2, \"supports\": [\"lint\"]}"'`,
+			WantSaid:  "the glue ended without answering",
+		},
 		"a blank command line": {Evaluator: "  ", WantSaid: "the command line of a glue is empty"},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			// Arrange & Act
-			exitStatus, spy := run("-evaluator", tc.Evaluator, filepath.Join("testdata", "clean.puml"))
+			exitStatus, spy := run("-evaluator", tc.Evaluator, filepath.Join("testdata", "atoms.puml"))
 
 			// Assert
 			if exitStatus != 2 {

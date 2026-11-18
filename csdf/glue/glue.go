@@ -112,14 +112,23 @@ func (c *Client) Lint(atom clause.AtomWire, role string) (string, error) {
 		return "", errors.New("glue.Client.Lint: the answer to lint says neither ok nor an error")
 	case *answer.OK:
 		return "", nil
+	case answer.Why == "":
+		return "", errors.New("glue.Client.Lint: the answer to lint is not ok but says no why")
 	}
 	return answer.Why, nil
 }
 
-// Close ends the glue's input, which ends the glue, and waits for it.
+// Close ends the glue's input, which ends the glue, reads what it still
+// writes, so that it is not left blocked on a full pipe, and waits for it;
+// an error is a glue that did not end well.
 func (c *Client) Close() error {
 	c.in.Close()
-	return c.cmd.Wait()
+	for c.out.Scan() {
+	}
+	if err := c.cmd.Wait(); err != nil {
+		return fmt.Errorf("glue.Client.Close: %w", err)
+	}
+	return nil
 }
 
 func (c *Client) request(request any, answer any) error {
@@ -154,7 +163,7 @@ func SplitCommand(line string) ([]string, error) {
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
 		switch {
-		case r == ' ' || r == '\t' || r == '\n':
+		case r == ' ' || r == '\t' || r == '\r' || r == '\n':
 			if inWord {
 				words = append(words, word.String())
 				word.Reset()
