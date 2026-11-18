@@ -75,12 +75,17 @@ func (e Event) SameShape(o Event) bool {
 // Edge is a transition: Src --> Dst : Event ; Guard ; Post. Line is where
 // the reader read it, from 1, for a reader of a report alone; it is outside
 // the meaning of the edge, and 0 for an edge no reader read, such as one a
-// constructor built.
+// constructor built. Moves are, for an edge of a promoted diagram, the moves
+// of local edges it is made of: one for an edge of a family alone, one per
+// target for a sync, none for a hand-written edge; like Line, they are
+// outside the meaning of the edge, for a reader that shows the local
+// diagrams.
 type Edge struct {
 	Src, Dst    string
 	Event       Event
 	Guard, Post clause.And
 	Line        int
+	Moves       []Move
 }
 
 // End is an end edge: Src --> [*] : Guard.
