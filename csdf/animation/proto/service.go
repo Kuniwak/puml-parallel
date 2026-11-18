@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 	"sync"
 
@@ -357,10 +356,8 @@ func transitionsOf(sess *animation.Session) []Transition {
 func movesOf(d *core.Diagram, edge core.Edge) []Move {
 	var out []Move
 	for _, m := range edge.Moves {
-		var block string
-		if i := slices.IndexFunc(d.Families, func(f core.FamilyStates) bool { return f.Map == m.Map }); i >= 0 {
-			block = d.Families[i].Blocks[edge.Src]
-		}
+		f, _ := animation.Family(d, m.Map)
+		block := f.Blocks[edge.Src]
 		out = append(out, Move{Map: m.Map, Block: block, LocalEdge: m.Edge, Src: m.Src, Dst: m.Dst, Parallel: m.Parallel, Kind: kindNames[m.Kind]})
 	}
 	return out
