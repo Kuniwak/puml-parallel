@@ -114,7 +114,7 @@
       const saved = window.localStorage.getItem("csdfrepl.tab");
       if (TABS.includes(saved)) return saved;
     } catch (e) { /* storage may be blocked */ }
-    return config.python ? "choose" : "details";
+    return "choose";
   }
 
   const app = {
@@ -361,6 +361,14 @@
     return list;
   }
 
+  // shownBeside says whether the values of history entry i are shown
+  // beside the boxes of the value form, as the values from before, and so
+  // are not repeated in the history.
+  function shownBeside(i) {
+    const v = app.view;
+    return i === app.current && app.tab === "details" && v && v.mode === "values" && !!v.pending.previous;
+  }
+
   function renderHistory() {
     const list = document.getElementById("history");
     list.replaceChildren();
@@ -383,7 +391,7 @@
         tabindex: "0",
         onclick: () => jump(i),
         onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(i); } },
-      }, [head, valuesList(h.state.values, parent ? parent.state.values : null)]);
+      }, [head, shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
       list.appendChild(item);
     });
     const current = list.querySelector("li.current");
@@ -559,9 +567,10 @@
     }
     if (shown.length === 0) { list.appendChild(el("p", { class: "hint", text: t("controls.noMatch") })); return; }
     const { byMap, own } = groupTransitions(shown);
+    if (byMap.size > 0) list.appendChild(el("p", { class: "hint", text: t("controls.byFamily") }));
     for (const [map, edges] of byMap) {
       const count = new Set([...edges.values()].flatMap((g) => g.transitions)).size;
-      list.appendChild(groupBox("map:" + map, t("controls.family", { map }), count, (body) => {
+      list.appendChild(groupBox("map:" + map, map, count, (body) => {
         for (const [edge, group] of edges) {
           body.appendChild(groupBox("edge:" + map + "/" + edge, moveName(group.move), group.transitions.length, (inner) => {
             for (const tr of group.transitions) inner.appendChild(choiceButton(tr));
@@ -598,6 +607,8 @@
     const determined = pending.determined || [];
     if (determined.length > 0 && !app.error) {
       root.appendChild(el("p", { class: "hint", text: t("values.determined") }));
+      const note = instancesNote(pending);
+      if (note) root.appendChild(note);
       root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
     }
     const previous = pending.previous ? pending.previous.values || [] : [];
@@ -629,10 +640,18 @@
     return null;
   }
 
-  // varLabel is how the prompt names the variable name: a map of a
-  // family's instances by the family.
+  // varLabel is how the prompt names the variable name; that a name is
+  // the instances of a diagram is said once, by instancesNote.
   function varLabel(pending, name) {
-    return (pending.families || []).includes(name) ? t("values.instances", { map: name }) : name;
+    return name;
+  }
+
+  // instancesNote says once, for a prompt with maps of instances, that
+  // those names are the instances of the diagrams they are named after,
+  // and how one is written.
+  function instancesNote(pending) {
+    const maps = (pending.families || []).filter((m) => (pending.group.vars || []).includes(m));
+    return maps.length > 0 ? el("p", { class: "hint shape", text: t("values.instancesNote", { example: maps[0] }) }) : null;
   }
 
   function renderValueDetails(root, pending) {
@@ -656,15 +675,32 @@
     });
     if (vars.length === 0) form.appendChild(el("p", { class: "hint", text: t("values.none", { state: group.state_name }) }));
     else form.appendChild(el("p", { class: "hint", text: t("values.hint") }));
+    const note = instancesNote(pending);
+    if (note) form.appendChild(note);
+    const types = group.types || {};
     vars.forEach((name, i) => {
       const id = "value-" + i;
       const before = previous.find((p) => p.name === name);
       const fixed = determinedValue(pending, name);
+      // A value the diagram fixes is filled in; any other box starts empty,
+      // with the value from before beside it, so that each is decided.
       const input = el("input", { type: "text", id, autocomplete: "off", spellcheck: "false" });
-      input.value = fixed !== undefined ? show(fixed) : before ? show(before.value) : "";
+      input.value = fixed !== undefined ? show(fixed) : "";
       inputs.push(input);
-      form.appendChild(el("label", { for: id, text: varLabel(pending, name) }));
+      form.appendChild(el("label", { for: id }, [
+        el("span", { text: varLabel(pending, name) }),
+        types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
+      ]));
       form.appendChild(input);
+      if (fixed !== undefined) {
+        form.appendChild(el("p", { class: "hint fixed", text: t("values.fixed") }));
+      } else if (before) {
+        form.appendChild(el("div", { class: "before" }, [
+          el("span", { text: t("values.before") }),
+          el("code", { text: show(before.value) }),
+          el("button", { type: "button", text: t("values.keep"), onclick: () => { input.value = show(before.value); input.focus(); } }),
+        ]));
+      }
     });
     form.appendChild(el("div", { class: "row" }, [
       el("button", { type: "submit", class: "primary", text: t("values.continue") }),

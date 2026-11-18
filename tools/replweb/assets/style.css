@@ -201,3 +201,9 @@ input.filter {
 .edge-filter { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; margin-bottom: .5rem; border-radius: 6px; background: var(--current-soft); }
 
 #diagram g.cluster.csdf-current > rect { stroke-width: 8 !important; }
+
+form label .type { margin-left: .5rem; color: var(--muted); font-size: .8rem; font-weight: normal; }
+form .before { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin: .15rem 0 .5rem; }
+form .before code { color: var(--text); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; max-width: 100%; overflow-wrap: anywhere; }
+form .before button { font-size: .75rem; padding: .1rem .4rem; }
+form .hint.shape, form .hint.fixed { font-size: .75rem; margin: .1rem 0; }
