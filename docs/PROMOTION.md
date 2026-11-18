@@ -272,7 +272,8 @@ The generated clauses are builtins, which belong to no natural language.
 With the formula promotion, `-template` glosses them in a line comment above
 each edge, by Go `text/template` templates named after the builtin words
 (`in`, `notin`, `at`, `frame`, `update`, `empty`, `eq`, `ne`), each given the
-builtin's terms as `.Args` and, for `at`, its state as `.State`; the
+builtin's terms as `.Args` and, for `at`, its states as `.States` and as
+`.State`, joined by `, `; the
 Japanese ones are in `examples/promote/templates/ja.tmpl`. The reader before
 it replaced the clauses themselves, with these templates:
 
@@ -292,7 +293,8 @@ In the formula promotion the generated clauses are builtins (`@in`,
 not replace one: it renders a gloss of it, printed as a line comment above
 the edge, so that the diagram still reads back to the same formulas. Its
 templates are named after the builtins, with the builtin's terms as
-`.Args` and, for `@at`, its state as `.State`; the names above belong to
+`.Args` and, for `@at`, its states as `.States` and as `.State`, joined by
+`, `; the names above belong to
 `csdfpromote`.
 
 A clause the file does not define keeps its default. Every clause is rendered
