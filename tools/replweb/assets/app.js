@@ -637,7 +637,7 @@
 
   // ---- The drawing ----
 
-  const marks = ["csdf-current", "csdf-pending", "csdf-choosable", "csdf-visited", "csdf-visited-state", "csdf-filtered"];
+  const marks = ["csdf-occupied", "csdf-current", "csdf-pending", "csdf-choosable", "csdf-visited", "csdf-visited-state", "csdf-filtered"];
 
   function svgElement(id) {
     return id ? document.getElementById(id) : null;
@@ -734,6 +734,7 @@
       }
     }
     renderInstances(v);
+    for (const o of [...occupiedStates(v), ...emptyInits(v)]) o.node.classList.add("csdf-occupied");
     markHovered();
     for (const h of app.history) {
       const node = svgElement(highlights.states[h.state.state_id]);
@@ -802,11 +803,20 @@
     const height = parseFloat(svg.getAttribute("height")) || svg.getBoundingClientRect().height;
     app.drawing = { svg, viewBox: svg.getAttribute("viewBox") || `0 0 ${width} ${height}`, width, height };
     const apply = applyDrawing;
-    const actualSize = () => { app.scale = 1; apply(); showCurrent(); };
+    // zoomTo keeps the point of the drawing at the middle of the pane
+    // where it was, as far as the edges of the drawing allow.
+    const zoomTo = (scale) => {
+      const cx = (box.scrollLeft + box.clientWidth / 2) / app.scale;
+      const cy = (box.scrollTop + box.clientHeight / 2) / app.scale;
+      app.scale = scale;
+      apply();
+      box.scrollLeft = cx * scale - box.clientWidth / 2;
+      box.scrollTop = cy * scale - box.clientHeight / 2;
+    };
     setupBlockChooser();
-    document.getElementById("zoom-in").addEventListener("click", () => { app.scale *= 1.25; apply(); });
-    document.getElementById("zoom-out").addEventListener("click", () => { app.scale /= 1.25; apply(); });
-    document.getElementById("zoom-reset").addEventListener("click", actualSize);
+    document.getElementById("zoom-in").addEventListener("click", () => zoomTo(app.scale * 1.25));
+    document.getElementById("zoom-out").addEventListener("click", () => zoomTo(app.scale / 1.25));
+    document.getElementById("zoom-reset").addEventListener("click", () => zoomTo(1));
     let drag = null;
     box.addEventListener("pointerdown", (e) => {
       if (e.target.closest("g.csdf-choosable, g.csdf-chip-more")) return;
@@ -830,7 +840,11 @@
       const inBlock = (m) => app.block.includes(m.map);
       const chosen = app.choice ? (app.choice.transition.moves || []).filter(inBlock) : [];
       const moved = last && last.kind === "step" ? (last.moves || []).filter(inBlock) : [];
-      return [...chosen, ...moved].map(localLinkOf).filter(Boolean);
+      const links = [...chosen, ...moved].map(localLinkOf).filter(Boolean);
+      if (links.length > 0) return links;
+      const occupied = [...occupiedStates(v), ...emptyInits(v)].filter((o) => app.block.includes(o.map)).map((o) => o.node);
+      if (occupied.length > 0) return occupied;
+      return app.block.map(localInitOf).filter(Boolean);
     }
     if (last && last.kind === "step") {
       const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
@@ -846,6 +860,35 @@
     return [svgElement(highlights.start)].filter(Boolean);
   }
 
+  // localInitOf is the box of the local start state of the family of map,
+  // where an instance is before it exists: the end of the local start edge.
+  function localInitOf(map) {
+    const start = svgElement(families[map] && families[map].start);
+    return start ? svgElement(start.getAttribute("data-entity-2")) : null;
+  }
+
+  // emptyInits are the local start states of the families with no
+  // instance, where every one of them is.
+  function emptyInits(v) {
+    if (!v.families && v.mode !== "command") return [];
+    const held = new Set((v.families || []).filter((fv) => Object.values(fv.instances || {}).some((ids) => ids.length > 0)).map((fv) => fv.map));
+    return Object.keys(families).filter((m) => !held.has(m)).map((m) => ({ map: m, node: localInitOf(m) })).filter((o) => o.node);
+  }
+
+  // occupiedStates are the boxes of the local states that hold instances.
+  function occupiedStates(v) {
+    const out = [];
+    for (const fv of v.families || []) {
+      const f = families[fv.map];
+      if (!f) continue;
+      for (const [state, ids] of Object.entries(fv.instances || {})) {
+        const node = ids.length > 0 ? svgElement(f.states[state]) : null;
+        if (node) out.push({ map: fv.map, node });
+      }
+    }
+    return out;
+  }
+
   // centreOn scrolls the pane so that the box around nodes is in its
   // middle, as far as the edges of the drawing allow.
   function centreOn(nodes) {
@@ -857,9 +900,17 @@
     const top = Math.min(...rects.map((r) => r.top));
     const bottom = Math.max(...rects.map((r) => r.bottom));
     const pane = box.getBoundingClientRect();
-    box.scrollLeft += (left + right) / 2 - (pane.left + box.clientWidth / 2);
-    box.scrollTop += (top + bottom) / 2 - (pane.top + box.clientHeight / 2);
+    const margin = 40;
+    // A box wider (taller) than the pane shows its left (top) edge, where
+    // its title is, rather than its empty middle.
+    const x = right - left > box.clientWidth - 2 * margin ? left - margin : (left + right) / 2 - box.clientWidth / 2;
+    const y = bottom - top > box.clientHeight - 2 * margin ? top - margin : (top + bottom) / 2 - box.clientHeight / 2;
+    box.scrollLeft += x - pane.left;
+    box.scrollTop += y - pane.top;
   }
+
+
+
 
   // centreOnStep centres the drawing once per step, not on every redraw.
   // On a promotion it first shows the blocks of the families the last
@@ -870,11 +921,7 @@
     const key = app.entries.length + ":" + v.mode;
     if (app.centredAt === key) return;
     app.centredAt = key;
-    if (Object.keys(families).length > 0) {
-      const maps = blocksToShow(v);
-      if (maps.length > 0) { showBlocks(maps); return; }
-    }
-    centreOn(focusOf(v));
+    showCurrent();
   }
 
   function blocksToShow(v) {
@@ -882,8 +929,12 @@
     const moved = last && last.kind === "step" ? (last.moves || []).map((m) => m.map) : [];
     const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
     const maps = [...new Set([...chosen, ...moved])].filter((m) => families[m]);
-    if (maps.length > 0 || app.block) return maps;
-    const first = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort()[0];
+    if (maps.length > 0) return maps;
+    if (app.block) return app.block;
+    const occupied = [...new Set(occupiedStates(v).map((o) => o.map))].sort();
+    if (occupied.length > 0) return [occupied[0]];
+    const movable = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort();
+    const first = movable[0] || Object.keys(families).sort()[0];
     return first ? [first] : [];
   }
 
@@ -898,7 +949,8 @@
     }
     const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
     const state = svgElement(highlights.states[id]);
-    centreOn(state ? [state] : focusOf(v));
+    const nodes = state ? [state] : focusOf(v);
+    centreOn(nodes);
   }
 
   // ---- Showing one block at a time ----

@@ -159,7 +159,10 @@ details { margin: .5rem; }
 #diagram g.csdf-choosable > polygon { fill: #0b63ce !important; stroke: #0b63ce !important; }
 #diagram g.csdf-choosable > text { fill: #0b63ce !important; font-weight: bold; }
 #diagram g.csdf-choosable:hover > path { stroke-width: 5 !important; }
-#diagram g.csdf-current > rect { stroke: #d9480f !important; stroke-width: 3.5 !important; fill: #fff0e6 !important; }
+#diagram g.csdf-current > rect,
+#diagram g.csdf-current > path,
+#diagram g.csdf-occupied > rect,
+#diagram g.csdf-occupied > path { stroke: #0b57d0 !important; stroke-width: 5 !important; fill: #cfe0ff !important; }
 #diagram g.csdf-pending > rect { stroke: #0b63ce !important; stroke-width: 3 !important; stroke-dasharray: 6 3; }
 #diagram g.cluster.csdf-current > rect { fill: none !important; }
 #diagram g.csdf-filtered > path,
@@ -184,3 +187,5 @@ input.filter {
 .group > summary .count { color: var(--muted); font-size: .8rem; float: right; }
 .group-body { padding-left: .75rem; margin-top: .25rem; }
 .edge-filter { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; margin-bottom: .5rem; border-radius: 6px; background: var(--current-soft); }
+
+#diagram g.cluster.csdf-current > rect { stroke-width: 8 !important; }

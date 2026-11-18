@@ -22,6 +22,7 @@
       <button type="button" id="zoom-out" data-msg="diagram.zoomOut"></button>
       <button type="button" id="zoom-reset" data-msg="diagram.zoomReset"></button>
       <button type="button" id="zoom-in" data-msg="diagram.zoomIn"></button>
+      <button type="button" id="show-current" data-msg="diagram.showCurrent"></button>
       <span class="legend" id="legend"></span>
     </div>
     <div id="diagram">{{.SVG}}</div>
@@ -34,7 +35,6 @@
       <div class="row">
         <button type="button" id="back" data-msg="history.back"></button>
         <button type="button" id="save" data-msg="history.save"></button>
-        <button type="button" id="show-current" data-msg="history.showCurrent"></button>
       </div>
       <p class="hint" data-msg="history.hint"></p>
       <ol id="history"></ol>
