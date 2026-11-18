@@ -34,12 +34,17 @@ func ProseOf(d, prose *core.Diagram) (*Prose, error) {
 	if err := correspond(d, prose); err != nil {
 		return nil, err
 	}
+	pairs, err := pair(d, prose)
+	if err != nil {
+		return nil, err
+	}
 	out := &Prose{InitPost: animation.ClauseText(prose.InitPost)}
-	for _, e := range prose.Edges {
+	for i, e := range d.Edges {
 		if out.Edges == nil {
 			out.Edges = map[string][]Clauses{}
 		}
-		out.Edges[e.Src] = append(out.Edges[e.Src], Clauses{Guard: animation.ClauseText(e.Guard), Post: animation.ClauseText(e.Post)})
+		p := prose.Edges[pairs[i]]
+		out.Edges[e.Src] = append(out.Edges[e.Src], Clauses{Guard: animation.ClauseText(p.Guard), Post: animation.ClauseText(p.Post)})
 	}
 	for _, e := range prose.Ends {
 		if out.Ends == nil {
@@ -81,12 +86,6 @@ func correspond(d, prose *core.Diagram) error {
 	if d.Init != prose.Init {
 		return MismatchError{fmt.Sprintf("the start state is %s here, %s in the prose", d.Init, prose.Init)}
 	}
-	for i := range min(len(d.Edges), len(prose.Edges)) {
-		e, p := d.Edges[i], prose.Edges[i]
-		if edgeShape(e) != edgeShape(p) {
-			return MismatchError{fmt.Sprintf("the %s edge goes %s here, %s in the prose", ordinal(i+1), edgeShape(e), edgeShape(p))}
-		}
-	}
 	if len(d.Edges) != len(prose.Edges) {
 		return MismatchError{fmt.Sprintf("the diagram has %d edges, the prose %d", len(d.Edges), len(prose.Edges))}
 	}
@@ -99,6 +98,26 @@ func correspond(d, prose *core.Diagram) error {
 		return MismatchError{fmt.Sprintf("the diagram has %d end edges, the prose %d", len(d.Ends), len(prose.Ends))}
 	}
 	return nil
+}
+
+// pair is, for each edge of d, the index of the edge of prose it is: the
+// next one of the same shape (edgeShape). Edges of one shape keep their
+// order, and the moves of a promotion's edge tell it apart from the edges
+// its clauses may reorder it among in an expansion's canonical order.
+func pair(d, prose *core.Diagram) ([]int, error) {
+	waiting := map[string][]int{}
+	for j, p := range prose.Edges {
+		waiting[edgeShape(p)] = append(waiting[edgeShape(p)], j)
+	}
+	out := make([]int, len(d.Edges))
+	for i, e := range d.Edges {
+		shape := edgeShape(e)
+		if len(waiting[shape]) == 0 {
+			return nil, MismatchError{fmt.Sprintf("the %s edge goes %s here, and no edge of the prose goes so", ordinal(i+1), shape)}
+		}
+		out[i], waiting[shape] = waiting[shape][0], waiting[shape][1:]
+	}
+	return out, nil
 }
 
 // channelNames are the channels of d, sorted.

@@ -303,7 +303,7 @@ func TestMainRefusesAProseOfAnotherDiagram(t *testing.T) {
 	err := newMainFunc(render, fakeEngine)(opts, spy.New())
 
 	// Assert
-	if msg := usererr.Message(err); !strings.Contains(msg, "printing --> printing") || !strings.Contains(msg, prose) || spy.Stdout.Len() != 0 {
+	if msg := usererr.Message(err); !strings.Contains(msg, "printing --> idle") || !strings.Contains(msg, prose) || spy.Stdout.Len() != 0 {
 		t.Errorf("message = %q, want one naming the prose and its edge, and nothing written", msg)
 	}
 }

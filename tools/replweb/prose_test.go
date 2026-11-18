@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v3/usererr"
@@ -87,7 +88,7 @@ func TestProseOfRefusesAnotherDiagram(t *testing.T) {
 		"another edge": {
 			old:  "busy --> idle : done",
 			new:  "busy --> busy : done",
-			want: `the 3rd edge goes busy --> idle : done here, busy --> busy : done in the prose`,
+			want: `the 3rd edge goes busy --> idle : done here, and no edge of the prose goes so`,
 		},
 		"another state": {
 			old:  "state \"Busy\" as busy\nbusy : paper ; Nat\n",
@@ -169,7 +170,7 @@ func TestProseOfRefusesAnEdgeMovingOtherLocalEdges(t *testing.T) {
 	_, err := ProseOf(d, prose)
 
 	// Assert
-	if want := "the 1st edge goes a --> a : tick moving items#0 here, a --> a : tick moving items#1 in the prose"; err == nil || !strings.Contains(err.Error(), want) {
+	if want := "the 1st edge goes a --> a : tick moving items#0 here, and no edge of the prose goes so"; err == nil || !strings.Contains(err.Error(), want) {
 		t.Errorf("err = %v, want one saying %q", err, want)
 	}
 }
@@ -199,4 +200,38 @@ func TestProseOfTakesTheExpansionOfAPromotion(t *testing.T) {
 	if n := len(got.Edges["running"]); n != len(d.Edges) {
 		t.Errorf("%d clauses of running, want %d", n, len(d.Edges))
 	}
+}
+
+func TestProseOfPairsTheEdgesOfAPromotionByTheirMovesWhateverTheirOrder(t *testing.T) {
+	// Setup: the canonical order of an expansion sorts the edges with the
+	// same source, event and target by their clauses, so the two versions
+	// may list them in another order.
+	ev := core.Event{Channel: "RELINK"}
+	edge := func(local int, guard string) core.Edge {
+		return core.Edge{Src: "run", Dst: "run", Event: ev, Guard: clauseOf(t, guard),
+			Moves: []core.Move{{Map: "items", Edge: local}}}
+	}
+	d := &core.Diagram{States: []string{"run"}, Init: "run", Edges: []core.Edge{edge(0, "@eq(1, 1)"), edge(1, "@eq(2, 2)")}}
+	prose := &core.Diagram{States: []string{"run"}, Init: "run", Edges: []core.Edge{edge(1, "second"), edge(0, "first")}}
+
+	// Execute
+	got, err := ProseOf(d, prose)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("ProseOf() error = %v", err)
+	}
+	want := []Clauses{{Guard: "first", Post: "(none)"}, {Guard: "second", Post: "(none)"}}
+	if diff := cmp.Diff(want, got.Edges["run"]); diff != "" {
+		t.Errorf("Edges[run] mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func clauseOf(t *testing.T, text string) clause.And {
+	t.Helper()
+	c, err := clause.Parse(text)
+	if err != nil {
+		t.Fatalf("clause.Parse(%q) error = %v", text, err)
+	}
+	return c
 }
