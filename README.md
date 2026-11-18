@@ -1592,6 +1592,24 @@ $ csdfbmc shapes printer.json > shapes.json
 $ csdfreplweb -shapes shapes.json examples/bmc/printer_formal.puml > printer.html
 ```
 
+With `-prose FILE`, another version of the diagram whose clauses are written
+for people, the page shows that version's guards and posts, and the post of
+its start edge, in place of the diagram's own, each with the diagram's own
+folded under it ("Formal clause"). The values are still checked, and
+suggested, by the diagram's clauses. The other version is the same diagram
+but for its clauses: the same states, variables of each state, channels and
+start state, and the same edges and end edges in the same order, each from
+the same state to the same state on the same event (for a promotion, the
+edges of its expansion, moving the same local edges). `csdfreplweb` refuses
+another, naming the first difference. Its `!include`s are read relative to
+it.
+
+```console
+$ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
+    -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" \
+    -prose printer_prose.puml examples/bmc/printer_formal.puml > printer.html
+```
+
 The page carries the exploration engine compiled to WebAssembly. The release
 binary of `csdfreplweb` embeds it. A `csdfreplweb` built by `go install` or run
 by `go run` builds it with the `go` command on the `PATH`: for a released

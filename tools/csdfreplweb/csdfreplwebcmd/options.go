@@ -88,6 +88,13 @@ With -shapes, the page shows by each input what the values of its type
 look like: the attributes and example values csdfbmc shapes reads from the
 clauses of the diagram written in Python, printed to the file given.
 
+With -prose, the page shows in place of each guard and post those of
+another version of the diagram whose clauses are written for people, the
+diagram's own folded under them ("Formal clause"). The other version is
+the same diagram but for its clauses: the same states, variables,
+channels and start state, and the same edges and end edges in the same
+order; csdfreplweb refuses it, naming the first difference, otherwise.
+
 The page carries the exploration engine compiled to WebAssembly. A
 release binary embeds it. Otherwise csdfreplweb builds it with the go
 command on the PATH: a released version from the module cache, kept
@@ -109,6 +116,7 @@ Examples:
       examples/bmc/printer_formal.puml > printer.html
   $ csdfparse diagram.puml > diagram.json && csdfbmc shapes diagram.json > shapes.json
   $ csdfreplweb -shapes shapes.json diagram.puml > diagram.html
+  $ csdfreplweb -prose diagram_prose.puml diagram_formal.puml > diagram.html
 `)
 		}
 
