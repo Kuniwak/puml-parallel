@@ -666,7 +666,13 @@ type move struct {
 func provenance(moves []move) []Move {
 	var out []Move
 	for _, m := range moves {
-		out = append(out, Move{Map: m.f.Map, Edge: m.index, Src: m.e.Src, Dst: m.e.Dst, Kind: m.kind})
+		parallel := 0
+		for _, e := range m.f.Local.Edges[:m.index] {
+			if e.Src == m.e.Src && e.Dst == m.e.Dst {
+				parallel++
+			}
+		}
+		out = append(out, Move{Map: m.f.Map, Edge: m.index, Src: m.e.Src, Dst: m.e.Dst, Parallel: parallel, Kind: m.kind})
 	}
 	return out
 }
@@ -674,10 +680,13 @@ func provenance(moves []move) []Move {
 // Move is one instance's part in an edge of a promoted diagram: the local
 // edge Edge, an index into Local.Edges of the family of the map Map, from
 // the local state Src to Dst, doing to its instance what Kind says.
+// Parallel is how many local edges before it go from Src to Dst too: which
+// of those it is, as a drawing tells them apart.
 type Move struct {
 	Map      string
 	Edge     int
 	Src, Dst string
+	Parallel int
 	Kind     MoveKind
 }
 

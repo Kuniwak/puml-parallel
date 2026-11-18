@@ -38,3 +38,24 @@ func TestPromoteRecordsTheMovesOfEachEdge(t *testing.T) {
 		t.Errorf("moves (-want +got):\n%s", diff)
 	}
 }
+
+func TestPromoteCountsTheLocalEdgesBesideAMove(t *testing.T) {
+	// Setup: DEPART and ARRIVE both go from open to open.
+	p := Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{{Map: "locations", ID: "loc", Local: location(t)}}}
+	want := map[string]int{"OPEN": 0, "DEPART": 0, "ARRIVE": 1, "CLOSE": 0}
+
+	// Execute
+	d, _, err := promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, e := range d.Edges {
+		got[e.Event.Channel] = e.Moves[0].Parallel
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("parallel (-want +got):\n%s", diff)
+	}
+}
