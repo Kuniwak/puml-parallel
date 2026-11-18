@@ -157,7 +157,7 @@ type AtomDoc struct {
 type BuiltinDoc struct {
 	Op     string    `json:"op"`
 	Args   []TermDoc `json:"args"`
-	State  string    `json:"state,omitempty"`
+	State  *string   `json:"state,omitempty"`
 	States []string  `json:"states,omitempty"`
 }
 
@@ -166,22 +166,29 @@ func builtinDoc(b clause.Builtin) *BuiltinDoc {
 	switch len(b.States) {
 	case 0:
 	case 1:
-		doc.State = b.States[0]
+		doc.State = &b.States[0]
 	default:
 		doc.States = slices.Clone(b.States)
 	}
 	return doc
 }
 
-// states are the states doc names: its states, or its one state.
+// states are the states doc names: its one state, or its two or more
+// states; each form is held to its own count, so that one diagram has one
+// document.
 func (doc BuiltinDoc) states() ([]string, error) {
 	switch {
-	case doc.State == "":
-		return slices.Clone(doc.States), nil
-	case len(doc.States) > 0:
-		return nil, fmt.Errorf("a builtin with both a state and states: %s and %v", doc.State, doc.States)
+	case doc.State != nil && doc.States != nil:
+		return nil, fmt.Errorf("a builtin with both a state and states: %s and %s", *doc.State, strings.Join(doc.States, ", "))
+	case doc.State != nil:
+		if *doc.State == "" {
+			return nil, fmt.Errorf("a builtin whose state is empty")
+		}
+		return []string{*doc.State}, nil
+	case doc.States != nil && len(doc.States) < 2:
+		return nil, fmt.Errorf("a builtin with states of %d, not 2 or more", len(doc.States))
 	}
-	return []string{doc.State}, nil
+	return slices.Clone(doc.States), nil
 }
 
 // ExistsDoc is ∃: the type it ranges over, and its body, where the variable

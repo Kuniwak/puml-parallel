@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 	"testing"
 
@@ -396,6 +397,11 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 	initPost := func(v map[string]any) map[string]any {
 		return v["init_post"].([]any)[0].(map[string]any)
 	}
+	at := func(v map[string]any, states map[string]any) {
+		b := map[string]any{"kind": "builtin", "op": "at", "args": []any{map[string]any{"kind": "free", "name": "x"}}}
+		maps.Copy(b, states)
+		v["edges"].([]any)[0].(map[string]any)["guard"] = []any{b}
+	}
 	tests := map[string]struct {
 		edit func(map[string]any)
 		want string
@@ -411,11 +417,20 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 			want: `unknown field "ids"`,
 		},
 		"an @at with both a state and states": {
-			edit: func(v map[string]any) {
-				v["edges"].([]any)[0].(map[string]any)["guard"] = []any{map[string]any{"kind": "builtin", "op": "at",
-					"args": []any{map[string]any{"kind": "free", "name": "x"}}, "state": "s0", "states": []any{"s0", "s1"}}}
-			},
+			edit: func(v map[string]any) { at(v, map[string]any{"state": "s0", "states": []any{"s0", "s1"}}) },
 			want: "a builtin with both a state and states",
+		},
+		"an @at with an empty state": {
+			edit: func(v map[string]any) { at(v, map[string]any{"state": ""}) },
+			want: "a builtin whose state is empty",
+		},
+		"an @at with states of one": {
+			edit: func(v map[string]any) { at(v, map[string]any{"states": []any{"s0"}}) },
+			want: "a builtin with states of 1, not 2 or more",
+		},
+		"an @at with empty states": {
+			edit: func(v map[string]any) { at(v, map[string]any{"states": []any{}}) },
+			want: "a builtin with states of 0, not 2 or more",
 		},
 		"a state that is a reserved word": {
 			edit: func(v map[string]any) { v["states"] = append(v["states"].([]any), "true") },
