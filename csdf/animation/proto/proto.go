@@ -168,6 +168,31 @@ type Pending struct {
 	// family, in declaration order: what a client words in terms of the
 	// local diagrams.
 	Families []string `json:"families,omitempty"`
+	// Shapes tell, for each of Families, how an instance is written: the
+	// type of its IDs and, for every local state but the start state
+	// (absence), the fields an instance there holds.
+	Shapes []InstanceShape `json:"shapes,omitempty"`
+}
+
+// InstanceShape is how an instance of the family of Map is written.
+type InstanceShape struct {
+	Map     string       `json:"map"`
+	KeyType string       `json:"key_type,omitempty"`
+	States  []LocalShape `json:"states"`
+}
+
+// LocalShape is a local state an instance may be at: its ID, its label,
+// and the fields an instance there holds, in declaration order.
+type LocalShape struct {
+	State  string  `json:"state"`
+	Name   string  `json:"name"`
+	Fields []Field `json:"fields,omitempty"`
+}
+
+// Field is a field of an instance and its type, as the diagram writes it.
+type Field struct {
+	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).

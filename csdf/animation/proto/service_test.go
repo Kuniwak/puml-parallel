@@ -687,3 +687,25 @@ func TestThePromptOfAPromotionNamesTheMapsOfInstances(t *testing.T) {
 		t.Errorf("Pending.Families mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestThePromptOfAPromotionTellsTheShapeOfEachInstance(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	want := []InstanceShape{{Map: "items", KeyType: "ID", States: []LocalShape{
+		{State: "itMade", Name: "made", Fields: []Field{{Name: "n", Type: "n"}}},
+	}}}
+	if diff := cmp.Diff(want, view.Pending.Shapes); diff != "" {
+		t.Errorf("Pending.Shapes mismatch (-want +got):\n%s", diff)
+	}
+}
