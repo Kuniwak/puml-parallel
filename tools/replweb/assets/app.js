@@ -289,7 +289,7 @@
   }
 
   function errorBox() {
-    return app.error ? el("div", { class: "error", role: "alert", text: app.error }) : null;
+    return app.error ? el("div", { class: "error", role: "alert", text: app.error }) : document.createTextNode("");
   }
 
   function renderControls() {
