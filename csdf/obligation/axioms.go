@@ -42,7 +42,7 @@ func Lemmas(fs ...clause.Formula) []logic.Formula {
 			case clause.OpAt:
 				family, _ := familyOf(b.Args[0])
 				for _, s := range b.States {
-					if c := StateConstant(b, s); !slices.Contains(states[family], c) {
+					if c := StateConstant(family, s); !slices.Contains(states[family], c) {
 						states[family] = append(states[family], c)
 					}
 				}

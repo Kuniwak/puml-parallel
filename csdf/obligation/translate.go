@@ -45,15 +45,14 @@ const (
 // function of the clauses.
 const StatePrefix = "csdf_state_"
 
-// StateConstant is the constant the state of the builtin @at(t, S) becomes:
+// StateConstant is the constant a state S of the builtin @at(t, …) becomes:
 // StatePrefix, then the family the instance belongs to and a dot, then S. The
 // family is the map the instance is an entry of, m for m[x], so that one state
 // name in the local diagrams of two families is two constants; an instance
 // that is no entry of a map has no family, and names the state after the
 // dot alone. The dot is in no name, so no two qualified states meet, and no
 // state meets a function of the environment, whose name is an identifier.
-func StateConstant(b clause.Builtin, state string) string {
-	family, _ := familyOf(b.Args[0])
+func StateConstant(family, state string) string {
 	return StatePrefix + family + "." + state
 }
 
@@ -198,9 +197,10 @@ func builtin(b clause.Builtin) (logic.Formula, error) {
 	case clause.OpFrame:
 		return logic.Pred(PredFrame, false, args...), nil
 	case clause.OpAt:
+		family, _ := familyOf(b.Args[0])
 		ats := make([]logic.Formula, len(b.States))
 		for i, s := range b.States {
-			ats[i] = logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(b, s)))
+			ats[i] = logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(family, s)))
 		}
 		return logic.Or(ats...), nil
 	}
