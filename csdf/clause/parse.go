@@ -228,13 +228,13 @@ func (p *parser) builtin() (Formula, error) {
 			if err := ident.CheckName(s); err != nil {
 				return nil, fmt.Errorf("@%s at %d: the state: %w", op, start, err)
 			}
-			if slices.Contains(b.States, s) {
-				return nil, fmt.Errorf("@%s at %d: the state %s twice", op, start, s)
-			}
 			b.States = append(b.States, s)
 			if p.expect(", ") != nil {
 				break
 			}
+		}
+		if err := CheckStates(b.States); err != nil {
+			return nil, fmt.Errorf("@%s at %d: %w", op, start, err)
 		}
 	}
 	if err := p.expect(")"); err != nil {

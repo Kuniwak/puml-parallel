@@ -1,5 +1,10 @@
 package clause
 
+import (
+	"fmt"
+	"slices"
+)
+
 // Op is a builtin of the skeleton, named by its tool word without "@".
 type Op string
 
@@ -61,4 +66,18 @@ var builtins = map[Op]BuiltinSpec{
 func (o Op) Spec() (spec BuiltinSpec, ok bool) {
 	spec, ok = builtins[o]
 	return spec, ok
+}
+
+// CheckStates refuses the states of an @at that are not one or more
+// distinct names.
+func CheckStates(states []string) error {
+	if len(states) == 0 {
+		return fmt.Errorf("no state")
+	}
+	for i, s := range states {
+		if slices.Contains(states[:i], s) {
+			return fmt.Errorf("the state %s twice", s)
+		}
+	}
+	return nil
 }
