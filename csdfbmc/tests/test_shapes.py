@@ -44,3 +44,13 @@ class ShapesTest(unittest.TestCase):
         self.assertEqual(got["types"]["Role"]["fields"],
                          {"rank": {"kind": "scalar", "examples": [3], "numeric": True},
                           "size": {"kind": "scalar", "numeric": True}})
+
+    def test_an_attribute_of_an_event_field_is_a_field_of_the_channels_type(self):
+        # Setup
+        d = diagram({"s": []}, "s", edges=[edge("s", "s", "go?j", guard=[atom("$j['pages'] == 1")])], types={"j": "Job"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Job"]["fields"], {"pages": {"kind": "scalar", "examples": [1]}})

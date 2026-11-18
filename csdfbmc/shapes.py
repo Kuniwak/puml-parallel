@@ -19,7 +19,7 @@ def shapes(doc: dict) -> dict:
     trees: dict = {}
     for e in doc["edges"]:
         for a in _atoms(e.get("guard", []) + e.get("post", [])):
-            holes = [var_types.get(a["args"][h].get("name")) for h in a["holes"]]
+            holes = [_resolved(a["args"][h], _term_types(doc, e, var_types)) for h in a["holes"]]
             source = a["pieces"][0] + "".join(f" _{i} " + p for i, p in enumerate(a["pieces"][1:]))
             try:
                 tree = ast.parse(source.strip(), mode="eval")
@@ -69,9 +69,24 @@ def _path(node, holes):
         path.append(node.slice.value)
         node = node.value
     if isinstance(node, ast.Name) and node.id.startswith("_") and node.id[1:].isdigit():
-        t = holes[int(node.id[1:])]
-        if t is not None:
-            return t, list(reversed(path))
+        hole = holes[int(node.id[1:])]
+        if hole is not None:
+            return hole[0], hole[1] + list(reversed(path))
+    return None
+
+
+def _term_types(doc, e, var_types):
+    """The types of the names an edge's clauses use: its event's fields
+    over the state variables."""
+    names = [f["name"] for f in e.get("fields", [])]
+    types = doc["channels"].get(e.get("channel"), [])
+    return {**var_types, **dict(zip(names, types))} if len(names) == len(types) else var_types
+
+
+def _resolved(term, types):
+    """The type a term's value is of and the attributes read of it, or None."""
+    if term["kind"] == "free" and term["name"] in types:
+        return types[term["name"]], []
     return None
 
 
