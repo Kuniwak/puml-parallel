@@ -139,9 +139,13 @@ func (b Builder) workTree() (string, error) {
 	return dir, nil
 }
 
-// build builds the engine in the module root dir, stamping it with
-// version unless version is "".
 func (b Builder) build(dir, version string) (replweb.Engine, error) {
+	return Build(b.Go, dir, b.Module.Path, version)
+}
+
+// Build builds the engine with g in dir, the root of the module modulePath,
+// stamping it with version unless version is "".
+func Build(g Go, dir, modulePath, version string) (replweb.Engine, error) {
 	tmp, err := os.MkdirTemp("", "csdfreplweb-engine")
 	if err != nil {
 		return replweb.Engine{}, err
@@ -150,10 +154,10 @@ func (b Builder) build(dir, version string) (replweb.Engine, error) {
 	wasm := filepath.Join(tmp, "engine.wasm")
 	ldflags := "-s -w"
 	if version != "" {
-		ldflags += " -X " + b.Module.Path + "/version.Version=" + version
+		ldflags += " -X " + modulePath + "/version.Version=" + version
 	}
 	env := []string{"GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0", "GOWORK=off"}
-	if _, err := b.Go.Run(dir, env, "build", "-trimpath", "-buildvcs=false", "-ldflags="+ldflags, "-o", wasm, enginePackage); err != nil {
+	if _, err := g.Run(dir, env, "build", "-trimpath", "-buildvcs=false", "-ldflags="+ldflags, "-o", wasm, enginePackage); err != nil {
 		return replweb.Engine{}, err
 	}
 	raw, err := os.ReadFile(wasm)
@@ -164,7 +168,7 @@ func (b Builder) build(dir, version string) (replweb.Engine, error) {
 	if err != nil {
 		return replweb.Engine{}, err
 	}
-	goroot, err := b.Go.Run(dir, env, "env", "GOROOT")
+	goroot, err := g.Run(dir, env, "env", "GOROOT")
 	if err != nil {
 		return replweb.Engine{}, err
 	}
