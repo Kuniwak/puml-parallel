@@ -17,7 +17,8 @@ class DiagramTest(unittest.TestCase):
         # Setup
         doc = diagram({"s0": ["n"], "s1": []}, "s0", init_post=[atom("$n' == 0")],
                       edges=[edge("s0", "s1", "c?x!n", guard=[atom("$x > $n")],
-                                  post=[exists("T", builtin("at", idx("m'", fixture.bound(0)), state="open"))], line=4)],
+                                  post=[exists("T", builtin("at", idx("m'", fixture.bound(0)), state="open")),
+                                        builtin("at", idx("m'", "x"), states=["open", "shut"])], line=4)],
                       ends=[end("s1")])
 
         # Execute
@@ -32,18 +33,8 @@ class DiagramTest(unittest.TestCase):
         self.assertEqual(Atom(text=("", " > ", ""), holes=(0, 1), primed=(False, False), function="$_0 > $_1",
                               args=(Free("x"), Free("n"))), e.guard[0])
         self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), ("open",)),)), e.post[0])
+        self.assertEqual(Builtin("at", (Index(Free("m", True), Free("x")),), ("open", "shut")), e.post[1])
         self.assertEqual("s1", d.ends[0].src)
-
-    def test_reads_an_at_over_several_states(self):
-        # Setup
-        doc = diagram({"G": ["m", "k"]}, "G", edges=[edge("G", "G", "c", guard=[builtin("at", idx("m", "k"), states=["open", "shut"])])],
-                      families=[family("m", "none", {"none": [], "open": [], "shut": []})])
-
-        # Execute
-        d = Diagram.from_json(doc)
-
-        # Assert
-        self.assertEqual(Builtin("at", (Index(Free("m"), Free("k")),), ("open", "shut")), d.edges[0].guard[0])
 
     def test_reads_the_local_states_of_each_family(self):
         # Setup
