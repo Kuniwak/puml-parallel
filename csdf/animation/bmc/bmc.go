@@ -23,18 +23,18 @@ import (
 // (EvaluatorModule); and the environment, as csdfbmc takes it: Env (--env, in the
 // order given). The zero Checker asks nothing.
 type Checker struct {
-	Checks          string
-	Evaluator       string
-	EvaluatorModule string
-	Env             []Binding
+	Checks          string    `json:"checks"`
+	Evaluator       string    `json:"evaluator,omitempty"`
+	EvaluatorModule string    `json:"evaluator_module,omitempty"`
+	Env             []Binding `json:"env,omitempty"`
 }
 
 // Binding gives a function of the environment, named as csdfbmc names it
 // (the atom's text with its holes as $_0, $_1, ...), a truth value: what
 // "--env NAME=true|false" says.
 type Binding struct {
-	Name  string
-	Value bool
+	Name  string `json:"name"`
+	Value bool   `json:"value"`
 }
 
 // String is the binding as --env takes it.
