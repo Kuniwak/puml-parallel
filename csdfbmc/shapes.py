@@ -47,6 +47,8 @@ def shapes(doc: dict) -> dict:
                 if isinstance(node, ast.Compare):
                     sides = [node.left, *node.comparators]
                     consts = [s.value for s in sides if isinstance(s, ast.Constant)]
+                    consts += [x.value for s in sides if isinstance(s, (ast.Tuple, ast.List, ast.Set))
+                               for x in s.elts if isinstance(x, ast.Constant)]
                     for s in sides:
                         found = _path(s, holes)
                         if found:

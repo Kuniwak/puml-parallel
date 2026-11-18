@@ -90,3 +90,14 @@ class ShapesTest(unittest.TestCase):
 
         # Verify
         self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["high"]}})
+
+    def test_the_constants_an_attribute_is_found_among_are_its_examples(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", edges=[edge("s", "s", "go", guard=[atom("$r['level'] in ('low', 'high')")])],
+                    types={"r": "Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["low", "high"]}})
