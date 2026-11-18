@@ -111,6 +111,19 @@ func TestWriteStaticPageSaysWhenNothingIsHighlighted(t *testing.T) {
 	}
 }
 
+func TestWriteStaticPageSaysALocalDiagramIsHighlighted(t *testing.T) {
+	// Setup
+	families := map[string]FamilyHighlights{"xs": {States: map[string]string{"on": "ent4"}}}
+
+	// Execute
+	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Highlights: Highlights{Families: families}})
+
+	// Assert
+	if !strings.Contains(scriptOf(t, html, "csdfrepl-config"), `"highlighted":true`) {
+		t.Error("the config does not say the drawing is highlighted")
+	}
+}
+
 func TestWriteStaticPageKeepsTheConfigInsideItsScript(t *testing.T) {
 	// Execute
 	html := writeTestPage(t, Page{Title: "</script><b>", Path: "</script>", SVG: []byte("<svg></svg>")})

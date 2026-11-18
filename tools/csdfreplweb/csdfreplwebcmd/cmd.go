@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/csdf"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v3/pngsrc"
@@ -66,12 +65,9 @@ func newMainFunc(render RenderSVG) cli.MainFunc[*Options] {
 		if err != nil {
 			return err
 		}
-		highlights := replweb.Highlights{States: map[string]string{}, Links: map[int]string{}}
-		// The lines of an expansion are not those of the global diagram drawn.
-		if !csdf.HoldsPromotionDirectives(source) {
-			if highlights, err = replweb.MapSVG(svg, d); err != nil {
-				return fmt.Errorf("csdfreplwebcmd: %w", err)
-			}
+		highlights, err := replweb.MapSVG(svg, d)
+		if err != nil {
+			return fmt.Errorf("csdfreplwebcmd: %w", err)
 		}
 		name := filepath.Base(opts.File)
 		title := d.Name

@@ -70,7 +70,7 @@ func writePage(w io.Writer, page Page, transport, engine string) error {
 		Diagram:     page.Diagram,
 		Includes:    page.Includes,
 		Highlights:  page.Highlights,
-		Highlighted: len(page.Highlights.States) > 0,
+		Highlighted: len(page.Highlights.States) > 0 || len(page.Highlights.Families) > 0,
 		Transport:   transport,
 	})
 	if err != nil {
