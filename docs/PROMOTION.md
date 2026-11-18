@@ -179,6 +179,29 @@ unchanged across them, since an edge of the global diagram cannot write an
 instance: write the frame that says so as their post, or leave the post out and
 promotion writes it; any other post is refused.
 
+An attribute that another system owns, and that the specified system only
+reads, is not an instance's variable: no edge of the family creates or
+changes it. Hold it in a variable of the mode instead, whose type is a map
+from the IDs to the attribute (`Roles` below), and read it in a `constrain`.
+With no post on the global start edge, its initial value is any value of its
+type. Every generated edge frames it, and a hand-written edge leaves it
+unchanged by stating `@eq(roles', roles)` in its post:
+
+```plantuml
+state "稼働中" as running {
+  running : sessions ; UserId ⇸ Session
+  running : roles ; Roles
+  state "sessions : (u : UserId) ⇸ Session" as runningSessions <<promote>> {
+    !include local/SESSION.puml
+  }
+}
+[*] --> running
+
+note bottom of runningSessions
+  constrain APPROVE?u ; ${roles[u]} == "admin"
+end note
+```
+
 
 The local-diagram contract
 --------------------------
