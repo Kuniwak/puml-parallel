@@ -607,6 +607,17 @@
     if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
   }
 
+  // valueProblem says, in the tester's words, what keeps the boxes from
+  // being read: the first box left empty or not holding one JSON value.
+  function valueProblem(labels, texts) {
+    for (let i = 0; i < texts.length; i++) {
+      const text = texts[i].trim();
+      if (text === "") return t("values.empty", { name: labels[i] });
+      try { JSON.parse(text); } catch (e) { return t("values.notJSON", { name: labels[i] }); }
+    }
+    return null;
+  }
+
   // varLabel is how the prompt names the variable name: a map of a
   // family's instances by the family.
   function varLabel(pending, name) {
@@ -625,7 +636,12 @@
     const previous = pending.previous ? pending.previous.values || [] : [];
     const inputs = [];
     const form = el("form", {
-      onsubmit: (e) => { e.preventDefault(); enterValues(inputs.map((i) => i.value)); },
+      onsubmit: (e) => {
+        e.preventDefault();
+        const problem = valueProblem(vars.map((name) => varLabel(pending, name)), inputs.map((i) => i.value));
+        if (problem) { app.error = problem; render(); return; }
+        enterValues(inputs.map((i) => i.value));
+      },
     });
     if (vars.length === 0) form.appendChild(el("p", { class: "hint", text: t("values.none", { state: group.state_name }) }));
     else form.appendChild(el("p", { class: "hint", text: t("values.hint") }));
