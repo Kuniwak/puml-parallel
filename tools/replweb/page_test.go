@@ -199,3 +199,22 @@ func TestWriteStaticPageCarriesTheCheckerAndWhatItReads(t *testing.T) {
 		t.Error("the page does not carry csdfbmc's package")
 	}
 }
+
+func TestWriteStaticPageCarriesTheShapes(t *testing.T) {
+	// Setup
+	shapes := json.RawMessage(`{"types":{"Role":{"kind":"record","fields":{}}},"vars":{"r":"Role"}}`)
+
+	// Execute
+	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Shapes: shapes})
+
+	// Assert
+	var config struct {
+		Shapes json.RawMessage `json:"shapes"`
+	}
+	if err := json.Unmarshal([]byte(scriptOf(t, html, "csdfrepl-config")), &config); err != nil {
+		t.Fatal(err)
+	}
+	if string(config.Shapes) != string(shapes) {
+		t.Errorf("shapes = %s, want %s", config.Shapes, shapes)
+	}
+}

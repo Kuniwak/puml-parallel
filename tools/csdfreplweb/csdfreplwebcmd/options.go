@@ -34,6 +34,10 @@ type Options struct {
 	// Pyodide is the URL of the directory holding pyodide.js, which a page
 	// suggesting values loads.
 	Pyodide string
+	// Shapes is the file of what csdfbmc shapes says the diagram's formal
+	// clauses reveal of its types, which the page shows by the inputs; ""
+	// shows none.
+	Shapes string
 }
 
 // CommonOptions returns the parsed common options.
@@ -76,6 +80,10 @@ and every word of -evaluator-module naming a file, read relative to the
 current directory as csdfbmc reads them. The glue must be a Python
 module: a browser starts no command, so -evaluator is refused.
 
+With -shapes, the page shows by each input what the values of its type
+look like: the attributes and example values csdfbmc shapes reads from the
+clauses of the diagram written in Python, printed to the file given.
+
 The page carries the exploration engine compiled to WebAssembly. A
 release binary embeds it. Otherwise csdfreplweb builds it with the go
 command on the PATH: a released version from the module cache, kept
@@ -95,6 +103,8 @@ Examples:
   $ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
       -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" \
       examples/bmc/printer_formal.puml > printer.html
+  $ csdfparse diagram.puml > diagram.json && csdfbmc shapes diagram.json > shapes.json
+  $ csdfreplweb -shapes shapes.json diagram.puml > diagram.html
 `)
 		}
 
@@ -104,6 +114,7 @@ Examples:
 		pumlExec := flags.String("puml-exec", DefaultPumlExec, "command that reads PlantUML source on its standard input and writes SVG on its standard output")
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
+		shapes := flags.String("shapes", "", "JSON file csdfbmc shapes prints of the diagram, whose shapes of the types the page shows by the inputs")
 		pyodide := flags.String("pyodide", DefaultPyodide, "with -checks, URL of the directory holding pyodide.js, which the page loads to run csdfbmc")
 
 		if err := flags.Parse(args); err != nil {
@@ -136,6 +147,6 @@ Examples:
 			return nil, errors.New("csdfreplwebcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
-		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide}, nil
+		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide, Shapes: *shapes}, nil
 	}
 }

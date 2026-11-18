@@ -2,6 +2,7 @@ package csdfreplwebcmd
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -213,5 +214,46 @@ func TestMainFailsOnAChecksModuleItCannotRead(t *testing.T) {
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "no/such/checks.py") {
 		t.Errorf("err = %v, want one naming the checks module", err)
+	}
+}
+
+func TestMainCarriesTheShapes(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	shapes := filepath.Join(t.TempDir(), "shapes.json")
+	if err := os.WriteFile(shapes, []byte(`{"types": {"Nat": {"kind": "scalar", "numeric": true}}, "vars": {}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Shapes: shapes}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"shapes":{"types":{"Nat":{"kind":"scalar","numeric":true}},"vars":{}}`; !strings.Contains(spy.Stdout.String(), want) {
+		t.Errorf("the page does not hold %s", want)
+	}
+}
+
+func TestMainRefusesShapesThatAreNoJSON(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	shapes := filepath.Join(t.TempDir(), "shapes.json")
+	if err := os.WriteFile(shapes, []byte(`{"types":`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Shapes: shapes}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "shapes.json") {
+		t.Errorf("err = %v, want one naming the shapes file", err)
 	}
 }

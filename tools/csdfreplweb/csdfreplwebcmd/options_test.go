@@ -145,3 +145,19 @@ func TestNewParseOptionsFuncTakesTheChecker(t *testing.T) {
 		})
 	}
 }
+
+func TestNewParseOptionsFuncTakesTheShapes(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+
+	// Execute
+	opts, err := NewParseOptionsFunc()([]string{"-shapes", "s.json", "d.puml"}, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Shapes != "s.json" {
+		t.Errorf("Shapes = %q, want s.json", opts.Shapes)
+	}
+}

@@ -2,6 +2,7 @@ package csdfreplwebcmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -108,11 +109,30 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 		if err != nil {
 			return err
 		}
+		shapes, err := shapesOf(opts)
+		if err != nil {
+			return err
+		}
 		return replweb.WriteStaticPage(inout.Stdout, replweb.Page{
 			Title: title, Path: name, Diagram: []byte(source), Includes: includes, SVG: svg, Highlights: highlights,
-			Python: python,
+			Python: python, Shapes: shapes,
 		}, engine)
 	}
+}
+
+// shapesOf is the JSON of the file -shapes names, or nil when none is.
+func shapesOf(opts *Options) (json.RawMessage, error) {
+	if opts.Shapes == "" {
+		return nil, nil
+	}
+	bs, err := os.ReadFile(opts.Shapes)
+	if err != nil {
+		return nil, fmt.Errorf("csdfreplwebcmd: cannot read the shapes: %w", err)
+	}
+	if !json.Valid(bs) {
+		return nil, fmt.Errorf("csdfreplwebcmd: %q is not JSON; give what csdfbmc shapes prints", opts.Shapes)
+	}
+	return bs, nil
 }
 
 // pythonOf is what the page's Python reads to suggest values, or nil when
