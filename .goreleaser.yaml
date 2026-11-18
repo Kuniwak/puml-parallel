@@ -1,5 +1,11 @@
 version: 2
 
+# csdfreplweb embeds the engine of its page, built for WebAssembly here and
+# attached to the release on its own for csdfreplweb -engine.
+before:
+  hooks:
+    - go run ./tools/replweb/internal/buildengine -version {{ .Version }}
+
 builds:
   - id: csdfparallel
     main: ./tools/csdfparallel/main.go
@@ -214,6 +220,8 @@ builds:
   - id: csdfreplweb
     main: ./tools/csdfreplweb/main.go
     binary: csdfreplweb
+    flags:
+      - -tags=embedengine
     goos:
       - linux
       - darwin
@@ -337,5 +345,12 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+  extra_files:
+    - glob: tools/replweb/engineload/embedded/engine.wasm.gz
+      name_template: "csdfreplweb-engine_{{ .Version }}.wasm.gz"
+
 release:
   prerelease: auto
+  extra_files:
+    - glob: tools/replweb/engineload/embedded/engine.wasm.gz
+      name_template: "csdfreplweb-engine_{{ .Version }}.wasm.gz"
