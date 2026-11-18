@@ -778,15 +778,7 @@
     box.scrollTop += y - pane.top;
   }
 
-  // flash makes nodes blink for a moment, to show where the eye should go.
-  function flash(nodes) {
-    for (const n of document.querySelectorAll("#diagram .csdf-flash")) n.classList.remove("csdf-flash");
-    for (const n of nodes) n.classList.add("csdf-flash");
-    clearTimeout(app.flashTimer);
-    app.flashTimer = setTimeout(() => {
-      for (const n of document.querySelectorAll("#diagram .csdf-flash")) n.classList.remove("csdf-flash");
-    }, 2400);
-  }
+
 
 
   // centreOnStep centres the drawing once per step, not on every redraw.
@@ -824,7 +816,6 @@
       const maps = blocksToShow(v);
       if (maps.length > 0 || app.block) {
         showBlocks(maps.length > 0 ? maps : app.block);
-        flash(focusOf(v));
         return;
       }
     }
@@ -832,7 +823,6 @@
     const state = svgElement(highlights.states[id]);
     const nodes = state ? [state] : focusOf(v);
     centreOn(nodes);
-    flash(nodes);
   }
 
   // ---- Showing one block at a time ----
