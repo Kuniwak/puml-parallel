@@ -11,7 +11,8 @@ import (
 
 // Templates gloss the builtins of a formula promotion for a reader
 // (docs/PROMOTION.md, Wording): a template is named after a builtin word
-// and given the builtin's terms as .Args and, for @at, its state as .State.
+// and given the builtin's terms as .Args and, for @at, its states as
+// .States and, of an @at over one state, that state as .State.
 // A gloss is a line comment, so it never replaces the builtin it glosses
 // (docs/CLAUSE_DESIGN.md).
 type Templates struct {
@@ -20,8 +21,18 @@ type Templates struct {
 
 // glossed is what a template is given.
 type glossed struct {
-	Args  []string
-	State string
+	Args   []string
+	States []string
+}
+
+// State is the one state of an @at over one; of an @at over several it is
+// an error, so that a template written for one state never glosses a
+// choice as if it were one.
+func (g glossed) State() (string, error) {
+	if len(g.States) != 1 {
+		return "", fmt.Errorf("@at over %d states has no one state; read .States", len(g.States))
+	}
+	return g.States[0], nil
 }
 
 // LoadTemplates reads a Go text/template file of templates named after
@@ -42,7 +53,7 @@ func LoadTemplates(text string) (Templates, error) {
 		if !ok {
 			return Templates{}, fmt.Errorf("coreio.LoadTemplates: the template %s is not named after a builtin word; csdfpromote's templates are not the formula promotion's", name)
 		}
-		sample := glossed{Args: make([]string, spec.Terms), State: "S"}
+		sample := glossed{Args: make([]string, spec.Terms), States: []string{"S"}}
 		for i := range sample.Args {
 			sample.Args[i] = fmt.Sprintf("t%d", i)
 		}
@@ -71,7 +82,7 @@ func (ts Templates) Gloss(e core.Edge) (string, error) {
 			if t == nil {
 				continue
 			}
-			g := glossed{State: b.State}
+			g := glossed{States: b.States}
 			for _, a := range b.Args {
 				s, err := clause.PrintTerm(a)
 				if err != nil {

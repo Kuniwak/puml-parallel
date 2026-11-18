@@ -17,6 +17,8 @@ func TestHoldsReadsPartialMaps(t *testing.T) {
 		"a map without entries is empty":             {clause: "@empty(m')", after: map[string]Value{"m": Map{}}, want: true},
 		"a map with an entry is not empty":           {clause: "@empty(m')", after: map[string]Value{"m": Map{Key("a"): a}}, want: false},
 		"an instance that exists is at its state":    {clause: "@at(m[k], open)", before: map[string]Value{"k": "a", "m": Map{Key("a"): a}}, want: true},
+		"an instance is at one of several states":    {clause: "@at(m[k], shut, open)", before: map[string]Value{"k": "a", "m": Map{Key("a"): a}}, want: true},
+		"an instance is at none of several states":   {clause: "@at(m[k], shut, gone)", before: map[string]Value{"k": "a", "m": Map{Key("a"): a}}, want: false},
 		"a builtin reading a missing entry is false": {clause: "@at(m[k], open)", before: map[string]Value{"k": "b", "m": Map{Key("a"): a}}, want: false},
 		"an atom reading a missing entry is false":   {clause: "${m[k].stock} = 1", before: map[string]Value{"k": "b", "m": Map{Key("a"): a}}, want: false},
 	}

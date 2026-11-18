@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"maps"
 	"strings"
 	"testing"
 
@@ -42,6 +43,10 @@ func TestFormulaDocOf(t *testing.T) {
 {"kind":"builtin","op":"ne","args":[{"kind":"free","name":"from"},{"kind":"free","name":"to"}]},
 {"kind":"exists","type":"locations","body":[{"kind":"builtin","op":"at","args":[{"kind":"index","map":{"kind":"bound","index":0},"key":{"kind":"free","name":"x"}}],"state":"open"}]}
 ]`,
+		},
+		"an @at over several states": {
+			text: "@at(m[x], open, shut)",
+			want: `[{"kind":"builtin","op":"at","args":[{"kind":"index","map":{"kind":"free","name":"m"},"key":{"kind":"free","name":"x"}}],"states":["open","shut"]}]`,
 		},
 		"an atom under a binder": {
 			text: "@exists(v : T) ($v > 0)",
@@ -190,6 +195,16 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 "init": "G", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [],
 "families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": [{"name": "cnt", "type": "N"}]}}]}`,
 		},
+		"an @at over several states of a family": {
+			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m", "x"}}, Types: map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("Member")), "x": types.Named("K")}, Init: "G", InitPost: clause.And{},
+				Ends:     []End{{Src: "G", Guard: mustParse(t, "@at(m[x], open, shut)")}},
+				Families: []FamilyStates{{Map: "m", Key: "k", KeyType: types.Named("K"), Init: "none", States: []string{"none", "open", "shut"}, Vars: map[string][]string{}, Types: map[string]types.Type{}}}},
+			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": [{"name": "m", "type": "K ⇸ Member"}, {"name": "x", "type": "K"}]}, "channels": {},
+"init": "G", "init_post": [], "init_line": 0, "edges": [],
+"ends": [{"src": "G", "guard": [{"kind": "builtin", "op": "at", "args": [{"kind": "index", "map": {"kind": "free", "name": "m"}, "key": {"kind": "free", "name": "x"}}], "states": ["open", "shut"]}]}],
+"assumes": [],
+"families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open", "shut"], "vars": {"none": [], "open": [], "shut": []}}]}`,
+		},
 		"labels only of the states labelled apart from their IDs": {
 			d: &Diagram{States: []string{"s0", "s1"}, Labels: map[string]string{"s1": "完了"}, Vars: map[string][]string{}, Init: "s0", InitPost: clause.And{}},
 			want: `{"version": 3, "name": "", "states": ["s0", "s1"], "labels": {"s1": "完了"}, "vars": {"s0": [], "s1": []}, "channels": {},
@@ -282,7 +297,7 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 		"an @at of an entry at the start state of its family": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0",
 				InitPost: clause.And{Conjuncts: []clause.Formula{clause.Exists{Hint: "k", Type: "K", Body: clause.And{Conjuncts: []clause.Formula{
-					clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: clause.Free{Name: "m", Primed: true}, Key: clause.Bound{Index: 0}}}, State: "none"}}}}}},
+					clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: clause.Free{Name: "m", Primed: true}, Key: clause.Bound{Index: 0}}}, States: []string{"none"}}}}}}},
 				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "the start edge: none is the start state of the family of m, which is absence; say @notin",
 		},
@@ -309,6 +324,18 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 				Ends:     []End{{Src: "s0", Guard: mustParse(t, "@at(m[k], gone)")}},
 				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "the end edge from s0: @at(m[…], gone), but gone is no state of the family of m",
+		},
+		"an @at over several states, one of them no state of its family": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
+				Ends:     []End{{Src: "s0", Guard: mustParse(t, "@at(m[k], open, gone)")}},
+				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
+			want: "the end edge from s0: @at(m[…], open, gone), but gone is no state of the family of m",
+		},
+		"an @at over several states, one of them the start state of its family": {
+			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0", InitPost: clause.And{},
+				Ends:     []End{{Src: "s0", Guard: mustParse(t, "@at(m[k], open, none)")}},
+				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
+			want: "the end edge from s0: none is the start state of the family of m, which is absence; say @notin",
 		},
 	}
 	for name, tt := range tests {
@@ -370,6 +397,11 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 	initPost := func(v map[string]any) map[string]any {
 		return v["init_post"].([]any)[0].(map[string]any)
 	}
+	at := func(v map[string]any, states map[string]any) {
+		b := map[string]any{"kind": "builtin", "op": "at", "args": []any{map[string]any{"kind": "free", "name": "x"}}}
+		maps.Copy(b, states)
+		v["edges"].([]any)[0].(map[string]any)["guard"] = []any{b}
+	}
 	tests := map[string]struct {
 		edit func(map[string]any)
 		want string
@@ -383,6 +415,22 @@ func TestUnmarshalDiagramRefuses(t *testing.T) {
 				v["families"] = []any{map[string]any{"map": "m", "key": "k", "init": "none", "states": []any{"none"}, "vars": map[string]any{"none": []any{}}, "ids": "k"}}
 			},
 			want: `unknown field "ids"`,
+		},
+		"an @at with both a state and states": {
+			edit: func(v map[string]any) { at(v, map[string]any{"state": "s0", "states": []any{"s0", "s1"}}) },
+			want: "a builtin with both a state and states",
+		},
+		"an @at with an empty state": {
+			edit: func(v map[string]any) { at(v, map[string]any{"state": ""}) },
+			want: "a builtin whose state is empty",
+		},
+		"an @at with states of one": {
+			edit: func(v map[string]any) { at(v, map[string]any{"states": []any{"s0"}}) },
+			want: "a builtin with states of 1, not 2 or more",
+		},
+		"an @at with empty states": {
+			edit: func(v map[string]any) { at(v, map[string]any{"states": []any{}}) },
+			want: "a builtin with states of 0, not 2 or more",
 		},
 		"a state that is a reserved word": {
 			edit: func(v map[string]any) { v["states"] = append(v["states"].([]any), "true") },

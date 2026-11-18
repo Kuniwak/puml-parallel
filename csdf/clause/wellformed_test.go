@@ -21,8 +21,9 @@ func TestWellFormed(t *testing.T) {
 		"a dangling index":             {f: and(eq(Bound{0}, pre("x"))), want: "clause.LocallyClosed: the index 0 is under 0 binders"},
 		"a builtin of the wrong arity": {f: and(Builtin{Op: OpEq, Args: []Term{pre("x")}}), want: "@eq takes 2 terms, not 1"},
 		"an unknown builtin":           {f: and(Builtin{Op: "foo", Args: []Term{pre("x")}}), want: "an unknown builtin @foo"},
-		"@at without a state":          {f: and(Builtin{Op: OpAt, Args: []Term{pre("x")}}), want: "@at: a state"},
-		"a state on another builtin":   {f: and(Builtin{Op: OpEq, Args: []Term{pre("x"), pre("y")}, State: "s"}), want: "@eq: a state"},
+		"@at without a state":          {f: and(Builtin{Op: OpAt, Args: []Term{pre("x")}}), want: "@at: no state"},
+		"@at with a state twice":       {f: and(Builtin{Op: OpAt, Args: []Term{pre("x")}, States: []string{"s", "s"}}), want: "@at: the state s twice"},
+		"a state on another builtin":   {f: and(Builtin{Op: OpEq, Args: []Term{pre("x"), pre("y")}, States: []string{"s", "t"}}), want: "@eq: the states s, t, but it takes none"},
 		"a path from a function":       {f: and(atom(hole(Index{Map: App{Fn: "f"}, Key: pre("k")}))), want: "a path starts from a variable"},
 		"a nil term":                   {f: and(atom(Hole{})), want: "an unknown term"},
 	}

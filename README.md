@@ -469,7 +469,7 @@ name the skeleton declares:
 | a function of the environment, `${f($x)}` | `fn_<name> v_x` |
 | an entry of a map, `m[k]`, and a field, `r.f` | `csdf_index v_m v_k`, `field_<f> v_r`; a clause reading an entry is conjoined with `csdf_in v_k v_m` |
 | `@eq`, `@ne` | `=` and its negation |
-| `@in`, `@notin`, `@empty`, `@update`, `@frame`, `@at` | `csdf_in`, its negation, `csdf_empty`, `csdf_update`, `csdf_frame<n>` (n keys), `csdf_at` |
+| `@in`, `@notin`, `@empty`, `@update`, `@frame`, `@at` | `csdf_in`, its negation, `csdf_empty`, `csdf_update`, `csdf_frame<n>` (n keys), `csdf_at`; `@at(t, A, B)` is `csdf_at v_t A ∨ csdf_at v_t B` |
 | `@exists(k : T) (…)` | `∃k. type_<T> k ∧ …` |
 | a state variable `x`, a value after the step `x'` | `v_x`, `v_x_u27u` |
 
@@ -1182,7 +1182,8 @@ $ csdfbmc printer_retry_formal.json examples/bmc/printer_retry_formal_checks.py 
 ```
 
 An expansion of a promoted diagram is walked the same way. A map variable
-holds, per instance ID, an instance: its local state, which `@at` reads, and
+holds, per instance ID, an instance: its local state, which `@at` reads
+(`@at(m[k], S1, S2)`: at one of `S1` and `S2`), and
 its local variables, which an atom reads as `${attempts'[試行ID].優先度}`.
 Which variables an instance holds at each local state is the family the JSON
 writes (`families`): after `@at(m'[k], S)` the instance holds exactly the

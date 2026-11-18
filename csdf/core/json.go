@@ -151,11 +151,44 @@ type AtomDoc struct {
 	Function string    `json:"function"`
 }
 
-// BuiltinDoc is a builtin: its op, its terms, and the state of @at.
+// BuiltinDoc is a builtin: its op, its terms, and the states of @at, its
+// one state as state and two or more as states, so that a document of @at
+// over one state reads as it always has.
 type BuiltinDoc struct {
-	Op    string    `json:"op"`
-	Args  []TermDoc `json:"args"`
-	State string    `json:"state,omitempty"`
+	Op     string    `json:"op"`
+	Args   []TermDoc `json:"args"`
+	State  *string   `json:"state,omitempty"`
+	States []string  `json:"states,omitempty"`
+}
+
+func builtinDoc(b clause.Builtin) *BuiltinDoc {
+	doc := &BuiltinDoc{Op: string(b.Op), Args: termDocs(b.Args)}
+	switch len(b.States) {
+	case 0:
+	case 1:
+		doc.State = &b.States[0]
+	default:
+		doc.States = slices.Clone(b.States)
+	}
+	return doc
+}
+
+// states are the states doc names: its one state, or its two or more
+// states; each form is held to its own count, so that one diagram has one
+// document.
+func (doc BuiltinDoc) states() ([]string, error) {
+	switch {
+	case doc.State != nil && doc.States != nil:
+		return nil, fmt.Errorf("a builtin with both a state and states: %s and %s", *doc.State, strings.Join(doc.States, ", "))
+	case doc.State != nil:
+		if *doc.State == "" {
+			return nil, fmt.Errorf("a builtin whose state is empty")
+		}
+		return []string{*doc.State}, nil
+	case doc.States != nil && len(doc.States) < 2:
+		return nil, fmt.Errorf("a builtin with states of %d, not 2 or more", len(doc.States))
+	}
+	return slices.Clone(doc.States), nil
 }
 
 // ExistsDoc is ∃: the type it ranges over, and its body, where the variable
@@ -621,7 +654,7 @@ func formulaDocs(f clause.And) ([]FormulaDoc, error) {
 				Text: w.Text, Primed: w.Primed, Function: fn.Name,
 			}})
 		case clause.Builtin:
-			out = append(out, FormulaDoc{Builtin: &BuiltinDoc{Op: string(c.Op), Args: termDocs(c.Args), State: c.State}})
+			out = append(out, FormulaDoc{Builtin: builtinDoc(c)})
 		case clause.Exists:
 			body, err := formulaDocs(c.Body)
 			if err != nil {
@@ -677,7 +710,11 @@ func (doc FormulaDoc) formula() (clause.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, State: doc.Builtin.State}, nil
+		states, err := doc.Builtin.states()
+		if err != nil {
+			return nil, err
+		}
+		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, States: states}, nil
 	default:
 		body, err := formulaOfDocs(doc.Exists.Body)
 		if err != nil {

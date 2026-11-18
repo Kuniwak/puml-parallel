@@ -1,5 +1,10 @@
 package clause
 
+import (
+	"fmt"
+	"slices"
+)
+
 // Op is a builtin of the skeleton, named by its tool word without "@".
 type Op string
 
@@ -21,17 +26,18 @@ const (
 	// OpFrame says the map Args[0] agrees with Args[1] everywhere but at the
 	// keys Args[2:].
 	OpFrame Op = "frame"
-	// OpAt says the instance Args[0] is at State of its local diagram. A
-	// state is a position, not a value, so it is a name and never a term.
+	// OpAt says the instance Args[0] is at one of States of its local
+	// diagram. A state is a position, not a value, so it is a name and never
+	// a term.
 	OpAt Op = "at"
 )
 
 // Builtin is a fact a tool states without any clause language
 // (docs/CLAUSE_DESIGN.md, P7).
 type Builtin struct {
-	Op    Op
-	Args  []Term
-	State string // OpAt only
+	Op     Op
+	Args   []Term
+	States []string // OpAt only
 }
 
 func (Builtin) isFormula() {}
@@ -60,4 +66,18 @@ var builtins = map[Op]BuiltinSpec{
 func (o Op) Spec() (spec BuiltinSpec, ok bool) {
 	spec, ok = builtins[o]
 	return spec, ok
+}
+
+// CheckStates refuses the states of an @at that are not one or more
+// distinct names.
+func CheckStates(states []string) error {
+	if len(states) == 0 {
+		return fmt.Errorf("no state")
+	}
+	for i, s := range states {
+		if slices.Contains(states[:i], s) {
+			return fmt.Errorf("the state %s twice", s)
+		}
+	}
+	return nil
 }

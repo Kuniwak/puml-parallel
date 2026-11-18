@@ -262,7 +262,7 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
-         / "@at(" term ", " id ")"          ; instance at a state of its local diagram
+         / "@at(" term 1*(", " id) ")"      ; instance at one of the states of its local diagram
          / "@empty(" term ")"               ; a map without entries
 exists   = "@exists(" name " : " type ") (" clause ")"
 type     = <a type, as a state variable declares it: a name, any, or K ⇸ V>

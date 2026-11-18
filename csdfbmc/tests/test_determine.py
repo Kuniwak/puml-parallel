@@ -13,7 +13,7 @@ def eq(x, y):
 
 def other(*names):
     """A conjunct that reads names and binds nothing."""
-    return Builtin("at", tuple(Free(n) for n in names), state="s")
+    return Builtin("at", tuple(Free(n) for n in names), states=("s",))
 
 
 def part(f, k):
@@ -184,7 +184,7 @@ class WitnessTest(unittest.TestCase):
 
 def other_of(*terms):
     """A conjunct that reads terms and binds nothing."""
-    return Builtin("at", terms, state="s")
+    return Builtin("at", terms, states=("s",))
 
 
 if __name__ == "__main__":

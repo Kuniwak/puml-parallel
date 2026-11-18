@@ -28,7 +28,7 @@ func TestPrintWritesTheSurfaceSyntax(t *testing.T) {
 			want: "${m[k].f} が 0",
 		},
 		"conjuncts and builtins": {
-			f:    and(eq(pre("x"), post("y")), Builtin{Op: OpAt, Args: []Term{pre("i")}, State: "s"}, Builtin{Op: OpFrame, Args: []Term{post("m"), pre("m"), pre("k")}}),
+			f:    and(eq(pre("x"), post("y")), Builtin{Op: OpAt, Args: []Term{pre("i")}, States: []string{"s"}}, Builtin{Op: OpFrame, Args: []Term{post("m"), pre("m"), pre("k")}}),
 			want: "@eq(x, y') ∧ @at(i, s) ∧ @frame(m', m, k)",
 		},
 		"an ∃ keeps its hint when it captures nothing": {

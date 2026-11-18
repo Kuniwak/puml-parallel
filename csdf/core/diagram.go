@@ -521,15 +521,17 @@ func (d *Diagram) atsIn(c clause.And) error {
 				continue
 			}
 			fam := d.Families[i]
-			if !slices.Contains(fam.States, f.State) {
-				prime := ""
-				if m.Primed {
-					prime = "'"
+			for _, s := range f.States {
+				if !slices.Contains(fam.States, s) {
+					prime := ""
+					if m.Primed {
+						prime = "'"
+					}
+					return fmt.Errorf("@at(%s%s[…], %s), but %s is no state of the family of %s", m.Name, prime, strings.Join(f.States, ", "), s, m.Name)
 				}
-				return fmt.Errorf("@at(%s%s[…], %s), but %s is no state of the family of %s", m.Name, prime, f.State, f.State, m.Name)
-			}
-			if f.State == fam.Init {
-				return fmt.Errorf("%s is the start state of the family of %s, which is absence; say @notin", f.State, m.Name)
+				if s == fam.Init {
+					return fmt.Errorf("%s is the start state of the family of %s, which is absence; say @notin", s, m.Name)
+				}
 			}
 		}
 	}

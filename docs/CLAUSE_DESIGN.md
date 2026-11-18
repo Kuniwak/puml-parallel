@@ -240,7 +240,8 @@ holding (obligation.EmptyMeaning and the like), so each lemma follows from
 its definition by projection. An instance is a record whose first component
 is its state; @at is that it is the state constant, each a number of its
 own, so an instance is at one state at a time, and a diagram starting at a
-state can be shown to start. A value that is no record is at no state.
+state can be shown to start. @at over several states is the disjunction of
+@at over each. A value that is no record is at no state.
 
 Which hypotheses an obligation takes is part of what it claims. A
 refinement is stated under no hypothesis, never under an assumption of
@@ -442,7 +443,7 @@ that a language interprets.
 ```
 clause  ::= atom | builtin | clause ∧ clause | ∃ var : type . clause
 builtin ::= term = term | term ≠ term | term ∈ dom term | term ∉ dom term
-          | map update | frame | term at state | term is empty
+          | map update | frame | term at state, … | term is empty
 term    ::= literal | var | var' | term[term].field | envfn(term, …)
 ```
 
@@ -537,6 +538,29 @@ arrays (ordered lists, not tuples) and objects (records from string keys).
 `t at S` says that the instance t is at the state S of its local diagram.
 A state is a position, not a value: it is never a hole, never of an environment type
 and never permuted by symmetry.
+
+`t at S₁, …, Sₙ` (n ≥ 1) says that t is at one of the states S₁ … Sₙ; with
+one state it is `t at S`. The states are listed as the keys of a frame
+are, and are distinct names of the local diagram of t's family, none its
+start state, which is absence (`@notin` says that). The clause stays a
+conjunction: the choice is among the positions of one instance, so no
+disjunction of clauses is introduced, and a `constrain` note, conjoined to
+every edge of its event, can say it where an edge cannot be split per
+state.
+
+- What it reads: t, and nothing else; the states are names, not variables.
+  So free-name extraction (O9), and with it partial-order reduction, cone
+  of influence, symmetry and restriction, sees exactly the reads of `t at
+  S`.
+- Evaluation (O7): it holds when the state of t is among the states. In a
+  post that places an instance, csdfbmc takes each state as an option of
+  the step, as it takes each value of an ∃.
+- Translation (O8): it is the disjunction `csdf_at(t, S₁) ∨ … ∨
+  csdf_at(t, Sₙ)` of the state constants, so it needs no lemma of its own;
+  the lemma that an instance is at one state at a time covers each state it
+  lists.
+- Printing and JSON (O12): `@at(t, S₁, …, Sₙ)`; the diagram JSON writes one
+  state as `state` and two or more as `states`.
 
 A clause of a local diagram reads only its own instance, because the
 instances are interleaved (|||) and one process does not see another's

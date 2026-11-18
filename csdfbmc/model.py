@@ -129,8 +129,7 @@ def show(t) -> str:
     if isinstance(t, Builtin):
         if t.op in _INFIX:
             return f"{show(t.args[0])} {_INFIX[t.op]} {show(t.args[1])}"
-        state = [t.state] if t.state else []
-        return f"@{t.op}({', '.join([*(show(a) for a in t.args), *state])})"
+        return f"@{t.op}({', '.join([*(show(a) for a in t.args), *t.states])})"
     if isinstance(t, Exists):
         return f"@exists({t.type}) ({', '.join(show(c) for c in t.body)})"
     if isinstance(t, Atom):
@@ -156,11 +155,11 @@ class Atom:
 
 @dataclass(frozen=True)
 class Builtin:
-    """A fact a tool states: op is the builtin's word without @, state the
-    state of @at."""
+    """A fact a tool states: op is the builtin's word without @, states the
+    states of @at, one of which the instance is at."""
     op: str
     args: tuple
-    state: str = ""
+    states: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -277,7 +276,7 @@ def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str
 _TERMS = {"free": (("name",), ("primed",)), "bound": (("index",), ()), "index": (("map", "key"), ()),
           "field": (("of", "name"), ()), "app": (("fn", "args"), ()), "lit": (("value",), ())}
 _CONJUNCTS = {"atom": (("pieces", "holes", "args", "text", "primed", "function"), ()),
-              "builtin": (("op", "args"), ("state",)), "exists": (("type", "body"), ())}
+              "builtin": (("op", "args"), ("state", "states")), "exists": (("type", "body"), ())}
 
 
 def _kind(doc: dict, kinds: dict, what: str) -> str:
@@ -315,7 +314,7 @@ def _conjunct(doc: dict) -> Formula:
         return Atom(text=tuple(doc["text"]), holes=tuple(doc["holes"]), primed=tuple(doc["primed"]),
                     function=doc["function"], args=tuple(term_of(a) for a in doc["args"]))
     if kind == "builtin":
-        return Builtin(doc["op"], tuple(term_of(a) for a in doc["args"]), doc.get("state", ""))
+        return Builtin(doc["op"], tuple(term_of(a) for a in doc["args"]), _states(doc))
     return Exists(doc["type"], formula_of(doc["body"]))
 
 
@@ -406,6 +405,23 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
     return m, Family(doc["init"], states, FrozenMap(local), doc["key"], doc["key_type"], FrozenMap(types))
 
 
+def _states(doc: dict) -> tuple:
+    """The states of a builtin's document: its one state as state, or two
+    or more as states, as core.BuiltinDoc writes them; each form is held to
+    its own count."""
+    if "state" in doc and "states" in doc:
+        raise ValueError(f"a builtin with both a state and states: {doc!r}")
+    if "state" in doc:
+        if doc["state"] == "":
+            raise ValueError(f"a builtin whose state is empty: {doc!r}")
+        return (doc["state"],)
+    if "states" in doc and len(doc["states"]) < 2:
+        raise ValueError(f"a builtin with states of {len(doc['states'])}, not 2 or more: {doc!r}")
+    if doc["op"] == "at" and "states" not in doc:
+        raise ValueError(f"@at: no state: {doc!r}")
+    return tuple(doc.get("states", ()))
+
+
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
     """Refuses an @at of an entry of a family's map at a state that is not
     one an instance may be at. It mirrors core.Diagram.wellFormed, which
@@ -418,11 +434,15 @@ def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
             fam = families.get(m)
             if fam is None:
                 continue
-            if f.state not in fam.states:
-                raise ValueError(f"{where}: @at({m}{chr(39) if f.args[0].map.primed else ''}[…], {f.state}), "
-                                 f"but {f.state} is no state of the family of {m}")
-            if f.state == fam.init:
-                raise ValueError(f"{where}: {f.state} is the start state of the family of {m}, which is absence; say @notin")
+            for i, s in enumerate(f.states):
+                if s in f.states[:i]:
+                    raise ValueError(f"{where}: @at({m}{chr(39) if f.args[0].map.primed else ''}[…], {', '.join(f.states)}): "
+                                     f"the state {s} twice")
+                if s not in fam.states:
+                    raise ValueError(f"{where}: @at({m}{chr(39) if f.args[0].map.primed else ''}[…], {', '.join(f.states)}), "
+                                     f"but {s} is no state of the family of {m}")
+                if s == fam.init:
+                    raise ValueError(f"{where}: {s} is the start state of the family of {m}, which is absence; say @notin")
 
 
 @dataclass

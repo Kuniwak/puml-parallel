@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -183,7 +184,7 @@ func builtin(b clause.Builtin, args []Value) (bool, error) {
 		if !ok {
 			return false, fmt.Errorf("core: @at of %s, not an instance", Key(args[0]))
 		}
-		return r.State == b.State, nil
+		return slices.Contains(b.States, r.State), nil
 	}
 	return false, fmt.Errorf("core: unknown builtin %q", b.Op)
 }

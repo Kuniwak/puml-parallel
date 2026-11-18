@@ -17,7 +17,8 @@ class DiagramTest(unittest.TestCase):
         # Setup
         doc = diagram({"s0": ["n"], "s1": []}, "s0", init_post=[atom("$n' == 0")],
                       edges=[edge("s0", "s1", "c?x!n", guard=[atom("$x > $n")],
-                                  post=[exists("T", builtin("at", idx("m'", fixture.bound(0)), state="open"))], line=4)],
+                                  post=[exists("T", builtin("at", idx("m'", fixture.bound(0)), state="open")),
+                                        builtin("at", idx("m'", "x"), states=["open", "shut"])], line=4)],
                       ends=[end("s1")])
 
         # Execute
@@ -31,7 +32,8 @@ class DiagramTest(unittest.TestCase):
         self.assertEqual(("n",), e.sent)
         self.assertEqual(Atom(text=("", " > ", ""), holes=(0, 1), primed=(False, False), function="$_0 > $_1",
                               args=(Free("x"), Free("n"))), e.guard[0])
-        self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), "open"),)), e.post[0])
+        self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), ("open",)),)), e.post[0])
+        self.assertEqual(Builtin("at", (Index(Free("m", True), Free("x")),), ("open", "shut")), e.post[1])
         self.assertEqual("s1", d.ends[0].src)
 
     def test_reads_the_local_states_of_each_family(self):
@@ -85,6 +87,7 @@ class DiagramTest(unittest.TestCase):
 
     def test_refuses_families_that_do_not_fit_the_diagram(self):
         at = lambda state: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state=state)])
+        at_any = lambda *states: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), states=list(states))])
         tests = {
             "a family of a map no state holds": (diagram({"G": []}, "G", families=[family("m", "none", {"none": []})]),
                                                  "m is no variable of any state"),
@@ -109,6 +112,10 @@ class DiagramTest(unittest.TestCase):
             "@at of the start state, which is absence": (diagram({"G": ["m"]}, "G", edges=[at("none")],
                                                                  families=[family("m", "none", {"none": [], "open": []})]),
                                                          "none is the start state of the family of m, which is absence; say @notin"),
+            "@at over several states, one of no family's": (diagram({"G": ["m"]}, "G", edges=[at_any("open", "shut")], families=[family("m", "none", {"none": [], "open": []})]),
+                                                            "@at\\(m'\\[…\\], open, shut\\), but shut is no state of the family of m"),
+            "@at over a state listed twice": (diagram({"G": ["m"]}, "G", edges=[at_any("open", "open")], families=[family("m", "none", {"none": [], "open": []})]),
+                                              "@at\\(m'\\[…\\], open, open\\): the state open twice"),
         }
         for name, (doc, said) in tests.items():
             with self.subTest(name):
@@ -123,6 +130,14 @@ class DiagramTest(unittest.TestCase):
             "a term of an unknown kind": (lambda d: d["init_post"].append(builtin("empty", {"kind": "var"})), "kind 'var'"),
             "an unknown key": (lambda d: d.update(promotes=[]), "keys it does not read, \\['promotes'\\]"),
             "a missing key": (lambda d: d.pop("labels"), "lacks \\['labels'\\]"),
+            "an @at with both a state and states": (lambda d: d["init_post"].append(builtin("at", "t'", state="A", states=["A", "B"])),
+                                                    "both a state and states"),
+            "an @at with an empty state and states": (lambda d: d["init_post"].append(builtin("at", "t'", state="", states=["A", "B"])),
+                                                      "both a state and states"),
+            "an @at with an empty state": (lambda d: d["init_post"].append(builtin("at", "t'", state="")), "whose state is empty"),
+            "an @at with states of one": (lambda d: d["init_post"].append(builtin("at", "t'", states=["A"])), "states of 1, not 2 or more"),
+            "an @at with neither a state nor states": (lambda d: d["init_post"].append(builtin("at", "t'")), "@at: no state"),
+            "an @at with no states": (lambda d: d["init_post"].append(builtin("at", "t'", states=[])), "states of 0, not 2 or more"),
             "a key of another kind": (lambda d: d["init_post"].append(dict(builtin("empty", "m'"), type="T")), "keys it does not read, \\['type'\\]"),
         }
         for name, (edit, said) in tests.items():
