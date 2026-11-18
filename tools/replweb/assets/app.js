@@ -257,6 +257,7 @@
     document.getElementById("save").title = t("history.saveHint", { file: savedName(), diagram: (config.path || "").split(/[\\/]/).pop() });
     renderHistory();
     renderControls();
+    if (app.refillBlockChooser) app.refillBlockChooser();
     renderDiagram();
     centreOnStep();
   }
@@ -431,7 +432,7 @@
   // groupBox is a group of the list, open when the filters narrow the list
   // to it (forceOpen), else as the user left it, else when what holds it
   // lists no more than OPEN_LIMIT transitions (outer).
-  function groupBox(key, summary, count, fill, forceOpen, outer) {
+  function groupBox(key, summary, count, fill, forceOpen, outer, onOpen) {
     const remembered = app.openGroups.get(key);
     const open = forceOpen || (remembered !== undefined ? remembered : outer <= OPEN_LIMIT);
     const body = el("div", { class: "group-body" });
@@ -445,6 +446,7 @@
     box.addEventListener("toggle", () => {
       app.openGroups.set(key, box.open);
       if (box.open) fillOnce();
+      if (box.open && onOpen) onOpen();
     });
     return box;
   }
@@ -472,7 +474,7 @@
             for (const tr of group.transitions) inner.appendChild(choiceButton(tr));
           }, narrowed && edges.size === 1, count));
         }
-      }, narrowed, transitions.length));
+      }, narrowed, transitions.length, () => showBlocks([map])));
     }
     if (own.length > 0) {
       list.appendChild(groupBox("own", t("controls.own"), own.length, (body) => {
@@ -682,15 +684,14 @@
     if (!svg) return;
     const width = parseFloat(svg.getAttribute("width")) || svg.getBoundingClientRect().width;
     const height = parseFloat(svg.getAttribute("height")) || svg.getBoundingClientRect().height;
-    const apply = () => {
-      svg.style.width = width * app.scale + "px";
-      svg.style.height = height * app.scale + "px";
-    };
+    app.drawing = { svg, viewBox: svg.getAttribute("viewBox") || `0 0 ${width} ${height}`, width, height };
+    const apply = applyDrawing;
     const fit = () => {
-      const w = box.clientWidth || width;
-      app.scale = Math.min(1, w / width);
+      const w = box.clientWidth || viewWidth();
+      app.scale = Math.min(1, w / viewWidth());
       apply();
     };
+    setupBlockChooser();
     document.getElementById("zoom-in").addEventListener("click", () => { app.scale *= 1.25; apply(); });
     document.getElementById("zoom-out").addEventListener("click", () => { app.scale /= 1.25; apply(); });
     document.getElementById("zoom-reset").addEventListener("click", fit);
@@ -713,6 +714,12 @@
   // larger than the pane (the mode of a promotion), then the start edge.
   function focusOf(v) {
     const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
+    if (app.block) {
+      const inBlock = (m) => app.block.includes(m.map);
+      const chosen = app.choice ? (app.choice.transition.moves || []).filter(inBlock) : [];
+      const moved = last && last.kind === "step" ? (last.moves || []).filter(inBlock) : [];
+      return [...chosen, ...moved].map(localLinkOf).filter(Boolean);
+    }
     if (last && last.kind === "step") {
       const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
       if (links.length > 0) return links;
@@ -730,8 +737,8 @@
   // centreOn scrolls the pane so that the box around nodes is in its
   // middle, as far as the edges of the drawing allow.
   function centreOn(nodes) {
-    if (nodes.length === 0) return;
     const box = document.getElementById("diagram");
+    if (nodes.length === 0) { box.scrollLeft = 0; box.scrollTop = 0; return; }
     const rects = nodes.map((n) => n.getBoundingClientRect());
     const left = Math.min(...rects.map((r) => r.left));
     const right = Math.max(...rects.map((r) => r.right));
@@ -743,13 +750,90 @@
   }
 
   // centreOnStep centres the drawing once per step, not on every redraw.
+  // On a promotion it first shows the blocks of the families the last
+  // step moved, or, before any, of the first family that can move.
   function centreOnStep() {
     const v = app.view;
     if (!v) return;
     const key = app.entries.length + ":" + v.mode;
     if (app.centredAt === key) return;
     app.centredAt = key;
+    if (Object.keys(families).length > 0) {
+      const maps = blocksToShow(v);
+      if (maps.length > 0) { showBlocks(maps); return; }
+    }
     centreOn(focusOf(v));
+  }
+
+  function blocksToShow(v) {
+    const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
+    const moved = last && last.kind === "step" ? (last.moves || []).map((m) => m.map) : [];
+    const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
+    const maps = [...new Set([...chosen, ...moved])].filter((m) => families[m]);
+    if (maps.length > 0 || app.block) return maps;
+    const first = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort()[0];
+    return first ? [first] : [];
+  }
+
+  // ---- Showing one block at a time ----
+
+  function viewBoxOf() {
+    const d = app.drawing;
+    if (!app.block) return d.viewBox.split(/[\s,]+/).map(Number);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const map of app.block) {
+      const f = families[map];
+      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start].filter(Boolean);
+      for (const id of ids) {
+        const node = svgElement(id);
+        if (!node || !node.getBBox) continue;
+        const b = node.getBBox();
+        x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+        x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
+      }
+    }
+    if (!isFinite(x0)) return d.viewBox.split(/[\s,]+/).map(Number);
+    const pad = 60;
+    return [x0 - pad, y0 - pad, x1 - x0 + 2 * pad, y1 - y0 + 2 * pad];
+  }
+
+  function viewWidth() { return viewBoxOf()[2]; }
+
+  function applyDrawing() {
+    const d = app.drawing;
+    if (!d) return;
+    const [x, y, w, h] = viewBoxOf();
+    d.svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+    d.svg.style.width = w * app.scale + "px";
+    d.svg.style.height = h * app.scale + "px";
+  }
+
+  // showBlocks shows only the blocks of maps (all of the drawing for
+  // none) and centres on what is to be seen there.
+  function showBlocks(maps) {
+    const known = (maps || []).filter((m) => families[m]);
+    app.block = known.length > 0 ? known : null;
+    const select = document.getElementById("view-block");
+    if (select) select.value = app.block ? app.block[0] : "";
+    applyDrawing();
+    const v = app.view;
+    if (v) centreOn(focusOf(v));
+  }
+
+  function setupBlockChooser() {
+    const select = document.getElementById("view-block");
+    const maps = Object.keys(families).sort();
+    if (!select || maps.length === 0) return;
+    select.hidden = false;
+    const fill = () => {
+      const value = select.value;
+      select.replaceChildren(el("option", { value: "", text: t("diagram.whole") }),
+        ...maps.map((m) => el("option", { value: m, text: m })));
+      select.value = value;
+    };
+    fill();
+    app.refillBlockChooser = fill;
+    select.addEventListener("change", () => showBlocks(select.value ? [select.value] : []));
   }
 
   function setupLanguages() {
