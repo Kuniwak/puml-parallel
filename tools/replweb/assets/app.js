@@ -686,15 +686,11 @@
     const height = parseFloat(svg.getAttribute("height")) || svg.getBoundingClientRect().height;
     app.drawing = { svg, viewBox: svg.getAttribute("viewBox") || `0 0 ${width} ${height}`, width, height };
     const apply = applyDrawing;
-    const fit = () => {
-      const w = box.clientWidth || viewWidth();
-      app.scale = Math.min(1, w / viewWidth());
-      apply();
-    };
+    const actualSize = () => { app.scale = 1; apply(); showCurrent(); };
     setupBlockChooser();
     document.getElementById("zoom-in").addEventListener("click", () => { app.scale *= 1.25; apply(); });
     document.getElementById("zoom-out").addEventListener("click", () => { app.scale /= 1.25; apply(); });
-    document.getElementById("zoom-reset").addEventListener("click", fit);
+    document.getElementById("zoom-reset").addEventListener("click", actualSize);
     let drag = null;
     box.addEventListener("pointerdown", (e) => {
       if (e.target.closest("g.csdf-choosable, g.csdf-chip-more")) return;
@@ -773,6 +769,20 @@
     if (maps.length > 0 || app.block) return maps;
     const first = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort()[0];
     return first ? [first] : [];
+  }
+
+  // showCurrent brings what the current step is about into the middle of
+  // the pane, switching to its blocks on a promotion.
+  function showCurrent() {
+    const v = app.view;
+    if (!v) return;
+    if (Object.keys(families).length > 0) {
+      const maps = blocksToShow(v);
+      if (maps.length > 0) { showBlocks(maps); return; }
+    }
+    const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
+    const state = svgElement(highlights.states[id]);
+    centreOn(state ? [state] : focusOf(v));
   }
 
   // ---- Showing one block at a time ----
@@ -870,6 +880,7 @@
     document.getElementById("controls").replaceChildren(el("p", { class: "hint", text: t("app.loading") }));
     document.getElementById("back").addEventListener("click", goBack);
     document.getElementById("save").addEventListener("click", save);
+    document.getElementById("show-current").addEventListener("click", showCurrent);
     setupDiagram();
     try {
       app.transport = await transports[config.transport || "wasm"]();
