@@ -151,27 +151,37 @@ type AtomDoc struct {
 	Function string    `json:"function"`
 }
 
-// BuiltinDoc is a builtin: its op, its terms, and the state of @at.
+// BuiltinDoc is a builtin: its op, its terms, and the states of @at, its
+// one state as state and two or more as states, so that a document of @at
+// over one state reads as it always has.
 type BuiltinDoc struct {
-	Op    string    `json:"op"`
-	Args  []TermDoc `json:"args"`
-	State string    `json:"state,omitempty"`
+	Op     string    `json:"op"`
+	Args   []TermDoc `json:"args"`
+	State  string    `json:"state,omitempty"`
+	States []string  `json:"states,omitempty"`
 }
 
 func builtinDoc(b clause.Builtin) *BuiltinDoc {
 	doc := &BuiltinDoc{Op: string(b.Op), Args: termDocs(b.Args)}
-	if len(b.States) > 0 {
+	switch len(b.States) {
+	case 0:
+	case 1:
 		doc.State = b.States[0]
+	default:
+		doc.States = slices.Clone(b.States)
 	}
 	return doc
 }
 
-// states are the states doc names: none, or its one state.
-func (doc BuiltinDoc) states() []string {
-	if doc.State == "" {
-		return nil
+// states are the states doc names: its states, or its one state.
+func (doc BuiltinDoc) states() ([]string, error) {
+	switch {
+	case doc.State == "":
+		return slices.Clone(doc.States), nil
+	case len(doc.States) > 0:
+		return nil, fmt.Errorf("a builtin with both a state and states: %s and %v", doc.State, doc.States)
 	}
-	return []string{doc.State}
+	return []string{doc.State}, nil
 }
 
 // ExistsDoc is ∃: the type it ranges over, and its body, where the variable
@@ -693,7 +703,11 @@ func (doc FormulaDoc) formula() (clause.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, States: doc.Builtin.states()}, nil
+		states, err := doc.Builtin.states()
+		if err != nil {
+			return nil, err
+		}
+		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, States: states}, nil
 	default:
 		body, err := formulaOfDocs(doc.Exists.Body)
 		if err != nil {
