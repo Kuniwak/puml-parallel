@@ -709,3 +709,39 @@ func TestThePromptOfAPromotionTellsTheShapeOfEachInstance(t *testing.T) {
 		t.Errorf("Pending.Shapes mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestThePromptNamesTheEdgeItFollows(t *testing.T) {
+	tests := map[string]struct {
+		prepare func(t *testing.T) (*Service, string, Request)
+		want    int
+	}{
+		"the start edge": {
+			prepare: func(t *testing.T) (*Service, string, Request) {
+				service, id := newSession(t)
+				return service, id, Request{Command: CommandRead, Session: id}
+			},
+			want: -1,
+		},
+		"an outgoing edge": {
+			prepare: func(t *testing.T) (*Service, string, Request) {
+				service, id := advance(t)
+				return service, id, Request{Command: CommandSelect, Session: id, Index: intPtr(0)}
+			},
+			want: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			service, _, req := tt.prepare(t)
+
+			// Execute
+			resp := service.Handle(req)
+
+			// Assert
+			if got := decodeView(t, resp).Pending.Edge; got != tt.want {
+				t.Errorf("Pending.Edge = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}

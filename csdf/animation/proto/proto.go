@@ -155,6 +155,10 @@ type Pending struct {
 	Group    animation.Target `json:"group"`
 	Guard    string           `json:"guard"`
 	Post     string           `json:"post"`
+	// Edge is the index of the edge the prompt follows among the outgoing
+	// edges of Previous, as Transition.Index numbers them; -1 for the start
+	// edge.
+	Edge int `json:"edge"`
 	// Suggestions are the values the checker admits for this prompt, when
 	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`

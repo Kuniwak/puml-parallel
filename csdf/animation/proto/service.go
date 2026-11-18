@@ -323,7 +323,7 @@ func viewResponse(e *entry) Response {
 		pending := sess.Pending()
 		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
-		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post), Determined: animation.Determined(pending)}
+		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post), Edge: pending.Edge, Determined: animation.Determined(pending)}
 		for _, name := range pending.Target.Vars {
 			if f, ok := animation.Family(sess.Diagram(), name); ok {
 				view.Pending.Families = append(view.Pending.Families, name)
