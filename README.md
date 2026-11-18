@@ -359,6 +359,7 @@ never fails a build. It reads clauses as formulas (`docs/CLAUSE_DESIGN.md`), as
 $ csdflint examples/valid/client.puml
 $ csdflint examples/valid/*.puml
 $ csdflint < examples/valid/client.puml
+$ csdflint -evaluator "python3 -m csdfbmc.python_glue examples/bmc/printer_formal_defs.py" examples/bmc/printer_formal.puml
 $ csdflint -list-rules
 ```
 
@@ -371,8 +372,15 @@ status, and an AI reviewing a diagram it wrote itself, which reads the messages.
 So a message says what is suspicious *and what would settle it*.
 
 No rule evaluates an atom: an atom is text a language interprets, and a rule
-concludes only what the builtins and the shape of a formula decide. The rules
-are:
+concludes only what the builtins and the shape of a formula decide. Only when
+`-evaluator CMD` names a glue (see bounded model checking) does csdflint ask
+the language, and then without values: the rule `atom-not-in-language` asks
+the glue's `lint` whether it reads each atom of every guard and post, as
+csdfbmc would read it, and walks no state, so it answers before csdfbmc
+would build its start state. Which atoms are environment functions is not
+written in the diagram, so every atom is asked: lint with a glue a diagram
+written in its language alone. A glue that cannot be started or does not
+answer `lint` is refused with exit status 2. The rules are:
 
 | Rule | Severity | Reports |
 | --- | --- | --- |
@@ -380,6 +388,7 @@ are:
 | `self-transition-divergence` | `WARN` | a `tau` edge on a cycle of `tau` edges the start reaches, so the diagram may diverge |
 | `self-transition-post-breaks-guard` | `HINT` | a self-transition whose post does not keep a state variable its guard reads, so it may be two states written as one |
 | `post-leaves-variable-free` | `HINT` | an edge, the start edge included, whose post never names a variable `v` of its target as `v'`, so after the step `v` may be any value of its type |
+| `atom-not-in-language` | `ERROR` | with `-evaluator` only, an atom the glue does not read: not of its language, a post of another shape, or reading a name that is neither a hole, a builtin nor a definition of the glue's arguments |
 
 `self-transition-divergence` sets aside an edge whose guard is false on its
 face: `@ne(t, t)`, `@eq(a, b)` beside `@ne(a, b)`, `@in(k, m)` beside
@@ -947,8 +956,10 @@ and which arguments are values after the step — and the values of the
 arguments by index, never a name. A glue answers `hello` (its language and
 protocol version, 2), and `guard` and `post`: a guard atom's truth value per
 list of values, and a post atom's lists of values after the step per list
-of values before it, one value per primed argument. An optional `symmetric`
-request is listed in `hello` by a glue that answers it. Values are tagged
+of values before it, one value per primed argument. The optional `symmetric`
+and `lint` requests are listed in `hello` by a glue that answers them; `lint`
+says, without values, whether an atom is of the glue's language in its role,
+which `csdflint -evaluator` asks. Values are tagged
 JSON (`{"tuple": …}`, `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has
 none of them. An instance of a family reaches a glue as the map of its
 fields: its local state is a position, which only the builtin `@at` reads.
