@@ -119,6 +119,51 @@ class PythonGlueAtomTest(unittest.TestCase):
                 self.assertIn(said or "", why or "")
 
 
+class LintTest(unittest.TestCase):
+    """lint says, without values, whether an atom is Python of the pure
+    subset in its role, reading only its holes, the builtins and the
+    definitions."""
+
+    def test_lint_says_why_an_atom_is_not_of_the_language(self):
+        tests = {
+            "a guard": (atom(["", " > 0"], [0], [False]), "guard", None),
+            "a post": (atom(["", " == ", " + 1"], [0, 1], [True, False]), "post", None),
+            "a name bound by a comprehension": (atom(["all(x > 0 for x in ", ")"], [0], [False]), "guard", None),
+            "a builtin": (atom(["len(", ") > 0"], [0], [False]), "guard", None),
+            "not Python": (atom(["", " >"], [0], [False]), "guard", "SyntaxError"),
+            "a float": (atom(["", " > 1.5"], [0], [False]), "guard", "float"),
+            "a post of another shape": (atom(["", " > 1"], [0], [True]), "post", "a post atom of this glue is"),
+            "an undefined name": (atom(["", " > LIMIT"], [0], [False]), "guard", "LIMIT"),
+            "a hole read past the arguments": (atom(["", " > 0"], [1], [False]), "guard", "hole 0 reads argument 1"),
+        }
+        handle = evaluator([])
+        handle({"op": "hello", "protocol": 2})
+        for name, (a, role, said) in tests.items():
+            with self.subTest(name):
+                # Execute
+                answer = handle({"op": "lint", "atom": a, "role": role})
+
+                # Assert
+                self.assertEqual(said is None, answer.get("ok"), answer)
+                self.assertIn(said or "", answer.get("why", ""))
+
+    def test_lint_reads_the_names_of_the_definitions(self):
+        # Setup
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        path = os.path.join(d.name, "defs.py")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("LIMIT = 1\n")
+        handle = evaluator([path])
+        handle({"op": "hello", "protocol": 2})
+
+        # Execute
+        answer = handle({"op": "lint", "atom": atom(["", " > LIMIT"], [0], [False]), "role": "guard"})
+
+        # Assert
+        self.assertEqual({"ok": True}, answer)
+
+
 class DefinitionsTest(unittest.TestCase):
     """The glue's arguments are modules whose public names every atom may use."""
 

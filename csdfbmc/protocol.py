@@ -27,6 +27,13 @@ supports it:
   false, "why": MESSAGE}: whether the atom tells apart two IDs of a group,
   which the arguments params range over and the arguments maps are keyed by.
 
+Another is optional, for a lint, which reads the atoms without values and so
+without walking any state (csdflint -evaluator):
+
+- {"op": "lint", "atom": ATOM, "role": "guard" | "post"} -> {"ok": true}, or
+  {"ok": false, "why": MESSAGE}: whether the atom is one of the glue's
+  language in that role, as far as the glue can tell without values.
+
 What an atom reads is its holes, which the tools know themselves, so the
 protocol asks nothing about it. Which atoms are functions of the environment
 is the checks module's to say (csdfbmc.environment); every other atom is
@@ -162,13 +169,23 @@ def NO_SYMMETRIC(atom: dict, params: list[int], maps: list[int], groups: list[li
     raise EvaluatorError("this glue does not answer symmetric")
 
 
+AtomLint = Callable[[dict, str], "str | None"]
+
+
+def NO_LINT(atom: dict, role: str) -> str | None:
+    """The lint of a glue that does not answer it: atom_handler leaves it out
+    of hello's supports and refuses the request."""
+    raise EvaluatorError("this glue does not answer lint")
+
+
 def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Callable[[dict, list], list[list]],
-                 symmetric: AtomSymmetric) -> Handle:
+                 symmetric: AtomSymmetric, lint: AtomLint = NO_LINT) -> Handle:
     """The Handle of a glue: guard(atom, values) and post(atom, values)
     evaluate an atom under one list of values of its arguments,
     symmetric(atom, params, maps, groups) answers what symmetry reduction
-    asks, or is NO_SYMMETRIC. hello comes first, and a request before it is
-    refused."""
+    asks, or is NO_SYMMETRIC, and lint(atom, role) says why the atom is not
+    of the language in the role, None when it is, or is NO_LINT. hello comes
+    first, and a request before it is refused."""
     greeted: list[bool] = []
 
     def handle(request: dict) -> dict:
@@ -179,7 +196,8 @@ def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Ca
                     return {"error": f"this glue speaks protocol {PROTOCOL}, not {request.get('protocol', 1)!r}"}
                 greeted[:] = [True]
                 hello = {"language": language, "protocol": PROTOCOL}
-                return hello if symmetric is NO_SYMMETRIC else dict(hello, supports=["symmetric"])
+                supports = [op for op, f, none in (("symmetric", symmetric, NO_SYMMETRIC), ("lint", lint, NO_LINT)) if f is not none]
+                return dict(hello, supports=supports) if supports else hello
             if not greeted:
                 return {"error": "say hello first: the protocol is agreed on by hello"}
             if "atom" not in request:
@@ -191,6 +209,9 @@ def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Ca
             if op == "symmetric" and symmetric is not NO_SYMMETRIC:
                 why = symmetric(request["atom"], request["params"], request["maps"], request["groups"])
                 return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
+            if op == "lint" and lint is not NO_LINT:
+                why = lint(request["atom"], request["role"])
+                return {"ok": True} if why is None else {"ok": False, "why": why}
         except Exception as e:  # what the atom raised is the answer, reported with it
             return {"error": f"{type(e).__name__}: {e}"}
         return {"error": f"protocol {PROTOCOL} has no request {op!r}"}

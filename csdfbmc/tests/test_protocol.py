@@ -218,6 +218,37 @@ class HandlerTest(unittest.TestCase):
         self.assertEqual(HELLO, hello)
 
 
+class LintHandlerTest(unittest.TestCase):
+    """A glue given lint lists it in its hello and answers whether an atom is
+    of its language, without values."""
+
+    def handle(self, lint):
+        handle = atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC, lint=lint)
+        handle({"op": "hello", "protocol": 2})
+        return handle
+
+    def test_a_glue_with_lint_supports_it(self):
+        # Execute
+        hello = atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC,
+                             lint=lambda a, role: None)({"op": "hello", "protocol": 2})
+
+        # Assert
+        self.assertEqual(dict(HELLO, supports=["lint"]), hello)
+
+    def test_lint_says_whether_an_atom_is_of_the_language(self):
+        tests = {
+            "of the language": (lambda a, role: None, {"ok": True}),
+            "not of the language": (lambda a, role: f"not a {role}", {"ok": False, "why": "not a guard"}),
+        }
+        for name, (lint, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                answer = self.handle(lint)({"op": "lint", "atom": GREATER, "role": "guard"})
+
+                # Assert
+                self.assertEqual(want, answer)
+
+
 class ServeTest(unittest.TestCase):
     """A glue's main loop answers every line, even one it cannot read."""
 
