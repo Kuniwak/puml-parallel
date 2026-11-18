@@ -10,8 +10,9 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
 )
 
-// gated is a diagram with an edge whose clauses are generated builtins.
-func gated(t *testing.T) *core.Diagram {
+// gated is a diagram with an edge whose clauses are generated builtins, its
+// guard placing the door at shut, the states given.
+func gated(t *testing.T, shut string) *core.Diagram {
 	return &core.Diagram{
 		States:   []string{"G"},
 		Vars:     map[string][]string{"G": {"doors"}},
@@ -20,27 +21,27 @@ func gated(t *testing.T) *core.Diagram {
 		Init:     "G",
 		InitPost: mustParse(t, "@empty(doors')"),
 		Edges: []core.Edge{{Src: "G", Dst: "G", Event: core.Event{Channel: "OPENS", Fields: []core.Field{{Name: "loc"}}},
-			Guard: mustParse(t, "@in(loc, doors) ∧ @at(doors[loc], shut, ajar) ∧ $loc は正面"),
+			Guard: mustParse(t, "@in(loc, doors) ∧ @at(doors[loc], "+shut+") ∧ $loc は正面"),
 			Post:  mustParse(t, "@frame(doors', doors, loc) ∧ @at(doors'[loc], wide)")}},
 	}
 }
 
 func TestWriteGlossedGlossesTheBuiltinsAndReadsBackTheSame(t *testing.T) {
 	cases := []struct {
-		name, templates string
+		name, shut, templates string
 		// want is the line above the edge, or "" for none.
 		want string
 	}{
-		{"a gloss of the builtins with a template",
+		{"a gloss of the builtins with a template", "shut",
 			`{{define "in"}}{{index .Args 0}} がある{{end}}{{define "at"}}{{index .Args 0}} は {{.State}}{{end}}`,
-			"' loc がある ∧ doors[loc] は shut, ajar ∧ doors'[loc] は wide\n"},
-		{"a gloss of each state of @at",
+			"' loc がある ∧ doors[loc] は shut ∧ doors'[loc] は wide\n"},
+		{"a gloss of each state of @at", "shut, ajar",
 			`{{define "at"}}{{index .Args 0}} は {{range $i, $s := .States}}{{if $i}} か {{end}}{{$s}}{{end}}{{end}}`,
 			"' doors[loc] は shut か ajar ∧ doors'[loc] は wide\n"},
-		{"a gloss holding a quote",
+		{"a gloss holding a quote", "shut",
 			`{{define "empty"}}x{{end}}{{define "frame"}}'{{index .Args 0}}' は保たれる{{end}}`,
 			"' 'doors'' は保たれる\n"},
-		{"no template that applies", `{{define "ne"}}{{index .Args 0}} ≠ {{index .Args 1}}{{end}}`, ""},
+		{"no template that applies", "shut", `{{define "ne"}}{{index .Args 0}} ≠ {{index .Args 1}}{{end}}`, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -49,7 +50,7 @@ func TestWriteGlossedGlossesTheBuiltinsAndReadsBackTheSame(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			d := gated(t)
+			d := gated(t, c.shut)
 
 			// Execute
 			got, err := WriteGlossed(d, templates)
@@ -72,6 +73,22 @@ func TestWriteGlossedGlossesTheBuiltinsAndReadsBackTheSame(t *testing.T) {
 				t.Errorf("Read(WriteGlossed(d)) (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestWriteGlossedRefusesTheOneStateOfAnAtOverSeveral(t *testing.T) {
+	// Setup
+	templates, err := LoadTemplates(`{{define "at"}}{{index .Args 0}} は {{.State}}{{end}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	_, err = WriteGlossed(gated(t, "shut, ajar"), templates)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "@at over 2 states has no one state; read .States") {
+		t.Errorf("WriteGlossed error = %v, want one saying @at over 2 states has no one state", err)
 	}
 }
 
