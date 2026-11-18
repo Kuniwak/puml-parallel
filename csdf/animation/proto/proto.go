@@ -159,6 +159,9 @@ type Pending struct {
 	// SuggestError is why the checker could not suggest values, when it
 	// failed.
 	SuggestError string `json:"suggest_error,omitempty"`
+	// Determined are the values the post fixes by builtins alone
+	// (animation.Determined), which a client may enter without asking.
+	Determined []animation.Value `json:"determined,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).

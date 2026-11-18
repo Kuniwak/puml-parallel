@@ -648,3 +648,23 @@ func TestASuggesterThatFailsSaysWhyInTheView(t *testing.T) {
 		t.Errorf("read view = %+v, want the checker's error", view.Pending)
 	}
 }
+
+func TestThePromptOfAPromotionSaysTheValuesThePostDetermines(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	want := []animation.Value{{Name: "items", Value: map[string]any{}}}
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff(want, view.Pending.Determined); diff != "" {
+		t.Errorf("Pending.Determined mismatch (-want +got):\n%s", diff)
+	}
+}
