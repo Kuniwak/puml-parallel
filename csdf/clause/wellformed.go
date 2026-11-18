@@ -2,6 +2,7 @@ package clause
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
@@ -72,9 +73,12 @@ func wellFormedBuiltin(b Builtin) error {
 	if spec.State != (len(b.States) > 0) {
 		return fmt.Errorf("@%s: a state %q where the table says state = %v", b.Op, b.States, spec.State)
 	}
-	for _, s := range b.States {
+	for i, s := range b.States {
 		if err := ident.Check(s); err != nil {
 			return fmt.Errorf("@%s: the state: %w", b.Op, err)
+		}
+		if slices.Contains(b.States[:i], s) {
+			return fmt.Errorf("@%s: the state %s twice", b.Op, s)
 		}
 	}
 	for _, t := range b.Args {

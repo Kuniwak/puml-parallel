@@ -229,6 +229,7 @@ func TestParseRefuses(t *testing.T) {
 		"a binder without its type":              {text: "@exists(v) ($v > 0)", want: `expected " : "`},
 		"an empty body":                          {text: "@exists(v : T) ()", want: "@exists at 0: an empty body"},
 		"a name starting with a digit":           {text: "@eq(1st, x)", want: "a name does not start with a digit"},
+		"@at with a state twice":                 {text: "@at(m, s, t, s)", want: "@at at 0: the state s twice"},
 		"@at with a state named null":            {text: "@at(m, null)", want: "the state: null is a reserved word"},
 		"@at with a state starting with a digit": {text: "@at(m, 0s)", want: "does not start with a digit, as 0s"},
 		"a hole named true":                      {text: "$true holds", want: "true is a reserved word"},
