@@ -136,6 +136,7 @@ class DiagramTest(unittest.TestCase):
                                                       "both a state and states"),
             "an @at with an empty state": (lambda d: d["init_post"].append(builtin("at", "t'", state="")), "whose state is empty"),
             "an @at with states of one": (lambda d: d["init_post"].append(builtin("at", "t'", states=["A"])), "states of 1, not 2 or more"),
+            "an @at with neither a state nor states": (lambda d: d["init_post"].append(builtin("at", "t'")), "@at: no state"),
             "an @at with no states": (lambda d: d["init_post"].append(builtin("at", "t'", states=[])), "states of 0, not 2 or more"),
             "a key of another kind": (lambda d: d["init_post"].append(dict(builtin("empty", "m'"), type="T")), "keys it does not read, \\['type'\\]"),
         }

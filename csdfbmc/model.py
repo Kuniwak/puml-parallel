@@ -417,6 +417,8 @@ def _states(doc: dict) -> tuple:
         return (doc["state"],)
     if "states" in doc and len(doc["states"]) < 2:
         raise ValueError(f"a builtin with states of {len(doc['states'])}, not 2 or more: {doc!r}")
+    if doc["op"] == "at" and "states" not in doc:
+        raise ValueError(f"@at: no state: {doc!r}")
     return tuple(doc.get("states", ()))
 
 
