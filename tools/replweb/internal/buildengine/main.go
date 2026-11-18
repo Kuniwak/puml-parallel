@@ -29,7 +29,7 @@ func run() error {
 	defer os.RemoveAll(tmp)
 	wasm := filepath.Join(tmp, "engine.wasm")
 
-	build := exec.Command("go", "build", "-trimpath", "-ldflags=-s -w", "-o", wasm, "./engine")
+	build := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", wasm, "./engine")
 	build.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
 	build.Stdout, build.Stderr = os.Stdout, os.Stderr
 	if err := build.Run(); err != nil {
