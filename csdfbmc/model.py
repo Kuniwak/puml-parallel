@@ -276,7 +276,7 @@ def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str
 _TERMS = {"free": (("name",), ("primed",)), "bound": (("index",), ()), "index": (("map", "key"), ()),
           "field": (("of", "name"), ()), "app": (("fn", "args"), ()), "lit": (("value",), ())}
 _CONJUNCTS = {"atom": (("pieces", "holes", "args", "text", "primed", "function"), ()),
-              "builtin": (("op", "args"), ("state",)), "exists": (("type", "body"), ())}
+              "builtin": (("op", "args"), ("state", "states")), "exists": (("type", "body"), ())}
 
 
 def _kind(doc: dict, kinds: dict, what: str) -> str:
@@ -406,8 +406,11 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
 
 
 def _states(doc: dict) -> tuple:
-    """The states of a builtin's document: none, or its one state."""
-    return (doc["state"],) if doc.get("state") else ()
+    """The states of a builtin's document: its one state as state, or two
+    or more as states, as core.BuiltinDoc writes them."""
+    if doc.get("state") and doc.get("states"):
+        raise ValueError(f"a builtin with both a state and states: {doc!r}")
+    return (doc["state"],) if doc.get("state") else tuple(doc.get("states", ()))
 
 
 def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:

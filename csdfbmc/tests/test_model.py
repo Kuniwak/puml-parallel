@@ -34,6 +34,17 @@ class DiagramTest(unittest.TestCase):
         self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), ("open",)),)), e.post[0])
         self.assertEqual("s1", d.ends[0].src)
 
+    def test_reads_an_at_over_several_states(self):
+        # Setup
+        doc = diagram({"G": ["m", "k"]}, "G", edges=[edge("G", "G", "c", guard=[builtin("at", idx("m", "k"), states=["open", "shut"])])],
+                      families=[family("m", "none", {"none": [], "open": [], "shut": []})])
+
+        # Execute
+        d = Diagram.from_json(doc)
+
+        # Assert
+        self.assertEqual(Builtin("at", (Index(Free("m"), Free("k")),), ("open", "shut")), d.edges[0].guard[0])
+
     def test_reads_the_local_states_of_each_family(self):
         # Setup
         doc = diagram({"G": ["m"]}, "G", families=[family("m", "none", {"none": [], "open": ["cnt", "tag"]}, key="key")])
@@ -85,6 +96,7 @@ class DiagramTest(unittest.TestCase):
 
     def test_refuses_families_that_do_not_fit_the_diagram(self):
         at = lambda state: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), state=state)])
+        at_any = lambda *states: edge("G", "G", "c?k", post=[builtin("frame", "m'", "m", "k"), builtin("at", idx("m'", "k"), states=list(states))])
         tests = {
             "a family of a map no state holds": (diagram({"G": []}, "G", families=[family("m", "none", {"none": []})]),
                                                  "m is no variable of any state"),
@@ -109,6 +121,8 @@ class DiagramTest(unittest.TestCase):
             "@at of the start state, which is absence": (diagram({"G": ["m"]}, "G", edges=[at("none")],
                                                                  families=[family("m", "none", {"none": [], "open": []})]),
                                                          "none is the start state of the family of m, which is absence; say @notin"),
+            "@at over several states, one of no family's": (diagram({"G": ["m"]}, "G", edges=[at_any("open", "shut")], families=[family("m", "none", {"none": [], "open": []})]),
+                                                            "@at\\(m'\\[…\\], open, shut\\), but shut is no state of the family of m"),
         }
         for name, (doc, said) in tests.items():
             with self.subTest(name):
@@ -123,6 +137,8 @@ class DiagramTest(unittest.TestCase):
             "a term of an unknown kind": (lambda d: d["init_post"].append(builtin("empty", {"kind": "var"})), "kind 'var'"),
             "an unknown key": (lambda d: d.update(promotes=[]), "keys it does not read, \\['promotes'\\]"),
             "a missing key": (lambda d: d.pop("labels"), "lacks \\['labels'\\]"),
+            "an @at with both a state and states": (lambda d: d["init_post"].append(builtin("at", "t'", state="A", states=["A", "B"])),
+                                                    "both a state and states"),
             "a key of another kind": (lambda d: d["init_post"].append(dict(builtin("empty", "m'"), type="T")), "keys it does not read, \\['type'\\]"),
         }
         for name, (edit, said) in tests.items():

@@ -87,10 +87,12 @@ def _primed(t):
     return t["kind"] == "free" and t.get("primed", False)
 
 
-def builtin(op, *args, state=None):
+def builtin(op, *args, state=None, states=None):
     b = {"kind": "builtin", "op": op, "args": [term(a) for a in args]}
     if state is not None:
         b["state"] = state
+    if states is not None:
+        b["states"] = states
     return b
 
 
