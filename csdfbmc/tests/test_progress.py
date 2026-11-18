@@ -25,43 +25,43 @@ class Clock:
 
 
 class ProgressTest(unittest.TestCase):
-    def test_a_line_says_the_states_frontier_depth_rate_values_tried_and_checked_and_time(self):
+    def test_a_line_says_the_states_frontier_depth_rate_values_enumerated_pruned_and_checked_and_time(self):
         # Setup
         clock, out = Clock(), io.StringIO()
         p = Progress(out, clock, resident=lambda: None)
         clock.now = 30.0
-        p.update(visited=120, frontier=40, depth=3, tried=900, checked=5000)
+        p.update(visited=120, frontier=40, depth=3, tried=900, pruned=600, checked=5000)
 
         # Execute
         p.report()
 
         # Assert
         self.assertEqual("csdfbmc: 120 states, frontier 40, depth 3, 4.0 states/s, "
-                         "900 field values tried and 5000 valuations checked in the last 30s, 0:00:30 elapsed\n", out.getvalue())
+                         "300 field values enumerated, 600 pruned and 5000 valuations checked in the last 30s, 0:00:30 elapsed\n", out.getvalue())
 
     def test_the_rate_and_the_values_tried_are_of_the_last_interval(self):
         # Setup
         clock, out = Clock(), io.StringIO()
         p = Progress(out, clock, resident=lambda: None)
         clock.now = 30.0
-        p.update(visited=120, frontier=40, depth=3, tried=900, checked=5000)
+        p.update(visited=120, frontier=40, depth=3, tried=900, pruned=600, checked=5000)
         p.report()
         clock.now = 90.0
-        p.update(visited=180, frontier=10, depth=4, tried=1000, checked=5300)
+        p.update(visited=180, frontier=10, depth=4, tried=1000, pruned=620, checked=5300)
 
         # Execute
         p.report()
 
         # Assert
         self.assertEqual("csdfbmc: 180 states, frontier 10, depth 4, 1.0 states/s, "
-                         "100 field values tried and 300 valuations checked in the last 60s, 0:01:30 elapsed\n", out.getvalue().splitlines(True)[1])
+                         "80 field values enumerated, 20 pruned and 300 valuations checked in the last 60s, 0:01:30 elapsed\n", out.getvalue().splitlines(True)[1])
 
     def test_a_line_says_the_memory_resident_in_all_and_per_state(self):
         # Setup
         clock, out = Clock(), io.StringIO()
         p = Progress(out, clock, resident=lambda: 18_300_000_000)
         clock.now = 30.0
-        p.update(visited=12_800_000, frontier=40, depth=3, tried=900, checked=5000)
+        p.update(visited=12_800_000, frontier=40, depth=3, tried=900, pruned=0, checked=5000)
 
         # Execute
         p.report()
@@ -141,7 +141,7 @@ class ProgressOptionTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(5, len(seen))
-        self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "checked": 6}, seen[-1])
+        self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "pruned": 0, "checked": 6}, seen[-1])
 
     def test_random_walks_say_their_progress_in_lines_of_their_own(self):
         # Setup
