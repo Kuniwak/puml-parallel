@@ -105,9 +105,13 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 		if err != nil {
 			return err
 		}
+		prose, err := proseOf(opts, d)
+		if err != nil {
+			return err
+		}
 		return replweb.WriteStaticPage(inout.Stdout, replweb.Page{
 			Title: title, Path: name, Diagram: []byte(source), Includes: includes, SVG: svg, Highlights: highlights,
-			Python: python, Shapes: shapes,
+			Python: python, Shapes: shapes, Prose: prose,
 		}, engine)
 	}
 }
@@ -132,6 +136,33 @@ func readDiagram(file string) (string, map[string]string, *core.Diagram, error) 
 	}
 	return source, includes, d, nil
 }
+
+// proseOf is the clauses of the file -prose names, another version of d,
+// or nil when none is.
+func proseOf(opts *Options, d *core.Diagram) (*replweb.Prose, error) {
+	if opts.Prose == "" {
+		return nil, nil
+	}
+	_, _, prose, err := readDiagram(opts.Prose)
+	if err != nil {
+		return nil, err
+	}
+	out, err := replweb.ProseOf(d, prose)
+	if err != nil {
+		return nil, proseError{file: opts.Prose, err: err}
+	}
+	return out, nil
+}
+
+// proseError says which file -prose names is not the same diagram.
+type proseError struct {
+	file string
+	err  error
+}
+
+func (e proseError) Error() string { return fmt.Sprintf("-prose %s: %v", e.file, e.err) }
+func (e proseError) Unwrap() error { return e.err }
+func (proseError) UserFacing()     {}
 
 // shapesOf is the JSON of the file -shapes names, or nil when none is.
 func shapesOf(opts *Options) (json.RawMessage, error) {

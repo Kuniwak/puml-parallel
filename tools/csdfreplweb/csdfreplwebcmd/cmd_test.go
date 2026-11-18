@@ -257,3 +257,53 @@ func TestMainRefusesShapesThatAreNoJSON(t *testing.T) {
 		t.Errorf("err = %v, want one naming the shapes file", err)
 	}
 }
+
+// writeProse writes printer_formal.puml with its clauses replaced as
+// replacements say, and returns its path.
+func writeProse(t *testing.T, replacements ...string) string {
+	t.Helper()
+	bs, err := os.ReadFile(printerFormal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "printer_prose.puml")
+	if err := os.WriteFile(path, []byte(strings.NewReplacer(replacements...).Replace(string(bs))), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestMainCarriesTheClausesOfTheProse(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	prose := writeProse(t, "$用紙' == INITIAL", "用紙は初期枚数")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: prose}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"prose":{"init_post":"用紙は初期枚数"`; !strings.Contains(spy.Stdout.String(), want) {
+		t.Errorf("the page does not hold %s", want)
+	}
+}
+
+func TestMainRefusesAProseOfAnotherDiagram(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	prose := writeProse(t, "printing --> idle : 排紙", "printing --> printing : 排紙")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: prose}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if msg := usererr.Message(err); !strings.Contains(msg, "printing --> printing") || !strings.Contains(msg, prose) || spy.Stdout.Len() != 0 {
+		t.Errorf("message = %q, want one naming the prose and its edge, and nothing written", msg)
+	}
+}

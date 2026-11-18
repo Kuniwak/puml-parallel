@@ -161,3 +161,19 @@ func TestNewParseOptionsFuncTakesTheShapes(t *testing.T) {
 		t.Errorf("Shapes = %q, want s.json", opts.Shapes)
 	}
 }
+
+func TestNewParseOptionsFuncTakesTheProse(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+
+	// Execute
+	opts, err := NewParseOptionsFunc()([]string{"-prose", "p.puml", "d.puml"}, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Prose != "p.puml" {
+		t.Errorf("Prose = %q, want p.puml", opts.Prose)
+	}
+}

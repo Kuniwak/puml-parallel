@@ -38,6 +38,10 @@ type Options struct {
 	// clauses reveal of its types, which the page shows by the inputs; ""
 	// shows none.
 	Shapes string
+	// Prose is another version of the diagram whose clauses are written
+	// for people, which the page shows in place of the diagram's own; ""
+	// shows the diagram's own.
+	Prose string
 }
 
 // CommonOptions returns the parsed common options.
@@ -115,6 +119,7 @@ Examples:
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
 		shapes := flags.String("shapes", "", "JSON file csdfbmc shapes prints of the diagram, whose shapes of the types the page shows by the inputs")
+		prose := flags.String("prose", "", "another version of the diagram, the same but for its clauses, whose guards and posts the page shows in place of the diagram's")
 		pyodide := flags.String("pyodide", DefaultPyodide, "with -checks, URL of the directory holding pyodide.js, which the page loads to run csdfbmc")
 
 		if err := flags.Parse(args); err != nil {
@@ -147,6 +152,6 @@ Examples:
 			return nil, errors.New("csdfreplwebcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
-		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide, Shapes: *shapes}, nil
+		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide, Shapes: *shapes, Prose: *prose}, nil
 	}
 }
