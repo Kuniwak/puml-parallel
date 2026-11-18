@@ -666,18 +666,19 @@ type move struct {
 func provenance(moves []move) []Move {
 	var out []Move
 	for _, m := range moves {
-		out = append(out, Move{Map: m.f.Map, Edge: m.index, Kind: m.kind})
+		out = append(out, Move{Map: m.f.Map, Edge: m.index, Src: m.e.Src, Dst: m.e.Dst, Kind: m.kind})
 	}
 	return out
 }
 
 // Move is one instance's part in an edge of a promoted diagram: the local
-// edge Edge, an index into Local.Edges of the family of the map Map, doing
-// to its instance what Kind says.
+// edge Edge, an index into Local.Edges of the family of the map Map, from
+// the local state Src to Dst, doing to its instance what Kind says.
 type Move struct {
-	Map  string
-	Edge int
-	Kind MoveKind
+	Map      string
+	Edge     int
+	Src, Dst string
+	Kind     MoveKind
 }
 
 func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, error) {

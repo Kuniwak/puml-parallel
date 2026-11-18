@@ -14,9 +14,9 @@ func TestPromoteRecordsTheMovesOfEachEdge(t *testing.T) {
 		Syncs:    []Sync{{Event: "INSTALL", Targets: []Target{{Map: "doors", ID: "loc", Event: "NEW"}, {Map: "keys", ID: "s", Event: "CUT"}}}},
 		Edges:    []Edge{{Src: "run", Dst: "maint", Event: ev("HALT")}}}
 	want := map[string][]Move{
-		"run LOST":    {{Map: "keys", Edge: 1, Kind: Deletion}},
-		"run OPENS":   {{Map: "doors", Edge: 1, Kind: Stay}},
-		"run INSTALL": {{Map: "doors", Edge: 0, Kind: Creation}, {Map: "keys", Edge: 0, Kind: Creation}},
+		"run LOST":    {{Map: "keys", Edge: 1, Src: "held", Dst: "none", Kind: Deletion}},
+		"run OPENS":   {{Map: "doors", Edge: 1, Src: "shut", Dst: "wide", Kind: Stay}},
+		"run INSTALL": {{Map: "doors", Edge: 0, Src: "none", Dst: "shut", Kind: Creation}, {Map: "keys", Edge: 0, Src: "none", Dst: "held", Kind: Creation}},
 		"run HALT":    nil,
 	}
 
