@@ -1,6 +1,7 @@
 package csdfreplwebcmd
 
 import (
+	"errors"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,9 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
 	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v3/tools/replweb/engineload"
+	"github.com/Kuniwak/puml-parallel/v3/usererr"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -16,6 +20,11 @@ const vendingMachine = "../../../examples/valid/vending_machine.puml"
 // fakeSVG is a drawing whose start edge is the one vending_machine.puml
 // reads on its 15th line.
 const fakeSVG = `<svg xmlns="http://www.w3.org/2000/svg"><g class="link" data-entity-1="ent0009" data-entity-2="ent0001" data-source-line="14" id="lnk10"><path/></g></svg>`
+
+// fakeEngine gives an engine without building one.
+func fakeEngine(*Options) engineload.Source {
+	return func() (replweb.Engine, error) { return replweb.Engine{WasmGz: []byte("engine")}, nil }
+}
 
 func TestMainWritesThePageOfTheDiagram(t *testing.T) {
 	// Setup
@@ -29,7 +38,7 @@ func TestMainWritesThePageOfTheDiagram(t *testing.T) {
 	opts := &Options{Common: &tools.CommonOptions{}, File: vendingMachine, PumlExec: []string{"plantuml", "-pipe", "-tsvg"}}
 
 	// Execute
-	err := newMainFunc(render)(opts, spy.New())
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
 
 	// Assert
 	if err != nil {
@@ -58,7 +67,7 @@ func TestMainHighlightsTheLocalDiagramsOfAPromotion(t *testing.T) {
 	opts := &Options{Common: &tools.CommonOptions{}, File: "../../../examples/promote/MEMBERS.puml", PumlExec: []string{"x"}}
 
 	// Execute
-	err := newMainFunc(render)(opts, spy.New())
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
 
 	// Assert
 	if err != nil {
@@ -76,7 +85,7 @@ func TestMainRefusesADiagramItCannotRead(t *testing.T) {
 	opts := &Options{Common: &tools.CommonOptions{}, File: "no-such.puml", PumlExec: []string{"x"}}
 
 	// Execute
-	err := newMainFunc(render)(opts, spy.New())
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
 
 	// Assert
 	if err == nil {
@@ -107,5 +116,41 @@ func TestRunPlantUMLSaysWhatTheCommandWrote(t *testing.T) {
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "broken") {
 		t.Errorf("error = %v, want one holding the standard error", err)
+	}
+}
+
+func TestMainRefusesWhenThereIsNoEngine(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte(fakeSVG), nil }
+	noEngine := func(*Options) engineload.Source {
+		return func() (replweb.Engine, error) { return replweb.Engine{}, errors.New("no engine") }
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: vendingMachine, PumlExec: []string{"x"}}
+
+	// Execute
+	err := newMainFunc(render, noEngine)(opts, spy.New())
+
+	// Assert
+	if err == nil || spy.Stdout.Len() != 0 {
+		t.Errorf("error = %v and %d bytes written, want an error and nothing written", err, spy.Stdout.Len())
+	}
+}
+
+func TestMainSaysWhatToDoWithoutGo(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte(fakeSVG), nil }
+	noGo := func(*Options) engineload.Source {
+		return func() (replweb.Engine, error) { return replweb.Engine{}, engineload.ErrNoGo }
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: vendingMachine, PumlExec: []string{"x"}}
+
+	// Execute
+	err := newMainFunc(render, noGo)(opts, spy.New())
+
+	// Assert
+	if msg := usererr.Message(err); !strings.Contains(msg, "-engine") || !strings.Contains(msg, "release") {
+		t.Errorf("message = %q, want one naming -engine and the release binary", msg)
 	}
 }

@@ -1518,8 +1518,8 @@ starting with the value it had before. The history lists every step with its
 values, the changed ones marked; click a step to go on from there. "Save this
 path" downloads the path to the current step as a file that
 `csdfrepl -replay FILE -finding 0 diagram.puml` walks. The page speaks English
-and Japanese. [examples/web/vending_machine.html](examples/web/vending_machine.html)
-is the page of the vending machine.
+and Japanese. The pages of the examples are published on
+[GitHub Pages](https://kuniwak.github.io/puml-parallel/).
 
 The drawing is the SVG PlantUML renders: `csdfreplweb` runs the command
 `-puml-exec` gives (`plantuml -pipe -tsvg` by default) in the diagram's
@@ -1534,9 +1534,13 @@ page
 suggests no values and refuses only what a builtin is false of, as `csdfrepl`
 without `-checks` does, for `csdfbmc` does not run in a browser.
 
-The page carries the engine compiled to WebAssembly
-(`tools/replweb/assets/engine.wasm.gz`); after changing the exploration code,
-run `go generate ./tools/replweb` and commit what it writes.
+The page carries the exploration engine compiled to WebAssembly. The release
+binary of `csdfreplweb` embeds it. A `csdfreplweb` built by `go install` or run
+by `go run` builds it with the `go` command on the `PATH`: for a released
+version from the module cache, kept under the user cache directory
+(`csdfreplweb/<version>`), and for a build from a work tree from that work
+tree. `-engine FILE` takes the engine from a file instead, gzipped or not, such
+as the `csdfreplweb-engine_<version>.wasm.gz` attached to every release.
 
 ## Headless exploration for agents
 

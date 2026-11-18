@@ -1,78 +1,47 @@
-// Command buildengine builds the engine of the web page (../../engine) for
-// WebAssembly, gzips it into ../../assets/engine.wasm.gz and copies the
-// wasm_exec.js of the Go toolchain that built it beside it. go generate
-// runs it in tools/replweb. The output depends only on the sources and the
-// Go version, so the test workflow checks the committed files are current.
+// Command buildengine builds the engine of the web page (tools/replweb/engine)
+// for WebAssembly from the work tree it runs in, and writes it gzipped as
+// engine.wasm.gz, with the wasm_exec.js of the Go toolchain that built it,
+// into the directory -o names. A release runs it before building
+// csdfreplweb with the embedengine tag, which embeds what it writes into
+// tools/replweb/engineload/embedded.
 package main
 
 import (
-	"compress/gzip"
+	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/Kuniwak/puml-parallel/v3/tools/replweb/engineload"
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	out := flag.String("o", filepath.Join("tools", "replweb", "engineload", "embedded"), "directory to write engine.wasm.gz and wasm_exec.js into")
+	version := flag.String("version", "", "version to stamp the engine with")
+	flag.Parse()
+	if err := run(*out, *version); err != nil {
+		fmt.Fprintln(os.Stderr, "buildengine:", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
-	tmp, err := os.MkdirTemp("", "buildengine")
+func run(out, version string) error {
+	g := engineload.ExecGo{}
+	mod, err := g.Run(".", []string{"GOWORK=off"}, "list", "-m", "-f", "{{.Path}} {{.Dir}}")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
-	wasm := filepath.Join(tmp, "engine.wasm")
-
-	build := exec.Command("go", "build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", wasm, "./engine")
-	build.Env = append(os.Environ(), "GOOS=js", "GOARCH=wasm", "CGO_ENABLED=0")
-	build.Stdout, build.Stderr = os.Stdout, os.Stderr
-	if err := build.Run(); err != nil {
-		return fmt.Errorf("buildengine: go build failed: %w", err)
-	}
-	if err := gzipFile(wasm, filepath.Join("assets", "engine.wasm.gz")); err != nil {
-		return err
-	}
-
-	goroot, err := exec.Command("go", "env", "GOROOT").Output()
-	if err != nil {
-		return fmt.Errorf("buildengine: go env GOROOT failed: %w", err)
-	}
-	glue, err := os.ReadFile(filepath.Join(strings.TrimSpace(string(goroot)), "lib", "wasm", "wasm_exec.js"))
-	if err != nil {
-		return fmt.Errorf("buildengine: %w", err)
-	}
-	return os.WriteFile(filepath.Join("assets", "wasm_exec.js"), glue, 0o644)
-}
-
-// gzipFile writes src gzipped to dst, with no name or time in the header,
-// so the same input gives the same bytes.
-func gzipFile(src, dst string) error {
-	raw, err := os.ReadFile(src)
+	path, dir, _ := strings.Cut(strings.TrimSpace(string(mod)), " ")
+	engine, err := engineload.Build(g, dir, path, version)
 	if err != nil {
 		return err
 	}
-	out, err := os.Create(dst)
-	if err != nil {
+	if err := os.MkdirAll(out, 0o755); err != nil {
 		return err
 	}
-	w, err := gzip.NewWriterLevel(out, gzip.BestCompression)
-	if err != nil {
-		out.Close()
+	if err := os.WriteFile(filepath.Join(out, "engine.wasm.gz"), engine.WasmGz, 0o644); err != nil {
 		return err
 	}
-	if _, err := w.Write(raw); err != nil {
-		out.Close()
-		return err
-	}
-	if err := w.Close(); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
+	return os.WriteFile(filepath.Join(out, "wasm_exec.js"), engine.Glue, 0o644)
 }

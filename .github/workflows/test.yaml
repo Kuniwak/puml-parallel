@@ -28,11 +28,6 @@ jobs:
       
     - name: Build
       run: go build -v ./...
-
-    # The page csdfreplweb writes carries the engine built for WebAssembly;
-    # it is committed, so it must be what go generate builds now.
-    - name: Check the web engine is current
-      run: go generate ./tools/replweb && git diff --exit-code tools/replweb/assets
       
     - name: Run tests
       run: go test -v -race ./...
