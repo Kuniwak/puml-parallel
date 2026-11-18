@@ -618,7 +618,7 @@
       }
     }
     renderInstances(v);
-    for (const o of occupiedStates(v)) o.node.classList.add("csdf-occupied");
+    for (const o of [...occupiedStates(v), ...emptyInits(v)]) o.node.classList.add("csdf-occupied");
     markHovered();
     for (const h of app.history) {
       const node = svgElement(highlights.states[h.state.state_id]);
@@ -726,9 +726,9 @@
       const moved = last && last.kind === "step" ? (last.moves || []).filter(inBlock) : [];
       const links = [...chosen, ...moved].map(localLinkOf).filter(Boolean);
       if (links.length > 0) return links;
-      const occupied = occupiedStates(v).filter((o) => app.block.includes(o.map)).map((o) => o.node);
+      const occupied = [...occupiedStates(v), ...emptyInits(v)].filter((o) => app.block.includes(o.map)).map((o) => o.node);
       if (occupied.length > 0) return occupied;
-      return app.block.map((m) => svgElement(families[m].start)).filter(Boolean);
+      return app.block.map(localInitOf).filter(Boolean);
     }
     if (last && last.kind === "step") {
       const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
@@ -742,6 +742,21 @@
       if (r.width <= box.clientWidth && r.height <= box.clientHeight) return [state];
     }
     return [svgElement(highlights.start)].filter(Boolean);
+  }
+
+  // localInitOf is the box of the local start state of the family of map,
+  // where an instance is before it exists: the end of the local start edge.
+  function localInitOf(map) {
+    const start = svgElement(families[map] && families[map].start);
+    return start ? svgElement(start.getAttribute("data-entity-2")) : null;
+  }
+
+  // emptyInits are the local start states of the families with no
+  // instance, where every one of them is.
+  function emptyInits(v) {
+    if (!v.families && v.mode !== "command") return [];
+    const held = new Set((v.families || []).filter((fv) => Object.values(fv.instances || {}).some((ids) => ids.length > 0)).map((fv) => fv.map));
+    return Object.keys(families).filter((m) => !held.has(m)).map((m) => ({ map: m, node: localInitOf(m) })).filter((o) => o.node);
   }
 
   // occupiedStates are the boxes of the local states that hold instances.
@@ -790,11 +805,7 @@
     const key = app.entries.length + ":" + v.mode;
     if (app.centredAt === key) return;
     app.centredAt = key;
-    if (Object.keys(families).length > 0) {
-      const maps = blocksToShow(v);
-      if (maps.length > 0) { showBlocks(maps); return; }
-    }
-    centreOn(focusOf(v));
+    showCurrent();
   }
 
   function blocksToShow(v) {
@@ -802,8 +813,12 @@
     const moved = last && last.kind === "step" ? (last.moves || []).map((m) => m.map) : [];
     const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
     const maps = [...new Set([...chosen, ...moved])].filter((m) => families[m]);
-    if (maps.length > 0 || app.block) return maps;
-    const first = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort()[0];
+    if (maps.length > 0) return maps;
+    if (app.block) return app.block;
+    const occupied = [...new Set(occupiedStates(v).map((o) => o.map))].sort();
+    if (occupied.length > 0) return [occupied[0]];
+    const movable = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort();
+    const first = movable[0] || Object.keys(families).sort()[0];
     return first ? [first] : [];
   }
 
@@ -814,10 +829,7 @@
     if (!v) return;
     if (Object.keys(families).length > 0) {
       const maps = blocksToShow(v);
-      if (maps.length > 0 || app.block) {
-        showBlocks(maps.length > 0 ? maps : app.block);
-        return;
-      }
+      if (maps.length > 0) { showBlocks(maps); return; }
     }
     const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
     const state = svgElement(highlights.states[id]);
