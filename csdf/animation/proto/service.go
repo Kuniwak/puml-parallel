@@ -345,6 +345,7 @@ func transitionsOf(sess *animation.Session) []Transition {
 			DstName: animation.StateName(sess.Diagram(), edge.Dst),
 			Guard:   animation.ClauseText(edge.Guard),
 			Post:    animation.ClauseText(edge.Post),
+			Line:    edge.Line,
 		}
 	}
 	return out

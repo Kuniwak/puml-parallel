@@ -91,6 +91,9 @@ type Transition struct {
 	DstName string `json:"dst_name"`
 	Guard   string `json:"guard"`
 	Post    string `json:"post"`
+	// Line is where the reader read the edge, as core.Edge.Line is: 0 when
+	// it has none, as in an expansion.
+	Line int `json:"line,omitempty"`
 }
 
 // Pending describes the state awaiting values in ModeValues, with the guard
