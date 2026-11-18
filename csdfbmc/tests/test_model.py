@@ -123,6 +123,8 @@ class DiagramTest(unittest.TestCase):
                                                          "none is the start state of the family of m, which is absence; say @notin"),
             "@at over several states, one of no family's": (diagram({"G": ["m"]}, "G", edges=[at_any("open", "shut")], families=[family("m", "none", {"none": [], "open": []})]),
                                                             "@at\\(m'\\[…\\], open, shut\\), but shut is no state of the family of m"),
+            "@at over a state listed twice": (diagram({"G": ["m"]}, "G", edges=[at_any("open", "open")], families=[family("m", "none", {"none": [], "open": []})]),
+                                              "@at\\(m'\\[…\\], open, open\\): the state open twice"),
         }
         for name, (doc, said) in tests.items():
             with self.subTest(name):

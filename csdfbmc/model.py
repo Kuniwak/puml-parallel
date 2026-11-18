@@ -432,7 +432,10 @@ def _check_at(clause: tuple, families: dict[str, Family], where: str) -> None:
             fam = families.get(m)
             if fam is None:
                 continue
-            for s in f.states:
+            for i, s in enumerate(f.states):
+                if s in f.states[:i]:
+                    raise ValueError(f"{where}: @at({m}{chr(39) if f.args[0].map.primed else ''}[…], {', '.join(f.states)}): "
+                                     f"the state {s} twice")
                 if s not in fam.states:
                     raise ValueError(f"{where}: @at({m}{chr(39) if f.args[0].map.primed else ''}[…], {', '.join(f.states)}), "
                                      f"but {s} is no state of the family of {m}")
