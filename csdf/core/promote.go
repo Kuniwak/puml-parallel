@@ -624,28 +624,29 @@ func lifecycle(f Family) error {
 // moveOf is the move of the instance bound to id taking e: a creation when
 // e leaves f's start state, a deletion when it enters it.
 func moveOf(f Family, id string, e Edge) move {
-	k := local
+	k := Stay
 	switch {
 	case e.Src == f.Local.Init:
-		k = creation
+		k = Creation
 	case e.Dst == f.Local.Init:
-		k = deletion
+		k = Deletion
 	}
 	return move{f: f, id: id, e: e, kind: k}
 }
 
-// kind says what a move does to its instance.
-type kind int
+// MoveKind says what a move does to its instance.
+type MoveKind int
 
 const (
-	// local takes a local edge of an instance that exists.
-	local kind = iota
-	// creation creates an instance that does not exist, taking an edge out
+	// Stay takes a local edge of an instance that exists, which it leaves
+	// existing.
+	Stay MoveKind = iota
+	// Creation creates an instance that does not exist, taking an edge out
 	// of the local start state.
-	creation
-	// deletion deletes an instance, taking an edge into the local start
+	Creation
+	// Deletion deletes an instance, taking an edge into the local start
 	// state.
-	deletion
+	Deletion
 )
 
 // move is one instance's part in a step: the edge e of the family f, taken
@@ -654,7 +655,7 @@ type move struct {
 	f    Family
 	id   string
 	e    Edge
-	kind kind
+	kind MoveKind
 }
 
 func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, error) {
@@ -947,10 +948,10 @@ func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 		return clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: m, Key: x}}, States: []string{state}}
 	}
 	switch m.kind {
-	case creation:
+	case Creation:
 		return Conj(facts(clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, now}}), sub(m.e.Guard)),
 			Conj(facts(frame, at(after, m.e.Dst)), sub(m.e.Post)), nil
-	case deletion:
+	case Deletion:
 		return Conj(facts(at(now, m.e.Src)), sub(m.e.Guard)),
 			facts(frame, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, after}}), nil
 	}
