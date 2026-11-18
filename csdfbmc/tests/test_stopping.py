@@ -9,6 +9,7 @@ from csdfbmc.randomwalk import RandomWalks
 from csdfbmc.stopping import interrupted, on_signals
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_explore import BUMPING, COUNTER
+from csdfbmc.tests.test_random_walk import unstepped
 
 
 class OnSignalsTest(unittest.TestCase):
@@ -43,7 +44,7 @@ def signalled_after(first):
 class InterruptedTest(unittest.TestCase):
     def test_a_signal_ends_what_is_being_made_and_what_was_made_is_kept(self):
         import time
-        walk, walks = fixture.explorer(COUNTER), RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1)
+        walk, walks = fixture.explorer(COUNTER), RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1, stepped=unstepped)
 
         def items(stop):
             return list(interrupted(signalled_after(1))), stop()
@@ -101,7 +102,7 @@ class StopTest(unittest.TestCase):
 
         tests = {
             "breadth first": lambda: fixture.explorer(COUNTER).run(stop=stopped_at_the_end(4)),
-            "random walks": lambda: RandomWalks(fixture.explorer(COUNTER), max_depth=4, weights={}, seed=1).run(
+            "random walks": lambda: RandomWalks(fixture.explorer(COUNTER), max_depth=4, weights={}, seed=1, stepped=unstepped).run(
                 1, stop=stopped_at_the_end(1)).result,
         }
         for name, run in tests.items():
@@ -117,7 +118,7 @@ class StopTest(unittest.TestCase):
         asked = iter([None, None, "SIGINT"])
 
         # Execute
-        got = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1).run(10, stop=lambda: next(asked))
+        got = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1, stepped=unstepped).run(10, stop=lambda: next(asked))
 
         # Assert
         self.assertEqual((2, "SIGINT"), (got.walks, got.result.stopped_by))
@@ -156,7 +157,7 @@ class CutExpansionTest(unittest.TestCase):
         import time
 
         # Setup
-        walks = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1)
+        walks = RandomWalks(fixture.explorer(BUMPING), max_depth=4, weights={}, seed=1, stepped=unstepped)
 
         def cut(indices):
             yield walks.walk(indices[0])

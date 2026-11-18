@@ -11,9 +11,12 @@ from csdfbmc.tests.test_explore import BUMPING, COUNTER, TALLY, tally_checks
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
 
-def walks(d, checks=None, max_depth=10, weights=None, seed=1, stepped=None, **options):
-    return RandomWalks(fixture.explorer(d, checks, **options), max_depth=max_depth, weights=weights or {}, seed=seed,
-                       **({"stepped": stepped} if stepped else {}))
+def unstepped():
+    pass
+
+
+def walks(d, checks=None, max_depth=10, weights=None, seed=1, stepped=unstepped, **options):
+    return RandomWalks(fixture.explorer(d, checks, **options), max_depth=max_depth, weights=weights or {}, seed=seed, stepped=stepped)
 
 
 class RandomWalkTest(unittest.TestCase):

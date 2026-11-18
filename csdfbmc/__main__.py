@@ -34,6 +34,7 @@ import random
 import sys
 
 from csdfbmc import checkpoint, parallel, progress
+from csdfbmc.counter import SharedCounter
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened, random_walks
 from csdfbmc.randomwalk import RandomWalkReport
 from csdfbmc.stopping import on_signals
@@ -242,9 +243,9 @@ def main_walk(a: argparse.Namespace, stop, reporting) -> int:
 def main_random_walks(a: argparse.Namespace, stop, reporting) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
-            steps = progress.Steps()
-            walker = random_walks(a, explorer(a, diagram, checks, client, environment), steps)
-            with parallel.walking(a, diagram, a.jobs, steps) as take, \
+            steps = SharedCounter()
+            walker = random_walks(a, explorer(a, diagram, checks, client, environment), steps.add)
+            with parallel.walking(a, diagram, a.jobs, steps.add) as take, \
                     reporting(sys.stderr, a.progress, functools.partial(progress.WalkProgress, steps=steps)) as said:
                 got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:

@@ -89,8 +89,8 @@ def load_weights(path: str, diagram) -> dict[str, float]:
 
 class RandomWalks:
     def __init__(self, explorer: Explorer, max_depth: int, weights: dict[str, float], seed: int,
-                 stepped: Callable[[], None] = lambda: None):
-        """stepped is told each step as it is taken (Steps.step)."""
+                 stepped: Callable[[], None]):
+        """stepped is told each step as it is taken (SharedCounter.add)."""
         self.explorer, self.max_depth, self.weights, self.seed = explorer, max_depth, weights, seed
         self.stepped = stepped
 

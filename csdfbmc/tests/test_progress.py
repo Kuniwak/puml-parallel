@@ -6,7 +6,8 @@ import unittest
 
 import sys
 
-from csdfbmc.progress import Progress, Steps, WalkProgress, resident
+from csdfbmc.counter import SharedCounter
+from csdfbmc.progress import Progress, WalkProgress, resident
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
@@ -83,7 +84,7 @@ class WalkProgressTest(unittest.TestCase):
             with self.subTest(name):
                 # Setup
                 clock, out = Clock(), io.StringIO()
-                p = WalkProgress(out, clock, resident=lambda: held, steps=lambda: 4000)
+                p = WalkProgress(out, lambda: 4000, clock, resident=lambda: held)
                 for at, counts in before:
                     clock.now = at
                     p.update(*counts)
@@ -113,17 +114,17 @@ class ResidentTest(unittest.TestCase):
         del held
 
 
-class StepsTest(unittest.TestCase):
-    def test_counts_the_steps_taken_so_far(self):
+class SharedCounterTest(unittest.TestCase):
+    def test_counts_what_was_added(self):
         # Setup
-        steps = Steps()
+        c = SharedCounter()
 
         # Execute
-        steps.step()
-        steps.step()
+        c.add()
+        c.add()
 
         # Assert
-        self.assertEqual(2, steps())
+        self.assertEqual(2, c())
 
 
 class ProgressOptionTest(unittest.TestCase):
@@ -156,37 +157,22 @@ class ProgressOptionTest(unittest.TestCase):
         self.assertEqual(5, len(seen))
         self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "pruned": 0, "checked": 6}, seen[-1])
 
-    def test_random_walks_say_their_progress_in_lines_of_their_own(self):
-        # Setup
-        out = io.StringIO()
+    def test_random_walks_say_their_progress_in_lines_of_their_own_with_or_without_workers(self):
+        for name, jobs in {"one job": [], "two jobs": ["--jobs", "2"]}.items():
+            with self.subTest(name):
+                # Setup
+                out = io.StringIO()
 
-        @contextlib.contextmanager
-        def reporting(_, seconds, make):
-            p = make(out, resident=lambda: None)
-            yield p
-            p.report()
+                @contextlib.contextmanager
+                def reporting(_, seconds, make):
+                    p = make(out, resident=lambda: None)
+                    yield p
+                    p.report()
 
-        # Execute
-        code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5", checks=CHECKS, reporting=reporting)
+                # Execute
+                code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5",
+                                               *jobs, checks=CHECKS, reporting=reporting)
 
-        # Assert
-        self.assertEqual(1, code, err)
-        self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")
-
-    def test_random_walks_in_workers_count_their_steps_in_the_line(self):
-        # Setup
-        out = io.StringIO()
-
-        @contextlib.contextmanager
-        def reporting(_, seconds, make):
-            p = make(out, resident=lambda: None)
-            yield p
-            p.report()
-
-        # Execute
-        code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5",
-                                       "--jobs", "2", checks=CHECKS, reporting=reporting)
-
-        # Assert
-        self.assertEqual(1, code, err)
-        self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")
+                # Assert
+                self.assertEqual(1, code, err)
+                self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")

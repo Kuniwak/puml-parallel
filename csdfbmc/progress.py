@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
-import multiprocessing
 import os
 import sys
 import threading
@@ -121,33 +120,14 @@ class Progress(_Line):
         return f"{super().memory(held, counts)}, {held / max(counts[0], 1) / 1e3:.1f} KB/state"
 
 
-class Steps:
-    """The steps the random walks took so far, those of walks in progress
-    included, counted by every process that takes them: made before the
-    workers and given to them as they start."""
-
-    def __init__(self):
-        self._value = multiprocessing.get_context("spawn").Value("q", 0)
-
-    def step(self) -> None:
-        with self._value.get_lock():
-            self._value.value += 1
-
-    def __call__(self) -> int:
-        return self._value.value
-
-
-def _no_steps() -> int:
-    return 0
-
-
 class WalkProgress(_Line):
     """How far random walks (--random-walk) got: the walks taken in, the
-    steps taken so far, those of walks in progress included (Steps), the
-    deepest, the walks per second, the findings and the memory in all."""
+    steps taken so far as steps counts them, those of walks in progress
+    included, the deepest, the walks per second, the findings and the
+    memory in all."""
 
-    def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
-                 resident: Callable[[], int | None] = resident, steps: Callable[[], int] = _no_steps):
+    def __init__(self, out: TextIO, steps: Callable[[], int], clock: Callable[[], float] = time.monotonic,
+                 resident: Callable[[], int | None] = resident):
         super().__init__(out, (0, 0, 0), clock, resident)
         self.steps = steps
 
