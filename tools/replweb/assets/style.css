@@ -146,6 +146,9 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .clauses dt { color: var(--muted); }
 .clauses dd { margin: 0; word-break: break-word; }
+details.formal { margin: -.3rem 0 .5rem; font-size: .8rem; }
+details.formal summary { cursor: pointer; color: var(--muted); }
+details.formal .clauses dd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .notice { padding: .5rem .75rem; border-radius: 6px; background: var(--accent-soft); }
 .error { padding: .5rem .75rem; border-radius: 6px; background: var(--error-bg); color: var(--error-text); white-space: pre-wrap; }
 form label { display: block; margin-top: .5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }

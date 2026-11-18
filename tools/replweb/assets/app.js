@@ -317,6 +317,49 @@
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
 
+  // ---- The clauses shown: the prose version's (-prose), else the engine's ----
+
+  const prose = config.prose || null;
+  const NONE_IDS = { guard: "clause.noGuard", post: "clause.noPost" };
+  const CLAUSE_LABELS = { guard: "controls.when", post: "controls.then" };
+
+  // proseOfEdge is the clauses the prose version writes of the index-th
+  // edge out of the state src, or null.
+  function proseOfEdge(src, index) {
+    return prose ? ((prose.edges || {})[src] || [])[index] || null : null;
+  }
+
+  // proseOfEnd is the guard the prose version writes of the index-th end
+  // edge out of the state src, or null.
+  function proseOfEnd(src, index) {
+    const guard = prose ? ((prose.ends || {})[src] || [])[index] : undefined;
+    return guard === undefined ? null : { guard };
+  }
+
+  // proseOfPending is the clauses the prose version writes of the edge a
+  // value prompt follows, or null.
+  function proseOfPending(pending) {
+    if (!prose) return null;
+    return pending.previous ? proseOfEdge(pending.previous.state_id, pending.edge) : { post: prose.init_post };
+  }
+
+  // clauseRows are the rows of the clauses keys names (guard, post) of an
+  // edge: the prose version's when it writes them, else formal's, the
+  // engine's.
+  function clauseRows(keys, formal, written) {
+    return keys.map((k) => [t(CLAUSE_LABELS[k]), clause((written || formal)[k], NONE_IDS[k])]);
+  }
+
+  // formalClauses shows, folded, the engine's clauses in place of which the
+  // prose version's are shown; null when they are not.
+  function formalClauses(keys, formal, written) {
+    if (!written) return null;
+    return el("details", { class: "formal" }, [
+      el("summary", { text: t("clause.formal") }),
+      clausesList(clauseRows(keys, formal, null)),
+    ]);
+  }
+
   // renderLegend shows what each mark on the drawing means, by a small
   // sample of the mark.
   function renderLegend() {
@@ -446,8 +489,10 @@
       for (const end of ends) {
         root.appendChild(el("button", { type: "button", class: "choice", onclick: () => finish(end) }, [
           el("div", { class: "event", text: t("controls.finish") }),
-          clausesList([[t("controls.when"), clause(end.guard, "clause.noGuard")]]),
+          clausesList(clauseRows(["guard"], end, proseOfEnd(state.state_id, end.index))),
         ]));
+        const formal = formalClauses(["guard"], end, proseOfEnd(state.state_id, end.index));
+        if (formal) root.appendChild(formal);
       }
     }
   }
@@ -462,10 +507,12 @@
   // choiceButton is a transition to click: in the details tab with its
   // clauses.
   function choiceButton(tr) {
-    const rows = app.tab === "details"
-      ? [[t("controls.when"), clause(tr.guard, "clause.noGuard")], [t("controls.then"), clause(tr.post, "clause.noPost")], [t("controls.goesTo"), tr.dst_name]]
+    const details = app.tab === "details";
+    const written = proseOfEdge(app.view.state.state_id, tr.index);
+    const rows = details
+      ? [...clauseRows(["guard", "post"], tr, written), [t("controls.goesTo"), tr.dst_name]]
       : [[t("controls.goesTo"), tr.dst_name]];
-    return el("button", {
+    const button = el("button", {
       type: "button", class: "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
@@ -473,6 +520,8 @@
       el("div", { class: "event", text: tr.event }),
       clausesList(rows),
     ]);
+    const formal = details ? formalClauses(["guard", "post"], tr, written) : null;
+    return formal ? el("div", { class: "choice-item" }, [button, formal]) : button;
   }
 
   function hover(tr) {
@@ -489,7 +538,8 @@
 
   function matchesText(tr, words) {
     if (words.length === 0) return true;
-    const text = [tr.event, tr.guard, tr.post, tr.dst_name].join(" ").toLowerCase();
+    const written = proseOfEdge(app.view.state.state_id, tr.index) || {};
+    const text = [tr.event, tr.guard, tr.post, written.guard, written.post, tr.dst_name].join(" ").toLowerCase();
     return words.every((w) => text.includes(w));
   }
 
@@ -747,9 +797,12 @@
     const vars = group.vars || [];
     const rows = [];
     if (app.choice) rows.push([t("controls.event"), app.choice.transition.event]);
-    if (pending.previous) rows.push([t("controls.when"), clause(pending.guard, "clause.noGuard")]);
-    rows.push([t("controls.then"), clause(pending.post, "clause.noPost")]);
+    const keys = pending.previous ? ["guard", "post"] : ["post"];
+    const written = proseOfPending(pending);
+    rows.push(...clauseRows(keys, pending, written));
     root.appendChild(clausesList(rows));
+    const formal = formalClauses(keys, pending, written);
+    if (formal) root.appendChild(formal);
     root.appendChild(errorBox());
     const previous = pending.previous ? pending.previous.values || [] : [];
     const inputs = [];
