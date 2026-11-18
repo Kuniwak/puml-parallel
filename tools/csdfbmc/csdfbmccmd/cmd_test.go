@@ -80,3 +80,15 @@ func TestNextRunsTheValuePromptModule(t *testing.T) {
 		t.Errorf("next --initial printed %q", out)
 	}
 }
+
+func TestShapesRunsTheShapesModule(t *testing.T) {
+	needPython(t)
+	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()},
+		"shapes", "../../../examples/bmc/printer_formal.json")
+	if status != 0 {
+		t.Fatalf("status = %d, stderr %s", status, spy.Stderr.String())
+	}
+	if out := spy.Stdout.String(); !strings.Contains(out, `"vars"`) || !strings.Contains(out, `"印刷枚数": "Nat"`) {
+		t.Errorf("shapes printed %q", out)
+	}
+}
