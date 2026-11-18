@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v3/csdfbmc"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -141,5 +143,59 @@ func TestWriteStaticPageKeepsTheConfigInsideItsScript(t *testing.T) {
 	// Assert
 	if strings.Count(html, "</script>") != 5 {
 		t.Errorf("the page closes %d scripts, want 5", strings.Count(html, "</script>"))
+	}
+}
+
+// pythonOf is the python of the page's config.
+func pythonOf(t *testing.T, html string) *pythonConfig {
+	t.Helper()
+	var config struct {
+		Python *pythonConfig `json:"python"`
+	}
+	if err := json.Unmarshal([]byte(scriptOf(t, html, "csdfrepl-config")), &config); err != nil {
+		t.Fatal(err)
+	}
+	return config.Python
+}
+
+func TestWriteStaticPageCarriesNoPythonWithoutAChecker(t *testing.T) {
+	// Execute
+	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>")})
+
+	// Assert
+	if got := pythonOf(t, html); got != nil {
+		t.Errorf("python = %+v, want none", got)
+	}
+}
+
+func TestWriteStaticPageCarriesTheCheckerAndWhatItReads(t *testing.T) {
+	// Setup
+	checker := bmc.Checker{Checks: "examples/defs.py", EvaluatorModule: "csdfbmc.python_glue examples/defs.py",
+		Env: []bmc.Binding{{Name: "$_0 ok", Value: true}}}
+	python := &Python{URL: "https://example.com/pyodide/", Checker: checker,
+		Files: map[string][]byte{"examples/defs.py": []byte("TYPES = {}\n"), "/abs/x.py": []byte("X = 1\n"), "../up.py": []byte("U = 1\n")}}
+
+	// Execute
+	got := pythonOf(t, writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Python: python}))
+
+	// Assert
+	if got == nil {
+		t.Fatal("the page carries no python")
+	}
+	if got.URL != python.URL || got.Work != WorkDir || got.Lib != LibDir {
+		t.Errorf("python = %+v", got)
+	}
+	if diff := cmp.Diff(checker, got.Checker); diff != "" {
+		t.Errorf("checker mismatch (-want +got):\n%s", diff)
+	}
+	want := map[string]string{"/work/examples/defs.py": "TYPES = {}\n", "/abs/x.py": "X = 1\n", "/up.py": "U = 1\n"}
+	for path, text := range want {
+		if got.Files[path] != text {
+			t.Errorf("files[%q] = %q, want %q", path, got.Files[path], text)
+		}
+	}
+	next, _ := csdfbmc.Sources.ReadFile("next.py")
+	if got.Files["/lib/csdfbmc/next.py"] != string(next) {
+		t.Error("the page does not carry csdfbmc's package")
 	}
 }
