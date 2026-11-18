@@ -650,7 +650,7 @@
   // and every local state an instance may be at with the fields it holds.
   function shapeHelp(shape) {
     const first = shape.states[0];
-    const fields = first ? "{" + (first.fields || []).map((f) => JSON.stringify(f.name) + ": …").join(", ") + "}" : "{}";
+    const fields = first ? "{" + (first.fields || []).map((f) => JSON.stringify(f.name) + ": " + shapeExample(f.type)).join(", ") + "}" : "{}";
     const example = first ? "{" + JSON.stringify(t("shape.id", { type: shape.key_type || "ID" })) + ": {\"at\": " + JSON.stringify(first.state) + ", \"fields\": " + fields + "}}" : "{}";
     const rows = shape.states.map((s) => el("li", null, [
       el("code", { text: s.state }),
@@ -666,6 +666,71 @@
       el("code", { class: "example", text: example }),
       el("p", { class: "hint", text: t("shape.states") }),
       el("ul", null, rows),
+      ...[...new Set(shape.states.flatMap((s) => (s.fields || []).map((f) => f.type)))].map(typeHelp),
+    ]);
+  }
+
+  // typeShape is what csdfbmc shapes (-shapes) says the values of the type
+  // named type look like, or null when it says nothing worth showing: for
+  // a map type K ⇸ V, that of V, each value under its key.
+  function typeShape(type) {
+    const types = (config.shapes && config.shapes.types) || {};
+    const known = (node) => node && (node.kind !== "scalar" || (node.examples || []).length > 0 || node.numeric);
+    if (known(types[type])) return { node: types[type], key: null };
+    const [key, value] = String(type).split("⇸").map((x) => x.trim());
+    return value && known(types[value]) ? { node: types[value], key } : null;
+  }
+
+  // skeleton is an example value of the shape node: a record of its
+  // attributes, a list of one item, a constant it is compared with, else
+  // 0 for a number and "…" for anything else.
+  function skeleton(node) {
+    if (node.kind === "record") return Object.fromEntries(Object.entries(node.fields).map(([k, v]) => [k, skeleton(v)]));
+    if (node.kind === "collection") return [skeleton(node.items)];
+    if ((node.examples || []).length > 0) return node.examples[0];
+    return node.numeric ? 0 : "…";
+  }
+
+  // shapeLeaves lists the attributes of node whose values something is
+  // known of, by their paths: the constants they are compared with, or
+  // that they are numbers.
+  function shapeLeaves(node, path) {
+    if (node.kind === "record") return Object.entries(node.fields).flatMap(([k, v]) => shapeLeaves(v, path.concat([k])));
+    if (node.kind === "collection") return shapeLeaves(node.items, path.concat(["[…]"]));
+    const examples = node.examples || [];
+    if (examples.length === 0 && !node.numeric) return [];
+    const name = path.length > 0 ? path.join(".").replaceAll(".[…]", "[…]") : t("typeShape.value");
+    return [el("li", null, [
+      el("code", { text: name }),
+      el("span", { class: "fields", text: examples.length > 0
+        ? t("typeShape.examples", { values: examples.map((x) => JSON.stringify(x)).join(", ") })
+        : t("typeShape.number") }),
+    ])];
+  }
+
+  // exampleOf is an example value of what typeShape gives.
+  function exampleOf(shape) {
+    const value = skeleton(shape.node);
+    return shape.key ? { [t("shape.id", { type: shape.key })]: value } : value;
+  }
+
+  // shapeExample is the example JSON of a value of type, or "…".
+  function shapeExample(type) {
+    const shape = typeShape(type);
+    return shape ? JSON.stringify(exampleOf(shape)) : "…";
+  }
+
+  // typeHelp tells what a value of type looks like, as far as the clauses
+  // of the diagram tell (-shapes), or is null when they tell nothing.
+  function typeHelp(type) {
+    const shape = typeShape(type);
+    if (!shape) return null;
+    const leaves = shapeLeaves(shape.node, []);
+    return el("details", { class: "shape type-shape" }, [
+      el("summary", { text: t("typeShape.summary", { type }) }),
+      el("p", { class: "hint", text: t("typeShape.note") }),
+      el("code", { class: "example", text: JSON.stringify(exampleOf(shape), null, 2) }),
+      leaves.length > 0 ? el("ul", null, leaves) : null,
     ]);
   }
 
@@ -718,6 +783,8 @@
       form.appendChild(input);
       const shape = (pending.shapes || []).find((s) => s.map === name);
       if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
+      const help = !shape && fixed === undefined && types[name] ? typeHelp(types[name]) : null;
+      if (help) form.appendChild(help);
       if (fixed !== undefined) {
         form.appendChild(el("p", { class: "hint fixed", text: t("values.fixed") }));
       } else if (before) {
