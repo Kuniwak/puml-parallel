@@ -668,3 +668,22 @@ func TestThePromptOfAPromotionSaysTheValuesThePostDetermines(t *testing.T) {
 		t.Errorf("Pending.Determined mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestThePromptOfAPromotionNamesTheMapsOfInstances(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff([]string{"items"}, view.Pending.Families); diff != "" {
+		t.Errorf("Pending.Families mismatch (-want +got):\n%s", diff)
+	}
+}

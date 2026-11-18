@@ -162,6 +162,10 @@ type Pending struct {
 	// Determined are the values the post fixes by builtins alone
 	// (animation.Determined), which a client may enter without asking.
 	Determined []animation.Value `json:"determined,omitempty"`
+	// Families are the variables of Group that hold the instances of a
+	// family, in declaration order: what a client words in terms of the
+	// local diagrams.
+	Families []string `json:"families,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).
