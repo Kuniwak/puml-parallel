@@ -91,6 +91,25 @@ type Transition struct {
 	DstName string `json:"dst_name"`
 	Guard   string `json:"guard"`
 	Post    string `json:"post"`
+	// Moves are, for a diagram expanded from a promotion, the local edges
+	// the transition is made of; none for a controller's own edge.
+	Moves []Move `json:"moves,omitempty"`
+}
+
+// Move is one local edge a transition of a promoted diagram takes: the
+// LocalEdge-th edge of the local diagram of the family of Map, from the
+// local state Src to Dst, the Parallel-th of the local edges from Src to
+// Dst, as the <<promote>> block Block draws it in the mode the transition
+// leaves ("" when the reader knows no block). Kind is "stay", "creation" or
+// "deletion": what the move does to its instance.
+type Move struct {
+	Map       string `json:"map"`
+	Block     string `json:"block,omitempty"`
+	LocalEdge int    `json:"local_edge"`
+	Src       string `json:"src"`
+	Dst       string `json:"dst"`
+	Parallel  int    `json:"parallel"`
+	Kind      string `json:"kind"`
 }
 
 // Pending describes the state awaiting values in ModeValues, with the guard

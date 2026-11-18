@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -345,10 +346,28 @@ func transitionsOf(sess *animation.Session) []Transition {
 			DstName: animation.StateName(sess.Diagram(), edge.Dst),
 			Guard:   animation.ClauseText(edge.Guard),
 			Post:    animation.ClauseText(edge.Post),
+			Moves:   movesOf(sess.Diagram(), edge),
 		}
 	}
 	return out
 }
+
+// movesOf are the local edges edge of d is made of, each named by the block
+// that draws its family in the mode edge leaves.
+func movesOf(d *core.Diagram, edge core.Edge) []Move {
+	var out []Move
+	for _, m := range edge.Moves {
+		var block string
+		if i := slices.IndexFunc(d.Families, func(f core.FamilyStates) bool { return f.Map == m.Map }); i >= 0 {
+			block = d.Families[i].Blocks[edge.Src]
+		}
+		out = append(out, Move{Map: m.Map, Block: block, LocalEdge: m.Edge, Src: m.Src, Dst: m.Dst, Parallel: m.Parallel, Kind: kindNames[m.Kind]})
+	}
+	return out
+}
+
+// kindNames are the names Move.Kind gives the kinds of a move.
+var kindNames = map[core.MoveKind]string{core.Stay: "stay", core.Creation: "creation", core.Deletion: "deletion"}
 
 func endsOf(sess *animation.Session) []End {
 	ends := sess.Ends()
