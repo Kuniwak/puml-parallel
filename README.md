@@ -1529,10 +1529,28 @@ diagrams its `<<promote>>` blocks draw: beside each local state, the IDs of
 the instances there; on each local edge, whether a transition can take it.
 Click a local edge to list only the transitions that take it; the list is
 grouped by family and local edge, with a filter box. A local state whose ID
-is not ASCII is not marked, for PlantUML does not write it into the SVG. The
-page
-suggests no values and refuses only what a builtin is false of, as `csdfrepl`
-without `-checks` does, for `csdfbmc` does not run in a browser.
+is not ASCII is not marked, for PlantUML does not write it into the SVG.
+Without `-checks`, the page suggests no values and refuses only what a
+builtin is false of, as `csdfrepl` without `-checks` does.
+
+With `-checks`, `-evaluator-module` and `-env`, as `csdfrepl` takes them, every
+value prompt shows the values the clauses admit as buttons, each listing what
+changes from before, and the tester picks one instead of typing the values;
+the boxes stay under "Enter the values yourself". The page runs `csdfbmc next`
+in Python compiled to WebAssembly ([Pyodide](https://pyodide.org)), which it
+loads when it opens from `-pyodide URL` (a pinned release on the jsDelivr CDN
+by default; give a directory of your own to serve it yourself). It carries
+`csdfbmc`, the checks module, and every word of `-evaluator-module` naming a
+file, read relative to the current directory as `csdfbmc` reads them. The glue
+must be a Python module: `-evaluator` is refused, for a browser starts no
+command. Without the network, the page says it cannot suggest and takes typed
+values.
+
+```console
+$ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
+    -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" \
+    examples/bmc/printer_formal.puml > printer.html
+```
 
 The page carries the exploration engine compiled to WebAssembly. The release
 binary of `csdfreplweb` embeds it. A `csdfreplweb` built by `go install` or run

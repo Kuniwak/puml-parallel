@@ -128,6 +128,9 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   padding: .5rem .75rem;
 }
 .choice .event { font-weight: 600; color: var(--accent); }
+.suggestion { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; word-break: break-all; }
+details.yourself { margin-top: .75rem; }
+details.yourself > summary { cursor: pointer; color: var(--muted); }
 .clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .clauses dt { color: var(--muted); }
 .clauses dd { margin: 0; word-break: break-word; }

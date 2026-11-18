@@ -62,6 +62,45 @@
 
   const transports = { wasm: wasmTransport };
 
+  // ---- Python ----
+
+  // loadPython loads Pyodide from python.url, keeps python.files in it and
+  // sets globalThis.csdfreplPython, the host the engine asks csdfbmc next
+  // through (pyhost.Global).
+  async function loadPython(python) {
+    await new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = python.url + "pyodide.js";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("cannot load " + script.src));
+      document.head.appendChild(script);
+    });
+    const py = await window.loadPyodide({ indexURL: python.url });
+    const writeFile = (path, text) => {
+      const dir = path.slice(0, path.lastIndexOf("/"));
+      if (dir) py.FS.mkdirTree(dir);
+      py.FS.writeFile(path, text);
+    };
+    for (const [path, text] of Object.entries(python.files)) writeFile(path, text);
+    py.FS.mkdirTree(python.work);
+    py.FS.chdir(python.work);
+    const sys = py.pyimport("sys");
+    sys.path.insert(0, python.lib);
+    sys.path.insert(0, python.work);
+    const run = py.pyimport("csdfbmc.inprocess").run;
+    window.csdfreplPython = {
+      checker: JSON.stringify(python.checker),
+      writeFile,
+      remove: (path) => py.FS.unlink(path),
+      run: (args) => {
+        const result = run(py.toPy(args));
+        const [code, stdout, stderr] = result.toJs();
+        result.destroy();
+        return JSON.stringify({ code, stdout, stderr });
+      },
+    };
+  }
+
   // ---- State ----
 
   const app = {
@@ -89,6 +128,8 @@
     expanded: new Set(),
     // hovered is the transition whose button the pointer is over.
     hovered: null,
+    // suggesting says the page's Python is ready to suggest values.
+    suggesting: false,
   };
 
   async function send(request) {
@@ -494,6 +535,8 @@
     root.appendChild(clausesList(rows));
     root.appendChild(errorBox());
     const previous = pending.previous ? pending.previous.values || [] : [];
+    const suggestions = pending.suggestions || [];
+    if (app.suggesting && vars.length > 0) renderSuggestions(root, vars, previous, suggestions, pending.suggest_error);
     const inputs = [];
     const form = el("form", {
       onsubmit: (e) => { e.preventDefault(); enterValues(inputs.map((i) => i.value)); },
@@ -509,14 +552,87 @@
       form.appendChild(el("label", { for: id, text: name }));
       form.appendChild(input);
     });
-    const buttons = el("div", { class: "row" }, [
+    const cancel = app.history.length > 0 ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null;
+    const picking = suggestions.length > 0;
+    form.appendChild(el("div", { class: "row" }, [
       el("button", { type: "submit", class: "primary", text: t("values.continue") }),
-      app.history.length > 0 ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null,
-    ]);
-    form.appendChild(buttons);
+      picking ? null : cancel,
+    ]));
+    if (picking) {
+      root.appendChild(el("details", { class: "yourself" }, [el("summary", { text: t("values.yourself") }), form]));
+      if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
+      return;
+    }
     root.appendChild(form);
     const first = inputs.find((i) => i.value === "") || inputs[0];
     if (first) first.focus({ preventScroll: true });
+  }
+
+  // renderSuggestions shows the values the checker admits as buttons, each
+  // saying what changes from before.
+  function renderSuggestions(root, vars, previous, suggestions, failure) {
+    if (failure) {
+      root.appendChild(el("p", { class: "notice", text: t("suggest.failed") }));
+      root.appendChild(el("details", null, [el("summary", { text: t("suggest.why") }), el("pre", { class: "error", text: failure })]));
+      return;
+    }
+    if (suggestions.length === 0) {
+      root.appendChild(el("p", { class: "notice", text: t("suggest.none") }));
+      return;
+    }
+    root.appendChild(el("h3", { text: t("suggest.title") }));
+    root.appendChild(el("p", { class: "hint", text: t("suggest.hint") }));
+    const list = el("div", { class: "suggestions" });
+    suggestions.forEach((s, i) => {
+      const lines = [];
+      const params = Object.entries(s.params || {});
+      if (params.length > 0) {
+        lines.push(t("suggest.params", { params: params.map(([k, v]) => k + " = " + show(v)).join(", ") }));
+      }
+      const changes = changesOf(vars, previous, s.values);
+      const shown = changes.slice(0, CHANGE_LIMIT);
+      if (changes.length === 0) lines.push(t("suggest.nothingChanges"));
+      lines.push(...shown);
+      if (changes.length > shown.length) lines.push(t("suggest.more", { n: changes.length - shown.length }));
+      list.appendChild(el("button", {
+        type: "button", class: "choice suggestion", id: "suggestion-" + i,
+        onclick: () => enterValues(s.values.map(show)),
+      }, lines.map((line) => el("div", { text: line }))));
+    });
+    root.appendChild(list);
+  }
+
+  // A suggestion lists at most this many of its changes.
+  const CHANGE_LIMIT = 8;
+
+  // changesOf says, line by line, what values make of the variables vars
+  // held in previous: a map entry by entry.
+  function changesOf(vars, previous, values) {
+    const lines = [];
+    vars.forEach((name, i) => {
+      const before = previous.find((p) => p.name === name);
+      const after = values[i];
+      if (!before) { lines.push(t("suggest.set", { name, value: show(after) })); return; }
+      if (show(before.value) === show(after)) return;
+      if (isMap(before.value) && isMap(after)) {
+        const keys = new Set(Object.keys(before.value).concat(Object.keys(after)));
+        for (const key of keys) {
+          const entry = name + "[" + key + "]";
+          if (!(key in after)) lines.push(t("suggest.removed", { name: entry }));
+          else if (!(key in before.value)) lines.push(t("suggest.set", { name: entry, value: show(after[key]) }));
+          else if (show(before.value[key]) !== show(after[key])) {
+            lines.push(t("suggest.change", { name: entry, before: show(before.value[key]), after: show(after[key]) }));
+          }
+        }
+        return;
+      }
+      lines.push(t("suggest.change", { name, before: show(before.value), after: show(after) }));
+    });
+    return lines;
+  }
+
+  function isMap(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
   }
 
   // ---- The drawing ----
@@ -883,7 +999,21 @@
     document.getElementById("show-current").addEventListener("click", showCurrent);
     setupDiagram();
     try {
-      app.transport = await transports[config.transport || "wasm"]();
+      const engine = transports[config.transport || "wasm"]();
+      if (config.python) {
+        document.getElementById("controls").replaceChildren(el("p", { class: "hint", text: t("app.loadingChecker") }));
+        try {
+          const started = performance.now();
+          await loadPython(config.python);
+          app.suggesting = true;
+          app.pythonLoadMs = performance.now() - started;
+        } catch (e) {
+          document.getElementById("warnings").appendChild(el("p", {
+            class: "notice", role: "status", text: t("suggest.unavailable", { message: String(e && e.message ? e.message : e) }),
+          }));
+        }
+      }
+      app.transport = await engine;
       const created = await app.transport.send({
         command: "session_new", path: config.path, content: config.diagram, includes: config.includes || undefined,
       });
