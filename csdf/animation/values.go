@@ -40,15 +40,24 @@ type Target struct {
 }
 
 // RefusedValuesError says why entered values do not fit the target state;
-// a front end shows it and asks again.
+// a front end shows it and asks again. Code, when not empty, names the
+// kind of refusal and Args its particulars, for a front end to say it in
+// its own words.
 type RefusedValuesError struct {
 	Reason string
+	Code   string
+	Args   map[string]string
 }
 
 func (e *RefusedValuesError) Error() string { return e.Reason }
 
 func refused(format string, args ...any) error {
 	return &RefusedValuesError{Reason: fmt.Sprintf(format, args...)}
+}
+
+// refusedAs is refused naming the kind of refusal by code with args.
+func refusedAs(code string, args map[string]string, format string, fmtArgs ...any) error {
+	return &RefusedValuesError{Reason: fmt.Sprintf(format, fmtArgs...), Code: code, Args: args}
 }
 
 // StateName is the label of the state id of d, or its ID when it has none.
@@ -124,24 +133,29 @@ func decodeValues(d *core.Diagram, target Target, encoded string) ([]Value, erro
 func checkInstances(f core.FamilyStates, v any) error {
 	entries, ok := v.(map[string]any)
 	if !ok {
-		return refused(`%s: a map of instances is a JSON object from IDs to {"at": <state>, "fields": {...}}`, f.Map)
+		return refusedAs("not_instances", map[string]string{"map": f.Map},
+			`%s: a map of instances is a JSON object from IDs to {"at": <state>, "fields": {...}}`, f.Map)
 	}
 	for _, id := range slices.Sorted(maps.Keys(entries)) {
 		at, fields, ok := instance(entries[id])
 		if !ok {
-			return refused(`%s[%q]: an instance is {"at": <state>, "fields": {...}}`, f.Map, id)
+			return refusedAs("not_an_instance", map[string]string{"map": f.Map, "id": id},
+				`%s[%q]: an instance is {"at": <state>, "fields": {...}}`, f.Map, id)
 		}
 		if at == f.Init {
-			return refused("%s[%q]: %q is the start state of the family of %s, which is absence; leave the entry out", f.Map, id, at, f.Map)
+			return refusedAs("start_local_state", map[string]string{"map": f.Map, "id": id, "state": at},
+				"%s[%q]: %q is the start state of the family of %s, which is absence; leave the entry out", f.Map, id, at, f.Map)
 		}
 		if !slices.Contains(f.States, at) {
 			others := slices.DeleteFunc(slices.Clone(f.States), func(s string) bool { return s == f.Init })
-			return refused("%s[%q]: %q is no state of the family of %s; it is at one of [%s]", f.Map, id, at, f.Map, strings.Join(others, ", "))
+			return refusedAs("no_such_local_state", map[string]string{"map": f.Map, "id": id, "state": at, "states": strings.Join(others, ", ")},
+				"%s[%q]: %q is no state of the family of %s; it is at one of [%s]", f.Map, id, at, f.Map, strings.Join(others, ", "))
 		}
 		want := slices.Sorted(slices.Values(f.Vars[at]))
 		got := slices.Sorted(maps.Keys(fields))
 		if !slices.Equal(want, got) {
-			return refused("%s[%q]: an instance at %s holds the fields [%s], got [%s]", f.Map, id, at, strings.Join(want, ", "), strings.Join(got, ", "))
+			return refusedAs("wrong_fields", map[string]string{"map": f.Map, "id": id, "state": at, "want": strings.Join(want, ", "), "got": strings.Join(got, ", ")},
+				"%s[%q]: an instance at %s holds the fields [%s], got [%s]", f.Map, id, at, strings.Join(want, ", "), strings.Join(got, ", "))
 		}
 	}
 	return nil

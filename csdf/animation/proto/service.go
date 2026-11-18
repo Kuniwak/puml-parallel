@@ -442,6 +442,12 @@ func (s *Service) errorFromErr(err error) Response {
 	case errors.As(err, &refused):
 		resp.Code = ErrorCodeRefusedValues
 		resp.Args = map[string]string{"reason": refused.Reason}
+		if refused.Code != "" {
+			resp.Code = refused.Code
+			for k, v := range refused.Args {
+				resp.Args[k] = v
+			}
+		}
 	case errors.Is(err, animation.ErrIndexOutOfRange):
 		resp.Code = ErrorCodeIndexOutOfRange
 	case errors.Is(err, animation.ErrEnded):

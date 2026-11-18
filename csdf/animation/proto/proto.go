@@ -71,7 +71,9 @@ type Response struct {
 // Error codes carried by Response.Code.
 const (
 	// ErrorCodeRefusedValues: the values do not fit the state, or the
-	// checker does not admit them; Args["reason"] says why.
+	// checker does not admit them; Args["reason"] says why. A refusal
+	// whose kind the engine names (animation.RefusedValuesError.Code)
+	// carries that code instead, its particulars beside "reason" in Args.
 	ErrorCodeRefusedValues = "refused_values"
 	// ErrorCodeIndexOutOfRange: no transition, end edge or history entry
 	// has the index.
