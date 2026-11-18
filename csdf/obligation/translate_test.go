@@ -78,6 +78,10 @@ func TestFormulaOfAClause(t *testing.T) {
 			Clause: "@at(t, 倉庫待ち)",
 			Want:   "csdf_at(t, csdf_state_.倉庫待ち)",
 		},
+		"@at over several states is a disjunction of @at over each": {
+			Clause: "@at(m[x], A, B)",
+			Want:   "csdf_in(x, m) ∧ (csdf_at(m[x], csdf_state_m.A) ∨ csdf_at(m[x], csdf_state_m.B))",
+		},
 		"an existential binds a fresh name of its hint": {
 			Clause: "@exists(m : M) (@update(m, n, k, v) ∧ @update(n', m, j, w))",
 			Want:   "∃m. csdf_update(m, n, k, v) ∧ csdf_update(n', m, j, w)",

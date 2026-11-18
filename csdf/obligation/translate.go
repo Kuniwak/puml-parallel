@@ -198,7 +198,11 @@ func builtin(b clause.Builtin) (logic.Formula, error) {
 	case clause.OpFrame:
 		return logic.Pred(PredFrame, false, args...), nil
 	case clause.OpAt:
-		return logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(b, b.States[0]))), nil
+		ats := make([]logic.Formula, len(b.States))
+		for i, s := range b.States {
+			ats[i] = logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(b, s)))
+		}
+		return logic.Or(ats...), nil
 	}
 	return nil, fmt.Errorf("obligation.Formula: no builtin @%s", b.Op)
 }
