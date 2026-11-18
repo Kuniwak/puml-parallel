@@ -158,6 +158,22 @@ type BuiltinDoc struct {
 	State string    `json:"state,omitempty"`
 }
 
+func builtinDoc(b clause.Builtin) *BuiltinDoc {
+	doc := &BuiltinDoc{Op: string(b.Op), Args: termDocs(b.Args)}
+	if len(b.States) > 0 {
+		doc.State = b.States[0]
+	}
+	return doc
+}
+
+// states are the states doc names: none, or its one state.
+func (doc BuiltinDoc) states() []string {
+	if doc.State == "" {
+		return nil
+	}
+	return []string{doc.State}
+}
+
 // ExistsDoc is ∃: the type it ranges over, and its body, where the variable
 // it binds is the bound index 0. A hint carries no meaning and is not
 // written.
@@ -621,7 +637,7 @@ func formulaDocs(f clause.And) ([]FormulaDoc, error) {
 				Text: w.Text, Primed: w.Primed, Function: fn.Name,
 			}})
 		case clause.Builtin:
-			out = append(out, FormulaDoc{Builtin: &BuiltinDoc{Op: string(c.Op), Args: termDocs(c.Args), State: c.State}})
+			out = append(out, FormulaDoc{Builtin: builtinDoc(c)})
 		case clause.Exists:
 			body, err := formulaDocs(c.Body)
 			if err != nil {
@@ -677,7 +693,7 @@ func (doc FormulaDoc) formula() (clause.Formula, error) {
 		if err != nil {
 			return nil, err
 		}
-		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, State: doc.Builtin.State}, nil
+		return clause.Builtin{Op: clause.Op(doc.Builtin.Op), Args: args, States: doc.Builtin.states()}, nil
 	default:
 		body, err := formulaOfDocs(doc.Exists.Body)
 		if err != nil {

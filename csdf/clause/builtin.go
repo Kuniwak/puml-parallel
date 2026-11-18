@@ -21,17 +21,18 @@ const (
 	// OpFrame says the map Args[0] agrees with Args[1] everywhere but at the
 	// keys Args[2:].
 	OpFrame Op = "frame"
-	// OpAt says the instance Args[0] is at State of its local diagram. A
-	// state is a position, not a value, so it is a name and never a term.
+	// OpAt says the instance Args[0] is at one of States of its local
+	// diagram. A state is a position, not a value, so it is a name and never
+	// a term.
 	OpAt Op = "at"
 )
 
 // Builtin is a fact a tool states without any clause language
 // (docs/CLAUSE_DESIGN.md, P7).
 type Builtin struct {
-	Op    Op
-	Args  []Term
-	State string // OpAt only
+	Op     Op
+	Args   []Term
+	States []string // OpAt only
 }
 
 func (Builtin) isFormula() {}

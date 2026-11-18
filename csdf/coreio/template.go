@@ -71,7 +71,7 @@ func (ts Templates) Gloss(e core.Edge) (string, error) {
 			if t == nil {
 				continue
 			}
-			g := glossed{State: b.State}
+			g := glossed{State: strings.Join(b.States, ", ")}
 			for _, a := range b.Args {
 				s, err := clause.PrintTerm(a)
 				if err != nil {

@@ -944,7 +944,7 @@ func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 	facts := func(fs ...clause.Formula) clause.And { return clause.And{Conjuncts: fs} }
 	frame := clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{after, before, x}}
 	at := func(m clause.Term, state string) clause.Formula {
-		return clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: m, Key: x}}, State: state}
+		return clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: m, Key: x}}, States: []string{state}}
 	}
 	switch m.kind {
 	case creation:

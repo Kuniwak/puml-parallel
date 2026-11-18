@@ -105,7 +105,7 @@ func TestParseReadsBuiltins(t *testing.T) {
 		"update":             {text: "@update(m', m, k, v)", want: Builtin{Op: OpUpdate, Args: []Term{post("m"), pre("m"), pre("k"), pre("v")}}},
 		"frame":              {text: "@frame(m', m, a, b)", want: Builtin{Op: OpFrame, Args: []Term{post("m"), pre("m"), pre("a"), pre("b")}}},
 		"frame without keys": {text: "@frame(m', m)", want: Builtin{Op: OpFrame, Args: []Term{post("m"), pre("m")}}},
-		"at":                 {text: "@at(locations[from], 倉庫待ち)", want: Builtin{Op: OpAt, Args: []Term{Index{Map: pre("locations"), Key: pre("from")}}, State: "倉庫待ち"}},
+		"at":                 {text: "@at(locations[from], 倉庫待ち)", want: Builtin{Op: OpAt, Args: []Term{Index{Map: pre("locations"), Key: pre("from")}}, States: []string{"倉庫待ち"}}},
 		"notin":              {text: "@notin(k, m)", want: Builtin{Op: OpNotIn, Args: []Term{pre("k"), pre("m")}}},
 		"empty":              {text: "@empty(m')", want: Builtin{Op: OpEmpty, Args: []Term{post("m")}}},
 		"an integer":         {text: "@eq(n', 0)", want: Builtin{Op: OpEq, Args: []Term{post("n"), Lit{Text: "0"}}}},

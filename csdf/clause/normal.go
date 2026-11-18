@@ -22,7 +22,7 @@ func normalConjuncts(f Formula, out []Formula) []Formula {
 	case Atom:
 		return append(out, normalAtom(f))
 	case Builtin:
-		return append(out, Builtin{Op: f.Op, Args: normalTerms(f.Args), State: f.State})
+		return append(out, Builtin{Op: f.Op, Args: normalTerms(f.Args), States: f.States})
 	}
 	panic("clause.Normalize: unknown formula")
 }

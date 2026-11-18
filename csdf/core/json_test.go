@@ -282,7 +282,7 @@ func TestMarshalDiagramRefusesADiagramThatIsNotWellFormed(t *testing.T) {
 		"an @at of an entry at the start state of its family": {
 			d: &Diagram{States: []string{"s0"}, Vars: map[string][]string{"s0": {"m", "k"}}, Init: "s0",
 				InitPost: clause.And{Conjuncts: []clause.Formula{clause.Exists{Hint: "k", Type: "K", Body: clause.And{Conjuncts: []clause.Formula{
-					clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: clause.Free{Name: "m", Primed: true}, Key: clause.Bound{Index: 0}}}, State: "none"}}}}}},
+					clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: clause.Free{Name: "m", Primed: true}, Key: clause.Bound{Index: 0}}}, States: []string{"none"}}}}}}},
 				Families: []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "open"}}}},
 			want: "the start edge: none is the start state of the family of m, which is absence; say @notin",
 		},

@@ -52,9 +52,9 @@ const StatePrefix = "csdf_state_"
 // that is no entry of a map has no family, and names the state after the
 // dot alone. The dot is in no name, so no two qualified states meet, and no
 // state meets a function of the environment, whose name is an identifier.
-func StateConstant(b clause.Builtin) string {
+func StateConstant(b clause.Builtin, state string) string {
 	family, _ := familyOf(b.Args[0])
-	return StatePrefix + family + "." + b.State
+	return StatePrefix + family + "." + state
 }
 
 func familyOf(t clause.Term) (string, bool) {
@@ -198,7 +198,7 @@ func builtin(b clause.Builtin) (logic.Formula, error) {
 	case clause.OpFrame:
 		return logic.Pred(PredFrame, false, args...), nil
 	case clause.OpAt:
-		return logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(b))), nil
+		return logic.Pred(PredAt, false, args[0], logic.Apply(StateConstant(b, b.States[0]))), nil
 	}
 	return nil, fmt.Errorf("obligation.Formula: no builtin @%s", b.Op)
 }

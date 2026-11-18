@@ -130,7 +130,7 @@ def builtin(b: Builtin, args: list) -> bool:
     if op == "at":
         if not isinstance(args[0], Rec):
             raise ValueError(f"@at of {args[0]!r}, which is not an instance")
-        return args[0].state == b.state
+        return args[0].state in b.states
     raise ValueError(f"unknown builtin @{op}")
 
 
@@ -321,7 +321,7 @@ def _determines(ev: Evaluator, f, before, bound, frames, where, types, families)
         if f.op == "at":
             loc = _loc(a[0], ev, before, bound)
             if loc is not None and loc[0] == "entry":
-                return [{Strict(("state",) + loc[1:]): f.state}]
+                return [{Strict(("state",) + loc[1:]): s} for s in f.states]
             return None
         if f.op == "notin" and isinstance(a[1], Free) and a[1].primed and not is_primed(a[0]):
             return [{Strict(("entry", a[1].name, val(a[0]))): ABSENT}]

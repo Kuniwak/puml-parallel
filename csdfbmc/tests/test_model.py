@@ -31,7 +31,7 @@ class DiagramTest(unittest.TestCase):
         self.assertEqual(("n",), e.sent)
         self.assertEqual(Atom(text=("", " > ", ""), holes=(0, 1), primed=(False, False), function="$_0 > $_1",
                               args=(Free("x"), Free("n"))), e.guard[0])
-        self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), "open"),)), e.post[0])
+        self.assertEqual(Exists("T", (Builtin("at", (Index(Free("m", True), Bound(0)),), ("open",)),)), e.post[0])
         self.assertEqual("s1", d.ends[0].src)
 
     def test_reads_the_local_states_of_each_family(self):

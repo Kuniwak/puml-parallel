@@ -98,9 +98,7 @@ func (pr *printer) builtin(b Builtin) (string, error) {
 		}
 		args = append(args, s)
 	}
-	if b.State != "" {
-		args = append(args, b.State)
-	}
+	args = append(args, b.States...)
 	return string(toolPrefix) + string(b.Op) + "(" + strings.Join(args, ", ") + ")", nil
 }
 

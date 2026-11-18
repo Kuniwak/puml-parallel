@@ -220,10 +220,12 @@ func (p *parser) builtin() (Formula, error) {
 		if err := p.expect(", "); err != nil {
 			return nil, fmt.Errorf("@%s at %d takes a state: %w", op, start, err)
 		}
-		if b.State = p.name(); b.State == "" {
+		s := p.name()
+		if s == "" {
 			return nil, fmt.Errorf("@%s at %d: expected a state at %d", op, start, p.pos)
 		}
-		if err := ident.CheckName(b.State); err != nil {
+		b.States = []string{s}
+		if err := ident.CheckName(s); err != nil {
 			return nil, fmt.Errorf("@%s at %d: the state: %w", op, start, err)
 		}
 	}

@@ -50,7 +50,7 @@ func MapFormula(f Formula, depth int, leaf func(v Term, depth int) Term) Formula
 		}
 		return Atom{Parts: parts}
 	case Builtin:
-		return Builtin{Op: f.Op, Args: mapTermList(f.Args, depth, leaf), State: f.State}
+		return Builtin{Op: f.Op, Args: mapTermList(f.Args, depth, leaf), States: f.States}
 	}
 	panic("clause.MapFormula: unknown formula")
 }

@@ -22,7 +22,7 @@ func TestWellFormed(t *testing.T) {
 		"a builtin of the wrong arity": {f: and(Builtin{Op: OpEq, Args: []Term{pre("x")}}), want: "@eq takes 2 terms, not 1"},
 		"an unknown builtin":           {f: and(Builtin{Op: "foo", Args: []Term{pre("x")}}), want: "an unknown builtin @foo"},
 		"@at without a state":          {f: and(Builtin{Op: OpAt, Args: []Term{pre("x")}}), want: "@at: a state"},
-		"a state on another builtin":   {f: and(Builtin{Op: OpEq, Args: []Term{pre("x"), pre("y")}, State: "s"}), want: "@eq: a state"},
+		"a state on another builtin":   {f: and(Builtin{Op: OpEq, Args: []Term{pre("x"), pre("y")}, States: []string{"s"}}), want: "@eq: a state"},
 		"a path from a function":       {f: and(atom(hole(Index{Map: App{Fn: "f"}, Key: pre("k")}))), want: "a path starts from a variable"},
 		"a nil term":                   {f: and(atom(Hole{})), want: "an unknown term"},
 	}
