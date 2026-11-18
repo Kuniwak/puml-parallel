@@ -39,6 +39,23 @@ func TestPromoteRecordsTheMovesOfEachEdge(t *testing.T) {
 	}
 }
 
+func TestPromoteCarriesTheBlocksOfEachFamily(t *testing.T) {
+	// Setup
+	blocks := map[string]string{"run": "run_doors", "maint": "maint_doors"}
+	p := Promotion{Modes: []string{"run", "maint"}, Init: "run", Families: []Family{{Map: "doors", ID: "loc", Local: door(), Blocks: blocks}}}
+
+	// Execute
+	d, _, err := promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(blocks, d.Families[0].Blocks); diff != "" {
+		t.Errorf("blocks (-want +got):\n%s", diff)
+	}
+}
+
 func TestPromoteCountsTheLocalEdgesBesideAMove(t *testing.T) {
 	// Setup: DEPART and ARRIVE both go from open to open.
 	p := Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{{Map: "locations", ID: "loc", Local: location(t)}}}

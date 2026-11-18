@@ -142,6 +142,8 @@ type FamilyStates struct {
 	// the variables of the local states.
 	KeyType types.Type
 	Types   map[string]types.Type
+	// Blocks are Family.Blocks, outside the meaning.
+	Blocks map[string]string
 }
 
 // clone is f sharing no slice or map with it.
@@ -150,7 +152,7 @@ func (f FamilyStates) clone() FamilyStates {
 	for s, vs := range f.Vars {
 		vars[s] = slices.Clone(vs)
 	}
-	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types)}
+	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types), Blocks: maps.Clone(f.Blocks)}
 }
 
 // cloneFamilies are fs, each cloned.

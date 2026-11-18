@@ -19,12 +19,15 @@ import (
 // entry in the map. Frozen are the modes in which the family holds its map
 // but takes no event (docs/CLAUSE_DESIGN.md). Key is the type of the IDs
 // and Val the type of one instance, as the title of a <<promote>> block
-// writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val.
+// writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val. Blocks
+// are, by mode, the alias of the <<promote>> block that draws the family
+// there, for a reader that shows the local diagrams; outside the meaning.
 type Family struct {
 	Map, ID  string
 	Key, Val types.Type
 	Local    *Diagram
 	Frozen   []string
+	Blocks   map[string]string
 }
 
 // States is what an instance of f may be: the local states of f.Local and
@@ -36,7 +39,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types)}
+	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types), Blocks: maps.Clone(f.Blocks)}
 }
 
 // movesIn says whether f takes its events in mode.
