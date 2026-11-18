@@ -103,6 +103,20 @@
 
   // ---- State ----
 
+  // The tabs of the controls: choose takes everything by a click, details
+  // shows the clauses and takes every value typed.
+  const TABS = ["choose", "details"];
+
+  // chooseTab is the tab last chosen, else choose when a checker suggests
+  // values to click, else details, where the values are typed.
+  function chooseTab() {
+    try {
+      const saved = window.localStorage.getItem("csdfrepl.tab");
+      if (TABS.includes(saved)) return saved;
+    } catch (e) { /* storage may be blocked */ }
+    return config.python ? "choose" : "details";
+  }
+
   const app = {
     transport: null,
     session: "",
@@ -130,7 +144,14 @@
     hovered: null,
     // suggesting says the page's Python is ready to suggest values.
     suggesting: false,
+    tab: chooseTab(),
   };
+
+  function setTab(tab) {
+    app.tab = tab;
+    try { window.localStorage.setItem("csdfrepl.tab", tab); } catch (e) { /* storage may be blocked */ }
+    renderControls();
+  }
 
   async function send(request) {
     request.session = app.session;
@@ -147,12 +168,22 @@
     autoContinue();
   }
 
-  // A state of no variables takes its values without asking.
+  // A state whose values the post determines, all of them, takes them
+  // without asking; so does a state of no variables.
   function autoContinue() {
     const v = app.view;
-    if (v && v.mode === "values" && v.pending && (v.pending.group.vars || []).length === 0 && !app.error) {
-      enterValues([]);
-    }
+    if (!v || v.mode !== "values" || !v.pending || app.error) return;
+    const vars = v.pending.group.vars || [];
+    const values = vars.map((name) => determinedValue(v.pending, name));
+    if (values.some((value) => value === undefined)) return;
+    enterValues(values.map(show), vars.length > 0);
+  }
+
+  // determinedValue is the value the post determines of name, undefined
+  // when it determines none.
+  function determinedValue(pending, name) {
+    const d = (pending.determined || []).find((v) => v.name === name);
+    return d ? d.value : undefined;
   }
 
   async function choose(transition) {
@@ -165,19 +196,19 @@
     await refresh();
   }
 
-  async function enterValues(texts) {
+  async function enterValues(texts, auto) {
     const values = "[" + texts.join(", ") + "]";
     const resp = await send({ command: "statevar", values });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
     app.error = null;
     const c = app.choice;
     if (!c) {
-      app.entries.push({ kind: "initial", parent: null, path: { initial: values, steps: [] } });
+      app.entries.push({ kind: "initial", auto, parent: null, path: { initial: values, steps: [] } });
     } else {
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
+        kind: "step", auto, event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -334,6 +365,7 @@
       const head = el("div", null, [
         el("span", { class: "step-number", text: t("history.stepNumber", { step: i + 1 }) }),
         el("span", { text: label }),
+        entry.auto ? el("span", { class: "auto", text: t("history.auto") }) : null,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
       ]);
       const item = el("li", {
@@ -368,6 +400,7 @@
     root.replaceChildren();
     const v = app.view;
     if (!v) return;
+    root.appendChild(tabBar());
     if (v.mode === "values") { renderValueForm(root, v.pending); return; }
     const state = v.state;
     if (v.mode === "ended") {
@@ -400,18 +433,26 @@
     }
   }
 
+  function tabBar() {
+    return el("div", { class: "tabs", role: "tablist" }, TABS.map((tab) => el("button", {
+      type: "button", role: "tab", id: "tab-" + tab, class: tab === app.tab ? "tab selected" : "tab",
+      "aria-selected": String(tab === app.tab), text: t("tabs." + tab), onclick: () => setTab(tab),
+    })));
+  }
+
+  // choiceButton is a transition to click: in the details tab with its
+  // clauses.
   function choiceButton(tr) {
+    const rows = app.tab === "details"
+      ? [[t("controls.when"), clause(tr.guard, "clause.noGuard")], [t("controls.then"), clause(tr.post, "clause.noPost")], [t("controls.goesTo"), tr.dst_name]]
+      : [[t("controls.goesTo"), tr.dst_name]];
     return el("button", {
       type: "button", class: "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
       el("div", { class: "event", text: tr.event }),
-      clausesList([
-        [t("controls.when"), clause(tr.guard, "clause.noGuard")],
-        [t("controls.then"), clause(tr.post, "clause.noPost")],
-        [t("controls.goesTo"), tr.dst_name],
-      ]),
+      clausesList(rows),
     ]);
   }
 
@@ -465,7 +506,7 @@
     input.value = app.filterText;
     const list = el("div", { class: "groups" });
     input.addEventListener("input", () => { app.filterText = input.value; renderTransitionGroups(list, transitions); });
-    root.appendChild(input);
+    if (app.tab === "details") root.appendChild(input);
     root.appendChild(list);
     renderTransitionGroups(list, transitions);
   }
@@ -494,7 +535,7 @@
 
   function renderTransitionGroups(list, transitions) {
     list.replaceChildren();
-    const words = app.filterText.toLowerCase().split(/\s+/).filter((w) => w);
+    const words = app.tab !== "details" ? [] : app.filterText.toLowerCase().split(/\s+/).filter((w) => w);
     const filter = app.edgeFilter;
     const shown = transitions.filter((tr) => matchesText(tr, words) && (!filter || takesMove(tr, filter)));
     const narrowed = words.length > 0 || !!filter;
@@ -524,10 +565,57 @@
     }
   }
 
+  // renderValueForm asks for the values of the pending state: in the
+  // choose tab by the checker's suggestions, in the details tab typed. A
+  // promoted diagram's prompt speaks of the local diagrams, not the mode.
   function renderValueForm(root, pending) {
     const group = pending.group;
+    const promoted = (pending.families || []).length > 0;
+    root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
+    if (app.tab === "details") renderValueDetails(root, pending);
+    else renderValueChoices(root, pending);
+  }
+
+  function cancelButton() {
+    return app.history.length > 0 ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null;
+  }
+
+  function renderValueChoices(root, pending) {
+    const vars = pending.group.vars || [];
+    if (app.choice) root.appendChild(clausesList([[t("controls.event"), app.choice.transition.event]]));
+    root.appendChild(errorBox());
+    const determined = pending.determined || [];
+    if (determined.length > 0 && !app.error) {
+      root.appendChild(el("p", { class: "hint", text: t("values.determined") }));
+      root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
+    }
+    const previous = pending.previous ? pending.previous.values || [] : [];
+    const suggestions = pending.suggestions || [];
+    if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
+      renderSuggestions(root, vars, previous, suggestions);
+    } else {
+      const why = !app.suggesting ? "choose.noChecker" : pending.suggest_error ? "choose.failed" : "choose.none";
+      root.appendChild(el("p", { class: "notice", text: t(why) }));
+      if (pending.suggest_error) {
+        root.appendChild(el("details", null, [el("summary", { text: t("suggest.why") }), el("pre", { class: "error", text: pending.suggest_error })]));
+      }
+      root.appendChild(el("div", { class: "row" }, [
+        el("button", { type: "button", class: "primary", id: "to-details", text: t("choose.toDetails"), onclick: () => setTab("details") }),
+      ]));
+    }
+    const cancel = cancelButton();
+    if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
+  }
+
+  // varLabel is how the prompt names the variable name: a map of a
+  // family's instances by the family.
+  function varLabel(pending, name) {
+    return (pending.families || []).includes(name) ? t("values.instances", { map: name }) : name;
+  }
+
+  function renderValueDetails(root, pending) {
+    const group = pending.group;
     const vars = group.vars || [];
-    root.appendChild(el("h2", { text: t("values.title", { state: group.state_name }) }));
     const rows = [];
     if (app.choice) rows.push([t("controls.event"), app.choice.transition.event]);
     if (pending.previous) rows.push([t("controls.when"), clause(pending.guard, "clause.noGuard")]);
@@ -535,8 +623,6 @@
     root.appendChild(clausesList(rows));
     root.appendChild(errorBox());
     const previous = pending.previous ? pending.previous.values || [] : [];
-    const suggestions = pending.suggestions || [];
-    if (app.suggesting && vars.length > 0) renderSuggestions(root, vars, previous, suggestions, pending.suggest_error);
     const inputs = [];
     const form = el("form", {
       onsubmit: (e) => { e.preventDefault(); enterValues(inputs.map((i) => i.value)); },
@@ -546,23 +632,17 @@
     vars.forEach((name, i) => {
       const id = "value-" + i;
       const before = previous.find((p) => p.name === name);
+      const fixed = determinedValue(pending, name);
       const input = el("input", { type: "text", id, autocomplete: "off", spellcheck: "false" });
-      input.value = before ? show(before.value) : "";
+      input.value = fixed !== undefined ? show(fixed) : before ? show(before.value) : "";
       inputs.push(input);
-      form.appendChild(el("label", { for: id, text: name }));
+      form.appendChild(el("label", { for: id, text: varLabel(pending, name) }));
       form.appendChild(input);
     });
-    const cancel = app.history.length > 0 ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null;
-    const picking = suggestions.length > 0;
     form.appendChild(el("div", { class: "row" }, [
       el("button", { type: "submit", class: "primary", text: t("values.continue") }),
-      picking ? null : cancel,
+      cancelButton(),
     ]));
-    if (picking) {
-      root.appendChild(el("details", { class: "yourself" }, [el("summary", { text: t("values.yourself") }), form]));
-      if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
-      return;
-    }
     root.appendChild(form);
     const first = inputs.find((i) => i.value === "") || inputs[0];
     if (first) first.focus({ preventScroll: true });
@@ -570,16 +650,7 @@
 
   // renderSuggestions shows the values the checker admits as buttons, each
   // saying what changes from before.
-  function renderSuggestions(root, vars, previous, suggestions, failure) {
-    if (failure) {
-      root.appendChild(el("p", { class: "notice", text: t("suggest.failed") }));
-      root.appendChild(el("details", null, [el("summary", { text: t("suggest.why") }), el("pre", { class: "error", text: failure })]));
-      return;
-    }
-    if (suggestions.length === 0) {
-      root.appendChild(el("p", { class: "notice", text: t("suggest.none") }));
-      return;
-    }
+  function renderSuggestions(root, vars, previous, suggestions) {
     root.appendChild(el("h3", { text: t("suggest.title") }));
     root.appendChild(el("p", { class: "hint", text: t("suggest.hint") }));
     const list = el("div", { class: "suggestions" });
