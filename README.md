@@ -1157,6 +1157,27 @@ at in the REPL; an instance is written `{"at": STATE, "fields": {…}}`. The
 exit status is 1 when something was found, 2 when the inputs could not be
 read.
 
+`csdfbmc shapes <diagram.json>` prints what the clauses, written in Python,
+reveal of the values of the diagram's types: the attributes they read
+(`$x['a']['b']`, and builtin terms such as `$x.a`), the keys of the dicts a
+post builds (`$x' == {"a": …}`), the constants an attribute is compared with
+or looked for among, and which attributes are ordered or computed with:
+
+```json
+{"types": {"Job": {"kind": "record", "fields": {
+   "owner": {"kind": "scalar", "examples": ["guest", "admin"]},
+   "pages": {"kind": "scalar", "examples": [10], "numeric": true},
+   "tags": {"kind": "collection", "items": {"kind": "scalar", "examples": ["draft"]}}}}},
+ "vars": {"job": "Job"}}
+```
+
+The reading is syntactic and needs neither the checks module nor a glue. An
+attribute no clause mentions is absent, a type no clause reads anything of
+is left out, and a value is known only where a clause compares an attribute
+with a constant; a value passed through a helper of the definitions is not
+followed. A map type `K ⇸ V` is no shape: its values are of `V`.
+`csdfreplweb -shapes` shows it to testers.
+
 The first worked example, `examples/bmc/printer_formal.puml`, is a two-state
 printer tray: a job is accepted when the tray holds its sheets and completes
 when the tray also holds the sheet it wastes. The explorer reports the states with no way
@@ -1556,6 +1577,19 @@ values.
 $ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
     -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" \
     examples/bmc/printer_formal.puml > printer.html
+```
+
+With `-shapes FILE`, the JSON `csdfbmc shapes` prints of the diagram, the
+page shows under each input whose type it knows a collapsible "What a T
+looks like": an example value built from the attributes the clauses read and
+the constants they compare them with, and the values known of each
+attribute; "How to write the instances" shows the same for the types of the
+instances' fields.
+
+```console
+$ csdfparse examples/bmc/printer_formal.puml > printer.json
+$ csdfbmc shapes printer.json > shapes.json
+$ csdfreplweb -shapes shapes.json examples/bmc/printer_formal.puml > printer.html
 ```
 
 The page carries the exploration engine compiled to WebAssembly. The release
