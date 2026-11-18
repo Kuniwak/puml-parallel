@@ -7,6 +7,10 @@ from __future__ import annotations
 
 import ast
 
+# The operators whose operands are numbers.
+ARITHMETIC = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)
+ORDER = (ast.Lt, ast.LtE, ast.Gt, ast.GtE)
+
 
 def shapes(doc: dict) -> dict:
     """The attribute tree of every type of doc, a diagram as csdfparse
@@ -22,6 +26,18 @@ def shapes(doc: dict) -> dict:
             except SyntaxError:
                 continue
             for node in ast.walk(tree):
+                found = _path(node, holes)
+                if found:
+                    _add(trees, *found)
+                numbers = []
+                if isinstance(node, ast.BinOp) and isinstance(node.op, ARITHMETIC):
+                    numbers = [node.left, node.right]
+                if isinstance(node, ast.Compare) and any(isinstance(op, ORDER) for op in node.ops):
+                    numbers = [node.left, *node.comparators]
+                for x in numbers:
+                    found = _path(x, holes)
+                    if found:
+                        _add(trees, *found)["numeric"] = True
                 if isinstance(node, ast.Compare):
                     sides = [node.left, *node.comparators]
                     consts = [s.value for s in sides if isinstance(s, ast.Constant)]
@@ -95,4 +111,6 @@ def _node(n):
     out = {"kind": "scalar"}
     if n.get("examples"):
         out["examples"] = n["examples"]
+    if n.get("numeric"):
+        out["numeric"] = True
     return out

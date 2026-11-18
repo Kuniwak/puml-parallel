@@ -31,3 +31,16 @@ class ShapesTest(unittest.TestCase):
         self.assertEqual(got["types"]["Role"],
                          {"kind": "record", "fields": {"scope": {"kind": "scalar", "examples": ["all"]},
                                                        "level": {"kind": "scalar"}}})
+
+    def test_an_attribute_ordered_or_used_in_arithmetic_is_a_number(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", edges=[edge("s", "s", "go", guard=[atom("$r['rank'] < 3"), atom("$r['size'] + 1 == 2")])],
+                    types={"r": "Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"],
+                         {"rank": {"kind": "scalar", "examples": [3], "numeric": True},
+                          "size": {"kind": "scalar", "numeric": True}})
