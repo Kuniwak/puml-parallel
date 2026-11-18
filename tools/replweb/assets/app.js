@@ -686,11 +686,20 @@
     const height = parseFloat(svg.getAttribute("height")) || svg.getBoundingClientRect().height;
     app.drawing = { svg, viewBox: svg.getAttribute("viewBox") || `0 0 ${width} ${height}`, width, height };
     const apply = applyDrawing;
-    const actualSize = () => { app.scale = 1; apply(); showCurrent(); };
+    // zoomTo keeps the point of the drawing at the middle of the pane
+    // where it was, as far as the edges of the drawing allow.
+    const zoomTo = (scale) => {
+      const cx = (box.scrollLeft + box.clientWidth / 2) / app.scale;
+      const cy = (box.scrollTop + box.clientHeight / 2) / app.scale;
+      app.scale = scale;
+      apply();
+      box.scrollLeft = cx * scale - box.clientWidth / 2;
+      box.scrollTop = cy * scale - box.clientHeight / 2;
+    };
     setupBlockChooser();
-    document.getElementById("zoom-in").addEventListener("click", () => { app.scale *= 1.25; apply(); });
-    document.getElementById("zoom-out").addEventListener("click", () => { app.scale /= 1.25; apply(); });
-    document.getElementById("zoom-reset").addEventListener("click", actualSize);
+    document.getElementById("zoom-in").addEventListener("click", () => zoomTo(app.scale * 1.25));
+    document.getElementById("zoom-out").addEventListener("click", () => zoomTo(app.scale / 1.25));
+    document.getElementById("zoom-reset").addEventListener("click", () => zoomTo(1));
     let drag = null;
     box.addEventListener("pointerdown", (e) => {
       if (e.target.closest("g.csdf-choosable, g.csdf-chip-more")) return;
