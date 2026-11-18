@@ -317,13 +317,23 @@
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
 
+  // renderLegend shows what each mark on the drawing means, by a small
+  // sample of the mark.
+  function renderLegend() {
+    const legend = document.getElementById("legend");
+    if (!config.highlighted) { legend.replaceChildren(el("span", { text: t("diagram.noHighlights") })); return; }
+    const items = [["current", "legend.current"], ["choosable", "legend.choosable"], ["visited", "legend.visited"], ["filtered", "legend.filtered"]];
+    if (Object.keys(families).length > 0) items.push(["chip", "legend.chip"]);
+    legend.replaceChildren(...items.map(([kind, id]) =>
+      el("span", { class: "legend-item" }, [el("span", { class: "swatch swatch-" + kind }), el("span", { text: t(id) })])));
+  }
+
   function render() {
     document.documentElement.lang = language;
     document.getElementById("title").textContent = t("app.title", { name: config.title });
     document.title = t("app.title", { name: config.title });
     for (const node of document.querySelectorAll("[data-msg]")) node.textContent = t(node.dataset.msg);
-    document.getElementById("legend").textContent = !config.highlighted ? t("diagram.noHighlights")
-      : Object.keys(families).length > 0 ? t("diagram.legend") + " " + t("diagram.legendFamilies") : t("diagram.legend");
+    renderLegend();
     document.getElementById("back").disabled = !canGoBack();
     document.getElementById("save").disabled = app.current < 0;
     document.getElementById("save").title = t("history.saveHint", { file: savedName(), diagram: (config.path || "").split(/[\\/]/).pop() });
@@ -411,7 +421,8 @@
     root.appendChild(el("h2", { text: t("controls.title") }));
     root.appendChild(el("p", { class: "hint", text: t("controls.now", { state: state.state_name }) }));
     root.appendChild(errorBox());
-    const transitions = v.transitions || [];
+    const all = v.transitions || [];
+    const transitions = app.tab === "details" ? all : all.filter((tr) => possible(v, tr));
     const ends = v.ends || [];
     if (transitions.length === 0 && ends.length === 0) {
       root.appendChild(el("p", { class: "error", text: t("controls.deadlock", { state: state.state_name }) }));
@@ -845,7 +856,7 @@
     const current = svgElement(highlights.states[v.state.state_id]);
     if (current) current.classList.add("csdf-current");
     if (v.mode === "command") {
-      for (const tr of v.transitions || []) {
+      for (const tr of (v.transitions || []).filter((x) => possible(v, x))) {
         for (const link of linksOf(tr)) link.classList.add("csdf-choosable");
       }
       const filter = app.edgeFilter;
@@ -954,12 +965,23 @@
     return start ? svgElement(start.getAttribute("data-entity-2")) : null;
   }
 
-  // emptyInits are the local start states of the families with no
-  // instance, where every one of them is.
+  // emptyInits are the local start states of the families, where every
+  // instance not created yet is: an instance can always be created.
   function emptyInits(v) {
     if (!v.families && v.mode !== "command") return [];
-    const held = new Set((v.families || []).filter((fv) => Object.values(fv.instances || {}).some((ids) => ids.length > 0)).map((fv) => fv.map));
-    return Object.keys(families).filter((m) => !held.has(m)).map((m) => ({ map: m, node: localInitOf(m) })).filter((o) => o.node);
+    return Object.keys(families).map((m) => ({ map: m, node: localInitOf(m) })).filter((o) => o.node);
+  }
+
+  // possible says whether tr can be taken as far as where the instances
+  // are tells: every move of it leaves a local state holding an instance,
+  // or creates one. Its guard and post are checked only when it is taken.
+  function possible(v, tr) {
+    return (tr.moves || []).every((m) => {
+      if (m.kind === "creation") return true;
+      const fv = (v.families || []).find((f) => f.map === m.map);
+      const ids = fv && fv.instances ? fv.instances[m.src] || [] : [];
+      return ids.length > 0;
+    });
   }
 
   // occupiedStates are the boxes of the local states that hold instances.

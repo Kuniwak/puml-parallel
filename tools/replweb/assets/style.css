@@ -74,7 +74,14 @@ main {
 }
 .diagram-pane { display: flex; flex-direction: column; }
 .diagram-tools { display: flex; gap: .25rem; align-items: center; flex-wrap: wrap; }
-.diagram-tools .legend { color: var(--muted); font-size: .85rem; margin-left: .5rem; }
+.diagram-tools .legend { color: var(--muted); font-size: .8rem; margin-left: .5rem; display: flex; flex-wrap: wrap; gap: .25rem .9rem; align-items: center; }
+.legend-item { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
+.swatch { display: inline-block; width: 22px; height: 12px; box-sizing: border-box; }
+.swatch-current { border: 3px solid #0b57d0; background: #cfe0ff; border-radius: 3px; }
+.swatch-choosable { height: 4px; background: #0b63ce; }
+.swatch-visited { height: 3px; background: var(--visited); }
+.swatch-filtered { height: 4px; background: #d9480f; }
+.swatch-chip { border: 1px solid #0b63ce; background: #e3eefc; border-radius: 3px; }
 #diagram {
   flex: 1;
   overflow: auto;
