@@ -2,6 +2,7 @@ package csdfreplwebcmd
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,9 +41,25 @@ type ChooseEngine func(opts *Options) engineload.Source
 
 func NewMainFunc() cli.MainFunc[*Options] {
 	return newMainFunc(RunPlantUML, func(opts *Options) engineload.Source {
-		return engineload.Choose(opts.Engine, nil, func() (replweb.Engine, error) { return replweb.CommittedEngine() })
+		builder := engineload.Builder{Go: engineload.ExecGo{}, Module: engineload.ThisModule()}
+		builder.WorkDir, _ = os.Getwd()
+		if dir, err := os.UserCacheDir(); err == nil {
+			builder.CacheDir = filepath.Join(dir, "csdfreplweb")
+		}
+		return engineload.Choose(opts.Engine, engineload.Embedded(), builder.Source())
 	})
 }
+
+// noGoError says what to do when the engine cannot be built for want of Go.
+type noGoError struct{ err error }
+
+func (e noGoError) Error() string {
+	return "the engine of the page is built with the go command, and there is none on the PATH: " +
+		"install Go, use a release binary of csdfreplweb, which embeds the engine, " +
+		"or give -engine path/to/engine.wasm.gz (attached to every release)"
+}
+func (e noGoError) Unwrap() error { return e.err }
+func (noGoError) UserFacing()     {}
 
 func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Options] {
 	return func(opts *Options, inout *cli.ProcInout) error {
@@ -85,6 +102,9 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 			title = strings.TrimSuffix(name, filepath.Ext(name))
 		}
 		engine, err := chooseEngine(opts)()
+		if errors.Is(err, engineload.ErrNoGo) {
+			return noGoError{err}
+		}
 		if err != nil {
 			return err
 		}

@@ -1,7 +1,5 @@
 package replweb
 
-//go:generate go run ./internal/buildengine
-
 import (
 	"embed"
 	"encoding/base64"
@@ -14,7 +12,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/version"
 )
 
-//go:embed assets/page.html.tmpl assets/style.css assets/app.js assets/messages.js assets/wasm_exec.js assets/engine.wasm.gz
+//go:embed assets/page.html.tmpl assets/style.css assets/app.js assets/messages.js assets/wasm_exec.js
 var assets embed.FS
 
 // Engine is the exploration engine a page carries: the gzipped WebAssembly
@@ -23,15 +21,6 @@ var assets embed.FS
 type Engine struct {
 	WasmGz []byte
 	Glue   []byte
-}
-
-// CommittedEngine is the engine committed beside the page assets.
-func CommittedEngine() (Engine, error) {
-	wasm, err := assets.ReadFile("assets/engine.wasm.gz")
-	if err != nil {
-		return Engine{}, fmt.Errorf("replweb.CommittedEngine: %w", err)
-	}
-	return Engine{WasmGz: wasm}, nil
 }
 
 // Page is what the page shows: the diagram the session explores (Diagram,

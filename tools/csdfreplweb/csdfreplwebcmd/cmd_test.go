@@ -11,6 +11,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/tools"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb/engineload"
+	"github.com/Kuniwak/puml-parallel/v3/usererr"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -129,5 +130,23 @@ func TestMainRefusesWhenThereIsNoEngine(t *testing.T) {
 	// Assert
 	if err == nil || spy.Stdout.Len() != 0 {
 		t.Errorf("error = %v and %d bytes written, want an error and nothing written", err, spy.Stdout.Len())
+	}
+}
+
+func TestMainSaysWhatToDoWithoutGo(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte(fakeSVG), nil }
+	noGo := func(*Options) engineload.Source {
+		return func() (replweb.Engine, error) { return replweb.Engine{}, engineload.ErrNoGo }
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: vendingMachine, PumlExec: []string{"x"}}
+
+	// Execute
+	err := newMainFunc(render, noGo)(opts, spy.New())
+
+	// Assert
+	if msg := usererr.Message(err); !strings.Contains(msg, "-engine") || !strings.Contains(msg, "release") {
+		t.Errorf("message = %q, want one naming -engine and the release binary", msg)
 	}
 }

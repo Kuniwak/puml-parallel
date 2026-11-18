@@ -16,15 +16,21 @@ import (
 func writeTestPage(t *testing.T, page Page) string {
 	t.Helper()
 	var buf bytes.Buffer
-	engine, err := CommittedEngine()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := WriteStaticPage(&buf, page, engine); err != nil {
+	if err := WriteStaticPage(&buf, page, testEngine); err != nil {
 		t.Fatal(err)
 	}
 	return buf.String()
 }
+
+// testEngine stands for an engine: gzipped bytes starting with the
+// WebAssembly magic.
+var testEngine = Engine{WasmGz: func() []byte {
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	w.Write([]byte("\x00asm\x01\x00\x00\x00"))
+	w.Close()
+	return buf.Bytes()
+}()}
 
 func scriptOf(t *testing.T, html, id string) string {
 	t.Helper()
