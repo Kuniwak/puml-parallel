@@ -20,6 +20,9 @@ type Options struct {
 	// PumlExec is the command, split into words, that reads PlantUML source
 	// on its standard input and writes the SVG of it on its standard output.
 	PumlExec []string
+	// Engine is the WebAssembly file of the engine the page carries, or ""
+	// for the one the binary embeds or builds.
+	Engine string
 }
 
 // CommonOptions returns the parsed common options.
@@ -66,6 +69,7 @@ Examples:
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
+		engine := flags.String("engine", "", "WebAssembly file (gzipped or not) of the engine the page carries, instead of the embedded or built one")
 		pumlExec := flags.String("puml-exec", DefaultPumlExec, "command that reads PlantUML source on its standard input and writes SVG on its standard output")
 
 		if err := flags.Parse(args); err != nil {
@@ -91,6 +95,6 @@ Examples:
 			return nil, errors.New("csdfreplwebcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
-		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv}, nil
+		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine}, nil
 	}
 }

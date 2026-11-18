@@ -14,6 +14,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v3/pngsrc"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v3/tools/replweb/engineload"
 	"github.com/Kuniwak/puml-parallel/v3/version"
 )
 
@@ -34,11 +35,16 @@ func RunPlantUML(argv []string, dir string, source []byte) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
+// ChooseEngine gives the Source of the engine the page of opts carries.
+type ChooseEngine func(opts *Options) engineload.Source
+
 func NewMainFunc() cli.MainFunc[*Options] {
-	return newMainFunc(RunPlantUML)
+	return newMainFunc(RunPlantUML, func(opts *Options) engineload.Source {
+		return engineload.Choose(opts.Engine, nil, func() (replweb.Engine, error) { return replweb.CommittedEngine() })
+	})
 }
 
-func newMainFunc(render RenderSVG) cli.MainFunc[*Options] {
+func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Options] {
 	return func(opts *Options, inout *cli.ProcInout) error {
 		if opts.Common.Help {
 			return nil
@@ -78,7 +84,7 @@ func newMainFunc(render RenderSVG) cli.MainFunc[*Options] {
 		if title == "" {
 			title = strings.TrimSuffix(name, filepath.Ext(name))
 		}
-		engine, err := replweb.CommittedEngine()
+		engine, err := chooseEngine(opts)()
 		if err != nil {
 			return err
 		}
