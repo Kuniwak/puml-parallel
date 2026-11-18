@@ -1513,8 +1513,14 @@ $ csdfreplweb -puml-exec 'java -jar "/opt/plant uml/plantuml.jar" -pipe -tsvg' d
 
 The page draws the diagram, marks the current state, and colors the
 transitions that can be taken next; click one, in the drawing or in the list,
-then enter the values of the state it leads to, one box per variable, each
-starting with the value it had before. The history lists every step with its
+then give the values of the state it leads to. The controls have two tabs:
+"Choose" takes everything by a click, transitions and suggested values alike;
+"Details" shows the guards and posts, a filter box, and one box per variable,
+each starting with the value it had before. The tab chosen stays chosen;
+"Choose" is first when the page suggests values, "Details" otherwise. A value
+the post fixes by builtins alone (`@empty(x')`, `@eq(x', x)`, `@eq(x', 3)`) is
+filled in, and a prompt whose values the post fixes all is passed without
+asking, the history saying so. The history lists every step with its
 values, the changed ones marked; click a step to go on from there. "Save this
 path" downloads the path to the current step as a file that
 `csdfrepl -replay FILE -finding 0 diagram.puml` walks. The page speaks English
@@ -1528,15 +1534,15 @@ promotion is explored as its expansion, and the page marks the local
 diagrams its `<<promote>>` blocks draw: beside each local state, the IDs of
 the instances there; on each local edge, whether a transition can take it.
 Click a local edge to list only the transitions that take it; the list is
-grouped by family and local edge, with a filter box. A local state whose ID
+grouped by family and local edge. The value prompt speaks of what happens
+next rather than of the mode, and names each map by its instances. A local state whose ID
 is not ASCII is not marked, for PlantUML does not write it into the SVG.
 Without `-checks`, the page suggests no values and refuses only what a
 builtin is false of, as `csdfrepl` without `-checks` does.
 
 With `-checks`, `-evaluator-module` and `-env`, as `csdfrepl` takes them, every
 value prompt shows the values the clauses admit as buttons, each listing what
-changes from before, and the tester picks one instead of typing the values;
-the boxes stay under "Enter the values yourself". The page runs `csdfbmc next`
+changes from before, and the tester picks one in "Choose" instead of typing the values in "Details". The page runs `csdfbmc next`
 in Python compiled to WebAssembly ([Pyodide](https://pyodide.org)), which it
 loads when it opens from `-pyodide URL` (a pinned release on the jsDelivr CDN
 by default; give a directory of your own to serve it yourself). It carries
