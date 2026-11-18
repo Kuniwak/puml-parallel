@@ -20,7 +20,7 @@ func gated(t *testing.T) *core.Diagram {
 		Init:     "G",
 		InitPost: mustParse(t, "@empty(doors')"),
 		Edges: []core.Edge{{Src: "G", Dst: "G", Event: core.Event{Channel: "OPENS", Fields: []core.Field{{Name: "loc"}}},
-			Guard: mustParse(t, "@in(loc, doors) ∧ @at(doors[loc], shut) ∧ $loc は正面"),
+			Guard: mustParse(t, "@in(loc, doors) ∧ @at(doors[loc], shut, ajar) ∧ $loc は正面"),
 			Post:  mustParse(t, "@frame(doors', doors, loc) ∧ @at(doors'[loc], wide)")}},
 	}
 }
@@ -33,7 +33,10 @@ func TestWriteGlossedGlossesTheBuiltinsAndReadsBackTheSame(t *testing.T) {
 	}{
 		{"a gloss of the builtins with a template",
 			`{{define "in"}}{{index .Args 0}} がある{{end}}{{define "at"}}{{index .Args 0}} は {{.State}}{{end}}`,
-			"' loc がある ∧ doors[loc] は shut ∧ doors'[loc] は wide\n"},
+			"' loc がある ∧ doors[loc] は shut, ajar ∧ doors'[loc] は wide\n"},
+		{"a gloss of each state of @at",
+			`{{define "at"}}{{index .Args 0}} は {{range $i, $s := .States}}{{if $i}} か {{end}}{{$s}}{{end}}{{end}}`,
+			"' doors[loc] は shut か ajar ∧ doors'[loc] は wide\n"},
 		{"a gloss holding a quote",
 			`{{define "empty"}}x{{end}}{{define "frame"}}'{{index .Args 0}}' は保たれる{{end}}`,
 			"' 'doors'' は保たれる\n"},
