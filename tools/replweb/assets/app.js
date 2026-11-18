@@ -646,6 +646,29 @@
     return name;
   }
 
+  // shapeHelp tells how the instances of a map are written: an example,
+  // and every local state an instance may be at with the fields it holds.
+  function shapeHelp(shape) {
+    const first = shape.states[0];
+    const fields = first ? "{" + (first.fields || []).map((f) => JSON.stringify(f.name) + ": …").join(", ") + "}" : "{}";
+    const example = first ? "{" + JSON.stringify(t("shape.id", { type: shape.key_type || "ID" })) + ": {\"at\": " + JSON.stringify(first.state) + ", \"fields\": " + fields + "}}" : "{}";
+    const rows = shape.states.map((s) => el("li", null, [
+      el("code", { text: s.state }),
+      el("span", { text: s.name !== s.state ? " " + s.name : "" }),
+      el("span", { class: "fields", text: (s.fields || []).length > 0
+        ? t("shape.fields", { fields: s.fields.map((f) => f.type && f.type !== f.name ? f.name + " (" + f.type + ")" : f.name).join(", ") })
+        : t("shape.noFields") }),
+    ]));
+    return el("details", { class: "shape" }, [
+      el("summary", { text: t("shape.summary") }),
+      el("p", { class: "hint", text: t("shape.empty") }),
+      el("p", { class: "hint", text: t("shape.example") }),
+      el("code", { class: "example", text: example }),
+      el("p", { class: "hint", text: t("shape.states") }),
+      el("ul", null, rows),
+    ]);
+  }
+
   // instancesNote says once, for a prompt with maps of instances, that
   // those names are the instances of the diagrams they are named after,
   // and how one is written.
@@ -686,12 +709,15 @@
       // with the value from before beside it, so that each is decided.
       const input = el("input", { type: "text", id, autocomplete: "off", spellcheck: "false" });
       input.value = fixed !== undefined ? show(fixed) : "";
+      if (fixed !== undefined) input.disabled = true;
       inputs.push(input);
       form.appendChild(el("label", { for: id }, [
         el("span", { text: varLabel(pending, name) }),
         types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
       ]));
       form.appendChild(input);
+      const shape = (pending.shapes || []).find((s) => s.map === name);
+      if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
       if (fixed !== undefined) {
         form.appendChild(el("p", { class: "hint fixed", text: t("values.fixed") }));
       } else if (before) {
