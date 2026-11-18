@@ -101,3 +101,15 @@ class ShapesTest(unittest.TestCase):
 
         # Verify
         self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["low", "high"]}})
+
+    def test_an_attribute_a_constant_is_looked_for_in_is_a_collection_of_it(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", edges=[edge("s", "s", "go", guard=[atom("'admin' not in $r['tags']")])],
+                    types={"r": "Role"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got["types"]["Role"]["fields"],
+                         {"tags": {"kind": "collection", "items": {"kind": "scalar", "examples": ["admin"]}}})

@@ -44,7 +44,12 @@ def shapes(doc: dict) -> dict:
                     found = _path(x, holes)
                     if found:
                         _add(trees, *found)["numeric"] = True
-                if isinstance(node, ast.Compare):
+                if isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], (ast.In, ast.NotIn)) \
+                        and _path(node.comparators[0], holes):
+                    items = _add(trees, *_path(node.comparators[0], holes)).setdefault("items", {"fields": {}})
+                    if isinstance(node.left, ast.Constant):
+                        _example(items, node.left.value)
+                elif isinstance(node, ast.Compare):
                     sides = [node.left, *node.comparators]
                     consts = [s.value for s in sides if isinstance(s, ast.Constant)]
                     consts += [x.value for s in sides if isinstance(s, (ast.Tuple, ast.List, ast.Set))
@@ -153,6 +158,8 @@ def _built(n, d: ast.Dict):
 
 
 def _node(n):
+    if "items" in n:
+        return {"kind": "collection", "items": _node(n["items"])}
     if n["fields"]:
         return {"kind": "record", "fields": {k: _node(v) for k, v in n["fields"].items()}}
     out = {"kind": "scalar"}
