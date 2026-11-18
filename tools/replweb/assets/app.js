@@ -7,6 +7,17 @@
   const MESSAGES = window.CSDFREPL_MESSAGES;
   const config = JSON.parse(document.getElementById("csdfrepl-config").textContent);
   const highlights = config.highlights || { states: {}, links: {} };
+  const families = highlights.families || {};
+  // localLinks says which move each link of a local diagram draws, by the
+  // link's element ID.
+  const localLinks = {};
+  for (const [map, f] of Object.entries(families)) {
+    for (const [edge, id] of Object.entries(f.edges || {})) localLinks[id] = { map, edge: Number(edge) };
+  }
+  // A list longer than this starts with its groups closed.
+  const OPEN_LIMIT = 20;
+  // A local state with more instances than this shows their number.
+  const CHIP_LIMIT = 3;
 
   // ---- Words ----
 
@@ -66,6 +77,18 @@
     choice: null,
     error: null,
     scale: 1,
+    // What narrows the list of transitions: the words in the filter box,
+    // and a local edge clicked in the drawing, {map, edge}.
+    filterText: "",
+    edgeFilter: null,
+    // openGroups are the keys of the groups of the list the user opened or
+    // closed, by whether they are open.
+    openGroups: new Map(),
+    // expanded are the local states, "map/state", whose instances are all
+    // shown.
+    expanded: new Set(),
+    // hovered is the transition whose button the pointer is over.
+    hovered: null,
   };
 
   async function send(request) {
@@ -96,6 +119,8 @@
     const resp = await send({ command: "select", index: transition.index });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
     app.choice = { transition, src: app.view.state.state_id };
+    app.edgeFilter = null;
+    app.hovered = null;
     await refresh();
   }
 
@@ -111,7 +136,7 @@
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", event: c.transition.event, line: c.transition.line || 0, parent: app.current,
+        kind: "step", event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -142,6 +167,8 @@
       if (!back.ok) { app.error = errorText(back); render(); return; }
       app.choice = null;
     }
+    app.edgeFilter = null;
+    app.hovered = null;
     const resp = await send({ command: "jump", index });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
     const from = app.entries[index];
@@ -223,7 +250,8 @@
     document.getElementById("title").textContent = t("app.title", { name: config.title });
     document.title = t("app.title", { name: config.title });
     for (const node of document.querySelectorAll("[data-msg]")) node.textContent = t(node.dataset.msg);
-    document.getElementById("legend").textContent = config.highlighted ? t("diagram.legend") : t("diagram.noHighlights");
+    document.getElementById("legend").textContent = !config.highlighted ? t("diagram.noHighlights")
+      : Object.keys(families).length > 0 ? t("diagram.legend") + " " + t("diagram.legendFamilies") : t("diagram.legend");
     document.getElementById("back").disabled = !canGoBack();
     document.getElementById("save").disabled = app.current < 0;
     document.getElementById("save").title = t("history.saveHint", { file: savedName(), diagram: (config.path || "").split(/[\\/]/).pop() });
@@ -313,15 +341,10 @@
       root.appendChild(el("p", { class: "error", text: t("controls.deadlock", { state: state.state_name }) }));
       return;
     }
-    for (const tr of transitions) {
-      root.appendChild(el("button", { type: "button", class: "choice", onclick: () => choose(tr) }, [
-        el("div", { class: "event", text: tr.event }),
-        clausesList([
-          [t("controls.when"), clause(tr.guard, "clause.noGuard")],
-          [t("controls.then"), clause(tr.post, "clause.noPost")],
-          [t("controls.goesTo"), tr.dst_name],
-        ]),
-      ]));
+    if (transitions.some((tr) => (tr.moves || []).length > 0)) {
+      renderGroupedTransitions(root, transitions);
+    } else {
+      for (const tr of transitions) root.appendChild(choiceButton(tr));
     }
     if (ends.length > 0) {
       root.appendChild(el("h3", { text: t("controls.ends") }));
@@ -331,6 +354,129 @@
           clausesList([[t("controls.when"), clause(end.guard, "clause.noGuard")]]),
         ]));
       }
+    }
+  }
+
+  function choiceButton(tr) {
+    return el("button", {
+      type: "button", class: "choice", onclick: () => choose(tr),
+      onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
+      onfocus: () => hover(tr), onblur: () => hover(null),
+    }, [
+      el("div", { class: "event", text: tr.event }),
+      clausesList([
+        [t("controls.when"), clause(tr.guard, "clause.noGuard")],
+        [t("controls.then"), clause(tr.post, "clause.noPost")],
+        [t("controls.goesTo"), tr.dst_name],
+      ]),
+    ]);
+  }
+
+  function hover(tr) {
+    if (app.hovered === tr) return;
+    app.hovered = tr;
+    markHovered();
+  }
+
+  // ---- The list of a promoted diagram's transitions ----
+
+  function takesMove(tr, filter) {
+    return (tr.moves || []).some((m) => m.map === filter.map && m.local_edge === filter.edge);
+  }
+
+  function matchesText(tr, words) {
+    if (words.length === 0) return true;
+    const text = [tr.event, tr.guard, tr.post, tr.dst_name].join(" ").toLowerCase();
+    return words.every((w) => text.includes(w));
+  }
+
+  function moveName(m) {
+    return m.parallel > 0 ? t("moves.edgeParallel", { src: m.src, dst: m.dst, n: m.parallel + 1 }) : t("moves.edge", { src: m.src, dst: m.dst });
+  }
+
+  // groupTransitions groups transitions by the family of each of their
+  // moves, then by its local edge; a sync is in the group of each move.
+  // Those of no move, a controller's own, are in a group of their own.
+  function groupTransitions(transitions) {
+    const byMap = new Map();
+    const own = [];
+    for (const tr of transitions) {
+      const moves = tr.moves || [];
+      if (moves.length === 0) { own.push(tr); continue; }
+      for (const m of moves) {
+        if (!byMap.has(m.map)) byMap.set(m.map, new Map());
+        const edges = byMap.get(m.map);
+        if (!edges.has(m.local_edge)) edges.set(m.local_edge, { move: m, transitions: [] });
+        const group = edges.get(m.local_edge);
+        if (!group.transitions.includes(tr)) group.transitions.push(tr);
+      }
+    }
+    return { byMap, own };
+  }
+
+  function renderGroupedTransitions(root, transitions) {
+    const input = el("input", {
+      type: "search", class: "filter", placeholder: t("controls.filter"), "aria-label": t("controls.filter"),
+      autocomplete: "off", spellcheck: "false",
+    });
+    input.value = app.filterText;
+    const list = el("div", { class: "groups" });
+    input.addEventListener("input", () => { app.filterText = input.value; renderTransitionGroups(list, transitions); });
+    root.appendChild(input);
+    root.appendChild(list);
+    renderTransitionGroups(list, transitions);
+  }
+
+  // groupBox is a group of the list, open when the filters narrow the list
+  // to it (forceOpen), else as the user left it, else when what holds it
+  // lists no more than OPEN_LIMIT transitions (outer).
+  function groupBox(key, summary, count, fill, forceOpen, outer) {
+    const remembered = app.openGroups.get(key);
+    const open = forceOpen || (remembered !== undefined ? remembered : outer <= OPEN_LIMIT);
+    const body = el("div", { class: "group-body" });
+    const box = el("details", { class: "group" }, [
+      el("summary", null, [el("span", { text: summary }), el("span", { class: "count", text: t("controls.count", { n: count }) })]),
+      body,
+    ]);
+    let filled = false;
+    const fillOnce = () => { if (!filled) { filled = true; fill(body); } };
+    if (open) { box.open = true; fillOnce(); }
+    box.addEventListener("toggle", () => {
+      app.openGroups.set(key, box.open);
+      if (box.open) fillOnce();
+    });
+    return box;
+  }
+
+  function renderTransitionGroups(list, transitions) {
+    list.replaceChildren();
+    const words = app.filterText.toLowerCase().split(/\s+/).filter((w) => w);
+    const filter = app.edgeFilter;
+    const shown = transitions.filter((tr) => matchesText(tr, words) && (!filter || takesMove(tr, filter)));
+    const narrowed = words.length > 0 || !!filter;
+    if (filter) {
+      const sample = transitions.flatMap((tr) => tr.moves || []).find((m) => m.map === filter.map && m.local_edge === filter.edge);
+      list.appendChild(el("div", { class: "edge-filter" }, [
+        el("span", { text: t("controls.edgeFilter", { map: filter.map, edge: sample ? moveName(sample) : String(filter.edge) }) }),
+        el("button", { type: "button", text: t("controls.clearFilter"), onclick: () => { app.edgeFilter = null; renderTransitionGroups(list, transitions); renderDiagram(); } }),
+      ]));
+    }
+    if (shown.length === 0) { list.appendChild(el("p", { class: "hint", text: t("controls.noMatch") })); return; }
+    const { byMap, own } = groupTransitions(shown);
+    for (const [map, edges] of byMap) {
+      const count = new Set([...edges.values()].flatMap((g) => g.transitions)).size;
+      list.appendChild(groupBox("map:" + map, t("controls.family", { map }), count, (body) => {
+        for (const [edge, group] of edges) {
+          body.appendChild(groupBox("edge:" + map + "/" + edge, moveName(group.move), group.transitions.length, (inner) => {
+            for (const tr of group.transitions) inner.appendChild(choiceButton(tr));
+          }, narrowed && edges.size === 1, count));
+        }
+      }, narrowed, transitions.length));
+    }
+    if (own.length > 0) {
+      list.appendChild(groupBox("own", t("controls.own"), own.length, (body) => {
+        for (const tr of own) body.appendChild(choiceButton(tr));
+      }, narrowed, transitions.length));
     }
   }
 
@@ -372,7 +518,7 @@
 
   // ---- The drawing ----
 
-  const marks = ["csdf-current", "csdf-pending", "csdf-choosable", "csdf-visited", "csdf-visited-state"];
+  const marks = ["csdf-current", "csdf-pending", "csdf-choosable", "csdf-visited", "csdf-visited-state", "csdf-filtered"];
 
   function svgElement(id) {
     return id ? document.getElementById(id) : null;
@@ -382,6 +528,77 @@
     return line ? svgElement(highlights.links[String(line)]) : null;
   }
 
+  function localLinkOf(move) {
+    const f = families[move.map];
+    return f && f.edges ? svgElement(f.edges[String(move.local_edge)]) : null;
+  }
+
+  // linksOf are the links that draw tr: its own, or those of its moves.
+  function linksOf(tr) {
+    const out = [];
+    const own = linkOf(tr.line);
+    if (own) out.push(own);
+    for (const m of tr.moves || []) {
+      const link = localLinkOf(m);
+      if (link) out.push(link);
+    }
+    return out;
+  }
+
+  function markHovered() {
+    for (const node of document.querySelectorAll("#diagram .csdf-hovered")) node.classList.remove("csdf-hovered");
+    if (app.hovered) for (const link of linksOf(app.hovered)) link.classList.add("csdf-hovered");
+  }
+
+  // The instances at each local state, as chips on its box.
+  function renderInstances(v) {
+    const svg = document.querySelector("#diagram svg");
+    if (!svg) return;
+    const old = svg.querySelector("#csdf-overlay");
+    if (old) old.remove();
+    const views = v.families || [];
+    if (views.length === 0) return;
+    const ns = "http://www.w3.org/2000/svg";
+    const overlay = document.createElementNS(ns, "g");
+    overlay.id = "csdf-overlay";
+    svg.appendChild(overlay);
+    for (const fv of views) {
+      const f = families[fv.map];
+      if (!f) continue;
+      for (const [state, ids] of Object.entries(fv.instances || {})) {
+        const box = svgElement(f.states[state]);
+        if (!box || ids.length === 0) continue;
+        const key = fv.map + "/" + state;
+        const lines = ids.length <= CHIP_LIMIT ? [ids.join(", ")]
+          : app.expanded.has(key) ? ids.slice() : [t("instances.many", { n: ids.length })];
+        const bbox = box.getBBox();
+        const chip = document.createElementNS(ns, "g");
+        chip.setAttribute("class", "csdf-chip");
+        chip.dataset.key = key;
+        const title = document.createElementNS(ns, "title");
+        title.textContent = t("instances.title", { state, ids: ids.join(", ") });
+        chip.appendChild(title);
+        const rect = document.createElementNS(ns, "rect");
+        chip.appendChild(rect);
+        lines.forEach((line, i) => {
+          const text = document.createElementNS(ns, "text");
+          text.setAttribute("x", bbox.x + bbox.width + 6);
+          text.setAttribute("y", bbox.y + 12 + i * 14);
+          text.textContent = line;
+          chip.appendChild(text);
+        });
+        overlay.appendChild(chip);
+        const inner = chip.getBBox();
+        rect.setAttribute("x", inner.x - 4);
+        rect.setAttribute("y", inner.y - 2);
+        rect.setAttribute("width", inner.width + 8);
+        rect.setAttribute("height", inner.height + 4);
+        rect.setAttribute("rx", 4);
+        if (ids.length > CHIP_LIMIT) chip.classList.add("csdf-chip-more");
+      }
+    }
+  }
+
   function renderDiagram() {
     for (const mark of marks) {
       for (const node of document.querySelectorAll("#diagram ." + mark)) node.classList.remove(mark);
@@ -389,9 +606,16 @@
     const v = app.view;
     if (!v) return;
     for (const entry of app.entries) {
-      const link = entry.kind === "step" ? linkOf(entry.line) : null;
+      if (entry.kind !== "step") continue;
+      const link = linkOf(entry.line);
       if (link) link.classList.add("csdf-visited");
+      for (const m of entry.moves || []) {
+        const local = localLinkOf(m);
+        if (local) local.classList.add("csdf-visited");
+      }
     }
+    renderInstances(v);
+    markHovered();
     for (const h of app.history) {
       const node = svgElement(highlights.states[h.state.state_id]);
       if (node) node.classList.add("csdf-visited-state");
@@ -407,16 +631,20 @@
         const from = svgElement(highlights.states[v.pending.previous.state_id]);
         if (from) from.classList.add("csdf-current");
       }
-      const link = app.choice ? linkOf(app.choice.transition.line) : svgElement(highlights.start);
-      if (link) link.classList.add("csdf-choosable");
+      const links = app.choice ? linksOf(app.choice.transition) : [svgElement(highlights.start)];
+      for (const link of links) if (link) link.classList.add("csdf-choosable");
       return;
     }
     const current = svgElement(highlights.states[v.state.state_id]);
     if (current) current.classList.add("csdf-current");
     if (v.mode === "command") {
       for (const tr of v.transitions || []) {
-        const link = linkOf(tr.line);
-        if (link) link.classList.add("csdf-choosable");
+        for (const link of linksOf(tr)) link.classList.add("csdf-choosable");
+      }
+      const filter = app.edgeFilter;
+      if (filter) {
+        const link = localLinkOf({ map: filter.map, local_edge: filter.edge });
+        if (link) link.classList.add("csdf-filtered");
       }
     }
   }
@@ -424,8 +652,23 @@
   function onDiagramClick(e) {
     const v = app.view;
     if (!v || v.mode !== "command") return;
+    const chip = e.target.closest("g.csdf-chip-more");
+    if (chip) {
+      const key = chip.dataset.key;
+      if (app.expanded.has(key)) app.expanded.delete(key); else app.expanded.add(key);
+      renderInstances(v);
+      return;
+    }
     const group = e.target.closest("g.csdf-choosable");
     if (!group) return;
+    const local = localLinks[group.id];
+    if (local) {
+      const same = app.edgeFilter && app.edgeFilter.map === local.map && app.edgeFilter.edge === local.edge;
+      app.edgeFilter = same ? null : local;
+      renderControls();
+      renderDiagram();
+      return;
+    }
     const tr = (v.transitions || []).find((x) => x.line && highlights.links[String(x.line)] === group.id);
     if (tr) choose(tr);
   }
@@ -452,7 +695,7 @@
     document.getElementById("zoom-reset").addEventListener("click", fit);
     let drag = null;
     box.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("g.csdf-choosable")) return;
+      if (e.target.closest("g.csdf-choosable, g.csdf-chip-more")) return;
       drag = { x: e.clientX, y: e.clientY, left: box.scrollLeft, top: box.scrollTop };
     });
     window.addEventListener("pointermove", (e) => {

@@ -158,3 +158,26 @@ details { margin: .5rem; }
 #diagram g.csdf-choosable:hover > path { stroke-width: 5 !important; }
 #diagram g.csdf-current > rect { stroke: #d9480f !important; stroke-width: 3.5 !important; fill: #fff0e6 !important; }
 #diagram g.csdf-pending > rect { stroke: #0b63ce !important; stroke-width: 3 !important; stroke-dasharray: 6 3; }
+#diagram g.cluster.csdf-current > rect { fill: none !important; }
+#diagram g.csdf-filtered > path,
+#diagram g.csdf-filtered > line { stroke: #d9480f !important; stroke-width: 4.5 !important; }
+#diagram g.csdf-filtered > polygon { fill: #d9480f !important; stroke: #d9480f !important; }
+#diagram g.csdf-hovered > path,
+#diagram g.csdf-hovered > line { stroke: #e8590c !important; stroke-width: 5 !important; }
+#diagram g.csdf-hovered > polygon { fill: #e8590c !important; stroke: #e8590c !important; }
+#diagram g.csdf-chip > rect { fill: #e3eefc; stroke: #0b63ce; stroke-width: 1; }
+#diagram g.csdf-chip > text { fill: #0b3d7a; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+#diagram g.csdf-chip-more { cursor: pointer; }
+input.filter {
+  width: 100%;
+  padding: .35rem .5rem;
+  margin-bottom: .5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.group { margin: 0 0 .35rem; }
+.group > summary { cursor: pointer; }
+.group > summary .count { color: var(--muted); font-size: .8rem; float: right; }
+.group-body { padding-left: .75rem; margin-top: .25rem; }
+.edge-filter { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; margin-bottom: .5rem; border-radius: 6px; background: var(--current-soft); }
