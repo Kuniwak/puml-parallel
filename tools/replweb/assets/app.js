@@ -521,7 +521,7 @@
 
   // ---- The drawing ----
 
-  const marks = ["csdf-current", "csdf-pending", "csdf-choosable", "csdf-visited", "csdf-visited-state", "csdf-filtered"];
+  const marks = ["csdf-occupied", "csdf-current", "csdf-pending", "csdf-choosable", "csdf-visited", "csdf-visited-state", "csdf-filtered"];
 
   function svgElement(id) {
     return id ? document.getElementById(id) : null;
@@ -618,6 +618,7 @@
       }
     }
     renderInstances(v);
+    for (const o of occupiedStates(v)) o.node.classList.add("csdf-occupied");
     markHovered();
     for (const h of app.history) {
       const node = svgElement(highlights.states[h.state.state_id]);
@@ -723,7 +724,11 @@
       const inBlock = (m) => app.block.includes(m.map);
       const chosen = app.choice ? (app.choice.transition.moves || []).filter(inBlock) : [];
       const moved = last && last.kind === "step" ? (last.moves || []).filter(inBlock) : [];
-      return [...chosen, ...moved].map(localLinkOf).filter(Boolean);
+      const links = [...chosen, ...moved].map(localLinkOf).filter(Boolean);
+      if (links.length > 0) return links;
+      const occupied = occupiedStates(v).filter((o) => app.block.includes(o.map)).map((o) => o.node);
+      if (occupied.length > 0) return occupied;
+      return app.block.map((m) => svgElement(families[m].start)).filter(Boolean);
     }
     if (last && last.kind === "step") {
       const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
@@ -739,6 +744,20 @@
     return [svgElement(highlights.start)].filter(Boolean);
   }
 
+  // occupiedStates are the boxes of the local states that hold instances.
+  function occupiedStates(v) {
+    const out = [];
+    for (const fv of v.families || []) {
+      const f = families[fv.map];
+      if (!f) continue;
+      for (const [state, ids] of Object.entries(fv.instances || {})) {
+        const node = ids.length > 0 ? svgElement(f.states[state]) : null;
+        if (node) out.push({ map: fv.map, node });
+      }
+    }
+    return out;
+  }
+
   // centreOn scrolls the pane so that the box around nodes is in its
   // middle, as far as the edges of the drawing allow.
   function centreOn(nodes) {
@@ -750,9 +769,25 @@
     const top = Math.min(...rects.map((r) => r.top));
     const bottom = Math.max(...rects.map((r) => r.bottom));
     const pane = box.getBoundingClientRect();
-    box.scrollLeft += (left + right) / 2 - (pane.left + box.clientWidth / 2);
-    box.scrollTop += (top + bottom) / 2 - (pane.top + box.clientHeight / 2);
+    const margin = 40;
+    // A box wider (taller) than the pane shows its left (top) edge, where
+    // its title is, rather than its empty middle.
+    const x = right - left > box.clientWidth - 2 * margin ? left - margin : (left + right) / 2 - box.clientWidth / 2;
+    const y = bottom - top > box.clientHeight - 2 * margin ? top - margin : (top + bottom) / 2 - box.clientHeight / 2;
+    box.scrollLeft += x - pane.left;
+    box.scrollTop += y - pane.top;
   }
+
+  // flash makes nodes blink for a moment, to show where the eye should go.
+  function flash(nodes) {
+    for (const n of document.querySelectorAll("#diagram .csdf-flash")) n.classList.remove("csdf-flash");
+    for (const n of nodes) n.classList.add("csdf-flash");
+    clearTimeout(app.flashTimer);
+    app.flashTimer = setTimeout(() => {
+      for (const n of document.querySelectorAll("#diagram .csdf-flash")) n.classList.remove("csdf-flash");
+    }, 2400);
+  }
+
 
   // centreOnStep centres the drawing once per step, not on every redraw.
   // On a promotion it first shows the blocks of the families the last
@@ -787,11 +822,17 @@
     if (!v) return;
     if (Object.keys(families).length > 0) {
       const maps = blocksToShow(v);
-      if (maps.length > 0) { showBlocks(maps); return; }
+      if (maps.length > 0 || app.block) {
+        showBlocks(maps.length > 0 ? maps : app.block);
+        flash(focusOf(v));
+        return;
+      }
     }
     const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
     const state = svgElement(highlights.states[id]);
-    centreOn(state ? [state] : focusOf(v));
+    const nodes = state ? [state] : focusOf(v);
+    centreOn(nodes);
+    flash(nodes);
   }
 
   // ---- Showing one block at a time ----

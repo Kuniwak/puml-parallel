@@ -181,3 +181,9 @@ input.filter {
 .group > summary .count { color: var(--muted); font-size: .8rem; float: right; }
 .group-body { padding-left: .75rem; margin-top: .25rem; }
 .edge-filter { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; margin-bottom: .5rem; border-radius: 6px; background: var(--current-soft); }
+
+#diagram g.csdf-occupied > rect { stroke: #d9480f !important; stroke-width: 3.5 !important; fill: #fff0e6 !important; }
+#diagram g.cluster.csdf-current > rect { stroke-width: 8 !important; }
+@keyframes csdf-flash { 0%, 50%, 100% { opacity: 1; } 25%, 75% { opacity: .15; } }
+#diagram g.csdf-flash { animation: csdf-flash 1.2s ease-in-out 2; }
+#diagram g.csdf-flash > rect { stroke: #d9480f !important; stroke-width: 6 !important; }
