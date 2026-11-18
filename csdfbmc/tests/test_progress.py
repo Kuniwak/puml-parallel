@@ -6,6 +6,7 @@ import unittest
 
 import sys
 
+from csdfbmc.counter import SharedCounter
 from csdfbmc.progress import Progress, WalkProgress, resident
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
@@ -25,43 +26,43 @@ class Clock:
 
 
 class ProgressTest(unittest.TestCase):
-    def test_a_line_says_the_states_frontier_depth_rate_values_tried_and_checked_and_time(self):
+    def test_a_line_says_the_states_frontier_depth_rate_values_enumerated_pruned_and_checked_and_time(self):
         # Setup
         clock, out = Clock(), io.StringIO()
         p = Progress(out, clock, resident=lambda: None)
         clock.now = 30.0
-        p.update(visited=120, frontier=40, depth=3, tried=900, checked=5000)
+        p.update(visited=120, frontier=40, depth=3, tried=900, pruned=600, checked=5000)
 
         # Execute
         p.report()
 
         # Assert
         self.assertEqual("csdfbmc: 120 states, frontier 40, depth 3, 4.0 states/s, "
-                         "900 field values tried and 5000 valuations checked in the last 30s, 0:00:30 elapsed\n", out.getvalue())
+                         "300 field values enumerated, 600 pruned and 5000 valuations checked in the last 30s, 0:00:30 elapsed\n", out.getvalue())
 
     def test_the_rate_and_the_values_tried_are_of_the_last_interval(self):
         # Setup
         clock, out = Clock(), io.StringIO()
         p = Progress(out, clock, resident=lambda: None)
         clock.now = 30.0
-        p.update(visited=120, frontier=40, depth=3, tried=900, checked=5000)
+        p.update(visited=120, frontier=40, depth=3, tried=900, pruned=600, checked=5000)
         p.report()
         clock.now = 90.0
-        p.update(visited=180, frontier=10, depth=4, tried=1000, checked=5300)
+        p.update(visited=180, frontier=10, depth=4, tried=1000, pruned=620, checked=5300)
 
         # Execute
         p.report()
 
         # Assert
         self.assertEqual("csdfbmc: 180 states, frontier 10, depth 4, 1.0 states/s, "
-                         "100 field values tried and 300 valuations checked in the last 60s, 0:01:30 elapsed\n", out.getvalue().splitlines(True)[1])
+                         "80 field values enumerated, 20 pruned and 300 valuations checked in the last 60s, 0:01:30 elapsed\n", out.getvalue().splitlines(True)[1])
 
     def test_a_line_says_the_memory_resident_in_all_and_per_state(self):
         # Setup
         clock, out = Clock(), io.StringIO()
         p = Progress(out, clock, resident=lambda: 18_300_000_000)
         clock.now = 30.0
-        p.update(visited=12_800_000, frontier=40, depth=3, tried=900, checked=5000)
+        p.update(visited=12_800_000, frontier=40, depth=3, tried=900, pruned=0, checked=5000)
 
         # Execute
         p.report()
@@ -74,7 +75,7 @@ class WalkProgressTest(unittest.TestCase):
     def test_a_line_says_the_walks_steps_deepest_rate_findings_time_and_memory(self):
         tests = {
             "the first line": ([], 30.0, None, "csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed\n"),
-            "the rate is of the last interval": ([(30.0, (60, 2000, 70, 1))], 90.0, None,
+            "the rate is of the last interval": ([(30.0, (60, 70, 1))], 90.0, None,
                                                  "csdfbmc: 120 walks, 4000 steps, deepest 80, 1.0 walks/s, 2 findings, 0:01:30 elapsed\n"),
             "the memory in all": ([], 30.0, 1_200_000_000,
                                   "csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed, 1.2 GB resident\n"),
@@ -83,13 +84,13 @@ class WalkProgressTest(unittest.TestCase):
             with self.subTest(name):
                 # Setup
                 clock, out = Clock(), io.StringIO()
-                p = WalkProgress(out, clock, resident=lambda: held)
+                p = WalkProgress(out, lambda: 4000, clock, resident=lambda: held)
                 for at, counts in before:
                     clock.now = at
                     p.update(*counts)
                     p.report()
                 clock.now = now
-                p.update(walks=120, steps=4000, deepest=80, findings=2)
+                p.update(walks=120, deepest=80, findings=2)
 
                 # Execute
                 p.report()
@@ -111,6 +112,19 @@ class ResidentTest(unittest.TestCase):
         # Assert
         self.assertGreater(after - before, 150_000_000)
         del held
+
+
+class SharedCounterTest(unittest.TestCase):
+    def test_counts_what_was_added(self):
+        # Setup
+        c = SharedCounter()
+
+        # Execute
+        c.add()
+        c.add()
+
+        # Assert
+        self.assertEqual(2, c())
 
 
 class ProgressOptionTest(unittest.TestCase):
@@ -141,21 +155,24 @@ class ProgressOptionTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(5, len(seen))
-        self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "checked": 6}, seen[-1])
+        self.assertEqual({"visited": 5, "frontier": 0, "depth": 2, "tried": 5, "pruned": 0, "checked": 6}, seen[-1])
 
-    def test_random_walks_say_their_progress_in_lines_of_their_own(self):
-        # Setup
-        out = io.StringIO()
+    def test_random_walks_say_their_progress_in_lines_of_their_own_with_or_without_workers(self):
+        for name, jobs in {"one job": [], "two jobs": ["--jobs", "2"]}.items():
+            with self.subTest(name):
+                # Setup
+                out = io.StringIO()
 
-        @contextlib.contextmanager
-        def reporting(_, seconds, make):
-            p = make(out, resident=lambda: None)
-            yield p
-            p.report()
+                @contextlib.contextmanager
+                def reporting(_, seconds, make):
+                    p = make(out, resident=lambda: None)
+                    yield p
+                    p.report()
 
-        # Execute
-        code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5", checks=CHECKS, reporting=reporting)
+                # Execute
+                code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5",
+                                               *jobs, checks=CHECKS, reporting=reporting)
 
-        # Assert
-        self.assertEqual(1, code, err)
-        self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")
+                # Assert
+                self.assertEqual(1, code, err)
+                self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")

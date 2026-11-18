@@ -1,10 +1,11 @@
 """How far csdfbmc's walk got, said on stderr every so many seconds
 (--progress): the states it met, the frontier, the depth, the states per
-second, the field values tried and the valuations checked since the
-last line, the time spent, and the memory the walk holds, in all and per
+second, the field values enumerated and those pruned without being
+enumerated and the valuations checked since the last line, the time spent, and the memory the walk holds, in all and per
 state, on macOS and Linux.
-The values tried and checked tell a walk stuck enumerating a transition
-from one whose states grow: the first tries many while it meets few states.
+The values enumerated and checked tell a walk stuck enumerating a
+transition from one whose states grow: the first enumerates many while it
+meets few states.
 """
 from __future__ import annotations
 
@@ -93,20 +94,25 @@ def _rate(now: int, last: int, span: float) -> float:
 
 class Progress(_Line):
     """How far a breadth-first walk got: the states it met, the frontier,
-    the depth, the states per second, the values tried and checked since
-    the last line, and the memory in all and per state."""
+    the depth, the states per second, the values enumerated, pruned and
+    checked since the last line, and the memory in all and per state."""
 
     def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
                  resident: Callable[[], int | None] = resident):
-        super().__init__(out, (0, 0, 0, 0, 0), clock, resident)
+        super().__init__(out, (0, 0, 0, 0, 0, 0), clock, resident)
 
-    def update(self, visited: int, frontier: int, depth: int, tried: int, checked: int) -> None:
-        self.counts = (visited, frontier, depth, tried, checked)
+    def update(self, visited: int, frontier: int, depth: int, tried: int, pruned: int, checked: int) -> None:
+        """tried: the field values in the products ranged over, enumerated
+        or not; pruned: those of them dropped without being enumerated
+        (EdgeStats)."""
+        self.counts = (visited, frontier, depth, tried, pruned, checked)
 
     def said(self, counts, last, span):
-        visited, frontier, depth, tried, checked = counts
+        visited, frontier, depth, tried, pruned, checked = counts
+        new_pruned = pruned - last[4]
         return (f"{visited} states, frontier {frontier}, depth {depth}, {_rate(visited, last[0], span):.1f} states/s, "
-                f"{tried - last[3]} field values tried and {checked - last[4]} valuations checked in the last {span:.0f}s")
+                f"{tried - last[3] - new_pruned} field values enumerated, {new_pruned} pruned and "
+                f"{checked - last[5]} valuations checked in the last {span:.0f}s")
 
     def memory(self, held, counts):
         if held is None:
@@ -115,20 +121,22 @@ class Progress(_Line):
 
 
 class WalkProgress(_Line):
-    """How far random walks (--random-walk) got: the walks taken in, their
-    steps, the deepest, the walks per second, the findings and the memory
-    in all."""
+    """How far random walks (--random-walk) got: the walks taken in, the
+    steps taken so far as steps counts them, those of walks in progress
+    included, the deepest, the walks per second, the findings and the
+    memory in all."""
 
-    def __init__(self, out: TextIO, clock: Callable[[], float] = time.monotonic,
+    def __init__(self, out: TextIO, steps: Callable[[], int], clock: Callable[[], float] = time.monotonic,
                  resident: Callable[[], int | None] = resident):
-        super().__init__(out, (0, 0, 0, 0), clock, resident)
+        super().__init__(out, (0, 0, 0), clock, resident)
+        self.steps = steps
 
-    def update(self, walks: int, steps: int, deepest: int, findings: int) -> None:
-        self.counts = (walks, steps, deepest, findings)
+    def update(self, walks: int, deepest: int, findings: int) -> None:
+        self.counts = (walks, deepest, findings)
 
     def said(self, counts, last, span):
-        walks, steps, deepest, findings = counts
-        return f"{walks} walks, {steps} steps, deepest {deepest}, {_rate(walks, last[0], span):.1f} walks/s, {findings} findings"
+        walks, deepest, findings = counts
+        return f"{walks} walks, {self.steps()} steps, deepest {deepest}, {_rate(walks, last[0], span):.1f} walks/s, {findings} findings"
 
 
 @contextlib.contextmanager

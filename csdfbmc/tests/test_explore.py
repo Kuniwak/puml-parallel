@@ -398,6 +398,26 @@ class PruningTest(unittest.TestCase):
         # Assert
         self.assertEqual((24, 12), (x.stats[0].tried, x.stats[0].pruned))
 
+    def test_the_walk_counts_the_values_pruned_for_its_progress(self):
+        # Setup: id 1 is at s, so only the 12 values with id 2 are dropped.
+        x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
+
+        # Execute
+        x.transitions(("q", (FrozenMap({1: inst("s", v=2)}),), ()))
+
+        # Assert
+        self.assertEqual((24, 12), (x.tried, x.pruned))
+
+    def test_an_expansion_carries_the_values_pruned_to_the_walk(self):
+        # Setup: workers send the walk what they pruned in an expansion.
+        x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
+
+        # Execute
+        got = x.expand(("q", (FrozenMap({1: inst("s", v=2)}),), ()))
+
+        # Assert
+        self.assertEqual((24, 12), (got.tried, got.pruned))
+
     # c?id?r: the last conjunct reads only the part k of r, the first of its record.
     PART = diagram({"q": ["m"]}, "q", init_post=[eq("m'", lit({}))], edges=[
         edge("q", "q", "c?id?r", guard=[builtin("notin", "id", "m"), builtin("in", fld("r", "k"), "m")], post=[eq("m'", "m")])],

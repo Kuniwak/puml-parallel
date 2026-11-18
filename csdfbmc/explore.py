@@ -263,10 +263,11 @@ class Expansion:
     decided: list[str]
     # What each edge took, by its index in the diagram; None unless asked for.
     stats: dict[int, EdgeStats] | None = None
-    # The field values tried and the valuations checked (Explorer.tried,
-    # Explorer.checked).
+    # The field values tried, those pruned and the valuations checked
+    # (Explorer.tried, Explorer.pruned, Explorer.checked).
     tried: int = 0
     checked: int = 0
+    pruned: int = 0
 
 
 @dataclass
@@ -294,11 +295,13 @@ class Walk:
     # The posts that admitted no successor (Explorer.empty_posts).
     empty_posts: list[tuple[State, str]] = field(default_factory=list)
     stats: dict[int, EdgeStats] | None = None
-    # The functions the environment decided, in order, and the values tried
-    # and checked (Explorer.tried, Explorer.checked), when it was saved.
+    # The functions the environment decided, in order, and the values tried,
+    # pruned and checked (Explorer.tried, Explorer.pruned, Explorer.checked),
+    # when it was saved.
     decided: list[str] = field(default_factory=list)
     tried: int = 0
     checked: int = 0
+    pruned: int = 0
 
 
 class Explorer:
@@ -365,10 +368,10 @@ class Explorer:
         self.canonical = canonical
         # stats: what each edge took, by its index, when asked for (EdgeStats).
         self.stats: dict[int, EdgeStats] | None = {} if stats else None
-        # tried, checked: the field values the walk tried and the valuations
-        # after a step it checked against a post, summed over its edges
-        # (--progress).
-        self.tried = self.checked = 0
+        # tried, pruned, checked: the field values the walk tried (EdgeStats),
+        # those of them it pruned, and the valuations after a step it checked
+        # against a post, summed over its edges (--progress).
+        self.tried = self.pruned = self.checked = 0
         self._edge_index = {id(e): i for i, e in enumerate(diagram.edges)}
         # The plans of the edges' fields, by (state id, id of the edge).
         self._plans: dict = {}
@@ -765,6 +768,7 @@ class Explorer:
         full = plan.size(0)
         if record:
             self.tried += full
+            self.pruned += full - tried
         if stats:
             stats.tried += full
             stats.pruned += full - tried
@@ -921,7 +925,7 @@ class Explorer:
         end and, if not, the bound's witness. Asked in the order the walk
         asks them, so the same functions are decided."""
         decided, empty_posts, stats = self.meaning.decided, self.empty_posts, self.stats
-        tried, checked = self.tried, self.checked
+        tried, pruned, checked = self.tried, self.pruned, self.checked
         self.meaning.decided, self.empty_posts = {}, []
         if stats is not None:
             self.stats = {}
@@ -930,7 +934,7 @@ class Explorer:
             can_end = bool(transitions) or self.can_end(state)
             witness = None if can_end else self.bound_witness(state)
             return Expansion(transitions, can_end, witness, [label for _, label in self.empty_posts], list(self.meaning.decided),
-                             self.stats, self.tried - tried, self.checked - checked)
+                             self.stats, self.tried - tried, self.checked - checked, self.pruned - pruned)
         finally:
             self.meaning.decided, self.empty_posts, self.stats = decided, empty_posts, stats
 
@@ -985,7 +989,7 @@ class Explorer:
         if expand_all is None:
             expand_all = self._expand_queue
         w = resume if resume is not None else Walk()
-        self.tried, self.checked = w.tried, w.checked
+        self.tried, self.pruned, self.checked = w.tried, w.pruned, w.checked
         self.empty_posts = w.empty_posts
         self.meaning.decided.clear()
         self.meaning.decided.update(dict.fromkeys(w.decided))
@@ -1031,6 +1035,7 @@ class Explorer:
             w.i += 1
             if workers:
                 self.tried += x.tried
+                self.pruned += x.pruned
                 self.checked += x.checked
             if self.first and w.violations:
                 stopped = True
@@ -1059,9 +1064,9 @@ class Explorer:
             w.tau_next[s] = [w.met[key(t)] for _, _, t, edge, _ in succ if edge.is_tau and known(t)]
             if self.avoid is not None and (self.within is None or s[0] in self.within):
                 w.avoid_next[s] = [w.met[key(t)] for name, _, t, _, _ in succ if name != self.avoid and known(t) and (self.within is None or t[0] in self.within)]
-            progress(visited=len(w.order), frontier=len(w.queue) - w.i, depth=w.depth[s], tried=self.tried, checked=self.checked)
+            progress(visited=len(w.order), frontier=len(w.queue) - w.i, depth=w.depth[s], tried=self.tried, pruned=self.pruned, checked=self.checked)
             if checkpoint is not None:
-                w.decided, w.tried, w.checked = list(self.meaning.decided), self.tried, self.checked
+                w.decided, w.tried, w.pruned, w.checked = list(self.meaning.decided), self.tried, self.pruned, self.checked
                 checkpoint(w)
 
         self.meaning.decided, self.empty_posts, self.stats = kept

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import shlex
 from contextlib import contextmanager
-from typing import Iterator
+from typing import Callable, Iterator
 
 from csdfbmc import cone as cones
 from csdfbmc.explore import Explorer, as_met, every_transition
@@ -90,9 +90,9 @@ def explorer(a: argparse.Namespace, diagram: Diagram, checks: Checks, client, en
                                  avoid=a.avoid, symmetry=a.symmetry))
 
 
-def random_walks(a: argparse.Namespace, explorer: Explorer):
+def random_walks(a: argparse.Namespace, explorer: Explorer, stepped: Callable[[], None]):
     """The random walks csdfbmc --random-walk's parsed arguments ask for,
-    over explorer's states."""
+    over explorer's states, telling stepped each step they take."""
     from csdfbmc.randomwalk import RandomWalks, load_weights
     weights = load_weights(a.weight_tsv, explorer.d) if a.weight_tsv else {}
-    return RandomWalks(explorer, max_depth=a.max_depth, weights=weights, seed=a.seed)
+    return RandomWalks(explorer, max_depth=a.max_depth, weights=weights, seed=a.seed, stepped=stepped)

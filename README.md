@@ -1313,20 +1313,24 @@ stats per edge, most valuations checked first:
 `--progress SECONDS` says on stderr, every SECONDS (30 by default; 0 says
 nothing), how far the walk got: the states it met, the frontier (those met
 but not yet expanded), the depth, the states per second, the field
-values tried and the valuations checked since the last line, the time
+values enumerated, those pruned without being enumerated (`tried` less
+`pruned` and `pruned` of `--stats`) and the valuations checked since the
+last line, the time
 spent and, on macOS and Linux, the memory the walk holds (its resident
 set size) in all and per state, from which a `--max-states` that fits the
-machine follows. A walk whose states per second fall while the values tried or
+machine follows. A walk whose states per second fall while the values enumerated or
 checked stay high is stuck
 enumerating a transition (see `--stats`); one whose frontier keeps growing
 meets ever more states:
 
 ```console
-csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values tried and 86280 valuations checked in the last 1s, 0:00:02 elapsed, 0.1 GB resident, 9.8 KB/state
+csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values enumerated, 0 pruned and 86280 valuations checked in the last 1s, 0:00:02 elapsed, 0.1 GB resident, 9.8 KB/state
 ```
 
-With `--random-walk`, the line says the walks taken in, their steps, the
-deepest, the walks per second, the findings so far (deadlocks, broken
+With `--random-walk`, the line says the walks taken in, the steps taken
+so far (those of the walks in progress included, in workers too, and of
+walks taken but left out when the walks stop, so that it may exceed the
+steps the report says), the deepest, the walks per second, the findings so far (deadlocks, broken
 invariants and empty posts; not a bound reached), the time spent and the
 memory held:
 

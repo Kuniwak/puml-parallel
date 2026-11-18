@@ -88,8 +88,11 @@ def load_weights(path: str, diagram) -> dict[str, float]:
 
 
 class RandomWalks:
-    def __init__(self, explorer: Explorer, max_depth: int, weights: dict[str, float], seed: int):
+    def __init__(self, explorer: Explorer, max_depth: int, weights: dict[str, float], seed: int,
+                 stepped: Callable[[], None]):
+        """stepped is told each step as it is taken (SharedCounter.add)."""
         self.explorer, self.max_depth, self.weights, self.seed = explorer, max_depth, weights, seed
+        self.stepped = stepped
 
     def walk(self, i: int) -> Outcome:
         """The i-th walk."""
@@ -113,6 +116,7 @@ class RandomWalks:
                 break
             name, label, s, edge, _ = rng.choices([t for t, _ in weighted], [w for _, w in weighted])[0]
             out.steps.append((label, edge, s))
+            self.stepped()
             out.fired[name] += 1
             on_path.add(s)
             broken = x.check_invariants(s)
@@ -126,7 +130,8 @@ class RandomWalks:
         default), stopping at the first finding with first. stop is asked
         before each walk is taken in, as Explorer.run asks it, and a signal
         ends a walk being taken (csdfbmc.stopping.interrupted). progress is
-        told how far the walks got after each (WalkProgress.update)."""
+        told how far the walks got after each (WalkProgress.update); their
+        steps it is told as they are taken (stepped)."""
         x = self.explorer
         parents: dict[State, tuple[State, str, Edge] | None] = {}
         deadlocks: list[State] = []
@@ -171,7 +176,7 @@ class RandomWalks:
                     bound_reached.append((s, what))
                 else:
                     violations.append((what, s))
-            progress(walks=done, steps=steps, deepest=deepest, findings=len(deadlocks) + len(violations) + len(empty_posts))
+            progress(walks=done, deepest=deepest, findings=len(deadlocks) + len(violations) + len(empty_posts))
             if met and first and kind != "bound_reached":
                 stopped = True
                 break

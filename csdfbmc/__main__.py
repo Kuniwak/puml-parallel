@@ -28,11 +28,13 @@ Exits 1 when it finds any, 2 on a usage or
 loading error.
 """
 import argparse
+import functools
 import json
 import random
 import sys
 
 from csdfbmc import checkpoint, parallel, progress
+from csdfbmc.counter import SharedCounter
 from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened, random_walks
 from csdfbmc.randomwalk import RandomWalkReport
 from csdfbmc.stopping import on_signals
@@ -164,7 +166,7 @@ def main(argv=None, stopping=on_signals, reporting=progress.reporting) -> int:
                     help="expand the states in N worker processes, each loading the inputs and the glue anew (default 1): the same walk, sooner when it is large")
     ap.add_argument("--progress", type=float, default=30, metavar="SECONDS",
                     help="say on stderr every SECONDS how far the walk got: the states, the frontier, the depth, "
-                         "the states per second, the field values tried and the valuations checked since the last line, the time spent and, on macOS and Linux, the memory held in all and per state (default 30; 0 says nothing)")
+                         "the states per second, the field values enumerated, those pruned and the valuations checked since the last line, the time spent and, on macOS and Linux, the memory held in all and per state (default 30; 0 says nothing)")
     ap.add_argument("--checkpoint", metavar="FILE",
                     help="write the walk to FILE as it goes, every --checkpoint-every seconds and at its end, for --resume to take up")
     ap.add_argument("--checkpoint-every", type=float, default=60, metavar="SECONDS",
@@ -241,9 +243,10 @@ def main_walk(a: argparse.Namespace, stop, reporting) -> int:
 def main_random_walks(a: argparse.Namespace, stop, reporting) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
-            walker = random_walks(a, explorer(a, diagram, checks, client, environment))
-            with parallel.walking(a, diagram, a.jobs) as take, \
-                    reporting(sys.stderr, a.progress, progress.WalkProgress) as said:
+            steps = SharedCounter()
+            walker = random_walks(a, explorer(a, diagram, checks, client, environment), steps.add)
+            with parallel.walking(a, diagram, a.jobs, steps.add) as take, \
+                    reporting(sys.stderr, a.progress, functools.partial(progress.WalkProgress, steps=steps)) as said:
                 got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)

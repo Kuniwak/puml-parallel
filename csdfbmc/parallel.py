@@ -108,12 +108,13 @@ def _expand_chunk(states: list[State]) -> list:
 _walks = None
 
 
-def _start_walks(a: argparse.Namespace) -> None:
-    """Builds the random walks of this worker, as _start its walk."""
+def _start_walks(a: argparse.Namespace, stepped: Callable[[], None]) -> None:
+    """Builds the random walks of this worker, as _start its walk, telling
+    stepped each step they take."""
     global _walks
     _start(a)
     if _failed is None:
-        _walks = cli.random_walks(a, _explorer)
+        _walks = cli.random_walks(a, _explorer, stepped)
 
 
 def _walk_chunk(indices: range) -> list:
@@ -135,14 +136,15 @@ def _in_order(pool: multiprocessing.pool.Pool, task: Callable, next_chunk: Calla
 
 
 @contextlib.contextmanager
-def walking(a: argparse.Namespace, diagram: Diagram, jobs: int):
+def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, stepped: Callable[[], None]):
     """What takes the random walks in jobs workers (RandomWalks.run's take),
-    in order, each worker building its walks of the arguments a; None, the
-    walks' own, for one job. The workers stop on leaving."""
+    in order, each worker building its walks of the arguments a and telling
+    stepped, which it is given as it starts, each step; None, the walks' own, for one job. The workers
+    stop on leaving."""
     if jobs == 1:
         yield None
         return
-    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
+    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a, stepped)) as pool:
         def take(indices: range):
             chunks = iter(indices[i:i + CHUNK] for i in range(0, len(indices), CHUNK))
             for out in _in_order(pool, _walk_chunk, lambda: next(chunks, None), jobs):
