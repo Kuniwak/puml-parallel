@@ -142,8 +142,10 @@ type FamilyStates struct {
 	// the variables of the local states.
 	KeyType types.Type
 	Types   map[string]types.Type
-	// Blocks are Family.Blocks, outside the meaning.
+	// Blocks are Family.Blocks, and Labels the labels of the local states
+	// as the local diagram gives them, both outside the meaning.
 	Blocks map[string]string
+	Labels map[string]string
 }
 
 // clone is f sharing no slice or map with it.

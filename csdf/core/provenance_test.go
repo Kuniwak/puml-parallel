@@ -76,3 +76,21 @@ func TestPromoteCountsTheLocalEdgesBesideAMove(t *testing.T) {
 		t.Errorf("parallel (-want +got):\n%s", diff)
 	}
 }
+
+func TestPromoteCarriesTheLabelsOfTheLocalStates(t *testing.T) {
+	// Setup
+	local := door()
+	local.Labels = map[string]string{"shut": "Shut", "wide": "Wide open"}
+	p := Promotion{Modes: []string{"run"}, Init: "run", Families: []Family{{Map: "doors", ID: "loc", Local: local, Blocks: map[string]string{"run": "run_doors"}}}}
+
+	// Execute
+	d, _, err := promote(p)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(local.Labels, d.Families[0].Labels); diff != "" {
+		t.Errorf("labels (-want +got):\n%s", diff)
+	}
+}
