@@ -88,8 +88,8 @@ end note
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
 				Families: []core.Family{
-					{Map: "locations", ID: "l", Key: types.Named("場所ID"), Val: types.Named("Location"), Local: loc},
-					{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp},
+					{Map: "locations", ID: "l", Key: types.Named("場所ID"), Val: types.Named("Location"), Local: loc, Blocks: map[string]string{"running": "runningLocations"}},
+					{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Blocks: map[string]string{"running": "runningShipments"}},
 				},
 				Syncs: []core.Sync{
 					{Event: "MOVE", Guard: mustParse(t, "${locations[from].在庫} > 1"), Targets: []core.Target{
@@ -123,7 +123,7 @@ end note
 			want: core.Promotion{
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
-				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp}},
+				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Blocks: map[string]string{"running": "runningShipments"}}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
 		},
@@ -144,7 +144,7 @@ end note
 			want: core.Promotion{
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
-				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp}},
+				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Blocks: map[string]string{"running": "runningShipments"}}},
 				Syncs:    []core.Sync{{Event: "SHIP", Targets: []core.Target{{Map: "shipments", ID: "s", Event: "SHIP"}}}},
 			},
 		},
@@ -172,7 +172,7 @@ maint --> running : RESUME ; ; $件数' = 0
 				Vars:     map[string][]string{"running": {"件数"}, "maint": {"理由"}},
 				Types:    map[string]types.Type{"件数": types.Named("件数"), "理由": types.Named("理由")},
 				InitPost: mustParse(t, "@empty(shipments') ∧ $件数' = 0"),
-				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Frozen: []string{"maint"}}},
+				Families: []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Frozen: []string{"maint"}, Blocks: map[string]string{"running": "runningShipments"}}},
 				Edges: []core.Edge{
 					{Src: "running", Dst: "maint", Event: core.Event{Channel: "HALT"}, Post: mustParse(t, "$理由' = 停止")},
 					{Src: "maint", Dst: "running", Event: core.Event{Channel: "RESUME"}, Post: mustParse(t, "$件数' = 0")},
@@ -197,7 +197,7 @@ end note
 			want: core.Promotion{
 				Labels: map[string]string{"running": "稼働中"},
 				Modes:  []string{"running"}, Init: "running",
-				Families:   []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp}},
+				Families:   []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Blocks: map[string]string{"running": "runningShipments"}}},
 				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
 			},
 		},
@@ -235,8 +235,8 @@ end note
 				Modes:  []string{"running", "degraded"}, Init: "running",
 				InitPost: mustParse(t, "@empty(shipments') ∧ @empty(locations')"),
 				Families: []core.Family{
-					{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp},
-					{Map: "locations", ID: "l", Key: types.Named("場所ID"), Val: types.Named("Location"), Local: loc, Frozen: []string{"degraded"}},
+					{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Blocks: map[string]string{"running": "runningShipments", "degraded": "degradedShipments"}},
+					{Map: "locations", ID: "l", Key: types.Named("場所ID"), Val: types.Named("Location"), Local: loc, Frozen: []string{"degraded"}, Blocks: map[string]string{"running": "runningLocations"}},
 				},
 				Edges: []core.Edge{
 					{Src: "running", Dst: "degraded", Event: core.Event{Channel: "HALT", Fields: []core.Field{{Name: "why"}}}, Guard: mustParse(t, "@empty(locations)")},
