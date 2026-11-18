@@ -1,6 +1,7 @@
 package proto
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -98,6 +99,37 @@ func TestHandleErrorsCarryACode(t *testing.T) {
 				t.Errorf("args mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestHandleJSONAnswersARequestAsJSON(t *testing.T) {
+	// Setup
+	service := NewService("v9", false, AnyEnvironment, animation.NoSuggesters)
+
+	// Execute
+	got := HandleJSON(service, []byte(`{"command":"server_version"}`))
+
+	// Assert
+	want := `{"ok":true,"output":"v9\n","data":{"version":"v9"}}`
+	if string(got) != want {
+		t.Errorf("HandleJSON = %s, want %s", got, want)
+	}
+}
+
+func TestHandleJSONRefusesARequestThatIsNoJSON(t *testing.T) {
+	// Setup
+	service := NewService("v9", false, AnyEnvironment, animation.NoSuggesters)
+
+	// Execute
+	got := HandleJSON(service, []byte(`{`))
+
+	// Assert
+	var resp Response
+	if err := json.Unmarshal(got, &resp); err != nil {
+		t.Fatalf("HandleJSON = %s, not a response: %v", got, err)
+	}
+	if resp.OK || resp.Error == "" {
+		t.Errorf("response = %+v, want a failure with its text", resp)
 	}
 }
 

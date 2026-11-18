@@ -33,6 +33,25 @@ func ReadRequest(r io.Reader) (Request, error) {
 	return req, err
 }
 
+// HandleJSON answers one request, as JSON, with the response, as JSON: the
+// whole of a transport that carries the requests as text, such as a browser
+// calling the service compiled to WebAssembly or an HTTP handler. A request
+// that is no JSON is answered with an error.
+func HandleJSON(s *Service, request []byte) []byte {
+	var req Request
+	resp := errorResponse("")
+	if err := json.Unmarshal(request, &req); err != nil {
+		resp.Error = "the request is no JSON: " + err.Error()
+	} else {
+		resp = s.Handle(req)
+	}
+	encoded, err := json.Marshal(resp)
+	if err != nil {
+		return []byte(`{"ok":false,"error":"cannot encode the response"}`)
+	}
+	return encoded
+}
+
 // ReadResponse reads one JSON response value from r.
 func ReadResponse(r io.Reader) (Response, error) {
 	var resp Response
