@@ -57,6 +57,14 @@ relative to the file; its drawing is the global diagram, without
 highlights. The page suggests no values: csdfbmc does not run in a
 browser.
 
+The page carries the exploration engine compiled to WebAssembly. A
+release binary embeds it. Otherwise csdfreplweb builds it with the go
+command on the PATH: a released version from the module cache, kept
+under the user cache directory (csdfreplweb/<version>), and a build from
+a work tree from the work tree the current directory is in. -engine
+takes it from a file instead, gzipped or not, such as the
+csdfreplweb-engine_<version>.wasm.gz attached to every release.
+
 Options:
 `)
 			flags.PrintDefaults()
@@ -64,6 +72,7 @@ Options:
 Examples:
   $ csdfreplweb examples/valid/vending_machine.puml > vending_machine.html
   $ csdfreplweb -puml-exec 'java -jar "/opt/plant uml/plantuml.jar" -pipe -tsvg' diagram.puml > diagram.html
+  $ csdfreplweb -engine csdfreplweb-engine_3.14.0.wasm.gz diagram.puml > diagram.html
 `)
 		}
 
