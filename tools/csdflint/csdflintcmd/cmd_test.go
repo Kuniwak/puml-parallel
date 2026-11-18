@@ -218,7 +218,7 @@ func TestNewMainFuncFailsWithTwoOnAGlueItCannotUse(t *testing.T) {
 		},
 		"a glue that ends after its hello": {
 			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2, \"supports\": [\"lint\"]}"'`,
-			WantSaid:  "the glue ended without answering",
+			WantSaid:  "the glue failed, so the atoms are not all checked",
 		},
 		"a blank command line": {Evaluator: "  ", WantSaid: "the command line of a glue is empty"},
 	}
@@ -235,5 +235,27 @@ func TestNewMainFuncFailsWithTwoOnAGlueItCannotUse(t *testing.T) {
 				t.Errorf("want %q said, got %q", tc.WantSaid, spy.Stderr.String())
 			}
 		})
+	}
+}
+
+func TestNewMainFuncReadsTheAtomsThroughAGlueModule(t *testing.T) {
+	// Arrange: the embedded sources unpacked into a cache of the test's own.
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not on the PATH")
+	}
+	cmdFunc := tools.NewCommandFunc(csdflintcmd.NewParseOptionsFunc(), csdflintcmd.NewMainFunc())
+	spy := cli.SpyProcInout()
+	spy.Env = map[string]string{"CSDFBMC_CACHE": t.TempDir()}
+
+	// Act
+	exitStatus := cmdFunc([]string{"-evaluator-module", "csdfbmc.python_glue", filepath.Join("testdata", "atoms.puml")}, spy.New())
+
+	// Assert
+	if exitStatus != 1 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 1, got %d", exitStatus)
+	}
+	if !strings.Contains(spy.Stdout.String(), "LIMIT is neither a builtin nor a definition") {
+		t.Errorf("want the undefined name reported, got %q", spy.Stdout.String())
 	}
 }

@@ -38,7 +38,7 @@ type AtomNotInLanguageRule struct {
 func (AtomNotInLanguageRule) ID() string { return "atom-not-in-language" }
 
 func (AtomNotInLanguageRule) Description() string {
-	return "An atom the glue given by -evaluator does not read: not of its language, of another shape, or reading an undefined name."
+	return "An atom the glue given by -evaluator or -evaluator-module does not read: not of its language, of another shape, or reading an undefined name."
 }
 
 func (r AtomNotInLanguageRule) Check(in *Input) []Finding {

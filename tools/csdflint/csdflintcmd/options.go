@@ -14,9 +14,14 @@ type Options struct {
 	// ListRules asks for the catalog of rules instead of a run of them.
 	ListRules bool
 	// Evaluator is the command line of a glue every atom is asked about
-	// (rule atom-not-in-language); empty asks nothing of the atoms.
-	Evaluator string
-	Inputs    []tools.FileInput
+	// (rule atom-not-in-language), and EvaluatorModule a Python module of a
+	// glue and its arguments, run from the embedded sources as csdfbmc
+	// runs them, with Python as its interpreter when named; with neither,
+	// nothing is asked of the atoms.
+	Evaluator       string
+	EvaluatorModule string
+	Python          string
+	Inputs          []tools.FileInput
 }
 
 // CommonOptions returns the parsed common options.
@@ -29,8 +34,10 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 
 		var listRules bool
 		flags.BoolVar(&listRules, "list-rules", false, "list the rules and exit")
-		var evaluator string
-		flags.StringVar(&evaluator, "evaluator", "", "the command line of a glue of the evaluator protocol, such as python3 -m csdfbmc.python_glue defs.py, asked whether it reads each atom (rule atom-not-in-language)")
+		var evaluator, evaluatorModule, python string
+		flags.StringVar(&evaluator, "evaluator", "", "the command line of a glue of the evaluator protocol, asked whether it reads each atom (rule atom-not-in-language)")
+		flags.StringVar(&evaluatorModule, "evaluator-module", "", "the Python module (and its arguments) of a glue asked whether it reads each atom, as csdfbmc --evaluator-module names it, such as \"csdfbmc.python_glue defs.py\"")
+		flags.StringVar(&python, "python", "", "with -evaluator-module, the interpreter to run (default: $CSDFBMC_PYTHON, else python3 on the PATH)")
 
 		flags.Usage = func() {
 			w := flags.Output()
@@ -41,9 +48,9 @@ the columns file, start_line, end_line, rule, severity and message.
 No file argument, and a "-" argument, both mean standard input. Clauses are
 read as formulas (docs/CLAUSE_DESIGN.md), so the old @opaque and
 @[from := to] are syntax errors. No rule evaluates an atom: a rule concludes
-only what the builtins and the shape of a formula decide. Given -evaluator,
-csdflint also asks that glue, without values, whether it reads each atom,
-as csdfbmc would read it, and walks no state.
+only what the builtins and the shape of a formula decide. Given -evaluator or
+-evaluator-module, csdflint also asks that glue, without values, whether it
+reads each atom, as csdfbmc would read it, and walks no state.
 
 A message is written to be read by a person and by an AI reviewing a diagram it
 wrote itself, so it says what would settle the question, not only what looks
@@ -65,7 +72,7 @@ Examples:
   $ csdflint path/to/file.puml
   $ csdflint path/to/*.puml
   $ csdflint < path/to/file.puml
-  $ csdflint -evaluator "python3 -m csdfbmc.python_glue defs.py" path/to/file.puml
+  $ csdflint -evaluator-module "csdfbmc.python_glue defs.py" path/to/file.puml
   $ csdflint -list-rules
 `)
 		}
@@ -94,10 +101,17 @@ Examples:
 			return &Options{Common: commonOpts, ListRules: true}, nil
 		}
 
+		switch {
+		case evaluator != "" && evaluatorModule != "":
+			return nil, errors.New("csdflintcmd.NewParseOptionsFunc: give -evaluator or -evaluator-module, not both")
+		case python != "" && evaluatorModule == "":
+			return nil, errors.New("csdflintcmd.NewParseOptionsFunc: -python names the interpreter of -evaluator-module, which is not given")
+		}
+
 		inputs, err := tools.ValidateArgsAsFileInputs(flags.Args(), inout)
 		if err != nil {
 			return nil, fmt.Errorf("csdflintcmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Evaluator: evaluator, Inputs: inputs}, nil
+		return &Options{Common: commonOpts, Evaluator: evaluator, EvaluatorModule: evaluatorModule, Python: python, Inputs: inputs}, nil
 	}
 }

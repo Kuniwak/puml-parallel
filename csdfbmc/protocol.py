@@ -28,7 +28,7 @@ supports it:
   which the arguments params range over and the arguments maps are keyed by.
 
 Another is optional, for a lint, which reads the atoms without values and so
-without walking any state (csdflint -evaluator):
+without walking any state (csdflint, given a glue):
 
 - {"op": "lint", "atom": ATOM, "role": "guard" | "post"} -> {"ok": true}, or
   {"ok": false, "why": MESSAGE}: whether the atom is one of the glue's

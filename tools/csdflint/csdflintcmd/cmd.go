@@ -3,12 +3,13 @@ package csdflintcmd
 import (
 	"errors"
 	"fmt"
-	"io"
+	"os/exec"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/glue"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v3/csdfbmc"
 	"github.com/Kuniwak/puml-parallel/v3/tools"
 	"github.com/Kuniwak/puml-parallel/v3/version"
 )
@@ -32,8 +33,8 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 		rules := lint.DefaultRules()
 		var glueErr error
-		if opts.Evaluator != "" {
-			c, err := startGlue(opts.Evaluator, inout.Stderr)
+		if opts.Evaluator != "" || opts.EvaluatorModule != "" {
+			c, err := startGlue(opts, inout)
 			if err != nil {
 				return &tools.ExitStatusError{Status: 2, Message: err.Error()}
 			}
@@ -67,16 +68,45 @@ func NewMainFunc() cli.MainFunc[*Options] {
 	}
 }
 
-// startGlue starts the glue the command line names, which has to answer
-// lint, its errors on stderr.
-func startGlue(line string, stderr io.Writer) (*glue.Client, error) {
-	c, err := glue.StartCommandLine(line, stderr)
+// startGlue starts the glue -evaluator or -evaluator-module names, which has
+// to answer lint, its errors on the tool's standard error.
+func startGlue(opts *Options, inout *cli.ProcInout) (*glue.Client, error) {
+	c, err := startNamedGlue(opts, inout)
 	if err != nil {
-		return nil, fmt.Errorf("-evaluator: %w", err)
+		return nil, err
 	}
 	if !c.Supports("lint") {
 		c.Close()
-		return nil, fmt.Errorf("-evaluator: the %s glue does not answer lint, which csdflint asks of every atom", c.Language())
+		return nil, fmt.Errorf("the %s glue does not answer lint, which csdflint asks of every atom", c.Language())
+	}
+	return c, nil
+}
+
+func startNamedGlue(opts *Options, inout *cli.ProcInout) (*glue.Client, error) {
+	if opts.Evaluator != "" {
+		c, err := glue.StartCommandLine(opts.Evaluator, inout.Stderr)
+		if err != nil {
+			return nil, fmt.Errorf("-evaluator: %w", err)
+		}
+		return c, nil
+	}
+	words, err := glue.SplitCommand(opts.EvaluatorModule)
+	if err != nil || len(words) == 0 {
+		return nil, fmt.Errorf("-evaluator-module expects MODULE [ARGS...], not %q", opts.EvaluatorModule)
+	}
+	python, err := csdfbmc.Interpreter(opts.Python, inout.Env)
+	if err != nil {
+		return nil, fmt.Errorf("-evaluator-module: %w", err)
+	}
+	dir, err := csdfbmc.Materialize(csdfbmc.CacheRoot(inout.Env))
+	if err != nil {
+		return nil, fmt.Errorf("-evaluator-module: %w", err)
+	}
+	cmd := exec.Command(python, csdfbmc.ModuleArgs(dir, csdfbmc.ModuleServe, words...)...)
+	cmd.Stderr = inout.Stderr
+	c, err := glue.Start(cmd)
+	if err != nil {
+		return nil, fmt.Errorf("-evaluator-module: %w", err)
 	}
 	return c, nil
 }
