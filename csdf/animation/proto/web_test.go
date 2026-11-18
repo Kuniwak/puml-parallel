@@ -145,3 +145,20 @@ func TestHandleBackRefusesWithNoHistory(t *testing.T) {
 		t.Error("back OK = true, want failure")
 	}
 }
+
+func TestErrorFromARefusalOfAKindCarriesItsCodeAndReason(t *testing.T) {
+	// Setup
+	service := NewService("test", false, AnyEnvironment, animation.NoSuggesters)
+	err := &animation.RefusedValuesError{Reason: "members: not a map", Code: "not_instances", Args: map[string]string{"map": "members"}}
+
+	// Execute
+	resp := service.errorFromErr(err)
+
+	// Assert
+	if resp.Code != "not_instances" {
+		t.Errorf("Code = %q, want %q", resp.Code, "not_instances")
+	}
+	if diff := cmp.Diff(map[string]string{"map": "members", "reason": "members: not a map"}, resp.Args); diff != "" {
+		t.Errorf("Args mismatch (-want +got):\n%s", diff)
+	}
+}

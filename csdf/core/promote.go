@@ -39,7 +39,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types), Blocks: maps.Clone(f.Blocks)}
+	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types), Blocks: maps.Clone(f.Blocks), Labels: maps.Clone(f.Local.Labels)}
 }
 
 // movesIn says whether f takes its events in mode.

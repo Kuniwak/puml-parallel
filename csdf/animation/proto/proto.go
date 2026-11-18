@@ -71,7 +71,9 @@ type Response struct {
 // Error codes carried by Response.Code.
 const (
 	// ErrorCodeRefusedValues: the values do not fit the state, or the
-	// checker does not admit them; Args["reason"] says why.
+	// checker does not admit them; Args["reason"] says why. A refusal
+	// whose kind the engine names (animation.RefusedValuesError.Code)
+	// carries that code instead, its particulars beside "reason" in Args.
 	ErrorCodeRefusedValues = "refused_values"
 	// ErrorCodeIndexOutOfRange: no transition, end edge or history entry
 	// has the index.
@@ -156,6 +158,41 @@ type Pending struct {
 	// Suggestions are the values the checker admits for this prompt, when
 	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`
+	// SuggestError is why the checker could not suggest values, when it
+	// failed.
+	SuggestError string `json:"suggest_error,omitempty"`
+	// Determined are the values the post fixes by builtins alone
+	// (animation.Determined), which a client may enter without asking.
+	Determined []animation.Value `json:"determined,omitempty"`
+	// Families are the variables of Group that hold the instances of a
+	// family, in declaration order: what a client words in terms of the
+	// local diagrams.
+	Families []string `json:"families,omitempty"`
+	// Shapes tell, for each of Families, how an instance is written: the
+	// type of its IDs and, for every local state but the start state
+	// (absence), the fields an instance there holds.
+	Shapes []InstanceShape `json:"shapes,omitempty"`
+}
+
+// InstanceShape is how an instance of the family of Map is written.
+type InstanceShape struct {
+	Map     string       `json:"map"`
+	KeyType string       `json:"key_type,omitempty"`
+	States  []LocalShape `json:"states"`
+}
+
+// LocalShape is a local state an instance may be at: its ID, its label,
+// and the fields an instance there holds, in declaration order.
+type LocalShape struct {
+	State  string  `json:"state"`
+	Name   string  `json:"name"`
+	Fields []Field `json:"fields,omitempty"`
+}
+
+// Field is a field of an instance and its type, as the diagram writes it.
+type Field struct {
+	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).

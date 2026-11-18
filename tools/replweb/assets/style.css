@@ -74,7 +74,14 @@ main {
 }
 .diagram-pane { display: flex; flex-direction: column; }
 .diagram-tools { display: flex; gap: .25rem; align-items: center; flex-wrap: wrap; }
-.diagram-tools .legend { color: var(--muted); font-size: .85rem; margin-left: .5rem; }
+.diagram-tools .legend { color: var(--muted); font-size: .8rem; margin-left: .5rem; display: flex; flex-wrap: wrap; gap: .25rem .9rem; align-items: center; }
+.legend-item { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
+.swatch { display: inline-block; width: 22px; height: 12px; box-sizing: border-box; }
+.swatch-current { border: 3px solid #0b57d0; background: #cfe0ff; border-radius: 3px; }
+.swatch-choosable { height: 4px; background: #0b63ce; }
+.swatch-visited { height: 3px; background: var(--visited); }
+.swatch-filtered { height: 4px; background: #d9480f; }
+.swatch-chip { border: 1px solid #0b63ce; background: #e3eefc; border-radius: 3px; }
 #diagram {
   flex: 1;
   overflow: auto;
@@ -128,6 +135,14 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   padding: .5rem .75rem;
 }
 .choice .event { font-weight: 600; color: var(--accent); }
+.suggestion { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; word-break: break-all; }
+.tabs { display: flex; gap: .25rem; margin: 0 0 .75rem; border-bottom: 1px solid var(--border); }
+.tabs .tab {
+  border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0;
+  background: none; color: var(--muted); padding: .35rem .9rem; margin-bottom: -1px; cursor: pointer; font: inherit;
+}
+.tabs .tab.selected { border-color: var(--border); background: var(--panel); color: var(--text); font-weight: 600; }
+.auto { color: var(--muted); font-size: .85em; margin-left: .5em; }
 .clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .clauses dt { color: var(--muted); }
 .clauses dd { margin: 0; word-break: break-word; }
@@ -186,3 +201,16 @@ input.filter {
 .edge-filter { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; margin-bottom: .5rem; border-radius: 6px; background: var(--current-soft); }
 
 #diagram g.cluster.csdf-current > rect { stroke-width: 8 !important; }
+
+form label .type { margin-left: .5rem; color: var(--muted); font-size: .8rem; font-weight: normal; }
+form .before { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin: .15rem 0 .5rem; }
+form .before code { color: var(--text); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; max-width: 100%; overflow-wrap: anywhere; }
+form .before button { font-size: .75rem; padding: .1rem .4rem; }
+form .hint.shape, form .hint.fixed { font-size: .75rem; margin: .1rem 0; }
+
+form details.shape { font-size: .8rem; margin: .1rem 0 .5rem; }
+form details.shape summary { cursor: pointer; color: var(--accent); }
+form details.shape code.example { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--accent-soft); padding: .2rem .4rem; border-radius: 3px; }
+form details.shape ul { margin: .2rem 0; padding-left: 1.2rem; }
+form details.shape .fields { color: var(--muted); }
+form input:disabled { background: var(--bg); color: var(--muted); }
