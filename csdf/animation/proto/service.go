@@ -323,11 +323,13 @@ func viewResponse(e *entry) Response {
 		animation.RenderEnded(&buf, current)
 		view.Mode = "ended"
 		view.State = &current
+		view.Families = familiesOf(sess.Diagram(), current)
 	} else {
 		current, _ := sess.Current()
 		animation.RenderState(&buf, sess.Diagram(), current)
 		view.Mode = "command"
 		view.State = &current
+		view.Families = familiesOf(sess.Diagram(), current)
 		view.Transitions = transitionsOf(sess)
 		view.Ends = endsOf(sess)
 	}
@@ -359,6 +361,17 @@ func movesOf(d *core.Diagram, edge core.Edge) []Move {
 		f, _ := animation.Family(d, m.Map)
 		block := f.Blocks[edge.Src]
 		out = append(out, Move{Map: m.Map, Block: block, LocalEdge: m.Edge, Src: m.Src, Dst: m.Dst, Parallel: m.Parallel, Kind: kindNames[m.Kind]})
+	}
+	return out
+}
+
+// familiesOf are where the instances of each family of d are in state.
+func familiesOf(d *core.Diagram, state animation.State) []FamilyView {
+	var out []FamilyView
+	for _, v := range state.Values {
+		if f, ok := animation.Family(d, v.Name); ok {
+			out = append(out, FamilyView{Map: f.Map, Block: f.Blocks[state.ID], Instances: animation.Instances(v.Value)})
+		}
 	}
 	return out
 }

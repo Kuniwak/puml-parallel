@@ -136,6 +136,23 @@ func checkInstances(f core.FamilyStates, v any) error {
 	return nil
 }
 
+// Instances are the IDs of the instances in v, a map of instances as
+// checkInstances admits it, by the local state each is at, sorted; nil when
+// v is no such map.
+func Instances(v any) map[string][]string {
+	entries, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := map[string][]string{}
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		if at, _, ok := instance(entries[id]); ok {
+			out[at] = append(out[at], id)
+		}
+	}
+	return out
+}
+
 // instance takes v apart as {"at": <state>, "fields": {...}}.
 func instance(v any) (string, map[string]any, bool) {
 	obj, ok := v.(map[string]any)

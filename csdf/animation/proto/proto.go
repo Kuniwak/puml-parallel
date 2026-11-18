@@ -71,6 +71,19 @@ type View struct {
 	Transitions []Transition     `json:"transitions,omitempty"`
 	Ends        []End            `json:"ends,omitempty"`
 	Pending     *Pending         `json:"pending,omitempty"`
+	// Families are, for a diagram expanded from a promotion, where the
+	// instances of each family are in State.
+	Families []FamilyView `json:"families,omitempty"`
+}
+
+// FamilyView is where the instances of the family of Map are: the IDs of
+// those at each local state, sorted, a state no instance is at left out.
+// Block is the <<promote>> block that draws the family in State's mode, ""
+// when there is none.
+type FamilyView struct {
+	Map       string              `json:"map"`
+	Block     string              `json:"block,omitempty"`
+	Instances map[string][]string `json:"instances"`
 }
 
 // End is one end edge from the current state, which end takes: its guard
