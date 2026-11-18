@@ -22,6 +22,7 @@ const (
 	CommandHistory       = "history"
 	CommandJump          = "jump"
 	CommandEnd           = "end"
+	CommandBack          = "back"
 	CommandReplay        = "replay"
 	CommandServerVersion = "server_version"
 )

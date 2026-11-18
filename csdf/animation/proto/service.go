@@ -94,6 +94,8 @@ func (s *Service) Handle(req Request) Response {
 		return s.handleJump(req)
 	case CommandEnd:
 		return s.handleEnd(req)
+	case CommandBack:
+		return s.handleBack(req)
 	case CommandReplay:
 		return s.handleReplay(req)
 	case CommandServerVersion:
@@ -243,6 +245,19 @@ func (s *Service) handleEnd(req Request) Response {
 		return errorResponse("end requires an end edge index")
 	}
 	if err := e.session.End(*req.Index); err != nil {
+		return s.errorFromErr(err)
+	}
+	return viewResponse(e)
+}
+
+// handleBack drops the pending transition and returns to the state last
+// explored, as an interrupt at csdfrepl's value prompt does.
+func (s *Service) handleBack(req Request) Response {
+	e, err := s.resolve(req.Session)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	if err := e.session.Back(); err != nil {
 		return s.errorFromErr(err)
 	}
 	return viewResponse(e)
