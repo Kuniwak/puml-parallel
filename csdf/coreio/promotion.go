@@ -439,6 +439,10 @@ func (r *promotionReader) block(title, alias string, body bool) error {
 		r.aliases[mode] = map[string]string{}
 	}
 	r.aliases[mode][t[1]] = alias
+	if f.Blocks == nil {
+		f.Blocks = map[string]string{}
+	}
+	f.Blocks[mode] = alias
 	if body {
 		if r.includes[f.Map] != "" {
 			return fmt.Errorf("a second <<promote>> block of %s with a body; one block includes its local diagram", t[1])

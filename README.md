@@ -1524,7 +1524,13 @@ and Japanese. The pages of the examples are published on
 The drawing is the SVG PlantUML renders: `csdfreplweb` runs the command
 `-puml-exec` gives (`plantuml -pipe -tsvg` by default) in the diagram's
 directory, split into words as a shell splits them but without a shell. A
-promotion is explored as its expansion and drawn without highlights. The page
+promotion is explored as its expansion, and the page marks the local
+diagrams its `<<promote>>` blocks draw: beside each local state, the IDs of
+the instances there; on each local edge, whether a transition can take it.
+Click a local edge to list only the transitions that take it; the list is
+grouped by family and local edge, with a filter box. A local state whose ID
+is not ASCII is not marked, for PlantUML does not write it into the SVG. The
+page
 suggests no values and refuses only what a builtin is false of, as `csdfrepl`
 without `-checks` does, for `csdfbmc` does not run in a browser.
 
