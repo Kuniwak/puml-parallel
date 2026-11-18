@@ -64,7 +64,9 @@ def shapes(doc: dict) -> dict:
                             for other in sides:
                                 if isinstance(other, ast.Dict):
                                     _built(leaf, other)
-    return {"types": {t: _node(n) for t, n in trees.items()}}
+    instance_vars = {v: t for vs in families.values() for v, t in vs.items()}
+    return {"types": {t: _node(n) for t, n in trees.items() if "⇸" not in t},
+            "vars": {**var_types, **instance_vars}}
 
 
 def _atoms(clauses):

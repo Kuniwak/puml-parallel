@@ -123,3 +123,17 @@ class ShapesTest(unittest.TestCase):
 
         # Verify
         self.assertEqual(got["types"]["Role"]["fields"], {"level": {"kind": "scalar", "examples": ["low"]}})
+
+    def test_every_variable_is_listed_with_its_type_and_a_map_type_is_no_shape(self):
+        # Setup
+        f = family("m", "none", {"none": [], "on": ["r"]}, types={"r": "Role"})
+        d = diagram({"s": ["m", "n"]}, "s", edges=[edge("s", "s", "go?k", guard=[atom("$n == 0 and $m[$k] == $m[$k]")])],
+                    families=[f], types={"m": "K ⇸ Inst", "n": "Nat", "k": "K"})
+
+        # Execute
+        got = shapes(d)
+
+        # Verify
+        self.assertEqual(got, {"types": {"Nat": {"kind": "scalar", "examples": [0]}, "Inst": {"kind": "scalar"},
+                                         "K": {"kind": "scalar"}},
+                               "vars": {"m": "K ⇸ Inst", "n": "Nat", "r": "Role"}})
