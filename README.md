@@ -1327,7 +1327,8 @@ meets ever more states:
 csdfbmc: 5731 states, frontier 35, depth 190, 2831.5 states/s, 2876 field values enumerated, 0 pruned and 86280 valuations checked in the last 1s, 0:00:02 elapsed, 0.1 GB resident, 9.8 KB/state
 ```
 
-With `--random-walk`, the line says the walks taken in, their steps, the
+With `--random-walk`, the line says the walks taken in, the steps taken
+so far (those of the walks in progress included, in workers too), the
 deepest, the walks per second, the findings so far (deadlocks, broken
 invariants and empty posts; not a bound reached), the time spent and the
 memory held:

@@ -6,7 +6,7 @@ import unittest
 
 import sys
 
-from csdfbmc.progress import Progress, WalkProgress, resident
+from csdfbmc.progress import Progress, Steps, WalkProgress, resident
 from csdfbmc.tests import fixture
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
@@ -74,7 +74,7 @@ class WalkProgressTest(unittest.TestCase):
     def test_a_line_says_the_walks_steps_deepest_rate_findings_time_and_memory(self):
         tests = {
             "the first line": ([], 30.0, None, "csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed\n"),
-            "the rate is of the last interval": ([(30.0, (60, 2000, 70, 1))], 90.0, None,
+            "the rate is of the last interval": ([(30.0, (60, 70, 1))], 90.0, None,
                                                  "csdfbmc: 120 walks, 4000 steps, deepest 80, 1.0 walks/s, 2 findings, 0:01:30 elapsed\n"),
             "the memory in all": ([], 30.0, 1_200_000_000,
                                   "csdfbmc: 120 walks, 4000 steps, deepest 80, 4.0 walks/s, 2 findings, 0:00:30 elapsed, 1.2 GB resident\n"),
@@ -83,13 +83,13 @@ class WalkProgressTest(unittest.TestCase):
             with self.subTest(name):
                 # Setup
                 clock, out = Clock(), io.StringIO()
-                p = WalkProgress(out, clock, resident=lambda: held)
+                p = WalkProgress(out, clock, resident=lambda: held, steps=lambda: 4000)
                 for at, counts in before:
                     clock.now = at
                     p.update(*counts)
                     p.report()
                 clock.now = now
-                p.update(walks=120, steps=4000, deepest=80, findings=2)
+                p.update(walks=120, deepest=80, findings=2)
 
                 # Execute
                 p.report()
@@ -111,6 +111,19 @@ class ResidentTest(unittest.TestCase):
         # Assert
         self.assertGreater(after - before, 150_000_000)
         del held
+
+
+class StepsTest(unittest.TestCase):
+    def test_counts_the_steps_taken_so_far(self):
+        # Setup
+        steps = Steps()
+
+        # Execute
+        steps.step()
+        steps.step()
+
+        # Assert
+        self.assertEqual(2, steps())
 
 
 class ProgressOptionTest(unittest.TestCase):
@@ -155,6 +168,24 @@ class ProgressOptionTest(unittest.TestCase):
 
         # Execute
         code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5", checks=CHECKS, reporting=reporting)
+
+        # Assert
+        self.assertEqual(1, code, err)
+        self.assertRegex(out.getvalue(), r"^csdfbmc: 3 walks, 6 steps, deepest 2, ")
+
+    def test_random_walks_in_workers_count_their_steps_in_the_line(self):
+        # Setup
+        out = io.StringIO()
+
+        @contextlib.contextmanager
+        def reporting(_, seconds, make):
+            p = make(out, resident=lambda: None)
+            yield p
+            p.report()
+
+        # Execute
+        code, _, err = fixture.command(self, FORGETFUL, "--evaluator-module", "csdfbmc.python_glue", "--random-walk", "--walks", "3", "--seed", "5",
+                                       "--jobs", "2", checks=CHECKS, reporting=reporting)
 
         # Assert
         self.assertEqual(1, code, err)

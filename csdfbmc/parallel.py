@@ -22,6 +22,7 @@ from collections.abc import Callable, Iterable, Iterator
 from csdfbmc import cli
 from csdfbmc.explore import Expansion, State
 from csdfbmc.model import Diagram
+from csdfbmc.progress import Steps
 from csdfbmc.randomwalk import Outcome
 
 # The walk of this worker, which its pool built (_start), or what building
@@ -108,12 +109,13 @@ def _expand_chunk(states: list[State]) -> list:
 _walks = None
 
 
-def _start_walks(a: argparse.Namespace) -> None:
-    """Builds the random walks of this worker, as _start its walk."""
+def _start_walks(a: argparse.Namespace, steps: Steps) -> None:
+    """Builds the random walks of this worker, as _start its walk, counting
+    their steps in steps."""
     global _walks
     _start(a)
     if _failed is None:
-        _walks = cli.random_walks(a, _explorer)
+        _walks = cli.random_walks(a, _explorer, steps)
 
 
 def _walk_chunk(indices: range) -> list:
@@ -135,14 +137,15 @@ def _in_order(pool: multiprocessing.pool.Pool, task: Callable, next_chunk: Calla
 
 
 @contextlib.contextmanager
-def walking(a: argparse.Namespace, diagram: Diagram, jobs: int):
+def walking(a: argparse.Namespace, diagram: Diagram, jobs: int, steps: Steps):
     """What takes the random walks in jobs workers (RandomWalks.run's take),
-    in order, each worker building its walks of the arguments a; None, the
-    walks' own, for one job. The workers stop on leaving."""
+    in order, each worker building its walks of the arguments a and counting
+    their steps in steps; None, the walks' own, for one job. The workers
+    stop on leaving."""
     if jobs == 1:
         yield None
         return
-    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a,)) as pool:
+    with multiprocessing.get_context("spawn").Pool(jobs, initializer=_start_walks, initargs=(a, steps)) as pool:
         def take(indices: range):
             chunks = iter(indices[i:i + CHUNK] for i in range(0, len(indices), CHUNK))
             for out in _in_order(pool, _walk_chunk, lambda: next(chunks, None), jobs):

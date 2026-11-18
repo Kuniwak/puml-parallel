@@ -11,8 +11,9 @@ from csdfbmc.tests.test_explore import BUMPING, COUNTER, TALLY, tally_checks
 from csdfbmc.tests.test_stats import CHECKS, FORGETFUL
 
 
-def walks(d, checks=None, max_depth=10, weights=None, seed=1, **options):
-    return RandomWalks(fixture.explorer(d, checks, **options), max_depth=max_depth, weights=weights or {}, seed=seed)
+def walks(d, checks=None, max_depth=10, weights=None, seed=1, stepped=None, **options):
+    return RandomWalks(fixture.explorer(d, checks, **options), max_depth=max_depth, weights=weights or {}, seed=seed,
+                       **({"stepped": stepped} if stepped else {}))
 
 
 class RandomWalkTest(unittest.TestCase):
@@ -93,8 +94,20 @@ class RandomWalkTest(unittest.TestCase):
         walks(COUNTER).run(2, progress=lambda **counts: updates.append(counts))
 
         # Assert
-        self.assertEqual([{"walks": 1, "steps": 3, "deepest": 3, "findings": 1},
-                          {"walks": 2, "steps": 6, "deepest": 3, "findings": 1}], updates)
+        self.assertEqual([{"walks": 1, "deepest": 3, "findings": 1},
+                          {"walks": 2, "deepest": 3, "findings": 1}], updates)
+
+    def test_tells_each_step_as_it_is_taken_before_the_walk_ends(self):
+        # Setup: the walk of COUNTER takes 3 steps.
+        seen = []
+        w = walks(COUNTER, stepped=lambda: seen.append(len(seen) + 1))
+
+        # Execute
+        got = w.walk(0)
+
+        # Assert
+        self.assertEqual([1, 2, 3], seen)
+        self.assertEqual(3, len(got.steps))
 
     def test_the_progress_counts_no_bound_reached_as_a_finding(self):
         from csdfbmc.checks import Checks

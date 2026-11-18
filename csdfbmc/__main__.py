@@ -28,6 +28,7 @@ Exits 1 when it finds any, 2 on a usage or
 loading error.
 """
 import argparse
+import functools
 import json
 import random
 import sys
@@ -241,9 +242,10 @@ def main_walk(a: argparse.Namespace, stop, reporting) -> int:
 def main_random_walks(a: argparse.Namespace, stop, reporting) -> int:
     try:
         with opened(a) as (diagram, checks, client, environment):
-            walker = random_walks(a, explorer(a, diagram, checks, client, environment))
-            with parallel.walking(a, diagram, a.jobs) as take, \
-                    reporting(sys.stderr, a.progress, progress.WalkProgress) as said:
+            steps = progress.Steps()
+            walker = random_walks(a, explorer(a, diagram, checks, client, environment), steps)
+            with parallel.walking(a, diagram, a.jobs, steps) as take, \
+                    reporting(sys.stderr, a.progress, functools.partial(progress.WalkProgress, steps=steps)) as said:
                 got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:
         print(f"csdfbmc: {e}", file=sys.stderr)

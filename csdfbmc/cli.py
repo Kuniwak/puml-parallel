@@ -12,6 +12,7 @@ from csdfbmc.explore import Explorer, as_met, every_transition
 from csdfbmc.por import PartialOrder
 from csdfbmc.symmetry import Symmetry
 from csdfbmc.model import Diagram
+from csdfbmc.progress import Steps
 from csdfbmc.formula import PostError
 from csdfbmc.protocol import EvaluatorError, checked, start_command, start_module
 from csdfbmc.checks import PurityError, Checks, load_checks
@@ -90,9 +91,9 @@ def explorer(a: argparse.Namespace, diagram: Diagram, checks: Checks, client, en
                                  avoid=a.avoid, symmetry=a.symmetry))
 
 
-def random_walks(a: argparse.Namespace, explorer: Explorer):
+def random_walks(a: argparse.Namespace, explorer: Explorer, steps: Steps):
     """The random walks csdfbmc --random-walk's parsed arguments ask for,
-    over explorer's states."""
+    over explorer's states, counting their steps in steps."""
     from csdfbmc.randomwalk import RandomWalks, load_weights
     weights = load_weights(a.weight_tsv, explorer.d) if a.weight_tsv else {}
-    return RandomWalks(explorer, max_depth=a.max_depth, weights=weights, seed=a.seed)
+    return RandomWalks(explorer, max_depth=a.max_depth, weights=weights, seed=a.seed, stepped=steps.step)
