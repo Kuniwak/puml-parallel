@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
+from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, unenumerable_record, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -49,6 +49,17 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertEqual(6, len(rs))
         self.assertIn(FrozenMap({"状態": "B", "在庫": 2}), rs)
         self.assertTrue(all(isinstance(r, FrozenMap) for r in rs))
+
+    def test_an_unenumerable_record_tells_its_size_and_its_values_without_listing_them(self):
+        # Setup: 10^40 records, which no list could hold
+        rs = unenumerable_record(**{f"f{i}": range(10) for i in range(40)})
+
+        # Assert
+        self.assertEqual(10 ** 40, rs.size())
+        self.assertIn(FrozenMap({f"f{i}": i % 10 for i in range(40)}), rs)
+        self.assertNotIn(FrozenMap({f"f{i}": 10 for i in range(40)}), rs)
+        self.assertNotIn(FrozenMap({"f0": 0}), rs)
+        self.assertNotIn("not a record", rs)
 
     def test_partial_map_enumerates_every_partial_function_up_to_the_size(self):
         ms = partial_map(["t1", "t2"], ["x", "y"], max_size=1)

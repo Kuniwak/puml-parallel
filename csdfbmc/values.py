@@ -12,6 +12,7 @@ natural.
 from __future__ import annotations
 
 import itertools
+import math
 from collections.abc import ItemsView, Mapping, Set as AbstractSet
 from dataclasses import dataclass
 from typing import Callable, Iterable
@@ -361,7 +362,7 @@ class Built(list):
 def _kept(values: Iterable):
     """values as a part of a Built: a Sample or a Built as itself, so that
     what it is built of stays known; any other iterable as a tuple."""
-    return values if isinstance(values, (Sample, Built)) else tuple(values)
+    return values if isinstance(values, (Sample, Built, UnenumerableRecord)) else tuple(values)
 
 
 def samples_in(values: Iterable) -> list[Sample]:
@@ -399,6 +400,33 @@ def record(**fields: Iterable) -> Built:
     fields = {n: _kept(vs) for n, vs in fields.items()}
     names = list(fields)
     return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
+
+
+class UnenumerableRecord:
+    """The records whose fields range over the given domains, never
+    listed: its size and whether a value is one of them are computed from
+    its parts (a field -> the values it was given)."""
+
+    def __init__(self, parts: dict):
+        self.parts = parts
+
+    def size(self) -> int:
+        """How many records it has; len cannot tell more than sys.maxsize."""
+        return math.prod(_size(vs) for vs in self.parts.values())
+
+    def __contains__(self, value) -> bool:
+        return (isinstance(value, Mapping) and set(value) == set(self.parts)
+                and all(value[k] in vs for k, vs in self.parts.items()))
+
+
+def _size(values) -> int:
+    return values.size() if isinstance(values, UnenumerableRecord) else len(values)
+
+
+def unenumerable_record(**fields: Iterable) -> UnenumerableRecord:
+    """Every record whose fields range over the given domains, as record,
+    declared by its parts and never listed."""
+    return UnenumerableRecord({n: _kept(vs) for n, vs in fields.items()})
 
 
 def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:
