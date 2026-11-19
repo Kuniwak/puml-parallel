@@ -527,7 +527,17 @@ class PruningTest(unittest.TestCase):
 
         # Execute, Assert
         with self.assertRaisesRegex(PostError, r"nothing determines the part o of the field r, of the type R, whose values are an on_demand_record; "
-                                               r"let an equality of the guard determine it, @eq\(r\.o, t\)"):
+                                               r'let an equality of the guard determine it, @eq\(r\["o"\], …\)'):
+            x.transitions(("q", (FrozenMap(),), ()))
+
+    def test_an_equality_binding_a_key_an_on_demand_record_type_lacks_is_refused(self):
+        # Setup: the guard binds r["z"], which R has no part for.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(idx("r", lit("z")), lit(0))])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=[0, 1]))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"c\?id\?r .*: the guard determines the part z of the field r, "
+                                               r"which its type R, an on_demand_record of the parts k, a, has not"):
             x.transitions(("q", (FrozenMap(),), ()))
 
     def test_an_on_demand_record_an_exists_would_range_over_is_refused(self):

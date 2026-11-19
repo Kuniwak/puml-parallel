@@ -519,11 +519,16 @@ class Explorer:
         parts = record_parts(values)
         if parts is not None:
             if not set(determined) <= set(parts):
+                if not listable(values):
+                    z = next(k for k in determined if k not in parts)
+                    raise PostError(f"{e.describe()}: the guard determines the part {z} of the field {p}, which its type {t}, "
+                                    f"an on_demand_record of the parts {', '.join(map(str, parts))}, has not; "
+                                    "determine a part the type has, or add the part to the type")
                 return None
             for k, v in parts.items():
                 if k not in determined and not listable(v):
                     raise PostError(f"{e.describe()}: nothing determines the part {k} of the field {p}, of the type {t}, whose values are "
-                                    f"an on_demand_record; let an equality of the guard determine it, @eq({p}.{k}, t), or give the "
+                                    f"an on_demand_record; let an equality of the guard determine it, @eq({p}[\"{k}\"], …), or give the "
                                     f"part a type that lists its values, such as record(…)")
             return list(parts), {k: list(v) for k, v in parts.items() if k not in determined}
         if values and all(isinstance(v, FrozenMap) and set(v) == set(determined) for v in values):
