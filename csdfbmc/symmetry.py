@@ -61,6 +61,9 @@ class Symmetry:
         for t in checks.symmetric:
             if t not in checks.types:
                 raise ValueError(f"SYMMETRIC names {t!r}, which TYPES does not declare")
+            if isinstance(checks.types[t], OnDemandRecord):
+                raise ValueError(f"SYMMETRIC names {t!r}, an on_demand_record; a symmetric type lists its IDs, strings "
+                                 "(TYPES = {\"ID\": [\"a\", \"b\"]}): name the type of the record's ID part in SYMMETRIC instead")
             values = frozenset(checks.types[t])
             if not all(isinstance(v, str) for v in values):
                 raise ValueError(f"SYMMETRIC names {t!r}, whose values are not all strings; an ID that is a number cannot be told from a count")

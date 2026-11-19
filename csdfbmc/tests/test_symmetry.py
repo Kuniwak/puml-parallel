@@ -54,6 +54,9 @@ class RefusalTest(unittest.TestCase):
             "no SYMMETRIC": (ONE_WAY, Checks(types={"k": ["a"]}, sources=[("c.py", "")]), {}, "declare SYMMETRIC"),
             "a type TYPES does not declare": (ONE_WAY, dataclasses.replace(checks(), symmetric=("j",)), {}, "'j', which TYPES"),
             "values that are not strings": (ONE_WAY, checks(types={"k": [1, 2]}), {}, "not all strings"),
+            "an on-demand record type": (
+                ONE_WAY, dataclasses.replace(checks(types={"k": on_demand_record(id=["a", "b"])})), {},
+                "SYMMETRIC names 'k', an on_demand_record; a symmetric type lists its IDs, strings"),
             "a type holding some IDs only": (ONE_WAY, checks(types={"k": ["a", "b", "c"], "j": ["a"]}), {}, "'j' are not closed"),
             "an on-demand record a part of which holds some IDs only": (
                 ONE_WAY, checks(types={"k": ["a", "b", "c"], "j": on_demand_record(id=["a"])}), {}, "'j' are not closed"),
