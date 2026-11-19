@@ -1058,11 +1058,11 @@ partial functions from the types of the fields and a bound on the number of
 keys. `csdfbmc.values.on_demand_record(field=domain, …)` gives the
 same records as `record(…)` without listing them: a record is made from
 its parts when a field of the type is received, a part an equality of the
-guard binds computed and the others ranging over their values, and whether
-a value is one of its records is told from its parts. Where a value of it
-would range over the whole type (a received field no equality splits into
-its parts, a variable the post leaves free, a variable an ∃ binds), the walk
-is refused, exit 2, naming the type; use it for a record type too large to
+guard binds computed and the others ranging over their values one by one,
+whether or not a conjunct reads them, and whether a value is one of its
+records is told from its parts. Where a value of it would range over the
+whole type (a variable the post leaves free, a variable an ∃ binds), the
+walk is refused, exit 2, naming the type; use it for a record type too large to
 list, whose fields the guards determine. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
 of a larger one (`TYPES = {"AttemptId": sample(["t1", "t2", "t3"],
 beyond=["t4"])}`): the walk ranges over the values listed, and the type has

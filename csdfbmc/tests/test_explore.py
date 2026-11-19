@@ -506,14 +506,26 @@ class PruningTest(unittest.TestCase):
         self.assertEqual({FrozenMap(k=4, a=3, b=0, **pad), FrozenMap(k=4, a=3, b=1, **pad), FrozenMap(k=7, a=1, b=0, **pad), FrozenMap(k=7, a=1, b=1, **pad)},
                          {params["r"] for _, _, _, _, params in transitions})
 
-    def test_a_received_on_demand_record_that_would_range_as_a_whole_is_refused(self):
-        # Setup: the guard binds r.z, a key R does not have, so r cannot be
-        # split into its parts and would range over every record of R.
-        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(fld("r", "z"), lit(0))])])
+    def test_a_received_on_demand_record_no_conjunct_reads_ranges_over_its_parts(self):
+        # Setup: the guard reads no part of r, so every record of R is received.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "id", "m")])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, ID=[1], R=on_demand_record(k=[0, 1], a=[0, 1]))))
+
+        # Execute
+        transitions = x.transitions(("q", (FrozenMap(),), ()))
+
+        # Assert
+        self.assertEqual({FrozenMap(k=0, a=0), FrozenMap(k=0, a=1), FrozenMap(k=1, a=0), FrozenMap(k=1, a=1)},
+                         {params["r"] for _, _, _, _, params in transitions})
+
+    def test_an_on_demand_record_an_exists_would_range_over_is_refused(self):
+        # Setup: the ∃ binds a variable of R, which would range over every
+        # record of R.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[exists("R", eq(bound(0), "r"))])])
         x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1]))))
 
         # Execute, Assert
-        with self.assertRaisesRegex(PostError, r"nothing determines the field r, so it ranges over its type R: .*R is an on_demand_record"):
+        with self.assertRaisesRegex(KeyError, "R is an on_demand_record"):
             x.transitions(("q", (FrozenMap(),), ()))
 
     def test_a_literal_is_held_to_an_on_demand_record_type_by_its_parts(self):

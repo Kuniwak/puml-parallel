@@ -499,6 +499,12 @@ class Explorer:
         vals = self._successor_values(self.d.start_post, {}, self.d.start, "the start edge")
         return [Strict((self.d.start, v, ghosts)) for v in vals]
 
+    def _on_demand(self, e: Edge, p: str) -> bool:
+        """Whether the type of the field p of e is an on_demand_record,
+        whose records are made from their parts, so p always ranges by its
+        parts, never over the type as a whole."""
+        return isinstance(self.checks.types.get(self.d.field_type(e, p)), OnDemandRecord)
+
     def _record_parts(self, e: Edge, p: str, determined: dict) -> tuple[list, dict] | None:
         """The keys of the records the field p ranges over, in order, and
         the values each key no equality determines ranges over; None when
@@ -559,7 +565,7 @@ class Explorer:
         for p in e.params:
             if p not in whole and p not in shapes:
                 shape = self._record_parts(e, p, {})
-                if shape and shape[1] and any(isinstance(n, tuple) for n in part_reads(e.guard, {(p, k) for k in shape[1]})):
+                if shape and shape[1] and (self._on_demand(e, p) or any(isinstance(n, tuple) for n in part_reads(e.guard, {(p, k) for k in shape[1]}))):
                     split[p] = shape
 
         def levels_of(shapes: dict) -> tuple[list, set]:
@@ -584,7 +590,8 @@ class Explorer:
         # The ∃ that would draw parts were every candidate record split.
         candidate = witness(e.guard, names, known)
         drawn = {names[d][0] for d in candidate.levels if isinstance(names[d], tuple)} if candidate else set()
-        useful = {f: shape for f, shape in split.items() if f in drawn or decides_early(e.guard, names, steps[:inside], f)}
+        useful = {f: shape for f, shape in split.items()
+                  if self._on_demand(e, f) or f in drawn or decides_early(e.guard, names, steps[:inside], f)}
         if useful != split:
             split = useful
             levels, ranged = levels_of(shapes | split)
