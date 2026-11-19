@@ -518,6 +518,11 @@ class Explorer:
         if isinstance(values, OnDemandRecord) or isinstance(values, Built) and values.build is record:
             if not set(determined) <= set(values.parts):
                 return None
+            for k, v in values.parts.items():
+                if k not in determined and isinstance(v, OnDemandRecord):
+                    raise PostError(f"{e.describe()}: nothing determines the part {k} of the field {p}, of the type {t}, whose values are "
+                                    f"an on_demand_record; let an equality of the guard determine it, @eq({p}.{k}, t), or give the "
+                                    f"part a type that lists its values, such as record(…)")
             return list(values.parts), {k: list(v) for k, v in values.parts.items() if k not in determined}
         if values and all(isinstance(v, FrozenMap) and set(v) == set(determined) for v in values):
             return list(values[0]), {}

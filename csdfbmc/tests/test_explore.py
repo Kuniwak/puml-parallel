@@ -518,6 +518,18 @@ class PruningTest(unittest.TestCase):
         self.assertEqual({FrozenMap(k=0, a=0), FrozenMap(k=0, a=1), FrozenMap(k=1, a=0), FrozenMap(k=1, a=1)},
                          {params["r"] for _, _, _, _, params in transitions})
 
+    def test_a_part_of_an_on_demand_record_type_nothing_determines_is_refused(self):
+        # Setup: the part o of r is itself an on_demand_record, which no
+        # equality of the guard determines.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "id", "m")])])
+        r = on_demand_record(k=[0, 1], o=on_demand_record(x=[0, 1]))
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=r)))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the part o of the field r, of the type R, whose values are an on_demand_record; "
+                                               r"let an equality of the guard determine it, @eq\(r\.o, t\)"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
     def test_an_on_demand_record_an_exists_would_range_over_is_refused(self):
         # Setup: the ∃ binds a variable of R, which would range over every
         # record of R.
