@@ -506,6 +506,16 @@ class PruningTest(unittest.TestCase):
         self.assertEqual({FrozenMap(k=4, a=3, b=0, **pad), FrozenMap(k=4, a=3, b=1, **pad), FrozenMap(k=7, a=1, b=0, **pad), FrozenMap(k=7, a=1, b=1, **pad)},
                          {params["r"] for _, _, _, _, params in transitions})
 
+    def test_a_received_on_demand_record_that_would_range_as_a_whole_is_refused(self):
+        # Setup: the guard binds r.z, a key R does not have, so r cannot be
+        # split into its parts and would range over every record of R.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(fld("r", "z"), lit(0))])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1]))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the field r, so it ranges over its type R: .*R is an on_demand_record"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
         tests = {
             "the record a hole of an atom": atom("${}['k'] in ${}", "r", "m"),

@@ -32,7 +32,7 @@ import inspect
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable, Iterable
 
-from csdfbmc.values import samples_in
+from csdfbmc.values import OnDemandRecord, samples_in
 
 if TYPE_CHECKING:
     from csdfbmc.environment import Given
@@ -118,6 +118,9 @@ class Checks:
         if type_ == ANY:
             raise KeyError("the type any constrains nothing and has no values to range over; let a clause give the value "
                            "(@eq(n', 0)), or declare a type that TYPES gives")
+        if isinstance(self.types.get(type_), OnDemandRecord):
+            raise KeyError(f"{type_} is an on_demand_record, whose records are made from their parts and never listed; "
+                           "let an equality of the guard or of the post determine the value, or each of its parts")
         if type_ in self.types:
             return list(self.types[type_])
         raise KeyError(f"no type {type_!r} in TYPES, which it ranges over; add it to TYPES")
