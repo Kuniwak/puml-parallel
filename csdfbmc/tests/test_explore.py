@@ -7,7 +7,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.formula import PostError
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx, lit
-from csdfbmc.values import Built, FrozenMap, Rec, kind_key, record, sample
+from csdfbmc.values import Built, FrozenMap, Rec, kind_key, on_demand_record, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -489,6 +489,21 @@ class PruningTest(unittest.TestCase):
 
         # Assert
         self.assertEqual({FrozenMap(k=4, a=3, b=0), FrozenMap(k=4, a=3, b=1), FrozenMap(k=7, a=1, b=0), FrozenMap(k=7, a=1, b=1)},
+                         {params["r"] for _, _, _, _, params in transitions})
+
+    def test_a_received_on_demand_record_is_made_from_its_parts(self):
+        # Setup: R is never listed; the ∃ draws k and a from m, and
+        # b ranges over its two values.
+        r = on_demand_record(k=list(range(20)), a=list(range(5)), b=[0, 1], **{f"pad{i}": [0] for i in range(3)})
+        x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=r)))
+        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        pad = {f"pad{i}": 0 for i in range(3)}
+        self.assertEqual({FrozenMap(k=4, a=3, b=0, **pad), FrozenMap(k=4, a=3, b=1, **pad), FrozenMap(k=7, a=1, b=0, **pad), FrozenMap(k=7, a=1, b=1, **pad)},
                          {params["r"] for _, _, _, _, params in transitions})
 
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):

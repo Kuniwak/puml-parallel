@@ -20,7 +20,7 @@ from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
-from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Built, FrozenMap, OnDemandRecord, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -509,7 +509,7 @@ class Explorer:
         if t == ANY:
             return list(determined), {}
         values = self.checks.types.get(t)
-        if isinstance(values, Built) and values.build is record:
+        if isinstance(values, OnDemandRecord) or isinstance(values, Built) and values.build is record:
             if not set(determined) <= set(values.parts):
                 return None
             return list(values.parts), {k: list(v) for k, v in values.parts.items() if k not in determined}
