@@ -540,15 +540,24 @@ class PruningTest(unittest.TestCase):
                                                r"which its type R, an on_demand_record of the parts k, a, has not"):
             x.transitions(("q", (FrozenMap(),), ()))
 
-    def test_an_on_demand_record_an_exists_would_range_over_is_refused(self):
-        # Setup: the ∃ binds a variable of R, which would range over every
-        # record of R.
-        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[exists("R", eq(bound(0), "r"))])])
-        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1]))))
+    def test_a_value_that_would_range_over_a_whole_on_demand_record_type_is_refused(self):
+        r = on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1])
+        tests = {
+            "a variable an ∃ binds": (
+                dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[exists("R", eq(bound(0), "r"))])]),
+                UnlistableType, "R is an on_demand_record"),
+            "a variable the post leaves free": (
+                diagram({"q": ["v"]}, "q", types={"v": "R"}),
+                PostError, r"nothing in the post determines v', so it ranges over its type R: R is an on_demand_record"),
+        }
+        for name, (d, error, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=r)))
 
-        # Execute, Assert
-        with self.assertRaisesRegex(UnlistableType, "R is an on_demand_record"):
-            x.transitions(("q", (FrozenMap(),), ()))
+                # Execute, Assert
+                with self.assertRaisesRegex(error, said):
+                    x.run()
 
     def test_a_literal_is_held_to_an_on_demand_record_type_by_its_parts(self):
         tests = {
