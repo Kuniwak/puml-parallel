@@ -1000,7 +1000,8 @@ binds (`@eq(x, n)`) to a term over the state and the fields, when no
 conjunct before the equality reads the field: it is computed, whatever its
 type holds. So are the parts of a record field equalities of the guard bind
 (`@eq(w["count"], n)`, a literal key), until a conjunct reads the field:
-the other parts range over their values in a type `record(…)`; a list of
+the other parts range over their values in a type `record(…)` or
+`on_demand_record(…)`; a list of
 records, or the type `any`, gives no parts to range over, so the field is
 computed only when equalities bind every key its records have, and
 otherwise ranges over its type. A field whose type names no keys of its
@@ -1054,7 +1055,15 @@ types, is refused with what to write instead, and so is a type of `TYPES`
 named `any`. `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
-keys. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
+keys. `csdfbmc.values.on_demand_record(field=domain, …)` gives the
+same records as `record(…)` without listing them: a record is made from
+its parts when a field of the type is received, a part an equality of the
+guard binds computed and the others ranging over their values, and whether
+a value is one of its records is told from its parts. Where a value of it
+would range over the whole type (a received field no equality splits into
+its parts, a variable the post leaves free, a variable an ∃ binds), the walk
+is refused, exit 2, naming the type; use it for a record type too large to
+list, whose fields the guards determine. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
 of a larger one (`TYPES = {"AttemptId": sample(["t1", "t2", "t3"],
 beyond=["t4"])}`): the walk ranges over the values listed, and the type has
 more, of which `beyond` lists at least one, written like any value of
@@ -1122,8 +1131,8 @@ A finite bound can end a run the diagram would go on with: once every ID of
 a finite type is used up, nothing is enabled, though a fresh ID would be.
 For a type given as a sample, a state with no enabled transition and no end
 edge whose guard holds is tried once more, with each sample extended by all
-its values `beyond` at once, and every type `record(…)` or `partial_map(…)`
-built of the sample built again of the wider one, so that a record whose
+its values `beyond` at once, and every type `record(…)`,
+`on_demand_record(…)` or `partial_map(…)` built of the sample built again of the wider one, so that a record whose
 field is of the sample also takes them. A type derived some other way, a
 comprehension over a sample say, is not widened. If an end edge or an edge
 is then enabled, the state is reported as `bound reached … (W is enabled by
