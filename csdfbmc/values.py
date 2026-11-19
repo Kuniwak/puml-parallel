@@ -399,6 +399,9 @@ def beyond_samples(types: dict[str, Iterable]) -> dict[str, Iterable]:
 
 def record(**fields: Iterable) -> Built:
     """Every record whose fields range over the given domains."""
+    for n, vs in fields.items():
+        _refuse_unlisted(vs, f"record({n}=…) is given an on_demand_record for {n}",
+                         "build the record with on_demand_record instead, or give the part a listed type such as record(…)")
     fields = {n: _kept(vs) for n, vs in fields.items()}
     names = list(fields)
     return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
@@ -455,6 +458,13 @@ def record_parts(values) -> dict | None:
     return None
 
 
+def _refuse_unlisted(values, what: str, instead: str) -> None:
+    """Refuses an on_demand_record where the values of a listed type are
+    built of it, saying what to write instead."""
+    if isinstance(values, OnDemandRecord):
+        raise UnlistableType(f"{what}, whose records are never listed, while it lists every value it builds; {instead}")
+
+
 def on_demand_record(**fields: Iterable) -> OnDemandRecord:
     """Every record whose fields range over the given domains, as record,
     declared by its parts and never listed."""
@@ -464,6 +474,9 @@ def on_demand_record(**fields: Iterable) -> OnDemandRecord:
 def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:
     """Every partial function from keys to values with at most max_size
     entries (all sizes when max_size is None), the empty one included."""
+    for vs, what in ((keys, "keys"), (values, "values")):
+        _refuse_unlisted(vs, f"partial_map is given an on_demand_record for its {what}",
+                         f"give its {what} a listed type such as record(…)")
     keys = _kept(keys)
     values = _kept(values)
     limit = len(keys) if max_size is None else min(max_size, len(keys))

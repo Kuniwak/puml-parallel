@@ -81,6 +81,19 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertEqual((1, 2), (rs.size(), wide.size()))
         self.assertIn(FrozenMap({"id": "t2", "n": 0}), wide)
 
+    def test_a_listed_type_built_of_an_on_demand_record_is_refused(self):
+        inner = on_demand_record(x=[0, 1])
+        tests = {
+            "a record of one": (lambda: record(r=inner), "record\\(r=…\\) is given an on_demand_record for r"),
+            "the keys of a partial map": (lambda: partial_map(inner, [0]), "partial_map is given an on_demand_record for its keys"),
+            "the values of a partial map": (lambda: partial_map(["k"], inner), "partial_map is given an on_demand_record for its values"),
+        }
+        for name, (build, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    build()
+
     def test_partial_map_enumerates_every_partial_function_up_to_the_size(self):
         ms = partial_map(["t1", "t2"], ["x", "y"], max_size=1)
         # the empty map, and one entry for each of two keys times two values
