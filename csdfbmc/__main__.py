@@ -35,7 +35,7 @@ import sys
 
 from csdfbmc import checkpoint, parallel, progress
 from csdfbmc.counter import SharedCounter
-from csdfbmc.cli import LOADING_ERRORS, add_inputs, explorer, opened, random_walks
+from csdfbmc.cli import LOADING_ERRORS, loading_message, add_inputs, explorer, opened, random_walks
 from csdfbmc.randomwalk import RandomWalkReport
 from csdfbmc.stopping import on_signals
 
@@ -231,7 +231,7 @@ def main_walk(a: argparse.Namespace, stop, reporting) -> int:
             if saving is not None:
                 saving.flush()
     except LOADING_ERRORS as e:
-        print(f"csdfbmc: {e}", file=sys.stderr)
+        print(f"csdfbmc: {loading_message(e)}", file=sys.stderr)
         return 2
 
     head = f"states: {len(result.states)}"
@@ -249,7 +249,7 @@ def main_random_walks(a: argparse.Namespace, stop, reporting) -> int:
                     reporting(sys.stderr, a.progress, functools.partial(progress.WalkProgress, steps=steps)) as said:
                 got = walker.run(a.walks, take, first=a.first, stop=stop, progress=said.update)
     except LOADING_ERRORS as e:
-        print(f"csdfbmc: {e}", file=sys.stderr)
+        print(f"csdfbmc: {loading_message(e)}", file=sys.stderr)
         return 2
     head = f"random walks: {got.walks}, steps: {got.steps}, deepest: {got.deepest}, seed: {got.seed}"
     return report(a, got.result, head, got)
