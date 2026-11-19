@@ -362,7 +362,7 @@ class Built(list):
 def _kept(values: Iterable):
     """values as a part of a Built: a Sample or a Built as itself, so that
     what it is built of stays known; any other iterable as a tuple."""
-    return values if isinstance(values, (Sample, Built, UnenumerableRecord)) else tuple(values)
+    return values if isinstance(values, (Sample, Built, OnDemandRecord)) else tuple(values)
 
 
 def samples_in(values: Iterable) -> list[Sample]:
@@ -402,7 +402,7 @@ def record(**fields: Iterable) -> Built:
     return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
 
 
-class UnenumerableRecord:
+class OnDemandRecord:
     """The records whose fields range over the given domains, never
     listed: its size and whether a value is one of them are computed from
     its parts (a field -> the values it was given)."""
@@ -420,13 +420,13 @@ class UnenumerableRecord:
 
 
 def _size(values) -> int:
-    return values.size() if isinstance(values, UnenumerableRecord) else len(values)
+    return values.size() if isinstance(values, OnDemandRecord) else len(values)
 
 
-def unenumerable_record(**fields: Iterable) -> UnenumerableRecord:
+def on_demand_record(**fields: Iterable) -> OnDemandRecord:
     """Every record whose fields range over the given domains, as record,
     declared by its parts and never listed."""
-    return UnenumerableRecord({n: _kept(vs) for n, vs in fields.items()})
+    return OnDemandRecord({n: _kept(vs) for n, vs in fields.items()})
 
 
 def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:

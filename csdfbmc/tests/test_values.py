@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, unenumerable_record, visible
+from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -50,9 +50,9 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertIn(FrozenMap({"状態": "B", "在庫": 2}), rs)
         self.assertTrue(all(isinstance(r, FrozenMap) for r in rs))
 
-    def test_an_unenumerable_record_tells_its_size_and_its_values_without_listing_them(self):
+    def test_an_on_demand_record_tells_its_size_and_its_values_without_listing_them(self):
         # Setup: 10^40 records, which no list could hold
-        rs = unenumerable_record(**{f"f{i}": range(10) for i in range(40)})
+        rs = on_demand_record(**{f"f{i}": range(10) for i in range(40)})
 
         # Assert
         self.assertEqual(10 ** 40, rs.size())
