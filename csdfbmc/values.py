@@ -416,14 +416,15 @@ class OnDemandRecord:
 
     def __contains__(self, value) -> bool:
         return (isinstance(value, Mapping) and set(value) == set(self.parts)
-                and all(_holds(vs, value[k]) for k, vs in self.parts.items()))
+                and all(is_value_of(vs, value[k]) for k, vs in self.parts.items()))
 
 
-def _holds(values, value) -> bool:
-    """Whether value is one of values, told apart by kind (same_value)."""
+def is_value_of(values, value) -> bool:
+    """Whether value is one of the values of a type, told apart by kind
+    (same_value); an on_demand_record tells it by its parts, unlisted."""
     if isinstance(values, OnDemandRecord):
         return value in values
-    return any(same_value(value, v) for v in values)
+    return any(same_value(value, freeze(v)) for v in values)
 
 
 def _size(values) -> int:

@@ -516,6 +516,24 @@ class PruningTest(unittest.TestCase):
         with self.assertRaisesRegex(PostError, r"nothing determines the field r, so it ranges over its type R: .*R is an on_demand_record"):
             x.transitions(("q", (FrozenMap(),), ()))
 
+    def test_a_literal_is_held_to_an_on_demand_record_type_by_its_parts(self):
+        tests = {
+            "a record of the type": ({"k": 2, "a": 0, "b": 1}, None),
+            "a part out of its values": ({"k": 5, "a": 0, "b": 1}, "no value of its type 'R'"),
+        }
+        for name, (value, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq("r", lit(value))])])
+                checks = Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1])))
+
+                # Execute, Assert
+                if said is None:
+                    fixture.explorer(d, checks)
+                else:
+                    with self.assertRaisesRegex(ValueError, said):
+                        fixture.explorer(d, checks)
+
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
         tests = {
             "the record a hole of an atom": atom("${}['k'] in ${}", "r", "m"),

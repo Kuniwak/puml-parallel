@@ -20,7 +20,7 @@ from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
-from csdfbmc.values import LEFT_OUT, Built, FrozenMap, OnDemandRecord, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, Built, FrozenMap, OnDemandRecord, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, is_value_of, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -437,7 +437,7 @@ class Explorer:
                     if t not in self.checks.types or t in samples:
                         continue
                     value = lit.value
-                    if not any(same_value(freeze(v), value) for v in self.checks.types[t]):
+                    if not is_value_of(self.checks.types[t], value):
                         raise ValueError(f"{where}: @{c.op} compares {name} with the literal {lit.text}, which no value of its type "
                                          f"{t!r} in TYPES is; write a value of the type, or add the value to it")
 
