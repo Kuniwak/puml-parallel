@@ -559,23 +559,28 @@ class PruningTest(unittest.TestCase):
                 with self.assertRaisesRegex(error, said):
                     x.run()
 
-    def test_a_literal_is_held_to_an_on_demand_record_type_by_its_parts(self):
-        tests = {
-            "a record of the type": ({"k": 2, "a": 0, "b": 1}, None),
-            "a part out of its values": ({"k": 5, "a": 0, "b": 1}, "no value of its type 'R'"),
-        }
-        for name, (value, said) in tests.items():
-            with self.subTest(name):
-                # Setup
-                d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq("r", lit(value))])])
-                checks = Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1])))
+    def literal_of_r(self, value) -> tuple[dict, Checks]:
+        """PART whose guard compares r, of an on_demand_record type, with the literal value."""
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq("r", lit(value))])])
+        return d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1])))
 
-                # Execute, Assert
-                if said is None:
-                    fixture.explorer(d, checks)
-                else:
-                    with self.assertRaisesRegex(ValueError, said):
-                        fixture.explorer(d, checks)
+    def test_a_literal_of_an_on_demand_record_type_is_accepted(self):
+        # Setup
+        d, checks = self.literal_of_r({"k": 2, "a": 0, "b": 1})
+
+        # Execute
+        x = fixture.explorer(d, checks)
+
+        # Assert
+        self.assertIsNotNone(x)
+
+    def test_a_literal_a_part_of_which_is_out_of_its_values_is_refused(self):
+        # Setup
+        d, checks = self.literal_of_r({"k": 5, "a": 0, "b": 1})
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "no value of its type 'R'"):
+            fixture.explorer(d, checks)
 
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
         tests = {

@@ -50,25 +50,35 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertIn(FrozenMap({"状態": "B", "在庫": 2}), rs)
         self.assertTrue(all(isinstance(r, FrozenMap) for r in rs))
 
-    def test_an_on_demand_record_tells_its_size_and_its_values_without_listing_them(self):
+    def test_an_on_demand_record_tells_its_size_without_listing_it(self):
         # Setup: 10^40 records, which no list could hold
         rs = on_demand_record(**{f"f{i}": range(10) for i in range(40)})
 
-        # Assert
-        self.assertEqual(10 ** 40, rs.size())
-        self.assertIn(FrozenMap({f"f{i}": i % 10 for i in range(40)}), rs)
-        self.assertNotIn(FrozenMap({f"f{i}": 10 for i in range(40)}), rs)
-        self.assertNotIn(FrozenMap({"f0": 0}), rs)
-        self.assertNotIn("not a record", rs)
-
-    def test_an_on_demand_record_tells_its_values_apart_by_kind(self):
-        # Setup
-        rs = on_demand_record(n=[1], r=on_demand_record(b=[False]))
+        # Execute
+        size = rs.size()
 
         # Assert
-        self.assertIn(FrozenMap({"n": 1, "r": FrozenMap({"b": False})}), rs)
-        self.assertNotIn(FrozenMap({"n": True, "r": FrozenMap({"b": False})}), rs)
-        self.assertNotIn(FrozenMap({"n": 1, "r": FrozenMap({"b": 0})}), rs)
+        self.assertEqual(10 ** 40, size)
+
+    def test_an_on_demand_record_tells_its_values_by_their_parts_and_their_kinds(self):
+        big = on_demand_record(**{f"f{i}": range(10) for i in range(40)})
+        nested = on_demand_record(n=[1], r=on_demand_record(b=[False]))
+        tests = {
+            "a record of every part's values": (big, FrozenMap({f"f{i}": i % 10 for i in range(40)}), True),
+            "a part out of its values": (big, FrozenMap({f"f{i}": 10 for i in range(40)}), False),
+            "a record of other parts": (big, FrozenMap({"f0": 0}), False),
+            "no record": (big, "not a record", False),
+            "a nested record of the parts' values": (nested, FrozenMap({"n": 1, "r": FrozenMap({"b": False})}), True),
+            "a part of another kind, True for 1": (nested, FrozenMap({"n": True, "r": FrozenMap({"b": False})}), False),
+            "a nested part of another kind, 0 for False": (nested, FrozenMap({"n": 1, "r": FrozenMap({"b": 0})}), False),
+        }
+        for name, (rs, value, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = value in rs
+
+                # Assert
+                self.assertEqual(want, got)
 
     def test_an_on_demand_record_of_a_sample_takes_the_values_beyond_it(self):
         # Setup
