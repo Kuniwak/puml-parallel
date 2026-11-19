@@ -1056,14 +1056,24 @@ named `any`. `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
 keys. `csdfbmc.values.on_demand_record(field=domain, …)` gives the
-same records as `record(…)` without listing them: a record is made from
-its parts when a field of the type is received, a part an equality of the
-guard binds computed and the others ranging over their values one by one,
-whether or not a conjunct reads them, and whether a value is one of its
-records is told from its parts. Where a value of it would range over the
-whole type (a variable the post leaves free, a variable an ∃ binds), the
-walk is refused, exit 2, naming the type; use it for a record type too large to
-list, whose fields the guards determine. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
+same records as `record(…)` without listing them, for a record type too
+large to list whose parts the guards determine. A received field of the
+type is made from its parts: a part an equality of the guard binds
+(`@eq(r["k"], t)`, a literal key) is computed, and the others range over
+their values one by one, whether or not a conjunct reads them. Whether a
+value is one of its records is told from its parts. The walk is refused,
+exit 2, naming the type, where a value of it would have to range over the
+whole type, and where it cannot be read by its parts:
+
+- a variable the post leaves free, or a variable an ∃ binds, of the type;
+- a part of a received record that is itself an `on_demand_record` and
+  that no equality binds;
+- an equality binding a part the type has not;
+- the type named in `SYMMETRIC`, which lists IDs;
+- the type given as a part of `record(…)` or `partial_map(…)`, which list
+  every value they build.
+
+`csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
 of a larger one (`TYPES = {"AttemptId": sample(["t1", "t2", "t3"],
 beyond=["t4"])}`): the walk ranges over the values listed, and the type has
 more, of which `beyond` lists at least one, written like any value of
