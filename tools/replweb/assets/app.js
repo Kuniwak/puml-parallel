@@ -346,8 +346,18 @@
   // clauseRows are the rows of the clauses keys names (guard, post) of an
   // edge: the prose version's when it writes them, else formal's, the
   // engine's.
+  // The engine's post is shown as its frame: what it empties and keeps
+  // apart, one row each, then the rest.
   function clauseRows(keys, formal, written) {
-    return keys.map((k) => [t(CLAUSE_LABELS[k]), clause((written || formal)[k], NONE_IDS[k])]);
+    return keys.flatMap((k) => {
+      const frame = k === "post" && !written ? formal.post_frame : null;
+      if (!frame) return [[t(CLAUSE_LABELS[k]), clause((written || formal)[k], NONE_IDS[k])]];
+      const rows = [];
+      if (frame.emptied) rows.push([t("clause.emptied"), frame.emptied.join(t("list.separator"))]);
+      if (frame.unchanged) rows.push([t("clause.unchanged"), frame.unchanged.join(t("list.separator"))]);
+      if (rows.length === 0 || frame.rest !== "(none)") rows.unshift([t(CLAUSE_LABELS[k]), clause(frame.rest, NONE_IDS[k])]);
+      return rows;
+    });
   }
 
   // formalClauses shows, folded, the engine's clauses in place of which the
