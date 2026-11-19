@@ -61,6 +61,15 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertNotIn(FrozenMap({"f0": 0}), rs)
         self.assertNotIn("not a record", rs)
 
+    def test_an_on_demand_record_tells_its_values_apart_by_kind(self):
+        # Setup
+        rs = on_demand_record(n=[1], r=on_demand_record(b=[False]))
+
+        # Assert
+        self.assertIn(FrozenMap({"n": 1, "r": FrozenMap({"b": False})}), rs)
+        self.assertNotIn(FrozenMap({"n": True, "r": FrozenMap({"b": False})}), rs)
+        self.assertNotIn(FrozenMap({"n": 1, "r": FrozenMap({"b": 0})}), rs)
+
     def test_partial_map_enumerates_every_partial_function_up_to_the_size(self):
         ms = partial_map(["t1", "t2"], ["x", "y"], max_size=1)
         # the empty map, and one entry for each of two keys times two values
