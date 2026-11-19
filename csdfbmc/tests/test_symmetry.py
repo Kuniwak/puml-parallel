@@ -9,7 +9,7 @@ from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, edge, exists, fld, idx, lit
 from csdfbmc.tests.test_explore import MEMBERS
 from csdfbmc.tests.test_por import CLOSE, OPEN, ONE_WAY, with_guard
-from csdfbmc.values import record, sample
+from csdfbmc.values import on_demand_record, record, sample
 
 SOURCE = 'TYPES = {"k": ["a", "b", "c"]}\nSYMMETRIC = ["k"]\n'
 
@@ -55,6 +55,8 @@ class RefusalTest(unittest.TestCase):
             "a type TYPES does not declare": (ONE_WAY, dataclasses.replace(checks(), symmetric=("j",)), {}, "'j', which TYPES"),
             "values that are not strings": (ONE_WAY, checks(types={"k": [1, 2]}), {}, "not all strings"),
             "a type holding some IDs only": (ONE_WAY, checks(types={"k": ["a", "b", "c"], "j": ["a"]}), {}, "'j' are not closed"),
+            "an on-demand record a part of which holds some IDs only": (
+                ONE_WAY, checks(types={"k": ["a", "b", "c"], "j": on_demand_record(id=["a"])}), {}, "'j' are not closed"),
             "an atom comparing an ID with a constant": (ids_only(ONE_WAY, atom("$k != 'a'")), checks(), {}, "tells the symmetric IDs apart.*'a'"),
             "an atom ordering IDs": (ids_only(ONE_WAY, exists("k", atom("${} < $k", fixture.bound(0)))), checks(), {}, "ordered"),
             "a function of the environment nothing gives": (
@@ -121,6 +123,7 @@ class RefusalTest(unittest.TestCase):
             "a function of the environment given as Python that renames with the IDs": (
                 ids_only(ONE_WAY, atom("$k が 予約済み")), checks(), {"environment": environment.over({"$_0 が 予約済み": lambda k: k in ("a", "b", "c")}, {})}),
             "a type of records of IDs": (ONE_WAY, checks(types={"k": ["a", "b", "c"], "r": record(id=["a", "b", "c"])}), {}),
+            "a type of on-demand records of IDs": (ONE_WAY, checks(types={"k": ["a", "b", "c"], "r": on_demand_record(id=["a", "b", "c"])}), {}),
         }
         for name, (d, c, options) in tests.items():
             with self.subTest(name):
