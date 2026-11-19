@@ -167,6 +167,24 @@ func TestLintRefusesAnAnswerItCannotTrust(t *testing.T) {
 	}
 }
 
+func TestLintSaysTheGlueEndedWithoutAnsweringWhenItStopsReadingFirst(t *testing.T) {
+	// Setup: the glue closes its input before it answers the hello, so the
+	// lint request after the hello cannot be written.
+	c, err := glue.Start(exec.Command("sh", "-c", `read line; exec <&-; echo '{"language": "fake", "protocol": 2, "supports": ["lint"]}'`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Execute
+	_, err = c.Lint(clause.AtomWire{Text: []string{"x"}, Holes: []int{}, Primed: []bool{}}, "guard")
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "the glue ended without answering") {
+		t.Errorf("want the glue said to have ended without answering, got %v", err)
+	}
+}
+
 func TestCloseReadsWhatTheGlueStillWritesAndSaysHowItEnded(t *testing.T) {
 	type testCase struct {
 		Script  string
