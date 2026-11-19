@@ -366,11 +366,11 @@ def _kept(values: Iterable):
 
 
 def samples_in(values: Iterable) -> list[Sample]:
-    """The samples the values of a type are, or are built of by record and
-    partial_map, each once. Values listed by hand are built of nothing."""
+    """The samples the values of a type are, or are built of by record,
+    on_demand_record and partial_map, each once. Values listed by hand are built of nothing."""
     if isinstance(values, Sample):
         return [values]
-    if isinstance(values, Built):
+    if isinstance(values, (Built, OnDemandRecord)):
         found: dict[int, Sample] = {}
         for part in values.parts.values():
             found.update((id(x), x) for x in samples_in(part))
@@ -385,6 +385,8 @@ def _widened(values: Iterable) -> Iterable:
         return tuple(values) + values.beyond
     if isinstance(values, Built) and samples_in(values):
         return values.build(**{k: _widened(v) for k, v in values.parts.items()})
+    if isinstance(values, OnDemandRecord) and samples_in(values):
+        return OnDemandRecord({k: _widened(v) for k, v in values.parts.items()})
     return values
 
 

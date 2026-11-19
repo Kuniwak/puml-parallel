@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -70,6 +70,17 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertNotIn(FrozenMap({"n": True, "r": FrozenMap({"b": False})}), rs)
         self.assertNotIn(FrozenMap({"n": 1, "r": FrozenMap({"b": 0})}), rs)
 
+    def test_an_on_demand_record_of_a_sample_takes_the_values_beyond_it(self):
+        # Setup
+        rs = on_demand_record(id=sample(["t1"], beyond=["t2"]), n=[0])
+
+        # Execute
+        wide = beyond_samples({"R": rs})["R"]
+
+        # Assert
+        self.assertEqual((1, 2), (rs.size(), wide.size()))
+        self.assertIn(FrozenMap({"id": "t2", "n": 0}), wide)
+
     def test_partial_map_enumerates_every_partial_function_up_to_the_size(self):
         ms = partial_map(["t1", "t2"], ["x", "y"], max_size=1)
         # the empty map, and one entry for each of two keys times two values
@@ -87,6 +98,8 @@ class DomainBuilderTest(unittest.TestCase):
             "a sample": (ids, [ids]),
             "a record of a field of a sample": (record(id=ids, 額=[1]), [ids]),
             "a record of a record of a sample": (record(r=record(id=ids)), [ids]),
+            "an on-demand record of a field of a sample": (on_demand_record(id=ids, 額=[1]), [ids]),
+            "an on-demand record of a record of a sample": (on_demand_record(r=record(id=ids)), [ids]),
             "a map keyed by a sample, its values of another": (partial_map(ids, other), [ids, other]),
             "the same values listed by hand": ([FrozenMap({"id": "t1"})], []),
             "a record of values of no sample": (record(id=["t1"]), []),
