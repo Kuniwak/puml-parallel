@@ -414,7 +414,7 @@ class OnDemandRecord:
 
     def size(self) -> int:
         """How many records it has; len cannot tell more than sys.maxsize."""
-        return math.prod(_size(vs) for vs in self.parts.values())
+        return math.prod(size_of(vs) for vs in self.parts.values())
 
     def __contains__(self, value) -> bool:
         return (isinstance(value, Mapping) and set(value) == set(self.parts)
@@ -429,8 +429,25 @@ def is_value_of(values, value) -> bool:
     return any(same_value(value, freeze(v)) for v in values)
 
 
-def _size(values) -> int:
+def size_of(values) -> int:
+    """How many values a type has, an on_demand_record's too, which len
+    cannot tell beyond sys.maxsize."""
     return values.size() if isinstance(values, OnDemandRecord) else len(values)
+
+
+def listable(values) -> bool:
+    """Whether the values of a type may be listed: an on_demand_record's
+    are made from its parts instead, one by one."""
+    return not isinstance(values, OnDemandRecord)
+
+
+def record_parts(values) -> dict | None:
+    """The parts of a type of records built by record or on_demand_record,
+    a field -> the values it ranges over, whose product the type is; None
+    for any other type."""
+    if isinstance(values, OnDemandRecord) or isinstance(values, Built) and values.build is record:
+        return values.parts
+    return None
 
 
 def on_demand_record(**fields: Iterable) -> OnDemandRecord:

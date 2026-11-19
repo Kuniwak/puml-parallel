@@ -50,7 +50,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
 from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, Lit, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import FrozenMap, OnDemandRecord, FrozenSet, Rec, Strict, freeze, same_value
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, freeze, listable, record_parts, same_value
 
 
 class Symmetry:
@@ -61,7 +61,7 @@ class Symmetry:
         for t in checks.symmetric:
             if t not in checks.types:
                 raise ValueError(f"SYMMETRIC names {t!r}, which TYPES does not declare")
-            if isinstance(checks.types[t], OnDemandRecord):
+            if not listable(checks.types[t]):
                 raise ValueError(f"SYMMETRIC names {t!r}, an on_demand_record; a symmetric type lists its IDs, strings "
                                  "(TYPES = {\"ID\": [\"a\", \"b\"]}): name the type of the record's ID part in SYMMETRIC instead")
             values = frozenset(checks.types[t])
@@ -102,8 +102,8 @@ class Symmetry:
     def _may_hold(self, values) -> bool:
         """Whether a value of a type may hold an ID: an on_demand_record's,
         told by its parts, which are never listed as records."""
-        if isinstance(values, OnDemandRecord):
-            return any(self._may_hold(part) for part in values.parts.values())
+        if not listable(values):
+            return any(self._may_hold(part) for part in record_parts(values).values())
         return any(self._holds(v) for v in values)
 
     def _holding(self, d: Diagram, checks: Checks) -> tuple[set[str], set[str], set[str]]:
@@ -118,10 +118,10 @@ class Symmetry:
         fields: set[str] = set()
         for name, types in d.name_types().items():
             for values in (checks.types[t] for t in types if t in checks.types):
-                if isinstance(values, OnDemandRecord):
+                if not listable(values):
                     if self._may_hold(values):
                         ids.add(name)
-                    fields |= {f for f, part in values.parts.items() if isinstance(f, str) and self._may_hold(part)}
+                    fields |= {f for f, part in record_parts(values).items() if isinstance(f, str) and self._may_hold(part)}
                     continue
                 for v in values:
                     if self._holds(v):
@@ -196,8 +196,8 @@ class Symmetry:
         """Whether renaming the symmetric IDs keeps the values of a type
         among them: an on_demand_record's when its parts' do, its records
         being every product of them."""
-        if isinstance(values, OnDemandRecord):
-            return all(self._closed(part) for part in values.parts.values())
+        if not listable(values):
+            return all(self._closed(part) for part in record_parts(values).values())
         held = FrozenSet(values)
         return all(FrozenSet(rename(v, perm) for v in held) == held for perm in self.perms)
 

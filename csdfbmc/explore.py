@@ -20,7 +20,7 @@ from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
-from csdfbmc.values import LEFT_OUT, Built, FrozenMap, OnDemandRecord, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, is_value_of, same_value, visible
+from csdfbmc.values import LEFT_OUT, FrozenMap, Interner, Strict, kind_key, samples_in, beyond_samples, encode, freeze, is_value_of, listable, record_parts, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -503,7 +503,8 @@ class Explorer:
         """Whether the type of the field p of e is an on_demand_record,
         whose records are made from their parts, so p always ranges by its
         parts, never over the type as a whole."""
-        return isinstance(self.checks.types.get(self.d.field_type(e, p)), OnDemandRecord)
+        t = self.d.field_type(e, p)
+        return t in self.checks.types and not listable(self.checks.types[t])
 
     def _record_parts(self, e: Edge, p: str, determined: dict) -> tuple[list, dict] | None:
         """The keys of the records the field p ranges over, in order, and
@@ -515,15 +516,16 @@ class Explorer:
         if t == ANY:
             return list(determined), {}
         values = self.checks.types.get(t)
-        if isinstance(values, OnDemandRecord) or isinstance(values, Built) and values.build is record:
-            if not set(determined) <= set(values.parts):
+        parts = record_parts(values)
+        if parts is not None:
+            if not set(determined) <= set(parts):
                 return None
-            for k, v in values.parts.items():
-                if k not in determined and isinstance(v, OnDemandRecord):
+            for k, v in parts.items():
+                if k not in determined and not listable(v):
                     raise PostError(f"{e.describe()}: nothing determines the part {k} of the field {p}, of the type {t}, whose values are "
                                     f"an on_demand_record; let an equality of the guard determine it, @eq({p}.{k}, t), or give the "
                                     f"part a type that lists its values, such as record(…)")
-            return list(values.parts), {k: list(v) for k, v in values.parts.items() if k not in determined}
+            return list(parts), {k: list(v) for k, v in parts.items() if k not in determined}
         if values and all(isinstance(v, FrozenMap) and set(v) == set(determined) for v in values):
             return list(values[0]), {}
         return None
