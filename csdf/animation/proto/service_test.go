@@ -185,7 +185,7 @@ func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
 
 	// Assert
 	want := []Transition{{Index: 0, Event: "insert?coin", Dst: "s1", DstName: "Done",
-		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", Line: 7}}
+		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", PostFrame: animation.Frame{Rest: "$result' is done"}, Line: 7}}
 	if diff := cmp.Diff(want, decodeView(t, resp).Transitions); diff != "" {
 		t.Errorf("transitions mismatch (-want +got):\n%s", diff)
 	}
@@ -666,6 +666,25 @@ func TestThePromptOfAPromotionSaysTheValuesThePostDetermines(t *testing.T) {
 	}
 	if diff := cmp.Diff(want, view.Pending.Determined); diff != "" {
 		t.Errorf("Pending.Determined mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptOfAPromotionSplitsItsPostIntoItsFrame(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff([]string{"items"}, view.Pending.PostFrame.Emptied); diff != "" {
+		t.Errorf("Pending.PostFrame.Emptied mismatch (-want +got):\n%s", diff)
 	}
 }
 
