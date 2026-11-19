@@ -20,7 +20,7 @@ from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
-from csdfbmc.values import LEFT_OUT, FrozenMap, Interner, Strict, kind_key, samples_in, beyond_samples, encode, freeze, is_value_of, listable, record_parts, same_value, visible
+from csdfbmc.values import LEFT_OUT, FrozenMap, UnlistableType, Interner, Strict, kind_key, samples_in, beyond_samples, encode, freeze, is_value_of, listable, record_parts, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -739,7 +739,7 @@ class Explorer:
         t = self.d.field_type(e, p)
         try:
             return self.checks.carrier(t)
-        except KeyError as err:
+        except (KeyError, UnlistableType) as err:
             raise PostError(f"{e.describe()}: nothing determines the field {p}, so it ranges over its type {t}: {err.args[0]}") from None
 
     def _label(self, e: Edge, before: dict) -> str:

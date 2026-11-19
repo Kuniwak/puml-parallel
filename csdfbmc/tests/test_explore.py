@@ -7,7 +7,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.formula import PostError
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx, lit
-from csdfbmc.values import Built, FrozenMap, Rec, kind_key, on_demand_record, record, sample
+from csdfbmc.values import UnlistableType, Built, FrozenMap, Rec, kind_key, on_demand_record, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -537,7 +537,7 @@ class PruningTest(unittest.TestCase):
         x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1]))))
 
         # Execute, Assert
-        with self.assertRaisesRegex(KeyError, "R is an on_demand_record"):
+        with self.assertRaisesRegex(UnlistableType, "R is an on_demand_record"):
             x.transitions(("q", (FrozenMap(),), ()))
 
     def test_a_literal_is_held_to_an_on_demand_record_type_by_its_parts(self):

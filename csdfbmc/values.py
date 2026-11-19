@@ -435,6 +435,11 @@ def size_of(values) -> int:
     return values.size() if isinstance(values, OnDemandRecord) else len(values)
 
 
+class UnlistableType(ValueError):
+    """A value of a type whose values are never listed, an
+    on_demand_record, would range over the whole type."""
+
+
 def listable(values) -> bool:
     """Whether the values of a type may be listed: an on_demand_record's
     are made from its parts instead, one by one."""
