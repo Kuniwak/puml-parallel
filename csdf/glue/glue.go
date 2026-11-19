@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 )
@@ -131,19 +132,26 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// errEndedWithoutAnswering is a glue that ended before it answered, whether
+// it is found while the request is written or while the answer is read.
+var errEndedWithoutAnswering = errors.New("the glue ended without answering")
+
 func (c *Client) request(request any, answer any) error {
 	b, err := json.Marshal(request)
 	if err != nil {
 		return err
 	}
 	if _, err := c.in.Write(append(b, '\n')); err != nil {
+		if errors.Is(err, syscall.EPIPE) {
+			return errEndedWithoutAnswering
+		}
 		return fmt.Errorf("cannot write to the glue: %w", err)
 	}
 	if !c.out.Scan() {
 		if err := c.out.Err(); err != nil {
 			return fmt.Errorf("cannot read the glue's answer: %w", err)
 		}
-		return errors.New("the glue ended without answering")
+		return errEndedWithoutAnswering
 	}
 	if err := json.Unmarshal(c.out.Bytes(), answer); err != nil {
 		return fmt.Errorf("the glue answered %q, not a JSON answer: %w", c.out.Text(), err)
