@@ -142,7 +142,7 @@ class ShapesTest(unittest.TestCase):
         # Verify
         self.assertEqual(got, {"types": {"Nat": {"kind": "scalar", "examples": [0]}, "Inst": {"kind": "scalar"},
                                          "K": {"kind": "scalar"}},
-                               "vars": {"m": "K ⇸ Inst", "n": "Nat", "r": "Role"}})
+                               "vars": {"m": "K ⇸ Inst", "n": "Nat", "r": "Role"}, "declared": []})
 
     def test_a_type_types_gives_as_a_record_has_its_fields_values_in_place_of_what_the_clauses_reveal(self):
         # Setup
@@ -208,6 +208,16 @@ class CommandTest(unittest.TestCase):
 
         # Verify
         self.assertEqual((code, json.loads(out)["types"]["Role"]), (0, {"kind": "scalar", "values": ["low", "high"]}))
+
+    def test_names_the_types_whose_shapes_come_from_types_and_not_the_others(self):
+        # Setup
+        d = diagram({"s": ["r", "n"]}, "s", init_post=[atom("$n' > 0")], types={"r": "Role", "n": "Nat"})
+
+        # Execute
+        got = shapes(d, {"Role": ["low", "high"]})
+
+        # Verify
+        self.assertEqual(got["declared"], ["Role"])
 
     def test_the_command_exits_2_on_a_checks_module_outside_the_pure_subset(self):
         # Setup

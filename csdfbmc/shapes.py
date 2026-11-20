@@ -48,7 +48,8 @@ def shapes(doc: dict, given: dict | None = None) -> dict:
     when it is ordered or computed with. A type no clause reads anything of
     is absent; a map type K ⇸ V is no shape, its values being of V. A type
     given, a type -> its values as TYPES gives them, has its node from
-    them (declared) in place of the one the clauses reveal."""
+    them (declared) in place of the one the clauses reveal, and is listed
+    in "declared"."""
     var_types = {v["name"]: v["type"] for vs in doc["vars"].values() for v in vs}
     families = {f["map"]: {v["name"]: v["type"] for vs in f["vars"].values() for v in vs} for f in doc.get("families", [])}
     trees: dict = {}
@@ -101,7 +102,8 @@ def shapes(doc: dict, given: dict | None = None) -> dict:
     instance_vars = {v: t for vs in families.values() for v, t in vs.items()}
     inferred = {t: _node(n) for t, n in trees.items() if "⇸" not in t}
     return {"types": {**inferred, **{t: declared(vs) for t, vs in (given or {}).items()}},
-            "vars": {**var_types, **instance_vars}}
+            "vars": {**var_types, **instance_vars},
+            "declared": sorted(given or {})}
 
 
 def _atoms(clauses):

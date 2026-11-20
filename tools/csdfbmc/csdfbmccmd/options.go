@@ -90,13 +90,14 @@ csdfrepld call it when given -checks.
 
 "csdfbmc shapes <diagram.json> [<checks.py>]" prints what the diagram's clauses, written
 in Python, reveal of the values of its types, read from their syntax alone:
-{"types": {TYPE: NODE}, "vars": {VARIABLE: TYPE}}, a NODE being
+{"types": {TYPE: NODE}, "vars": {VARIABLE: TYPE}, "declared": [TYPE]}, a NODE being
 {"kind": "record", "fields": {ATTRIBUTE: NODE}}, {"kind": "collection",
 "items": NODE} or {"kind": "scalar"} with the "examples" it is compared with
 and "numeric": true when it is ordered or computed with. An attribute no
 clause reads is absent. Given the checks module, each type its TYPES gives
 takes its shape from TYPES instead: a record as its fields, finitely many
-values as a scalar with all of them as "values". csdfreplweb -shapes shows it
+values as a scalar with all of them as "values", and is listed in
+"declared". csdfreplweb -shapes shows it
 to testers.
 
 SIGINT or SIGTERM stops the walk where it is: it reports what it found until
