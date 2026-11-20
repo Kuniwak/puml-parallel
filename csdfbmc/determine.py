@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from csdfbmc.model import Bound, Builtin, Exists, Field, Free, Index, Lit, free_names, terms
+from csdfbmc.model import Bound, Builtin, Exists, Field, Free, Index, Lit, free_names, literal_parts, names_of
 
 
 @dataclass(frozen=True)
@@ -72,11 +72,8 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
 
 
 def _literal_reads(t, primed: bool | None) -> set:
-    """free_names of t, each part with a literal key, f.k or f["k"], as
-    (f, k)."""
-    literal = {(x.of.name, x.name) for x in terms(t) if isinstance(x, Field) and isinstance(x.of, Free)}
-    literal |= {(x.map.name, x.key.value) for x in terms(t) if isinstance(x, Index) and isinstance(x.map, Free) and isinstance(x.key, Lit)}
-    return free_names(t, primed=primed, parts=literal)
+    """free_names of t, each part with a literal key as (f, k)."""
+    return free_names(t, primed=primed, parts=literal_parts(t))
 
 
 def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
@@ -93,7 +90,7 @@ def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
         else:
             continue
         reads = _literal_reads(y, primed=False)
-        names = {n[0] if isinstance(n, tuple) else n for n in reads}
+        names = names_of(reads)
         if free_names(y, primed=True) or f in reads or (f, key) in reads or not names <= known | order.keys() or not bindable(f, key):
             continue
         found.append((not all(order[g] < order[f] for g in names & order.keys()), Bind(f, key, y)))
