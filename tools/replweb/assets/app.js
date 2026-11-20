@@ -587,19 +587,38 @@
     return i === app.current && app.tab === "details" && v && v.mode === "values" && !!v.pending.previous;
   }
 
+  // chainOf is the path to the engine's history entry i, as the indices of
+  // the entries along it: a jump is a clone of the entry it jumps to, so it
+  // stands in that entry's place.
+  function chainOf(i) {
+    const entry = app.entries[i];
+    if (!entry || entry.kind === "initial") return [i];
+    if (entry.kind === "jump") return chainOf(entry.from).slice(0, -1).concat([i]);
+    return chainOf(entry.parent).concat([i]);
+  }
+
+  // originOf is the entry, not a jump, that the entry i is a clone of.
+  function originOf(i) {
+    const entry = app.entries[i];
+    return entry && entry.kind === "jump" ? originOf(entry.from) : i;
+  }
+
+  // renderHistory lists the path to the current entry, one step each.
   function renderHistory() {
     const list = document.getElementById("history");
     list.replaceChildren();
     if (app.history.length === 0) list.appendChild(el("li", { class: "hint", text: t("history.empty") }));
-    app.history.forEach((h, i) => {
-      const entry = app.entries[i] || { kind: "initial", parent: null };
-      let label;
-      if (entry.kind === "step") label = t("history.step", { event: entry.event, state: h.state.state_name });
-      else if (entry.kind === "jump") label = t("history.jump", { step: entry.from + 1, state: h.state.state_name });
-      else label = t("history.initial", { state: h.state.state_name });
-      const parent = entry.kind === "step" ? app.history[entry.parent] : null;
+    const chain = app.current >= 0 ? chainOf(app.current) : [];
+    chain.forEach((i, k) => {
+      const h = app.history[i];
+      if (!h) return;
+      const entry = app.entries[originOf(i)] || { kind: "initial", parent: null };
+      const label = entry.kind === "step"
+        ? t("history.step", { event: entry.event, state: h.state.state_name })
+        : t("history.initial", { state: h.state.state_name });
+      const parent = k > 0 ? app.history[chain[k - 1]] : null;
       const head = el("div", null, [
-        el("span", { class: "step-number", text: t("history.stepNumber", { step: i + 1 }) }),
+        el("span", { class: "step-number", text: t("history.stepNumber", { step: k + 1 }) }),
         el("span", { text: label }),
         entry.auto ? el("span", { class: "auto", text: t("history.auto") }) : null,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
