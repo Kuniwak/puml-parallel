@@ -1,8 +1,8 @@
 @startuml
 ' examples/bmc/vending_stock_en.puml with every clause written in Python.
 ' vending_stock_formal_defs.py names the constants, the helpers and the
-' types; give vending_stock_en.puml and vending_stock_ja.puml to
-' csdfreplweb -prose to show their clauses in place of these.
+' types; give vending_stock_en.puml to csdfreplweb -prose to show its
+' clauses in place of these.
 
 state "idle" as idle
 idle : stock ; Stock

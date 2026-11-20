@@ -1,43 +1,43 @@
 @startuml
 ' 商品とお釣りが切れる自動販売機。係員が商品を満杯まで補充し、売上を回収し、
 ' お釣りを補充する。お釣りを出せない間は販売を止める。
-' vending_stock_en.puml は同じ自動販売機の英語版、
-' vending_stock_formal.puml は節を Python で書いた版。
+' vending_stock_en.puml は同じ自動販売機を英語の名前で書いた版、
+' vending_stock_ja_formal.puml はこの図の節を Python で書いた版。
 
 state "idle" as idle
-idle : stock ; Stock
-idle : cash ; Cash
+idle : 在庫 ; Stock
+idle : 金庫 ; Cash
 state "paying" as paying
-paying : stock ; Stock
-paying : cash ; Cash
-paying : credit ; Amount
+paying : 在庫 ; Stock
+paying : 金庫 ; Cash
+paying : 投入額 ; Amount
 state "dropping" as dropping
-dropping : stock ; Stock
-dropping : cash ; Cash
-dropping : dispensing ; Product
-dropping : change ; Amount
+dropping : 在庫 ; Stock
+dropping : 金庫 ; Cash
+dropping : 取出口 ; Product
+dropping : お釣り ; Amount
 state "returningChange" as returningChange
-returningChange : stock ; Stock
-returningChange : cash ; Cash
-returningChange : change ; Amount
+returningChange : 在庫 ; Stock
+returningChange : 金庫 ; Cash
+returningChange : お釣り ; Amount
 state "outOfChange" as outOfChange
-outOfChange : stock ; Stock
-outOfChange : cash ; Cash
+outOfChange : 在庫 ; Stock
+outOfChange : 金庫 ; Cash
 
-[*] --> idle : $stock' は満杯 ∧ $cash' はお釣りの初期分だけで売上なし
+[*] --> idle : $在庫' は満杯 ∧ $金庫' はお釣りの初期分だけで売上なし
 
-idle --> idle : restock ; $stock が満杯でない ; $stock' は満杯 ∧ $cash' は $cash のまま
-idle --> idle : collect ; ; $cash' は $cash から 100 円玉をすべて除いたもの ∧ $stock' は $stock のまま
-idle --> outOfChange : changeOut ; $cash に 50 円玉がない ; $stock' は $stock のまま ∧ $cash' は $cash のまま
-outOfChange --> idle : refillChange?count ; $cash に 50 円玉を $count 枚入れる余裕がある ; $cash' は $cash に 50 円玉を $count 枚足したもの ∧ $stock' は $stock のまま
+idle --> idle : restock ; $在庫 が満杯でない ; $在庫' は満杯 ∧ $金庫' は $金庫 のまま
+idle --> idle : collect ; ; $金庫' は $金庫 から 100 円玉をすべて除いたもの ∧ $在庫' は $在庫 のまま
+idle --> outOfChange : changeOut ; $金庫 に 50 円玉がない ; $在庫' は $在庫 のまま ∧ $金庫' は $金庫 のまま
+outOfChange --> idle : refillChange?count ; $金庫 に 50 円玉を $count 枚入れる余裕がある ; $金庫' は $金庫 に 50 円玉を $count 枚足したもの ∧ $在庫' は $在庫 のまま
 
-idle --> paying : insert?coin ; $cash に 50 円玉がある ∧ $cash に $coin をもう 1 枚入れる余裕がある ; $credit' は $coin ∧ $cash' は $cash に $coin を足したもの ∧ $stock' は $stock のまま
-paying --> paying : insert?coin ; $credit と $coin の和が上限以下 ∧ $cash に $coin をもう 1 枚入れる余裕がある ; $credit' は $credit と $coin の和 ∧ $cash' は $cash に $coin を足したもの ∧ $stock' は $stock のまま
-paying --> idle : cancel!credit ; $cash から $credit を払い戻せる ; $cash' は $cash から $credit を払い戻した残り ∧ $stock' は $stock のまま
-paying --> dropping : choose?product ; $stock に $product がある ∧ $credit が $product の値段以上 ∧ $cash からお釣りを払える ; $dispensing' は $product ∧ $change' は $credit から値段を引いたもの ∧ $stock' は $stock から $product を 1 本減らしたもの ∧ $cash' は $cash のまま
+idle --> paying : insert?coin ; $金庫 に 50 円玉がある ∧ $金庫 に $coin をもう 1 枚入れる余裕がある ; $投入額' は $coin ∧ $金庫' は $金庫 に $coin を足したもの ∧ $在庫' は $在庫 のまま
+paying --> paying : insert?coin ; $投入額 と $coin の和が上限以下 ∧ $金庫 に $coin をもう 1 枚入れる余裕がある ; $投入額' は $投入額 と $coin の和 ∧ $金庫' は $金庫 に $coin を足したもの ∧ $在庫' は $在庫 のまま
+paying --> idle : cancel!投入額 ; $金庫 から $投入額 を払い戻せる ; $金庫' は $金庫 から $投入額 を払い戻した残り ∧ $在庫' は $在庫 のまま
+paying --> dropping : choose?product ; $在庫 に $product がある ∧ $投入額 が $product の値段以上 ∧ $金庫 からお釣りを払える ; $取出口' は $product ∧ $お釣り' は $投入額 から値段を引いたもの ∧ $在庫' は $在庫 から $product を 1 本減らしたもの ∧ $金庫' は $金庫 のまま
 
-dropping --> returningChange : drop!dispensing ; ; $change' は $change のまま ∧ $stock' は $stock のまま ∧ $cash' は $cash のまま
-returningChange --> idle : returnChange!change ; ; $cash' は $cash から $change を払った残り ∧ $stock' は $stock のまま
+dropping --> returningChange : drop!取出口 ; ; $お釣り' は $お釣り のまま ∧ $在庫' は $在庫 のまま ∧ $金庫' は $金庫 のまま
+returningChange --> idle : returnChange!お釣り ; ; $金庫' は $金庫 から $お釣り を払った残り ∧ $在庫' は $在庫 のまま
 
 note as channels
   channel refillChange : Count
