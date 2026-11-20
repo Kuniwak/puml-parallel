@@ -292,6 +292,18 @@
     if (entry && entry.parent !== null && entry.parent !== undefined) await jump(entry.parent);
   }
 
+  // goToStart goes back to the first entry of the path to the current one,
+  // as clicking it in the history pane does.
+  async function goToStart() {
+    if (canGoToStart()) await jump(chainOf(app.current)[0]);
+  }
+
+  function canGoToStart() {
+    const v = app.view;
+    if (!v || app.current < 0) return false;
+    return v.mode === "values" || v.mode === "ended" || chainOf(app.current).length > 1;
+  }
+
   function canGoBack() {
     const v = app.view;
     if (!v) return false;
@@ -554,6 +566,7 @@
     for (const node of document.querySelectorAll("[data-msg]")) node.textContent = t(node.dataset.msg);
     renderLegend();
     document.getElementById("back").disabled = !canGoBack();
+    document.getElementById("to-start").disabled = !canGoToStart();
     document.getElementById("save").disabled = app.current < 0;
     document.getElementById("save").title = t("history.saveHint", { file: savedName(), diagram: (config.path || "").split(/[\\/]/).pop() });
     renderHistory();
@@ -1571,6 +1584,7 @@
     render();
     document.getElementById("controls").replaceChildren(el("p", { class: "hint", text: t("app.loading") }));
     document.getElementById("back").addEventListener("click", goBack);
+    document.getElementById("to-start").addEventListener("click", goToStart);
     document.getElementById("save").addEventListener("click", save);
     document.getElementById("show-current").addEventListener("click", showCurrent);
     setupDiagram();
