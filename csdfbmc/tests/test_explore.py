@@ -560,6 +560,15 @@ class PruningTest(unittest.TestCase):
                                                r"move the equality before that conjunct"):
             x.transitions(("q", (FrozenMap(),), ()))
 
+    def test_a_part_no_equality_would_bind_is_refused_without_naming_one(self):
+        # Setup: the guard has no equality of r.a, an on_demand_record.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "r", "m")])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=on_demand_record(x=[0, 1])))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the part a of the field r, .*such as record\(…\)$"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
     def test_an_equality_binding_a_key_an_on_demand_record_type_lacks_is_refused(self):
         # Setup: the guard binds r["z"], which R has no part for.
         d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(idx("r", lit("z")), lit(0))])])
