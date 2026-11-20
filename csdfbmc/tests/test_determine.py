@@ -3,7 +3,7 @@ guard's order."""
 import json
 import unittest
 
-from csdfbmc.determine import Bind, Witness, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.determine import Bind, Witness, blocked, decides_early, determine, draws, part_reads, place, witness
 from csdfbmc.model import App, Bound, Builtin, Exists, Field, Free, Index, Lit
 
 
@@ -74,6 +74,25 @@ class DetermineTest(unittest.TestCase):
 
         # Assert
         self.assertEqual({}, got)
+
+
+class BlockedTest(unittest.TestCase):
+    def test_the_first_equality_a_conjunct_before_it_keeps_from_binding_a_part(self):
+        tests = {
+            "after a conjunct that reads the field": ([other("v"), eq(part("v", "x"), N)], eq(part("v", "x"), N)),
+            "the first of two": ([other("v"), eq(part("v", "x"), N), eq(N, part("v", "x"))], eq(part("v", "x"), N)),
+            "an equality that binds": ([eq(part("v", "x"), N), other("v")], None),
+            "another key": ([other("v"), eq(part("v", "y"), N)], None),
+            "no equality": ([other("v")], None),
+            "a term no order lets bind": ([other("v"), eq(part("v", "x"), Free("n", primed=True))], None),
+        }
+        for name, (guard, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = blocked(tuple(guard), ["v"], {"n"}, "v", "x")
+
+                # Assert
+                self.assertEqual(want, got)
 
 
 class PlaceTest(unittest.TestCase):

@@ -71,6 +71,18 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
     return binds
 
 
+def blocked(guard: tuple, fields: list[str], known: set[str], f: str, key) -> object | None:
+    """The first equality of guard that would bind the part key of the
+    field f were it the guard alone, when the guard binds no such part, so
+    that a conjunct before the equality keeps it from binding; None
+    otherwise. No field ranges but those the guard reads first."""
+    def binds(g: tuple) -> bool:
+        return any((b.field, b.key) == (f, key) for b in determine(g, fields, known, frozenset()).values())
+    if binds(guard):
+        return None
+    return next((c for c in guard if binds((c,))), None)
+
+
 def _literal_reads(t, primed: bool | None) -> set:
     """free_names of t, each part with a literal key as (f, k)."""
     return free_names(t, primed=primed, parts=literal_parts(t))

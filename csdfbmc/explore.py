@@ -15,7 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import Witness, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.determine import Witness, blocked, decides_early, determine, draws, part_reads, place, witness
 from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -529,11 +529,17 @@ class Explorer:
                 if k not in determined and not listable(v):
                     raise PostError(f"{e.describe()}: nothing determines the part {k} of the field {p}, of the type {t}, whose values are "
                                     f"an on_demand_record; let an equality of the guard determine it, @eq({p}[\"{k}\"], …), or give the "
-                                    f"part a type that lists its values, such as record(…)")
+                                    f"part a type that lists its values, such as record(…){self._blocked_hint(e, p, k)}")
             return list(parts), {k: list(v) for k, v in parts.items() if k not in determined}
         if values and all(isinstance(v, FrozenMap) and set(v) == set(determined) for v in values):
             return list(values[0]), {}
         return None
+
+    def _blocked_hint(self, e: Edge, p: str, k) -> str:
+        """The hint that an equality of e's guard would bind the part k of
+        p but for a conjunct before it reading p; empty when none would."""
+        c = blocked(e.guard, list(e.params), set(self.d.vars[e.src]), p, k)
+        return "" if c is None else f"; the equality {show(c)} does not, as a conjunct before it reads {p}: move the equality before that conjunct"
 
     def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> "_Plan":
         """The plan of e from the state state is at (_make_plan), made once
