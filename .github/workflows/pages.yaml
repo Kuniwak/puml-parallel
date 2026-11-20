@@ -86,6 +86,17 @@ jobs:
             "${RUNNER_TEMP}/csdfreplweb" "$f" > "site/${name}.html"
             echo "<li><a href=\"${name}.html\">${f}</a></li>" >> site/index.html
           done
+          # The vending machine with stock and change: its clauses in English
+          # and in Japanese, and suggestions from csdfbmc.
+          # The drawing is the English version's, not the formal one's.
+          bmc=examples/bmc
+          plantuml -pipe -tsvg < "${bmc}/vending_stock_en.puml" > "${RUNNER_TEMP}/vending_stock.svg"
+          "${RUNNER_TEMP}/csdfreplweb" -puml-exec "cat ${RUNNER_TEMP}/vending_stock.svg" \
+            -prose "${bmc}/vending_stock_en.puml" -prose "${bmc}/vending_stock_ja.puml" \
+            -checks "${bmc}/vending_stock_formal_defs.py" \
+            -evaluator-module "csdfbmc.python_glue ${bmc}/vending_stock_formal_defs.py" \
+            "${bmc}/vending_stock_formal.puml" > site/vending_stock.html
+          echo "<li><a href=\"vending_stock.html\">${bmc}/vending_stock_en.puml</a></li>" >> site/index.html
           echo '</ul>' >> site/index.html
 
       - name: Upload the pages
