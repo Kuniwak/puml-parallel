@@ -1,0 +1,50 @@
+@startuml
+' examples/bmc/vending_stock_ja.puml with every clause written in Python.
+' vending_stock_ja_formal_defs.py names the checks; the constants, the
+' helpers and the types come from vending_stock_formal_defs.py. Give
+' vending_stock_ja.puml to csdfreplweb -prose to show its clauses.
+
+state "idle" as idle
+idle : 在庫 ; Stock
+idle : 金庫 ; Cash
+state "paying" as paying
+paying : 在庫 ; Stock
+paying : 金庫 ; Cash
+paying : 投入額 ; Amount
+state "dropping" as dropping
+dropping : 在庫 ; Stock
+dropping : 金庫 ; Cash
+dropping : 取出口 ; Product
+dropping : お釣り ; Amount
+state "returningChange" as returningChange
+returningChange : 在庫 ; Stock
+returningChange : 金庫 ; Cash
+returningChange : お釣り ; Amount
+state "outOfChange" as outOfChange
+outOfChange : 在庫 ; Stock
+outOfChange : 金庫 ; Cash
+
+[*] --> idle : $在庫' == FULL ∧ $金庫' == INITIAL_CASH
+
+idle --> idle : restock ; $在庫 != FULL ; $在庫' == FULL ∧ @eq(金庫', 金庫)
+idle --> idle : collect ; ; $金庫' == plus($金庫, 'yen100', -$金庫['yen100']) ∧ @eq(在庫', 在庫)
+idle --> outOfChange : changeOut ; $金庫['yen50'] == 0 ; @eq(在庫', 在庫) ∧ @eq(金庫', 金庫)
+outOfChange --> idle : refillChange?count ; $金庫['yen50'] + $count <= MAX_COINS ; $金庫' == plus($金庫, 'yen50', $count) ∧ @eq(在庫', 在庫)
+
+idle --> paying : insert?coin ; $金庫['yen50'] > 0 ∧ $金庫[KEY[$coin]] < MAX_COINS ; @eq(投入額', coin) ∧ $金庫' == plus($金庫, KEY[$coin], 1) ∧ @eq(在庫', 在庫)
+paying --> paying : insert?coin ; $投入額 + $coin <= LIMIT ∧ $金庫[KEY[$coin]] < MAX_COINS ; $投入額' == $投入額 + $coin ∧ $金庫' == plus($金庫, KEY[$coin], 1) ∧ @eq(在庫', 在庫)
+paying --> idle : cancel!投入額 ; can_pay($金庫, $投入額) ; $金庫' == pay($金庫, $投入額) ∧ @eq(在庫', 在庫)
+paying --> dropping : choose?product ; $在庫[$product] > 0 ∧ $投入額 >= PRICE[$product] ∧ can_pay($金庫, $投入額 - PRICE[$product]) ; @eq(取出口', product) ∧ $お釣り' == $投入額 - PRICE[$product] ∧ $在庫' == plus($在庫, $product, -1) ∧ @eq(金庫', 金庫)
+
+dropping --> returningChange : drop!取出口 ; ; @eq(お釣り', お釣り) ∧ @eq(在庫', 在庫) ∧ @eq(金庫', 金庫)
+returningChange --> idle : returnChange!お釣り ; ; $金庫' == pay($金庫, $お釣り) ∧ @eq(在庫', 在庫)
+
+note as channels
+  channel refillChange : Count
+  channel insert : Coin
+  channel cancel : Amount
+  channel choose : Product
+  channel drop : Product
+  channel returnChange : Amount
+end note
+@enduml
