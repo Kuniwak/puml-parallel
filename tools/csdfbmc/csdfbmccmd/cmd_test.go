@@ -92,3 +92,15 @@ func TestShapesRunsTheShapesModule(t *testing.T) {
 		t.Errorf("shapes printed %q", out)
 	}
 }
+
+func TestShapesTakesTheTypesOfAChecksModule(t *testing.T) {
+	needPython(t)
+	status, spy := run(t, map[string]string{"CSDFBMC_CACHE": t.TempDir()},
+		"shapes", "../../../examples/bmc/printer_formal.json", "../../../examples/bmc/printer_formal_defs.py")
+	if status != 0 {
+		t.Fatalf("status = %d, stderr %s", status, spy.Stderr.String())
+	}
+	if out := spy.Stdout.String(); !strings.Contains(out, `"values"`) {
+		t.Errorf("shapes printed %q", out)
+	}
+}
