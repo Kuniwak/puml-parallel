@@ -934,7 +934,7 @@
     const leaves = shapeLeaves(shape.node, []);
     return el("details", { class: "shape type-shape" }, [
       el("summary", { text: t("typeShape.summary", { type }) }),
-      el("p", { class: "hint", text: t("typeShape.note") }),
+      el("p", { class: "hint", text: t(((config.shapes && config.shapes.declared) || []).includes(type) ? "typeShape.declared" : "typeShape.note") }),
       leaves.length > 0 ? el("table", { class: "value-table type-table" }, [
         el("tr", null, [el("th", { text: t("typeShape.item") }), el("th", { text: t("typeShape.allowed") })]),
         ...leaves,
