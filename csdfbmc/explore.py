@@ -640,10 +640,19 @@ class Explorer:
             bound[b.field] = before[b.field] = value
             return True
         bound[(b.field, b.key)] = value
+        ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
+        before[b.field] = self._parts_so_far(plan, b.field, ranging, bound)
         if plan.last_part[b.field] == i:
-            ranging = {name[1]: v for (name, _), v in zip(plan.levels, prefix) if isinstance(name, tuple) and name[0] == b.field}
-            bound[b.field] = before[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
+            bound[b.field] = before[b.field]
         return True
+
+    @staticmethod
+    def _parts_so_far(plan: "_Plan", f: str, ranging: dict, bound: dict) -> FrozenMap:
+        """The record f holds of the parts that range in the prefix,
+        ranging, and those the steps have bound, in the order of its keys,
+        so that a step reads a part bound before the record is whole."""
+        return FrozenMap((k, ranging[(f, k)] if (f, k) in ranging else bound[(f, k)])
+                         for k in plan.keys[f] if (f, k) in ranging or (f, k) in bound)
 
     def _guarded_offers(self, state: State, e: Edge, plan: "_Plan"):
         """The values of the fields e receives, each with the number of the
@@ -659,7 +668,10 @@ class Explorer:
 
         def step(group: list) -> Callable[[tuple, dict], dict | None]:
             def run(prefix: tuple, bound: dict) -> dict | None:
-                before = self._before(state, self._params(e, plan, prefix, bound))
+                params = self._params(e, plan, prefix, bound)
+                ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
+                partial = {f: self._parts_so_far(plan, f, ranging, bound) for f in plan.last_part if f not in params}
+                before = self._before(state, params | partial)
                 for i, b in group:
                     if not self._step(e, plan, i, b, prefix, bound, before):
                         return None

@@ -16,6 +16,11 @@ def other(*names):
     return Builtin("at", tuple(Free(n) for n in names), states=("s",))
 
 
+def reads(*terms):
+    """A conjunct that reads terms and binds nothing."""
+    return Builtin("in", terms)
+
+
 def part(f, k):
     return Index(Free(f), Lit(json.dumps(k)))
 
@@ -46,6 +51,14 @@ class DetermineTest(unittest.TestCase):
                                                              {0: Bind("v", "x", N)}),
             "a key bound once": ([eq(part("v", "x"), N), eq(part("v", "x"), N)], {0: Bind("v", "x", N)}),
             "the whole after its parts": ([eq(part("v", "x"), N), eq(V, N)], {0: Bind("v", "x", N)}),
+            "a part over another part": ([eq(part("v", "y"), Index(N, part("v", "x")))], {0: Bind("v", "y", Index(N, part("v", "x")))}),
+            "a part over itself": ([eq(part("v", "x"), Index(N, part("v", "x")))], {}),
+            "a part after a conjunct that reads another part": ([reads(part("v", "x")), eq(part("v", "y"), N)],
+                                                                 {1: Bind("v", "y", N)}),
+            "a part after a conjunct that reads it": ([reads(part("v", "x")), eq(part("v", "x"), N)], {}),
+            "a part a binding read before": ([eq(part("v", "y"), part("v", "x")), eq(part("v", "x"), N)],
+                                             {0: Bind("v", "y", part("v", "x"))}),
+            "the whole after a conjunct that reads a part": ([reads(part("v", "x")), eq(V, N)], {}),
         }
         for name, (guard, want) in tests.items():
             with self.subTest(name):

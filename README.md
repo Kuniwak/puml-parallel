@@ -1000,7 +1000,9 @@ binds (`@eq(x, n)`) to a term over the state and the fields, when no
 conjunct before the equality reads the field: it is computed, whatever its
 type holds. So are the parts of a record field equalities of the guard bind
 (`@eq(w["count"], n)`, a literal key), until a conjunct reads the field:
-the other parts range over their values in a type `record(…)` or
+the term may read other parts of the same field (`@eq(r["parent"],
+m[r.src].parent)`), and a conjunct that reads only parts (`@in(r.src, m)`)
+does not read the field, though a part it reads ranges. The other parts range over their values in a type `record(…)` or
 `on_demand_record(…)`; a list of
 records, or the type `any`, gives no parts to range over, so the field is
 computed only when equalities bind every key its records have, and
