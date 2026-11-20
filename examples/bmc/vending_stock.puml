@@ -1,0 +1,51 @@
+@startuml
+' A vending machine that runs out of products and of change: an operator
+' restocks it, collects its sales and refills its change, and it stops
+' selling while it has no change to give.
+' vending_stock_formal.puml is the same machine with its clauses in Python.
+
+state "idle" as idle
+idle : stock ; Stock
+idle : cash ; Cash
+state "paying" as paying
+paying : stock ; Stock
+paying : cash ; Cash
+paying : credit ; Amount
+state "dropping" as dropping
+dropping : stock ; Stock
+dropping : cash ; Cash
+dropping : dispensing ; Product
+dropping : change ; Amount
+state "returningChange" as returningChange
+returningChange : stock ; Stock
+returningChange : cash ; Cash
+returningChange : change ; Amount
+state "outOfChange" as outOfChange
+outOfChange : stock ; Stock
+outOfChange : cash ; Cash
+
+[*] --> idle : $stock' is full ∧ $cash' holds the initial change and no sales
+
+idle --> idle : restock?product ; $stock has room for one more $product ; $stock' is $stock with one more $product ∧ $cash' is $cash
+idle --> idle : collect ; ; $cash' is $cash without its 100-yen coins ∧ $stock' is $stock
+idle --> outOfChange : changeOut ; $cash has no 50-yen coin ; $stock' is $stock ∧ $cash' is $cash
+outOfChange --> idle : refillChange?count ; $cash has room for $count more 50-yen coins ; $cash' is $cash with $count more 50-yen coins ∧ $stock' is $stock
+
+idle --> paying : insert?coin ; $cash has a 50-yen coin ∧ $cash has room for one more $coin ; $credit' is $coin ∧ $cash' is $cash with $coin added ∧ $stock' is $stock
+paying --> paying : insert?coin ; $credit plus $coin is at most the limit ∧ $cash has room for one more $coin ; $credit' is $credit plus $coin ∧ $cash' is $cash with $coin added ∧ $stock' is $stock
+paying --> idle : cancel!credit ; $cash can pay back $credit ; $cash' is $cash after paying back $credit ∧ $stock' is $stock
+paying --> dropping : choose?product ; $stock has a $product ∧ $credit covers the price of $product ∧ $cash can pay the change ; $dispensing' is $product ∧ $change' is $credit minus the price ∧ $stock' is $stock with one $product less ∧ $cash' is $cash
+
+dropping --> returningChange : drop!dispensing ; ; $change' is $change ∧ $stock' is $stock ∧ $cash' is $cash
+returningChange --> idle : returnChange!change ; ; $cash' is $cash after paying $change ∧ $stock' is $stock
+
+note as channels
+  channel restock : Product
+  channel refillChange : Count
+  channel insert : Coin
+  channel cancel : Amount
+  channel choose : Product
+  channel drop : Product
+  channel returnChange : Amount
+end note
+@enduml
