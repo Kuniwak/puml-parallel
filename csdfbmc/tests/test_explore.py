@@ -530,6 +530,24 @@ class PruningTest(unittest.TestCase):
                                                r'let an equality of the guard determine it, @eq\(r\["o"\], …\)'):
             x.transitions(("q", (FrozenMap(),), ()))
 
+    def test_an_equality_binds_a_part_of_an_on_demand_record_from_another_part_of_it(self):
+        # Setup: r.src ranges, @in(r.src, m) reads only that part, and the
+        # equality computes r.parent, an on_demand_record, from m[r.src].
+        p = on_demand_record(x=[0, 1])
+        d = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
+            edge("q", "q", "c?r", guard=[builtin("in", fld("r", "src"), "m"),
+                                         eq(idx("r", lit("parent")), fld(idx("m", fld("r", "src")), "parent"))], post=[eq("m'", "m")])],
+            channels={"c": ["R"]})
+        x = fixture.explorer(d, Checks(types={"R": on_demand_record(src=[1, 2, 3], parent=p)}))
+        m = FrozenMap({1: FrozenMap(parent=FrozenMap(x=0)), 2: FrozenMap(parent=FrozenMap(x=1))})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        self.assertEqual({FrozenMap(src=1, parent=FrozenMap(x=0)), FrozenMap(src=2, parent=FrozenMap(x=1))},
+                         {params["r"] for _, _, _, _, params in transitions})
+
     def test_an_equality_binding_a_key_an_on_demand_record_type_lacks_is_refused(self):
         # Setup: the guard binds r["z"], which R has no part for.
         d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(idx("r", lit("z")), lit(0))])])
