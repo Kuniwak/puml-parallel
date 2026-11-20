@@ -55,6 +55,7 @@ window.CSDFREPL_MESSAGES = {
     "controls.when": "Condition",
     "controls.then": "Change",
     "controls.goesTo": "Goes to",
+    "controls.conditionFails": "Its condition does not hold now",
     "controls.ends": "Or finish here",
     "controls.finish": "Finish",
     "controls.deadlock": "Nothing can happen next: no event leads out of {state}, and the run cannot finish here. The system is stuck (a deadlock).",
@@ -124,6 +125,8 @@ window.CSDFREPL_MESSAGES = {
     "error.start_local_state": "The instance “{id}” of “{map}” is at “{state}”, which means it does not exist: leave it out.",
     "error.no_such_local_state": "The instance “{id}” of “{map}” is at “{state}”, which is not a state of it. It can be at: {states}.",
     "error.wrong_fields": "The instance “{id}” of “{map}” at “{state}” must hold the fields [{want}], but holds [{got}].",
+    "error.not_suggested": "These values are not accepted: the checker admits none of them. Pick one of its suggestions.",
+    "error.none_admitted": "These values are not accepted: the condition of this step does not hold now, so no values are possible.",
     "error.index_out_of_range": "That choice is no longer there.",
     "error.ended": "The run has finished. To go on, click a step under “What has happened”.",
     "error.generic": "Something went wrong: {message}"
@@ -180,6 +183,7 @@ window.CSDFREPL_MESSAGES = {
     "controls.when": "条件",
     "controls.then": "変化",
     "controls.goesTo": "移る先",
+    "controls.conditionFails": "今は条件が成り立ちません",
     "controls.ends": "またはここで終える",
     "controls.finish": "終える",
     "controls.deadlock": "次に起こせることがありません。{state} から出るイベントがなく、ここで終えることもできません。システムが行き詰まっています（デッドロック）。",
@@ -249,6 +253,8 @@ window.CSDFREPL_MESSAGES = {
     "error.start_local_state": "「{map}」のインスタンス「{id}」の状態「{state}」は、存在しないことを表す状態です。そのインスタンスは書かずに外してください。",
     "error.no_such_local_state": "「{map}」のインスタンス「{id}」の状態「{state}」はありません。いられる状態: {states}",
     "error.wrong_fields": "「{map}」のインスタンス「{id}」（状態「{state}」）のフィールドは [{want}] でなければなりませんが、[{got}] になっています。",
+    "error.not_suggested": "この値は受け付けられません。チェッカーが認める値ではありません。提案された値から選んでください。",
+    "error.none_admitted": "この値は受け付けられません。今はこの手順の条件が成り立たないため、取れる値がありません。",
     "error.index_out_of_range": "その選択肢はもうありません。",
     "error.ended": "実行は終わっています。続けるには「これまでの流れ」の手順をクリックしてください。",
     "error.generic": "問題が起きました: {message}"

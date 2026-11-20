@@ -142,6 +142,9 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   padding: .5rem .75rem;
 }
 .choice .event { font-weight: 600; color: var(--accent); }
+.choice.blocked { opacity: .55; cursor: not-allowed; }
+.choice.blocked .event { color: var(--muted); }
+.choice .reason { margin: .15rem 0; color: var(--muted); font-size: .9rem; }
 .suggestion { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; word-break: break-all; }
 .tabs { display: flex; gap: .25rem; margin: 0 0 .75rem; border-bottom: 1px solid var(--border); }
 .tabs .tab {

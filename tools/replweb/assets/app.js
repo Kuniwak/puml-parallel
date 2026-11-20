@@ -144,6 +144,11 @@
     hovered: null,
     // suggesting says the page's Python is ready to suggest values.
     suggesting: false,
+    // admits says, by the state and the index of a transition out of it
+    // (admitsKey), whether the checker admits any values after it: "none"
+    // or "some"; a transition not asked yet, or whose asking failed, is
+    // not there.
+    admits: new Map(),
     tab: chooseTab(),
   };
 
@@ -166,6 +171,37 @@
     app.history = history.ok ? history.data.history || [] : [];
     render();
     autoContinue();
+    checkAdmits();
+  }
+
+  function admitsKey(state, index) {
+    return JSON.stringify(state) + "#" + index;
+  }
+
+  // checkAdmits asks the checker, one transition at a time and after the
+  // choices are shown, whether any values satisfy each transition out of
+  // the current state, and shows again those it says none do.
+  async function checkAdmits() {
+    const v = app.view;
+    if (!app.suggesting || !v || v.mode !== "command") return;
+    for (const tr of v.transitions || []) {
+      const key = admitsKey(v.state, tr.index);
+      if (app.admits.has(key)) continue;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (app.view !== v) return;
+      const resp = await send({ command: "suggest", index: tr.index });
+      if (app.view !== v) return;
+      if (!resp.ok || !resp.data || !Array.isArray(resp.data.suggestions)) continue;
+      const admits = resp.data.suggestions.length > 0 ? "some" : "none";
+      app.admits.set(key, admits);
+      if (admits === "none") renderControls();
+    }
+  }
+
+  // admitsNone says whether the checker said no values satisfy tr from the
+  // current state.
+  function admitsNone(tr) {
+    return app.admits.get(admitsKey(app.view.state, tr.index)) === "none";
   }
 
   // A state whose values the post determines, all of them, takes them
@@ -648,17 +684,21 @@
   function choiceButton(tr) {
     const details = app.tab === "details";
     const written = proseOfEdge(app.view.state.state_id, tr.index);
+    const names = namesOf(stateVars(app.view.state), tr.event);
+    const blocked = admitsNone(tr);
     const rows = details
-      ? [...clauseRows(["guard", "post"], tr, written, namesOf(stateVars(app.view.state), tr.event)), [t("controls.goesTo"), tr.dst_name]]
-      : [[t("controls.goesTo"), tr.dst_name]];
+      ? [...clauseRows(["guard", "post"], tr, written, names), [t("controls.goesTo"), tr.dst_name]]
+      : [...(blocked ? clauseRows(["guard"], tr, written, names) : []), [t("controls.goesTo"), tr.dst_name]];
     const button = el("button", {
-      type: "button", class: "choice", onclick: () => choose(tr),
+      type: "button", class: blocked ? "choice blocked" : "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
       el("div", { class: "event", text: tr.event }),
+      blocked ? el("p", { class: "reason", text: t("controls.conditionFails") }) : document.createTextNode(""),
       clausesList(rows),
     ]);
+    if (blocked) button.disabled = true;
     const formal = details ? formalClauses(["guard", "post"], tr, written) : null;
     return formal ? el("div", { class: "choice-item" }, [button, formal]) : button;
   }
