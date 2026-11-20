@@ -1,10 +1,12 @@
-"""python -m csdfbmc.shapes <diagram.json>
+"""python -m csdfbmc.shapes <diagram.json> [<checks.py>]
 
 What the formal clauses of a diagram reveal of the values of its types:
 the attributes they read and the constants they compare them with.
 
 The reading is syntactic: an attribute no clause mentions is absent, and a
-value is known only where a clause compares an attribute with a constant."""
+value is known only where a clause compares an attribute with a constant.
+The types the checks module gives in TYPES, when given, take their shapes
+from TYPES instead."""
 from __future__ import annotations
 
 import argparse
@@ -12,19 +14,42 @@ import ast
 import json
 import sys
 
+from csdfbmc.checks import PurityError, load_checks
+from csdfbmc.values import Built, Sample, record
+
 # The operators whose operands are numbers.
 ARITHMETIC = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod)
 ORDER = (ast.Lt, ast.LtE, ast.Gt, ast.GtE)
 
 
-def shapes(doc: dict) -> dict:
+def declared(values) -> dict:
+    """The node of a type of TYPES whose values are values: a record of
+    csdfbmc.values.record as the record of its fields' nodes, a sample as a
+    scalar with its values as examples, and other values listed as a
+    scalar with "values", all of them in order, when they are finitely many
+    constants; values it cannot list are a scalar of nothing more."""
+    if isinstance(values, Built) and values.build is record:
+        return {"kind": "record", "fields": {k: declared(v) for k, v in values.parts.items()}}
+    if not isinstance(values, (list, tuple, range)) \
+            or not all(isinstance(v, (str, int, float, bool)) or v is None for v in values):
+        return {"kind": "scalar"}
+    out = {"kind": "scalar", ("examples" if isinstance(values, Sample) else "values"): list(values)}
+    if values and all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+        out["numeric"] = True
+    return out
+
+
+def shapes(doc: dict, given: dict | None = None) -> dict:
     """What the clauses of doc, a diagram as csdfparse or csdfpromote
     -format json prints it, reveal: {"types": {type: node}, "vars": {variable:
     type}}. A node is {"kind": "record", "fields": {attribute: node}},
     {"kind": "collection", "items": node} or {"kind": "scalar"}, the last
     with "examples", the constants it is compared with, and "numeric": true
     when it is ordered or computed with. A type no clause reads anything of
-    is absent; a map type K ⇸ V is no shape, its values being of V."""
+    is absent; a map type K ⇸ V is no shape, its values being of V. A type
+    given, a type -> its values as TYPES gives them, has its node from
+    them (declared) in place of the one the clauses reveal, and is listed
+    in "declared"."""
     var_types = {v["name"]: v["type"] for vs in doc["vars"].values() for v in vs}
     families = {f["map"]: {v["name"]: v["type"] for vs in f["vars"].values() for v in vs} for f in doc.get("families", [])}
     trees: dict = {}
@@ -75,8 +100,10 @@ def shapes(doc: dict) -> dict:
                                 if isinstance(other, ast.Dict):
                                     _built(leaf, other)
     instance_vars = {v: t for vs in families.values() for v, t in vs.items()}
-    return {"types": {t: _node(n) for t, n in trees.items() if "⇸" not in t},
-            "vars": {**var_types, **instance_vars}}
+    inferred = {t: _node(n) for t, n in trees.items() if "⇸" not in t}
+    return {"types": {**inferred, **{t: declared(vs) for t, vs in (given or {}).items()}},
+            "vars": {**var_types, **instance_vars},
+            "declared": sorted(given or {})}
 
 
 def _atoms(clauses):
@@ -186,12 +213,13 @@ def _node(n):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc shapes", description=__doc__.split("\n\n")[1])
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output, or csdfpromote -format json's), its clauses in Python")
+    ap.add_argument("checks", nargs="?", help="the checks module, whose TYPES give the shapes of the types it lists in place of what the clauses reveal")
     a = ap.parse_args(argv)
     try:
         with open(a.diagram, encoding="utf-8") as f:
             doc = json.load(f)
-        got = shapes(doc)
-    except (OSError, ValueError, KeyError) as e:
+        got = shapes(doc, load_checks(a.checks).types if a.checks else None)
+    except (OSError, ValueError, KeyError, PurityError) as e:
         print(f"csdfbmc shapes: {e}", file=sys.stderr)
         return 2
     json.dump(got, sys.stdout, ensure_ascii=False, indent=2)

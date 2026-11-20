@@ -8,6 +8,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 from csdfbmc.shapes import main, shapes
+from csdfbmc.values import record, sample
 from csdfbmc.tests.fixture import atom, diagram, edge, eq, family, fld, idx
 
 
@@ -141,7 +142,32 @@ class ShapesTest(unittest.TestCase):
         # Verify
         self.assertEqual(got, {"types": {"Nat": {"kind": "scalar", "examples": [0]}, "Inst": {"kind": "scalar"},
                                          "K": {"kind": "scalar"}},
-                               "vars": {"m": "K ⇸ Inst", "n": "Nat", "r": "Role"}})
+                               "vars": {"m": "K ⇸ Inst", "n": "Nat", "r": "Role"}, "declared": []})
+
+    def test_a_type_types_gives_as_a_record_has_its_fields_values_in_place_of_what_the_clauses_reveal(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", init_post=[atom("$r' == {'level': 'low', 'other': 1}")], types={"r": "Role"})
+
+        # Execute
+        got = shapes(d, {"Role": record(level=["low", "high"], size=range(2))})
+
+        # Verify
+        self.assertEqual(got["types"]["Role"], {"kind": "record", "fields": {
+            "level": {"kind": "scalar", "values": ["low", "high"]},
+            "size": {"kind": "scalar", "values": [0, 1], "numeric": True}}})
+
+    def test_a_sample_gives_examples_and_values_it_cannot_list_give_a_bare_scalar(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", types={"r": "Role"})
+        given = {"Id": sample(["a"], beyond=["b"]), "Big": (n for n in range(3)),
+                 "Pair": [(1, 2)], "Map": [{"a": 1}]}
+
+        # Execute
+        got = shapes(d, given)
+
+        # Verify
+        self.assertEqual(got["types"], {"Id": {"kind": "scalar", "examples": ["a"]}, "Big": {"kind": "scalar"},
+                                        "Pair": {"kind": "scalar"}, "Map": {"kind": "scalar"}})
 
 
 class CommandTest(unittest.TestCase):
@@ -165,6 +191,51 @@ class CommandTest(unittest.TestCase):
 
         # Verify
         self.assertEqual((code, json.loads(out)), (0, shapes(d)))
+
+    def test_the_command_takes_the_shapes_of_the_types_a_checks_module_gives_from_it(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", init_post=[atom("$r' == {'level': 'low'}")], types={"r": "Role"})
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path, checks = os.path.join(tmp.name, "d.json"), os.path.join(tmp.name, "defs.py")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        with open(checks, "w", encoding="utf-8") as f:
+            f.write("TYPES = {'Role': ['low', 'high']}\n")
+
+        # Execute
+        code, out, _ = self.run_main(path, checks)
+
+        # Verify
+        self.assertEqual((code, json.loads(out)["types"]["Role"]), (0, {"kind": "scalar", "values": ["low", "high"]}))
+
+    def test_names_the_types_whose_shapes_come_from_types_and_not_the_others(self):
+        # Setup
+        d = diagram({"s": ["r", "n"]}, "s", init_post=[atom("$n' > 0")], types={"r": "Role", "n": "Nat"})
+
+        # Execute
+        got = shapes(d, {"Role": ["low", "high"]})
+
+        # Verify
+        self.assertEqual(got["declared"], ["Role"])
+
+    def test_the_command_exits_2_on_a_checks_module_outside_the_pure_subset(self):
+        # Setup
+        d = diagram({"s": ["r"]}, "s", types={"r": "Role"})
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path, checks = os.path.join(tmp.name, "d.json"), os.path.join(tmp.name, "defs.py")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        with open(checks, "w", encoding="utf-8") as f:
+            f.write("import os\nTYPES = {}\n")
+
+        # Execute
+        code, _, err = self.run_main(path, checks)
+
+        # Verify
+        self.assertEqual(code, 2)
+        self.assertIn("csdfbmc shapes:", err)
 
     def test_the_command_exits_2_on_a_diagram_it_cannot_read(self):
         # Execute
