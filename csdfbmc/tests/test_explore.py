@@ -548,6 +548,18 @@ class PruningTest(unittest.TestCase):
         self.assertEqual({FrozenMap(src=1, parent=FrozenMap(x=0)), FrozenMap(src=2, parent=FrozenMap(x=1))},
                          {params["r"] for _, _, _, _, params in transitions})
 
+    def test_a_part_an_equality_would_bind_after_a_conjunct_reading_the_field_is_refused_naming_the_equality(self):
+        # Setup: @notin reads r whole before the equality that would bind r.a,
+        # an on_demand_record, so nothing else can give r.a its values.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "r", "m"), eq(idx("r", lit("a")), lit({"x": 0}))])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=on_demand_record(x=[0, 1])))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the part a of the field r, .*; "
+                                               r'the equality r\["a"\] == \{"x":0\} does not, as a conjunct before it reads r: '
+                                               r"move the equality before that conjunct"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
     def test_an_equality_binding_a_key_an_on_demand_record_type_lacks_is_refused(self):
         # Setup: the guard binds r["z"], which R has no part for.
         d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(idx("r", lit("z")), lit(0))])])
