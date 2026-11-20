@@ -71,6 +71,19 @@ type View struct {
 	Transitions []Transition     `json:"transitions,omitempty"`
 	Ends        []End            `json:"ends,omitempty"`
 	Pending     *Pending         `json:"pending,omitempty"`
+	// Families are, for a diagram expanded from a promotion, where the
+	// instances of each family are in State.
+	Families []FamilyView `json:"families,omitempty"`
+}
+
+// FamilyView is where the instances of the family of Map are: the IDs of
+// those at each local state, sorted, a state no instance is at left out.
+// Block is the <<promote>> block that draws the family in State's mode, ""
+// when there is none.
+type FamilyView struct {
+	Map       string              `json:"map"`
+	Block     string              `json:"block,omitempty"`
+	Instances map[string][]string `json:"instances"`
 }
 
 // End is one end edge from the current state, which end takes: its guard
@@ -91,6 +104,25 @@ type Transition struct {
 	DstName string `json:"dst_name"`
 	Guard   string `json:"guard"`
 	Post    string `json:"post"`
+	// Moves are, for a diagram expanded from a promotion, the local edges
+	// the transition is made of; none for a controller's own edge.
+	Moves []Move `json:"moves,omitempty"`
+}
+
+// Move is one local edge a transition of a promoted diagram takes: the
+// LocalEdge-th edge of the local diagram of the family of Map, from the
+// local state Src to Dst, the Parallel-th of the local edges from Src to
+// Dst, as the <<promote>> block Block draws it in the mode the transition
+// leaves ("" when the reader knows no block). Kind is "stay", "creation" or
+// "deletion": what the move does to its instance.
+type Move struct {
+	Map       string `json:"map"`
+	Block     string `json:"block,omitempty"`
+	LocalEdge int    `json:"local_edge"`
+	Src       string `json:"src"`
+	Dst       string `json:"dst"`
+	Parallel  int    `json:"parallel"`
+	Kind      string `json:"kind"`
 }
 
 // Pending describes the state awaiting values in ModeValues, with the guard

@@ -252,6 +252,45 @@ func TestHandleSessionNewExploresTheExpansionOfAPromotion(t *testing.T) {
 	}
 }
 
+func TestATransitionOfAPromotionNamesTheLocalEdgesItMoves(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	view := decodeView(t, service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{}]`}))
+
+	// Assert
+	want := []Move{{Map: "items", Block: "runItems", LocalEdge: 0, Src: "itNone", Dst: "itMade", Parallel: 0, Kind: "creation"}}
+	if len(view.Transitions) != 1 {
+		t.Fatalf("transitions = %+v, want MAKE alone", view.Transitions)
+	}
+	if diff := cmp.Diff(want, view.Transitions[0].Moves); diff != "" {
+		t.Errorf("moves (-want +got):\n%s", diff)
+	}
+}
+
+func TestTheViewOfAPromotionPlacesTheInstancesAtTheirLocalStates(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	service.Handle(Request{Command: CommandStatevar, Session: resp.Session, Values: `[{}]`})
+	service.Handle(Request{Command: CommandSelect, Session: resp.Session, Index: intPtr(0)})
+
+	// Execute
+	view := decodeView(t, service.Handle(Request{Command: CommandStatevar, Session: resp.Session,
+		Values: `[{"b": {"at": "itMade", "fields": {"n": 0}}, "a": {"at": "itMade", "fields": {"n": 1}}}]`}))
+
+	// Assert
+	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}}}}
+	if diff := cmp.Diff(want, view.Families); diff != "" {
+		t.Errorf("families (-want +got):\n%s", diff)
+	}
+}
+
 func TestHandleSessionNewRefusesAnIncludeTheRequestDoesNotCarry(t *testing.T) {
 	// Setup
 	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
