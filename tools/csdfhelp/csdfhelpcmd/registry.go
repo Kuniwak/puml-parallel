@@ -15,6 +15,7 @@ import (
 	replcmd "github.com/Kuniwak/puml-parallel/v3/tools/csdfrepl/csdfreplcmd"
 	clientcmd "github.com/Kuniwak/puml-parallel/v3/tools/csdfreplcmd/csdfreplcmdcmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfrepld/csdfrepldcmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfreplweb/csdfreplwebcmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfslice/csdfslicecmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfsort/csdfsortcmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdftracechk/csdftracechkcmd"
@@ -109,6 +110,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfrepl",
 			Summary: "Interactively explores a Composable State Diagram.",
 			Run:     tools.NewCommandFunc(replcmd.NewParseOptionsFunc(), replcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfreplweb",
+			Summary: "Writes a web page, one HTML file, that explores a Composable State Diagram graphically in the browser.",
+			Run:     tools.NewCommandFunc(csdfreplwebcmd.NewParseOptionsFunc(), csdfreplwebcmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfrepld",

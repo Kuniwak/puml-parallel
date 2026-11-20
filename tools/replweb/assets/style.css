@@ -1,0 +1,160 @@
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --text: #1c1f24;
+  --muted: #5d6673;
+  --border: #d5d9e0;
+  --accent: #0b63ce;
+  --accent-text: #ffffff;
+  --accent-soft: #e3eefc;
+  --current: #d9480f;
+  --current-soft: #fff0e6;
+  --visited: #9aa5b4;
+  --changed: #fff3bf;
+  --error-bg: #fdecec;
+  --error-text: #a51d1d;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15181d;
+    --panel: #1e2228;
+    --text: #e6e9ee;
+    --muted: #a0a9b5;
+    --border: #353b45;
+    --accent: #5aa2ff;
+    --accent-text: #0d1117;
+    --accent-soft: #1d2d44;
+    --current: #ff8a4c;
+    --current-soft: #3a2518;
+    --visited: #6b7686;
+    --changed: #4a3f12;
+    --error-bg: #3d1c1c;
+    --error-text: #ffb3b3;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .5rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+header h1 { font-size: 1.15rem; margin: 0; }
+header label { color: var(--muted); font-size: .9rem; }
+main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+  min-height: 0;
+}
+@media (max-width: 800px) {
+  main { grid-template-columns: 1fr; }
+}
+.pane {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: .5rem;
+  padding: .75rem 1rem;
+  min-height: 0;
+  overflow: auto;
+}
+.diagram-pane { display: flex; flex-direction: column; }
+.diagram-tools { display: flex; gap: .25rem; align-items: center; flex-wrap: wrap; }
+.diagram-tools .legend { color: var(--muted); font-size: .85rem; margin-left: .5rem; }
+#diagram {
+  flex: 1;
+  overflow: auto;
+  margin-top: .5rem;
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: grab;
+}
+#diagram svg { display: block; }
+.side { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); min-height: 0; }
+h2 { font-size: 1rem; margin: 0 0 .5rem; }
+h3 { font-size: .95rem; margin: .75rem 0 .25rem; }
+.hint { color: var(--muted); font-size: .85rem; margin: .25rem 0; }
+button, select, input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 6px;
+  padding: .3rem .7rem;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+#history { list-style: none; padding: 0; margin: .5rem 0; }
+#history li {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: .35rem .6rem;
+  margin-bottom: .35rem;
+  cursor: pointer;
+}
+#history li:hover { border-color: var(--accent); }
+#history li.current { border-color: var(--current); background: var(--current-soft); }
+#history .step-number { color: var(--muted); font-size: .8rem; margin-right: .4rem; }
+#history .here { color: var(--current); font-size: .8rem; margin-left: .4rem; font-weight: 600; }
+.values { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
+.values dt { color: var(--muted); }
+.values dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.values .changed { background: var(--changed); border-radius: 3px; }
+.trace { font-size: .9rem; }
+.choice {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: .5rem;
+  padding: .5rem .75rem;
+}
+.choice .event { font-weight: 600; color: var(--accent); }
+.clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
+.clauses dt { color: var(--muted); }
+.clauses dd { margin: 0; word-break: break-word; }
+.notice { padding: .5rem .75rem; border-radius: 6px; background: var(--accent-soft); }
+.error { padding: .5rem .75rem; border-radius: 6px; background: var(--error-bg); color: var(--error-text); white-space: pre-wrap; }
+form label { display: block; margin-top: .5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+form input[type=text] {
+  width: 100%;
+  padding: .35rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+form .row { margin-top: .75rem; }
+details { margin: .5rem; }
+
+/* The drawing: PlantUML writes colors as attributes and inline styles. */
+#diagram g.csdf-visited > path,
+#diagram g.csdf-visited > line { stroke: var(--visited) !important; stroke-width: 2.5 !important; }
+#diagram g.csdf-visited > polygon { fill: var(--visited) !important; stroke: var(--visited) !important; }
+#diagram g.csdf-visited-state > rect { stroke: var(--visited) !important; stroke-width: 1.5 !important; }
+#diagram g.csdf-choosable { cursor: pointer; }
+#diagram g.csdf-choosable > path,
+#diagram g.csdf-choosable > line { stroke: #0b63ce !important; stroke-width: 3.5 !important; }
+#diagram g.csdf-choosable > polygon { fill: #0b63ce !important; stroke: #0b63ce !important; }
+#diagram g.csdf-choosable > text { fill: #0b63ce !important; font-weight: bold; }
+#diagram g.csdf-choosable:hover > path { stroke-width: 5 !important; }
+#diagram g.csdf-current > rect { stroke: #d9480f !important; stroke-width: 3.5 !important; fill: #fff0e6 !important; }
+#diagram g.csdf-pending > rect { stroke: #0b63ce !important; stroke-width: 3 !important; stroke-dasharray: 6 3; }

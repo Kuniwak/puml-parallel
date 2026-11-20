@@ -1,5 +1,11 @@
 version: 2
 
+# csdfreplweb embeds the engine of its page, built for WebAssembly here and
+# attached to the release on its own for csdfreplweb -engine.
+before:
+  hooks:
+    - go run ./tools/replweb/internal/buildengine -version {{ .Version }}
+
 builds:
   - id: csdfparallel
     main: ./tools/csdfparallel/main.go
@@ -211,6 +217,23 @@ builds:
     ldflags:
       - -s -w -X github.com/Kuniwak/puml-parallel/v3/version.Version={{ .Version }}
 
+  - id: csdfreplweb
+    main: ./tools/csdfreplweb/main.go
+    binary: csdfreplweb
+    flags:
+      - -tags=embedengine
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X github.com/Kuniwak/puml-parallel/v3/version.Version={{ .Version }}
+
   - id: csdfrepld
     main: ./tools/csdfrepld/main.go
     binary: csdfrepld
@@ -307,6 +330,7 @@ archives:
       - csdftracechk
       - csdftranstable
       - csdfrefinement
+      - csdfreplweb
       - csdfrepld
       - csdfreplcmd
       - obligationirc
@@ -321,5 +345,12 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+  extra_files:
+    - glob: tools/replweb/engineload/embedded/engine.wasm.gz
+      name_template: "csdfreplweb-engine_{{ .Version }}.wasm.gz"
+
 release:
   prerelease: auto
+  extra_files:
+    - glob: tools/replweb/engineload/embedded/engine.wasm.gz
+      name_template: "csdfreplweb-engine_{{ .Version }}.wasm.gz"

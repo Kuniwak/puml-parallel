@@ -94,6 +94,8 @@ func (s *Service) Handle(req Request) Response {
 		return s.handleJump(req)
 	case CommandEnd:
 		return s.handleEnd(req)
+	case CommandBack:
+		return s.handleBack(req)
 	case CommandReplay:
 		return s.handleReplay(req)
 	case CommandServerVersion:
@@ -248,6 +250,19 @@ func (s *Service) handleEnd(req Request) Response {
 	return viewResponse(e)
 }
 
+// handleBack drops the pending transition and returns to the state last
+// explored, as an interrupt at csdfrepl's value prompt does.
+func (s *Service) handleBack(req Request) Response {
+	e, err := s.resolve(req.Session)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	if err := e.session.Back(); err != nil {
+		return s.errorFromErr(err)
+	}
+	return viewResponse(e)
+}
+
 // handleReplay walks a fresh session along the recorded path and shows where
 // it got to. A step that cannot be taken is an error, and the session is left
 // at the last state reached, so the user can look at it.
@@ -345,6 +360,7 @@ func transitionsOf(sess *animation.Session) []Transition {
 			DstName: animation.StateName(sess.Diagram(), edge.Dst),
 			Guard:   animation.ClauseText(edge.Guard),
 			Post:    animation.ClauseText(edge.Post),
+			Line:    edge.Line,
 		}
 	}
 	return out
@@ -385,7 +401,18 @@ func errorResponse(message string) Response {
 // errorFromErr surfaces err with the deepest (prefix-free) message by default,
 // or the full wrapped chain when the service is in debug mode.
 func (s *Service) errorFromErr(err error) Response {
-	return errorResponse(tools.UserFacingError(err, s.debug))
+	resp := errorResponse(tools.UserFacingError(err, s.debug))
+	var refused *animation.RefusedValuesError
+	switch {
+	case errors.As(err, &refused):
+		resp.Code = ErrorCodeRefusedValues
+		resp.Args = map[string]string{"reason": refused.Reason}
+	case errors.Is(err, animation.ErrIndexOutOfRange):
+		resp.Code = ErrorCodeIndexOutOfRange
+	case errors.Is(err, animation.ErrEnded):
+		resp.Code = ErrorCodeEnded
+	}
+	return resp
 }
 
 func removeString(items []string, target string) []string {

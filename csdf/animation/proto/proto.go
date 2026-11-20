@@ -22,6 +22,7 @@ const (
 	CommandHistory       = "history"
 	CommandJump          = "jump"
 	CommandEnd           = "end"
+	CommandBack          = "back"
 	CommandReplay        = "replay"
 	CommandServerVersion = "server_version"
 )
@@ -60,7 +61,24 @@ type Response struct {
 	// Warnings (session_new) are what the promotion the session explores
 	// warns of, one per line, for the client to print on its standard error.
 	Warnings []string `json:"warnings,omitempty"`
+	// Code names the kind of the error, one of the ErrorCode constants, for a
+	// client that words it itself; "" when the kind has no name. Args are
+	// the parts of the error such a client puts in its wording.
+	Code string            `json:"code,omitempty"`
+	Args map[string]string `json:"args,omitempty"`
 }
+
+// Error codes carried by Response.Code.
+const (
+	// ErrorCodeRefusedValues: the values do not fit the state, or the
+	// checker does not admit them; Args["reason"] says why.
+	ErrorCodeRefusedValues = "refused_values"
+	// ErrorCodeIndexOutOfRange: no transition, end edge or history entry
+	// has the index.
+	ErrorCodeIndexOutOfRange = "index_out_of_range"
+	// ErrorCodeEnded: the run has ended; only a jump goes on.
+	ErrorCodeEnded = "ended"
+)
 
 // View is the structured current position of a session, returned by read,
 // select, statevar (on success), jump and end. In "ended" mode, State is
@@ -91,6 +109,9 @@ type Transition struct {
 	DstName string `json:"dst_name"`
 	Guard   string `json:"guard"`
 	Post    string `json:"post"`
+	// Line is where the reader read the edge, as core.Edge.Line is: 0 when
+	// it has none, as in an expansion.
+	Line int `json:"line,omitempty"`
 }
 
 // Pending describes the state awaiting values in ModeValues, with the guard

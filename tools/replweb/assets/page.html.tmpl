@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="{{.Generator}}">
+<title>{{.Title}}</title>
+<style>
+{{.CSS}}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">{{.Title}}</h1>
+  <label><span data-msg="language.label"></span> <select id="language"></select></label>
+</header>
+<div id="warnings"></div>
+<main>
+  <section class="pane diagram-pane">
+    <div class="diagram-tools">
+      <button type="button" id="zoom-out" data-msg="diagram.zoomOut"></button>
+      <button type="button" id="zoom-reset" data-msg="diagram.zoomReset"></button>
+      <button type="button" id="zoom-in" data-msg="diagram.zoomIn"></button>
+      <span class="legend" id="legend"></span>
+    </div>
+    <div id="diagram">{{.SVG}}</div>
+  </section>
+  <div class="side">
+    <section class="pane" aria-labelledby="history-title">
+      <div class="row">
+        <h2 id="history-title" data-msg="history.title"></h2>
+      </div>
+      <div class="row">
+        <button type="button" id="back" data-msg="history.back"></button>
+        <button type="button" id="save" data-msg="history.save"></button>
+      </div>
+      <p class="hint" data-msg="history.hint"></p>
+      <ol id="history"></ol>
+      <h3 data-msg="trace.title"></h3>
+      <div class="trace" id="trace"></div>
+    </section>
+    <section class="pane" id="controls" aria-live="polite"></section>
+  </div>
+</main>
+<script type="application/json" id="csdfrepl-config">{{.Config}}</script>
+<script type="application/octet-stream" id="csdfrepl-engine">{{.Engine}}</script>
+<script>
+{{.WasmExec}}
+</script>
+<script>
+{{.Messages}}
+</script>
+<script>
+{{.App}}
+</script>
+</body>
+</html>

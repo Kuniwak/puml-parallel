@@ -1538,6 +1538,43 @@ state> #0
 
 See [CSDFREPL.puml](docs/CSDFREPL.puml) for the behavioral specification.
 
+## Exploration in a web page
+
+`csdfreplweb` writes a web page that explores a diagram as `csdfrepl` does, for
+testers who would rather click than type. The page is one HTML file that needs
+nothing but a browser: open it from disk or put it on any static host, such as
+GitHub Pages.
+
+```console
+$ csdfreplweb examples/valid/vending_machine.puml > vending_machine.html
+$ csdfreplweb -puml-exec 'java -jar "/opt/plant uml/plantuml.jar" -pipe -tsvg' diagram.puml > diagram.html
+```
+
+The page draws the diagram, marks the current state, and colors the
+transitions that can be taken next; click one, in the drawing or in the list,
+then enter the values of the state it leads to, one box per variable, each
+starting with the value it had before. The history lists every step with its
+values, the changed ones marked; click a step to go on from there. "Save this
+path" downloads the path to the current step as a file that
+`csdfrepl -replay FILE -finding 0 diagram.puml` walks. The page speaks English
+and Japanese. The pages of the examples are published on
+[GitHub Pages](https://kuniwak.github.io/puml-parallel/).
+
+The drawing is the SVG PlantUML renders: `csdfreplweb` runs the command
+`-puml-exec` gives (`plantuml -pipe -tsvg` by default) in the diagram's
+directory, split into words as a shell splits them but without a shell. A
+promotion is explored as its expansion and drawn without highlights. The page
+suggests no values and refuses only what a builtin is false of, as `csdfrepl`
+without `-checks` does, for `csdfbmc` does not run in a browser.
+
+The page carries the exploration engine compiled to WebAssembly. The release
+binary of `csdfreplweb` embeds it. A `csdfreplweb` built by `go install` or run
+by `go run` builds it with the `go` command on the `PATH`: for a released
+version from the module cache, kept under the user cache directory
+(`csdfreplweb/<version>`), and for a build from a work tree from that work
+tree. `-engine FILE` takes the engine from a file instead, gzipped or not, such
+as the `csdfreplweb-engine_<version>.wasm.gz` attached to every release.
+
 ## Headless exploration for agents
 
 `csdfrepld` is a daemon that holds the same exploration sessions in memory and
