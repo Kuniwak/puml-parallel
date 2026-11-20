@@ -1,0 +1,50 @@
+@startuml
+' 商品とお釣りが切れる自動販売機。係員が商品を満杯まで補充し、売上を回収し、
+' お釣りを補充する。お釣りを出せない間は販売を止める。
+' vending_stock_en.puml は同じ自動販売機の英語版、
+' vending_stock_formal.puml は節を Python で書いた版。
+
+state "idle" as idle
+idle : stock ; Stock
+idle : cash ; Cash
+state "paying" as paying
+paying : stock ; Stock
+paying : cash ; Cash
+paying : credit ; Amount
+state "dropping" as dropping
+dropping : stock ; Stock
+dropping : cash ; Cash
+dropping : dispensing ; Product
+dropping : change ; Amount
+state "returningChange" as returningChange
+returningChange : stock ; Stock
+returningChange : cash ; Cash
+returningChange : change ; Amount
+state "outOfChange" as outOfChange
+outOfChange : stock ; Stock
+outOfChange : cash ; Cash
+
+[*] --> idle : $stock' は満杯 ∧ $cash' はお釣りの初期分だけで売上なし
+
+idle --> idle : restock ; $stock が満杯でない ; $stock' は満杯 ∧ $cash' は $cash のまま
+idle --> idle : collect ; ; $cash' は $cash から 100 円玉をすべて除いたもの ∧ $stock' は $stock のまま
+idle --> outOfChange : changeOut ; $cash に 50 円玉がない ; $stock' は $stock のまま ∧ $cash' は $cash のまま
+outOfChange --> idle : refillChange?count ; $cash に 50 円玉を $count 枚入れる余裕がある ; $cash' は $cash に 50 円玉を $count 枚足したもの ∧ $stock' は $stock のまま
+
+idle --> paying : insert?coin ; $cash に 50 円玉がある ∧ $cash に $coin をもう 1 枚入れる余裕がある ; $credit' は $coin ∧ $cash' は $cash に $coin を足したもの ∧ $stock' は $stock のまま
+paying --> paying : insert?coin ; $credit と $coin の和が上限以下 ∧ $cash に $coin をもう 1 枚入れる余裕がある ; $credit' は $credit と $coin の和 ∧ $cash' は $cash に $coin を足したもの ∧ $stock' は $stock のまま
+paying --> idle : cancel!credit ; $cash から $credit を払い戻せる ; $cash' は $cash から $credit を払い戻した残り ∧ $stock' は $stock のまま
+paying --> dropping : choose?product ; $stock に $product がある ∧ $credit が $product の値段以上 ∧ $cash からお釣りを払える ; $dispensing' は $product ∧ $change' は $credit から値段を引いたもの ∧ $stock' は $stock から $product を 1 本減らしたもの ∧ $cash' は $cash のまま
+
+dropping --> returningChange : drop!dispensing ; ; $change' は $change のまま ∧ $stock' は $stock のまま ∧ $cash' は $cash のまま
+returningChange --> idle : returnChange!change ; ; $cash' は $cash から $change を払った残り ∧ $stock' は $stock のまま
+
+note as channels
+  channel refillChange : Count
+  channel insert : Coin
+  channel cancel : Amount
+  channel choose : Product
+  channel drop : Product
+  channel returnChange : Amount
+end note
+@enduml

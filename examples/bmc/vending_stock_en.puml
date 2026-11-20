@@ -2,7 +2,8 @@
 ' A vending machine that runs out of products and of change: an operator
 ' restocks it to full, collects its sales and refills its change, and it stops
 ' selling while it has no change to give.
-' vending_stock_formal.puml is the same machine with its clauses in Python.
+' vending_stock_ja.puml is the same machine in Japanese, and
+' vending_stock_formal.puml the same machine with its clauses in Python.
 
 state "idle" as idle
 idle : stock ; Stock
