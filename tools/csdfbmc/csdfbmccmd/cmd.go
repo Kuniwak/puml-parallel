@@ -34,8 +34,10 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		}
 
 		module, args := csdfbmc.ModuleCheck, opts.Args
-		if len(args) > 0 && args[0] == "next" {
-			module, args = csdfbmc.ModuleNext, args[1:]
+		if len(args) > 0 {
+			if sub, ok := subcommands[args[0]]; ok {
+				module, args = sub, args[1:]
+			}
 		}
 		cmd := exec.Command(python, csdfbmc.ModuleArgs(dir, module, args...)...)
 		cmd.Stdin = inout.Stdin
@@ -55,6 +57,9 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		return nil
 	}
 }
+
+// subcommands are the modules a first argument names in place of the checker.
+var subcommands = map[string]string{"next": csdfbmc.ModuleNext, "shapes": csdfbmc.ModuleShapes}
 
 // interpreter is the python3 to run: the -python option, then $CSDFBMC_PYTHON,
 // then the first python3 on the PATH.

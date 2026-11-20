@@ -2,6 +2,7 @@ package csdfreplwebcmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v3/pngsrc"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
@@ -70,20 +72,11 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 			return nil
 		}
 
-		raw, err := os.ReadFile(opts.File)
+		source, includes, d, err := readDiagram(opts.File)
 		if err != nil {
-			return fmt.Errorf("csdfreplwebcmd: cannot read the diagram: %w", err)
-		}
-		source, err := pngsrc.Extract(raw)
-		if err != nil {
-			return fmt.Errorf("csdfreplwebcmd: %q: %w", opts.File, err)
+			return err
 		}
 		dir := filepath.Dir(opts.File)
-		includes := map[string]string{}
-		d, _, err := animation.ReadDiagram([]byte(source), coreio.RecordingIncluder(coreio.FileIncluder(dir), includes))
-		if err != nil {
-			return fmt.Errorf("csdfreplwebcmd: %q: %w", opts.File, err)
-		}
 		svg, err := render(opts.PumlExec, dir, []byte(source))
 		if err != nil {
 			return err
@@ -108,11 +101,92 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 		if err != nil {
 			return err
 		}
+		shapes, err := shapesOf(opts)
+		if err != nil {
+			return err
+		}
+		prose, err := proseOf(opts, d)
+		if err != nil {
+			return err
+		}
 		return replweb.WriteStaticPage(inout.Stdout, replweb.Page{
 			Title: title, Path: name, Diagram: []byte(source), Includes: includes, SVG: svg, Highlights: highlights,
-			Python: python,
+			Python: python, Shapes: shapes, Prose: prose,
 		}, engine)
 	}
+}
+
+// readDiagram reads the diagram file is, a .puml text or a .png, as the
+// session explores it: its source, the source of every file a promotion in
+// it includes, by the path its !include writes, read relative to file, and
+// the diagram.
+func readDiagram(file string) (string, map[string]string, *core.Diagram, error) {
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: cannot read the diagram: %w", err)
+	}
+	source, err := pngsrc.Extract(raw)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: %q: %w", file, err)
+	}
+	includes := map[string]string{}
+	d, _, err := animation.ReadDiagram([]byte(source), coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(file)), includes))
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: %q: %w", file, err)
+	}
+	return source, includes, d, nil
+}
+
+// proseOf is the clauses of the files -prose names, other versions of d,
+// by the language each file name says; nil when none is.
+func proseOf(opts *Options, d *core.Diagram) (map[string]*replweb.Prose, error) {
+	if len(opts.Prose) == 0 {
+		return nil, nil
+	}
+	out := map[string]*replweb.Prose{}
+	files := map[string]string{}
+	for _, file := range opts.Prose {
+		lang := replweb.LanguageOf(file)
+		if seen, ok := files[lang]; ok {
+			return nil, proseError{file: file, err: fmt.Errorf("%s is already the prose of this language; name the language each is written in by a suffix such as _ja.puml", seen)}
+		}
+		files[lang] = file
+		_, _, prose, err := readDiagram(file)
+		if err != nil {
+			return nil, err
+		}
+		clauses, err := replweb.ProseOf(d, prose)
+		if err != nil {
+			return nil, proseError{file: file, err: err}
+		}
+		out[lang] = clauses
+	}
+	return out, nil
+}
+
+// proseError says which file -prose names is not the same diagram.
+type proseError struct {
+	file string
+	err  error
+}
+
+func (e proseError) Error() string { return fmt.Sprintf("-prose %s: %v", e.file, e.err) }
+func (e proseError) Unwrap() error { return e.err }
+func (proseError) UserFacing()     {}
+
+// shapesOf is the JSON of the file -shapes names, or nil when none is.
+func shapesOf(opts *Options) (json.RawMessage, error) {
+	if opts.Shapes == "" {
+		return nil, nil
+	}
+	bs, err := os.ReadFile(opts.Shapes)
+	if err != nil {
+		return nil, fmt.Errorf("csdfreplwebcmd: cannot read the shapes: %w", err)
+	}
+	if !json.Valid(bs) {
+		return nil, fmt.Errorf("csdfreplwebcmd: %q is not JSON; give what csdfbmc shapes prints", opts.Shapes)
+	}
+	return bs, nil
 }
 
 // pythonOf is what the page's Python reads to suggest values, or nil when

@@ -323,7 +323,7 @@ func viewResponse(e *entry) Response {
 		pending := sess.Pending()
 		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
-		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post), Determined: animation.Determined(pending)}
+		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post), PostFrame: animation.FrameOf(pending.Post), Edge: pending.Edge, Determined: animation.Determined(pending)}
 		for _, name := range pending.Target.Vars {
 			if f, ok := animation.Family(sess.Diagram(), name); ok {
 				view.Pending.Families = append(view.Pending.Families, name)
@@ -363,14 +363,15 @@ func transitionsOf(sess *animation.Session) []Transition {
 	out := make([]Transition, len(edges))
 	for i, edge := range edges {
 		out[i] = Transition{
-			Index:   i,
-			Event:   edge.Event.Label(),
-			Dst:     edge.Dst,
-			DstName: animation.StateName(sess.Diagram(), edge.Dst),
-			Guard:   animation.ClauseText(edge.Guard),
-			Post:    animation.ClauseText(edge.Post),
-			Line:    edge.Line,
-			Moves:   movesOf(sess.Diagram(), edge),
+			Index:     i,
+			Event:     edge.Event.Label(),
+			Dst:       edge.Dst,
+			DstName:   animation.StateName(sess.Diagram(), edge.Dst),
+			Guard:     animation.ClauseText(edge.Guard),
+			Post:      animation.ClauseText(edge.Post),
+			PostFrame: animation.FrameOf(edge.Post),
+			Line:      edge.Line,
+			Moves:     movesOf(sess.Diagram(), edge),
 		}
 	}
 	return out

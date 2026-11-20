@@ -124,6 +124,8 @@ type Transition struct {
 	DstName string `json:"dst_name"`
 	Guard   string `json:"guard"`
 	Post    string `json:"post"`
+	// PostFrame is Post split for people (animation.FrameOf).
+	PostFrame animation.Frame `json:"post_frame"`
 	// Line is where the reader read the edge, as core.Edge.Line is: 0 when
 	// it has none, as in an expansion.
 	Line int `json:"line,omitempty"`
@@ -155,6 +157,12 @@ type Pending struct {
 	Group    animation.Target `json:"group"`
 	Guard    string           `json:"guard"`
 	Post     string           `json:"post"`
+	// PostFrame is Post split for people (animation.FrameOf).
+	PostFrame animation.Frame `json:"post_frame"`
+	// Edge is the index of the edge the prompt follows among the outgoing
+	// edges of Previous, as Transition.Index numbers them; -1 for the start
+	// edge.
+	Edge int `json:"edge"`
 	// Suggestions are the values the checker admits for this prompt, when
 	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`

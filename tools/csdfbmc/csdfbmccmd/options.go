@@ -88,6 +88,14 @@ N-th outgoing edge of the given runtime state, as
 {"candidates": [{"params": {...}, "values": [...]}, ...]}. csdfrepl and
 csdfrepld call it when given -checks.
 
+"csdfbmc shapes <diagram.json>" prints what the diagram's clauses, written
+in Python, reveal of the values of its types, read from their syntax alone:
+{"types": {TYPE: NODE}, "vars": {VARIABLE: TYPE}}, a NODE being
+{"kind": "record", "fields": {ATTRIBUTE: NODE}}, {"kind": "collection",
+"items": NODE} or {"kind": "scalar"} with the "examples" it is compared with
+and "numeric": true when it is ordered or computed with. An attribute no
+clause reads is absent. csdfreplweb -shapes shows it to testers.
+
 SIGINT or SIGTERM stops the walk where it is: it reports what it found until
 then and writes its last --checkpoint, so "timeout 2h csdfbmc ..." bounds a
 run by time.

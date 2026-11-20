@@ -14,6 +14,7 @@
   --changed: #fff3bf;
   --error-bg: #fdecec;
   --error-text: #a51d1d;
+  --var: #0b57d0;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -31,6 +32,7 @@
     --changed: #4a3f12;
     --error-bg: #3d1c1c;
     --error-text: #ffb3b3;
+    --var: #8ab4ff;
   }
 }
 * { box-sizing: border-box; }
@@ -146,6 +148,9 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .clauses dt { color: var(--muted); }
 .clauses dd { margin: 0; word-break: break-word; }
+details.formal { margin: -.3rem 0 .5rem; font-size: .8rem; }
+details.formal summary { cursor: pointer; color: var(--muted); }
+details.formal .clauses dd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .notice { padding: .5rem .75rem; border-radius: 6px; background: var(--accent-soft); }
 .error { padding: .5rem .75rem; border-radius: 6px; background: var(--error-bg); color: var(--error-text); white-space: pre-wrap; }
 form label { display: block; margin-top: .5rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
@@ -214,3 +219,10 @@ form details.shape code.example { display: block; white-space: pre-wrap; overflo
 form details.shape ul { margin: .2rem 0; padding-left: 1.2rem; }
 form details.shape .fields { color: var(--muted); }
 form input:disabled { background: var(--bg); color: var(--muted); }
+
+/* Variables in clauses, as the diagram's own pictures mark them: in the
+   variables' colour, their origin small and grey right after, one conjunct
+   to a line. */
+.marked .conjunct { display: block; }
+.marked .var { color: var(--var); }
+.marked .origin { font-size: .7em; color: var(--muted); margin-left: .1em; }
