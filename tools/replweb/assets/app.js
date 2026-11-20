@@ -144,6 +144,11 @@
     hovered: null,
     // suggesting says the page's Python is ready to suggest values.
     suggesting: false,
+    // admits says, by the state and the index of a transition out of it
+    // (admitsKey), whether the checker admits any values after it: "none"
+    // or "some"; a transition not asked yet, or whose asking failed, is
+    // not there.
+    admits: new Map(),
     tab: chooseTab(),
   };
 
@@ -166,6 +171,37 @@
     app.history = history.ok ? history.data.history || [] : [];
     render();
     autoContinue();
+    checkAdmits();
+  }
+
+  function admitsKey(state, index) {
+    return JSON.stringify(state) + "#" + index;
+  }
+
+  // checkAdmits asks the checker, one transition at a time and after the
+  // choices are shown, whether any values satisfy each transition out of
+  // the current state, and shows again those it says none do.
+  async function checkAdmits() {
+    const v = app.view;
+    if (!app.suggesting || !v || v.mode !== "command") return;
+    for (const tr of v.transitions || []) {
+      const key = admitsKey(v.state, tr.index);
+      if (app.admits.has(key)) continue;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (app.view !== v) return;
+      const resp = await send({ command: "suggest", index: tr.index });
+      if (app.view !== v) return;
+      if (!resp.ok || !resp.data || !Array.isArray(resp.data.suggestions)) continue;
+      const admits = resp.data.suggestions.length > 0 ? "some" : "none";
+      app.admits.set(key, admits);
+      if (admits === "none") renderControls();
+    }
+  }
+
+  // admitsNone says whether the checker said no values satisfy tr from the
+  // current state.
+  function admitsNone(tr) {
+    return app.admits.get(admitsKey(app.view.state, tr.index)) === "none";
   }
 
   // A state whose values the post determines, all of them, takes them
@@ -254,6 +290,18 @@
     if (mode === "values" || mode === "ended") { await cancelChoice(); return; }
     const entry = app.entries[app.current];
     if (entry && entry.parent !== null && entry.parent !== undefined) await jump(entry.parent);
+  }
+
+  // goToStart goes back to the first entry of the path to the current one,
+  // as clicking it in the history pane does.
+  async function goToStart() {
+    if (canGoToStart()) await jump(chainOf(app.current)[0]);
+  }
+
+  function canGoToStart() {
+    const v = app.view;
+    if (!v || app.current < 0) return false;
+    return v.mode === "values" || v.mode === "ended" || chainOf(app.current).length > 1;
   }
 
   function canGoBack() {
@@ -518,6 +566,7 @@
     for (const node of document.querySelectorAll("[data-msg]")) node.textContent = t(node.dataset.msg);
     renderLegend();
     document.getElementById("back").disabled = !canGoBack();
+    document.getElementById("to-start").disabled = !canGoToStart();
     document.getElementById("save").disabled = app.current < 0;
     document.getElementById("save").title = t("history.saveHint", { file: savedName(), diagram: (config.path || "").split(/[\\/]/).pop() });
     renderHistory();
@@ -551,19 +600,38 @@
     return i === app.current && app.tab === "details" && v && v.mode === "values" && !!v.pending.previous;
   }
 
+  // chainOf is the path to the engine's history entry i, as the indices of
+  // the entries along it: a jump is a clone of the entry it jumps to, so it
+  // stands in that entry's place.
+  function chainOf(i) {
+    const entry = app.entries[i];
+    if (!entry || entry.kind === "initial") return [i];
+    if (entry.kind === "jump") return chainOf(entry.from).slice(0, -1).concat([i]);
+    return chainOf(entry.parent).concat([i]);
+  }
+
+  // originOf is the entry, not a jump, that the entry i is a clone of.
+  function originOf(i) {
+    const entry = app.entries[i];
+    return entry && entry.kind === "jump" ? originOf(entry.from) : i;
+  }
+
+  // renderHistory lists the path to the current entry, one step each.
   function renderHistory() {
     const list = document.getElementById("history");
     list.replaceChildren();
     if (app.history.length === 0) list.appendChild(el("li", { class: "hint", text: t("history.empty") }));
-    app.history.forEach((h, i) => {
-      const entry = app.entries[i] || { kind: "initial", parent: null };
-      let label;
-      if (entry.kind === "step") label = t("history.step", { event: entry.event, state: h.state.state_name });
-      else if (entry.kind === "jump") label = t("history.jump", { step: entry.from + 1, state: h.state.state_name });
-      else label = t("history.initial", { state: h.state.state_name });
-      const parent = entry.kind === "step" ? app.history[entry.parent] : null;
+    const chain = app.current >= 0 ? chainOf(app.current) : [];
+    chain.forEach((i, k) => {
+      const h = app.history[i];
+      if (!h) return;
+      const entry = app.entries[originOf(i)] || { kind: "initial", parent: null };
+      const label = entry.kind === "step"
+        ? t("history.step", { event: entry.event, state: h.state.state_name })
+        : t("history.initial", { state: h.state.state_name });
+      const parent = k > 0 ? app.history[chain[k - 1]] : null;
       const head = el("div", null, [
-        el("span", { class: "step-number", text: t("history.stepNumber", { step: i + 1 }) }),
+        el("span", { class: "step-number", text: t("history.stepNumber", { step: k + 1 }) }),
         el("span", { text: label }),
         entry.auto ? el("span", { class: "auto", text: t("history.auto") }) : null,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
@@ -648,17 +716,21 @@
   function choiceButton(tr) {
     const details = app.tab === "details";
     const written = proseOfEdge(app.view.state.state_id, tr.index);
+    const names = namesOf(stateVars(app.view.state), tr.event);
+    const blocked = admitsNone(tr);
     const rows = details
-      ? [...clauseRows(["guard", "post"], tr, written, namesOf(stateVars(app.view.state), tr.event)), [t("controls.goesTo"), tr.dst_name]]
-      : [[t("controls.goesTo"), tr.dst_name]];
+      ? [...clauseRows(["guard", "post"], tr, written, names), [t("controls.goesTo"), tr.dst_name]]
+      : [...(blocked ? clauseRows(["guard"], tr, written, names) : []), [t("controls.goesTo"), tr.dst_name]];
     const button = el("button", {
-      type: "button", class: "choice", onclick: () => choose(tr),
+      type: "button", class: blocked ? "choice blocked" : "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
       el("div", { class: "event", text: tr.event }),
+      blocked ? el("p", { class: "reason", text: t("controls.conditionFails") }) : document.createTextNode(""),
       clausesList(rows),
     ]);
+    if (blocked) button.disabled = true;
     const formal = details ? formalClauses(["guard", "post"], tr, written) : null;
     return formal ? el("div", { class: "choice-item" }, [button, formal]) : button;
   }
@@ -780,9 +852,13 @@
   function renderValueForm(root, pending) {
     const group = pending.group;
     const promoted = (pending.families || []).length > 0;
-    root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
-    if (app.tab === "details") renderValueDetails(root, pending);
-    else renderValueChoices(root, pending);
+    if (app.tab === "details") {
+      root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
+      renderValueDetails(root, pending);
+    } else {
+      root.appendChild(el("h2", { text: t("suggest.title") }));
+      renderValueChoices(root, pending);
+    }
   }
 
   function cancelButton() {
@@ -800,11 +876,6 @@
       if (note) root.appendChild(note);
       root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
     }
-    const types = pending.group.types || {};
-    for (const type of new Set(vars.map((name) => types[name]).filter((x) => x))) {
-      const help = typeHelp(type);
-      if (help) root.appendChild(help);
-    }
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
@@ -818,6 +889,11 @@
       root.appendChild(el("div", { class: "row" }, [
         el("button", { type: "button", class: "primary", id: "to-details", text: t("choose.toDetails"), onclick: () => setTab("details") }),
       ]));
+    }
+    const types = pending.group.types || {};
+    for (const type of new Set(vars.map((name) => types[name]).filter((x) => x))) {
+      const help = typeHelp(type);
+      if (help) root.appendChild(help);
     }
     const cancel = cancelButton();
     if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
@@ -1025,7 +1101,6 @@
   // renderSuggestions shows the values the checker admits as buttons, each
   // saying what changes from before.
   function renderSuggestions(root, vars, previous, suggestions) {
-    root.appendChild(el("h3", { text: t("suggest.title") }));
     root.appendChild(el("p", { class: "hint", text: t("suggest.hint") }));
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
@@ -1509,6 +1584,7 @@
     render();
     document.getElementById("controls").replaceChildren(el("p", { class: "hint", text: t("app.loading") }));
     document.getElementById("back").addEventListener("click", goBack);
+    document.getElementById("to-start").addEventListener("click", goToStart);
     document.getElementById("save").addEventListener("click", save);
     document.getElementById("show-current").addEventListener("click", showCurrent);
     setupDiagram();

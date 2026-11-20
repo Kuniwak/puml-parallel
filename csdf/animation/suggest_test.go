@@ -1,6 +1,7 @@
 package animation
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -47,6 +48,32 @@ func TestSuggestAsksForTheInitialStateThenForTheSelectedTransition(t *testing.T)
 	}
 	if len(fake.asked) != 2 || fake.asked[1] != 1 {
 		t.Errorf("asked = %v, want the initial state then edge 1", fake.asked)
+	}
+}
+
+func TestSuggestEdgeAsksAboutAnOutgoingTransitionWithoutSelectingIt(t *testing.T) {
+	// Setup
+	fake := &fakeSuggester{next: map[int][]Suggestion{1: {}}}
+	sess, err := NewSession(mustRead(t, counterSource), fake)
+	if err != nil {
+		t.Fatalf("Setup: NewSession() error = %v", err)
+	}
+	if _, err := sess.EnterValues("[0]"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute
+	got, err := sess.SuggestEdge(1)
+
+	// Assert
+	if err != nil || got == nil || len(got) != 0 {
+		t.Fatalf("SuggestEdge(1) = %v, %v; want no suggestions", got, err)
+	}
+	if sess.Mode() != ModeCommand {
+		t.Errorf("mode = %v, want command: nothing is selected", sess.Mode())
+	}
+	if _, err := sess.SuggestEdge(5); !errors.Is(err, ErrIndexOutOfRange) {
+		t.Errorf("SuggestEdge(5) error = %v, want ErrIndexOutOfRange", err)
 	}
 }
 

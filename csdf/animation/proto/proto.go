@@ -24,6 +24,7 @@ const (
 	CommandEnd           = "end"
 	CommandBack          = "back"
 	CommandReplay        = "replay"
+	CommandSuggest       = "suggest"
 	CommandServerVersion = "server_version"
 )
 
@@ -33,7 +34,7 @@ type Request struct {
 	Session string `json:"session,omitempty"` // "" => resolve the single session
 	Path    string `json:"path,omitempty"`    // session_new: label for listings
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
-	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end (required)
+	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end, suggest (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
@@ -80,6 +81,8 @@ const (
 	ErrorCodeIndexOutOfRange = "index_out_of_range"
 	// ErrorCodeEnded: the run has ended; only a jump goes on.
 	ErrorCodeEnded = "ended"
+	// ErrorCodeNoChecker: the daemon has no checker to suggest values.
+	ErrorCodeNoChecker = "no_checker"
 )
 
 // View is the structured current position of a session, returned by read,
@@ -221,6 +224,12 @@ type TraceData struct {
 // HistoryData is the history payload.
 type HistoryData struct {
 	History []animation.HistoryEntry `json:"history"`
+}
+
+// SuggestData is the suggest payload: the values the checker admits after
+// the transition asked about, none when no values satisfy it.
+type SuggestData struct {
+	Suggestions []animation.Suggestion `json:"suggestions"`
 }
 
 // SessionListData is the session_list payload.

@@ -328,6 +328,45 @@ func TestHandleSelectMovesToValues(t *testing.T) {
 	}
 }
 
+type noneAdmitted struct{ animation.NoSuggester }
+
+func (noneAdmitted) Next(animation.State, int) ([]animation.Suggestion, error) {
+	return []animation.Suggestion{}, nil
+}
+
+func TestHandleSuggestTellsWhatATransitionAdmitsWithoutSelectingIt(t *testing.T) {
+	// Setup
+	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
+		return noneAdmitted{}, animation.NoCleanup, nil
+	})
+	id := service.Handle(Request{Command: CommandSessionNew, Content: []byte(twoStateDiagram)}).Session
+	if resp := service.Handle(Request{Command: CommandStatevar, Session: id, Values: "[0]"}); !resp.OK {
+		t.Fatalf("statevar failed: %s", resp.Error)
+	}
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandSuggest, Session: id, Index: intPtr(0)})
+
+	// Assert
+	if !resp.OK {
+		t.Fatalf("suggest failed: %s", resp.Error)
+	}
+	if string(resp.Data) != `{"suggestions":[]}` {
+		t.Errorf("data = %s, want no suggestions", resp.Data)
+	}
+	if view := decodeView(t, service.Handle(Request{Command: CommandRead, Session: id})); view.Mode != "command" {
+		t.Errorf("mode = %q, want command: nothing is selected", view.Mode)
+	}
+}
+
+func TestHandleSuggestWithoutACheckerSaysSo(t *testing.T) {
+	service, id := advance(t)
+	resp := service.Handle(Request{Command: CommandSuggest, Session: id, Index: intPtr(0)})
+	if resp.OK || resp.Code != ErrorCodeNoChecker {
+		t.Errorf("suggest = %+v, want a failure of code %q", resp, ErrorCodeNoChecker)
+	}
+}
+
 func TestHandleSelectOutOfRange(t *testing.T) {
 	service, id := advance(t)
 	resp := service.Handle(Request{Command: CommandSelect, Session: id, Index: intPtr(9)})
