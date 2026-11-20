@@ -25,7 +25,7 @@ outOfChange : cash ; Cash
 
 [*] --> idle : $stock' == FULL ∧ $cash' == INITIAL_CASH
 
-idle --> idle : restock?product ; $stock[$product] < CAPACITY ; $stock' == plus($stock, $product, 1) ∧ @eq(cash', cash)
+idle --> idle : restock ; $stock != FULL ; $stock' == FULL ∧ @eq(cash', cash)
 idle --> idle : collect ; ; $cash' == plus($cash, 'yen100', -$cash['yen100']) ∧ @eq(stock', stock)
 idle --> outOfChange : changeOut ; $cash['yen50'] == 0 ; @eq(stock', stock) ∧ @eq(cash', cash)
 outOfChange --> idle : refillChange?count ; $cash['yen50'] + $count <= MAX_COINS ; $cash' == plus($cash, 'yen50', $count) ∧ @eq(stock', stock)
@@ -39,7 +39,6 @@ dropping --> returningChange : drop!dispensing ; ; @eq(change', change) ∧ @eq(
 returningChange --> idle : returnChange!change ; ; $cash' == pay($cash, $change) ∧ @eq(stock', stock)
 
 note as channels
-  channel restock : Product
   channel refillChange : Count
   channel insert : Coin
   channel cancel : Amount
