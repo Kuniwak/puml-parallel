@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
 	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
@@ -38,10 +39,11 @@ type Options struct {
 	// clauses reveal of its types, which the page shows by the inputs; ""
 	// shows none.
 	Shapes string
-	// Prose is another version of the diagram whose clauses are written
-	// for people, which the page shows in place of the diagram's own; ""
-	// shows the diagram's own.
-	Prose string
+	// Prose are other versions of the diagram whose clauses are written
+	// for people, which the page shows in place of the diagram's own, each
+	// in the language its file name ends in (_ja.puml); none shows the
+	// diagram's own.
+	Prose []string
 }
 
 // CommonOptions returns the parsed common options.
@@ -94,6 +96,10 @@ diagram's own folded under them ("Formal clause"). The other version is
 the same diagram but for its clauses: the same states, variables,
 channels and start state, and the same edges and end edges in the same
 order; csdfreplweb refuses it, naming the first difference, otherwise.
+Give -prose once per language, each file named by its language, as in
+diagram_en.puml and diagram_ja.puml: the page shows the version in the
+language it is shown in, else the one whose name gives no language, else
+the English one.
 
 The page carries the exploration engine compiled to WebAssembly. A
 release binary embeds it. Otherwise csdfreplweb builds it with the go
@@ -116,7 +122,7 @@ Examples:
       examples/bmc/printer_formal.puml > printer.html
   $ csdfparse diagram.puml > diagram.json && csdfbmc shapes diagram.json > shapes.json
   $ csdfreplweb -shapes shapes.json diagram.puml > diagram.html
-  $ csdfreplweb -prose diagram_prose.puml diagram_formal.puml > diagram.html
+  $ csdfreplweb -prose diagram_en.puml -prose diagram_ja.puml diagram_formal.puml > diagram.html
 `)
 		}
 
@@ -127,7 +133,8 @@ Examples:
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
 		shapes := flags.String("shapes", "", "JSON file csdfbmc shapes prints of the diagram, whose shapes of the types the page shows by the inputs")
-		prose := flags.String("prose", "", "another version of the diagram, the same but for its clauses, whose guards and posts the page shows in place of the diagram's")
+		var prose files
+		flags.Var(&prose, "prose", "another version of the diagram, the same but for its clauses, whose guards and posts the page shows in place of the diagram's; repeat it for each language, which the file name ends in, as in vending_ja.puml")
 		pyodide := flags.String("pyodide", DefaultPyodide, "with -checks, URL of the directory holding pyodide.js, which the page loads to run csdfbmc")
 
 		if err := flags.Parse(args); err != nil {
@@ -160,6 +167,12 @@ Examples:
 			return nil, errors.New("csdfreplwebcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
-		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide, Shapes: *shapes, Prose: *prose}, nil
+		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide, Shapes: *shapes, Prose: prose}, nil
 	}
 }
+
+// files are the values of a flag given once per file.
+type files []string
+
+func (f *files) String() string     { return strings.Join(*f, ", ") }
+func (f *files) Set(v string) error { *f = append(*f, v); return nil }

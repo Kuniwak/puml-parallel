@@ -235,3 +235,23 @@ func clauseOf(t *testing.T, text string) clause.And {
 	}
 	return c
 }
+
+func TestLanguageOfShouldReadTheSuffixOfTheFileName(t *testing.T) {
+	tests := map[string]string{
+		"examples/vending_ja.puml": "ja",
+		"vending_en.puml":          "en",
+		"vending.puml":             "",
+		"vending_formal.puml":      "",
+	}
+	for path, want := range tests {
+		t.Run(path, func(t *testing.T) {
+			// Execute
+			got := LanguageOf(path)
+
+			// Assert
+			if got != want {
+				t.Errorf("LanguageOf(%q) = %q, want %q", path, got, want)
+			}
+		})
+	}
+}

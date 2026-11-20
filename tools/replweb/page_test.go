@@ -224,16 +224,16 @@ func TestWriteStaticPageCarriesTheProse(t *testing.T) {
 	prose := &Prose{InitPost: "empty", Edges: map[string][]Clauses{"a": {{Guard: "always", Post: "one more"}}}}
 
 	// Execute
-	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Prose: prose})
+	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Prose: map[string]*Prose{"ja": prose}})
 
 	// Assert
 	var config struct {
-		Prose *Prose `json:"prose"`
+		Prose map[string]*Prose `json:"prose"`
 	}
 	if err := json.Unmarshal([]byte(scriptOf(t, html, "csdfrepl-config")), &config); err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(prose, config.Prose); diff != "" {
+	if diff := cmp.Diff(map[string]*Prose{"ja": prose}, config.Prose); diff != "" {
 		t.Errorf("prose mismatch (-want +got):\n%s", diff)
 	}
 }

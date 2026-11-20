@@ -167,13 +167,13 @@ func TestNewParseOptionsFuncTakesTheProse(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Execute
-	opts, err := NewParseOptionsFunc()([]string{"-prose", "p.puml", "d.puml"}, spy.New())
+	opts, err := NewParseOptionsFunc()([]string{"-prose", "p_en.puml", "-prose", "p_ja.puml", "d.puml"}, spy.New())
 
 	// Assert
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.Prose != "p.puml" {
-		t.Errorf("Prose = %q, want p.puml", opts.Prose)
+	if diff := cmp.Diff([]string{"p_en.puml", "p_ja.puml"}, opts.Prose); diff != "" {
+		t.Errorf("Prose mismatch (-want +got):\n%s", diff)
 	}
 }

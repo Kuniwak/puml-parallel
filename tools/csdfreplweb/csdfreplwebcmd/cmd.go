@@ -137,19 +137,29 @@ func readDiagram(file string) (string, map[string]string, *core.Diagram, error) 
 	return source, includes, d, nil
 }
 
-// proseOf is the clauses of the file -prose names, another version of d,
-// or nil when none is.
-func proseOf(opts *Options, d *core.Diagram) (*replweb.Prose, error) {
-	if opts.Prose == "" {
+// proseOf is the clauses of the files -prose names, other versions of d,
+// by the language each file name says; nil when none is.
+func proseOf(opts *Options, d *core.Diagram) (map[string]*replweb.Prose, error) {
+	if len(opts.Prose) == 0 {
 		return nil, nil
 	}
-	_, _, prose, err := readDiagram(opts.Prose)
-	if err != nil {
-		return nil, err
-	}
-	out, err := replweb.ProseOf(d, prose)
-	if err != nil {
-		return nil, proseError{file: opts.Prose, err: err}
+	out := map[string]*replweb.Prose{}
+	files := map[string]string{}
+	for _, file := range opts.Prose {
+		lang := replweb.LanguageOf(file)
+		if seen, ok := files[lang]; ok {
+			return nil, proseError{file: file, err: fmt.Errorf("%s is already the prose of this language; name the language each is written in by a suffix such as _ja.puml", seen)}
+		}
+		files[lang] = file
+		_, _, prose, err := readDiagram(file)
+		if err != nil {
+			return nil, err
+		}
+		clauses, err := replweb.ProseOf(d, prose)
+		if err != nil {
+			return nil, proseError{file: file, err: err}
+		}
+		out[lang] = clauses
 	}
 	return out, nil
 }

@@ -319,19 +319,29 @@
 
   // ---- The clauses shown: the prose version's (-prose), else the engine's ----
 
-  const prose = config.prose || null;
+  const proses = config.prose || {};
   const NONE_IDS = { guard: "clause.noGuard", post: "clause.noPost" };
   const CLAUSE_LABELS = { guard: "controls.when", post: "controls.then" };
+
+  // shownProse is the prose version written in the page's language, else
+  // the one of no language, else the English one, else any; null when
+  // there is none.
+  function shownProse() {
+    const any = Object.values(proses)[0];
+    return proses[language] || proses[""] || proses.en || any || null;
+  }
 
   // proseOfEdge is the clauses the prose version writes of the index-th
   // edge out of the state src, or null.
   function proseOfEdge(src, index) {
+    const prose = shownProse();
     return prose ? ((prose.edges || {})[src] || [])[index] || null : null;
   }
 
   // proseOfEnd is the guard the prose version writes of the index-th end
   // edge out of the state src, or null.
   function proseOfEnd(src, index) {
+    const prose = shownProse();
     const guard = prose ? ((prose.ends || {})[src] || [])[index] : undefined;
     return guard === undefined ? null : { guard };
   }
@@ -339,6 +349,7 @@
   // proseOfPending is the clauses the prose version writes of the edge a
   // value prompt follows, or null.
   function proseOfPending(pending) {
+    const prose = shownProse();
     if (!prose) return null;
     return pending.previous ? proseOfEdge(pending.previous.state_id, pending.edge) : { post: prose.init_post };
   }

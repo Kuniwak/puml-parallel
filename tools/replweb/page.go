@@ -46,9 +46,10 @@ type Page struct {
 	// Shapes, when set, is what csdfbmc shapes prints of the diagram: the
 	// page shows by each input what the values of its type look like.
 	Shapes json.RawMessage
-	// Prose, when set, is the clauses of another version of the diagram,
-	// written for people, which the page shows in place of its own.
-	Prose *Prose
+	// Prose are the clauses of other versions of the diagram, written for
+	// people, which the page shows in place of its own, by the language
+	// they are written in (LanguageOf); "" for those of no language.
+	Prose map[string]*Prose
 }
 
 // Python is what the page's Python reads to suggest values: Pyodide from
@@ -127,7 +128,7 @@ type config struct {
 	// Shapes is the page's Shapes.
 	Shapes json.RawMessage `json:"shapes,omitempty"`
 	// Prose is the page's Prose.
-	Prose *Prose `json:"prose,omitempty"`
+	Prose map[string]*Prose `json:"prose,omitempty"`
 }
 
 // pageData fills page.html.tmpl; every field is put in as it is, so each

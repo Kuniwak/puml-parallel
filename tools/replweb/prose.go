@@ -3,6 +3,8 @@ package replweb
 import (
 	"fmt"
 	"maps"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -53,6 +55,20 @@ func ProseOf(d, prose *core.Diagram) (*Prose, error) {
 		out.Ends[e.Src] = append(out.Ends[e.Src], animation.ClauseText(e.Guard))
 	}
 	return out, nil
+}
+
+// languageSuffix is the end of a file name that names the language its
+// clauses are written in: _ja.puml, _en.png.
+var languageSuffix = regexp.MustCompile(`_([a-z]{2})\.[^.]+$`)
+
+// LanguageOf is the language the name of the file path says its clauses
+// are written in, by a suffix such as _ja; "" when it says none.
+func LanguageOf(path string) string {
+	m := languageSuffix.FindStringSubmatch(filepath.Base(path))
+	if m == nil {
+		return ""
+	}
+	return m[1]
 }
 
 // MismatchError says how the prose version differs from the diagram, apart
