@@ -347,17 +347,74 @@
   // edge: the prose version's when it writes them, else formal's, the
   // engine's.
   // The engine's post is shown as its frame: what it empties and keeps
-  // apart, one row each, then the rest.
-  function clauseRows(keys, formal, written) {
+  // apart, one row each, then the rest. Given names (namesOf), a clause is
+  // shown marked (marked); without, as written.
+  function clauseRows(keys, formal, written, names) {
+    const shown = (text, noneId) => {
+      const plain = clause(text, noneId);
+      return names && plain === text ? marked(text, names) : plain;
+    };
+    const listed = (vars) => names ? markedNames(vars, names) : vars.join(t("list.separator"));
     return keys.flatMap((k) => {
       const frame = k === "post" && !written ? formal.post_frame : null;
-      if (!frame) return [[t(CLAUSE_LABELS[k]), clause((written || formal)[k], NONE_IDS[k])]];
+      if (!frame) return [[t(CLAUSE_LABELS[k]), shown((written || formal)[k], NONE_IDS[k])]];
       const rows = [];
-      if (frame.emptied) rows.push([t("clause.emptied"), frame.emptied.join(t("list.separator"))]);
-      if (frame.unchanged) rows.push([t("clause.unchanged"), frame.unchanged.join(t("list.separator"))]);
-      if (rows.length === 0 || frame.rest !== "(none)") rows.unshift([t(CLAUSE_LABELS[k]), clause(frame.rest, NONE_IDS[k])]);
+      if (frame.emptied) rows.push([t("clause.emptied"), listed(frame.emptied)]);
+      if (frame.unchanged) rows.push([t("clause.unchanged"), listed(frame.unchanged)]);
+      if (rows.length === 0 || frame.rest !== "(none)") rows.unshift([t(CLAUSE_LABELS[k]), shown(frame.rest, NONE_IDS[k])]);
       return rows;
     });
+  }
+
+  // ---- Variables in clauses, marked as the diagram's own pictures mark them ----
+
+  // namesOf are the names a clause may mention: the state variables and
+  // the fields of the event, each the event's label names after ? or !.
+  function namesOf(vars, event) {
+    return { vars: new Set(vars), fields: new Set(event ? event.split(/[?!]/).slice(1) : []) };
+  }
+
+  const NAME = /(\$?)([\p{L}\p{N}_]+)(')?/gu;
+
+  // origin is where a name a clause mentions comes from, when its notation
+  // tells: after the step when primed, else the event's when the event
+  // carries it, else before the step when written $x; "" when it does not.
+  function origin(dollar, name, primed, names) {
+    if (primed) return "after";
+    if (names.fields.has(name)) return "event";
+    return dollar ? "before" : "";
+  }
+
+  // marked is text with the variables and event fields it mentions in the
+  // variables' colour, each followed by its origin, small and grey, and
+  // one conjunct to a line.
+  function marked(text, names) {
+    return el("span", { class: "marked" }, text.split(" ∧ ").map((part) => {
+      const line = el("span", { class: "conjunct" });
+      let at = 0;
+      for (const m of part.matchAll(NAME)) {
+        const [whole, dollar, name, primed] = m;
+        if (!dollar && !names.vars.has(name) && !names.fields.has(name)) continue;
+        line.appendChild(document.createTextNode(part.slice(at, m.index)));
+        line.appendChild(markedName(name, origin(dollar, name, primed, names)));
+        at = m.index + whole.length;
+      }
+      line.appendChild(document.createTextNode(part.slice(at)));
+      return line;
+    }));
+  }
+
+  function markedName(name, from) {
+    return el("span", {}, [el("span", { class: "var", text: name }), from ? el("span", { class: "origin", text: t("origin." + from) }) : null]);
+  }
+
+  function markedNames(vars, names) {
+    const out = el("span");
+    vars.forEach((v, i) => {
+      if (i > 0) out.appendChild(document.createTextNode(t("list.separator")));
+      out.appendChild(markedName(v, ""));
+    });
+    return out;
   }
 
   // formalClauses shows, folded, the engine's clauses in place of which the
@@ -366,7 +423,7 @@
     if (!written) return null;
     return el("details", { class: "formal" }, [
       el("summary", { text: t("clause.formal") }),
-      clausesList(clauseRows(keys, formal, null)),
+      clausesList(clauseRows(keys, formal, null, null)),
     ]);
   }
 
@@ -455,9 +512,9 @@
 
   function clausesList(rows) {
     const list = el("dl", { class: "clauses" });
-    for (const [label, text] of rows) {
+    for (const [label, value] of rows) {
       list.appendChild(el("dt", { text: label }));
-      list.appendChild(el("dd", { text }));
+      list.appendChild(typeof value === "string" ? el("dd", { text: value }) : el("dd", {}, [value]));
     }
     return list;
   }
@@ -499,7 +556,7 @@
       for (const end of ends) {
         root.appendChild(el("button", { type: "button", class: "choice", onclick: () => finish(end) }, [
           el("div", { class: "event", text: t("controls.finish") }),
-          clausesList(clauseRows(["guard"], end, proseOfEnd(state.state_id, end.index))),
+          clausesList(clauseRows(["guard"], end, proseOfEnd(state.state_id, end.index), namesOf(stateVars(state), null))),
         ]));
         const formal = formalClauses(["guard"], end, proseOfEnd(state.state_id, end.index));
         if (formal) root.appendChild(formal);
@@ -520,7 +577,7 @@
     const details = app.tab === "details";
     const written = proseOfEdge(app.view.state.state_id, tr.index);
     const rows = details
-      ? [...clauseRows(["guard", "post"], tr, written), [t("controls.goesTo"), tr.dst_name]]
+      ? [...clauseRows(["guard", "post"], tr, written, namesOf(stateVars(app.view.state), tr.event)), [t("controls.goesTo"), tr.dst_name]]
       : [[t("controls.goesTo"), tr.dst_name]];
     const button = el("button", {
       type: "button", class: "choice", onclick: () => choose(tr),
@@ -797,6 +854,10 @@
   // instancesNote says once, for a prompt with maps of instances, that
   // those names are the instances of the diagrams they are named after,
   // and how one is written.
+  function stateVars(state) {
+    return (state.values || []).map((v) => v.name);
+  }
+
   function instancesNote(pending) {
     const maps = (pending.families || []).filter((m) => (pending.group.vars || []).includes(m));
     return maps.length > 0 ? el("p", { class: "hint shape", text: t("values.instancesNote", { example: maps[0] }) }) : null;
@@ -809,7 +870,8 @@
     if (app.choice) rows.push([t("controls.event"), app.choice.transition.event]);
     const keys = pending.previous ? ["guard", "post"] : ["post"];
     const written = proseOfPending(pending);
-    rows.push(...clauseRows(keys, pending, written));
+    const before = pending.previous ? stateVars(pending.previous) : [];
+    rows.push(...clauseRows(keys, pending, written, namesOf(before.concat(vars), app.choice ? app.choice.transition.event : null)));
     root.appendChild(clausesList(rows));
     const formal = formalClauses(keys, pending, written);
     if (formal) root.appendChild(formal);

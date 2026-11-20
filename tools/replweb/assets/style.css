@@ -14,6 +14,7 @@
   --changed: #fff3bf;
   --error-bg: #fdecec;
   --error-text: #a51d1d;
+  --var: #0b57d0;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -31,6 +32,7 @@
     --changed: #4a3f12;
     --error-bg: #3d1c1c;
     --error-text: #ffb3b3;
+    --var: #8ab4ff;
   }
 }
 * { box-sizing: border-box; }
@@ -217,3 +219,10 @@ form details.shape code.example { display: block; white-space: pre-wrap; overflo
 form details.shape ul { margin: .2rem 0; padding-left: 1.2rem; }
 form details.shape .fields { color: var(--muted); }
 form input:disabled { background: var(--bg); color: var(--muted); }
+
+/* Variables in clauses, as the diagram's own pictures mark them: in the
+   variables' colour, their origin small and grey right after, one conjunct
+   to a line. */
+.marked .conjunct { display: block; }
+.marked .var { color: var(--var); }
+.marked .origin { font-size: .7em; color: var(--muted); margin-left: .1em; }
