@@ -820,9 +820,13 @@
   function renderValueForm(root, pending) {
     const group = pending.group;
     const promoted = (pending.families || []).length > 0;
-    root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
-    if (app.tab === "details") renderValueDetails(root, pending);
-    else renderValueChoices(root, pending);
+    if (app.tab === "details") {
+      root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
+      renderValueDetails(root, pending);
+    } else {
+      root.appendChild(el("h2", { text: t("suggest.title") }));
+      renderValueChoices(root, pending);
+    }
   }
 
   function cancelButton() {
@@ -840,11 +844,6 @@
       if (note) root.appendChild(note);
       root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
     }
-    const types = pending.group.types || {};
-    for (const type of new Set(vars.map((name) => types[name]).filter((x) => x))) {
-      const help = typeHelp(type);
-      if (help) root.appendChild(help);
-    }
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
@@ -858,6 +857,11 @@
       root.appendChild(el("div", { class: "row" }, [
         el("button", { type: "button", class: "primary", id: "to-details", text: t("choose.toDetails"), onclick: () => setTab("details") }),
       ]));
+    }
+    const types = pending.group.types || {};
+    for (const type of new Set(vars.map((name) => types[name]).filter((x) => x))) {
+      const help = typeHelp(type);
+      if (help) root.appendChild(help);
     }
     const cancel = cancelButton();
     if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
@@ -1065,7 +1069,6 @@
   // renderSuggestions shows the values the checker admits as buttons, each
   // saying what changes from before.
   function renderSuggestions(root, vars, previous, suggestions) {
-    root.appendChild(el("h3", { text: t("suggest.title") }));
     root.appendChild(el("p", { class: "hint", text: t("suggest.hint") }));
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
