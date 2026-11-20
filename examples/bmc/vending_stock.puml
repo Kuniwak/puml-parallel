@@ -1,6 +1,6 @@
 @startuml
 ' A vending machine that runs out of products and of change: an operator
-' restocks it, collects its sales and refills its change, and it stops
+' restocks it to full, collects its sales and refills its change, and it stops
 ' selling while it has no change to give.
 ' vending_stock_formal.puml is the same machine with its clauses in Python.
 
@@ -26,7 +26,7 @@ outOfChange : cash ; Cash
 
 [*] --> idle : $stock' is full ∧ $cash' holds the initial change and no sales
 
-idle --> idle : restock?product ; $stock has room for one more $product ; $stock' is $stock with one more $product ∧ $cash' is $cash
+idle --> idle : restock ; $stock is not full ; $stock' is full ∧ $cash' is $cash
 idle --> idle : collect ; ; $cash' is $cash without its 100-yen coins ∧ $stock' is $stock
 idle --> outOfChange : changeOut ; $cash has no 50-yen coin ; $stock' is $stock ∧ $cash' is $cash
 outOfChange --> idle : refillChange?count ; $cash has room for $count more 50-yen coins ; $cash' is $cash with $count more 50-yen coins ∧ $stock' is $stock
@@ -40,7 +40,6 @@ dropping --> returningChange : drop!dispensing ; ; $change' is $change ∧ $stoc
 returningChange --> idle : returnChange!change ; ; $cash' is $cash after paying $change ∧ $stock' is $stock
 
 note as channels
-  channel restock : Product
   channel refillChange : Count
   channel insert : Coin
   channel cancel : Amount
