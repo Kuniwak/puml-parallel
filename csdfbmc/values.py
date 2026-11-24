@@ -424,16 +424,30 @@ class OnDemandRecord:
                 and all(is_value_of(vs, value[k]) for k, vs in self.parts.items()))
 
 
-def decode(value, values):
-    """The JSON value value read back as the value of a type it is
-    encoded from: the member of values with the same encoding, so an
-    array is read as the set it encodes; else value frozen. An
-    on_demand_record's values are not listed, so its value is frozen."""
-    if listable(values):
+def decode(value, values=None):
+    """The JSON value value read back as the value it is encoded from
+    (encode): the member of values, the values of its type, with the same
+    encoding, so an array is read as the set it encodes; else value
+    unencoded, an {"at", "fields"} object as an instance and
+    {"left_out": true} as a value left out. An on_demand_record's values
+    are not listed, so its value is unencoded."""
+    if values is not None and listable(values):
         text = encode(freeze(value))
         for v in values:
             if encode(freeze(v)) == text:
                 return freeze(v)
+    return _unencoded(value)
+
+
+def _unencoded(value):
+    if isinstance(value, Mapping):
+        if value.keys() == {"left_out"} and value["left_out"] is True:
+            return LEFT_OUT
+        if value.keys() == {"at", "fields"} and isinstance(value["at"], str):
+            return Rec(value["at"], _unencoded(value["fields"]))
+        return FrozenMap((_unencoded(k), _unencoded(v)) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return tuple(_unencoded(v) for v in value)
     return freeze(value)
 
 

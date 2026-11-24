@@ -177,6 +177,21 @@ class DecodeTest(unittest.TestCase):
                 # Assert
                 self.assertTrue(same_value(want, got), got)
 
+    def test_reads_an_encoded_value_back_as_the_value_it_encodes(self):
+        tests = {
+            "an instance": Rec("attSent", FrozenMap({"優先度": 1})),
+            "a map of instances": FrozenMap({"t1": Rec("idle", FrozenMap({"n": (1, 2)}))}),
+            "a value left out": LEFT_OUT,
+            "a map that is not an instance": FrozenMap({"at": 1, "fields": 2}),
+        }
+        for name, value in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = decode(encode(value))
+
+                # Assert
+                self.assertTrue(same_value(value, got), got)
+
 
 class SameValueTest(unittest.TestCase):
     def test_tells_values_apart_by_kind(self):
