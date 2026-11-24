@@ -199,3 +199,41 @@ func TestWriteStaticPageCarriesTheCheckerAndWhatItReads(t *testing.T) {
 		t.Error("the page does not carry csdfbmc's package")
 	}
 }
+
+func TestWriteStaticPageCarriesTheShapes(t *testing.T) {
+	// Setup
+	shapes := json.RawMessage(`{"types":{"Role":{"kind":"record","fields":{}}},"vars":{"r":"Role"}}`)
+
+	// Execute
+	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Shapes: shapes})
+
+	// Assert
+	var config struct {
+		Shapes json.RawMessage `json:"shapes"`
+	}
+	if err := json.Unmarshal([]byte(scriptOf(t, html, "csdfrepl-config")), &config); err != nil {
+		t.Fatal(err)
+	}
+	if string(config.Shapes) != string(shapes) {
+		t.Errorf("shapes = %s, want %s", config.Shapes, shapes)
+	}
+}
+
+func TestWriteStaticPageCarriesTheProse(t *testing.T) {
+	// Setup
+	prose := &Prose{InitPost: "empty", Edges: map[string][]Clauses{"a": {{Guard: "always", Post: "one more"}}}}
+
+	// Execute
+	html := writeTestPage(t, Page{Title: "t", SVG: []byte("<svg></svg>"), Prose: map[string]*Prose{"ja": prose}})
+
+	// Assert
+	var config struct {
+		Prose map[string]*Prose `json:"prose"`
+	}
+	if err := json.Unmarshal([]byte(scriptOf(t, html, "csdfrepl-config")), &config); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(map[string]*Prose{"ja": prose}, config.Prose); diff != "" {
+		t.Errorf("prose mismatch (-want +got):\n%s", diff)
+	}
+}

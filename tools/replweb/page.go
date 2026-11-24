@@ -43,6 +43,13 @@ type Page struct {
 	// Python, when set, makes the page suggest values as csdfrepl -checks
 	// does: it loads Python and runs csdfbmc next in it.
 	Python *Python
+	// Shapes, when set, is what csdfbmc shapes prints of the diagram: the
+	// page shows by each input what the values of its type look like.
+	Shapes json.RawMessage
+	// Prose are the clauses of other versions of the diagram, written for
+	// people, which the page shows in place of its own, by the language
+	// they are written in (LanguageOf); "" for those of no language.
+	Prose map[string]*Prose
 }
 
 // Python is what the page's Python reads to suggest values: Pyodide from
@@ -118,6 +125,10 @@ type config struct {
 	Transport string `json:"transport"`
 	// Python is what the page's Python reads, when it suggests values.
 	Python *pythonConfig `json:"python,omitempty"`
+	// Shapes is the page's Shapes.
+	Shapes json.RawMessage `json:"shapes,omitempty"`
+	// Prose is the page's Prose.
+	Prose map[string]*Prose `json:"prose,omitempty"`
 }
 
 // pageData fills page.html.tmpl; every field is put in as it is, so each
@@ -150,6 +161,8 @@ func writePage(w io.Writer, page Page, transport string, engine Engine) error {
 		Highlighted: len(page.Highlights.States) > 0 || len(page.Highlights.Families) > 0,
 		Transport:   transport,
 		Python:      python,
+		Shapes:      page.Shapes,
+		Prose:       page.Prose,
 	})
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package csdfreplwebcmd
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -213,5 +214,141 @@ func TestMainFailsOnAChecksModuleItCannotRead(t *testing.T) {
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "no/such/checks.py") {
 		t.Errorf("err = %v, want one naming the checks module", err)
+	}
+}
+
+func TestMainCarriesTheShapes(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	shapes := filepath.Join(t.TempDir(), "shapes.json")
+	if err := os.WriteFile(shapes, []byte(`{"types": {"Nat": {"kind": "scalar", "numeric": true}}, "vars": {}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Shapes: shapes}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"shapes":{"types":{"Nat":{"kind":"scalar","numeric":true}},"vars":{}}`; !strings.Contains(spy.Stdout.String(), want) {
+		t.Errorf("the page does not hold %s", want)
+	}
+}
+
+func TestMainRefusesShapesThatAreNoJSON(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	shapes := filepath.Join(t.TempDir(), "shapes.json")
+	if err := os.WriteFile(shapes, []byte(`{"types":`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Shapes: shapes}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "shapes.json") {
+		t.Errorf("err = %v, want one naming the shapes file", err)
+	}
+}
+
+// writeProse writes printer_formal.puml with its clauses replaced as
+// replacements say, as printer_prose.puml, and returns its path.
+func writeProse(t *testing.T, replacements ...string) string {
+	t.Helper()
+	return writeProseAs(t, "printer_prose.puml", replacements...)
+}
+
+// writeProseAs is writeProse writing the file name.
+func writeProseAs(t *testing.T, name string, replacements ...string) string {
+	t.Helper()
+	bs, err := os.ReadFile(printerFormal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, []byte(strings.NewReplacer(replacements...).Replace(string(bs))), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestMainCarriesTheClausesOfTheProse(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	prose := writeProse(t, "$用紙' == INITIAL", "用紙は初期枚数")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{prose}}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"prose":{"":{"init_post":"用紙は初期枚数"`; !strings.Contains(spy.Stdout.String(), want) {
+		t.Errorf("the page does not hold %s", want)
+	}
+}
+
+func TestMainRefusesAProseOfAnotherDiagram(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	prose := writeProse(t, "printing --> idle : 排紙", "printing --> printing : 排紙")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{prose}}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if msg := usererr.Message(err); !strings.Contains(msg, "printing --> idle") || !strings.Contains(msg, prose) || spy.Stdout.Len() != 0 {
+		t.Errorf("message = %q, want one naming the prose and its edge, and nothing written", msg)
+	}
+}
+
+func TestMainCarriesTheProseOfEachLanguageByItsFileName(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	en := writeProseAs(t, "printer_en.puml", "$用紙' == INITIAL", "the tray holds the initial sheets")
+	ja := writeProseAs(t, "printer_ja.puml", "$用紙' == INITIAL", "用紙は初期枚数")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{en, ja}}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"en":{"init_post":"the tray holds the initial sheets"`, `"ja":{"init_post":"用紙は初期枚数"`} {
+		if !strings.Contains(spy.Stdout.String(), want) {
+			t.Errorf("the page does not hold %s", want)
+		}
+	}
+}
+
+func TestMainRefusesTwoProsesOfOneLanguage(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	one := writeProseAs(t, "printer_ja.puml")
+	other := writeProseAs(t, "other_ja.puml")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{one, other}}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if msg := usererr.Message(err); !strings.Contains(msg, one) || !strings.Contains(msg, other) || spy.Stdout.Len() != 0 {
+		t.Errorf("message = %q, want one naming both proses, and nothing written", msg)
 	}
 }

@@ -185,7 +185,7 @@ func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
 
 	// Assert
 	want := []Transition{{Index: 0, Event: "insert?coin", Dst: "s1", DstName: "Done",
-		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", Line: 7}}
+		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", PostFrame: animation.Frame{Rest: "$result' is done"}, Line: 7}}
 	if diff := cmp.Diff(want, decodeView(t, resp).Transitions); diff != "" {
 		t.Errorf("transitions mismatch (-want +got):\n%s", diff)
 	}
@@ -669,6 +669,25 @@ func TestThePromptOfAPromotionSaysTheValuesThePostDetermines(t *testing.T) {
 	}
 }
 
+func TestThePromptOfAPromotionSplitsItsPostIntoItsFrame(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff([]string{"items"}, view.Pending.PostFrame.Emptied); diff != "" {
+		t.Errorf("Pending.PostFrame.Emptied mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestThePromptOfAPromotionNamesTheMapsOfInstances(t *testing.T) {
 	// Setup
 	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
@@ -707,5 +726,41 @@ func TestThePromptOfAPromotionTellsTheShapeOfEachInstance(t *testing.T) {
 	}}}
 	if diff := cmp.Diff(want, view.Pending.Shapes); diff != "" {
 		t.Errorf("Pending.Shapes mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptNamesTheEdgeItFollows(t *testing.T) {
+	tests := map[string]struct {
+		prepare func(t *testing.T) (*Service, string, Request)
+		want    int
+	}{
+		"the start edge": {
+			prepare: func(t *testing.T) (*Service, string, Request) {
+				service, id := newSession(t)
+				return service, id, Request{Command: CommandRead, Session: id}
+			},
+			want: -1,
+		},
+		"an outgoing edge": {
+			prepare: func(t *testing.T) (*Service, string, Request) {
+				service, id := advance(t)
+				return service, id, Request{Command: CommandSelect, Session: id, Index: intPtr(0)}
+			},
+			want: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			service, _, req := tt.prepare(t)
+
+			// Execute
+			resp := service.Handle(req)
+
+			// Assert
+			if got := decodeView(t, resp).Pending.Edge; got != tt.want {
+				t.Errorf("Pending.Edge = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }

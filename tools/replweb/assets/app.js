@@ -317,6 +317,127 @@
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
 
+  // ---- The clauses shown: the prose version's (-prose), else the engine's ----
+
+  const proses = config.prose || {};
+  const NONE_IDS = { guard: "clause.noGuard", post: "clause.noPost" };
+  const CLAUSE_LABELS = { guard: "controls.when", post: "controls.then" };
+
+  // shownProse is the prose version written in the page's language, else
+  // the one of no language, else the English one, else any; null when
+  // there is none.
+  function shownProse() {
+    const any = Object.values(proses)[0];
+    return proses[language] || proses[""] || proses.en || any || null;
+  }
+
+  // proseOfEdge is the clauses the prose version writes of the index-th
+  // edge out of the state src, or null.
+  function proseOfEdge(src, index) {
+    const prose = shownProse();
+    return prose ? ((prose.edges || {})[src] || [])[index] || null : null;
+  }
+
+  // proseOfEnd is the guard the prose version writes of the index-th end
+  // edge out of the state src, or null.
+  function proseOfEnd(src, index) {
+    const prose = shownProse();
+    const guard = prose ? ((prose.ends || {})[src] || [])[index] : undefined;
+    return guard === undefined ? null : { guard };
+  }
+
+  // proseOfPending is the clauses the prose version writes of the edge a
+  // value prompt follows, or null.
+  function proseOfPending(pending) {
+    const prose = shownProse();
+    if (!prose) return null;
+    return pending.previous ? proseOfEdge(pending.previous.state_id, pending.edge) : { post: prose.init_post };
+  }
+
+  // clauseRows are the rows of the clauses keys names (guard, post) of an
+  // edge: the prose version's when it writes them, else formal's, the
+  // engine's.
+  // The engine's post is shown as its frame: what it empties and keeps
+  // apart, one row each, then the rest. Given names (namesOf), a clause is
+  // shown marked (marked); without, as written.
+  function clauseRows(keys, formal, written, names) {
+    const shown = (text, noneId) => {
+      const plain = clause(text, noneId);
+      return names && plain === text ? marked(text, names) : plain;
+    };
+    const listed = (vars) => names ? markedNames(vars, names) : vars.join(t("list.separator"));
+    return keys.flatMap((k) => {
+      const frame = k === "post" && !written ? formal.post_frame : null;
+      if (!frame) return [[t(CLAUSE_LABELS[k]), shown((written || formal)[k], NONE_IDS[k])]];
+      const rows = [];
+      if (frame.emptied) rows.push([t("clause.emptied"), listed(frame.emptied)]);
+      if (frame.unchanged) rows.push([t("clause.unchanged"), listed(frame.unchanged)]);
+      if (rows.length === 0 || frame.rest !== "(none)") rows.unshift([t(CLAUSE_LABELS[k]), shown(frame.rest, NONE_IDS[k])]);
+      return rows;
+    });
+  }
+
+  // ---- Variables in clauses, marked as the diagram's own pictures mark them ----
+
+  // namesOf are the names a clause may mention: the state variables and
+  // the fields of the event, each the event's label names after ? or !.
+  function namesOf(vars, event) {
+    return { vars: new Set(vars), fields: new Set(event ? event.split(/[?!]/).slice(1) : []) };
+  }
+
+  const NAME = /(\$?)([\p{L}\p{N}_]+)(')?/gu;
+
+  // origin is where a name a clause mentions comes from, when its notation
+  // tells: after the step when primed, else the event's when the event
+  // carries it, else before the step when written $x; "" when it does not.
+  function origin(dollar, name, primed, names) {
+    if (primed) return "after";
+    if (names.fields.has(name)) return "event";
+    return dollar ? "before" : "";
+  }
+
+  // marked is text with the variables and event fields it mentions in the
+  // variables' colour, each followed by its origin, small and grey, and
+  // one conjunct to a line.
+  function marked(text, names) {
+    return el("span", { class: "marked" }, text.split(" ∧ ").map((part) => {
+      const line = el("span", { class: "conjunct" });
+      let at = 0;
+      for (const m of part.matchAll(NAME)) {
+        const [whole, dollar, name, primed] = m;
+        if (!dollar && !names.vars.has(name) && !names.fields.has(name)) continue;
+        line.appendChild(document.createTextNode(part.slice(at, m.index)));
+        line.appendChild(markedName(name, origin(dollar, name, primed, names)));
+        at = m.index + whole.length;
+      }
+      line.appendChild(document.createTextNode(part.slice(at)));
+      return line;
+    }));
+  }
+
+  function markedName(name, from) {
+    return el("span", {}, [el("span", { class: "var", text: name }), from ? el("span", { class: "origin", text: t("origin." + from) }) : null]);
+  }
+
+  function markedNames(vars, names) {
+    const out = el("span");
+    vars.forEach((v, i) => {
+      if (i > 0) out.appendChild(document.createTextNode(t("list.separator")));
+      out.appendChild(markedName(v, ""));
+    });
+    return out;
+  }
+
+  // formalClauses shows, folded, the engine's clauses in place of which the
+  // prose version's are shown; null when they are not.
+  function formalClauses(keys, formal, written) {
+    if (!written) return null;
+    return el("details", { class: "formal" }, [
+      el("summary", { text: t("clause.formal") }),
+      clausesList(clauseRows(keys, formal, null, null)),
+    ]);
+  }
+
   // renderLegend shows what each mark on the drawing means, by a small
   // sample of the mark.
   function renderLegend() {
@@ -402,9 +523,9 @@
 
   function clausesList(rows) {
     const list = el("dl", { class: "clauses" });
-    for (const [label, text] of rows) {
+    for (const [label, value] of rows) {
       list.appendChild(el("dt", { text: label }));
-      list.appendChild(el("dd", { text }));
+      list.appendChild(typeof value === "string" ? el("dd", { text: value }) : el("dd", {}, [value]));
     }
     return list;
   }
@@ -446,8 +567,10 @@
       for (const end of ends) {
         root.appendChild(el("button", { type: "button", class: "choice", onclick: () => finish(end) }, [
           el("div", { class: "event", text: t("controls.finish") }),
-          clausesList([[t("controls.when"), clause(end.guard, "clause.noGuard")]]),
+          clausesList(clauseRows(["guard"], end, proseOfEnd(state.state_id, end.index), namesOf(stateVars(state), null))),
         ]));
+        const formal = formalClauses(["guard"], end, proseOfEnd(state.state_id, end.index));
+        if (formal) root.appendChild(formal);
       }
     }
   }
@@ -462,10 +585,12 @@
   // choiceButton is a transition to click: in the details tab with its
   // clauses.
   function choiceButton(tr) {
-    const rows = app.tab === "details"
-      ? [[t("controls.when"), clause(tr.guard, "clause.noGuard")], [t("controls.then"), clause(tr.post, "clause.noPost")], [t("controls.goesTo"), tr.dst_name]]
+    const details = app.tab === "details";
+    const written = proseOfEdge(app.view.state.state_id, tr.index);
+    const rows = details
+      ? [...clauseRows(["guard", "post"], tr, written, namesOf(stateVars(app.view.state), tr.event)), [t("controls.goesTo"), tr.dst_name]]
       : [[t("controls.goesTo"), tr.dst_name]];
-    return el("button", {
+    const button = el("button", {
       type: "button", class: "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
@@ -473,6 +598,8 @@
       el("div", { class: "event", text: tr.event }),
       clausesList(rows),
     ]);
+    const formal = details ? formalClauses(["guard", "post"], tr, written) : null;
+    return formal ? el("div", { class: "choice-item" }, [button, formal]) : button;
   }
 
   function hover(tr) {
@@ -489,7 +616,8 @@
 
   function matchesText(tr, words) {
     if (words.length === 0) return true;
-    const text = [tr.event, tr.guard, tr.post, tr.dst_name].join(" ").toLowerCase();
+    const written = proseOfEdge(app.view.state.state_id, tr.index) || {};
+    const text = [tr.event, tr.guard, tr.post, written.guard, written.post, tr.dst_name].join(" ").toLowerCase();
     return words.every((w) => text.includes(w));
   }
 
@@ -650,7 +778,7 @@
   // and every local state an instance may be at with the fields it holds.
   function shapeHelp(shape) {
     const first = shape.states[0];
-    const fields = first ? "{" + (first.fields || []).map((f) => JSON.stringify(f.name) + ": …").join(", ") + "}" : "{}";
+    const fields = first ? "{" + (first.fields || []).map((f) => JSON.stringify(f.name) + ": " + shapeExample(f.type)).join(", ") + "}" : "{}";
     const example = first ? "{" + JSON.stringify(t("shape.id", { type: shape.key_type || "ID" })) + ": {\"at\": " + JSON.stringify(first.state) + ", \"fields\": " + fields + "}}" : "{}";
     const rows = shape.states.map((s) => el("li", null, [
       el("code", { text: s.state }),
@@ -666,12 +794,81 @@
       el("code", { class: "example", text: example }),
       el("p", { class: "hint", text: t("shape.states") }),
       el("ul", null, rows),
+      ...[...new Set(shape.states.flatMap((s) => (s.fields || []).map((f) => f.type)))].map(typeHelp),
+    ]);
+  }
+
+  // typeShape is what csdfbmc shapes (-shapes) says the values of the type
+  // named type look like, or null when it says nothing worth showing: for
+  // a map type K ⇸ V, that of V, each value under its key.
+  function typeShape(type) {
+    const types = (config.shapes && config.shapes.types) || {};
+    const known = (node) => node && (node.kind !== "scalar" || (node.examples || []).length > 0 || node.numeric);
+    if (known(types[type])) return { node: types[type], key: null };
+    const [key, value] = String(type).split("⇸").map((x) => x.trim());
+    return value && known(types[value]) ? { node: types[value], key } : null;
+  }
+
+  // skeleton is an example value of the shape node: a record of its
+  // attributes, a list of one item, a constant it is compared with, else
+  // 0 for a number and "…" for anything else.
+  function skeleton(node) {
+    if (node.kind === "record") return Object.fromEntries(Object.entries(node.fields).map(([k, v]) => [k, skeleton(v)]));
+    if (node.kind === "collection") return [skeleton(node.items)];
+    if ((node.examples || []).length > 0) return node.examples[0];
+    return node.numeric ? 0 : "…";
+  }
+
+  // shapeLeaves lists the attributes of node whose values something is
+  // known of, by their paths: the constants they are compared with, or
+  // that they are numbers.
+  function shapeLeaves(node, path) {
+    if (node.kind === "record") return Object.entries(node.fields).flatMap(([k, v]) => shapeLeaves(v, path.concat([k])));
+    if (node.kind === "collection") return shapeLeaves(node.items, path.concat(["[…]"]));
+    const examples = node.examples || [];
+    if (examples.length === 0 && !node.numeric) return [];
+    const name = path.length > 0 ? path.join(".").replaceAll(".[…]", "[…]") : t("typeShape.value");
+    return [el("li", null, [
+      el("code", { text: name }),
+      el("span", { class: "fields", text: examples.length > 0
+        ? t("typeShape.examples", { values: examples.map((x) => JSON.stringify(x)).join(", ") })
+        : t("typeShape.number") }),
+    ])];
+  }
+
+  // exampleOf is an example value of what typeShape gives.
+  function exampleOf(shape) {
+    const value = skeleton(shape.node);
+    return shape.key ? { [t("shape.id", { type: shape.key })]: value } : value;
+  }
+
+  // shapeExample is the example JSON of a value of type, or "…".
+  function shapeExample(type) {
+    const shape = typeShape(type);
+    return shape ? JSON.stringify(exampleOf(shape)) : "…";
+  }
+
+  // typeHelp tells what a value of type looks like, as far as the clauses
+  // of the diagram tell (-shapes), or is null when they tell nothing.
+  function typeHelp(type) {
+    const shape = typeShape(type);
+    if (!shape) return null;
+    const leaves = shapeLeaves(shape.node, []);
+    return el("details", { class: "shape type-shape" }, [
+      el("summary", { text: t("typeShape.summary", { type }) }),
+      el("p", { class: "hint", text: t("typeShape.note") }),
+      el("code", { class: "example", text: JSON.stringify(exampleOf(shape), null, 2) }),
+      leaves.length > 0 ? el("ul", null, leaves) : null,
     ]);
   }
 
   // instancesNote says once, for a prompt with maps of instances, that
   // those names are the instances of the diagrams they are named after,
   // and how one is written.
+  function stateVars(state) {
+    return (state.values || []).map((v) => v.name);
+  }
+
   function instancesNote(pending) {
     const maps = (pending.families || []).filter((m) => (pending.group.vars || []).includes(m));
     return maps.length > 0 ? el("p", { class: "hint shape", text: t("values.instancesNote", { example: maps[0] }) }) : null;
@@ -682,9 +879,13 @@
     const vars = group.vars || [];
     const rows = [];
     if (app.choice) rows.push([t("controls.event"), app.choice.transition.event]);
-    if (pending.previous) rows.push([t("controls.when"), clause(pending.guard, "clause.noGuard")]);
-    rows.push([t("controls.then"), clause(pending.post, "clause.noPost")]);
+    const keys = pending.previous ? ["guard", "post"] : ["post"];
+    const written = proseOfPending(pending);
+    const before = pending.previous ? stateVars(pending.previous) : [];
+    rows.push(...clauseRows(keys, pending, written, namesOf(before.concat(vars), app.choice ? app.choice.transition.event : null)));
     root.appendChild(clausesList(rows));
+    const formal = formalClauses(keys, pending, written);
+    if (formal) root.appendChild(formal);
     root.appendChild(errorBox());
     const previous = pending.previous ? pending.previous.values || [] : [];
     const inputs = [];
@@ -718,6 +919,8 @@
       form.appendChild(input);
       const shape = (pending.shapes || []).find((s) => s.map === name);
       if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
+      const help = !shape && fixed === undefined && types[name] ? typeHelp(types[name]) : null;
+      if (help) form.appendChild(help);
       if (fixed !== undefined) {
         form.appendChild(el("p", { class: "hint fixed", text: t("values.fixed") }));
       } else if (before) {

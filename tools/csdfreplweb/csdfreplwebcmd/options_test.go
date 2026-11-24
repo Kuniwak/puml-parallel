@@ -145,3 +145,35 @@ func TestNewParseOptionsFuncTakesTheChecker(t *testing.T) {
 		})
 	}
 }
+
+func TestNewParseOptionsFuncTakesTheShapes(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+
+	// Execute
+	opts, err := NewParseOptionsFunc()([]string{"-shapes", "s.json", "d.puml"}, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.Shapes != "s.json" {
+		t.Errorf("Shapes = %q, want s.json", opts.Shapes)
+	}
+}
+
+func TestNewParseOptionsFuncTakesTheProse(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+
+	// Execute
+	opts, err := NewParseOptionsFunc()([]string{"-prose", "p_en.puml", "-prose", "p_ja.puml", "d.puml"}, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff([]string{"p_en.puml", "p_ja.puml"}, opts.Prose); diff != "" {
+		t.Errorf("Prose mismatch (-want +got):\n%s", diff)
+	}
+}
