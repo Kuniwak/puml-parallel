@@ -56,10 +56,14 @@ func TestMainWritesThePageOfTheDiagram(t *testing.T) {
 	}
 }
 
-func TestMainDrawsAPromotionWithoutHighlights(t *testing.T) {
+// fakePromotionSVG is a drawing of MEMBERS.puml whose block draws the local
+// state memActive.
+const fakePromotionSVG = `<svg xmlns="http://www.w3.org/2000/svg"><g class="entity" data-qualified-name="running.runningMembers.memActive" id="ent0004"><rect/></g></svg>`
+
+func TestMainHighlightsTheLocalDiagramsOfAPromotion(t *testing.T) {
 	// Setup
 	spy := cli.SpyProcInout()
-	render := func([]string, string, []byte) ([]byte, error) { return []byte(fakeSVG), nil }
+	render := func([]string, string, []byte) ([]byte, error) { return []byte(fakePromotionSVG), nil }
 	opts := &Options{Common: &tools.CommonOptions{}, File: "../../../examples/promote/MEMBERS.puml", PumlExec: []string{"x"}}
 
 	// Execute
@@ -69,8 +73,8 @@ func TestMainDrawsAPromotionWithoutHighlights(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(spy.Stdout.String(), `"highlighted":false`) {
-		t.Error("the page highlights a promotion")
+	if !strings.Contains(spy.Stdout.String(), `"families":{"members":{"states":{"memActive":"ent0004"}`) {
+		t.Error("the page does not highlight the local diagram of members")
 	}
 }
 
