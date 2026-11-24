@@ -1,0 +1,50 @@
+@startuml
+' examples/bmc/vending_stock_en.puml with every clause written in Python.
+' vending_stock_formal_defs.py names the constants, the helpers and the
+' types; give vending_stock_en.puml to csdfreplweb -prose to show its
+' clauses in place of these.
+
+state "idle" as idle
+idle : stock ; Stock
+idle : cash ; Cash
+state "paying" as paying
+paying : stock ; Stock
+paying : cash ; Cash
+paying : credit ; Amount
+state "dropping" as dropping
+dropping : stock ; Stock
+dropping : cash ; Cash
+dropping : dispensing ; Product
+dropping : change ; Amount
+state "returningChange" as returningChange
+returningChange : stock ; Stock
+returningChange : cash ; Cash
+returningChange : change ; Amount
+state "outOfChange" as outOfChange
+outOfChange : stock ; Stock
+outOfChange : cash ; Cash
+
+[*] --> idle : $stock' == FULL ∧ $cash' == INITIAL_CASH
+
+idle --> idle : restock ; $stock != FULL ; $stock' == FULL ∧ @eq(cash', cash)
+idle --> idle : collect ; ; $cash' == plus($cash, 'yen100', -$cash['yen100']) ∧ @eq(stock', stock)
+idle --> outOfChange : changeOut ; $cash['yen50'] == 0 ; @eq(stock', stock) ∧ @eq(cash', cash)
+outOfChange --> idle : refillChange?count ; $cash['yen50'] + $count <= MAX_COINS ; $cash' == plus($cash, 'yen50', $count) ∧ @eq(stock', stock)
+
+idle --> paying : insert?coin ; $cash['yen50'] > 0 ∧ $cash[KEY[$coin]] < MAX_COINS ; @eq(credit', coin) ∧ $cash' == plus($cash, KEY[$coin], 1) ∧ @eq(stock', stock)
+paying --> paying : insert?coin ; $credit + $coin <= LIMIT ∧ $cash[KEY[$coin]] < MAX_COINS ; $credit' == $credit + $coin ∧ $cash' == plus($cash, KEY[$coin], 1) ∧ @eq(stock', stock)
+paying --> idle : cancel!credit ; can_pay($cash, $credit) ; $cash' == pay($cash, $credit) ∧ @eq(stock', stock)
+paying --> dropping : choose?product ; $stock[$product] > 0 ∧ $credit >= PRICE[$product] ∧ can_pay($cash, $credit - PRICE[$product]) ; @eq(dispensing', product) ∧ $change' == $credit - PRICE[$product] ∧ $stock' == plus($stock, $product, -1) ∧ @eq(cash', cash)
+
+dropping --> returningChange : drop!dispensing ; ; @eq(change', change) ∧ @eq(stock', stock) ∧ @eq(cash', cash)
+returningChange --> idle : returnChange!change ; ; $cash' == pay($cash, $change) ∧ @eq(stock', stock)
+
+note as channels
+  channel refillChange : Count
+  channel insert : Coin
+  channel cancel : Amount
+  channel choose : Product
+  channel drop : Product
+  channel returnChange : Amount
+end note
+@enduml
