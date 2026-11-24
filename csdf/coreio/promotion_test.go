@@ -448,3 +448,54 @@ end note
 		})
 	}
 }
+
+func TestPromoteReadsAnIncludedLocalDiagramThroughItsObservations(t *testing.T) {
+	observed := strings.Replace(location, "@startuml\n", "@startuml\n' CSDF-OBSERVE live = free\n", 1)
+	global := func(guard string) string {
+		return `@startuml
+state "稼働中" as running {
+  state "locations : (l : 場所ID) ⇸ Location" as rl <<promote>> {
+    !include L.puml
+  }
+}
+state "保守" as maint {
+  maint : locations ; 場所ID ⇸ Location
+}
+[*] --> running
+running --> maint : HALT?l ; ` + guard + `
+maint --> running : RESUME
+note as ch
+  channel HALT : 場所ID
+end note
+@enduml
+`
+	}
+	cases := []struct{ name, guard, want string }{
+		{"a declared view", "@at(locations[l], live)", ""},
+		{"a state", "@at(locations[l], free)", "add ' CSDF-OBSERVE <view> = free"},
+		{"an undeclared variable", "${locations[l].在庫} = 0", "add ' CSDF-OBSERVE 在庫"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// Setup
+			p, err := ReadPromotion(global(c.guard), files(map[string]string{"L.puml": observed}))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			_, _, err = core.Promote(p)
+
+			// Assert
+			if c.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("err = %v, want one containing %q", err, c.want)
+			}
+		})
+	}
+}
