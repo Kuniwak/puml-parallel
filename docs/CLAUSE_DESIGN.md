@@ -98,26 +98,29 @@ diagram with its observations, not to ⟦P⟧ alone.
 
 - The local diagram P declares its **observation** obs(s, v): a function of
   its local state s and the values v of its state variables
-  (docs/PROMOTION.md, Observations). A local diagram that declares none
-  observes everything, obs(s, v) = (s, v).
+  (docs/PROMOTION.md, Observations). An observation always tells whether
+  s is S₀, that is whether the instance exists, so `@in` and `@notin` of
+  its key are always readable. A local diagram that declares none observes
+  everything, obs(s, v) = (s, v).
 - A **public event** is e.k.(o, o′): the event e of P, the key k of the
-  instance, and the observation o before and o′ after the step. A τ step
-  that changes the observation is made visible as τ.k.(o, o′); one that
-  keeps it stays τ. For an event that only the global diagram has, a global
+  instance, and the observation o before and o′ after the step. Every τ
+  step of P is a public event τ.k.(o, o′) too, whether or not it changes
+  the observation, so the tracker synchronises on it. For an event that only the global diagram has, a global
   edge that reads instance k without moving it, the instance offers a
   self-loop at every state carrying its current observation, e.k.(o, o).
 - **P♯** is P with these public events, without the key: e.(o, o′),
   τ.(o, o′) and the self-loops. Its states are P's. The meaning of a local
   diagram as a part of a promotion is ⟦P♯⟧, and two local diagrams are
-  interchangeable inside a promotion iff ⟦P♯⟧ =SF ⟦P′♯⟧. The coarser the
+  interchangeable inside a promotion if ⟦P♯⟧ =SF ⟦P′♯⟧. The coarser the
   observation, the more local diagrams are interchangeable, and the less a
   global clause may read.
 - The **tracker** M_G is the global diagram G as one process. Its state is
   the current mode and each family's map; m[k] holds the observation of
   instance k, and k is in the domain of m iff the instance is not at S₀. On
   a public event it evaluates G's guards on the maps it holds, writes m[k]
-  from the post-observation o′, and refuses the events of a family frozen
-  in the current mode.
+  from the post-observation o′, and refuses every public event of a family
+  frozen in the current mode, τ.k.(o, o′) included, so a frozen instance
+  keeps its local state and values.
 - The context is
 
       F_G(X) = ( |||_{k ∈ ID} X⟦e.(o, o′) ↦ e.k.(o, o′)⟧ ) [| E_pub |] M_G
@@ -134,8 +137,8 @@ diagram with its observations, not to ⟦P⟧ alone.
       ⟦outermost⟧ = ρ(⟦…♯⟧) \ {τ}
 
   ρ renames the public events of local edges and of global-only self-loops
-  back to the events the author wrote; they are not hidden. Only
-  τ.k.(o, o′) is renamed to τ and hidden. ρ is many-to-one and introduces
+  back to the events the author wrote; they are not hidden. Only the
+  τ.k.(o, o′), all of them, are renamed to τ and hidden. ρ is many-to-one and introduces
   no τ, so it adds no divergence.
 
 F_G uses only CSP operators, so promotion is congruent and monotone under
@@ -329,8 +332,7 @@ domain membership is "not at S₀", and an instance's control state is its
 position in P. Model checking works on the flat expansion, whose map holds
 each instance's local state and values; the obligation is that the flat
 expansion is stable-failures equivalent to the closed meaning,
-ρ(⟦…♯⟧) \ {τ}. The public events carry observations, so they are more
-events than the flat expansion has; the states are as many.
+ρ(⟦…♯⟧) \ {τ}.
 
 ## Operators on clauses
 
@@ -669,7 +671,7 @@ changes of representation and constructors (for hiding, divergence is part
 of what is checked). A constructor used before one must meet its obligation
 under failures-divergences, not only =SF; promotion does, since its term
 adds only synchronisation and renaming, neither of which introduces τ: the
-τ.k.(o, o′) hidden at the outermost diagram are τ steps of P, made
+τ.k.(o, o′) hidden at the outermost diagram are exactly the τ steps of P, made
 visible on the way and hidden again. Abstractions and optimisations proven only under ⊑SF
 must not be; partial-order reduction preserves divergence only with a cycle
 proviso, and must say so before it is used for one.

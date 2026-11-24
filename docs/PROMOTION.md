@@ -171,9 +171,9 @@ ID, and PlantUML would merge the two boxes into one.
 
 A state that holds the map but has no block for it has that family **frozen**
 there, which is reported as `info`: the tracker refuses the family's events
-in that mode, and its instances keep their local states and values. This is deliberate: expanding into every
-state that holds the map would quietly write a specification in which receipts go
-on being logged during maintenance. Every state holds every family's map: the
+in that mode, its internal steps included, and its instances keep their local
+states and values. A family moves only in the states that hold a block for it,
+not in every state that holds its map. Every state holds every family's map: the
 instances exist whatever the mode, so a state that declares some maps and not
 others is refused. The edges that switch modes are hand-written. Every map is
 unchanged across them, since an edge of the global diagram cannot write an
@@ -260,8 +260,9 @@ always observed, since the map's domain is it. A local diagram with no
 by state names, and every variable.
 
 The observation decides which local diagrams are interchangeable inside a
-promotion: two local diagrams are, when they agree on their events and on
-the observations those events carry (docs/CLAUSE_DESIGN.md, P♯). The less a
+promotion: two local diagrams are interchangeable if their ⟦P♯⟧ are
+SF-equivalent, the events and the observations those events carry
+included (docs/CLAUSE_DESIGN.md, P♯). The less a
 local diagram declares, the more diagrams can replace it, and the less a
 global clause may read.
 
@@ -281,8 +282,7 @@ three changes, and no new syntax:
 
 Include the expanded inner diagram, so changed, in the outer `<<promote>>`
 block. The outer global diagram then reads the inner instances through the
-outer map, as in `M[j].m[k]`, with the keys `(j, k)`. That `csdfbmc` reads
-such nested terms is not yet verified; it is a known limitation.
+outer map, as in `M[j].m[k]`, with the keys `(j, k)`.
 
 
 Expansion
@@ -327,9 +327,10 @@ about, and it narrows nothing. A parameter of the constrain that no matching
 edge takes is a warning — a mistyped name would otherwise be a free variable
 sitting in a guard, and nothing else would notice.
 
-`tau` is promoted without an instance ID — an internal event with an argument is
-an observable one — and the instance is implicitly existentially quantified.
-Syncing `tau` is an error. A promoted `tau` is a self-loop, so
+In the closed meaning, after ρ and hiding, a promoted `tau` has no instance ID
+— an internal event with an argument is an observable one — and the instance is
+implicitly existentially quantified. Syncing `tau` is an error. A promoted `tau`
+is a self-loop of the global state, so
 `csdflivelockfree` will not call the result structurally livelock-free and will
 emit a predicate obligation instead. That is the right answer, not a defect: the
 obligation to discharge is that the number of instances in `〈S〉` goes down.
