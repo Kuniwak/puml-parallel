@@ -243,3 +243,13 @@ form input:disabled { background: var(--bg); color: var(--muted); }
 .chosen .label, .chosen .dst { color: var(--muted); font-size: .85rem; }
 .chosen .event { font-weight: 600; color: var(--accent); }
 .chosen button { margin-left: auto; }
+ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.instance { border-left: 3px solid var(--border); padding-left: .45rem; }
+.instance.changed { border-radius: 3px; }
+.instance-head { display: flex; align-items: center; gap: .1rem .4rem; flex-wrap: wrap; }
+.instance-head .dot { margin-right: 0; }
+.instance-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.instance-at { font-weight: 600; font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.instance-at::before { content: "→ "; color: var(--muted); font-weight: normal; }
+.instance-at.changed { border-radius: 3px; padding: 0 .2rem; }
+.instance .values { margin-left: 1.1rem; }
