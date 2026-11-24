@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from csdfbmc.model import Bound, Builtin, Exists, Field, Free, Index, Lit, free_names
+from csdfbmc.model import Bound, Builtin, Exists, Field, Free, Index, Lit, free_names, literal_parts, names_of
 
 
 @dataclass(frozen=True)
@@ -24,25 +24,33 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
     An equality builtin binds a field f, f = t, or its part f[k] for a
     literal key k, when t reads no value after the step, not f, and only
     the names known and the fields, and no conjunct before it reads f; a
-    field it reads that nothing has bound yet ranges then. The parts of a
-    field are bound until a conjunct reads the field, which then holds
-    the parts bound before; one equality binds a key, the first. A field
-    in ranged, or one read before an equality binds it, ranges. Of the two
-    sides of an equality, the one whose term reads only fields before it in
-    fields is bound first."""
+    field it reads that nothing has bound yet ranges then. A part f[k] may
+    be bound to a term over other parts of f, read f.j or f["j"]; a part
+    read before an equality binds it ranges, and reading a part alone does
+    not read the field. The parts of a field are bound until a conjunct
+    reads the field, which then holds the parts bound before; one equality
+    binds a key, the first. A field in ranged, or one read before an
+    equality binds it, ranges. Of the two sides of an equality, the one
+    whose term reads only fields before it in fields is bound first."""
     order = {f: i for i, f in enumerate(fields)}
     reads_first: set[str] = set(ranged)
     whole: set[str] = set()
     parts: dict[str, list] = {}
+    read_parts: dict[str, set] = {}
     closed: set[str] = set()
     binds: dict[int, Bind] = {}
 
     def bindable(f: str, key) -> bool:
         if f not in order or f in reads_first or f in whole or f in closed:
             return False
-        return key not in parts.get(f, []) if key is not None else f not in parts
+        if key is None:
+            return f not in parts and f not in read_parts
+        return key not in parts.get(f, []) and key not in read_parts.get(f, set())
 
-    def read(names: set[str]) -> None:
+    def read(names: set) -> None:
+        for n in names:
+            if isinstance(n, tuple) and n[0] in order:
+                read_parts.setdefault(n[0], set()).add(n[1])
         for g in names & order.keys():
             if g in parts:
                 closed.add(g)
@@ -52,15 +60,32 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
     for i, c in enumerate(guard):
         bind = _bind(c, order, known, bindable)
         if bind is None:
-            read(free_names(c))
+            read(_literal_reads(c, primed=None))
             continue
         binds[i] = bind
         if bind.key is None:
             whole.add(bind.field)
         else:
             parts.setdefault(bind.field, []).append(bind.key)
-        read(free_names(bind.term))
+        read(_literal_reads(bind.term, primed=None))
     return binds
+
+
+def blocked(guard: tuple, fields: list[str], known: set[str], f: str, key) -> object | None:
+    """The first equality of guard that would bind the part key of the
+    field f were it the guard alone, when the guard binds no such part, so
+    that a conjunct before the equality keeps it from binding; None
+    otherwise. No field ranges but those the guard reads first."""
+    def binds(g: tuple) -> bool:
+        return any((b.field, b.key) == (f, key) for b in determine(g, fields, known, frozenset()).values())
+    if binds(guard):
+        return None
+    return next((c for c in guard if binds((c,))), None)
+
+
+def _literal_reads(t, primed: bool | None) -> set:
+    """free_names of t, each part with a literal key as (f, k)."""
+    return free_names(t, primed=primed, parts=literal_parts(t))
 
 
 def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
@@ -76,8 +101,9 @@ def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
             f, key = x.map.name, x.key.value
         else:
             continue
-        names = free_names(y, primed=False)
-        if free_names(y, primed=True) or f in names or not names <= known | order.keys() or not bindable(f, key):
+        reads = _literal_reads(y, primed=False)
+        names = names_of(reads)
+        if free_names(y, primed=True) or f in reads or (f, key) in reads or not names <= known | order.keys() or not bindable(f, key):
             continue
         found.append((not all(order[g] < order[f] for g in names & order.keys()), Bind(f, key, y)))
     return min(found, key=lambda t: t[0])[1] if found else None

@@ -359,6 +359,7 @@ never fails a build. It reads clauses as formulas (`docs/CLAUSE_DESIGN.md`), as
 $ csdflint examples/valid/client.puml
 $ csdflint examples/valid/*.puml
 $ csdflint < examples/valid/client.puml
+$ csdflint -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" examples/bmc/printer_formal.puml
 $ csdflint -list-rules
 ```
 
@@ -371,8 +372,22 @@ status, and an AI reviewing a diagram it wrote itself, which reads the messages.
 So a message says what is suspicious *and what would settle it*.
 
 No rule evaluates an atom: an atom is text a language interprets, and a rule
-concludes only what the builtins and the shape of a formula decide. The rules
-are:
+concludes only what the builtins and the shape of a formula decide. Only when
+a glue is named (see bounded model checking), by `-evaluator CMD` or by
+`-evaluator-module "MODULE ARGS..."` as csdfbmc names them, does csdflint ask
+the language, and then without values: the rule `atom-not-in-language` asks
+the glue's `lint` whether it reads each atom of every guard and post, as
+csdfbmc would read it, and walks no state, so it answers before csdfbmc
+would build its start state. Which atoms are environment functions is not
+written in the diagram, so every atom is asked: lint with a glue a diagram
+written in its language alone. A glue that cannot be started, does not
+answer `lint`, or fails on the way exits csdflint with status 2, since the
+atoms are then not all checked. An end edge keeps no line, so a finding on
+its guard has the line 0. A glue module runs from the sources csdflint
+carries, as the `csdfbmc` binary runs them (`python3 -m csdfbmc.serve
+MODULE ARGS...`, with `-python` or `$CSDFBMC_PYTHON` naming the interpreter
+and `$CSDFBMC_CACHE` where they are unpacked), so a release needs no
+checkout. The rules are:
 
 | Rule | Severity | Reports |
 | --- | --- | --- |
@@ -380,6 +395,7 @@ are:
 | `self-transition-divergence` | `WARN` | a `tau` edge on a cycle of `tau` edges the start reaches, so the diagram may diverge |
 | `self-transition-post-breaks-guard` | `HINT` | a self-transition whose post does not keep a state variable its guard reads, so it may be two states written as one |
 | `post-leaves-variable-free` | `HINT` | an edge, the start edge included, whose post never names a variable `v` of its target as `v'`, so after the step `v` may be any value of its type |
+| `atom-not-in-language` | `ERROR` | with a glue only, an atom the glue does not read: not of its language, a post of another shape, or reading a name that is neither a hole, a builtin nor a definition of the glue's arguments |
 
 `self-transition-divergence` sets aside an edge whose guard is false on its
 face: `@ne(t, t)`, `@eq(a, b)` beside `@ne(a, b)`, `@in(k, m)` beside
@@ -947,8 +963,10 @@ and which arguments are values after the step — and the values of the
 arguments by index, never a name. A glue answers `hello` (its language and
 protocol version, 2), and `guard` and `post`: a guard atom's truth value per
 list of values, and a post atom's lists of values after the step per list
-of values before it, one value per primed argument. An optional `symmetric`
-request is listed in `hello` by a glue that answers it. Values are tagged
+of values before it, one value per primed argument. The optional `symmetric`
+and `lint` requests are listed in `hello` by a glue that answers them; `lint`
+says, without values, whether an atom is of the glue's language in its role,
+which csdflint asks when given a glue. Values are tagged
 JSON (`{"tuple": …}`, `{"set": …}`, `{"map": [[k, v], …]}`), since JSON has
 none of them. An instance of a family reaches a glue as the map of its
 fields: its local state is a position, which only the builtin `@at` reads.
@@ -982,7 +1000,10 @@ binds (`@eq(x, n)`) to a term over the state and the fields, when no
 conjunct before the equality reads the field: it is computed, whatever its
 type holds. So are the parts of a record field equalities of the guard bind
 (`@eq(w["count"], n)`, a literal key), until a conjunct reads the field:
-the other parts range over their values in a type `record(…)`; a list of
+the term may read other parts of the same field (`@eq(r["parent"],
+m[r.src].parent)`), and a conjunct that reads only parts (`@in(r.src, m)`)
+does not read the field, though a part it reads ranges. A conjunct that reads the whole field before such an equality (`${r}['k'] in ${m}`) keeps the equality from binding, so write the equality first; a part no type lists the values of is then refused naming the equality to move. The other parts range over their values in a type `record(…)` or
+`on_demand_record(…)`; a list of
 records, or the type `any`, gives no parts to range over, so the field is
 computed only when equalities bind every key its records have, and
 otherwise ranges over its type. A field whose type names no keys of its
@@ -1036,7 +1057,25 @@ types, is refused with what to write instead, and so is a type of `TYPES`
 named `any`. `csdfbmc.values.record(field=domain, …)`
 and `partial_map(keys, values, max_size)` enumerate a type of records or
 partial functions from the types of the fields and a bound on the number of
-keys. `csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
+keys. `csdfbmc.values.on_demand_record(field=domain, …)` gives the
+same records as `record(…)` without listing them, for a record type too
+large to list whose parts the guards determine. A received field of the
+type is made from its parts: a part an equality of the guard binds
+(`@eq(r["k"], t)`, a literal key) is computed, and the others range over
+their values one by one, whether or not a conjunct reads them. Whether a
+value is one of its records is told from its parts. The walk is refused,
+exit 2, naming the type, where a value of it would have to range over the
+whole type, and where it cannot be read by its parts:
+
+- a variable the post leaves free, or a variable an ∃ binds, of the type;
+- a part of a received record that is itself an `on_demand_record` and
+  that no equality binds;
+- an equality binding a part the type has not;
+- the type named in `SYMMETRIC`, which lists IDs;
+- the type given as a part of `record(…)` or `partial_map(…)`, which list
+  every value they build.
+
+`csdfbmc.values.sample(values, beyond=[…])` gives a type as a sample
 of a larger one (`TYPES = {"AttemptId": sample(["t1", "t2", "t3"],
 beyond=["t4"])}`): the walk ranges over the values listed, and the type has
 more, of which `beyond` lists at least one, written like any value of
@@ -1104,8 +1143,8 @@ A finite bound can end a run the diagram would go on with: once every ID of
 a finite type is used up, nothing is enabled, though a fresh ID would be.
 For a type given as a sample, a state with no enabled transition and no end
 edge whose guard holds is tried once more, with each sample extended by all
-its values `beyond` at once, and every type `record(…)` or `partial_map(…)`
-built of the sample built again of the wider one, so that a record whose
+its values `beyond` at once, and every type `record(…)`,
+`on_demand_record(…)` or `partial_map(…)` built of the sample built again of the wider one, so that a record whose
 field is of the sample also takes them. A type derived some other way, a
 comprehension over a sample say, is not widened. If an end edge or an edge
 is then enabled, the state is reported as `bound reached … (W is enabled by

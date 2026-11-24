@@ -22,6 +22,12 @@ from csdfbmc.environment import Environment
 LOADING_ERRORS = (OSError, ValueError, KeyError, PurityError, EvaluatorError, PostError)
 
 
+def loading_message(e: BaseException) -> str:
+    """What a loading error says: a KeyError its message, not its quoted
+    repr."""
+    return e.args[0] if isinstance(e, KeyError) and len(e.args) == 1 and isinstance(e.args[0], str) else str(e)
+
+
 def add_inputs(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output, or csdfpromote -format json's)")
     ap.add_argument("checks", help="the Python module holding TYPES (the values of the types the diagram declares) and, when wanted, ENVIRONMENT, GHOSTS and INVARIANTS")
