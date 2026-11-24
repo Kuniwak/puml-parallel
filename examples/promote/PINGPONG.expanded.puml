@@ -1,0 +1,13 @@
+@startuml auto-generated-by: csdfpromote examples/promote/PINGPONG.puml
+state "稼働中" as running
+running : users ; UserId ⇸ User
+[*] --> running : @empty(users')
+running --> running : JOIN?利用者ID ; @notin(利用者ID, users) ; @frame(users', users, 利用者ID) ∧ @at(users'[利用者ID], usrIdle)
+running --> running : PING?利用者ID ; @at(users[利用者ID], usrIdle) ; @frame(users', users, 利用者ID) ∧ @at(users'[利用者ID], usrWaiting)
+running --> running : PONG?利用者ID ; @at(users[利用者ID], usrWaiting) ; @frame(users', users, 利用者ID) ∧ @at(users'[利用者ID], usrIdle)
+note as channels
+  channel JOIN : UserId
+  channel PING : UserId
+  channel PONG : UserId
+end note
+@enduml

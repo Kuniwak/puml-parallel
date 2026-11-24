@@ -1,0 +1,16 @@
+@startuml PINGPONG
+' Ping-pong for any number of users: every user pings and waits for its
+' pong on its own. The map has no bound; each JOIN?利用者ID with a fresh ID
+' brings one more user in, so three users are three JOINs.
+!define PROMOTED
+
+state "稼働中" as running {
+  running : users ; UserId ⇸ User
+
+  state "users : (利用者ID : UserId) ⇸ User" as runningUsers <<promote>> {
+    !include local/USER.puml
+  }
+}
+
+[*] --> running
+@enduml

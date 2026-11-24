@@ -15,7 +15,8 @@ mkdir -p "$site"
 for f in examples/valid/vending_machine.puml examples/valid/client_server.puml \
          examples/compose/user_vending_machine.puml \
          examples/promote/ATTEMPTS.puml examples/promote/MEMBERS.puml \
-         examples/promote/MODES.puml examples/promote/RECEIPTS.puml; do
+         examples/promote/MODES.puml examples/promote/RECEIPTS.puml \
+         examples/promote/PINGPONG.puml; do
   "$bin/csdfreplweb" "$f" > "$site/$(basename "$f" .puml).html"
 done
 
