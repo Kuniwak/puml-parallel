@@ -1400,6 +1400,7 @@
         }
       }
     }
+    applyDrawing();
   }
 
   function renderDiagram() {
@@ -1651,7 +1652,27 @@
 
   // ---- Showing one block at a time ----
 
+  // viewBoxOf is the part of the drawing to show: the block shown, else
+  // all of it, widened to take in the pieces on it, which may stick out
+  // past the edges of the boxes they sit on.
   function viewBoxOf() {
+    const [x, y, w, h] = shownArea();
+    let x0 = x, y0 = y, x1 = x + w, y1 = y + h;
+    for (const piece of document.querySelectorAll("#csdf-overlay .csdf-piece")) {
+      const b = piece.getBBox();
+      if (b.x > x1 || b.x + b.width < x0 || b.y > y1 || b.y + b.height < y0) continue;
+      x0 = Math.min(x0, b.x - PIECE_MARGIN); y0 = Math.min(y0, b.y - PIECE_MARGIN);
+      x1 = Math.max(x1, b.x + b.width + PIECE_MARGIN); y1 = Math.max(y1, b.y + b.height + PIECE_MARGIN);
+    }
+    return [x0, y0, x1 - x0, y1 - y0];
+  }
+
+  // The room left around a piece at an edge of the view.
+  const PIECE_MARGIN = 4;
+
+  // shownArea is the part of the drawing the block shown takes, else all
+  // of it.
+  function shownArea() {
     const d = app.drawing;
     if (!app.block) return d.viewBox.split(/[\s,]+/).map(Number);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
