@@ -37,6 +37,7 @@ func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (strin
 		return fmt.Errorf("coreio.Write: %d end edges; the syntax holds one end edge", len(d.Ends))
 	}
 	b.WriteString("@startuml" + titled(d.Name) + "\n")
+	writeObserves(b, d.Observes)
 	for _, s := range d.States {
 		writeState(b, d, s)
 	}
@@ -69,6 +70,20 @@ func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (strin
 	}
 	writeChannels(b, d.Channels)
 	return nil
+}
+
+// writeObserves writes the CSDF-OBSERVE lines of o: its views by name,
+// then its variables in order.
+func writeObserves(b *strings.Builder, o *core.Observation) {
+	if o == nil {
+		return
+	}
+	for _, v := range slices.Sorted(maps.Keys(o.Views)) {
+		fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", v, strings.Join(o.Views[v], ", "))
+	}
+	for _, v := range o.Vars {
+		fmt.Fprintf(b, "' CSDF-OBSERVE %s\n", v)
+	}
 }
 
 // writeState writes the state s of d: its declaration, labelled with its

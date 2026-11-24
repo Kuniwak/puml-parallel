@@ -23,6 +23,32 @@ func written(t *testing.T) []struct {
 		want string
 	}{
 		{
+			name: "observations",
+			d: &core.Diagram{
+				States:   []string{"n", "a", "b"},
+				Vars:     map[string][]string{"a": {"x"}, "b": {"x", "y"}},
+				Types:    map[string]types.Type{"x": types.Named("N"), "y": types.Named("N")},
+				Init:     "n",
+				Edges:    []core.Edge{{Src: "n", Dst: "a", Event: core.Event{Channel: "make"}, Post: mustParse(t, "$x' = 0")}},
+				Observes: &core.Observation{Views: map[string][]string{"live": {"a", "b"}, "first": {"a"}}, Vars: []string{"y", "x"}},
+			},
+			want: `@startuml
+' CSDF-OBSERVE first = a
+' CSDF-OBSERVE live = a, b
+' CSDF-OBSERVE y
+' CSDF-OBSERVE x
+state "n" as n
+state "a" as a
+a : x ; N
+state "b" as b
+b : x ; N
+b : y ; N
+[*] --> n
+n --> a : make ; ; $x' = 0
+@enduml
+`,
+		},
+		{
 			name: "states, variables, the start edge and edges",
 			d: &core.Diagram{
 				States:   []string{"s"},
