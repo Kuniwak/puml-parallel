@@ -7,7 +7,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.formula import PostError
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, bound, builtin, diagram, edge, end, eq, exists, family, fld, idx, lit
-from csdfbmc.values import Built, FrozenMap, Rec, kind_key, record, sample
+from csdfbmc.values import UnlistableType, Built, FrozenMap, Rec, kind_key, on_demand_record, record, sample
 
 # A counter from 2 down to 0, then stop: n is decremented while positive.
 COUNTER = diagram({"a": ["n"], "b": []}, "a", init_post=[atom("$n' == 2")], edges=[
@@ -490,6 +490,136 @@ class PruningTest(unittest.TestCase):
         # Assert
         self.assertEqual({FrozenMap(k=4, a=3, b=0), FrozenMap(k=4, a=3, b=1), FrozenMap(k=7, a=1, b=0), FrozenMap(k=7, a=1, b=1)},
                          {params["r"] for _, _, _, _, params in transitions})
+
+    def test_a_received_on_demand_record_is_made_from_its_parts(self):
+        # Setup: R is never listed; the ∃ draws k and a from m, and
+        # b ranges over its two values.
+        r = on_demand_record(k=list(range(20)), a=list(range(5)), b=[0, 1], **{f"pad{i}": [0] for i in range(3)})
+        x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=r)))
+        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        pad = {f"pad{i}": 0 for i in range(3)}
+        self.assertEqual({FrozenMap(k=4, a=3, b=0, **pad), FrozenMap(k=4, a=3, b=1, **pad), FrozenMap(k=7, a=1, b=0, **pad), FrozenMap(k=7, a=1, b=1, **pad)},
+                         {params["r"] for _, _, _, _, params in transitions})
+
+    def test_a_received_on_demand_record_no_conjunct_reads_ranges_over_its_parts(self):
+        # Setup: the guard reads no part of r, so every record of R is received.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "id", "m")])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, ID=[1], R=on_demand_record(k=[0, 1], a=[0, 1]))))
+
+        # Execute
+        transitions = x.transitions(("q", (FrozenMap(),), ()))
+
+        # Assert
+        self.assertEqual({FrozenMap(k=0, a=0), FrozenMap(k=0, a=1), FrozenMap(k=1, a=0), FrozenMap(k=1, a=1)},
+                         {params["r"] for _, _, _, _, params in transitions})
+
+    def test_a_part_of_an_on_demand_record_type_nothing_determines_is_refused(self):
+        # Setup: the part o of r is itself an on_demand_record, which no
+        # equality of the guard determines.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "id", "m")])])
+        r = on_demand_record(k=[0, 1], o=on_demand_record(x=[0, 1]))
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=r)))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the part o of the field r, of the type R, whose values are an on_demand_record; "
+                                               r'let an equality of the guard determine it, @eq\(r\["o"\], …\)'):
+            x.transitions(("q", (FrozenMap(),), ()))
+
+    def test_an_equality_binds_a_part_of_an_on_demand_record_from_another_part_of_it(self):
+        # Setup: r.src ranges, @in(r.src, m) reads only that part, and the
+        # equality computes r.parent, an on_demand_record, from m[r.src].
+        p = on_demand_record(x=[0, 1])
+        d = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
+            edge("q", "q", "c?r", guard=[builtin("in", fld("r", "src"), "m"),
+                                         eq(idx("r", lit("parent")), fld(idx("m", fld("r", "src")), "parent"))], post=[eq("m'", "m")])],
+            channels={"c": ["R"]})
+        x = fixture.explorer(d, Checks(types={"R": on_demand_record(src=[1, 2, 3], parent=p)}))
+        m = FrozenMap({1: FrozenMap(parent=FrozenMap(x=0)), 2: FrozenMap(parent=FrozenMap(x=1))})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        self.assertEqual({FrozenMap(src=1, parent=FrozenMap(x=0)), FrozenMap(src=2, parent=FrozenMap(x=1))},
+                         {params["r"] for _, _, _, _, params in transitions})
+
+    def test_a_part_an_equality_would_bind_after_a_conjunct_reading_the_field_is_refused_naming_the_equality(self):
+        # Setup: @notin reads r whole before the equality that would bind r.a,
+        # an on_demand_record, so nothing else can give r.a its values.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "r", "m"), eq(idx("r", lit("a")), lit({"x": 0}))])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=on_demand_record(x=[0, 1])))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the part a of the field r, .*; "
+                                               r'the equality r\["a"\] == \{"x":0\} does not, as a conjunct before it reads r: '
+                                               r"move the equality before that conjunct"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
+    def test_a_part_no_equality_would_bind_is_refused_without_naming_one(self):
+        # Setup: the guard has no equality of r.a, an on_demand_record.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "r", "m")])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=on_demand_record(x=[0, 1])))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"nothing determines the part a of the field r, .*such as record\(…\)$"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
+    def test_an_equality_binding_a_key_an_on_demand_record_type_lacks_is_refused(self):
+        # Setup: the guard binds r["z"], which R has no part for.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(idx("r", lit("z")), lit(0))])])
+        x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=[0, 1]))))
+
+        # Execute, Assert
+        with self.assertRaisesRegex(PostError, r"c\?id\?r .*: the guard determines the part z of the field r, "
+                                               r"which its type R, an on_demand_record of the parts k, a, has not"):
+            x.transitions(("q", (FrozenMap(),), ()))
+
+    def test_a_value_that_would_range_over_a_whole_on_demand_record_type_is_refused(self):
+        r = on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1])
+        tests = {
+            "a variable an ∃ binds": (
+                dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[exists("R", eq(bound(0), "r"))])]),
+                UnlistableType, "R is an on_demand_record"),
+            "a variable the post leaves free": (
+                diagram({"q": ["v"]}, "q", types={"v": "R"}),
+                PostError, r"nothing in the post determines v', so it ranges over its type R: R is an on_demand_record"),
+        }
+        for name, (d, error, said) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=r)))
+
+                # Execute, Assert
+                with self.assertRaisesRegex(error, said):
+                    x.run()
+
+    def literal_of_r(self, value) -> tuple[dict, Checks]:
+        """PART whose guard compares r, of an on_demand_record type, with the literal value."""
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq("r", lit(value))])])
+        return d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1, 2], a=[0, 1], b=[0, 1])))
+
+    def test_a_literal_of_an_on_demand_record_type_is_accepted(self):
+        # Setup
+        d, checks = self.literal_of_r({"k": 2, "a": 0, "b": 1})
+
+        # Execute
+        x = fixture.explorer(d, checks)
+
+        # Assert
+        self.assertIsNotNone(x)
+
+    def test_a_literal_a_part_of_which_is_out_of_its_values_is_refused(self):
+        # Setup
+        d, checks = self.literal_of_r({"k": 5, "a": 0, "b": 1})
+
+        # Execute, Assert
+        with self.assertRaisesRegex(ValueError, "no value of its type 'R'"):
+            fixture.explorer(d, checks)
 
     def test_a_conjunct_reading_a_record_whole_waits_for_every_part(self):
         tests = {

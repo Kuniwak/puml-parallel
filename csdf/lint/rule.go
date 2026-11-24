@@ -30,6 +30,21 @@ func DefaultRules() []Rule {
 	}
 }
 
+// RuleSummary is what the catalog of rules says of one.
+type RuleSummary struct {
+	ID, Description string
+}
+
+// Catalog summarises every rule, the default rules and then
+// atom-not-in-language, which runs only with a glue.
+func Catalog() []RuleSummary {
+	var out []RuleSummary
+	for _, r := range append(DefaultRules(), AtomNotInLanguageRule{}) {
+		out = append(out, RuleSummary{ID: r.ID(), Description: r.Description()})
+	}
+	return out
+}
+
 // Run applies the rules to the input and returns their findings in source
 // order, ties broken by rule and message so that a run is reproducible.
 func Run(rules []Rule, in *Input) []Finding {

@@ -222,6 +222,18 @@ def free_names(t, primed: bool | None = None, parts=frozenset()) -> set:
     return out
 
 
+def literal_parts(t) -> set:
+    """The parts with a literal key t reads, f.k or f["k"] of a variable f,
+    as (f, k): the parts free_names may read as parts."""
+    out = {(x.of.name, x.name) for x in terms(t) if isinstance(x, Field) and isinstance(x.of, Free)}
+    return out | {(x.map.name, x.key.value) for x in terms(t) if isinstance(x, Index) and isinstance(x.map, Free) and isinstance(x.key, Lit)}
+
+
+def names_of(reads: set) -> set:
+    """The variables of what free_names gives, a part (f, k) as f."""
+    return {n[0] if isinstance(n, tuple) else n for n in reads}
+
+
 def terms(f):
     """Every term f holds at any depth, f a term, a conjunct or a clause;
     the conjuncts under ∃ too."""

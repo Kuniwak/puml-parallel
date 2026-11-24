@@ -3,7 +3,7 @@ guard's order."""
 import json
 import unittest
 
-from csdfbmc.determine import Bind, Witness, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.determine import Bind, Witness, blocked, decides_early, determine, draws, part_reads, place, witness
 from csdfbmc.model import App, Bound, Builtin, Exists, Field, Free, Index, Lit
 
 
@@ -14,6 +14,11 @@ def eq(x, y):
 def other(*names):
     """A conjunct that reads names and binds nothing."""
     return Builtin("at", tuple(Free(n) for n in names), states=("s",))
+
+
+def reads(*terms):
+    """A conjunct that reads terms and binds nothing."""
+    return Builtin("in", terms)
 
 
 def part(f, k):
@@ -46,6 +51,14 @@ class DetermineTest(unittest.TestCase):
                                                              {0: Bind("v", "x", N)}),
             "a key bound once": ([eq(part("v", "x"), N), eq(part("v", "x"), N)], {0: Bind("v", "x", N)}),
             "the whole after its parts": ([eq(part("v", "x"), N), eq(V, N)], {0: Bind("v", "x", N)}),
+            "a part over another part": ([eq(part("v", "y"), Index(N, part("v", "x")))], {0: Bind("v", "y", Index(N, part("v", "x")))}),
+            "a part over itself": ([eq(part("v", "x"), Index(N, part("v", "x")))], {}),
+            "a part after a conjunct that reads another part": ([reads(part("v", "x")), eq(part("v", "y"), N)],
+                                                                 {1: Bind("v", "y", N)}),
+            "a part after a conjunct that reads it": ([reads(part("v", "x")), eq(part("v", "x"), N)], {}),
+            "a part a binding read before": ([eq(part("v", "y"), part("v", "x")), eq(part("v", "x"), N)],
+                                             {0: Bind("v", "y", part("v", "x"))}),
+            "the whole after a conjunct that reads a part": ([reads(part("v", "x")), eq(V, N)], {}),
         }
         for name, (guard, want) in tests.items():
             with self.subTest(name):
@@ -61,6 +74,25 @@ class DetermineTest(unittest.TestCase):
 
         # Assert
         self.assertEqual({}, got)
+
+
+class BlockedTest(unittest.TestCase):
+    def test_the_first_equality_a_conjunct_before_it_keeps_from_binding_a_part(self):
+        tests = {
+            "after a conjunct that reads the field": ([other("v"), eq(part("v", "x"), N)], eq(part("v", "x"), N)),
+            "the first of two": ([other("v"), eq(part("v", "x"), N), eq(N, part("v", "x"))], eq(part("v", "x"), N)),
+            "an equality that binds": ([eq(part("v", "x"), N), other("v")], None),
+            "another key": ([other("v"), eq(part("v", "y"), N)], None),
+            "no equality": ([other("v")], None),
+            "a term no order lets bind": ([other("v"), eq(part("v", "x"), Free("n", primed=True))], None),
+        }
+        for name, (guard, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = blocked(tuple(guard), ["v"], {"n"}, "v", "x")
+
+                # Assert
+                self.assertEqual(want, got)
 
 
 class PlaceTest(unittest.TestCase):
