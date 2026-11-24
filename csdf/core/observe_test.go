@@ -53,6 +53,15 @@ func TestPromoteRefusesAGlobalReadTheLocalDiagramDoesNotDeclare(t *testing.T) {
 		{"in a sync", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "${locations[from].stock} = 0"), Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "sync MOVE: it reads locations[from].stock"},
 		{"in a constrain", constrained(locations, Constrain{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "@at(locations[loc], open)")}), "constrain OPEN: @at(locations[…], open)"},
+		{"in the key of an @at", halt("@at(locations[f(locations[loc].stock)], live)"), "locations[loc].stock"},
+		{"in the key of an entry", halt("${locations[f(locations[loc].stock)].stock} = 0"), "locations[loc].stock"},
+		{"in an argument of a function", halt("@eq(f(locations[loc].stock), 0)"), "locations[loc].stock"},
+		{"in a hand-written edge's post", modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT", recv("loc")), Post: mustParse(t, "@eq(locations[loc].stock, 0)")}), "G --> H : HALT: it reads locations[loc].stock"},
+		{"in the global start post", func() Promotion {
+			p := promotion(locations)
+			p.InitPost = mustParse(t, "@empty(locations') ∧ @eq(locations'[loc].stock, 0)")
+			return p
+		}(), "the global start edge: it reads locations'[loc].stock"},
 		{"under an exists", halt("@exists(k : loc) (${locations[k].stock} = 0)"), "locations[…].stock"},
 	}
 	for _, c := range cases {

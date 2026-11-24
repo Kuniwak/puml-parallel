@@ -89,6 +89,14 @@ func formulaThroughObservations(obs map[string]*Observation, f clause.Formula) (
 		return f, nil
 	case clause.Builtin:
 		if m, o := observedAt(obs, f); o != nil {
+			if err := termObserved(obs, f.Args[0].(clause.Index).Key); err != nil {
+				return nil, err
+			}
+			for _, a := range f.Args[1:] {
+				if err := termObserved(obs, a); err != nil {
+					return nil, err
+				}
+			}
 			states, err := viewStates(m, o, f.States)
 			if err != nil {
 				return nil, err
@@ -156,10 +164,13 @@ func termObserved(obs map[string]*Observation, t clause.Term) error {
 	case clause.Field:
 		if ix, ok := t.Of.(clause.Index); ok {
 			if m, o := observedMap(obs, ix); o != nil {
+				if err := termObserved(obs, ix.Key); err != nil {
+					return err
+				}
 				if !slices.Contains(o.Vars, t.Name) {
 					return fmt.Errorf("it reads %s[%s].%s, but the local diagram of %s does not declare %s observed; add ' CSDF-OBSERVE %s to it", termName(m), entryKey(ix.Key), t.Name, m.Name, t.Name, t.Name)
 				}
-				return termObserved(obs, ix.Key)
+				return nil
 			}
 		}
 		return termObserved(obs, t.Of)
