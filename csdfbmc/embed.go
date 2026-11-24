@@ -14,7 +14,7 @@ import (
 // Sources is the Python package itself, embedded so that the csdfbmc binary
 // of a release carries the checker and needs nothing from a checkout.
 //
-//go:embed __init__.py __main__.py checkpoint.py checks.py cli.py cone.py counter.py determine.py environment.py explore.py formal.py formula.py inprocess.py model.py meaning.py next.py parallel.py por.py product.py progress.py protocol.py python_glue.py randomwalk.py stopping.py symmetry.py values.py
+//go:embed __init__.py __main__.py checkpoint.py checks.py cli.py cone.py counter.py determine.py environment.py explore.py formal.py formula.py inprocess.py model.py meaning.py next.py parallel.py por.py product.py progress.py protocol.py python_glue.py randomwalk.py serve.py stopping.py symmetry.py values.py
 var Sources embed.FS
 
 // Materialize writes the Python package under root, in a directory named by
@@ -79,11 +79,12 @@ func Materialize(root string) (string, error) {
 // that the user's environment cannot change what the checker imports.
 const bootstrap = `import sys, runpy; sys.path.insert(0, sys.argv.pop(1)); runpy.run_module(sys.argv.pop(1), run_name="__main__", alter_sys=True)`
 
-// The modules the launcher runs: the checker, and what a REPL asks at a value
-// prompt.
+// The modules the launcher runs: the checker, what a REPL asks at a value
+// prompt, and a glue module run as a command.
 const (
 	ModuleCheck = "csdfbmc"
 	ModuleNext  = "csdfbmc.next"
+	ModuleServe = "csdfbmc.serve"
 )
 
 // PythonArgs returns the arguments that run the checker in dir with args, to

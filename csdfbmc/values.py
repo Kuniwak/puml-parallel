@@ -12,6 +12,7 @@ natural.
 from __future__ import annotations
 
 import itertools
+import math
 from collections.abc import ItemsView, Mapping, Set as AbstractSet
 from dataclasses import dataclass
 from typing import Callable, Iterable
@@ -361,15 +362,15 @@ class Built(list):
 def _kept(values: Iterable):
     """values as a part of a Built: a Sample or a Built as itself, so that
     what it is built of stays known; any other iterable as a tuple."""
-    return values if isinstance(values, (Sample, Built)) else tuple(values)
+    return values if isinstance(values, (Sample, Built, OnDemandRecord)) else tuple(values)
 
 
 def samples_in(values: Iterable) -> list[Sample]:
-    """The samples the values of a type are, or are built of by record and
-    partial_map, each once. Values listed by hand are built of nothing."""
+    """The samples the values of a type are, or are built of by record,
+    on_demand_record and partial_map, each once. Values listed by hand are built of nothing."""
     if isinstance(values, Sample):
         return [values]
-    if isinstance(values, Built):
+    if isinstance(values, (Built, OnDemandRecord)):
         found: dict[int, Sample] = {}
         for part in values.parts.values():
             found.update((id(x), x) for x in samples_in(part))
@@ -384,6 +385,8 @@ def _widened(values: Iterable) -> Iterable:
         return tuple(values) + values.beyond
     if isinstance(values, Built) and samples_in(values):
         return values.build(**{k: _widened(v) for k, v in values.parts.items()})
+    if isinstance(values, OnDemandRecord) and samples_in(values):
+        return OnDemandRecord({k: _widened(v) for k, v in values.parts.items()})
     return values
 
 
@@ -396,14 +399,97 @@ def beyond_samples(types: dict[str, Iterable]) -> dict[str, Iterable]:
 
 def record(**fields: Iterable) -> Built:
     """Every record whose fields range over the given domains."""
+    for n, vs in fields.items():
+        _refuse_unlisted(vs, f"record({n}=…) is given an on_demand_record for {n}",
+                         "build the record with on_demand_record instead, or give the part a listed type such as record(…)")
     fields = {n: _kept(vs) for n, vs in fields.items()}
     names = list(fields)
     return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
 
 
+class OnDemandRecord:
+    """The records whose fields range over the given domains, never
+    listed: its size and whether a value is one of them are computed from
+    its parts (a field -> the values it was given)."""
+
+    def __init__(self, parts: dict):
+        self.parts = parts
+
+    def size(self) -> int:
+        """How many records it has; len cannot tell more than sys.maxsize."""
+        return math.prod(size_of(vs) for vs in self.parts.values())
+
+    def __contains__(self, value) -> bool:
+        return (isinstance(value, Mapping) and set(value) == set(self.parts)
+                and all(is_value_of(vs, value[k]) for k, vs in self.parts.items()))
+
+
+def decode(value, values):
+    """The JSON value value read back as the value of a type it is
+    encoded from: the member of values with the same encoding, so an
+    array is read as the set it encodes; else value frozen. An
+    on_demand_record's values are not listed, so its value is frozen."""
+    if listable(values):
+        text = encode(freeze(value))
+        for v in values:
+            if encode(freeze(v)) == text:
+                return freeze(v)
+    return freeze(value)
+
+
+def is_value_of(values, value) -> bool:
+    """Whether value is one of the values of a type, told apart by kind
+    (same_value); an on_demand_record tells it by its parts, unlisted."""
+    if isinstance(values, OnDemandRecord):
+        return value in values
+    return any(same_value(value, freeze(v)) for v in values)
+
+
+def size_of(values) -> int:
+    """How many values a type has, an on_demand_record's too, which len
+    cannot tell beyond sys.maxsize."""
+    return values.size() if isinstance(values, OnDemandRecord) else len(values)
+
+
+class UnlistableType(ValueError):
+    """A value of a type whose values are never listed, an
+    on_demand_record, would range over the whole type."""
+
+
+def listable(values) -> bool:
+    """Whether the values of a type may be listed: an on_demand_record's
+    are made from its parts instead, one by one."""
+    return not isinstance(values, OnDemandRecord)
+
+
+def record_parts(values) -> dict | None:
+    """The parts of a type of records built by record or on_demand_record,
+    a field -> the values it ranges over, whose product the type is; None
+    for any other type."""
+    if isinstance(values, OnDemandRecord) or isinstance(values, Built) and values.build is record:
+        return values.parts
+    return None
+
+
+def _refuse_unlisted(values, what: str, instead: str) -> None:
+    """Refuses an on_demand_record where the values of a listed type are
+    built of it, saying what to write instead."""
+    if isinstance(values, OnDemandRecord):
+        raise UnlistableType(f"{what}, whose records are never listed, while it lists every value it builds; {instead}")
+
+
+def on_demand_record(**fields: Iterable) -> OnDemandRecord:
+    """Every record whose fields range over the given domains, as record,
+    declared by its parts and never listed."""
+    return OnDemandRecord({n: _kept(vs) for n, vs in fields.items()})
+
+
 def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:
     """Every partial function from keys to values with at most max_size
     entries (all sizes when max_size is None), the empty one included."""
+    for vs, what in ((keys, "keys"), (values, "values")):
+        _refuse_unlisted(vs, f"partial_map is given an on_demand_record for its {what}",
+                         f"give its {what} a listed type such as record(…)")
     keys = _kept(keys)
     values = _kept(values)
     limit = len(keys) if max_size is None else min(max_size, len(keys))
