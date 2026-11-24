@@ -715,6 +715,7 @@
       root.appendChild(errorBox());
       return;
     }
+    root.appendChild(stepBar(1));
     root.appendChild(el("h2", { text: t("controls.title") }));
     root.appendChild(el("p", { class: "hint now" }, [el("span", { class: "dot dot-whole" }), el("span", { text: t("controls.now", { state: state.state_name }) })]));
     const pieces = piecesList(v);
@@ -890,25 +891,48 @@
   // renderValueForm asks for the values of the pending state: in the
   // choose tab by the checker's suggestions, in the details tab typed. A
   // promoted diagram's prompt speaks of the local diagrams, not the mode.
+  // After a transition chosen it is the second of the two steps, under
+  // the transition; the initial values are a step of their own.
   function renderValueForm(root, pending) {
     const group = pending.group;
     const promoted = (pending.families || []).length > 0;
+    if (app.choice) {
+      root.appendChild(stepBar(2));
+      root.appendChild(chosenBox(app.choice.transition));
+    }
     if (app.tab === "details") {
       root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
       renderValueDetails(root, pending);
     } else {
-      root.appendChild(el("h2", { text: t("suggest.title") }));
+      root.appendChild(el("h2", { text: app.choice ? t("suggest.title", { event: app.choice.transition.event }) : t("suggest.titleInitial") }));
       renderValueChoices(root, pending);
     }
   }
 
-  function cancelButton() {
-    return app.history.length > 0 ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null;
+  // stepBar shows the two steps of going on, choosing a transition and
+  // then the values it leads to, with the step active marked.
+  function stepBar(active) {
+    const step = (n, key) => {
+      const item = el("li", { class: n === active ? "active" : n < active ? "done" : "", text: t(key) });
+      if (n === active) item.setAttribute("aria-current", "step");
+      return item;
+    };
+    return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
+  }
+
+  // chosenBox says which transition the values are the result of, with a
+  // way back to choosing another.
+  function chosenBox(tr) {
+    return el("div", { class: "chosen" }, [
+      el("span", { class: "label", text: t("chosen.label") }),
+      el("span", { class: "event", text: tr.event }),
+      el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }),
+      el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
+    ]);
   }
 
   function renderValueChoices(root, pending) {
     const vars = pending.group.vars || [];
-    if (app.choice) root.appendChild(clausesList([[t("controls.event"), app.choice.transition.event]]));
     root.appendChild(errorBox());
     const determined = pending.determined || [];
     if (determined.length > 0 && !app.error) {
@@ -920,7 +944,7 @@
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
-      renderSuggestions(root, vars, previous, suggestions);
+      renderSuggestions(root, vars, previous, suggestions, t(app.choice ? "suggest.hint" : "suggest.hintInitial"));
     } else {
       const why = !app.suggesting ? "choose.noChecker" : pending.suggest_error ? "choose.failed" : "choose.none";
       root.appendChild(el("p", { class: "notice", text: t(why) }));
@@ -936,8 +960,6 @@
       const help = typeHelp(type);
       if (help) root.appendChild(help);
     }
-    const cancel = cancelButton();
-    if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
   }
 
   // valueProblem says, in the tester's words, what keeps the boxes from
@@ -1077,7 +1099,6 @@
     const group = pending.group;
     const vars = group.vars || [];
     const rows = [];
-    if (app.choice) rows.push([t("controls.event"), app.choice.transition.event]);
     const keys = pending.previous ? ["guard", "post"] : ["post"];
     const written = proseOfPending(pending);
     const before = pending.previous ? stateVars(pending.previous) : [];
@@ -1132,7 +1153,7 @@
     });
     form.appendChild(el("div", { class: "row" }, [
       el("button", { type: "submit", class: "primary", text: t("values.continue") }),
-      cancelButton(),
+      app.choice ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null,
     ]));
     root.appendChild(form);
     const first = inputs.find((i) => i.value === "") || inputs[0];
@@ -1140,9 +1161,9 @@
   }
 
   // renderSuggestions shows the values the checker admits as buttons, each
-  // saying what changes from before.
-  function renderSuggestions(root, vars, previous, suggestions) {
-    root.appendChild(el("p", { class: "hint", text: t("suggest.hint") }));
+  // saying what changes from before, under the hint.
+  function renderSuggestions(root, vars, previous, suggestions, hint) {
+    root.appendChild(el("p", { class: "hint", text: hint }));
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
       const lines = [];
