@@ -246,14 +246,14 @@ line comments, which PlantUML does not draw, like `CSDF-IGNORE`
 ' CSDF-OBSERVE owner
 ```
 
-- `CSDF-OBSERVE <class> = <state>, …` declares a class of local states. A
-  global clause reads it as `@at(m[k], <class>)`, which holds when instance
+- `CSDF-OBSERVE <view> = <state>, …` declares a view: a named set of local
+  states. A global clause reads it as `@at(m[k], <view>)`, which holds when instance
   `k` is at one of the listed states.
 - `CSDF-OBSERVE <variable>` declares a state variable the global diagram may
   read, as `m[k].<variable>`.
 
 A global clause, a sync clause and a constrain read only what the local
-diagram declares: `@at` names declared classes, and `m[k].x` names declared
+diagram declares: `@at` names declared views, and `m[k].x` names declared
 variables. Whether an instance exists, `@in` and `@notin` of its key, is
 always observed, since the map's domain is it. A local diagram with no
 `CSDF-OBSERVE` line observes everything: its local state, which `@at` reads
@@ -504,8 +504,8 @@ Errors:
 | A `sync` of a map that is not promoted, or of an event a side lacks      | There is nothing to merge.                                                      |
 | A `sync` whose maps never move in the same state                         | The event they take together can never happen.                                  |
 | A `constrain` no generated edge matches in channel and field directions | It constrains nothing.                                                          |
-| A `CSDF-OBSERVE` class named like a state or a variable of its diagram, or declared twice | `@at` would read one name as two things.                                         |
-| A `CSDF-OBSERVE` class listing a state its diagram lacks, `S₀`, or one state twice | `S₀` is absence, which `@notin` reads.                                           |
+| A `CSDF-OBSERVE` view named like a state or a variable of its diagram, or declared twice | `@at` would read one name as two things.                                         |
+| A `CSDF-OBSERVE` view listing a state its diagram lacks, `S₀`, or one state twice | `S₀` is absence, which `@notin` reads.                                           |
 | A `CSDF-OBSERVE` variable no state of its diagram holds, or declared twice | There is nothing to observe.                                                     |
 | A global clause reading what the local diagram does not declare          | The global diagram reads only the observation.                                   |
 | A note holding a second directive                                        | One note, one directive.                                                        |

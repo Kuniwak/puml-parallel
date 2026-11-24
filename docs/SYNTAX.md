@@ -44,8 +44,8 @@ ignore_region = ignore_begin *ignore_line ignore_end
 ignore_begin = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
 ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 ignore_line = *unicode_char LF
-observe_line = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" inlineSeparator (observe_class / var) *(HTAB / SP) LF
-observe_class = name *(HTAB / SP) "=" *(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)
+observe_line = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" inlineSeparator (observe_view / var) *(HTAB / SP) LF
+observe_view = name *(HTAB / SP) "=" *(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_letter = <any character in Unicode general category L>
 unicode_digit = <any character in Unicode general category N>
@@ -70,10 +70,10 @@ rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a p
 A line comment whose trimmed text starts with the word `CSDF-OBSERVE` is an `observe_line`
 (taking precedence over a plain `line_comment`): it declares an observation of a local
 diagram (docs/PROMOTION.md, Observations), and PlantUML draws nothing for it.
-`' CSDF-OBSERVE c = S₁, …` declares the class `c` of the states `S₁ …`; `' CSDF-OBSERVE x`
-declares the state variable `x`. A class name is distinct from every state ID and every
-state variable of the diagram, and a class lists distinct states of the diagram, none its
-start state; a variable is one some state holds; a class or variable is declared once. A
+`' CSDF-OBSERVE c = S₁, …` declares the view `c` of the states `S₁ …`; `' CSDF-OBSERVE x`
+declares the state variable `x`. A view name is distinct from every state ID and every
+state variable of the diagram, and a view lists distinct states of the diagram, none its
+start state; a variable is one some state holds; a view or variable is declared once. A
 line comment starting with `CSDF-OBSERVE` that is not an `observe_line` is a parse error.
 A diagram that is not a local diagram of a promotion may declare observations; they say
 nothing until it is promoted.
@@ -255,7 +255,7 @@ Semantics
 | `inlineTrivia`                             | N/A                | Horizontal whitespace and block comments accepted inside declarations.                                                                                                  |
 | `line_comment`                             | N/A                | PlantUML line comment beginning with `'`. It is not retained in the AST.                                                                                                 |
 | `ignore_region`                            | N/A                | Non-interpreted region delimited by `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` line comments, holding PlantUML-only directives. It is discarded while parsing.                  |
-| `observe_line`                             | `Observe`          | An observation the diagram declares: a class of states (`observe_class`, its name and states) or a state variable (`var`). |
+| `observe_line`                             | `Observe`          | An observation the diagram declares: a view of states (`observe_view`, its name and states) or a state variable (`var`). |
 | `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. It is not retained in the AST.                                                                                         |
 | `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
@@ -275,7 +275,7 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
-         / "@at(" term 1*(", " id) ")"      ; instance at one of the states, or declared classes, of its local diagram
+         / "@at(" term 1*(", " id) ")"      ; instance at one of the states, or declared views, of its local diagram
          / "@empty(" term ")"               ; a map without entries
 exists   = "@exists(" name " : " type ") (" clause ")"
 type     = <a type, as a state variable declares it: a name, any, or K ⇸ V>

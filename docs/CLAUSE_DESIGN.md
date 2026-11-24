@@ -584,13 +584,13 @@ disjunction of clauses is introduced, and a `constrain` note, conjoined to
 every edge of its event, can say it where an edge cannot be split per
 state.
 
-`t at C`, with C a class of local states that t's local diagram declares
+`t at C`, with C a view of local states that t's local diagram declares
 (`CSDF-OBSERVE C = S₁, …, Sₙ`, docs/PROMOTION.md), says that t is at one
-of the states of C; it is `t at S₁, …, Sₙ`. A class is named apart from
-every state of its local diagram, so a name in `@at` is a state or a class
+of the states of C; it is `t at S₁, …, Sₙ`. A view is named apart from
+every state of its local diagram, so a name in `@at` is a state or a view
 and never both. A local diagram that declares observations is read by
-classes only: `@at` on one of its instances names declared classes, and a
-single state is observed by a class of one state.
+views only: `@at` on one of its instances names declared views, and a
+single state is observed by a view of one state.
 
 - What it reads: t, and nothing else; the states are names, not variables.
   So free-name extraction (O9), and with it partial-order reduction, cone
@@ -621,7 +621,7 @@ promotion stays a context:
   be monotone.
 - A clause of the global diagram reads only what the local diagram
   declares as its observation: the declared variables, and `at` over the
-  declared classes. It reads them from the tracker's map, which the public
+  declared views. It reads them from the tracker's map, which the public
   events write. Encoding control this way preserves the expanded graph,
   once ρ has forgotten the observations carried, since only transitions
   change it.
