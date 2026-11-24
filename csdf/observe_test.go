@@ -53,7 +53,10 @@ func TestParseObserveLines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Execute
 			d, err := parseAccepting(observed(tt.extra))
+
+			// Assert
 			if err != nil {
 				t.Fatalf("parseAccepting() error = %v", err)
 			}
@@ -87,7 +90,10 @@ func TestParseRefusesObserveLines(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Execute
 			_, err := parseAccepting(observed(tt.extra))
+
+			// Assert
 			if err == nil {
 				t.Fatal("parseAccepting() error = nil")
 			}

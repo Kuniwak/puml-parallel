@@ -146,7 +146,7 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		out.Families = append(out.Families, f.States())
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
 	}
-	p, err := observed(p)
+	p, err := p.Observed()
 	if err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}

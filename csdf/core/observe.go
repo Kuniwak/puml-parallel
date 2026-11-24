@@ -8,14 +8,14 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
 )
 
-// observed is p with every clause of its global diagram read through the
+// Observed is p with every clause of its global diagram read through the
 // observations of the local diagrams (docs/PROMOTION.md, Observations): an
 // @at naming a view names its states instead. It reports, as an error, a
 // clause that reads of an instance of a family whose local diagram
 // declares observations what that diagram does not declare: an @at naming
 // a state rather than a view, a variable not declared, or the instance as a
 // whole. Whether an instance exists is always read.
-func observed(p Promotion) (Promotion, error) {
+func (p Promotion) Observed() (Promotion, error) {
 	obs := map[string]*Observation{}
 	for _, f := range p.Families {
 		if f.Local != nil && f.Local.Observes != nil {

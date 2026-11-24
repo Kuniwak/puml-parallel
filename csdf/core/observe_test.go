@@ -14,6 +14,11 @@ func observedLocation(t *testing.T, vars ...string) *Diagram {
 	return d
 }
 
+// constrained is a promotion of f in the one mode G under the constrains cs.
+func constrained(f Family, cs ...Constrain) Promotion {
+	return Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{f}, Constrains: cs}
+}
+
 func TestPromoteReadsAViewAsItsStates(t *testing.T) {
 	// Setup
 	locations := Family{Map: "locations", ID: "loc", Local: observedLocation(t)}
@@ -47,8 +52,7 @@ func TestPromoteRefusesAGlobalReadTheLocalDiagramDoesNotDeclare(t *testing.T) {
 		{"an instance as a whole", halt("${locations[loc]} = 0"), "it reads locations[loc], an instance as a whole"},
 		{"in a sync", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "${locations[from].stock} = 0"), Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "sync MOVE: it reads locations[from].stock"},
-		{"in a constrain", Promotion{Modes: []string{"G"}, Init: "G", Families: []Family{locations},
-			Constrains: []Constrain{{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "@at(locations[loc], open)")}}}, "constrain OPEN: @at(locations[…], open)"},
+		{"in a constrain", constrained(locations, Constrain{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "@at(locations[loc], open)")}), "constrain OPEN: @at(locations[…], open)"},
 		{"under an exists", halt("@exists(k : loc) (${locations[k].stock} = 0)"), "locations[…].stock"},
 	}
 	for _, c := range cases {
