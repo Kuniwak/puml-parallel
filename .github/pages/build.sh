@@ -12,8 +12,7 @@ go build -o "$bin/csdfreplweb" ./tools/csdfreplweb
 go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
 mkdir -p "$site"
 
-for f in examples/valid/client_server.puml \
-         examples/promote/ATTEMPTS.puml examples/promote/MEMBERS.puml \
+for f in examples/promote/ATTEMPTS.puml examples/promote/MEMBERS.puml \
          examples/promote/MODES.puml examples/promote/RECEIPTS.puml \
          examples/promote/PINGPONG.puml; do
   "$bin/csdfreplweb" "$f" > "$site/$(basename "$f" .puml).html"
@@ -34,6 +33,7 @@ bmc=examples/bmc
 twin vending_stock_en en "$bmc/vending_stock_en.puml" "$bmc/vending_stock_formal.puml" "$bmc/vending_stock_formal_defs.py"
 twin vending_machine en examples/valid/vending_machine.puml "$bmc/vending_machine_formal.puml" "$bmc/vending_machine_formal_defs.py"
 twin user_vending_machine en examples/compose/user_vending_machine.puml "$bmc/user_vending_machine_formal.puml" "$bmc/vending_machine_formal_defs.py"
+twin client_server en examples/valid/client_server.puml "$bmc/client_server_formal.puml" "$bmc/client_server_formal_defs.py"
 twin vending_stock_ja ja "$bmc/vending_stock_ja.puml" "$bmc/vending_stock_ja_formal.puml" "$bmc/vending_stock_ja_formal_defs.py"
 
 cp "$(dirname "$0")/index.html" "$site/index.html"
