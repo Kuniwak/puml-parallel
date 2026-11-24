@@ -93,6 +93,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		`two "-" arguments (representative value)`: {
 			Args: []string{"-", "-"},
 		},
+		"both forms of a glue": {
+			Args: []string{"-evaluator", "glue", "-evaluator-module", "csdfbmc.python_glue", "-"},
+		},
+		"-python without -evaluator-module": {
+			Args: []string{"-evaluator", "glue", "-python", "python3", "-"},
+		},
 	}
 
 	for name, testCase := range testCases {

@@ -15,12 +15,12 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, show
-from csdfbmc.determine import Witness, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.determine import Witness, blocked, decides_early, determine, draws, part_reads, place, witness
 from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
-from csdfbmc.values import LEFT_OUT, Built, FrozenMap, Interner, Strict, kind_key, record, samples_in, beyond_samples, encode, freeze, same_value, visible
+from csdfbmc.values import LEFT_OUT, FrozenMap, UnlistableType, Interner, Strict, kind_key, samples_in, beyond_samples, decode, encode, freeze, is_value_of, listable, record_parts, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -437,7 +437,7 @@ class Explorer:
                     if t not in self.checks.types or t in samples:
                         continue
                     value = lit.value
-                    if not any(same_value(freeze(v), value) for v in self.checks.types[t]):
+                    if not is_value_of(self.checks.types[t], value):
                         raise ValueError(f"{where}: @{c.op} compares {name} with the literal {lit.text}, which no value of its type "
                                          f"{t!r} in TYPES is; write a value of the type, or add the value to it")
 
@@ -499,6 +499,13 @@ class Explorer:
         vals = self._successor_values(self.d.start_post, {}, self.d.start, "the start edge")
         return [Strict((self.d.start, v, ghosts)) for v in vals]
 
+    def _on_demand(self, e: Edge, p: str) -> bool:
+        """Whether the type of the field p of e is an on_demand_record,
+        whose records are made from their parts, so p always ranges by its
+        parts, never over the type as a whole."""
+        t = self.d.field_type(e, p)
+        return t in self.checks.types and not listable(self.checks.types[t])
+
     def _record_parts(self, e: Edge, p: str, determined: dict) -> tuple[list, dict] | None:
         """The keys of the records the field p ranges over, in order, and
         the values each key no equality determines ranges over; None when
@@ -509,13 +516,30 @@ class Explorer:
         if t == ANY:
             return list(determined), {}
         values = self.checks.types.get(t)
-        if isinstance(values, Built) and values.build is record:
-            if not set(determined) <= set(values.parts):
+        parts = record_parts(values)
+        if parts is not None:
+            if not set(determined) <= set(parts):
+                if not listable(values):
+                    z = next(k for k in determined if k not in parts)
+                    raise PostError(f"{e.describe()}: the guard determines the part {z} of the field {p}, which its type {t}, "
+                                    f"an on_demand_record of the parts {', '.join(map(str, parts))}, has not; "
+                                    "determine a part the type has, or add the part to the type")
                 return None
-            return list(values.parts), {k: list(v) for k, v in values.parts.items() if k not in determined}
+            for k, v in parts.items():
+                if k not in determined and not listable(v):
+                    raise PostError(f"{e.describe()}: nothing determines the part {k} of the field {p}, of the type {t}, whose values are "
+                                    f"an on_demand_record; let an equality of the guard determine it, @eq({p}[\"{k}\"], …), or give the "
+                                    f"part a type that lists its values, such as record(…){self._blocked_hint(e, p, k)}")
+            return list(parts), {k: list(v) for k, v in parts.items() if k not in determined}
         if values and all(isinstance(v, FrozenMap) and set(v) == set(determined) for v in values):
             return list(values[0]), {}
         return None
+
+    def _blocked_hint(self, e: Edge, p: str, k) -> str:
+        """The hint that an equality of e's guard would bind the part k of
+        p but for a conjunct before it reading p; empty when none would."""
+        c = blocked(e.guard, list(e.params), set(self.d.vars[e.src]), p, k)
+        return "" if c is None else f"; the equality {show(c)} does not, as a conjunct before it reads {p}: move the equality before that conjunct"
 
     def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> "_Plan":
         """The plan of e from the state state is at (_make_plan), made once
@@ -559,7 +583,7 @@ class Explorer:
         for p in e.params:
             if p not in whole and p not in shapes:
                 shape = self._record_parts(e, p, {})
-                if shape and shape[1] and any(isinstance(n, tuple) for n in part_reads(e.guard, {(p, k) for k in shape[1]})):
+                if shape and shape[1] and (self._on_demand(e, p) or any(isinstance(n, tuple) for n in part_reads(e.guard, {(p, k) for k in shape[1]}))):
                     split[p] = shape
 
         def levels_of(shapes: dict) -> tuple[list, set]:
@@ -584,7 +608,8 @@ class Explorer:
         # The ∃ that would draw parts were every candidate record split.
         candidate = witness(e.guard, names, known)
         drawn = {names[d][0] for d in candidate.levels if isinstance(names[d], tuple)} if candidate else set()
-        useful = {f: shape for f, shape in split.items() if f in drawn or decides_early(e.guard, names, steps[:inside], f)}
+        useful = {f: shape for f, shape in split.items()
+                  if self._on_demand(e, f) or f in drawn or decides_early(e.guard, names, steps[:inside], f)}
         if useful != split:
             split = useful
             levels, ranged = levels_of(shapes | split)
@@ -621,10 +646,19 @@ class Explorer:
             bound[b.field] = before[b.field] = value
             return True
         bound[(b.field, b.key)] = value
+        ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
+        before[b.field] = self._parts_so_far(plan, b.field, ranging, bound)
         if plan.last_part[b.field] == i:
-            ranging = {name[1]: v for (name, _), v in zip(plan.levels, prefix) if isinstance(name, tuple) and name[0] == b.field}
-            bound[b.field] = before[b.field] = FrozenMap((k, ranging[k] if k in ranging else bound[(b.field, k)]) for k in plan.keys[b.field])
+            bound[b.field] = before[b.field]
         return True
+
+    @staticmethod
+    def _parts_so_far(plan: "_Plan", f: str, ranging: dict, bound: dict) -> FrozenMap:
+        """The record f holds of the parts that range in the prefix,
+        ranging, and those the steps have bound, in the order of its keys,
+        so that a step reads a part bound before the record is whole."""
+        return FrozenMap((k, ranging[(f, k)] if (f, k) in ranging else bound[(f, k)])
+                         for k in plan.keys[f] if (f, k) in ranging or (f, k) in bound)
 
     def _guarded_offers(self, state: State, e: Edge, plan: "_Plan"):
         """The values of the fields e receives, each with the number of the
@@ -640,7 +674,10 @@ class Explorer:
 
         def step(group: list) -> Callable[[tuple, dict], dict | None]:
             def run(prefix: tuple, bound: dict) -> dict | None:
-                before = self._before(state, self._params(e, plan, prefix, bound))
+                params = self._params(e, plan, prefix, bound)
+                ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
+                partial = {f: self._parts_so_far(plan, f, ranging, bound) for f in plan.last_part if f not in params}
+                before = self._before(state, params | partial)
                 for i, b in group:
                     if not self._step(e, plan, i, b, prefix, bound, before):
                         return None
@@ -725,7 +762,7 @@ class Explorer:
         t = self.d.field_type(e, p)
         try:
             return self.checks.carrier(t)
-        except KeyError as err:
+        except (KeyError, UnlistableType) as err:
             raise PostError(f"{e.describe()}: nothing determines the field {p}, so it ranges over its type {t}: {err.args[0]}") from None
 
     def _label(self, e: Edge, before: dict) -> str:
@@ -903,12 +940,18 @@ class Explorer:
         if len(values) != len(self.d.vars[state_id]):
             raise ValueError(f"state {state_id!r} has {len(self.d.vars[state_id])} variable(s), got {len(values)} value(s)")
         ghosts = tuple(freeze(init) for init, _ in self.checks.ghosts.values())
-        state = Strict((state_id, tuple(freeze(v) for v in values), ghosts))
+        state = Strict((state_id, tuple(self._decoded(n, v) for n, v in zip(self.d.vars[state_id], values)), ghosts))
         out = []
         for params, _, nexts in self._edge_successors(state, edges[edge_index], record=False):
             for t in nexts:
                 out.append({"params": {k: encode(v) for k, v in params.items()}, "values": [encode(v) for v in t[1]]})
         return out
+
+    def _decoded(self, name: str, value):
+        """value, given as JSON, read back as a value of the type of the
+        variable name, when TYPES lists it."""
+        values = self.checks.types.get(self.d.types.get(name, name))
+        return freeze(value) if values is None else decode(value, values)
 
     # -- the walk ----------------------------------------------------------------
 
