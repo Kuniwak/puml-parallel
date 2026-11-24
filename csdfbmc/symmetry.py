@@ -50,7 +50,7 @@ from csdfbmc.checks import Checks
 from csdfbmc.environment import Environment
 from csdfbmc.model import App, Atom, Bound, Builtin, Diagram, Field, Free, Index, Lit, conjuncts, is_primed, root, terms
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, freeze, same_value
+from csdfbmc.values import FrozenMap, FrozenSet, Rec, Strict, freeze, listable, record_parts, same_value
 
 
 class Symmetry:
@@ -61,6 +61,9 @@ class Symmetry:
         for t in checks.symmetric:
             if t not in checks.types:
                 raise ValueError(f"SYMMETRIC names {t!r}, which TYPES does not declare")
+            if not listable(checks.types[t]):
+                raise ValueError(f"SYMMETRIC names {t!r}, an on_demand_record; a symmetric type lists its IDs, strings "
+                                 "(TYPES = {\"ID\": [\"a\", \"b\"]}): name the type of the record's ID part in SYMMETRIC instead")
             values = frozenset(checks.types[t])
             if not all(isinstance(v, str) for v in values):
                 raise ValueError(f"SYMMETRIC names {t!r}, whose values are not all strings; an ID that is a number cannot be told from a count")
@@ -96,6 +99,13 @@ class Symmetry:
             return any(self._holds(x) for x in v)
         return False
 
+    def _may_hold(self, values) -> bool:
+        """Whether a value of a type may hold an ID: an on_demand_record's,
+        told by its parts, which are never listed as records."""
+        if not listable(values):
+            return any(self._may_hold(part) for part in record_parts(values).values())
+        return any(self._holds(v) for v in values)
+
     def _holding(self, d: Diagram, checks: Checks) -> tuple[set[str], set[str], set[str]]:
         """The names that may hold an ID, the fields that may, and the maps
         an ID indexes. A name may hold an ID when a value of a type it is
@@ -107,11 +117,17 @@ class Symmetry:
         ids: set[str] = set()
         fields: set[str] = set()
         for name, types in d.name_types().items():
-            for v in (v for t in types if t in checks.types for v in checks.types[t]):
-                if self._holds(v):
-                    ids.add(name)
-                if isinstance(v, Mapping):
-                    fields |= {f for f, x in v.items() if isinstance(f, str) and self._holds(x)}
+            for values in (checks.types[t] for t in types if t in checks.types):
+                if not listable(values):
+                    if self._may_hold(values):
+                        ids.add(name)
+                    fields |= {f for f, part in record_parts(values).items() if isinstance(f, str) and self._may_hold(part)}
+                    continue
+                for v in values:
+                    if self._holds(v):
+                        ids.add(name)
+                    if isinstance(v, Mapping):
+                        fields |= {f for f, x in v.items() if isinstance(f, str) and self._holds(x)}
         keyed = {m: f.key_type in checks.symmetric for m, f in d.families.items()}
         maps: set[str] = {m for m, by_ids in keyed.items() if by_ids}
         ids |= maps
@@ -173,10 +189,17 @@ class Symmetry:
 
     def _check_types(self, checks: Checks) -> None:
         for t, values in checks.types.items():
-            held = FrozenSet(values)
-            for perm in self.perms:
-                if FrozenSet(rename(v, perm) for v in held) != held:
-                    raise ValueError(f"the values of {t!r} are not closed under renaming the symmetric IDs, so they are not interchangeable")
+            if not self._closed(values):
+                raise ValueError(f"the values of {t!r} are not closed under renaming the symmetric IDs, so they are not interchangeable")
+
+    def _closed(self, values) -> bool:
+        """Whether renaming the symmetric IDs keeps the values of a type
+        among them: an on_demand_record's when its parts' do, its records
+        being every product of them."""
+        if not listable(values):
+            return all(self._closed(part) for part in record_parts(values).values())
+        held = FrozenSet(values)
+        return all(FrozenSet(rename(v, perm) for v in held) == held for perm in self.perms)
 
     def _check_atoms(self, d: Diagram, checks: Checks, client: ClientLike, environment: Environment) -> None:
         asked: set = set()

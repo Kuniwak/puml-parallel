@@ -2,6 +2,7 @@ package csdflintcmd_test
 
 import (
 	"encoding/csv"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -148,9 +149,113 @@ func TestNewMainFuncListsTheRules(t *testing.T) {
 		t.Log(spy.Stderr.String())
 		t.Errorf("want 0, got %d", exitStatus)
 	}
-	for _, want := range []string{"syntax-error: ", "self-transition-divergence: ", "self-transition-post-breaks-guard: "} {
+	for _, want := range []string{"syntax-error: ", "self-transition-divergence: ", "self-transition-post-breaks-guard: ", "atom-not-in-language: "} {
 		if !strings.Contains(spy.Stdout.String(), want) {
 			t.Errorf("want %q, got %q", want, spy.Stdout.String())
 		}
+	}
+}
+
+// pythonGlue is the reference glue as a command line csdflint runs from this
+// directory.
+func pythonGlue(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not on the PATH")
+	}
+	return "sh -c 'cd ../../.. && exec python3 -E -s -B -m csdfbmc.python_glue'"
+}
+
+func TestNewMainFuncReportsTheAtomsTheGlueDoesNotRead(t *testing.T) {
+	// Arrange
+	path := filepath.Join("testdata", "atoms.puml")
+
+	// Act
+	exitStatus, spy := run("-evaluator", pythonGlue(t), path)
+
+	// Assert
+	if exitStatus != 1 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 1, got %d", exitStatus)
+	}
+	r := csv.NewReader(strings.NewReader(spy.Stdout.String()))
+	r.Comma = '\t'
+	r.LazyQuotes = true
+	rows, err := r.ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, row := range rows[1:] {
+		if row[3] == "atom-not-in-language" {
+			got = append(got, strings.Join(row[1:5], " "))
+		}
+	}
+	want := []string{
+		"5 5 atom-not-in-language ERROR",
+		"6 6 atom-not-in-language ERROR",
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("findings mismatch (-want +got):\n%s\n%s", diff, spy.Stdout.String())
+	}
+	for _, said := range []string{"LIMIT is neither a builtin nor a definition", "a post atom of this glue is"} {
+		if !strings.Contains(spy.Stdout.String(), said) {
+			t.Errorf("want %q said, got %q", said, spy.Stdout.String())
+		}
+	}
+}
+
+func TestNewMainFuncFailsWithTwoOnAGlueItCannotUse(t *testing.T) {
+	type testCase struct {
+		Evaluator string
+		WantSaid  string
+	}
+	testCases := map[string]testCase{
+		"a glue that ends at once": {Evaluator: "sh -c 'exit 0'", WantSaid: "the glue ended without answering"},
+		"a glue that does not answer lint": {
+			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2}"; cat > /dev/null'`,
+			WantSaid:  "the fake glue does not answer lint",
+		},
+		"a glue that ends after its hello": {
+			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2, \"supports\": [\"lint\"]}"'`,
+			WantSaid:  "the glue failed, so the atoms are not all checked",
+		},
+		"a blank command line": {Evaluator: "  ", WantSaid: "the command line of a glue is empty"},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange & Act
+			exitStatus, spy := run("-evaluator", tc.Evaluator, filepath.Join("testdata", "atoms.puml"))
+
+			// Assert
+			if exitStatus != 2 {
+				t.Errorf("want 2, got %d", exitStatus)
+			}
+			if !strings.Contains(spy.Stderr.String(), tc.WantSaid) {
+				t.Errorf("want %q said, got %q", tc.WantSaid, spy.Stderr.String())
+			}
+		})
+	}
+}
+
+func TestNewMainFuncReadsTheAtomsThroughAGlueModule(t *testing.T) {
+	// Arrange: the embedded sources unpacked into a cache of the test's own.
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 is not on the PATH")
+	}
+	cmdFunc := tools.NewCommandFunc(csdflintcmd.NewParseOptionsFunc(), csdflintcmd.NewMainFunc())
+	spy := cli.SpyProcInout()
+	spy.Env = map[string]string{"CSDFBMC_CACHE": t.TempDir()}
+
+	// Act
+	exitStatus := cmdFunc([]string{"-evaluator-module", "csdfbmc.python_glue", filepath.Join("testdata", "atoms.puml")}, spy.New())
+
+	// Assert
+	if exitStatus != 1 {
+		t.Log(spy.Stderr.String())
+		t.Errorf("want 1, got %d", exitStatus)
+	}
+	if !strings.Contains(spy.Stdout.String(), "LIMIT is neither a builtin nor a definition") {
+		t.Errorf("want the undefined name reported, got %q", spy.Stdout.String())
 	}
 }

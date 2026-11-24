@@ -24,11 +24,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		python, err := interpreter(opts, inout.Env)
+		python, err := csdfbmc.Interpreter(opts.Python, inout.Env)
 		if err != nil {
 			return &tools.ExitStatusError{Status: 2, Message: err.Error()}
 		}
-		dir, err := csdfbmc.Materialize(cacheRoot(inout.Env))
+		dir, err := csdfbmc.Materialize(csdfbmc.CacheRoot(inout.Env))
 		if err != nil {
 			return fmt.Errorf("csdfbmccmd.NewMainFunc: %w", err)
 		}
@@ -60,38 +60,6 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 // subcommands are the modules a first argument names in place of the checker.
 var subcommands = map[string]string{"next": csdfbmc.ModuleNext, "shapes": csdfbmc.ModuleShapes}
-
-// interpreter is the python3 to run: the -python option, then $CSDFBMC_PYTHON,
-// then the first python3 on the PATH.
-func interpreter(opts *Options, env cli.EnvFunc) (string, error) {
-	named := opts.Python
-	if named == "" {
-		named = env("CSDFBMC_PYTHON")
-	}
-	if named != "" {
-		if _, err := os.Stat(named); err != nil {
-			return "", fmt.Errorf("the interpreter %s cannot be used: %v", named, err)
-		}
-		return named, nil
-	}
-	path, err := exec.LookPath("python3")
-	if err != nil {
-		return "", fmt.Errorf("python3 is not on the PATH; install Python 3.11 or later, or name an interpreter with -python or $CSDFBMC_PYTHON")
-	}
-	return path, nil
-}
-
-// cacheRoot is where the sources are unpacked: $CSDFBMC_CACHE, else the user
-// cache directory, else a temporary directory.
-func cacheRoot(env cli.EnvFunc) string {
-	if root := env("CSDFBMC_CACHE"); root != "" {
-		return root
-	}
-	if root, err := os.UserCacheDir(); err == nil {
-		return root
-	}
-	return os.TempDir()
-}
 
 // runRelaying runs cmd and passes each signal of signals on to it until it
 // ends: the checker stops on SIGINT or SIGTERM with the report of what it
