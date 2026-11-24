@@ -30,7 +30,7 @@ func written(t *testing.T) []struct {
 				Types:    map[string]types.Type{"x": types.Named("N"), "y": types.Named("N")},
 				Init:     "n",
 				Edges:    []core.Edge{{Src: "n", Dst: "a", Event: core.Event{Channel: "make"}, Post: mustParse(t, "$x' = 0")}},
-				Observes: &core.Observation{Views: map[string][]string{"live": {"a", "b"}, "first": {"a"}}, Vars: []string{"y", "x"}},
+				Observes: &core.Observation{Observables: []core.Observable{{Name: "first", States: []string{"a"}}, {Name: "live", States: []string{"a", "b"}}, {Name: "y"}, {Name: "x"}}},
 			},
 			want: `@startuml
 ' CSDF-OBSERVE first = a

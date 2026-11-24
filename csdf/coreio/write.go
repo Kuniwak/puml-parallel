@@ -78,11 +78,16 @@ func writeObserves(b *strings.Builder, o *core.Observation) {
 	if o == nil {
 		return
 	}
-	for _, v := range slices.Sorted(maps.Keys(o.Views)) {
-		fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", v, strings.Join(o.Views[v], ", "))
+	views := o.Views()
+	slices.Sort(views)
+	for _, v := range views {
+		states, _ := o.View(v)
+		fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", v, strings.Join(states, ", "))
 	}
-	for _, v := range o.Vars {
-		fmt.Fprintf(b, "' CSDF-OBSERVE %s\n", v)
+	for _, d := range o.Observables {
+		if !d.IsView() {
+			fmt.Fprintf(b, "' CSDF-OBSERVE %s\n", d.Name)
+		}
 	}
 }
 

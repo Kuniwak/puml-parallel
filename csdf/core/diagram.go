@@ -131,11 +131,48 @@ type Diagram struct {
 }
 
 // Observation is what a local diagram declares a global clause may read of
-// an instance: the views, each a named set of local states, and the state
-// variables. Whether the instance exists is always observed.
+// an instance, in the order it declares them: views, each a named set of
+// local states, and state variables. Whether the instance exists is always
+// observed.
 type Observation struct {
-	Views map[string][]string
-	Vars  []string
+	Observables []Observable
+}
+
+// Observable is one declaration of an observation: the view Name of the
+// local states States, or, when States is nil, the state variable Name.
+type Observable struct {
+	Name   string
+	States []string
+}
+
+// IsView says whether d declares a view rather than a variable.
+func (d Observable) IsView() bool { return d.States != nil }
+
+// View is the states of the view name; ok is false when o declares no such
+// view.
+func (o *Observation) View(name string) (states []string, ok bool) {
+	for _, d := range o.Observables {
+		if d.IsView() && d.Name == name {
+			return d.States, true
+		}
+	}
+	return nil, false
+}
+
+// Observes says whether o declares the state variable v.
+func (o *Observation) Observes(v string) bool {
+	return slices.ContainsFunc(o.Observables, func(d Observable) bool { return !d.IsView() && d.Name == v })
+}
+
+// Views are the names of the views of o, in the order it declares them.
+func (o *Observation) Views() []string {
+	var names []string
+	for _, d := range o.Observables {
+		if d.IsView() {
+			names = append(names, d.Name)
+		}
+	}
+	return names
 }
 
 // FamilyStates is what an instance in the map Map may be: at one of

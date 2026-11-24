@@ -10,7 +10,10 @@ import (
 // state and nothing else.
 func observedLocation(t *testing.T, vars ...string) *Diagram {
 	d := location(t)
-	d.Observes = &Observation{Views: map[string][]string{"live": {"open"}}, Vars: vars}
+	d.Observes = &Observation{Observables: []Observable{{Name: "live", States: []string{"open"}}}}
+	for _, v := range vars {
+		d.Observes.Observables = append(d.Observes.Observables, Observable{Name: v})
+	}
 	return d
 }
 

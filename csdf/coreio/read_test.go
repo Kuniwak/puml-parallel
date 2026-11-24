@@ -398,7 +398,7 @@ func TestReadAuthoredKeepsTheObservations(t *testing.T) {
 		{
 			name:   "a view and a variable",
 			source: "@startuml\n' CSDF-OBSERVE live = a\n' CSDF-OBSERVE x\nstate \"n\" as n\nstate \"a\" as a\na : x ; any\n[*] --> n\nn --> a : MAKE\n@enduml\n",
-			want:   &core.Observation{Views: map[string][]string{"live": {"a"}}, Vars: []string{"x"}},
+			want:   &core.Observation{Observables: []core.Observable{{Name: "live", States: []string{"a"}}, {Name: "x"}}},
 		},
 	}
 	for _, c := range cases {

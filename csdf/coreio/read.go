@@ -167,16 +167,14 @@ func observationOf(os []csdf.Observe) *core.Observation {
 	}
 	out := &core.Observation{}
 	for _, o := range os {
-		if !o.IsView() {
-			out.Vars = append(out.Vars, o.Name)
-			continue
+		d := core.Observable{Name: o.Name}
+		if o.IsView() {
+			d.States = []string{}
+			for _, s := range o.States {
+				d.States = append(d.States, string(s))
+			}
 		}
-		if out.Views == nil {
-			out.Views = map[string][]string{}
-		}
-		for _, s := range o.States {
-			out.Views[o.Name] = append(out.Views[o.Name], string(s))
-		}
+		out.Observables = append(out.Observables, d)
 	}
 	return out
 }

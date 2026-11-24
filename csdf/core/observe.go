@@ -144,7 +144,7 @@ func observedAt(obs map[string]*Observation, b clause.Builtin) (m clause.Free, o
 func viewStates(m clause.Free, key clause.Term, o *Observation, names []string) ([]string, error) {
 	var out []string
 	for _, n := range names {
-		states, ok := o.Views[n]
+		states, ok := o.View(n)
 		if !ok {
 			return nil, fmt.Errorf("@at(%s[%s], %s) reads %s, which the local diagram of %s does not declare as a view; it reads only its views (%s); add ' CSDF-OBSERVE <view> = %s to it", termName(m), entryKey(key), strings.Join(names, ", "), n, m.Name, viewNames(o), n)
 		}
@@ -168,7 +168,7 @@ func termObserved(obs map[string]*Observation, t clause.Term) error {
 				if err := termObserved(obs, ix.Key); err != nil {
 					return err
 				}
-				if !slices.Contains(o.Vars, t.Name) {
+				if !o.Observes(t.Name) {
 					return fmt.Errorf("it reads %s[%s].%s, but the local diagram of %s does not declare %s observed; add ' CSDF-OBSERVE %s to it", termName(m), entryKey(ix.Key), t.Name, m.Name, t.Name, t.Name)
 				}
 				return nil
@@ -211,11 +211,7 @@ func termName(m clause.Free) string {
 }
 
 func viewNames(o *Observation) string {
-	names := make([]string, 0, len(o.Views))
-	for n := range o.Views {
-		names = append(names, n)
-	}
-	slices.Sort(names)
+	names := o.Views()
 	if len(names) == 0 {
 		return "none"
 	}
