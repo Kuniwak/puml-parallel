@@ -74,7 +74,7 @@ func TestNewSessionStartsInValuesModeAtInitial(t *testing.T) {
 	if session.Mode() != ModeValues {
 		t.Errorf("Mode() = %v, want ModeValues", session.Mode())
 	}
-	if diff := cmp.Diff(Target{ID: "s0", Name: "Initial", Vars: []string{"count"}}, pending.Target); diff != "" {
+	if diff := cmp.Diff(Target{ID: "s0", Name: "Initial", Vars: []string{"count"}, Types: map[string]string{"count": "count"}}, pending.Target); diff != "" {
 		t.Errorf("pending target mismatch (-want +got):\n%s", diff)
 	}
 	if len(pending.Guard.Conjuncts) != 0 || pending.Prev != nil {
@@ -481,5 +481,18 @@ func TestJumpAfterTheRunEndedGoesOn(t *testing.T) {
 	}
 	if current, ok := session.Current(); !ok || current.ID != "s0" {
 		t.Errorf("Current() = (%v, %v), want s0 in command mode", current, ok)
+	}
+}
+
+func TestPendingTargetGivesTheTypeOfEachVariable(t *testing.T) {
+	// Setup
+	session := newSession(t, twoStateDiagram)
+
+	// Execute
+	pending := session.Pending()
+
+	// Assert
+	if diff := cmp.Diff(map[string]string{"count": "count"}, pending.Target.Types); diff != "" {
+		t.Errorf("pending target types mismatch (-want +got):\n%s", diff)
 	}
 }

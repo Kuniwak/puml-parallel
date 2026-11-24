@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/v3/tools"
 )
 
@@ -13,6 +14,10 @@ import (
 // otherwise: plantuml on the PATH, reading the source on its standard input
 // and writing SVG.
 const DefaultPumlExec = "plantuml -pipe -tsvg"
+
+// DefaultPyodide is where a page suggesting values loads Pyodide from
+// unless -pyodide says otherwise: a pinned release on its CDN.
+const DefaultPyodide = "https://cdn.jsdelivr.net/pyodide/v0.29.5/full/"
 
 type Options struct {
 	Common *tools.CommonOptions
@@ -23,6 +28,12 @@ type Options struct {
 	// Engine is the WebAssembly file of the engine the page carries, or ""
 	// for the one the binary embeds or builds.
 	Engine string
+	// Checker is what the page's Python reads to suggest values, as
+	// csdfrepl -checks does; it asks nothing when -checks is not given.
+	Checker bmc.Checker
+	// Pyodide is the URL of the directory holding pyodide.js, which a page
+	// suggesting values loads.
+	Pyodide string
 }
 
 // CommonOptions returns the parsed common options.
@@ -54,8 +65,16 @@ input and write SVG yourself (-pipe -tsvg).
 A global diagram holding promotion directives (docs/PROMOTION.md) is
 explored as its expansion, as csdfrepl explores it, each !include read
 relative to the file; its drawing is the global diagram, without
-highlights. The page suggests no values: csdfbmc does not run in a
-browser.
+highlights.
+
+With -checks and -evaluator-module, the page suggests at every value
+prompt the values the clauses admit, as csdfrepl does with the same
+flags, and the tester picks one instead of typing the values. It runs
+csdfbmc next in Python compiled to WebAssembly (Pyodide), which it loads
+from -pyodide when it opens; the page carries csdfbmc, the checks module
+and every word of -evaluator-module naming a file, read relative to the
+current directory as csdfbmc reads them. The glue must be a Python
+module: a browser starts no command, so -evaluator is refused.
 
 The page carries the exploration engine compiled to WebAssembly. A
 release binary embeds it. Otherwise csdfreplweb builds it with the go
@@ -73,6 +92,9 @@ Examples:
   $ csdfreplweb examples/valid/vending_machine.puml > vending_machine.html
   $ csdfreplweb -puml-exec 'java -jar "/opt/plant uml/plantuml.jar" -pipe -tsvg' diagram.puml > diagram.html
   $ csdfreplweb -engine csdfreplweb-engine_3.14.0.wasm.gz diagram.puml > diagram.html
+  $ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
+      -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" \
+      examples/bmc/printer_formal.puml > printer.html
 `)
 		}
 
@@ -80,6 +102,9 @@ Examples:
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
 		engine := flags.String("engine", "", "WebAssembly file (gzipped or not) of the engine the page carries, instead of the embedded or built one")
 		pumlExec := flags.String("puml-exec", DefaultPumlExec, "command that reads PlantUML source on its standard input and writes SVG on its standard output")
+		var checker bmc.Checker
+		tools.DeclareCheckerOptions(flags, &checker)
+		pyodide := flags.String("pyodide", DefaultPyodide, "with -checks, URL of the directory holding pyodide.js, which the page loads to run csdfbmc")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -96,6 +121,13 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
+		if err := tools.ValidateCheckerOptions(checker); err != nil {
+			return nil, fmt.Errorf("csdfreplwebcmd.NewParseOptionsFunc: %w", err)
+		}
+		if checker.Evaluator != "" {
+			return nil, errors.New("csdfreplwebcmd.NewParseOptionsFunc: -evaluator starts a command, which a browser cannot; give the glue as a Python module with -evaluator-module")
+		}
+
 		argv, err := SplitCommandLine(*pumlExec)
 		if err != nil {
 			return nil, fmt.Errorf("csdfreplwebcmd.NewParseOptionsFunc: -puml-exec: %w", err)
@@ -104,6 +136,6 @@ Examples:
 			return nil, errors.New("csdfreplwebcmd.NewParseOptionsFunc: exactly one CSDF file is required")
 		}
 
-		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine}, nil
+		return &Options{Common: commonOpts, File: flags.Arg(0), PumlExec: argv, Engine: *engine, Checker: checker, Pyodide: *pyodide}, nil
 	}
 }

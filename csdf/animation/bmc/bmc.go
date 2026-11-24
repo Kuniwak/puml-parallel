@@ -23,18 +23,18 @@ import (
 // (EvaluatorModule); and the environment, as csdfbmc takes it: Env (--env, in the
 // order given). The zero Checker asks nothing.
 type Checker struct {
-	Checks          string
-	Evaluator       string
-	EvaluatorModule string
-	Env             []Binding
+	Checks          string    `json:"checks"`
+	Evaluator       string    `json:"evaluator,omitempty"`
+	EvaluatorModule string    `json:"evaluator_module,omitempty"`
+	Env             []Binding `json:"env,omitempty"`
 }
 
 // Binding gives a function of the environment, named as csdfbmc names it
 // (the atom's text with its holes as $_0, $_1, ...), a truth value: what
 // "--env NAME=true|false" says.
 type Binding struct {
-	Name  string
-	Value bool
+	Name  string `json:"name"`
+	Value bool   `json:"value"`
 }
 
 // String is the binding as --env takes it.
@@ -84,30 +84,54 @@ type Runner func(args []string) ([]byte, error)
 // session: one reading the session's diagram as csdfparse prints it
 // (ForDiagram).
 func (c Checker) Suggesters(run Runner) animation.SuggesterFactory {
+	return c.SuggestersIn(TempFile, run)
+}
+
+// SuggestersIn is Suggesters keeping the diagram JSON where store puts it,
+// for a run that reads files elsewhere than the operating system's.
+func (c Checker) SuggestersIn(store Store, run Runner) animation.SuggesterFactory {
 	return func(d *core.Diagram) (animation.Suggester, func(), error) {
-		return ForDiagram(d, c, run)
+		return ForDiagramIn(d, c, run, store)
 	}
+}
+
+// Store keeps raw, a diagram JSON, where run reads it, and returns its path
+// and the function that removes it.
+type Store func(raw []byte) (path string, cleanup func(), err error)
+
+// TempFile is the Store writing a temporary file.
+func TempFile(raw []byte) (string, func(), error) {
+	f, err := os.CreateTemp("", "csdfrepl-*.json")
+	if err != nil {
+		return "", nil, err
+	}
+	if _, err := f.Write(raw); err != nil {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		return "", nil, err
+	}
+	_ = f.Close()
+	return f.Name(), func() { _ = os.Remove(f.Name()) }, nil
 }
 
 // ForDiagram writes d as csdfparse prints it to a temporary file, and
 // returns a Suggester reading it, so a REPL started on a .puml needs no JSON
 // of its own. The caller removes the file with the returned function.
 func ForDiagram(d *core.Diagram, checker Checker, run Runner) (*Suggester, func(), error) {
+	return ForDiagramIn(d, checker, run, TempFile)
+}
+
+// ForDiagramIn is ForDiagram keeping the diagram JSON where store puts it.
+func ForDiagramIn(d *core.Diagram, checker Checker, run Runner, store Store) (*Suggester, func(), error) {
 	raw, err := core.MarshalDiagram(d)
 	if err != nil {
 		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
 	}
-	f, err := os.CreateTemp("", "csdfrepl-*.json")
+	path, cleanup, err := store(raw)
 	if err != nil {
 		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
 	}
-	if _, err := f.Write(raw); err != nil {
-		_ = f.Close()
-		_ = os.Remove(f.Name())
-		return nil, nil, fmt.Errorf("bmc.ForDiagram: %w", err)
-	}
-	_ = f.Close()
-	return NewSuggester(f.Name(), checker, run), func() { _ = os.Remove(f.Name()) }, nil
+	return NewSuggester(path, checker, run), cleanup, nil
 }
 
 func (s *Suggester) Initial() ([]animation.Suggestion, error) {

@@ -104,8 +104,43 @@ func newMainFunc(render RenderSVG, chooseEngine ChooseEngine) cli.MainFunc[*Opti
 		if err != nil {
 			return err
 		}
+		python, err := pythonOf(opts)
+		if err != nil {
+			return err
+		}
 		return replweb.WriteStaticPage(inout.Stdout, replweb.Page{
 			Title: title, Path: name, Diagram: []byte(source), Includes: includes, SVG: svg, Highlights: highlights,
+			Python: python,
 		}, engine)
 	}
+}
+
+// pythonOf is what the page's Python reads to suggest values, or nil when
+// opts give no checker: the checks module, and every word after the module
+// of -evaluator-module that names a file, such as the definitions
+// csdfbmc.python_glue reads.
+func pythonOf(opts *Options) (*replweb.Python, error) {
+	if !opts.Checker.Asks() {
+		return nil, nil
+	}
+	checks, err := os.ReadFile(opts.Checker.Checks)
+	if err != nil {
+		return nil, fmt.Errorf("csdfreplwebcmd: cannot read the checks module: %w", err)
+	}
+	files := map[string][]byte{opts.Checker.Checks: checks}
+	words, err := SplitCommandLine(opts.Checker.EvaluatorModule)
+	if err != nil {
+		return nil, fmt.Errorf("csdfreplwebcmd: -evaluator-module: %w", err)
+	}
+	for _, word := range words[min(1, len(words)):] {
+		if info, err := os.Stat(word); err != nil || !info.Mode().IsRegular() {
+			continue
+		}
+		bs, err := os.ReadFile(word)
+		if err != nil {
+			return nil, fmt.Errorf("csdfreplwebcmd: cannot read %q of -evaluator-module: %w", word, err)
+		}
+		files[word] = bs
+	}
+	return &replweb.Python{URL: opts.Pyodide, Checker: opts.Checker, Files: files}, nil
 }

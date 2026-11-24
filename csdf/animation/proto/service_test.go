@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -620,5 +621,91 @@ func TestHandleEndEndsTheRunAtAnEndEdge(t *testing.T) {
 	}
 	if again.OK || !strings.Contains(again.Error, "the run has ended") {
 		t.Errorf("end after the end = %+v, want a refusal", again)
+	}
+}
+
+type failingSuggester struct{ animation.NoSuggester }
+
+func (failingSuggester) Initial() ([]animation.Suggestion, error) {
+	return nil, errors.New("the checker broke")
+}
+
+func TestASuggesterThatFailsSaysWhyInTheView(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
+		return failingSuggester{}, animation.NoCleanup, nil
+	})
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
+	}
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	if view := decodeView(t, read); view.Pending == nil || view.Pending.SuggestError != "the checker broke" {
+		t.Errorf("read view = %+v, want the checker's error", view.Pending)
+	}
+}
+
+func TestThePromptOfAPromotionSaysTheValuesThePostDetermines(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	want := []animation.Value{{Name: "items", Value: map[string]any{}}}
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff(want, view.Pending.Determined); diff != "" {
+		t.Errorf("Pending.Determined mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptOfAPromotionNamesTheMapsOfInstances(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff([]string{"items"}, view.Pending.Families); diff != "" {
+		t.Errorf("Pending.Families mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptOfAPromotionTellsTheShapeOfEachInstance(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	want := []InstanceShape{{Map: "items", KeyType: "ID", States: []LocalShape{
+		{State: "itMade", Name: "made", Fields: []Field{{Name: "n", Type: "n"}}},
+	}}}
+	if diff := cmp.Diff(want, view.Pending.Shapes); diff != "" {
+		t.Errorf("Pending.Shapes mismatch (-want +got):\n%s", diff)
 	}
 }

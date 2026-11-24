@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -88,5 +89,59 @@ func TestNewParseOptionsFuncTakesHelp(t *testing.T) {
 	}
 	if !opts.Common.Help {
 		t.Error("Help = false, want true")
+	}
+}
+
+func TestNewParseOptionsFuncTakesTheChecker(t *testing.T) {
+	tests := map[string]struct {
+		args        []string
+		wantChecker bmc.Checker
+		wantPyodide string
+		wantErr     bool
+	}{
+		"no checker": {
+			args:        []string{"d.puml"},
+			wantPyodide: DefaultPyodide,
+		},
+		"a checker with a glue module and the environment": {
+			args: []string{"-checks", "c.py", "-evaluator-module", "csdfbmc.python_glue c.py", "-env", "$_0 ok=true",
+				"-pyodide", "https://example.com/pyodide/", "d.puml"},
+			wantChecker: bmc.Checker{Checks: "c.py", EvaluatorModule: "csdfbmc.python_glue c.py", Env: []bmc.Binding{{Name: "$_0 ok", Value: true}}},
+			wantPyodide: "https://example.com/pyodide/",
+		},
+		"a glue command, which a browser cannot start": {
+			args:    []string{"-checks", "c.py", "-evaluator", "python3 -m csdfbmc.python_glue", "d.puml"},
+			wantErr: true,
+		},
+		"a checks module without a glue": {
+			args:    []string{"-checks", "c.py", "d.puml"},
+			wantErr: true,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			spy := cli.SpyProcInout()
+
+			// Execute
+			opts, err := NewParseOptionsFunc()(tt.args, spy.New())
+
+			// Assert
+			if tt.wantErr {
+				if err == nil {
+					t.Error("want an error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(tt.wantChecker, opts.Checker); diff != "" {
+				t.Errorf("Checker mismatch (-want +got):\n%s", diff)
+			}
+			if opts.Pyodide != tt.wantPyodide {
+				t.Errorf("Pyodide = %q, want %q", opts.Pyodide, tt.wantPyodide)
+			}
+		})
 	}
 }

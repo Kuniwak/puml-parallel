@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
 	"github.com/Kuniwak/puml-parallel/v3/tools"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
 	"github.com/Kuniwak/puml-parallel/v3/tools/replweb/engineload"
@@ -152,5 +153,65 @@ func TestMainSaysWhatToDoWithoutGo(t *testing.T) {
 	// Assert
 	if msg := usererr.Message(err); !strings.Contains(msg, "-engine") || !strings.Contains(msg, "release") {
 		t.Errorf("message = %q, want one naming -engine and the release binary", msg)
+	}
+}
+
+const printerFormal = "../../../examples/bmc/printer_formal.puml"
+const printerDefs = "../../../examples/bmc/printer_formal_defs.py"
+
+func TestMainCarriesTheCheckerAndTheFilesItNames(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	checker := bmc.Checker{Checks: printerDefs, EvaluatorModule: "csdfbmc.python_glue " + printerDefs}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Checker: checker, Pyodide: "https://example.com/py/"}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := spy.Stdout.String()
+	for _, want := range []string{`"url":"https://example.com/py/"`, `"evaluator_module":"csdfbmc.python_glue ../../../examples/bmc/printer_formal_defs.py"`,
+		`"/examples/bmc/printer_formal_defs.py":"\"\"\"The domains of examples/bmc/printer_formal.puml`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the page does not hold %s", want)
+		}
+	}
+}
+
+func TestMainCarriesNoPythonWithoutAChecker(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(spy.Stdout.String(), `"python":`) {
+		t.Error("the page carries Python without a checker")
+	}
+}
+
+func TestMainFailsOnAChecksModuleItCannotRead(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	checker := bmc.Checker{Checks: "no/such/checks.py", EvaluatorModule: "csdfbmc.python_glue"}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Checker: checker, Pyodide: DefaultPyodide}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "no/such/checks.py") {
+		t.Errorf("err = %v, want one naming the checks module", err)
 	}
 }

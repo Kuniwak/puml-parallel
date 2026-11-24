@@ -323,12 +323,19 @@ func viewResponse(e *entry) Response {
 		pending := sess.Pending()
 		animation.RenderStateValuePrompt(&buf, sess.Diagram(), pending)
 		view.Mode = "values"
-		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post)}
+		view.Pending = &Pending{Previous: pending.Prev, Group: pending.Target, Guard: animation.ClauseText(pending.Guard), Post: animation.ClauseText(pending.Post), Determined: animation.Determined(pending)}
+		for _, name := range pending.Target.Vars {
+			if f, ok := animation.Family(sess.Diagram(), name); ok {
+				view.Pending.Families = append(view.Pending.Families, name)
+				view.Pending.Shapes = append(view.Pending.Shapes, shapeOf(f))
+			}
+		}
 		suggestions, err := sess.Suggest()
 		switch {
 		case errors.Is(err, animation.ErrNoSuggester):
 		case err != nil:
 			animation.RenderError(&buf, err.Error())
+			view.Pending.SuggestError = err.Error()
 		default:
 			animation.RenderSuggestions(&buf, suggestions)
 			view.Pending.Suggestions = suggestions
@@ -382,6 +389,33 @@ func movesOf(d *core.Diagram, edge core.Edge) []Move {
 }
 
 // familiesOf are where the instances of each family of d are in state.
+// shapeOf is how an instance of f is written.
+func shapeOf(f core.FamilyStates) InstanceShape {
+	out := InstanceShape{Map: f.Map, States: []LocalShape{}}
+	if !f.KeyType.IsZero() {
+		out.KeyType = f.KeyType.String()
+	}
+	for _, st := range f.States {
+		if st == f.Init {
+			continue
+		}
+		name := st
+		if l, ok := f.Labels[st]; ok && l != "" {
+			name = l
+		}
+		local := LocalShape{State: st, Name: name}
+		for _, v := range f.Vars[st] {
+			field := Field{Name: v}
+			if typ, ok := f.Types[v]; ok && !typ.IsZero() {
+				field.Type = typ.String()
+			}
+			local.Fields = append(local.Fields, field)
+		}
+		out.States = append(out.States, local)
+	}
+	return out
+}
+
 func familiesOf(d *core.Diagram, state animation.State) []FamilyView {
 	var out []FamilyView
 	for _, v := range state.Values {
@@ -436,6 +470,12 @@ func (s *Service) errorFromErr(err error) Response {
 	case errors.As(err, &refused):
 		resp.Code = ErrorCodeRefusedValues
 		resp.Args = map[string]string{"reason": refused.Reason}
+		if refused.Code != "" {
+			resp.Code = refused.Code
+			for k, v := range refused.Args {
+				resp.Args[k] = v
+			}
+		}
 	case errors.Is(err, animation.ErrIndexOutOfRange):
 		resp.Code = ErrorCodeIndexOutOfRange
 	case errors.Is(err, animation.ErrEnded):
