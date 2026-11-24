@@ -33,6 +33,10 @@
   // ---- Words ----
 
   function chooseLanguage() {
+    // A link names the language as ?lang=ja; the tester's choice saved on
+    // the page comes next.
+    const asked = new URLSearchParams(window.location.search).get("lang");
+    if (asked && MESSAGES[asked]) return asked;
     try {
       const saved = window.localStorage.getItem("csdfrepl.language");
       if (saved && MESSAGES[saved]) return saved;

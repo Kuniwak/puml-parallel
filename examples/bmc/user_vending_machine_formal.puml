@@ -1,0 +1,39 @@
+@startuml auto-generated-by: csdfparallel -sync 'insert;showAvailable;showPurchasable;choose;drop' examples/bmc/user_formal.puml examples/bmc/vending_machine_formal.puml
+state "(userChoosing, vmWaitingChoosing)" as userChoosing_vmWaitingChoosing
+userChoosing_vmWaitingChoosing : product ; Product
+userChoosing_vmWaitingChoosing : availableProducts ; ProductSet
+userChoosing_vmWaitingChoosing : coins ; CoinSet
+state "(userGonnaBuy, vmIdle)" as userGonnaBuy_vmIdle
+userGonnaBuy_vmIdle : product ; Product
+userGonnaBuy_vmIdle : availableProducts ; ProductSet
+state "(userGonnaBuy, vmWaitingChoosing)" as userGonnaBuy_vmWaitingChoosing
+userGonnaBuy_vmWaitingChoosing : product ; Product
+userGonnaBuy_vmWaitingChoosing : availableProducts ; ProductSet
+userGonnaBuy_vmWaitingChoosing : coins ; CoinSet
+state "(userIdle, vmIdle)" as userIdle_vmIdle
+userIdle_vmIdle : wanted ; ProductSet
+userIdle_vmIdle : availableProducts ; ProductSet
+state "(userPaying, vmCoinsInserted)" as userPaying_vmCoinsInserted
+userPaying_vmCoinsInserted : product ; Product
+userPaying_vmCoinsInserted : availableProducts ; ProductSet
+userPaying_vmCoinsInserted : coins ; CoinSet
+state "(userWaiting, vmDropping)" as userWaiting_vmDropping
+userWaiting_vmDropping : availableProducts ; ProductSet
+userWaiting_vmDropping : dispensing ; Product
+[*] --> userIdle_vmIdle : $wanted' == set() ∧ $availableProducts' == INITIAL
+userChoosing_vmWaitingChoosing --> userWaiting_vmDropping : choose!product ; $product in $availableProducts ; @eq(dispensing', product) ∧ @eq(availableProducts', availableProducts)
+userGonnaBuy_vmIdle --> userPaying_vmCoinsInserted : insert?coin ; ; @eq(product', product) ∧ $coins' == {$coin} ∧ @eq(availableProducts', availableProducts)
+userGonnaBuy_vmWaitingChoosing --> userPaying_vmCoinsInserted : insert?coin ; ; @eq(product', product) ∧ $coins' == $coins | {$coin} ∧ @eq(availableProducts', availableProducts)
+userIdle_vmIdle --> userGonnaBuy_vmIdle : showAvailable!availableProducts ; $availableProducts & $wanted != set() ; $product' in $availableProducts & $wanted ∧ @eq(availableProducts', availableProducts)
+userIdle_vmIdle --> userIdle_vmIdle : tau ; ; $wanted' in WANTS ∧ @eq(availableProducts', availableProducts)
+userPaying_vmCoinsInserted --> userChoosing_vmWaitingChoosing : showPurchasable?products ; $product in $products ; @eq(product', product) ∧ @eq(availableProducts', availableProducts) ∧ @eq(coins', coins)
+userPaying_vmCoinsInserted --> userGonnaBuy_vmWaitingChoosing : showPurchasable?products ; $product not in $products ; @eq(product', product) ∧ @eq(availableProducts', availableProducts) ∧ @eq(coins', coins)
+userWaiting_vmDropping --> userIdle_vmIdle : drop?product ; $product == $dispensing ; $wanted' == set() ∧ $availableProducts' == $availableProducts - {$product}
+note as channels
+  channel choose : Product
+  channel drop : Product
+  channel insert : Coin
+  channel showAvailable : ProductSet
+  channel showPurchasable : ProductSet
+end note
+@enduml

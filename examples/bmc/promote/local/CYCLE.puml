@@ -1,0 +1,26 @@
+@startuml CYCLE
+' examples/promote/local/CYCLE.puml with every clause written in Python.
+' The tally of one business day. It is fixed by a tau: nothing outside decides
+' when counting stops, so the event is internal.
+' CSDF-IGNORE-BEGIN
+!ifndef PROMOTED
+title 基準日 1 日分の入荷集計
+!endif
+' CSDF-IGNORE-END
+
+state "未開始" as cycIdle
+state "集計中" as cycCounting
+cycCounting : total ; Nat
+state "確定済み" as cycFixed
+cycFixed : total ; Nat
+
+[*] --> cycIdle
+
+cycIdle --> cycCounting : LOG?数量 ; ; @eq(total', 数量)
+cycCounting --> cycCounting : LOG?数量 ; ; $total' == $total + $数量
+cycCounting --> cycFixed : tau ; ; @eq(total', total)
+cycFixed --> cycIdle : REPORT
+note as cycleChannels
+  channel LOG : Quantity
+end note
+@enduml
