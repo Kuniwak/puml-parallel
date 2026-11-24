@@ -12,7 +12,7 @@ go build -o "$bin/csdfreplweb" ./tools/csdfreplweb
 go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
 mkdir -p "$site"
 
-for f in examples/valid/vending_machine.puml examples/valid/client_server.puml \
+for f in examples/valid/client_server.puml \
          examples/compose/user_vending_machine.puml \
          examples/promote/ATTEMPTS.puml examples/promote/MEMBERS.puml \
          examples/promote/MODES.puml examples/promote/RECEIPTS.puml \
@@ -33,6 +33,7 @@ twin() {
 
 bmc=examples/bmc
 twin vending_stock_en en "$bmc/vending_stock_en.puml" "$bmc/vending_stock_formal.puml" "$bmc/vending_stock_formal_defs.py"
+twin vending_machine en examples/valid/vending_machine.puml "$bmc/vending_machine_formal.puml" "$bmc/vending_machine_formal_defs.py"
 twin vending_stock_ja ja "$bmc/vending_stock_ja.puml" "$bmc/vending_stock_ja_formal.puml" "$bmc/vending_stock_ja_formal_defs.py"
 
 cp "$(dirname "$0")/index.html" "$site/index.html"
