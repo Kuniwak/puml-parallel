@@ -401,6 +401,32 @@ def record(**fields: Iterable) -> Built:
     return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
 
 
+def decode(value, values=None):
+    """The JSON value value read back as the value it is encoded from
+    (encode): the member of values, the values of its type, with the same
+    encoding, so an array is read as the set it encodes; else value
+    unencoded, an {"at", "fields"} object as an instance and
+    {"left_out": true} as a value left out."""
+    if values is not None:
+        text = encode(freeze(value))
+        for v in values:
+            if encode(freeze(v)) == text:
+                return freeze(v)
+    return _unencoded(value)
+
+
+def _unencoded(value):
+    if isinstance(value, Mapping):
+        if value.keys() == {"left_out"} and value["left_out"] is True:
+            return LEFT_OUT
+        if value.keys() == {"at", "fields"} and isinstance(value["at"], str):
+            return Rec(value["at"], _unencoded(value["fields"]))
+        return FrozenMap((_unencoded(k), _unencoded(v)) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return tuple(_unencoded(v) for v in value)
+    return freeze(value)
+
+
 def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:
     """Every partial function from keys to values with at most max_size
     entries (all sizes when max_size is None), the empty one included."""

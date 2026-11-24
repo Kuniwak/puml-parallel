@@ -324,6 +324,22 @@ class NextCommandTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((0, {"candidates": want}), (code, json.loads(out)))
 
+    def test_edge_reads_an_instance_back_as_it_printed_it(self):
+        # Setup
+        from contextlib import redirect_stdout
+        from csdfbmc.next import main
+        d = os.path.join(ROOT, "examples", "bmc", "attempts")
+        state = json.dumps({"state_id": "running", "values": [{"name": "m", "value": {"t1": {"at": "attSent", "fields": {"優先度": 1}}}}]})
+        out = io.StringIO()
+
+        # Execute
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = main([os.path.join(d, "attempts.json"), os.path.join(d, "checks.py"), "--evaluator-module", "csdfbmc.python_glue", "--state", state, "--edge", "0"])
+
+        # Assert
+        self.assertEqual(0, code)
+        self.assertNotEqual([], json.loads(out.getvalue())["candidates"])
+
 
 if __name__ == "__main__":
     unittest.main()
