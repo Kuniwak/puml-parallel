@@ -19,12 +19,15 @@ import (
 // entry in the map. Frozen are the modes in which the family holds its map
 // but takes no event (docs/CLAUSE_DESIGN.md). Key is the type of the IDs
 // and Val the type of one instance, as the title of a <<promote>> block
-// writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val.
+// writes them, (ID : Key) ⇸ Val: the map is of the type Key ⇸ Val. Blocks
+// are, by mode, the alias of the <<promote>> block that draws the family
+// there, for a reader that shows the local diagrams; outside the meaning.
 type Family struct {
 	Map, ID  string
 	Key, Val types.Type
 	Local    *Diagram
 	Frozen   []string
+	Blocks   map[string]string
 }
 
 // States is what an instance of f may be: the local states of f.Local and
@@ -36,7 +39,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types)}
+	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types), Blocks: maps.Clone(f.Blocks)}
 }
 
 // movesIn says whether f takes its events in mode.
@@ -186,9 +189,9 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 	}
 	for _, f := range p.Families {
 		var alone []move
-		for _, e := range f.Local.Edges {
+		for i, e := range f.Local.Edges {
 			if !taken[f.Map+"."+e.Event.Channel] {
-				alone = append(alone, moveOf(f, f.ID, e))
+				alone = append(alone, moveOf(f, f.ID, i))
 			}
 		}
 		for _, mode := range p.Modes {
@@ -621,40 +624,73 @@ func lifecycle(f Family) error {
 	return nil
 }
 
-// moveOf is the move of the instance bound to id taking e: a creation when
-// e leaves f's start state, a deletion when it enters it.
-func moveOf(f Family, id string, e Edge) move {
-	k := local
+// moveOf is the move of the instance bound to id taking the local edge i
+// of f, e: a creation when e leaves f's start state, a deletion when it
+// enters it.
+func moveOf(f Family, id string, i int) move {
+	e := f.Local.Edges[i]
+	k := Stay
 	switch {
 	case e.Src == f.Local.Init:
-		k = creation
+		k = Creation
 	case e.Dst == f.Local.Init:
-		k = deletion
+		k = Deletion
 	}
-	return move{f: f, id: id, e: e, kind: k}
+	return move{f: f, id: id, e: e, index: i, kind: k}
 }
 
-// kind says what a move does to its instance.
-type kind int
+// MoveKind says what a move does to its instance.
+type MoveKind int
 
 const (
-	// local takes a local edge of an instance that exists.
-	local kind = iota
-	// creation creates an instance that does not exist, taking an edge out
+	// Stay takes a local edge of an instance that exists, which it leaves
+	// existing.
+	Stay MoveKind = iota
+	// Creation creates an instance that does not exist, taking an edge out
 	// of the local start state.
-	creation
-	// deletion deletes an instance, taking an edge into the local start
+	Creation
+	// Deletion deletes an instance, taking an edge into the local start
 	// state.
-	deletion
+	Deletion
 )
 
-// move is one instance's part in a step: the edge e of the family f, taken
-// by the instance bound to id, as kind says.
+// move is one instance's part in a step: the edge e of the family f, the
+// index-th of f.Local.Edges, taken by the instance bound to id, as kind
+// says.
 type move struct {
-	f    Family
-	id   string
-	e    Edge
-	kind kind
+	f     Family
+	id    string
+	e     Edge
+	index int
+	kind  MoveKind
+}
+
+// provenance is what the edge of moves is made of.
+func provenance(moves []move) []Move {
+	var out []Move
+	for _, m := range moves {
+		parallel := 0
+		for _, e := range m.f.Local.Edges[:m.index] {
+			if e.Src == m.e.Src && e.Dst == m.e.Dst {
+				parallel++
+			}
+		}
+		out = append(out, Move{Map: m.f.Map, Edge: m.index, Src: m.e.Src, Dst: m.e.Dst, Parallel: parallel, Kind: m.kind})
+	}
+	return out
+}
+
+// Move is one instance's part in an edge of a promoted diagram: the local
+// edge Edge, an index into Local.Edges of the family of the map Map, from
+// the local state Src to Dst, doing to its instance what Kind says.
+// Parallel is how many local edges before it go from Src to Dst too: which
+// of those it is, as a drawing tells them apart.
+type Move struct {
+	Map      string
+	Edge     int
+	Src, Dst string
+	Parallel int
+	Kind     MoveKind
 }
 
 func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, error) {
@@ -684,7 +720,7 @@ func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, erro
 		if err != nil {
 			return Edge{}, err
 		}
-		return Edge{Src: mode, Dst: mode, Event: Event{Channel: Tau}, Guard: g, Post: Conj(q, Unchanged(p.Vars[mode]))}, nil
+		return Edge{Src: mode, Dst: mode, Event: Event{Channel: Tau}, Guard: g, Post: Conj(q, Unchanged(p.Vars[mode])), Moves: provenance([]move{m})}, nil
 	}
 	fields, pins, err := carried(m)
 	if err != nil {
@@ -695,7 +731,7 @@ func promoteAlone(p Promotion, m move, mode string, ch channelTypes) (Edge, erro
 	if err := ch.declareEvent(ev, map[string]types.Type{f.ID: f.Key}, []move{m}); err != nil {
 		return Edge{}, err
 	}
-	return Edge{Src: mode, Dst: mode, Event: ev, Guard: Conj(pins, guard), Post: Conj(post, Unchanged(p.Vars[mode]))}, nil
+	return Edge{Src: mode, Dst: mode, Event: ev, Guard: Conj(pins, guard), Post: Conj(post, Unchanged(p.Vars[mode])), Moves: provenance([]move{m})}, nil
 }
 
 // carried are the fields of m's local event on the global event, and the
@@ -769,12 +805,12 @@ func promoteSync(p Promotion, s Sync, mode string, ch channelTypes) ([]Edge, err
 			return nil, err
 		}
 		var grown [][]move
-		for _, e := range f.Local.Edges {
+		for i, e := range f.Local.Edges {
 			if e.Event.Channel != tg.Event {
 				continue
 			}
 			for _, c := range combos {
-				grown = append(grown, append(slices.Clone(c), moveOf(f, tg.ID, e)))
+				grown = append(grown, append(slices.Clone(c), moveOf(f, tg.ID, i)))
 			}
 		}
 		combos = grown
@@ -825,6 +861,7 @@ func promoteSync(p Promotion, s Sync, mode string, ch channelTypes) ([]Edge, err
 			Event: Event{Channel: s.Event, Fields: merged},
 			Guard: Conj(append([]clause.And{{Conjuncts: distinct}, s.Guard, guard}, pins...)...),
 			Post:  Conj(post, Unchanged(p.Vars[mode])),
+			Moves: provenance(c),
 		})
 	}
 	return out, nil
@@ -947,10 +984,10 @@ func moved(f Family, m move, before, after clause.Term) (clause.And, clause.And,
 		return clause.Builtin{Op: clause.OpAt, Args: []clause.Term{clause.Index{Map: m, Key: x}}, States: []string{state}}
 	}
 	switch m.kind {
-	case creation:
+	case Creation:
 		return Conj(facts(clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, now}}), sub(m.e.Guard)),
 			Conj(facts(frame, at(after, m.e.Dst)), sub(m.e.Post)), nil
-	case deletion:
+	case Deletion:
 		return Conj(facts(at(now, m.e.Src)), sub(m.e.Guard)),
 			facts(frame, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{x, after}}), nil
 	}

@@ -323,11 +323,13 @@ func viewResponse(e *entry) Response {
 		animation.RenderEnded(&buf, current)
 		view.Mode = "ended"
 		view.State = &current
+		view.Families = familiesOf(sess.Diagram(), current)
 	} else {
 		current, _ := sess.Current()
 		animation.RenderState(&buf, sess.Diagram(), current)
 		view.Mode = "command"
 		view.State = &current
+		view.Families = familiesOf(sess.Diagram(), current)
 		view.Transitions = transitionsOf(sess)
 		view.Ends = endsOf(sess)
 	}
@@ -345,10 +347,37 @@ func transitionsOf(sess *animation.Session) []Transition {
 			DstName: animation.StateName(sess.Diagram(), edge.Dst),
 			Guard:   animation.ClauseText(edge.Guard),
 			Post:    animation.ClauseText(edge.Post),
+			Moves:   movesOf(sess.Diagram(), edge),
 		}
 	}
 	return out
 }
+
+// movesOf are the local edges edge of d is made of, each named by the block
+// that draws its family in the mode edge leaves.
+func movesOf(d *core.Diagram, edge core.Edge) []Move {
+	var out []Move
+	for _, m := range edge.Moves {
+		f, _ := animation.Family(d, m.Map)
+		block := f.Blocks[edge.Src]
+		out = append(out, Move{Map: m.Map, Block: block, LocalEdge: m.Edge, Src: m.Src, Dst: m.Dst, Parallel: m.Parallel, Kind: kindNames[m.Kind]})
+	}
+	return out
+}
+
+// familiesOf are where the instances of each family of d are in state.
+func familiesOf(d *core.Diagram, state animation.State) []FamilyView {
+	var out []FamilyView
+	for _, v := range state.Values {
+		if f, ok := animation.Family(d, v.Name); ok {
+			out = append(out, FamilyView{Map: f.Map, Block: f.Blocks[state.ID], Instances: animation.Instances(v.Value)})
+		}
+	}
+	return out
+}
+
+// kindNames are the names Move.Kind gives the kinds of a move.
+var kindNames = map[core.MoveKind]string{core.Stay: "stay", core.Creation: "creation", core.Deletion: "deletion"}
 
 func endsOf(sess *animation.Session) []End {
 	ends := sess.Ends()

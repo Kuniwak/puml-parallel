@@ -60,7 +60,7 @@ func builtins(c clause.And) []clause.Builtin {
 // coreValue is v as core evaluates it: a map of a family's instances a
 // core.Map of core.Recs, the rest as core.JSONValue makes it.
 func coreValue(d *core.Diagram, v Value) core.Value {
-	if _, ok := family(d, v.Name); ok {
+	if _, ok := Family(d, v.Name); ok {
 		if entries, ok := v.Value.(map[string]any); ok {
 			m := core.Map{}
 			for id, e := range entries {
