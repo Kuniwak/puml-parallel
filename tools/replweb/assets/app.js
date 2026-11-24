@@ -1494,12 +1494,14 @@
     // zoomTo keeps the point of the drawing at the middle of the pane
     // where it was, as far as the edges of the drawing allow.
     const zoomTo = (scale) => {
-      const cx = (box.scrollLeft + box.clientWidth / 2) / app.scale;
-      const cy = (box.scrollTop + box.clientHeight / 2) / app.scale;
+      const [mx, my] = slackOf();
+      const cx = (box.scrollLeft - mx + box.clientWidth / 2) / app.scale;
+      const cy = (box.scrollTop - my + box.clientHeight / 2) / app.scale;
       app.scale = scale;
       apply();
-      box.scrollLeft = cx * scale - box.clientWidth / 2;
-      box.scrollTop = cy * scale - box.clientHeight / 2;
+      const [nx, ny] = slackOf();
+      box.scrollLeft = cx * scale + nx - box.clientWidth / 2;
+      box.scrollTop = cy * scale + ny - box.clientHeight / 2;
     };
     setupBlockChooser();
     document.getElementById("zoom-in").addEventListener("click", () => zoomTo(app.scale * 1.25));
@@ -1519,17 +1521,23 @@
     apply();
   }
 
-  // focusOf is what the drawing centres on: the edges of the last step,
-  // else the state being entered or the current one, unless that state is
-  // larger than the pane (the mode of a promotion), then the start edge.
+  // focusOf is what the drawing centres on. In a block: the local edges of
+  // the transition chosen, else where the last step moved pieces to, else
+  // the local states holding instances, else the local start. Else: the
+  // edges of the last step, else the state being entered or the current
+  // one, unless that state is larger than the pane (the mode of a
+  // promotion), then the start edge.
   function focusOf(v) {
     const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
     if (app.block) {
       const inBlock = (m) => app.block.includes(m.map);
       const chosen = app.choice ? (app.choice.transition.moves || []).filter(inBlock) : [];
-      const moved = last && last.kind === "step" ? (last.moves || []).filter(inBlock) : [];
-      const links = [...chosen, ...moved].map(localLinkOf).filter(Boolean);
-      if (links.length > 0) return links;
+      if (chosen.length > 0) {
+        const links = chosen.map(localLinkOf).filter(Boolean);
+        if (links.length > 0) return links;
+      }
+      const moved = movedTo(last).filter((o) => inBlock(o));
+      if (moved.length > 0) return moved.map((o) => o.node);
       const occupied = [...occupiedStates(v), ...emptyInits(v)].filter((o) => app.block.includes(o.map)).map((o) => o.node);
       if (occupied.length > 0) return occupied;
       return app.block.map(localInitOf).filter(Boolean);
@@ -1546,6 +1554,14 @@
       if (r.width <= box.clientWidth && r.height <= box.clientHeight) return [state];
     }
     return [svgElement(highlights.start)].filter(Boolean);
+  }
+
+  // movedTo are the boxes of the local states the last step, entry last,
+  // moved instances to, where their pieces now are: {map, node}.
+  function movedTo(last) {
+    if (!last || last.kind !== "step") return [];
+    return (last.moves || []).map((m) => ({ map: m.map, node: svgElement(families[m.map] && families[m.map].states[m.dst]) }))
+      .filter((o) => o.node);
   }
 
   // localInitOf is the box of the local start state of the family of map,
@@ -1703,6 +1719,18 @@
     d.svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
     d.svg.style.width = w * app.scale + "px";
     d.svg.style.height = h * app.scale + "px";
+    // A block is small: room around it of half the pane lets any part of
+    // it be scrolled to the middle of the pane.
+    const box = document.getElementById("diagram");
+    d.svg.style.margin = app.block ? `${Math.round(box.clientHeight / 2)}px ${Math.round(box.clientWidth / 2)}px` : "";
+  }
+
+  // slackOf is the room left of and above the drawing, [x, y].
+  function slackOf() {
+    const d = app.drawing;
+    if (!d) return [0, 0];
+    const style = d.svg.style;
+    return [parseFloat(style.marginLeft) || 0, parseFloat(style.marginTop) || 0];
   }
 
   // showBlocks shows only the blocks of maps (all of the drawing for
