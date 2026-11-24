@@ -102,11 +102,13 @@ type View struct {
 // FamilyView is where the instances of the family of Map are: the IDs of
 // those at each local state, sorted, a state no instance is at left out.
 // Block is the <<promote>> block that draws the family in State's mode, ""
-// when there is none.
+// when there is none. Labels are the labels of the local states the local
+// diagram gives, by their IDs.
 type FamilyView struct {
 	Map       string              `json:"map"`
 	Block     string              `json:"block,omitempty"`
 	Instances map[string][]string `json:"instances"`
+	Labels    map[string]string   `json:"labels,omitempty"`
 }
 
 // End is one end edge from the current state, which end takes: its guard

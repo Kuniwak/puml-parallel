@@ -440,7 +440,7 @@ func familiesOf(d *core.Diagram, state animation.State) []FamilyView {
 	var out []FamilyView
 	for _, v := range state.Values {
 		if f, ok := animation.Family(d, v.Name); ok {
-			out = append(out, FamilyView{Map: f.Map, Block: f.Blocks[state.ID], Instances: animation.Instances(v.Value)})
+			out = append(out, FamilyView{Map: f.Map, Block: f.Blocks[state.ID], Instances: animation.Instances(v.Value), Labels: f.Labels})
 		}
 	}
 	return out

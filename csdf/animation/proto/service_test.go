@@ -286,7 +286,8 @@ func TestTheViewOfAPromotionPlacesTheInstancesAtTheirLocalStates(t *testing.T) {
 		Values: `[{"b": {"at": "itMade", "fields": {"n": 0}}, "a": {"at": "itMade", "fields": {"n": 1}}}]`}))
 
 	// Assert
-	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}}}}
+	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}},
+		Labels: map[string]string{"itNone": "none", "itMade": "made"}}}
 	if diff := cmp.Diff(want, view.Families); diff != "" {
 		t.Errorf("families (-want +got):\n%s", diff)
 	}

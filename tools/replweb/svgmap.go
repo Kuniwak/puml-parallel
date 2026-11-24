@@ -35,11 +35,13 @@ type Highlights struct {
 // FamilyHighlights tells which element of the SVG draws what of the local
 // diagram of a family: States, the element of each local state by its ID;
 // Edges, the link of each local edge by its index (core.Move.Edge); Start,
-// the link of the local start edge.
+// the link of the local start edge; Block, the element of the block it is
+// drawn in.
 type FamilyHighlights struct {
 	States map[string]string `json:"states"`
 	Edges  map[int]string    `json:"edges"`
 	Start  string            `json:"start,omitempty"`
+	Block  string            `json:"block,omitempty"`
 }
 
 // link is a link of the SVG: its element, the entities at its ends, and
@@ -127,7 +129,11 @@ func mapFamily(dr drawing, d *core.Diagram, f core.FamilyStates) (FamilyHighligh
 		inside := map[string]bool{}
 		byName := map[string]string{}
 		var starts []string
+		block := ""
 		for _, e := range dr.entities {
+			if e.name+"." == prefix {
+				block = e.id
+			}
 			if !strings.HasPrefix(e.name, prefix) {
 				continue
 			}
@@ -138,7 +144,7 @@ func mapFamily(dr drawing, d *core.Diagram, f core.FamilyStates) (FamilyHighligh
 				byName[strings.TrimPrefix(e.name, prefix)] = e.id
 			}
 		}
-		fh := FamilyHighlights{States: map[string]string{}, Edges: map[int]string{}}
+		fh := FamilyHighlights{States: map[string]string{}, Edges: map[int]string{}, Block: block}
 		for _, s := range f.States {
 			if id, ok := byName[s]; ok {
 				fh.States[s] = id

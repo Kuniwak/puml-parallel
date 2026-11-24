@@ -163,6 +163,9 @@
     // not there.
     admits: new Map(),
     tab: chooseTab(),
+    // familyLabels are the labels of the local states of each family, by
+    // map, as the views give them.
+    familyLabels: new Map(),
   };
 
   function setTab(tab) {
@@ -180,6 +183,7 @@
     const read = await send({ command: "read" });
     if (!read.ok) { app.error = errorText(read); render(); return; }
     app.view = read.data;
+    for (const fv of read.data.families || []) app.familyLabels.set(fv.map, fv.labels || {});
     const history = await send({ command: "history" });
     app.history = history.ok ? history.data.history || [] : [];
     render();
@@ -436,6 +440,55 @@
     return mark(el("span", { class: "value-scalar", text }), value, before);
   }
 
+  // variableView shows the value of the variable name: the instances of
+  // a family by instancesView, anything else by valueView.
+  function variableView(name, value, before, compare) {
+    if (isInstances(name, value)) return instancesView(name, value, isMap(before) ? before : undefined, compare);
+    return valueView(value, before, compare);
+  }
+
+  function isFamily(name) {
+    return app.familyLabels.has(name) || Object.prototype.hasOwnProperty.call(families, name);
+  }
+
+  // isInstance says whether value is an instance of a family as the
+  // engine writes it: {"at": local state, "fields": {...}}.
+  function isInstance(value) {
+    return isMap(value) && Object.keys(value).length === 2 && typeof value.at === "string" && isMap(value.fields);
+  }
+
+  function isInstances(name, value) {
+    return isFamily(name) && isMap(value) && Object.keys(value).length > 0 && Object.values(value).every(isInstance);
+  }
+
+  // instancesView shows the instances of the family map one by one, as
+  // the history shows a state: where each is, then its fields.
+  function instancesView(map, value, before, compare) {
+    return el("ul", { class: "instances" }, Object.keys(value).sort().map((id) =>
+      instanceItem(map, id, value[id], before ? before[id] : undefined, compare)));
+  }
+
+  // instanceItem is the instance id of map, inst, in its piece's colour:
+  // the label of its local state, then its fields as the history lists
+  // the values of a state. Given before (compare), what differs from
+  // before is marked changed; a new instance is marked whole.
+  function instanceItem(map, id, inst, before, compare) {
+    const known = compare && isInstance(before);
+    const dot = el("span", { class: "dot" });
+    dot.style.background = pieceColour(map, id).fill;
+    const labels = app.familyLabels.get(map) || {};
+    const at = el("span", { class: "instance-at", text: labels[inst.at] || inst.at });
+    if (known && before.at !== inst.at) { at.classList.add("changed"); at.title = t("history.changed"); }
+    const fields = Object.entries(inst.fields).map(([name, value]) => ({ name, value }));
+    const beforeFields = known ? Object.entries(before.fields).map(([name, value]) => ({ name, value })) : null;
+    const item = el("li", { class: "instance" }, [
+      el("div", { class: "instance-head" }, [dot, el("span", { class: "instance-id", text: id }), at]),
+      fields.length > 0 ? valuesList(fields, beforeFields) : null,
+    ]);
+    if (compare && !known) { item.classList.add("changed"); item.title = t("history.changed"); }
+    return item;
+  }
+
   function clause(text, noneId) {
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
@@ -617,7 +670,7 @@
     for (const v of values) {
       const prev = before ? before.find((b) => b.name === v.name) : undefined;
       list.appendChild(el("dt", { text: v.name }));
-      const dd = el("dd", null, [valueView(v.value, prev ? prev.value : undefined, !!prev)]);
+      const dd = el("dd", null, [variableView(v.name, v.value, prev ? prev.value : undefined, !!prev)]);
       if (before && !prev) {
         dd.classList.add("changed");
         dd.title = t("history.changed");
@@ -711,6 +764,7 @@
       root.appendChild(errorBox());
       return;
     }
+    root.appendChild(stepBar(1));
     root.appendChild(el("h2", { text: t("controls.title") }));
     root.appendChild(el("p", { class: "hint now" }, [el("span", { class: "dot dot-whole" }), el("span", { text: t("controls.now", { state: state.state_name }) })]));
     const pieces = piecesList(v);
@@ -886,25 +940,48 @@
   // renderValueForm asks for the values of the pending state: in the
   // choose tab by the checker's suggestions, in the details tab typed. A
   // promoted diagram's prompt speaks of the local diagrams, not the mode.
+  // After a transition chosen it is the second of the two steps, under
+  // the transition; the initial values are a step of their own.
   function renderValueForm(root, pending) {
     const group = pending.group;
     const promoted = (pending.families || []).length > 0;
+    if (app.choice) {
+      root.appendChild(stepBar(2));
+      root.appendChild(chosenBox(app.choice.transition));
+    }
     if (app.tab === "details") {
       root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
       renderValueDetails(root, pending);
     } else {
-      root.appendChild(el("h2", { text: t("suggest.title") }));
+      root.appendChild(el("h2", { text: app.choice ? t("suggest.title", { event: app.choice.transition.event }) : t("suggest.titleInitial") }));
       renderValueChoices(root, pending);
     }
   }
 
-  function cancelButton() {
-    return app.history.length > 0 ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null;
+  // stepBar shows the two steps of going on, choosing a transition and
+  // then the values it leads to, with the step active marked.
+  function stepBar(active) {
+    const step = (n, key) => {
+      const item = el("li", { class: n === active ? "active" : n < active ? "done" : "", text: t(key) });
+      if (n === active) item.setAttribute("aria-current", "step");
+      return item;
+    };
+    return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
+  }
+
+  // chosenBox says which transition the values are the result of, with a
+  // way back to choosing another.
+  function chosenBox(tr) {
+    return el("div", { class: "chosen" }, [
+      el("span", { class: "label", text: t("chosen.label") }),
+      el("span", { class: "event", text: tr.event }),
+      el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }),
+      el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
+    ]);
   }
 
   function renderValueChoices(root, pending) {
     const vars = pending.group.vars || [];
-    if (app.choice) root.appendChild(clausesList([[t("controls.event"), app.choice.transition.event]]));
     root.appendChild(errorBox());
     const determined = pending.determined || [];
     if (determined.length > 0 && !app.error) {
@@ -916,7 +993,7 @@
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
-      renderSuggestions(root, vars, previous, suggestions);
+      renderSuggestions(root, vars, previous, suggestions, t(app.choice ? "suggest.hint" : "suggest.hintInitial"));
     } else {
       const why = !app.suggesting ? "choose.noChecker" : pending.suggest_error ? "choose.failed" : "choose.none";
       root.appendChild(el("p", { class: "notice", text: t(why) }));
@@ -932,8 +1009,6 @@
       const help = typeHelp(type);
       if (help) root.appendChild(help);
     }
-    const cancel = cancelButton();
-    if (cancel) root.appendChild(el("div", { class: "row" }, [cancel]));
   }
 
   // valueProblem says, in the tester's words, what keeps the boxes from
@@ -1073,7 +1148,6 @@
     const group = pending.group;
     const vars = group.vars || [];
     const rows = [];
-    if (app.choice) rows.push([t("controls.event"), app.choice.transition.event]);
     const keys = pending.previous ? ["guard", "post"] : ["post"];
     const written = proseOfPending(pending);
     const before = pending.previous ? stateVars(pending.previous) : [];
@@ -1121,14 +1195,14 @@
       } else if (before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
-          valueView(before.value, undefined, false),
+          variableView(name, before.value, undefined, false),
           el("button", { type: "button", text: t("values.keep"), onclick: () => { input.value = show(before.value); input.focus(); } }),
         ]));
       }
     });
     form.appendChild(el("div", { class: "row" }, [
       el("button", { type: "submit", class: "primary", text: t("values.continue") }),
-      cancelButton(),
+      app.choice ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null,
     ]));
     root.appendChild(form);
     const first = inputs.find((i) => i.value === "") || inputs[0];
@@ -1136,9 +1210,9 @@
   }
 
   // renderSuggestions shows the values the checker admits as buttons, each
-  // saying what changes from before.
-  function renderSuggestions(root, vars, previous, suggestions) {
-    root.appendChild(el("p", { class: "hint", text: t("suggest.hint") }));
+  // saying what changes from before, under the hint.
+  function renderSuggestions(root, vars, previous, suggestions, hint) {
+    root.appendChild(el("p", { class: "hint", text: hint }));
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
       const lines = [];
@@ -1175,8 +1249,12 @@
       const before = previous.find((p) => p.name === name);
       const after = values[i];
       const view = (x) => valueView(x, undefined, false);
-      if (!before) { lines.push(tNodes("suggest.set", { name, value: view(after) })); return; }
+      if (!before) { lines.push(tNodes("suggest.set", { name, value: variableView(name, after, undefined, false) })); return; }
       if (show(before.value) === show(after)) return;
+      if (isInstances(name, after) || (isFamily(name) && isInstances(name, before.value))) {
+        lines.push(...instanceChanges(name, before.value, after));
+        return;
+      }
       if (isMap(before.value) && isMap(after)) {
         const keys = new Set(Object.keys(before.value).concat(Object.keys(after)));
         for (const key of keys) {
@@ -1191,6 +1269,22 @@
       }
       lines.push(tNodes("suggest.change", { name, before: view(before.value), after: view(after) }));
     });
+    return lines;
+  }
+
+  // instanceChanges are the lines of what after makes of the instances of
+  // map held in before: each instance new or changed, as instanceItem
+  // shows it, and each removed.
+  function instanceChanges(map, before, after) {
+    const lines = [];
+    const prev = isMap(before) ? before : {};
+    const next = isMap(after) ? after : {};
+    for (const id of [...new Set(Object.keys(prev).concat(Object.keys(next)))].sort()) {
+      if (!(id in next)) lines.push(t("suggest.removed", { name: map + "[" + id + "]" }));
+      else if (show(prev[id]) !== show(next[id])) {
+        lines.push(el("ul", { class: "instances" }, [instanceItem(map, id, next[id], prev[id], true)]));
+      }
+    }
     return lines;
   }
 
@@ -1306,6 +1400,7 @@
         }
       }
     }
+    applyDrawing();
   }
 
   function renderDiagram() {
@@ -1557,13 +1652,33 @@
 
   // ---- Showing one block at a time ----
 
+  // viewBoxOf is the part of the drawing to show: the block shown, else
+  // all of it, widened to take in the pieces on it, which may stick out
+  // past the edges of the boxes they sit on.
   function viewBoxOf() {
+    const [x, y, w, h] = shownArea();
+    let x0 = x, y0 = y, x1 = x + w, y1 = y + h;
+    for (const piece of document.querySelectorAll("#csdf-overlay .csdf-piece")) {
+      const b = piece.getBBox();
+      if (b.x > x1 || b.x + b.width < x0 || b.y > y1 || b.y + b.height < y0) continue;
+      x0 = Math.min(x0, b.x - PIECE_MARGIN); y0 = Math.min(y0, b.y - PIECE_MARGIN);
+      x1 = Math.max(x1, b.x + b.width + PIECE_MARGIN); y1 = Math.max(y1, b.y + b.height + PIECE_MARGIN);
+    }
+    return [x0, y0, x1 - x0, y1 - y0];
+  }
+
+  // The room left around a piece at an edge of the view.
+  const PIECE_MARGIN = 4;
+
+  // shownArea is the part of the drawing the block shown takes, else all
+  // of it.
+  function shownArea() {
     const d = app.drawing;
     if (!app.block) return d.viewBox.split(/[\s,]+/).map(Number);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const map of app.block) {
       const f = families[map];
-      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start].filter(Boolean);
+      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start, f.block].filter(Boolean);
       for (const id of ids) {
         const node = svgElement(id);
         if (!node || !node.getBBox) continue;
