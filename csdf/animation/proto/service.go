@@ -98,6 +98,8 @@ func (s *Service) Handle(req Request) Response {
 		return s.handleBack(req)
 	case CommandReplay:
 		return s.handleReplay(req)
+	case CommandSuggest:
+		return s.handleSuggest(req)
 	case CommandServerVersion:
 		return s.handleServerVersion()
 	default:
@@ -281,6 +283,23 @@ func (s *Service) handleReplay(req Request) Response {
 		return s.errorFromErr(err)
 	}
 	return viewResponse(e)
+}
+
+// handleSuggest asks the checker what the transition of the index admits
+// from the current state, without selecting it.
+func (s *Service) handleSuggest(req Request) Response {
+	e, err := s.resolve(req.Session)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	if req.Index == nil {
+		return errorResponse("suggest requires a transition index")
+	}
+	suggestions, err := e.session.SuggestEdge(*req.Index)
+	if err != nil {
+		return s.errorFromErr(err)
+	}
+	return Response{OK: true, Session: e.id, Data: mustData(SuggestData{Suggestions: suggestions})}
 }
 
 // handleRead resolves the session and renders its current position.
@@ -481,6 +500,8 @@ func (s *Service) errorFromErr(err error) Response {
 		resp.Code = ErrorCodeIndexOutOfRange
 	case errors.Is(err, animation.ErrEnded):
 		resp.Code = ErrorCodeEnded
+	case errors.Is(err, animation.ErrNoSuggester):
+		resp.Code = ErrorCodeNoChecker
 	}
 	return resp
 }
