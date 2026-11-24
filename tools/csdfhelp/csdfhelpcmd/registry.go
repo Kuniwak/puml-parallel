@@ -4,6 +4,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/v3/tools"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfbmc/csdfbmccmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfcomp/csdfcompcmd"
+	"github.com/Kuniwak/puml-parallel/v3/tools/csdfdecorate/csdfdecoratecmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfevents/csdfeventscmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdfhide/csdfhidecmd"
 	"github.com/Kuniwak/puml-parallel/v3/tools/csdflint/csdflintcmd"
@@ -65,6 +66,11 @@ func Registry() []toolsdoc.Entry {
 			Name:    "csdfsort",
 			Summary: "Prints a Composable State Diagram in canonical order without changing its meaning.",
 			Run:     tools.NewCommandFunc(csdfsortcmd.NewParseOptionsFunc(), csdfsortcmd.NewMainFunc()),
+		},
+		{
+			Name:    "csdfdecorate",
+			Summary: "Prints a Composable State Diagram with its edge labels written for people in PlantUML's Creole, for drawing only.",
+			Run:     tools.NewCommandFunc(csdfdecoratecmd.NewParseOptionsFunc(), csdfdecoratecmd.NewMainFunc()),
 		},
 		{
 			Name:    "csdfslice",
