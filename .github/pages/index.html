@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>State diagram examples</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1f1f1f; --muted: #5f6368; --card: #f6f8fa;
+    --line: #d0d7de; --link: #0b57d0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161a1f; --fg: #e6e6e6; --muted: #a0a6ad; --card: #20262d;
+      --line: #3a424b; --link: #8ab4f8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; max-width: 44rem; padding: 24px 16px 48px;
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.6 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  h1 { font-size: 1.5rem; margin: 0 0 8px; }
+  h2 { font-size: 1.1rem; margin: 28px 0 8px; color: var(--muted); }
+  p { margin: 0 0 16px; color: var(--muted); }
+  a { color: var(--link); }
+  .choose { display: flex; gap: 12px; flex-wrap: wrap; }
+  .choose a {
+    flex: 1 1 10rem; padding: 20px; text-align: center; font-size: 1.25rem;
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    text-decoration: none;
+  }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li {
+    margin: 0 0 10px; padding: 12px 16px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card);
+  }
+  li a { font-weight: 600; font-size: 1.05rem; }
+  li span { display: block; color: var(--muted); }
+  .back { display: inline-block; margin-bottom: 16px; }
+  /* A list shows when the address names it (#ja or #en); the choice otherwise. */
+  .list, :target ~ #choose { display: none; }
+  .list:target { display: block; }
+</style>
+</head>
+<body>
+
+<section id="ja" class="list" lang="ja">
+  <a class="back" href="#">← 言語を選び直す / Language</a>
+  <h1>状態遷移図のシミュレーター</h1>
+  <p>例を選ぶと、図の上で操作を一つずつ選んで動かせます。次に起こせる操作が図に光り、値は候補から選ぶか入力します。</p>
+  <h2>自動販売機</h2>
+  <ul>
+    <li><a href="vending_stock_ja.html?lang=ja">在庫とお釣りのある自動販売機</a>
+      <span>商品やお釣りが切れる自動販売機。入れられる値は候補から選べます。</span></li>
+    <li><a href="vending_machine.html?lang=ja">シンプルな自動販売機</a>
+      <span>お金を入れて商品を選び、商品が出るまで。</span></li>
+    <li><a href="user_vending_machine.html?lang=ja">利用者と自動販売機</a>
+      <span>買いに来た利用者と自動販売機の、二つのやりとりを合わせた図。</span></li>
+  </ul>
+  <h2>多数のものを並べて扱う図</h2>
+  <ul>
+    <li><a href="ATTEMPTS.html?lang=ja">試行の再投入（ATTEMPTS）</a>
+      <span>止まった試行を、優先度の高い新しい試行で置き換える。</span></li>
+    <li><a href="MEMBERS.html?lang=ja">会員（MEMBERS）</a>
+      <span>会員一人ひとりの状態を、ID ごとに並べて扱う最小の例。</span></li>
+    <li><a href="MODES.html?lang=ja">稼働中と縮退中（MODES）</a>
+      <span>会員とレビューを扱い、縮退中はレビューが止まる。</span></li>
+    <li><a href="RECEIPTS.html?lang=ja">入荷と日次の集計（RECEIPTS）</a>
+      <span>入荷を記録すると、その日の集計に同時に数えられる。</span></li>
+  </ul>
+  <h2>その他</h2>
+  <ul>
+    <li><a href="client_server.html?lang=ja">クライアントとサーバー</a>
+      <span>クライアントがサーバーを初期化し、ツールの一覧を受け取る。</span></li>
+  </ul>
+</section>
+
+<section id="en" class="list">
+  <a class="back" href="#">← Language / 言語を選び直す</a>
+  <h1>State diagram simulators</h1>
+  <p>Pick an example to run it step by step on its diagram. The steps that can happen next light up; values are picked from suggestions or typed in.</p>
+  <h2>Vending machines</h2>
+  <ul>
+    <li><a href="vending_stock_en.html?lang=en">Vending machine with stock and change</a>
+      <span>A vending machine that runs out of products and change. Values can be picked from suggestions.</span></li>
+    <li><a href="vending_machine.html?lang=en">Simple vending machine</a>
+      <span>Insert coins, choose a product, and get it.</span></li>
+    <li><a href="user_vending_machine.html?lang=en">A customer and a vending machine</a>
+      <span>A customer and a vending machine, two diagrams run together.</span></li>
+  </ul>
+  <h2>Diagrams of many alike things (clauses in Japanese)</h2>
+  <ul>
+    <li><a href="ATTEMPTS.html?lang=en">Resubmitting attempts (ATTEMPTS)</a>
+      <span>A stuck attempt is replaced by a new one of higher priority.</span></li>
+    <li><a href="MEMBERS.html?lang=en">Members (MEMBERS)</a>
+      <span>The smallest example: each member's state, kept by its ID.</span></li>
+    <li><a href="MODES.html?lang=en">Running and degraded (MODES)</a>
+      <span>Members and reviews; reviews stop while degraded.</span></li>
+    <li><a href="RECEIPTS.html?lang=en">Receipts and daily tallies (RECEIPTS)</a>
+      <span>Logging a receipt counts it into its day's tally at the same time.</span></li>
+  </ul>
+  <h2>Other</h2>
+  <ul>
+    <li><a href="client_server.html?lang=en">Client and server</a>
+      <span>A client initializes a server and receives its list of tools.</span></li>
+  </ul>
+</section>
+
+<section id="choose">
+  <h1>State diagram simulators / 状態遷移図のシミュレーター</h1>
+  <p>Choose a language. / 言語を選んでください。</p>
+  <div class="choose">
+    <a href="#ja" lang="ja">日本語</a>
+    <a href="#en">English</a>
+  </div>
+</section>
+
+</body>
+</html>
