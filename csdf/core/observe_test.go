@@ -47,12 +47,12 @@ func TestPromoteRefusesAGlobalReadTheLocalDiagramDoesNotDeclare(t *testing.T) {
 		p    Promotion
 		want string
 	}{
-		{"@at of a state", halt("@at(locations[loc], open)"), "G --> H : HALT: @at(locations[…], open) reads open, which the local diagram of locations does not declare as a view; it reads only its views (live); add ' CSDF-OBSERVE <view> = open to it"},
+		{"@at of a state", halt("@at(locations[loc], open)"), "G --> H : HALT: @at(locations[loc], open) reads open, which the local diagram of locations does not declare as a view; it reads only its views (live); add ' CSDF-OBSERVE <view> = open to it"},
 		{"a variable not declared", halt("${locations[loc].stock} = 0"), "G --> H : HALT: it reads locations[loc].stock, but the local diagram of locations does not declare stock observed; add ' CSDF-OBSERVE stock to it"},
 		{"an instance as a whole", halt("${locations[loc]} = 0"), "it reads locations[loc], an instance as a whole"},
 		{"in a sync", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "${locations[from].stock} = 0"), Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "sync MOVE: it reads locations[from].stock"},
-		{"in a constrain", constrained(locations, Constrain{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "@at(locations[loc], open)")}), "constrain OPEN: @at(locations[…], open)"},
+		{"in a constrain", constrained(locations, Constrain{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "@at(locations[loc], open)")}), "constrain OPEN: @at(locations[loc], open)"},
 		{"in the key of an @at", halt("@at(locations[f(locations[loc].stock)], live)"), "locations[loc].stock"},
 		{"in the key of an entry", halt("${locations[f(locations[loc].stock)].stock} = 0"), "locations[loc].stock"},
 		{"in an argument of a function", halt("@eq(f(locations[loc].stock), 0)"), "locations[loc].stock"},

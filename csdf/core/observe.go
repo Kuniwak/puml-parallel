@@ -97,7 +97,7 @@ func formulaThroughObservations(obs map[string]*Observation, f clause.Formula) (
 					return nil, err
 				}
 			}
-			states, err := viewStates(m, o, f.States)
+			states, err := viewStates(m, f.Args[0].(clause.Index).Key, o, f.States)
 			if err != nil {
 				return nil, err
 			}
@@ -138,14 +138,15 @@ func observedAt(obs map[string]*Observation, b clause.Builtin) (m clause.Free, o
 	return m, obs[m.Name]
 }
 
-// viewStates are the states of the views names, each once, in order; a
-// name that is no view of o is an error.
-func viewStates(m clause.Free, o *Observation, names []string) ([]string, error) {
+// viewStates are the states of the views names, which an @at of the entry
+// of m at key names, each once, in order; a name that is no view of o is
+// an error.
+func viewStates(m clause.Free, key clause.Term, o *Observation, names []string) ([]string, error) {
 	var out []string
 	for _, n := range names {
 		states, ok := o.Views[n]
 		if !ok {
-			return nil, fmt.Errorf("@at(%s[…], %s) reads %s, which the local diagram of %s does not declare as a view; it reads only its views (%s); add ' CSDF-OBSERVE <view> = %s to it", termName(m), strings.Join(names, ", "), n, m.Name, viewNames(o), n)
+			return nil, fmt.Errorf("@at(%s[%s], %s) reads %s, which the local diagram of %s does not declare as a view; it reads only its views (%s); add ' CSDF-OBSERVE <view> = %s to it", termName(m), entryKey(key), strings.Join(names, ", "), n, m.Name, viewNames(o), n)
 		}
 		for _, s := range states {
 			if !slices.Contains(out, s) {
