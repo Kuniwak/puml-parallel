@@ -52,7 +52,7 @@ func RenderStateValuePrompt(w io.Writer, diagram *core.Diagram, pending Pending)
 	_, _ = fmt.Fprintln(w, "Post State Group:")
 	_, _ = fmt.Fprintf(w, "  %s\n", pending.Target.Name)
 	for _, name := range pending.Target.Vars {
-		f, ok := family(diagram, name)
+		f, ok := Family(diagram, name)
 		if !ok {
 			_, _ = fmt.Fprintf(w, "    %s'\n", name)
 			continue

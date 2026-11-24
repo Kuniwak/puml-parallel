@@ -62,8 +62,8 @@ func targetOf(d *core.Diagram, id string) Target {
 	return Target{ID: id, Name: StateName(d, id), Vars: slices.Clone(d.Vars[id])}
 }
 
-// family is the family whose instances the map name holds, if any.
-func family(d *core.Diagram, name string) (core.FamilyStates, bool) {
+// Family is the family whose instances the map name holds, if any.
+func Family(d *core.Diagram, name string) (core.FamilyStates, bool) {
 	i := slices.IndexFunc(d.Families, func(f core.FamilyStates) bool { return f.Map == name })
 	if i < 0 {
 		return core.FamilyStates{}, false
@@ -97,7 +97,7 @@ func decodeValues(d *core.Diagram, target Target, encoded string) ([]Value, erro
 	out := make([]Value, len(values))
 	for i, v := range values {
 		name := target.Vars[i]
-		if f, ok := family(d, name); ok {
+		if f, ok := Family(d, name); ok {
 			if err := checkInstances(f, v); err != nil {
 				return nil, err
 			}
@@ -134,6 +134,23 @@ func checkInstances(f core.FamilyStates, v any) error {
 		}
 	}
 	return nil
+}
+
+// Instances are the IDs of the instances in v, a map of instances as
+// checkInstances admits it, by the local state each is at, sorted; nil when
+// v is no such map.
+func Instances(v any) map[string][]string {
+	entries, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := map[string][]string{}
+	for _, id := range slices.Sorted(maps.Keys(entries)) {
+		if at, _, ok := instance(entries[id]); ok {
+			out[at] = append(out[at], id)
+		}
+	}
+	return out
 }
 
 // instance takes v apart as {"at": <state>, "fields": {...}}.
