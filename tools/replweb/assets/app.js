@@ -436,6 +436,11 @@
     return mark(el("span", { class: "value-scalar", text }), value, before);
   }
 
+  // variableView shows the value of the variable name as valueView does.
+  function variableView(name, value, before, compare) {
+    return valueView(value, before, compare);
+  }
+
   function clause(text, noneId) {
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
@@ -617,7 +622,7 @@
     for (const v of values) {
       const prev = before ? before.find((b) => b.name === v.name) : undefined;
       list.appendChild(el("dt", { text: v.name }));
-      const dd = el("dd", null, [valueView(v.value, prev ? prev.value : undefined, !!prev)]);
+      const dd = el("dd", null, [variableView(v.name, v.value, prev ? prev.value : undefined, !!prev)]);
       if (before && !prev) {
         dd.classList.add("changed");
         dd.title = t("history.changed");
@@ -1142,7 +1147,7 @@
       } else if (before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
-          valueView(before.value, undefined, false),
+          variableView(name, before.value, undefined, false),
           el("button", { type: "button", text: t("values.keep"), onclick: () => { input.value = show(before.value); input.focus(); } }),
         ]));
       }
