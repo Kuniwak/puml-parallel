@@ -72,22 +72,18 @@ func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (strin
 	return nil
 }
 
-// writeObserves writes the CSDF-OBSERVE lines of o: its views by name,
-// then its variables in order.
+// writeObserves writes the CSDF-OBSERVE lines of o, in the order it
+// declares them.
 func writeObserves(b *strings.Builder, o *core.Observation) {
 	if o == nil {
 		return
 	}
-	views := o.Views()
-	slices.Sort(views)
-	for _, v := range views {
-		states, _ := o.View(v)
-		fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", v, strings.Join(states, ", "))
-	}
 	for _, d := range o.Observables {
-		if !d.IsView() {
-			fmt.Fprintf(b, "' CSDF-OBSERVE %s\n", d.Name)
+		if d.IsView() {
+			fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", d.Name, strings.Join(d.States, ", "))
+			continue
 		}
+		fmt.Fprintf(b, "' CSDF-OBSERVE %s\n", d.Name)
 	}
 }
 
