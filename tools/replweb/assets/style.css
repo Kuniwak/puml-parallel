@@ -233,3 +233,13 @@ form input:disabled { background: var(--bg); color: var(--muted); }
 .marked .conjunct { display: block; }
 .marked .var { color: var(--var); }
 .marked .origin { font-size: .7em; color: var(--muted); margin-left: .1em; }
+.steps { list-style: none; display: flex; flex-wrap: wrap; gap: .25rem; padding: 0; margin: 0 0 .6rem; font-size: .85rem; }
+.steps li { position: relative; padding: .15rem .6rem; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); }
+.steps li + li { margin-left: 1.3rem; }
+.steps li + li::before { content: "→"; position: absolute; left: -1.15rem; color: var(--muted); font-weight: normal; }
+.steps li.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 600; }
+.steps li.done { color: var(--text); }
+.chosen { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; padding: .4rem .6rem; margin: 0 0 .6rem; border: 1px solid var(--border); border-radius: 6px; }
+.chosen .label, .chosen .dst { color: var(--muted); font-size: .85rem; }
+.chosen .event { font-weight: 600; color: var(--accent); }
+.chosen button { margin-left: auto; }
