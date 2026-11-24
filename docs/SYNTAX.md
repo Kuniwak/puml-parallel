@@ -36,7 +36,7 @@ post = *textElement
 textElement = unicode_char_except_semicolon / block_comment
 name = id ; not starting with a digit, not true, false, null or any
 id = 1*(unicode_letter / unicode_digit / "_")
-trivia = *(LF / HTAB / SP / block_comment / line_comment / ignore_region)
+trivia = *(LF / HTAB / SP / block_comment / observe_line / line_comment / ignore_region)
 inlineTrivia = *(HTAB / SP / block_comment)
 inlineSeparator = 1*(HTAB / SP / block_comment)
 line_comment = "'" *unicode_char LF
@@ -44,6 +44,8 @@ ignore_region = ignore_begin *ignore_line ignore_end
 ignore_begin = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
 ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 ignore_line = *unicode_char LF
+observe_line = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" inlineSeparator (observe_class / var) *(HTAB / SP) LF
+observe_class = name *(HTAB / SP) "=" *(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_letter = <any character in Unicode general category L>
 unicode_digit = <any character in Unicode general category N>
@@ -65,6 +67,16 @@ rather than the last (the rule is not greedy). Every line in between, along with
 lines, is discarded. Because the markers are themselves PlantUML line comments, the
 wrapped content (for example Graphviz directives such as `left to right direction`) is still
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
+A line comment whose trimmed text starts with the word `CSDF-OBSERVE` is an `observe_line`
+(taking precedence over a plain `line_comment`): it declares an observation of a local
+diagram (docs/PROMOTION.md, Observations), and PlantUML draws nothing for it.
+`' CSDF-OBSERVE c = S₁, …` declares the class `c` of the states `S₁ …`; `' CSDF-OBSERVE x`
+declares the state variable `x`. A class name is distinct from every state ID and every
+state variable of the diagram, and a class lists distinct states of the diagram, none its
+start state; a variable is one some state holds; a class or variable is declared once. A
+line comment starting with `CSDF-OBSERVE` that is not an `observe_line` is a parse error.
+A diagram that is not a local diagram of a promotion may declare observations; they say
+nothing until it is promoted.
 Comment delimiters inside a state name are ordinary text. A clause language's quotes are not the tools': a comment delimiter, `;` or ` ∧ ` inside one is read as anywhere else.
 An event is a channel followed by its fields, in the CSP style: `c?x` receives `x`
 (the environment chooses its value, from those the guard accepts) and `c!y` sends
@@ -243,6 +255,7 @@ Semantics
 | `inlineTrivia`                             | N/A                | Horizontal whitespace and block comments accepted inside declarations.                                                                                                  |
 | `line_comment`                             | N/A                | PlantUML line comment beginning with `'`. It is not retained in the AST.                                                                                                 |
 | `ignore_region`                            | N/A                | Non-interpreted region delimited by `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` line comments, holding PlantUML-only directives. It is discarded while parsing.                  |
+| `observe_line`                             | `Observe`          | An observation the diagram declares: a class of states (`observe_class`, its name and states) or a state variable (`var`). |
 | `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. It is not retained in the AST.                                                                                         |
 | `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
@@ -262,7 +275,7 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
-         / "@at(" term 1*(", " id) ")"      ; instance at one of the states of its local diagram
+         / "@at(" term 1*(", " id) ")"      ; instance at one of the states, or declared classes, of its local diagram
          / "@empty(" term ")"               ; a map without entries
 exists   = "@exists(" name " : " type ") (" clause ")"
 type     = <a type, as a state variable declares it: a name, any, or K ⇸ V>
@@ -407,7 +420,11 @@ end note
     EVENT, or `map(id).event`, which takes `event`; two targets of one map
     bind two instances, whose IDs the expansion says differ. The clause after
     `;` is the sync's guard: it reads the maps and the targets' IDs, and
-    what it reads of a bound instance is carried by the event.
+    what it reads of a bound instance is carried by the event, as far as
+    the instance's local diagram observes it.
+- A local diagram's `CSDF-OBSERVE` lines declare what the clauses of the
+  global diagram may read of its instances (docs/PROMOTION.md,
+  Observations); a local diagram with none observes everything.
 - `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
   `!define` are for the picture and are skipped.
 - A second `sync` of one event, a second block of one map, and
