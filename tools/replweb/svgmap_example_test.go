@@ -40,6 +40,7 @@ func TestMapSVGTellsParallelLocalEdgesApartAsPlantUMLDrawsThem(t *testing.T) {
 		States: map[string]string{"attNone": "ent0003", "attSent": "ent0004", "attStuck": "ent0005", "attDone": "ent0006"},
 		Edges:  map[int]string{0: "lnk11", 1: "lnk12", 2: "lnk13", 3: "lnk14", 4: "lnk15"},
 		Start:  "lnk10",
+		Block:  "ent0002",
 	}
 	if diff := cmp.Diff(want, got.Families["attempts"]); diff != "" {
 		t.Errorf("MapSVG mismatch (-want +got):\n%s", diff)

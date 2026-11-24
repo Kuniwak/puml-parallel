@@ -1584,7 +1584,7 @@
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const map of app.block) {
       const f = families[map];
-      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start].filter(Boolean);
+      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start, f.block].filter(Boolean);
       for (const id of ids) {
         const node = svgElement(id);
         if (!node || !node.getBBox) continue;
