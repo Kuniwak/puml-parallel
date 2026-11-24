@@ -20,20 +20,19 @@ for f in examples/valid/vending_machine.puml examples/valid/client_server.puml \
   "$bin/csdfreplweb" "$f" > "$site/$(basename "$f" .puml).html"
 done
 
-# The vending machine with stock and change, once per language: its drawing
-# decorated, its clauses for people over the formal ones, and suggestions.
+# twin PAGE LANG PROSE FORMAL DEFS writes PAGE.html of the diagram FORMAL,
+# whose clauses are in Python: its drawing is PROSE decorated in LANG, its
+# clauses for people are PROSE's over the formal ones, and the page suggests
+# values with the checks DEFS.
+twin() {
+  "$bin/csdfdecorate" -lang "$2" "$3" | plantuml -pipe -tsvg > "$bin/drawing.svg"
+  "$bin/csdfreplweb" -puml-exec "cat $bin/drawing.svg" -prose "$3" \
+    -checks "$5" -evaluator-module "csdfbmc.python_glue $5" \
+    "$4" > "$site/$1.html"
+}
+
 bmc=examples/bmc
-for lang in en ja; do
-  case "$lang" in
-    en) formal="$bmc/vending_stock_formal" ;;
-    ja) formal="$bmc/vending_stock_ja_formal" ;;
-  esac
-  "$bin/csdfdecorate" -lang "$lang" "$bmc/vending_stock_$lang.puml" | plantuml -pipe -tsvg > "$bin/vending_stock.svg"
-  "$bin/csdfreplweb" -puml-exec "cat $bin/vending_stock.svg" \
-    -prose "$bmc/vending_stock_$lang.puml" \
-    -checks "${formal}_defs.py" \
-    -evaluator-module "csdfbmc.python_glue ${formal}_defs.py" \
-    "$formal.puml" > "$site/vending_stock_$lang.html"
-done
+twin vending_stock_en en "$bmc/vending_stock_en.puml" "$bmc/vending_stock_formal.puml" "$bmc/vending_stock_formal_defs.py"
+twin vending_stock_ja ja "$bmc/vending_stock_ja.puml" "$bmc/vending_stock_ja_formal.puml" "$bmc/vending_stock_ja_formal_defs.py"
 
 cp "$(dirname "$0")/index.html" "$site/index.html"
