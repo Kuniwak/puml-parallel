@@ -67,6 +67,7 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 			}
 		}
 	}
+	out.Observes = d.Observes.within(out)
 	for v, t := range d.Types {
 		if !gone[v] {
 			if out.Types == nil {

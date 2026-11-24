@@ -164,6 +164,38 @@ func (o *Observation) Observes(v string) bool {
 	return slices.ContainsFunc(o.Observables, func(d Observable) bool { return !d.IsView() && d.Name == v })
 }
 
+// within is o in the diagram d, cut from the one o was declared in: each
+// view keeps the states d has, an empty view staying, and a variable no
+// state of d holds is dropped; nil for no observation.
+func (o *Observation) within(d *Diagram) *Observation {
+	if o == nil {
+		return nil
+	}
+	held := map[string]bool{}
+	for _, vs := range d.Vars {
+		for _, v := range vs {
+			held[v] = true
+		}
+	}
+	out := &Observation{}
+	for _, ob := range o.Observables {
+		if !ob.IsView() {
+			if held[ob.Name] {
+				out.Observables = append(out.Observables, ob)
+			}
+			continue
+		}
+		kept := []string{}
+		for _, s := range ob.States {
+			if slices.Contains(d.States, s) {
+				kept = append(kept, s)
+			}
+		}
+		out.Observables = append(out.Observables, Observable{Name: ob.Name, States: kept})
+	}
+	return out
+}
+
 // Views are the names of the views of o, in the order it declares them.
 func (o *Observation) Views() []string {
 	var names []string

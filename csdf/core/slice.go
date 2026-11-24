@@ -63,6 +63,7 @@ func Slice(d *Diagram, states []string, context int) (*Sliced, error) {
 			out.Vars[s] = vs
 		}
 	}
+	out.Observes = d.Observes.within(out)
 	if in[d.Init] {
 		out.Init, out.InitPost, out.InitLine = d.Init, d.InitPost, d.InitLine
 	}

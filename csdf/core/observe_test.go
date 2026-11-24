@@ -105,3 +105,59 @@ func TestPromoteAcceptsAGlobalReadTheLocalDiagramDeclares(t *testing.T) {
 		})
 	}
 }
+
+func TestHideKeepsTheObservations(t *testing.T) {
+	// Setup
+	d := observedLocation(t, "stock")
+
+	// Execute
+	hidden, err := Hide(d, []string{"OPEN"})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(d.Observes, hidden.Observes); diff != "" {
+		t.Errorf("Observes (-want +got):\n%s", diff)
+	}
+}
+
+func TestSliceKeepsTheObservationsOfTheStatesWithin(t *testing.T) {
+	// Setup
+	d := decoratedChain()
+	d.Observes = &Observation{Observables: []Observable{
+		{Name: "early", States: []string{"a", "b"}}, {Name: "n"}, {Name: "late", States: []string{"d"}}, {Name: "m"}}}
+
+	// Execute
+	got, err := Slice(d, []string{"a"}, 1)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &Observation{Observables: []Observable{{Name: "early", States: []string{"a", "b"}}, {Name: "n"}, {Name: "late", States: []string{}}}}
+	if diff := cmp.Diff(want, got.Diagram.Observes); diff != "" {
+		t.Errorf("Observes (-want +got):\n%s", diff)
+	}
+}
+
+func TestRestrictKeepsTheObservationsOfTheVariablesKept(t *testing.T) {
+	// Setup
+	full, _, err := promote(fitting(plainDoor()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	full.Observes = &Observation{Observables: []Observable{{Name: "doors"}, {Name: "keys"}}}
+
+	// Execute
+	restricted, _, err := Restrict(full, []string{"doors", "keys"}, []string{"keys"})
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &Observation{Observables: []Observable{{Name: "keys"}}}
+	if diff := cmp.Diff(want, restricted.Observes); diff != "" {
+		t.Errorf("Observes (-want +got):\n%s", diff)
+	}
+}

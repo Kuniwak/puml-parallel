@@ -297,7 +297,8 @@ the FD conclusion is conditional on the impl's assumptions.
 Restricting a promotion to some of its families (`-only`) is an
 approximation, not an abstraction in the sense of the table above. The
 families left out go, with their maps, the edges only they take, and every
-clause that reads a left-out map, which is taken as true and reported. On a
+clause that reads a left-out map, which is taken as true and reported. The
+`CSDF-OBSERVE` declarations stay, but for a variable that is a left-out map. On a
 sync that a kept family takes with a left-out one, the kept side stays and
 the event keeps every field: the left-out side becomes the environment,
 which offers any value. The restricted promotion offers events a left-out
