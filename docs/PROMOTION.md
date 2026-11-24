@@ -69,9 +69,9 @@ The vocabulary is Z's.
 
 | Directive   | Z                                                                | CSP                                                                               |
 |:------------|:-----------------------------------------------------------------|:-----------------------------------------------------------------------------------|
-| `promote`   | free promotion: `θLocal = m(id)`, `m' = m ⊕ {id ↦ θLocal'}`      | the symbolic form of `\|\|\| id : dom m @ Local(m(id))[[e ← e(id)]]`               |
+| `promote`   | free promotion: `θLocal = m(id)`, `m' = m ⊕ {id ↦ θLocal'}`      | `F_G(⟦Local♯⟧)`: `\|\|\| id : ID @ Local♯[[e ← e.id]]` in parallel with the tracker (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
 | `sync`      | the conjunction of two framing schemas                            | alphabetised parallel, `[\| {e} \|]`                                               |
-| `constrain` | constrained promotion                                             | a monitor process in parallel (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
+| `constrain` | constrained promotion                                             | a guard of the tracker (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
 
 
 How the directives are written
@@ -170,7 +170,8 @@ A second `!include` of the same file would collide with the first on every state
 ID, and PlantUML would merge the two boxes into one.
 
 A state that holds the map but has no block for it has that family **frozen**
-there, which is reported as `info`. This is deliberate: expanding into every
+there, which is reported as `info`: the tracker refuses the family's events
+in that mode, and its instances keep their local states and values. This is deliberate: expanding into every
 state that holds the map would quietly write a specification in which receipts go
 on being logged during maintenance. Every state holds every family's map: the
 instances exist whatever the mode, so a state that declares some maps and not
@@ -230,6 +231,58 @@ PlantUML-only lines — `title`, `skinparam`, standalone notes — belong inside
 diagram, so they show when the local diagram is rendered on its own and not when
 it is included. Wrap them in a `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` region as
 well, so the core parser skips them too.
+
+
+Observations
+------------
+
+What a global diagram may read of an instance is part of the local
+diagram's interface: its **observation**. A local diagram declares it in
+line comments, which PlantUML does not draw, like `CSDF-IGNORE`
+(docs/SYNTAX.md gives the grammar):
+
+```plantuml
+' CSDF-OBSERVE active = A, B
+' CSDF-OBSERVE owner
+```
+
+- `CSDF-OBSERVE <class> = <state>, …` declares a class of local states. A
+  global clause reads it as `@at(m[k], <class>)`, which holds when instance
+  `k` is at one of the listed states.
+- `CSDF-OBSERVE <variable>` declares a state variable the global diagram may
+  read, as `m[k].<variable>`.
+
+A global clause, a sync clause and a constrain read only what the local
+diagram declares: `@at` names declared classes, and `m[k].x` names declared
+variables. Whether an instance exists, `@in` and `@notin` of its key, is
+always observed, since the map's domain is it. A local diagram with no
+`CSDF-OBSERVE` line observes everything: its local state, which `@at` reads
+by state names, and every variable.
+
+The observation decides which local diagrams are interchangeable inside a
+promotion: two local diagrams are, when they agree on their events and on
+the observations those events carry (docs/CLAUSE_DESIGN.md, P♯). The less a
+local diagram declares, the more diagrams can replace it, and the less a
+global clause may read.
+
+
+Promoting a promoted diagram
+----------------------------
+
+A promoted diagram is not a local diagram as it stands: its start mode holds
+the maps, and a creation is a self-loop of that mode. It becomes one with
+three changes, and no new syntax:
+
+- add a start state `S₀` with no variables, whose outgoing edge creates the
+  parent and empties every map in its post (`@empty(m')`);
+- add an edge into `S₀` that deletes the parent, whose guard requires every
+  map to be empty, so that the parent writes no child;
+- drop the global `assume` notes, since a local diagram has none.
+
+Include the expanded inner diagram, so changed, in the outer `<<promote>>`
+block. The outer global diagram then reads the inner instances through the
+outer map, as in `M[j].m[k]`, with the keys `(j, k)`. That `csdfbmc` reads
+such nested terms is not yet verified; it is a known limitation.
 
 
 Expansion
@@ -451,6 +504,10 @@ Errors:
 | A `sync` of a map that is not promoted, or of an event a side lacks      | There is nothing to merge.                                                      |
 | A `sync` whose maps never move in the same state                         | The event they take together can never happen.                                  |
 | A `constrain` no generated edge matches in channel and field directions | It constrains nothing.                                                          |
+| A `CSDF-OBSERVE` class named like a state or a variable of its diagram, or declared twice | `@at` would read one name as two things.                                         |
+| A `CSDF-OBSERVE` class listing a state its diagram lacks, `S₀`, or one state twice | `S₀` is absence, which `@notin` reads.                                           |
+| A `CSDF-OBSERVE` variable no state of its diagram holds, or declared twice | There is nothing to observe.                                                     |
+| A global clause reading what the local diagram does not declare          | The global diagram reads only the observation.                                   |
 | A note holding a second directive                                        | One note, one directive.                                                        |
 | A directive body that does not parse                                     | —                                                                               |
 
