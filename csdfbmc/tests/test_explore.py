@@ -1145,6 +1145,19 @@ class CandidatesTest(unittest.TestCase):
         # Assert
         self.assertEqual([{"params": {"量": 1}, "values": [1]}, {"params": {"量": 2}, "values": [0]}], got)
 
+    def test_a_set_given_as_a_json_array_is_read_as_the_set_of_its_type(self):
+        # Setup
+        d = diagram({"a": ["coins"]}, "a", init_post=[atom("$coins' == frozenset()")],
+                    edges=[edge("a", "a", "put?coin", post=[atom("$coins' == $coins | frozenset({$coin})")])],
+                    types={"coins": "CoinSet"}, channels={"put": ["Coin"]})
+        checks = Checks(types={"Coin": [50], "CoinSet": [frozenset(), frozenset({50})]})
+
+        # Execute
+        got = fixture.explorer(d, checks).candidates("a", [[]], 0)
+
+        # Assert
+        self.assertEqual([{"params": {"coin": 50}, "values": [[50]]}], got)
+
     def test_a_bad_edge_index_is_refused(self):
         with self.assertRaisesRegex(IndexError, "no edge 5"):
             fixture.explorer(COUNTER).candidates("a", [1], 5)

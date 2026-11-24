@@ -424,6 +424,19 @@ class OnDemandRecord:
                 and all(is_value_of(vs, value[k]) for k, vs in self.parts.items()))
 
 
+def decode(value, values):
+    """The JSON value value read back as the value of a type it is
+    encoded from: the member of values with the same encoding, so an
+    array is read as the set it encodes; else value frozen. An
+    on_demand_record's values are not listed, so its value is frozen."""
+    if listable(values):
+        text = encode(freeze(value))
+        for v in values:
+            if encode(freeze(v)) == text:
+                return freeze(v)
+    return freeze(value)
+
+
 def is_value_of(values, value) -> bool:
     """Whether value is one of the values of a type, told apart by kind
     (same_value); an on_demand_record tells it by its parts, unlisted."""

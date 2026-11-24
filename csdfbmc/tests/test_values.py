@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, decode, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -159,6 +159,23 @@ class DomainBuilderTest(unittest.TestCase):
                 # Execute / Assert
                 with self.assertRaisesRegex(ValueError, refused):
                     sample(values, beyond=beyond)
+
+
+class DecodeTest(unittest.TestCase):
+    def test_reads_a_json_value_back_as_the_value_of_its_type(self):
+        tests = {
+            "an array as the set it encodes": ([50, 100], [frozenset(), frozenset({50, 100})], FrozenSet({50, 100})),
+            "a set nested in a record": ({"coins": [50]}, record(coins=[frozenset({50})]), FrozenMap({"coins": FrozenSet({50})})),
+            "a value no member encodes, frozen": ([1], [frozenset()], (1,)),
+            "an on_demand_record's value, frozen": ({"n": 1}, on_demand_record(n=[1]), FrozenMap({"n": 1})),
+        }
+        for name, (value, values, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = decode(value, values)
+
+                # Assert
+                self.assertTrue(same_value(want, got), got)
 
 
 class SameValueTest(unittest.TestCase):

@@ -20,7 +20,7 @@ from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
 from csdfbmc.stopping import interrupted, never
-from csdfbmc.values import LEFT_OUT, FrozenMap, UnlistableType, Interner, Strict, kind_key, samples_in, beyond_samples, encode, freeze, is_value_of, listable, record_parts, same_value, visible
+from csdfbmc.values import LEFT_OUT, FrozenMap, UnlistableType, Interner, Strict, kind_key, samples_in, beyond_samples, decode, encode, freeze, is_value_of, listable, record_parts, same_value, visible
 
 # (state id, values of its variables in declaration order, values of the ghosts),
 # a Strict, so that states holding 1 and True are two states.
@@ -940,12 +940,18 @@ class Explorer:
         if len(values) != len(self.d.vars[state_id]):
             raise ValueError(f"state {state_id!r} has {len(self.d.vars[state_id])} variable(s), got {len(values)} value(s)")
         ghosts = tuple(freeze(init) for init, _ in self.checks.ghosts.values())
-        state = Strict((state_id, tuple(freeze(v) for v in values), ghosts))
+        state = Strict((state_id, tuple(self._decoded(n, v) for n, v in zip(self.d.vars[state_id], values)), ghosts))
         out = []
         for params, _, nexts in self._edge_successors(state, edges[edge_index], record=False):
             for t in nexts:
                 out.append({"params": {k: encode(v) for k, v in params.items()}, "values": [encode(v) for v in t[1]]})
         return out
+
+    def _decoded(self, name: str, value):
+        """value, given as JSON, read back as a value of the type of the
+        variable name, when TYPES lists it."""
+        values = self.checks.types.get(self.d.types.get(name, name))
+        return freeze(value) if values is None else decode(value, values)
 
     # -- the walk ----------------------------------------------------------------
 
