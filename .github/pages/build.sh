@@ -12,7 +12,7 @@ go build -o "$bin/csdfreplweb" ./tools/csdfreplweb
 go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
 mkdir -p "$site"
 
-for f in examples/promote/MODES.puml examples/promote/RECEIPTS.puml; do
+for f in examples/promote/RECEIPTS.puml; do
   "$bin/csdfreplweb" "$f" > "$site/$(basename "$f" .puml).html"
 done
 
@@ -25,6 +25,7 @@ checked() {
 
 checked ATTEMPTS examples/bmc/attempts/ATTEMPTS.puml examples/bmc/attempts/checks.py examples/promote/ATTEMPTS.puml
 checked MEMBERS examples/bmc/promote/MEMBERS.puml examples/bmc/promote/members_checks.py examples/promote/MEMBERS.puml
+checked MODES examples/bmc/promote/MODES.puml examples/bmc/promote/modes_checks.py examples/promote/MODES.puml
 checked OPENCLOSE examples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.py
 
 # twin PAGE LANG PROSE FORMAL DEFS writes PAGE.html of the diagram FORMAL,

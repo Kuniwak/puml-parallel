@@ -1,0 +1,23 @@
+@startuml REVIEW
+' examples/promote/local/REVIEW.puml with every clause written in Python.
+' CSDF-IGNORE-BEGIN
+!ifndef PROMOTED
+title 審査 1 件のライフサイクル
+!endif
+' CSDF-IGNORE-END
+
+state "未着手" as revIdle
+state "調査中" as revOpen
+revOpen : target ; MemberId
+state "報告済み" as revDone
+revDone : target ; MemberId
+
+[*] --> revIdle
+
+revIdle --> revOpen : REVIEW_BEGIN?会員ID ; ; @eq(target', 会員ID)
+revOpen --> revDone : REVIEW_REPORT ; ; @eq(target', target)
+revDone --> revIdle : REVIEW_ARCHIVE
+note as reviewChannels
+  channel REVIEW_BEGIN : MemberId
+end note
+@enduml
