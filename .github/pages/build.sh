@@ -12,18 +12,20 @@ go build -o "$bin/csdfreplweb" ./tools/csdfreplweb
 go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
 mkdir -p "$site"
 
-for f in examples/promote/ATTEMPTS.puml examples/promote/MEMBERS.puml \
+for f in examples/promote/MEMBERS.puml \
          examples/promote/MODES.puml examples/promote/RECEIPTS.puml; do
   "$bin/csdfreplweb" "$f" > "$site/$(basename "$f" .puml).html"
 done
 
-# checked PAGE DIAGRAM CHECKS writes PAGE.html of the promoted DIAGRAM,
-# whose clauses are in Python, suggesting values with the checks CHECKS.
+# checked PAGE DIAGRAM CHECKS [PROSE] writes PAGE.html of the promoted
+# DIAGRAM, whose clauses are in Python, suggesting values with the checks
+# CHECKS, and showing PROSE's clauses for people over the formal ones.
 checked() {
-  "$bin/csdfreplweb" -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
+  "$bin/csdfreplweb" ${4:+-prose "$4"} -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
 }
 
-checked OPENCLOSE examples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.py
+checked ATTEMPTS examples/bmc/attempts/ATTEMPTS.puml examples/bmc/attempts/checks.py examples/promote/ATTEMPTS.puml
+checked OPENCLOSEexamples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.py
 
 # twin PAGE LANG PROSE FORMAL DEFS writes PAGE.html of the diagram FORMAL,
 # whose clauses are in Python: its drawing is PROSE decorated in LANG, its
