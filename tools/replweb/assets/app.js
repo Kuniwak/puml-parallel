@@ -167,6 +167,9 @@
     // not there.
     admits: new Map(),
     tab: chooseTab(),
+    // familyLabels are the labels of the local states of each family, by
+    // map, as the views give them.
+    familyLabels: new Map(),
   };
 
   function setTab(tab) {
@@ -184,6 +187,7 @@
     const read = await send({ command: "read" });
     if (!read.ok) { app.error = errorText(read); render(); return; }
     app.view = read.data;
+    for (const fv of read.data.families || []) app.familyLabels.set(fv.map, fv.labels || {});
     const history = await send({ command: "history" });
     app.history = history.ok ? history.data.history || [] : [];
     render();
@@ -440,6 +444,55 @@
     return mark(el("span", { class: "value-scalar", text }), value, before);
   }
 
+  // variableView shows the value of the variable name: the instances of
+  // a family by instancesView, anything else by valueView.
+  function variableView(name, value, before, compare) {
+    if (isInstances(name, value)) return instancesView(name, value, isMap(before) ? before : undefined, compare);
+    return valueView(value, before, compare);
+  }
+
+  function isFamily(name) {
+    return app.familyLabels.has(name) || Object.prototype.hasOwnProperty.call(families, name);
+  }
+
+  // isInstance says whether value is an instance of a family as the
+  // engine writes it: {"at": local state, "fields": {...}}.
+  function isInstance(value) {
+    return isMap(value) && Object.keys(value).length === 2 && typeof value.at === "string" && isMap(value.fields);
+  }
+
+  function isInstances(name, value) {
+    return isFamily(name) && isMap(value) && Object.keys(value).length > 0 && Object.values(value).every(isInstance);
+  }
+
+  // instancesView shows the instances of the family map one by one, as
+  // the history shows a state: where each is, then its fields.
+  function instancesView(map, value, before, compare) {
+    return el("ul", { class: "instances" }, Object.keys(value).sort().map((id) =>
+      instanceItem(map, id, value[id], before ? before[id] : undefined, compare)));
+  }
+
+  // instanceItem is the instance id of map, inst, in its piece's colour:
+  // the label of its local state, then its fields as the history lists
+  // the values of a state. Given before (compare), what differs from
+  // before is marked changed; a new instance is marked whole.
+  function instanceItem(map, id, inst, before, compare) {
+    const known = compare && isInstance(before);
+    const dot = el("span", { class: "dot" });
+    dot.style.background = pieceColour(map, id).fill;
+    const labels = app.familyLabels.get(map) || {};
+    const at = el("span", { class: "instance-at", text: labels[inst.at] || inst.at });
+    if (known && before.at !== inst.at) { at.classList.add("changed"); at.title = t("history.changed"); }
+    const fields = Object.entries(inst.fields).map(([name, value]) => ({ name, value }));
+    const beforeFields = known ? Object.entries(before.fields).map(([name, value]) => ({ name, value })) : null;
+    const item = el("li", { class: "instance" }, [
+      el("div", { class: "instance-head" }, [dot, el("span", { class: "instance-id", text: id }), at]),
+      fields.length > 0 ? valuesList(fields, beforeFields) : null,
+    ]);
+    if (compare && !known) { item.classList.add("changed"); item.title = t("history.changed"); }
+    return item;
+  }
+
   function clause(text, noneId) {
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
@@ -621,7 +674,7 @@
     for (const v of values) {
       const prev = before ? before.find((b) => b.name === v.name) : undefined;
       list.appendChild(el("dt", { text: v.name }));
-      const dd = el("dd", null, [valueView(v.value, prev ? prev.value : undefined, !!prev)]);
+      const dd = el("dd", null, [variableView(v.name, v.value, prev ? prev.value : undefined, !!prev)]);
       if (before && !prev) {
         dd.classList.add("changed");
         dd.title = t("history.changed");
@@ -1146,7 +1199,7 @@
       } else if (before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
-          valueView(before.value, undefined, false),
+          variableView(name, before.value, undefined, false),
           el("button", { type: "button", text: t("values.keep"), onclick: () => { input.value = show(before.value); input.focus(); } }),
         ]));
       }
@@ -1200,8 +1253,12 @@
       const before = previous.find((p) => p.name === name);
       const after = values[i];
       const view = (x) => valueView(x, undefined, false);
-      if (!before) { lines.push(tNodes("suggest.set", { name, value: view(after) })); return; }
+      if (!before) { lines.push(tNodes("suggest.set", { name, value: variableView(name, after, undefined, false) })); return; }
       if (show(before.value) === show(after)) return;
+      if (isInstances(name, after) || (isFamily(name) && isInstances(name, before.value))) {
+        lines.push(...instanceChanges(name, before.value, after));
+        return;
+      }
       if (isMap(before.value) && isMap(after)) {
         const keys = new Set(Object.keys(before.value).concat(Object.keys(after)));
         for (const key of keys) {
@@ -1216,6 +1273,22 @@
       }
       lines.push(tNodes("suggest.change", { name, before: view(before.value), after: view(after) }));
     });
+    return lines;
+  }
+
+  // instanceChanges are the lines of what after makes of the instances of
+  // map held in before: each instance new or changed, as instanceItem
+  // shows it, and each removed.
+  function instanceChanges(map, before, after) {
+    const lines = [];
+    const prev = isMap(before) ? before : {};
+    const next = isMap(after) ? after : {};
+    for (const id of [...new Set(Object.keys(prev).concat(Object.keys(next)))].sort()) {
+      if (!(id in next)) lines.push(t("suggest.removed", { name: map + "[" + id + "]" }));
+      else if (show(prev[id]) !== show(next[id])) {
+        lines.push(el("ul", { class: "instances" }, [instanceItem(map, id, next[id], prev[id], true)]));
+      }
+    }
     return lines;
   }
 
@@ -1588,7 +1661,7 @@
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const map of app.block) {
       const f = families[map];
-      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start].filter(Boolean);
+      const ids = [...Object.values(f.states || {}), ...Object.values(f.edges || {}), f.start, f.block].filter(Boolean);
       for (const id of ids) {
         const node = svgElement(id);
         if (!node || !node.getBBox) continue;
