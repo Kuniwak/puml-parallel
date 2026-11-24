@@ -13,10 +13,17 @@ go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
 mkdir -p "$site"
 
 for f in examples/promote/ATTEMPTS.puml examples/promote/MEMBERS.puml \
-         examples/promote/MODES.puml examples/promote/RECEIPTS.puml \
-         examples/promote/PINGPONG.puml; do
+         examples/promote/MODES.puml examples/promote/RECEIPTS.puml; do
   "$bin/csdfreplweb" "$f" > "$site/$(basename "$f" .puml).html"
 done
+
+# checked PAGE DIAGRAM CHECKS writes PAGE.html of the promoted DIAGRAM,
+# whose clauses are in Python, suggesting values with the checks CHECKS.
+checked() {
+  "$bin/csdfreplweb" -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
+}
+
+checked OPENCLOSE examples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.py
 
 # twin PAGE LANG PROSE FORMAL DEFS writes PAGE.html of the diagram FORMAL,
 # whose clauses are in Python: its drawing is PROSE decorated in LANG, its

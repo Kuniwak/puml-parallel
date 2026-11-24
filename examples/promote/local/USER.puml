@@ -1,19 +1,19 @@
 @startuml USER
-' One user playing ping-pong. The start state means that no such user
-' exists: JOIN brings one in, then PING and PONG alternate for ever.
+' One user opening and closing. The start state means that no such user
+' exists: JOIN brings one in, closed; then OPEN and CLOSE alternate.
 ' CSDF-IGNORE-BEGIN
 !ifndef PROMOTED
-title 利用者 1 人のピンポン
+title 利用者 1 人の開け閉め
 !endif
 ' CSDF-IGNORE-END
 
 state "未参加" as usrNone
-state "待機中" as usrIdle
-state "返答待ち" as usrWaiting
+state "閉" as usrClosed
+state "開" as usrOpened
 
 [*] --> usrNone
 
-usrNone --> usrIdle : JOIN
-usrIdle --> usrWaiting : PING
-usrWaiting --> usrIdle : PONG
+usrNone --> usrClosed : JOIN
+usrClosed --> usrOpened : OPEN
+usrOpened --> usrClosed : CLOSE
 @enduml

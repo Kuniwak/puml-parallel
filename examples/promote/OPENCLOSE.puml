@@ -1,6 +1,6 @@
-@startuml PINGPONG
-' Ping-pong for any number of users: every user pings and waits for its
-' pong on its own. The map has no bound; each JOIN?利用者ID with a fresh ID
+@startuml OPENCLOSE
+' Opening and closing for any number of users: every user opens and closes
+' on its own. The map has no bound; each JOIN?利用者ID with a fresh ID
 ' brings one more user in, so three users are three JOINs.
 !define PROMOTED
 

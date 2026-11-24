@@ -1,0 +1,13 @@
+@startuml auto-generated-by: csdfpromote examples/promote/OPENCLOSE.puml
+state "稼働中" as running
+running : users ; UserId ⇸ User
+[*] --> running : @empty(users')
+running --> running : CLOSE?利用者ID ; @at(users[利用者ID], usrOpened) ; @frame(users', users, 利用者ID) ∧ @at(users'[利用者ID], usrClosed)
+running --> running : JOIN?利用者ID ; @notin(利用者ID, users) ; @frame(users', users, 利用者ID) ∧ @at(users'[利用者ID], usrClosed)
+running --> running : OPEN?利用者ID ; @at(users[利用者ID], usrClosed) ; @frame(users', users, 利用者ID) ∧ @at(users'[利用者ID], usrOpened)
+note as channels
+  channel CLOSE : UserId
+  channel JOIN : UserId
+  channel OPEN : UserId
+end note
+@enduml
