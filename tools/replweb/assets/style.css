@@ -127,7 +127,12 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .values { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .values dt { color: var(--muted); }
 .values dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
-.values .changed { background: var(--changed); border-radius: 3px; }
+.values .changed, .value-table .changed { background: var(--changed); border-radius: 3px; }
+.value-table { border-collapse: collapse; font-size: inherit; display: inline-table; vertical-align: top; }
+.value-table th, .value-table td { border: 1px solid var(--border, #ccc); padding: .05rem .4rem; text-align: left; vertical-align: top; }
+.value-table th { color: var(--muted); font-weight: normal; font-family: inherit; }
+.value-list { margin: 0; padding-left: 1.1rem; }
+.suggestion .value-table, .before .value-table { font-size: .85em; }
 .trace { font-size: .9rem; }
 .choice {
   display: block;

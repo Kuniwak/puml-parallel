@@ -313,6 +313,68 @@
     return JSON.stringify(value);
   }
 
+  // tNodes is the message id with its {name} slots filled by the nodes
+  // (or texts) of args, as a span.
+  function tNodes(id, args) {
+    const text = (MESSAGES[language] && MESSAGES[language][id]) || MESSAGES.en[id] || id;
+    const out = el("span");
+    let at = 0;
+    for (const m of text.matchAll(/\{(\w+)\}/g)) {
+      if (!Object.prototype.hasOwnProperty.call(args, m[1])) continue;
+      out.appendChild(document.createTextNode(text.slice(at, m.index)));
+      const arg = args[m[1]];
+      out.appendChild(arg instanceof Node ? arg : document.createTextNode(String(arg)));
+      at = m.index + m[0].length;
+    }
+    out.appendChild(document.createTextNode(text.slice(at)));
+    return out;
+  }
+
+  // valueView shows value as a reader sees it: a record as a table of its
+  // keys and values, a list as a list (as a table of rows when its items
+  // are records of the same keys), a string without quotes. Given before
+  // (compare), the parts that differ from before are marked changed.
+  function valueView(value, before, compare) {
+    const differs = (a, b) => show(a) !== show(b);
+    const mark = (node, a, b) => {
+      if (compare && differs(a, b)) { node.classList.add("changed"); node.title = t("history.changed"); }
+      return node;
+    };
+    if (isMap(value)) {
+      const keys = Object.keys(value);
+      if (keys.length === 0) return el("span", { class: "value-scalar", text: "{}" });
+      const inner = compare && isMap(before);
+      const table = el("table", { class: "value-table" });
+      for (const k of keys) {
+        const prev = inner ? before[k] : undefined;
+        const cell = el("td", null, [valueView(value[k], prev, inner && k in before)]);
+        if (inner && !(k in before)) mark(cell, value[k], undefined);
+        table.appendChild(el("tr", null, [el("th", { text: k }), cell]));
+      }
+      return compare && !inner ? mark(table, value, before) : table;
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) return mark(el("span", { class: "value-scalar", text: "[]" }), value, before);
+      const keys = value.every(isMap) ? Object.keys(value[0]) : null;
+      const sameKeys = keys && keys.length > 0 && value.every((x) => show(Object.keys(x)) === show(keys));
+      const inner = compare && Array.isArray(before);
+      if (sameKeys) {
+        const table = el("table", { class: "value-table value-rows" }, [el("tr", null, keys.map((k) => el("th", { text: k })))]);
+        value.forEach((row, i) => {
+          const prev = inner && isMap(before[i]) ? before[i] : undefined;
+          table.appendChild(el("tr", null, keys.map((k) =>
+            el("td", null, [valueView(row[k], prev ? prev[k] : undefined, inner && !!prev && k in prev)]))));
+        });
+        return compare && !inner ? mark(table, value, before) : table;
+      }
+      const list = el("ul", { class: "value-list" }, value.map((x, i) =>
+        el("li", null, [valueView(x, inner ? before[i] : undefined, inner && i < before.length)])));
+      return compare && !inner ? mark(list, value, before) : list;
+    }
+    const text = typeof value === "string" ? value : show(value);
+    return mark(el("span", { class: "value-scalar", text }), value, before);
+  }
+
   function clause(text, noneId) {
     return text === "(none)" || text === "" ? t(noneId) : text;
   }
@@ -470,10 +532,9 @@
     const list = el("dl", { class: "values" });
     for (const v of values) {
       const prev = before ? before.find((b) => b.name === v.name) : undefined;
-      const changed = before && (!prev || show(prev.value) !== show(v.value));
       list.appendChild(el("dt", { text: v.name }));
-      const dd = el("dd", { text: show(v.value) });
-      if (changed) {
+      const dd = el("dd", null, [valueView(v.value, prev ? prev.value : undefined, !!prev)]);
+      if (before && !prev) {
         dd.classList.add("changed");
         dd.title = t("history.changed");
       }
@@ -739,6 +800,11 @@
       if (note) root.appendChild(note);
       root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
     }
+    const types = pending.group.types || {};
+    for (const type of new Set(vars.map((name) => types[name]).filter((x) => x))) {
+      const help = typeHelp(type);
+      if (help) root.appendChild(help);
+    }
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
@@ -803,37 +869,49 @@
   // a map type K ⇸ V, that of V, each value under its key.
   function typeShape(type) {
     const types = (config.shapes && config.shapes.types) || {};
-    const known = (node) => node && (node.kind !== "scalar" || (node.examples || []).length > 0 || node.numeric);
+    const known = (node) => node && (node.kind !== "scalar" || (node.values || []).length > 0 || (node.examples || []).length > 0 || node.numeric);
     if (known(types[type])) return { node: types[type], key: null };
     const [key, value] = String(type).split("⇸").map((x) => x.trim());
     return value && known(types[value]) ? { node: types[value], key } : null;
   }
 
   // skeleton is an example value of the shape node: a record of its
-  // attributes, a list of one item, a constant it is compared with, else
+  // attributes, a list of one item, its first allowed value, a constant
+  // it is compared with, else
   // 0 for a number and "…" for anything else.
   function skeleton(node) {
     if (node.kind === "record") return Object.fromEntries(Object.entries(node.fields).map(([k, v]) => [k, skeleton(v)]));
     if (node.kind === "collection") return [skeleton(node.items)];
+    if ((node.values || []).length > 0) return node.values[0];
     if ((node.examples || []).length > 0) return node.examples[0];
     return node.numeric ? 0 : "…";
   }
 
   // shapeLeaves lists the attributes of node whose values something is
-  // known of, by their paths: the constants they are compared with, or
-  // that they are numbers.
+  // known of, as table rows by their paths: the values they may take, else
+  // the constants they are compared with, else that they are numbers.
   function shapeLeaves(node, path) {
     if (node.kind === "record") return Object.entries(node.fields).flatMap(([k, v]) => shapeLeaves(v, path.concat([k])));
     if (node.kind === "collection") return shapeLeaves(node.items, path.concat(["[…]"]));
-    const examples = node.examples || [];
-    if (examples.length === 0 && !node.numeric) return [];
+    const text = allowedText(node);
+    if (text === null) return [];
     const name = path.length > 0 ? path.join(".").replaceAll(".[…]", "[…]") : t("typeShape.value");
-    return [el("li", null, [
-      el("code", { text: name }),
-      el("span", { class: "fields", text: examples.length > 0
-        ? t("typeShape.examples", { values: examples.map((x) => JSON.stringify(x)).join(", ") })
-        : t("typeShape.number") }),
-    ])];
+    return [el("tr", null, [el("th", { text: name }), el("td", { text })])];
+  }
+
+  // allowedText says which values a scalar node takes, or null when
+  // nothing is known: its values, a run of consecutive integers as a
+  // range; else the constants it is compared with; else that it is a number.
+  function allowedText(node) {
+    const plain = (x) => typeof x === "string" ? x : JSON.stringify(x);
+    const values = node.values || [];
+    if (values.length > 0) {
+      const run = values.length > 2 && values.every((x, i) => Number.isInteger(x) && (i === 0 || x === values[i - 1] + 1));
+      return run ? t("typeShape.range", { from: values[0], to: values[values.length - 1] }) : values.map(plain).join(t("list.separator"));
+    }
+    const examples = node.examples || [];
+    if (examples.length > 0) return t("typeShape.examples", { values: examples.map(plain).join(t("list.separator")) });
+    return node.numeric ? t("typeShape.number") : null;
   }
 
   // exampleOf is an example value of what typeShape gives.
@@ -856,9 +934,13 @@
     const leaves = shapeLeaves(shape.node, []);
     return el("details", { class: "shape type-shape" }, [
       el("summary", { text: t("typeShape.summary", { type }) }),
-      el("p", { class: "hint", text: t("typeShape.note") }),
-      el("code", { class: "example", text: JSON.stringify(exampleOf(shape), null, 2) }),
-      leaves.length > 0 ? el("ul", null, leaves) : null,
+      el("p", { class: "hint", text: t(((config.shapes && config.shapes.declared) || []).includes(type) ? "typeShape.declared" : "typeShape.note") }),
+      leaves.length > 0 ? el("table", { class: "value-table type-table" }, [
+        el("tr", null, [el("th", { text: t("typeShape.item") }), el("th", { text: t("typeShape.allowed") })]),
+        ...leaves,
+      ]) : null,
+      el("p", { class: "hint", text: t("typeShape.exampleLabel") }),
+      el("code", { class: "example", text: JSON.stringify(exampleOf(shape)) }),
     ]);
   }
 
@@ -926,7 +1008,7 @@
       } else if (before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
-          el("code", { text: show(before.value) }),
+          valueView(before.value, undefined, false),
           el("button", { type: "button", text: t("values.keep"), onclick: () => { input.value = show(before.value); input.focus(); } }),
         ]));
       }
@@ -950,7 +1032,12 @@
       const lines = [];
       const params = Object.entries(s.params || {});
       if (params.length > 0) {
-        lines.push(t("suggest.params", { params: params.map(([k, v]) => k + " = " + show(v)).join(", ") }));
+        const shownParams = el("span");
+        params.forEach(([k, v], j) => {
+          if (j > 0) shownParams.appendChild(document.createTextNode(", "));
+          shownParams.appendChild(tNodes("suggest.set", { name: k, value: valueView(v, undefined, false) }));
+        });
+        lines.push(tNodes("suggest.params", { params: shownParams }));
       }
       const changes = changesOf(vars, previous, s.values);
       const shown = changes.slice(0, CHANGE_LIMIT);
@@ -960,7 +1047,7 @@
       list.appendChild(el("button", {
         type: "button", class: "choice suggestion", id: "suggestion-" + i,
         onclick: () => enterValues(s.values.map(show)),
-      }, lines.map((line) => el("div", { text: line }))));
+      }, lines.map((line) => typeof line === "string" ? el("div", { text: line }) : el("div", null, [line]))));
     });
     root.appendChild(list);
   }
@@ -975,21 +1062,22 @@
     vars.forEach((name, i) => {
       const before = previous.find((p) => p.name === name);
       const after = values[i];
-      if (!before) { lines.push(t("suggest.set", { name, value: show(after) })); return; }
+      const view = (x) => valueView(x, undefined, false);
+      if (!before) { lines.push(tNodes("suggest.set", { name, value: view(after) })); return; }
       if (show(before.value) === show(after)) return;
       if (isMap(before.value) && isMap(after)) {
         const keys = new Set(Object.keys(before.value).concat(Object.keys(after)));
         for (const key of keys) {
           const entry = name + "[" + key + "]";
           if (!(key in after)) lines.push(t("suggest.removed", { name: entry }));
-          else if (!(key in before.value)) lines.push(t("suggest.set", { name: entry, value: show(after[key]) }));
+          else if (!(key in before.value)) lines.push(tNodes("suggest.set", { name: entry, value: view(after[key]) }));
           else if (show(before.value[key]) !== show(after[key])) {
-            lines.push(t("suggest.change", { name: entry, before: show(before.value[key]), after: show(after[key]) }));
+            lines.push(tNodes("suggest.change", { name: entry, before: view(before.value[key]), after: view(after[key]) }));
           }
         }
         return;
       }
-      lines.push(t("suggest.change", { name, before: show(before.value), after: show(after) }));
+      lines.push(tNodes("suggest.change", { name, before: view(before.value), after: view(after) }));
     });
     return lines;
   }
