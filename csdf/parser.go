@@ -12,6 +12,7 @@ import (
 const (
 	ignoreBeginMarker = "CSDF-IGNORE-BEGIN"
 	ignoreEndMarker   = "CSDF-IGNORE-END"
+	observeMarker     = "CSDF-OBSERVE"
 )
 
 type Parser struct {
@@ -20,6 +21,8 @@ type Parser struct {
 	line  int
 	col   int
 	check func(Predicate) error
+	// observes are the CSDF-OBSERVE lines read so far.
+	observes []Observe
 }
 
 // NewParserCheckingClauses reads a diagram whose predicates check accepts:
@@ -130,6 +133,10 @@ func (p *Parser) parse() (*Diagram, error) {
 		return nil, fmt.Errorf("csdf.Parser.Parse: expected @enduml at line %d, col %d", p.line, p.col)
 	}
 
+	diagram.Observes = p.observes
+	if err := observesWellFormed(diagram); err != nil {
+		return nil, fmt.Errorf("csdf.Parser.Parse: %w", err)
+	}
 	return diagram, nil
 }
 
@@ -629,6 +636,12 @@ func (p *Parser) skipTrivia() error {
 				}
 				continue
 			}
+			if body, ok := p.observeBody(); ok {
+				if err := p.readObserve(body); err != nil {
+					return fmt.Errorf("csdf.Parser.skipTrivia: %w", err)
+				}
+				continue
+			}
 			p.skipLine()
 			continue
 		}
@@ -644,6 +657,105 @@ func (p *Parser) lineCommentBody() string {
 		end++
 	}
 	return strings.TrimSpace(p.input[p.pos+1 : end])
+}
+
+// observeBody is the text after the observe marker of the line comment at
+// the current position, the marker being "CSDF-OBSERVE" followed by a tab or
+// a space; ok is false for a line comment the marker does not start, which
+// is a plain one. The Parser is not advanced.
+func (p *Parser) observeBody() (body string, ok bool) {
+	end := p.pos + 1
+	for end < len(p.input) && p.input[end] != '\n' {
+		end++
+	}
+	rest := strings.TrimLeft(p.input[p.pos+1:end], " \t")
+	rest, ok = strings.CutPrefix(rest, observeMarker)
+	if !ok || rest == "" || (rest[0] != ' ' && rest[0] != '\t') {
+		return "", false
+	}
+	return rest, true
+}
+
+// readObserve reads body, the rest of an observe line at the current
+// position, as a view or a variable, and consumes the line.
+func (p *Parser) readObserve(body string) error {
+	line := p.line
+	o, err := parseObserve(strings.TrimRight(body, " \t\r"), line)
+	if err != nil {
+		return err
+	}
+	p.observes = append(p.observes, o)
+	p.skipLine()
+	return nil
+}
+
+// parseObserve reads the body of an observe line, written at line:
+// "<view> = <state>, …" or "<variable>", separated by tabs and spaces only.
+func parseObserve(body string, line int) (Observe, error) {
+	name, states, isView := strings.Cut(body, "=")
+	name = strings.Trim(name, " \t")
+	if err := ident.Check(name); err != nil {
+		return Observe{}, fmt.Errorf("the CSDF-OBSERVE line at line %d: expected \"<view> = <state>, …\" or \"<variable>\": %w", line, err)
+	}
+	o := Observe{Name: name, Line: line}
+	if !isView {
+		return o, nil
+	}
+	o.States = []StateID{}
+	for _, s := range strings.Split(states, ",") {
+		s = strings.Trim(s, " \t")
+		if err := ident.Check(s); err != nil {
+			return Observe{}, fmt.Errorf("the CSDF-OBSERVE line at line %d: the view %s: expected a state: %w", line, name, err)
+		}
+		o.States = append(o.States, StateID(s))
+	}
+	return o, nil
+}
+
+// observesWellFormed refuses an observation of d that docs/SYNTAX.md
+// refuses: a view named like a state or a variable, one listing a state
+// d lacks, its start state or a state twice, a variable no state holds,
+// and a view or variable declared twice.
+func observesWellFormed(d *Diagram) error {
+	vars := map[string]bool{}
+	for _, s := range d.States {
+		for _, v := range s.Vars {
+			vars[string(v.Name)] = true
+		}
+	}
+	declared := map[string]bool{}
+	for _, o := range d.Observes {
+		if declared[o.Name] {
+			return fmt.Errorf("the CSDF-OBSERVE %s at line %d is declared twice", o.Name, o.Line)
+		}
+		declared[o.Name] = true
+		if !o.IsView() {
+			if !vars[o.Name] {
+				return fmt.Errorf("the CSDF-OBSERVE variable %s at line %d is held by no state", o.Name, o.Line)
+			}
+			continue
+		}
+		if _, ok := d.States[StateID(o.Name)]; ok {
+			return fmt.Errorf("the view %s at line %d is named like a state", o.Name, o.Line)
+		}
+		if vars[o.Name] {
+			return fmt.Errorf("the view %s at line %d is named like a state variable", o.Name, o.Line)
+		}
+		listed := map[StateID]bool{}
+		for _, s := range o.States {
+			if _, ok := d.States[s]; !ok {
+				return fmt.Errorf("the view %s at line %d lists %s, which is no state", o.Name, o.Line, s)
+			}
+			if s == d.StartEdge.Dst {
+				return fmt.Errorf("the view %s at line %d lists %s, the start state, which is absence; @notin reads it", o.Name, o.Line, s)
+			}
+			if listed[s] {
+				return fmt.Errorf("the view %s at line %d lists %s twice", o.Name, o.Line, s)
+			}
+			listed[s] = true
+		}
+	}
+	return nil
 }
 
 // skipIgnoreRegion consumes lines from the "' CSDF-IGNORE-BEGIN" marker (current
