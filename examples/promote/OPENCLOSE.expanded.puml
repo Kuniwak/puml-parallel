@@ -1,4 +1,4 @@
-@startuml auto-generated-by: csdfpromote examples/promote/OPENCLOSE.puml
+@startuml
 state "稼働中" as running
 running : users ; UserId ⇸ User
 [*] --> running : @empty(users')
