@@ -951,7 +951,7 @@ class Explorer:
         """value, given as JSON, read back as a value of the type of the
         variable name, when TYPES lists it."""
         values = self.checks.types.get(self.d.types.get(name, name))
-        return freeze(value) if values is None else decode(value, values)
+        return decode(value, values)
 
     # -- the walk ----------------------------------------------------------------
 
