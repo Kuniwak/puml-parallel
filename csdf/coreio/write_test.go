@@ -234,6 +234,12 @@ func TestWriteRefuses(t *testing.T) {
 				Ends: []core.End{{Src: "a"}, {Src: "a"}}},
 			want: "one end edge",
 		},
+		{
+			name: "a view of no state, which the syntax cannot write",
+			d: &core.Diagram{States: []string{"a"}, Init: "a",
+				Observes: &core.Observation{Observables: []core.Observable{{Name: "v", States: []string{}}}}},
+			want: "the view v lists no state",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
