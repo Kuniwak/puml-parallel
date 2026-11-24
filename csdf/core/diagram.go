@@ -124,6 +124,18 @@ type Diagram struct {
 	// whose instances each map holds: what an instance in the map may be
 	// (docs/PROMOTION.md). A diagram no promotion made has none.
 	Families []FamilyStates
+	// Observes is, for a local diagram, what a clause of the global diagram
+	// may read of its instances (docs/PROMOTION.md, Observations); nil when
+	// it declares nothing, and everything is observed.
+	Observes *Observation
+}
+
+// Observation is what a local diagram declares a global clause may read of
+// an instance: the views, each a named set of local states, and the state
+// variables. Whether the instance exists is always observed.
+type Observation struct {
+	Views map[string][]string
+	Vars  []string
 }
 
 // FamilyStates is what an instance in the map Map may be: at one of
