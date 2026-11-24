@@ -116,6 +116,25 @@ func TestLoadReplaysListsTheBoundReachedLast(t *testing.T) {
 	}
 }
 
+// A path a person explored, as csdfreplweb saves it, is no finding of
+// csdfbmc either; it comes last too.
+func TestLoadReplaysListsThePathsExploredLast(t *testing.T) {
+	// Setup
+	bs := []byte(`{"bound_reached": [{"trace": [], "replay": {"initial": [], "steps": []}}],
+	  "paths": [{"trace": ["dec"], "replay": {"initial": [2], "steps": [{"event": "dec", "src": "a", "dst": "a", "line": 6, "values": [1]}]}}]}`)
+
+	// Execute
+	findings, err := LoadReplays(bs)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 2 || findings[1].Kind != "path" || len(findings[1].Replay.Steps) != 1 {
+		t.Errorf("findings = %+v, want the bound reached, then the path with its replay", findings)
+	}
+}
+
 func TestReplayRefusesAValueTheConeLeftOut(t *testing.T) {
 	sess := newSession(t, counterSource)
 	err := sess.Replay(Replay{Initial: []byte(`[2]`), Steps: []ReplayStep{{Event: "dec", Src: "a", Dst: "a", Line: 6, Values: []byte(`[{"left_out": true}]`)}}})

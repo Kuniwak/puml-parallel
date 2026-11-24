@@ -184,7 +184,7 @@ func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
 
 	// Assert
 	want := []Transition{{Index: 0, Event: "insert?coin", Dst: "s1", DstName: "Done",
-		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done"}}
+		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", Line: 7}}
 	if diff := cmp.Diff(want, decodeView(t, resp).Transitions); diff != "" {
 		t.Errorf("transitions mismatch (-want +got):\n%s", diff)
 	}

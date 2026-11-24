@@ -1,0 +1,110 @@
+name: Pages
+
+# Publishes the web animator pages csdfreplweb writes of the examples to
+# GitHub Pages. The pages are built here and are not committed.
+on:
+  push:
+    branches: master
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    env:
+      PLANTUML_VERSION: '1.2026.9'
+      # The digest GitHub publishes for plantuml-1.2026.9.jar in that release.
+      PLANTUML_SHA256: aa4a1d06f8911c4b842beff4828dd955be431692b631a312d04c0e9fab9581de
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+
+      - name: Set up Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # Laying out a drawing needs Graphviz.
+      - name: Install Graphviz
+        run: sudo apt-get install -y --no-install-recommends graphviz
+
+      - name: Cache PlantUML
+        id: plantuml-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: ~/.cache/plantuml
+          key: plantuml-${{ env.PLANTUML_VERSION }}-${{ env.PLANTUML_SHA256 }}
+
+      - name: Download PlantUML
+        if: steps.plantuml-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.cache/plantuml
+          curl -fsSL --retry 3 --max-time 120 -o ~/.cache/plantuml/plantuml.jar \
+            "https://github.com/plantuml/plantuml/releases/download/v${PLANTUML_VERSION}/plantuml-${PLANTUML_VERSION}.jar"
+
+      - name: Verify PlantUML and put it on PATH
+        run: |
+          set -euo pipefail
+          echo "${PLANTUML_SHA256}  ${HOME}/.cache/plantuml/plantuml.jar" | sha256sum -c -
+          mkdir -p ~/.local/bin
+          printf '#!/bin/sh\nexec java -Djava.awt.headless=true -jar "%s" "$@"\n' \
+            "${HOME}/.cache/plantuml/plantuml.jar" > ~/.local/bin/plantuml
+          chmod +x ~/.local/bin/plantuml
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Write the pages
+        run: |
+          set -euo pipefail
+          go build -o "${RUNNER_TEMP}/csdfreplweb" ./tools/csdfreplweb
+          mkdir -p site
+          {
+            echo '<!doctype html><meta charset="utf-8"><title>csdfreplweb examples</title>'
+            echo '<h1>csdfreplweb examples</h1><ul>'
+          } > site/index.html
+          for f in examples/valid/vending_machine.puml examples/valid/client_server.puml \
+                   examples/compose/user_vending_machine.puml examples/promote/*.puml; do
+            case "$f" in *.expanded.puml) continue ;; esac
+            name="$(basename "$f" .puml)"
+            "${RUNNER_TEMP}/csdfreplweb" "$f" > "site/${name}.html"
+            echo "<li><a href=\"${name}.html\">${f}</a></li>" >> site/index.html
+          done
+          echo '</ul>' >> site/index.html
+
+      - name: Upload the pages
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
