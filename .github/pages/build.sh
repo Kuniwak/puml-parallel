@@ -25,7 +25,7 @@ checked() {
 }
 
 checked ATTEMPTS examples/bmc/attempts/ATTEMPTS.puml examples/bmc/attempts/checks.py examples/promote/ATTEMPTS.puml
-checked OPENCLOSEexamples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.py
+checked OPENCLOSE examples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.py
 
 # twin PAGE LANG PROSE FORMAL DEFS writes PAGE.html of the diagram FORMAL,
 # whose clauses are in Python: its drawing is PROSE decorated in LANG, its
