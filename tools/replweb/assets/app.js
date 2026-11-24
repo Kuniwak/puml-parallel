@@ -738,8 +738,6 @@
     });
     const current = list.querySelector("li.current");
     if (current) current.scrollIntoView({ block: "nearest" });
-    const trace = app.history[app.current] ? app.history[app.current].trace : [];
-    document.getElementById("trace").textContent = trace.length ? trace.join(" → ") : t("trace.empty");
   }
 
   function clausesList(rows) {

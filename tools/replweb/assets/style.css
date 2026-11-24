@@ -137,7 +137,6 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .value-table th { color: var(--muted); font-weight: normal; font-family: inherit; }
 .value-list { margin: 0; padding-left: 1.1rem; }
 .suggestion .value-table, .before .value-table { font-size: .85em; }
-.trace { font-size: .9rem; }
 .choice {
   display: block;
   width: 100%;
