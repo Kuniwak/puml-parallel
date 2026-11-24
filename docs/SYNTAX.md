@@ -44,7 +44,8 @@ ignore_region = ignore_begin *ignore_line ignore_end
 ignore_begin = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-BEGIN" *(HTAB / SP) LF
 ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 ignore_line = *unicode_char LF
-observe_line = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" inlineSeparator (observe_view / var) *(HTAB / SP) LF
+observe_line = observe_marker (observe_view / var) *(HTAB / SP) LF
+observe_marker = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" 1*(HTAB / SP)
 observe_view = name *(HTAB / SP) "=" *(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_letter = <any character in Unicode general category L>
@@ -67,14 +68,17 @@ rather than the last (the rule is not greedy). Every line in between, along with
 lines, is discarded. Because the markers are themselves PlantUML line comments, the
 wrapped content (for example Graphviz directives such as `left to right direction`) is still
 rendered by PlantUML while CSDF ignores it. An unterminated ignore region is a parse error.
-A line comment whose trimmed text starts with the word `CSDF-OBSERVE` is an `observe_line`
-(taking precedence over a plain `line_comment`): it declares an observation of a local
+Outside an ignore region, a line that matches `observe_marker` is an `observe_line`, and
+`line_comment` does not match it; inside an ignore region it is an `ignore_line` and is
+discarded. The marker is followed by a tab or a space, so `' CSDF-OBSERVED` and
+`' CSDF-OBSERVE-X` are plain line comments. Inside `observe_line` only tabs and spaces
+separate, never a block comment, as in `ignore_begin`. An `observe_line` declares an observation of a local
 diagram (docs/PROMOTION.md, Observations), and PlantUML draws nothing for it.
 `' CSDF-OBSERVE c = S₁, …` declares the view `c` of the states `S₁ …`; `' CSDF-OBSERVE x`
 declares the state variable `x`. A view name is distinct from every state ID and every
 state variable of the diagram, and a view lists distinct states of the diagram, none its
 start state; a variable is one some state holds; a view or variable is declared once. A
-line comment starting with `CSDF-OBSERVE` that is not an `observe_line` is a parse error.
+line that matches `observe_marker` and is not an `observe_line` is a parse error.
 A diagram that is not a local diagram of a promotion may declare observations; they say
 nothing until it is promoted.
 Comment delimiters inside a state name are ordinary text. A clause language's quotes are not the tools': a comment delimiter, `;` or ` ∧ ` inside one is read as anywhere else.
