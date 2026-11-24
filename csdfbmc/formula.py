@@ -29,7 +29,7 @@ from collections.abc import Mapping
 from typing import Callable, Protocol
 
 from csdfbmc.model import App, Atom, Bound, Builtin, Exists, Family, Field, Free, Index, Lit, free_names, is_primed
-from csdfbmc.values import LEFT_OUT, FrozenMap, FrozenSet, Rec, Strict, kind_key, same_value
+from csdfbmc.values import LEFT_OUT, FrozenMap, FrozenSet, Rec, Strict, UnlistableType, kind_key, same_value
 
 
 class Missing(Exception):
@@ -373,7 +373,7 @@ def _assemble(ev: Evaluator, a: dict, names, frames, mentioned, types, where, fa
             tally.ranged.add(what)
         try:
             return ev.carrier(type_)
-        except KeyError as e:
+        except (KeyError, UnlistableType) as e:
             raise PostError(f"{where}: nothing in the post determines {what}, so it ranges over its type {type_}: "
                             f"{e.args[0]}") from None
 
