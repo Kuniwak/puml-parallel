@@ -194,7 +194,7 @@
       if (!resp.ok || !resp.data || !Array.isArray(resp.data.suggestions)) continue;
       const admits = resp.data.suggestions.length > 0 ? "some" : "none";
       app.admits.set(key, admits);
-      if (admits === "none") renderControls();
+      if (admits === "none") { renderControls(); renderDiagram(); }
     }
   }
 
@@ -1284,7 +1284,7 @@
     const current = svgElement(highlights.states[v.state.state_id]);
     if (current) current.classList.add("csdf-current");
     if (v.mode === "command") {
-      for (const tr of (v.transitions || []).filter((x) => possible(v, x))) {
+      for (const tr of (v.transitions || []).filter((x) => possible(v, x) && !admitsNone(x))) {
         for (const link of linksOf(tr)) link.classList.add("csdf-choosable");
       }
       const filter = app.edgeFilter;
