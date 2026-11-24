@@ -16,8 +16,19 @@
   }
   // A list longer than this starts with its groups closed.
   const OPEN_LIMIT = 20;
-  // A local state with more instances than this shows their number.
-  const CHIP_LIMIT = 3;
+  // A local state with more instances than this shows the first of them
+  // and the number of the others, until clicked.
+  const PIECE_LIMIT = 6;
+  // The colours of the pieces of the instances, each with the colour of
+  // its text; none is the colour of the whole's piece.
+  const PALETTE = [
+    { fill: "#e69f00", text: "#000000" }, { fill: "#56b4e9", text: "#000000" },
+    { fill: "#009e73", text: "#ffffff" }, { fill: "#f0e442", text: "#000000" },
+    { fill: "#cc79a7", text: "#000000" }, { fill: "#d55e00", text: "#ffffff" },
+    { fill: "#7f3c8d", text: "#ffffff" }, { fill: "#8c6d31", text: "#ffffff" },
+  ];
+  const WHOLE_COLOUR = { fill: "#0b57d0", text: "#ffffff" };
+  const MORE_COLOUR = { fill: "#ffffff", text: "#333333" };
 
   // ---- Words ----
 
@@ -140,6 +151,8 @@
     // expanded are the local states, "map/state", whose instances are all
     // shown.
     expanded: new Set(),
+    // colours are the colours of the instances' pieces, by map and ID.
+    colours: new Map(),
     // hovered is the transition whose button the pointer is over.
     hovered: null,
     // suggesting says the page's Python is ready to suggest values.
@@ -548,13 +561,35 @@
     ]);
   }
 
+  // piecesList lists where each instance is, by the colour of its piece;
+  // null when there are no instances.
+  function piecesList(v) {
+    const items = [];
+    for (const fv of v.families || []) {
+      for (const [state, ids] of Object.entries(fv.instances || {})) {
+        for (const id of ids) items.push({ map: fv.map, id, state });
+      }
+    }
+    if (items.length === 0) return null;
+    items.sort((a, b) => a.map.localeCompare(b.map) || a.id.localeCompare(b.id));
+    const list = el("ul", { class: "pieces" });
+    for (const it of items) {
+      const dot = el("span", { class: "dot" });
+      const colour = pieceColour(it.map, it.id);
+      dot.style.background = colour.fill;
+      list.appendChild(el("li", null, [dot, el("span", { text: t("controls.piece", { id: it.id, state: it.state }) })]));
+    }
+    return el("div", { class: "hint" }, [el("span", { text: t("controls.pieces") }), list]);
+  }
+
   // renderLegend shows what each mark on the drawing means, by a small
   // sample of the mark.
   function renderLegend() {
     const legend = document.getElementById("legend");
     if (!config.highlighted) { legend.replaceChildren(el("span", { text: t("diagram.noHighlights") })); return; }
-    const items = [["current", "legend.current"], ["choosable", "legend.choosable"], ["visited", "legend.visited"], ["filtered", "legend.filtered"]];
-    if (Object.keys(families).length > 0) items.push(["chip", "legend.chip"]);
+    const items = [["whole", "legend.current"]];
+    if (Object.keys(families).length > 0) items.push(["piece", "legend.piece"]);
+    items.push(["choosable", "legend.choosable"], ["visited", "legend.visited"], ["filtered", "legend.filtered"]);
     legend.replaceChildren(...items.map(([kind, id]) =>
       el("span", { class: "legend-item" }, [el("span", { class: "swatch swatch-" + kind }), el("span", { text: t(id) })])));
   }
@@ -677,7 +712,9 @@
       return;
     }
     root.appendChild(el("h2", { text: t("controls.title") }));
-    root.appendChild(el("p", { class: "hint", text: t("controls.now", { state: state.state_name }) }));
+    root.appendChild(el("p", { class: "hint now" }, [el("span", { class: "dot dot-whole" }), el("span", { text: t("controls.now", { state: state.state_name }) })]));
+    const pieces = piecesList(v);
+    if (pieces) root.appendChild(pieces);
     root.appendChild(errorBox());
     const all = v.transitions || [];
     const transitions = app.tab === "details" ? all : all.filter((tr) => possible(v, tr));
@@ -1195,51 +1232,78 @@
     if (app.hovered) for (const link of linksOf(app.hovered)) link.classList.add("csdf-hovered");
   }
 
-  // The instances at each local state, as chips on its box.
-  function renderInstances(v) {
+  // pieceColour is the colour of the piece of the instance id of map: the
+  // colours of PALETTE in the order the page first meets the instances, so
+  // an instance keeps its colour for the whole session.
+  function pieceColour(map, id) {
+    const key = map + "\u0000" + id;
+    if (!app.colours.has(key)) app.colours.set(key, PALETTE[app.colours.size % PALETTE.length]);
+    return app.colours.get(key);
+  }
+
+  // drawPiece draws on overlay a round badge reading label, its left end
+  // at x and its middle at y, in colour, and answers it and its width.
+  function drawPiece(overlay, x, y, label, colour, cls, tip) {
+    const ns = "http://www.w3.org/2000/svg";
+    const g = document.createElementNS(ns, "g");
+    g.setAttribute("class", cls);
+    const title = document.createElementNS(ns, "title");
+    title.textContent = tip;
+    const rect = document.createElementNS(ns, "rect");
+    const text = document.createElementNS(ns, "text");
+    text.textContent = label;
+    text.setAttribute("y", y);
+    text.setAttribute("dominant-baseline", "central");
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("fill", colour.text);
+    g.append(title, rect, text);
+    overlay.appendChild(g);
+    const h = cls.includes("csdf-piece-whole") ? 22 : 16;
+    const w = Math.max(h, text.getComputedTextLength() + h * 0.7);
+    text.setAttribute("x", x + w / 2);
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y - h / 2);
+    rect.setAttribute("width", w);
+    rect.setAttribute("height", h);
+    rect.setAttribute("rx", h / 2);
+    rect.setAttribute("fill", colour.fill);
+    return { node: g, width: w };
+  }
+
+  // renderPieces draws the pieces on the drawing: the whole's piece on the
+  // box of the state the diagram is in (whole), and on the box of each local
+  // state one piece per instance there, in the instance's colour, side by
+  // side along the top edge of the box. A state with no box gets no piece.
+  function renderPieces(v, whole) {
     const svg = document.querySelector("#diagram svg");
     if (!svg) return;
     const old = svg.querySelector("#csdf-overlay");
     if (old) old.remove();
-    const views = v.families || [];
-    if (views.length === 0) return;
-    const ns = "http://www.w3.org/2000/svg";
-    const overlay = document.createElementNS(ns, "g");
+    const overlay = document.createElementNS("http://www.w3.org/2000/svg", "g");
     overlay.id = "csdf-overlay";
     svg.appendChild(overlay);
-    for (const fv of views) {
+    if (whole) {
+      const bbox = whole.getBBox();
+      drawPiece(overlay, bbox.x + 6, bbox.y, t("piece.whole"), WHOLE_COLOUR, "csdf-piece csdf-piece-whole", t("legend.current"));
+    }
+    for (const fv of v.families || []) {
       const f = families[fv.map];
       if (!f) continue;
       for (const [state, ids] of Object.entries(fv.instances || {})) {
         const box = svgElement(f.states[state]);
         if (!box || ids.length === 0) continue;
         const key = fv.map + "/" + state;
-        const lines = ids.length <= CHIP_LIMIT ? [ids.join(", ")]
-          : app.expanded.has(key) ? ids.slice() : [t("instances.many", { n: ids.length })];
+        const shown = ids.length <= PIECE_LIMIT || app.expanded.has(key) ? ids : ids.slice(0, PIECE_LIMIT - 1);
         const bbox = box.getBBox();
-        const chip = document.createElementNS(ns, "g");
-        chip.setAttribute("class", "csdf-chip");
-        chip.dataset.key = key;
-        const title = document.createElementNS(ns, "title");
-        title.textContent = t("instances.title", { state, ids: ids.join(", ") });
-        chip.appendChild(title);
-        const rect = document.createElementNS(ns, "rect");
-        chip.appendChild(rect);
-        lines.forEach((line, i) => {
-          const text = document.createElementNS(ns, "text");
-          text.setAttribute("x", bbox.x + bbox.width + 6);
-          text.setAttribute("y", bbox.y + 12 + i * 14);
-          text.textContent = line;
-          chip.appendChild(text);
-        });
-        overlay.appendChild(chip);
-        const inner = chip.getBBox();
-        rect.setAttribute("x", inner.x - 4);
-        rect.setAttribute("y", inner.y - 2);
-        rect.setAttribute("width", inner.width + 8);
-        rect.setAttribute("height", inner.height + 4);
-        rect.setAttribute("rx", 4);
-        if (ids.length > CHIP_LIMIT) chip.classList.add("csdf-chip-more");
+        let x = bbox.x + 6;
+        for (const id of shown) {
+          x += drawPiece(overlay, x, bbox.y, id, pieceColour(fv.map, id), "csdf-piece", t("piece.title", { id, state })).width + 3;
+        }
+        if (ids.length > PIECE_LIMIT) {
+          const label = app.expanded.has(key) ? "−" : t("instances.more", { n: ids.length - shown.length });
+          const more = drawPiece(overlay, x, bbox.y, label, MORE_COLOUR, "csdf-piece csdf-piece-more", t("instances.title", { state, ids: ids.join(", ") }));
+          more.node.dataset.key = key;
+        }
       }
     }
   }
@@ -1259,7 +1323,6 @@
         if (local) local.classList.add("csdf-visited");
       }
     }
-    renderInstances(v);
     for (const o of [...occupiedStates(v), ...emptyInits(v)]) o.node.classList.add("csdf-occupied");
     markHovered();
     for (const h of app.history) {
@@ -1276,13 +1339,15 @@
       if (v.pending.previous) {
         const from = svgElement(highlights.states[v.pending.previous.state_id]);
         if (from) from.classList.add("csdf-current");
-      }
+        renderPieces(v, from);
+      } else renderPieces(v, null);
       const links = app.choice ? linksOf(app.choice.transition) : [svgElement(highlights.start)];
       for (const link of links) if (link) link.classList.add("csdf-choosable");
       return;
     }
     const current = svgElement(highlights.states[v.state.state_id]);
     if (current) current.classList.add("csdf-current");
+    renderPieces(v, current);
     if (v.mode === "command") {
       for (const tr of (v.transitions || []).filter((x) => possible(v, x) && !admitsNone(x))) {
         for (const link of linksOf(tr)) link.classList.add("csdf-choosable");
@@ -1298,11 +1363,11 @@
   function onDiagramClick(e) {
     const v = app.view;
     if (!v || v.mode !== "command") return;
-    const chip = e.target.closest("g.csdf-chip-more");
-    if (chip) {
-      const key = chip.dataset.key;
+    const more = e.target.closest("g.csdf-piece-more");
+    if (more) {
+      const key = more.dataset.key;
       if (app.expanded.has(key)) app.expanded.delete(key); else app.expanded.add(key);
-      renderInstances(v);
+      renderDiagram();
       return;
     }
     const group = e.target.closest("g.csdf-choosable");
@@ -1345,7 +1410,7 @@
     document.getElementById("zoom-reset").addEventListener("click", () => zoomTo(1));
     let drag = null;
     box.addEventListener("pointerdown", (e) => {
-      if (e.target.closest("g.csdf-choosable, g.csdf-chip-more")) return;
+      if (e.target.closest("g.csdf-choosable, g.csdf-piece-more")) return;
       drag = { x: e.clientX, y: e.clientY, left: box.scrollLeft, top: box.scrollTop };
     });
     window.addEventListener("pointermove", (e) => {

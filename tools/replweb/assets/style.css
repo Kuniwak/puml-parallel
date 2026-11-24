@@ -79,11 +79,15 @@ main {
 .diagram-tools .legend { color: var(--muted); font-size: .8rem; margin-left: .5rem; display: flex; flex-wrap: wrap; gap: .25rem .9rem; align-items: center; }
 .legend-item { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
 .swatch { display: inline-block; width: 22px; height: 12px; box-sizing: border-box; }
-.swatch-current { border: 3px solid #0b57d0; background: #cfe0ff; border-radius: 3px; }
 .swatch-choosable { height: 4px; background: #0b63ce; }
 .swatch-visited { height: 3px; background: var(--visited); }
 .swatch-filtered { height: 4px; background: #d9480f; }
-.swatch-chip { border: 1px solid #0b63ce; background: #e3eefc; border-radius: 3px; }
+.swatch-whole, .swatch-piece, .dot { border-radius: 999px; border: 1.5px solid #ffffff; box-shadow: 0 0 0 1px #333333; }
+.swatch-whole { width: 16px; height: 16px; background: #0b57d0; box-shadow: 0 0 0 1.5px #0b57d0; }
+.swatch-piece { width: 12px; height: 12px; background: linear-gradient(90deg, #e69f00 50%, #56b4e9 50%); }
+.dot { display: inline-block; width: 10px; height: 10px; margin-right: .35rem; vertical-align: middle; }
+.dot-whole { background: #0b57d0; box-shadow: 0 0 0 1px #0b57d0; }
+ul.pieces { list-style: none; margin: .15rem 0 .5rem; padding: 0; display: flex; flex-wrap: wrap; gap: .15rem .9rem; }
 #diagram {
   flex: 1;
   overflow: auto;
@@ -184,21 +188,18 @@ details { margin: .5rem; }
 #diagram g.csdf-choosable > polygon { fill: #0b63ce !important; stroke: #0b63ce !important; }
 #diagram g.csdf-choosable > text { fill: #0b63ce !important; font-weight: bold; }
 #diagram g.csdf-choosable:hover > path { stroke-width: 5 !important; }
-#diagram g.csdf-current > rect,
-#diagram g.csdf-current > path,
-#diagram g.csdf-occupied > rect,
-#diagram g.csdf-occupied > path { stroke: #0b57d0 !important; stroke-width: 5 !important; fill: #cfe0ff !important; }
 #diagram g.csdf-pending > rect { stroke: #0b63ce !important; stroke-width: 3 !important; stroke-dasharray: 6 3; }
-#diagram g.cluster.csdf-current > rect { fill: none !important; }
 #diagram g.csdf-filtered > path,
 #diagram g.csdf-filtered > line { stroke: #d9480f !important; stroke-width: 4.5 !important; }
 #diagram g.csdf-filtered > polygon { fill: #d9480f !important; stroke: #d9480f !important; }
 #diagram g.csdf-hovered > path,
 #diagram g.csdf-hovered > line { stroke: #e8590c !important; stroke-width: 5 !important; }
 #diagram g.csdf-hovered > polygon { fill: #e8590c !important; stroke: #e8590c !important; }
-#diagram g.csdf-chip > rect { fill: #e3eefc; stroke: #0b63ce; stroke-width: 1; }
-#diagram g.csdf-chip > text { fill: #0b3d7a; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
-#diagram g.csdf-chip-more { cursor: pointer; }
+#diagram g.csdf-piece > rect { stroke: #ffffff; stroke-width: 1.5; filter: drop-shadow(0 0 .6px #333333); }
+#diagram g.csdf-piece > text { font: bold 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+#diagram g.csdf-piece-whole > rect { stroke-width: 2; filter: drop-shadow(0 0 1px #0b57d0); }
+#diagram g.csdf-piece-whole > text { font: bold 11px system-ui, sans-serif; }
+#diagram g.csdf-piece-more { cursor: pointer; }
 input.filter {
   width: 100%;
   padding: .35rem .5rem;
@@ -212,8 +213,6 @@ input.filter {
 .group > summary .count { color: var(--muted); font-size: .8rem; float: right; }
 .group-body { padding-left: .75rem; margin-top: .25rem; }
 .edge-filter { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; margin-bottom: .5rem; border-radius: 6px; background: var(--current-soft); }
-
-#diagram g.cluster.csdf-current > rect { stroke-width: 8 !important; }
 
 form label .type { margin-left: .5rem; color: var(--muted); font-size: .8rem; font-weight: normal; }
 form .before { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin: .15rem 0 .5rem; }

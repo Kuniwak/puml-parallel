@@ -1592,7 +1592,7 @@ $ csdfreplweb examples/valid/vending_machine.puml > vending_machine.html
 $ csdfreplweb -puml-exec 'java -jar "/opt/plant uml/plantuml.jar" -pipe -tsvg' diagram.puml > diagram.html
 ```
 
-The page draws the diagram, marks the current state, and colors the
+The page draws the diagram, puts the whole's piece on the current state, and colors the
 transitions that can be taken next; click one, in the drawing or in the list,
 then give the values of the state it leads to. The controls have two tabs:
 "Choose" takes everything by a click, transitions and suggested values alike;
@@ -1612,8 +1612,9 @@ The drawing is the SVG PlantUML renders: `csdfreplweb` runs the command
 `-puml-exec` gives (`plantuml -pipe -tsvg` by default) in the diagram's
 directory, split into words as a shell splits them but without a shell. A
 promotion is explored as its expansion, and the page marks the local
-diagrams its `<<promote>>` blocks draw: beside each local state, the IDs of
-the instances there; on each local edge, whether a transition can take it.
+diagrams its `<<promote>>` blocks draw: on each local state, a piece for
+every instance there, labelled by its ID in a colour of its own that the
+list under the current state repeats; on each local edge, whether a transition can take it.
 Click a local edge to list only the transitions that take it; the list is
 grouped by family and local edge. The value prompt speaks of what happens
 next rather than of the mode, and names each map by its instances. A local state whose ID
