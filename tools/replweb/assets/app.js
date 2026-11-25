@@ -253,7 +253,7 @@
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
+        kind: "step", event: c.transition.event, channel: c.transition.channel, fields: c.transition.fields || [], line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -696,7 +696,7 @@
       // the one before, which under a promotion it always is.
       const moved = parent && parent.state.state_id !== h.state.state_id;
       const label = entry.kind === "step"
-        ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry.event),
+        ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry),
           moved ? el("span", { class: "to", text: t("history.to", { state: h.state.state_name }) }) : null]
         : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: h.state.state_name })];
       const head = el("div", { class: "history-head" }, [
@@ -792,7 +792,7 @@
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
-      el("div", { class: "event" }, [eventChip(tr.event)]),
+      el("div", { class: "event" }, [eventChip(tr)]),
       blocked ? el("p", { class: "reason", text: t("controls.conditionFails") }) : document.createTextNode(""),
       clausesList(rows),
     ]);
@@ -943,7 +943,7 @@
       renderValueDetails(root, pending);
     } else {
       root.appendChild(app.choice
-        ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition.event) })])
+        ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition) })])
         : el("h2", { text: t("suggest.titleInitial") }));
       renderValueChoices(root, pending);
     }
@@ -960,13 +960,24 @@
     return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
   }
 
-  // eventChip shows the event name as an event, wherever one is named: a
-  // tag saying so, then the name.
-  function eventChip(name) {
-    return el("span", { class: "event-chip" }, [
+  // eventChip shows the event of tr, {event, channel, fields}, as an
+  // event, wherever one is named: a tag saying so, then its name, or, for
+  // a channel with fields, the channel and each field apart.
+  function eventChip(tr) {
+    const fields = tr.fields || [];
+    const parts = tr.channel && fields.length > 0
+      ? [el("code", { class: "event-part", text: tr.channel }), ...fields.map(fieldChip)]
+      : [el("code", { class: "event-part", text: tr.event })];
+    return el("span", { class: "event-chip", title: tr.event }, [
       el("span", { class: "event-tag", text: t("event.tag") }),
-      el("code", { class: "event-name", text: name }),
+      el("span", { class: "event-name" }, parts),
     ]);
+  }
+
+  // fieldChip is a field of an event, {dir, name}, as the event chip
+  // shows it: its direction, ? or !, and its name.
+  function fieldChip(f) {
+    return el("code", { class: "event-part event-field", text: f.dir + f.name });
   }
 
   // chosenBox says which transition the values are the result of, with a
@@ -974,7 +985,7 @@
   function chosenBox(tr) {
     return el("div", { class: "chosen" }, [
       el("span", { class: "label", text: t("chosen.label") }),
-      eventChip(tr.event),
+      eventChip(tr),
       tr.dst !== app.choice.src ? el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }) : null,
       el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
     ]);

@@ -264,8 +264,10 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 @media (prefers-reduced-motion: reduce) { #diagram-loading .spinner { animation: none; } }
 .event-chip { display: inline-flex; align-items: baseline; gap: .3rem; max-width: 100%; }
 .event-tag { font-size: .7rem; line-height: 1.4; padding: 0 .35rem; border-radius: 3px; background: var(--accent); color: var(--accent-text); font-weight: 600; white-space: nowrap; }
-.event-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; overflow-wrap: anywhere; }
+.event-name { display: inline-flex; flex-wrap: wrap; gap: .15rem; }
+.event-part { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; overflow-wrap: anywhere; }
+.event-field { font-weight: 500; border: 1px dashed var(--accent); padding: 0 .25rem; }
 .choice.blocked .event-tag { background: var(--muted); }
-.choice.blocked .event-name { color: var(--muted); }
+.choice.blocked .event-part { color: var(--muted); border-color: var(--muted); }
 #history .history-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .4rem; }
 #history .history-head .step-number, #history .history-head .here { margin: 0; }
