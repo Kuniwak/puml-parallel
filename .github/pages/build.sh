@@ -10,13 +10,25 @@ bin="$(mktemp -d)"
 trap 'rm -rf "$bin"' EXIT
 go build -o "$bin/csdfreplweb" ./tools/csdfreplweb
 go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
+go build -o "$bin/csdfpromote" ./tools/csdfpromote
+go build -o "$bin/csdfparse" ./tools/csdfparse
+go build -o "$bin/csdfbmc" ./tools/csdfbmc
 mkdir -p "$site"
+
+# shapes CHECKS writes into $bin/shapes.json what the clauses of the plain
+# diagram on standard input and the TYPES of the checks CHECKS say of the
+# values of its types.
+shapes() {
+  "$bin/csdfparse" > "$bin/diagram.json"
+  "$bin/csdfbmc" shapes "$bin/diagram.json" "$1" > "$bin/shapes.json"
+}
 
 # checked PAGE DIAGRAM CHECKS [PROSE] writes PAGE.html of the promoted
 # DIAGRAM, whose clauses are in Python, suggesting values with the checks
 # CHECKS, and showing PROSE's clauses for people over the formal ones.
 checked() {
-  "$bin/csdfreplweb" ${4:+-prose "$4"} -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
+  "$bin/csdfpromote" "$2" | shapes "$3"
+  "$bin/csdfreplweb" ${4:+-prose "$4"} -shapes "$bin/shapes.json" -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
 }
 
 checked ATTEMPTS examples/bmc/attempts/ATTEMPTS.puml examples/bmc/attempts/checks.py examples/promote/ATTEMPTS.puml
@@ -31,8 +43,9 @@ checked OPENCLOSE examples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.
 # values with the checks DEFS.
 twin() {
   "$bin/csdfdecorate" -lang "$2" "$3" | plantuml -pipe -tsvg > "$bin/drawing.svg"
+  shapes "$5" < "$4"
   "$bin/csdfreplweb" -puml-exec "cat $bin/drawing.svg" -prose "$3" \
-    -checks "$5" -evaluator-module "csdfbmc.python_glue $5" \
+    -shapes "$bin/shapes.json" -checks "$5" -evaluator-module "csdfbmc.python_glue $5" \
     "$4" > "$site/$1.html"
 }
 
