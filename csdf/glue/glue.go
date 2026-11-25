@@ -19,7 +19,7 @@ import (
 )
 
 // Protocol is the protocol of atoms a glue is asked to speak.
-const Protocol = 2
+const Protocol = 3
 
 // Client is a glue started as a command, after its hello agreed on the
 // protocol.

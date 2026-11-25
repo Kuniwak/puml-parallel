@@ -79,6 +79,8 @@ diagram (docs/PROMOTION.md, Observations), and PlantUML draws nothing for it.
 declares the state variable `x`. A view name is distinct from every state ID and every
 state variable of the diagram, and a view lists distinct states of the diagram, none its
 start state; a variable is one some state holds; a view or variable is declared once. A
+diagram with no `observe_line` declares, for each state but its start state, the view of
+that state alone named after it, and every variable. A
 line that matches `observe_marker` and is not an `observe_line` is a parse error.
 A diagram that is not a local diagram of a promotion may declare observations; they say
 nothing until it is promoted.
@@ -280,7 +282,7 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
-         / "@at(" term 1*(", " id) ")"      ; instance at one of the states, or declared views, of its local diagram
+         / "@at(" term 1*(", " id) ")"      ; instance at one of the views of its local diagram
          / "@empty(" term ")"               ; a map without entries
 exists   = "@exists(" name " : " type ") (" clause ")"
 type     = <a type, as a state variable declares it: a name, any, or K ⇸ V>
@@ -429,7 +431,10 @@ end note
     the instance's local diagram observes it.
 - A local diagram's `CSDF-OBSERVE` lines declare what the clauses of the
   global diagram may read of its instances (docs/PROMOTION.md,
-  Observations); a local diagram with none observes everything.
+  Observations); a local diagram with none observes a view of each
+  state, named after it, and every variable. `@at` names declared views,
+  `m[k].x` a declared variable, and `m[k]` is read only when every
+  variable of the local diagram is declared.
 - `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
   `!define` are for the picture and are skipped.
 - A second `sync` of one event, a second block of one map, and

@@ -14,7 +14,7 @@ def atom(text: list[str], holes: list[int], primed: list[bool]) -> dict:
 class PythonGlueAtomTest(unittest.TestCase):
     def setUp(self):
         self.handle = evaluator([])
-        self.handle({"op": "hello", "protocol": 2})
+        self.handle({"op": "hello", "protocol": 3})
 
     def test_a_guard_is_evaluated_per_list_of_values(self):
         tests = {
@@ -137,7 +137,7 @@ class LintTest(unittest.TestCase):
             "a hole read past the arguments": (atom(["", " > 0"], [1], [False]), "guard", "hole 0 reads argument 1"),
         }
         handle = evaluator([])
-        handle({"op": "hello", "protocol": 2})
+        handle({"op": "hello", "protocol": 3})
         for name, (a, role, said) in tests.items():
             with self.subTest(name):
                 # Execute
@@ -150,7 +150,7 @@ class LintTest(unittest.TestCase):
     def test_lint_refuses_a_role_it_does_not_know(self):
         # Setup
         handle = evaluator([])
-        handle({"op": "hello", "protocol": 2})
+        handle({"op": "hello", "protocol": 3})
 
         # Execute
         answer = handle({"op": "lint", "atom": atom(["", " > 0"], [0], [False]), "role": "Post"})
@@ -166,7 +166,7 @@ class LintTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write("LIMIT = 1\n")
         handle = evaluator([path])
-        handle({"op": "hello", "protocol": 2})
+        handle({"op": "hello", "protocol": 3})
 
         # Execute
         answer = handle({"op": "lint", "atom": atom(["", " > LIMIT"], [0], [False]), "role": "guard"})
@@ -186,7 +186,7 @@ class DefinitionsTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as f:
             f.write("STEP = 1\ndef step(n):\n    return n + STEP\n")
         handle = evaluator([path])
-        handle({"op": "hello", "protocol": 2})
+        handle({"op": "hello", "protocol": 3})
 
         # Execute
         answer = handle({"op": "guard", "atom": atom(["step(", ") > STEP"], [0], [False]), "values": [[1]]})

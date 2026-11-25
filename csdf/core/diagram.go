@@ -138,6 +138,53 @@ type Observation struct {
 	Observables []Observable
 }
 
+// Observation is what a clause of a global diagram may read of an instance
+// of d: the observation d declares, or, when it declares none, a view of
+// each state but its start state, named after it and of it alone, and every
+// variable.
+func (d *Diagram) Observation() *Observation {
+	if d.Observes != nil {
+		return d.Observes
+	}
+	o := &Observation{}
+	for _, s := range d.States {
+		if s != d.Init {
+			o.Observables = append(o.Observables, Observable{Name: s, States: []string{s}})
+		}
+	}
+	for _, v := range d.varNames() {
+		o.Observables = append(o.Observables, Observable{Name: v})
+	}
+	return o
+}
+
+// unobserved are the state variables of d its observation does not
+// declare, in order.
+func (d *Diagram) unobserved() []string {
+	o := d.Observation()
+	var out []string
+	for _, v := range d.varNames() {
+		if !o.Observes(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// varNames are the state variables of d, each once, in the order its
+// states hold them.
+func (d *Diagram) varNames() []string {
+	var vars []string
+	for _, s := range d.States {
+		for _, v := range d.Vars[s] {
+			if !slices.Contains(vars, v) {
+				vars = append(vars, v)
+			}
+		}
+	}
+	return vars
+}
+
 // Observable is one declaration of an observation: the view Name of the
 // local states States, or, when States is nil, the state variable Name.
 type Observable struct {
@@ -225,6 +272,9 @@ type FamilyStates struct {
 	Types   map[string]types.Type
 	// Blocks are Family.Blocks, outside the meaning.
 	Blocks map[string]string
+	// Observes is the observation of the local diagram, what a clause of
+	// the diagram may read of an instance; nil when everything is.
+	Observes *Observation
 }
 
 // clone is f sharing no slice or map with it.
@@ -233,7 +283,7 @@ func (f FamilyStates) clone() FamilyStates {
 	for s, vs := range f.Vars {
 		vars[s] = slices.Clone(vs)
 	}
-	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types), Blocks: maps.Clone(f.Blocks)}
+	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types), Blocks: maps.Clone(f.Blocks), Observes: f.Observes}
 }
 
 // cloneFamilies are fs, each cloned.

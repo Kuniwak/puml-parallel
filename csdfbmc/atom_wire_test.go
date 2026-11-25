@@ -23,7 +23,7 @@ func TestTheGlueReadsTheAtomsTheToolsWrite(t *testing.T) {
 
 	// Execute
 	answers := runGlue(t,
-		map[string]any{"op": "hello", "protocol": 2},
+		map[string]any{"op": "hello", "protocol": 3},
 		map[string]any{"op": "post", "atom": wire, "values": [][]any{{1}}},
 	)
 
@@ -33,7 +33,7 @@ func TestTheGlueReadsTheAtomsTheToolsWrite(t *testing.T) {
 		t.Errorf("Wire terms mismatch (-want +got):\n%s", diff)
 	}
 	want := []map[string]any{
-		{"language": "python", "protocol": float64(2), "supports": []any{"symmetric", "lint"}},
+		{"language": "python", "protocol": float64(3), "supports": []any{"symmetric", "lint"}},
 		{"results": []any{[]any{[]any{float64(1)}, []any{float64(2)}}}},
 	}
 	if diff := cmp.Diff(want, answers); diff != "" {
