@@ -86,8 +86,6 @@ main {
 .swatch-whole { width: 16px; height: 16px; background: #0b57d0; box-shadow: 0 0 0 1.5px #0b57d0; }
 .swatch-piece { width: 12px; height: 12px; background: linear-gradient(90deg, #e69f00 50%, #56b4e9 50%); }
 .dot { display: inline-block; width: 10px; height: 10px; margin-right: .35rem; vertical-align: middle; }
-.dot-whole { background: #0b57d0; box-shadow: 0 0 0 1px #0b57d0; }
-ul.pieces { list-style: none; margin: .15rem 0 .5rem; padding: 0; display: flex; flex-wrap: wrap; gap: .15rem .9rem; }
 #diagram {
   flex: 1;
   overflow: auto;
@@ -240,7 +238,6 @@ form input:disabled { background: var(--bg); color: var(--muted); }
 .steps li.done { color: var(--text); }
 .chosen { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; padding: .4rem .6rem; margin: 0 0 .6rem; border: 1px solid var(--border); border-radius: 6px; }
 .chosen .label, .chosen .dst { color: var(--muted); font-size: .85rem; }
-.chosen .event { font-weight: 600; color: var(--accent); }
 .chosen button { margin-left: auto; }
 ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
 .instance { border-left: 3px solid var(--border); padding-left: .45rem; }
@@ -265,3 +262,10 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 }
 @keyframes csdf-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { #diagram-loading .spinner { animation: none; } }
+.event-chip { display: inline-flex; align-items: baseline; gap: .3rem; max-width: 100%; }
+.event-tag { font-size: .7rem; line-height: 1.4; padding: 0 .35rem; border-radius: 3px; background: var(--accent); color: var(--accent-text); font-weight: 600; white-space: nowrap; }
+.event-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; overflow-wrap: anywhere; }
+.choice.blocked .event-tag { background: var(--muted); }
+.choice.blocked .event-name { color: var(--muted); }
+#history .history-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .4rem; }
+#history .history-head .step-number, #history .history-head .here { margin: 0; }

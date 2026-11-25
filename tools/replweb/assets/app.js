@@ -612,27 +612,6 @@
     ]);
   }
 
-  // piecesList lists where each instance is, by the colour of its piece;
-  // null when there are no instances.
-  function piecesList(v) {
-    const items = [];
-    for (const fv of v.families || []) {
-      for (const [state, ids] of Object.entries(fv.instances || {})) {
-        for (const id of ids) items.push({ map: fv.map, id, state });
-      }
-    }
-    if (items.length === 0) return null;
-    items.sort((a, b) => a.map.localeCompare(b.map) || a.id.localeCompare(b.id));
-    const list = el("ul", { class: "pieces" });
-    for (const it of items) {
-      const dot = el("span", { class: "dot" });
-      const colour = pieceColour(it.map, it.id);
-      dot.style.background = colour.fill;
-      list.appendChild(el("li", null, [dot, el("span", { text: t("controls.piece", { id: it.id, state: it.state }) })]));
-    }
-    return el("div", { class: "hint" }, [el("span", { text: t("controls.pieces") }), list]);
-  }
-
   // renderLegend shows what each mark on the drawing means, by a small
   // sample of the mark.
   function renderLegend() {
@@ -712,13 +691,16 @@
       const h = app.history[i];
       if (!h) return;
       const entry = app.entries[originOf(i)] || { kind: "initial", parent: null };
-      const label = entry.kind === "step"
-        ? t("history.step", { event: entry.event, state: h.state.state_name })
-        : t("history.initial", { state: h.state.state_name });
       const parent = k > 0 ? app.history[chain[k - 1]] : null;
-      const head = el("div", null, [
-        el("span", { class: "step-number", text: t("history.stepNumber", { step: k + 1 }) }),
-        el("span", { text: label }),
+      // An event is named alone; the state it led to only when it is not
+      // the one before, which under a promotion it always is.
+      const moved = parent && parent.state.state_id !== h.state.state_id;
+      const label = entry.kind === "step"
+        ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry.event),
+          moved ? el("span", { class: "to", text: t("history.to", { state: h.state.state_name }) }) : null]
+        : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: h.state.state_name })];
+      const head = el("div", { class: "history-head" }, [
+        ...label,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
       ]);
       const item = el("li", {
@@ -760,10 +742,6 @@
       return;
     }
     root.appendChild(stepBar(1));
-    root.appendChild(el("h2", { text: t("controls.title") }));
-    root.appendChild(el("p", { class: "hint now" }, [el("span", { class: "dot dot-whole" }), el("span", { text: t("controls.now", { state: state.state_name }) })]));
-    const pieces = piecesList(v);
-    if (pieces) root.appendChild(pieces);
     root.appendChild(errorBox());
     const all = v.transitions || [];
     const transitions = app.tab === "details" ? all : all.filter((tr) => possible(v, tr));
@@ -804,15 +782,17 @@
     const written = proseOfEdge(app.view.state.state_id, tr.index);
     const names = namesOf(stateVars(app.view.state), tr.event);
     const blocked = admitsNone(tr);
+    // Where it goes is said only when it leaves the current state.
+    const goesTo = tr.dst !== app.view.state.state_id ? [[t("controls.goesTo"), tr.dst_name]] : [];
     const rows = details
-      ? [...clauseRows(["guard", "post"], tr, written, names), [t("controls.goesTo"), tr.dst_name]]
-      : [...(blocked ? clauseRows(["guard"], tr, written, names) : []), [t("controls.goesTo"), tr.dst_name]];
+      ? [...clauseRows(["guard", "post"], tr, written, names), ...goesTo]
+      : [...(blocked ? clauseRows(["guard"], tr, written, names) : []), ...goesTo];
     const button = el("button", {
       type: "button", class: blocked ? "choice blocked" : "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
-      el("div", { class: "event", text: tr.event }),
+      el("div", { class: "event" }, [eventChip(tr.event)]),
       blocked ? el("p", { class: "reason", text: t("controls.conditionFails") }) : document.createTextNode(""),
       clausesList(rows),
     ]);
@@ -840,8 +820,14 @@
     return words.every((w) => text.includes(w));
   }
 
+  // localLabel is the label the local diagram of map gives its state id.
+  function localLabel(map, id) {
+    return (app.familyLabels.get(map) || {})[id] || id;
+  }
+
   function moveName(m) {
-    return m.parallel > 0 ? t("moves.edgeParallel", { src: m.src, dst: m.dst, n: m.parallel + 1 }) : t("moves.edge", { src: m.src, dst: m.dst });
+    const src = localLabel(m.map, m.src), dst = localLabel(m.map, m.dst);
+    return m.parallel > 0 ? t("moves.edgeParallel", { src, dst, n: m.parallel + 1 }) : t("moves.edge", { src, dst });
   }
 
   // groupTransitions groups transitions by the family of each of their
@@ -918,12 +904,16 @@
     }
     if (shown.length === 0) { list.appendChild(el("p", { class: "hint", text: t("controls.noMatch") })); return; }
     const { byMap, own } = groupTransitions(shown);
-    if (byMap.size > 0) list.appendChild(el("p", { class: "hint", text: t("controls.byFamily") }));
     for (const [map, edges] of byMap) {
       const count = new Set([...edges.values()].flatMap((g) => g.transitions)).size;
       list.appendChild(groupBox("map:" + map, map, count, (body) => {
+        const sources = [...edges.values()].map((g) => g.move.src);
         for (const [edge, group] of edges) {
-          body.appendChild(groupBox("edge:" + map + "/" + edge, moveName(group.move), group.transitions.length, (inner) => {
+          // A group is named by where it leaves from, and by where it goes
+          // only when another group leaves from there too.
+          const shared = sources.filter((src) => src === group.move.src).length > 1;
+          const name = shared ? moveName(group.move) : t("moves.from", { src: localLabel(map, group.move.src) });
+          body.appendChild(groupBox("edge:" + map + "/" + edge, name, group.transitions.length, (inner) => {
             for (const tr of group.transitions) inner.appendChild(choiceButton(tr));
           }, narrowed && edges.size === 1, count));
         }
@@ -952,7 +942,9 @@
       root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
       renderValueDetails(root, pending);
     } else {
-      root.appendChild(el("h2", { text: app.choice ? t("suggest.title", { event: app.choice.transition.event }) : t("suggest.titleInitial") }));
+      root.appendChild(app.choice
+        ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition.event) })])
+        : el("h2", { text: t("suggest.titleInitial") }));
       renderValueChoices(root, pending);
     }
   }
@@ -968,13 +960,22 @@
     return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
   }
 
+  // eventChip shows the event name as an event, wherever one is named: a
+  // tag saying so, then the name.
+  function eventChip(name) {
+    return el("span", { class: "event-chip" }, [
+      el("span", { class: "event-tag", text: t("event.tag") }),
+      el("code", { class: "event-name", text: name }),
+    ]);
+  }
+
   // chosenBox says which transition the values are the result of, with a
   // way back to choosing another.
   function chosenBox(tr) {
     return el("div", { class: "chosen" }, [
       el("span", { class: "label", text: t("chosen.label") }),
-      el("span", { class: "event", text: tr.event }),
-      el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }),
+      eventChip(tr.event),
+      tr.dst !== app.choice.src ? el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }) : null,
       el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
     ]);
   }
