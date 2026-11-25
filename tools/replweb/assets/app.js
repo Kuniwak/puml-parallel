@@ -479,8 +479,7 @@
     const known = compare && isInstance(before);
     const dot = el("span", { class: "dot" });
     dot.style.background = pieceColour(map, id).fill;
-    const labels = app.familyLabels.get(map) || {};
-    const at = el("span", { class: "instance-at" }, [stateChip(labels[inst.at] || inst.at)]);
+    const at = el("span", { class: "instance-at" }, [stateChip(localStateLabel(map, inst.at))]);
     if (known && before.at !== inst.at) { at.classList.add("changed"); at.title = t("history.changed"); }
     const fields = Object.entries(inst.fields).map(([name, value]) => ({ name, value }));
     const beforeFields = known ? Object.entries(before.fields).map(([name, value]) => ({ name, value })) : null;
@@ -490,6 +489,11 @@
     ]);
     if (compare && !known) { item.classList.add("changed"); item.title = t("history.changed"); }
     return item;
+  }
+
+  // localStateLabel is the label of the local state id of the diagram map.
+  function localStateLabel(map, id) {
+    return (app.familyLabels.get(map) || {})[id] || id;
   }
 
   function clause(text, noneId) {
@@ -1249,6 +1253,9 @@
         }
         return { value: gather(pairs) };
       },
+      // filled is the value of the rows whose key and value are filled in.
+      filled: () => gather(rows.map((r) => [r.key.get(), r.value.get()])
+        .filter(([k, v]) => "value" in k && "value" in v).map(([k, v]) => [k.value, v.value])),
       set,
       focus: () => { const r = rows[0]; if (r) (r.key.focus && !r.fixed ? r.key : r.value).focus(); else table.focus(); },
     };
@@ -1344,10 +1351,9 @@
   // picked, and a table of the fields it holds there, which follows the
   // state picked, keeping the values of the fields of the same names.
   function instanceEditor(shape) {
-    const labels = app.familyLabels.get(shape.map) || {};
     const at = el("select", { class: "leaf instance-state" }, [
       el("option", { value: "", text: t("editor.unset") }),
-      ...shape.states.map((s) => el("option", { value: s.state, text: labels[s.state] || (s.name !== s.state ? s.name : s.state) })),
+      ...shape.states.map((s) => el("option", { value: s.state, text: localStateLabel(shape.map, s.state) })),
     ]);
     const holder = el("div", { class: "instance-fields" });
     let fields = null;
@@ -1361,7 +1367,7 @@
       if (fields && values) fields.set(Object.fromEntries(names.filter((n) => n in values).map((n) => [n, values[n]])));
       holder.replaceChildren(...(fields ? [fields.node] : []));
     };
-    const kept = () => { if (!fields) return {}; const v = fields.get(); return "value" in v ? v.value : {}; };
+    const kept = () => fields ? fields.filled() : {};
     at.addEventListener("change", () => { build(kept()); edited(node); });
     const node = el("div", { class: "instance-editor" }, [at, holder]);
     build(undefined);
