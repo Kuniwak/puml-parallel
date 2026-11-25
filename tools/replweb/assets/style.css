@@ -289,3 +289,4 @@ button.help { width: 1.25rem; height: 1.25rem; padding: 0; border-radius: 50%; f
 .value-table.changes { margin-top: .2rem; }
 .value-table.changes > tbody > tr > th:first-child, .value-table.changes > tr > th:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
 .value-table.changes .none { color: var(--muted); }
+#history li.pending .determined { flex-basis: 100%; }

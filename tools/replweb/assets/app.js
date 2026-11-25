@@ -687,7 +687,8 @@
   function renderHistory() {
     const list = document.getElementById("history");
     list.replaceChildren();
-    if (app.history.length === 0) list.appendChild(el("li", { class: "hint", text: t("history.empty") }));
+    const awaiting = app.view && app.view.mode === "values";
+    if (app.history.length === 0 && !awaiting) list.appendChild(el("li", { class: "hint", text: t("history.empty") }));
     const chain = app.current >= 0 ? chainOf(app.current) : [];
     chain.forEach((i, k) => {
       const h = app.history[i];
@@ -715,24 +716,29 @@
         shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
       list.appendChild(item);
     });
-    if (app.choice && app.view && app.view.mode === "values") list.appendChild(pendingEntry(app.choice, chain.length));
+    if (awaiting) list.appendChild(pendingEntry(app.choice, chain.length, app.view.pending));
     const current = list.querySelector("li.current");
     if (current) current.scrollIntoView({ block: "nearest" });
   }
 
-  // pendingEntry is the event chosen, choice, whose values are awaited, as
-  // the n-th entry of the history to be: tentative until they are chosen,
-  // with a way back to choosing another event.
-  function pendingEntry(choice, n) {
-    const tr = choice.transition;
+  // pendingEntry is the entry of the history to be whose values, pending,
+  // are awaited: the n-th, of the event chosen, choice, with a way back to
+  // choosing another, or the start when there is none; tentative until the
+  // values are chosen, and holding those the diagram fixes.
+  function pendingEntry(choice, n, pending) {
+    const tr = choice ? choice.transition : null;
+    const head = tr
+      ? [el("span", { class: "step-number", text: t("history.eventNumber", { n }) }), eventChip(tr),
+        tr.dst !== choice.src ? el("span", { class: "to", text: t("history.to", { state: tr.dst_name }) }) : null]
+      : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: pending.group.state_name })];
+    const determined = pending.determined || [];
     return el("li", { class: "pending" }, [
-      el("div", { class: "history-head" }, [
-        el("span", { class: "step-number", text: t("history.eventNumber", { n }) }),
-        eventChip(tr),
-        tr.dst !== choice.src ? el("span", { class: "to", text: t("history.to", { state: tr.dst_name }) }) : null,
-        el("span", { class: "here", text: t("history.pending") }),
-      ]),
-      el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
+      el("div", { class: "history-head" }, [...head, el("span", { class: "here", text: t("history.pending") })]),
+      tr ? el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }) : null,
+      determined.length > 0 ? el("div", { class: "determined" }, [
+        el("p", { class: "hint", text: t("values.determined") }),
+        valuesList(determined.map((d) => ({ name: d.name, value: d.value })), null),
+      ]) : null,
     ]);
   }
 
@@ -965,9 +971,7 @@
       ]));
       renderValueDetails(root, pending);
     } else {
-      root.appendChild(app.choice
-        ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition) })])
-        : el("h2", null, [el("span", { text: t("suggest.titleInitial") }), helpButton(t("suggest.hintInitial"))]));
+      if (!app.choice) root.appendChild(el("h2", null, [el("span", { text: t("suggest.titleInitial") }), helpButton(t("suggest.hintInitial"))]));
       renderValueChoices(root, pending);
     }
   }
@@ -1041,11 +1045,6 @@
   function renderValueChoices(root, pending) {
     const vars = pending.group.vars || [];
     root.appendChild(errorBox());
-    const determined = pending.determined || [];
-    if (determined.length > 0 && !app.error) {
-      root.appendChild(el("p", { class: "hint", text: t("values.determined") }));
-      root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
-    }
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
