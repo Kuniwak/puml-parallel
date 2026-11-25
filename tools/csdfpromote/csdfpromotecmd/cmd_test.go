@@ -232,6 +232,12 @@ end note
 			wantStdoutEmpty: true,
 			wantStderr:      "reviews",
 		},
+		"an unterminated CSDF-IGNORE region is refused": {
+			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n' CSDF-IGNORE-BEGIN\nskinparam x y\n@enduml\n",
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "unterminated CSDF-IGNORE region",
+		},
 		"a warning is printed at its level": {
 			args:       []string{"../../../examples/promote/MODES.puml"},
 			wantStderr: "info: reviews: frozen in degraded",
