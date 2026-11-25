@@ -29,7 +29,11 @@ independent maps, which says almost nothing.
 `csdfpromote` reads this syntax with clauses that are formulas
 (docs/CLAUSE_DESIGN.md), through `csdf/coreio`, and prints the expansion
 `csdf/core` gives, as PlantUML or, with `-format json`, as the diagram JSON
-`csdfbmc` reads. The diagram JSON of an expansion (version 3) writes
+`csdfbmc` reads. It reads the syntax as PlantUML, or as the syntax tree
+`csdfparse` prints, whose `!include` it refuses as `csdfinclude`'s to
+resolve. A diagram with no directive it prints as it is, its end edges
+included, so `csdfparse x.puml | csdfpromote -format json` is the diagram
+JSON of any diagram. The diagram JSON of an expansion (version 3) writes
 the family of each map as well (`families`): its `key`, the ID parameter of
 the promote directive (`<map> : (<ID> : <Key>) ⇸ <Type>`), and its
 `key_type`, the `<Key>` the title declares, which is the domain of the map;

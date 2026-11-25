@@ -54,7 +54,7 @@ func Registry() []toolsdoc.Entry {
 		},
 		{
 			Name:    "csdfpromote",
-			Summary: "Expands the promotion directives of a global Composable State Diagram into plain PlantUML.",
+			Summary: "Expands the promotion directives of a Composable State Diagram, read as PlantUML or as its syntax tree, into plain PlantUML or the JSON csdfbmc reads.",
 			Run:     tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc()),
 		},
 		{

@@ -18,7 +18,8 @@ const (
 	// OutputPUML writes the expansion as PlantUML, which every other tool
 	// reads.
 	OutputPUML Output = iota
-	// OutputJSON writes the expansion as csdfparse prints a diagram.
+	// OutputJSON writes the expansion as core.DiagramDoc, which csdfbmc
+	// reads.
 	OutputJSON
 )
 
@@ -64,13 +65,18 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 		flags.SetOutput(inout.Stderr)
 		flags.Usage = func() {
 			w := flags.Output()
-			fmt.Fprintf(w, `Usage: csdfpromote [options] [file.puml|file.png]
+			fmt.Fprintf(w, `Usage: csdfpromote [options] [file.puml|file.png|file.json]
 
 Expands the promotion directives of a global Composable State Diagram: every
 local diagram named by a <<promote>> block becomes self-loops on the state the
 block was written in, carrying the map the family of instances lives in. The
-result is plain PlantUML, which every other tool reads.
+result is plain PlantUML, which every other tool reads. A diagram with no
+directive is printed as it is, its end edges included.
 A file argument, a "-" argument, and standard input are all equivalent.
+
+The input is PlantUML, a .puml text or a .png, or the syntax tree csdfparse
+prints (JSON). PlantUML's !include is read from the file it names; a
+syntax tree's is refused, as it is csdfinclude's to resolve.
 
 Every predicate of the expansion is its clauses joined by the connective " ∧ ":
 the generated ones are builtins (@in, @notin, @at, @frame, @update, @empty,
@@ -90,8 +96,8 @@ With -template, the builtins of each edge are glossed in a line comment above
 it, by templates named after the builtin words (see
 examples/promote/templates/ja.tmpl).
 
--format json prints the expansion as JSON, as csdfparse prints a diagram
-(core.DiagramDoc, version 2), with the local states of each family and the
+-format json prints the expansion as JSON (core.DiagramDoc, version 3), its
+clauses as formulas, with the local states of each family and the
 variables each holds, which an instance in the map is: the shape csdfbmc
 reads. -template is refused with it.
 
@@ -105,6 +111,7 @@ Examples:
   $ csdfpromote -template examples/promote/templates/ja.tmpl path/to/GLOBAL.puml
   $ csdfpromote path/to/GLOBAL.puml | csdflivelockfree -
   $ csdfpromote -format json path/to/GLOBAL.puml
+  $ csdfparse path/to/LOCAL.puml | csdfpromote -format json
   $ csdfpromote -only orders,Shipment -format json path/to/GLOBAL.puml
 `)
 		}
@@ -117,7 +124,7 @@ Examples:
 		lintOnly := flags.Bool("lint-only", false, "check the directives without printing the expansion")
 		only := flags.String("only", "", "comma-separated families to keep, each named by its map (default: all)")
 		var format string
-		flags.StringVar(&format, "format", OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (for a program such as csdfbmc, as csdfparse prints a diagram)")
+		flags.StringVar(&format, "format", OutputNamePUML, "what the expansion is written as: puml (for the other tools) or json (core.DiagramDoc, for a program such as csdfbmc)")
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {

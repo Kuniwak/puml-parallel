@@ -1,4 +1,4 @@
-"""Diagrams written by hand for the tests, in the JSON csdfparse prints
+"""Diagrams written by hand for the tests, in the JSON csdfpromote -format json prints
 (core.DiagramDoc, version 3). The atoms follow the reader only as far as the
 tests need: a hole is $name or $name' (a space after it ends it before a
 character that could continue the name, as in docs/SYNTAX.md), and ${}

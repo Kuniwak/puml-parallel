@@ -1,6 +1,6 @@
 """python -m csdfbmc <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [--max-states N] [--env NAME=true|false] [--avoid EVENT] [--first] [--all] [--json] [--cone] [--por] [--symmetry] [--stats] [--jobs N] [--progress SECONDS] [--checkpoint FILE [--checkpoint-every SECONDS]] [--resume FILE] [--random-walk [--walks N] [--max-depth D] [--seed S] [--weight-tsv FILE]]
 
-Reads a diagram as csdfparse prints it (or csdfpromote -format json), its
+Reads a diagram as csdfpromote -format json prints it, plain or expanded, its
 clauses as formulas: the builtins and ∃ are the checker's, the atoms the
 checks module declares are functions of the environment, and every other
 atom is read through a glue of the evaluator protocol (see csdfbmc.protocol;

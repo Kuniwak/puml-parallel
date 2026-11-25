@@ -1,5 +1,5 @@
-"""The diagram as csdfparse prints it (core.DiagramDoc, version 3), with the
-types it declares of its variables and its channels' fields: its
+"""The diagram as csdfpromote -format json prints it (core.DiagramDoc,
+version 3), with the types it declares of its variables and its channels' fields: its
 clauses are formulas, a skeleton of ∧, ∃ and builtins over terms, with
 atoms a glue or the environment gives the meaning of (docs/CLAUSE_DESIGN.md);
 and, for a promoted diagram, the family of each map: what an instance in the
@@ -274,7 +274,7 @@ def primed_roots(f) -> set[str]:
 
 def _fields(doc: dict, what: str, required: tuple[str, ...], optional: tuple[str, ...] = ()) -> dict:
     """doc, refused unless it has every key required and no key beyond
-    those and optional: the JSON is what csdfparse writes, and nothing else
+    those and optional: the JSON is what csdfpromote -format json writes, and nothing else
     is read."""
     if not isinstance(doc, dict):
         raise ValueError(f"{what} is {doc!r}, not an object")
@@ -534,7 +534,7 @@ class Diagram:
     def from_json(cls, d: dict) -> "Diagram":
         if not isinstance(d, dict) or d.get("version") != VERSION:
             raise ValueError(f"the diagram JSON is version {d.get('version') if isinstance(d, dict) else None!r}, but csdfbmc reads "
-                             f"version {VERSION}; write it with csdfparse (or csdfpromote -format json) of this release")
+                             f"version {VERSION}; write it with csdfpromote -format json of this release")
         _fields(d, "the diagram", ("version", "name", "states", "labels", "vars", "channels", "init", "init_post", "init_line", "edges", "ends", "assumes", "families"))
         types: dict[str, str] = {}
         vars_ = {s: _typed_vars(d["vars"][s], f"the state {s}", types) for s in d["states"]}
