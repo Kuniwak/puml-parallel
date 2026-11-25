@@ -1020,7 +1020,7 @@
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
-      renderSuggestions(root, vars, previous, suggestions, t(app.choice ? "suggest.hint" : "suggest.hintInitial"));
+      renderSuggestions(root, vars, previous, suggestions, app.choice ? null : t("suggest.hintInitial"));
     } else {
       const why = !app.suggesting ? "choose.noChecker" : pending.suggest_error ? "choose.failed" : "choose.none";
       root.appendChild(el("p", { class: "notice", text: t(why) }));
@@ -1237,9 +1237,9 @@
   }
 
   // renderSuggestions shows the values the checker admits as buttons, each
-  // saying what changes from before, under the hint.
+  // saying what changes from before, under the hint if any.
   function renderSuggestions(root, vars, previous, suggestions, hint) {
-    root.appendChild(el("p", { class: "hint", text: hint }));
+    if (hint) root.appendChild(el("p", { class: "hint", text: hint }));
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
       const lines = [];
