@@ -252,3 +252,16 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 .instance-at::before { content: "→ "; color: var(--muted); font-weight: normal; }
 .instance-at.changed { border-radius: 3px; padding: 0 .2rem; }
 .instance .values { margin-left: 1.1rem; }
+.diagram-pane { position: relative; }
+#diagram-loading {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  background: var(--panel); color: var(--muted); border-radius: 8px;
+}
+#diagram-loading .spinner {
+  width: 1.2rem; height: 1.2rem; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: csdf-spin .8s linear infinite;
+}
+@keyframes csdf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #diagram-loading .spinner { animation: none; } }

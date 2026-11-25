@@ -1773,7 +1773,19 @@
     ]));
   }
 
+  // reveal takes the loading cover off the drawing once what the first
+  // render scrolled to has been painted; it is safe to call twice.
+  function reveal() {
+    const cover = document.getElementById("diagram-loading");
+    if (!cover) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => cover.remove()));
+  }
+
+  // The cover comes off at the latest after this long, whatever happens.
+  const REVEAL_TIMEOUT_MS = 60000;
+
   function fail(message) {
+    reveal();
     const root = document.getElementById("controls");
     root.replaceChildren(el("p", { class: "error", role: "alert", text: t("app.failed", { message }) }));
   }
@@ -1787,6 +1799,7 @@
     document.getElementById("save").addEventListener("click", save);
     document.getElementById("show-current").addEventListener("click", showCurrent);
     setupDiagram();
+    setTimeout(reveal, REVEAL_TIMEOUT_MS);
     try {
       const engine = transports[config.transport || "wasm"]();
       if (config.python) {
@@ -1810,6 +1823,7 @@
       app.session = created.session;
       showWarnings(created.warnings);
       await refresh();
+      reveal();
     } catch (e) {
       fail(String(e && e.message ? e.message : e));
     }
