@@ -995,12 +995,15 @@
   }
 
   // paramsView shows the values params, by field name, the fields of the
-  // event of tr took: each field as fieldChip shows it, then its value.
+  // event of tr took, in the order of the fields: each field as fieldChip
+  // shows it, then its value.
   function paramsView(params, tr) {
     const out = el("span", { class: "params" });
-    Object.entries(params).forEach(([name, value], i) => {
+    const fields = (tr && tr.fields) || [];
+    const at = (name) => { const i = fields.findIndex((f) => f.name === name); return i < 0 ? fields.length : i; };
+    Object.entries(params).sort(([a], [b]) => at(a) - at(b)).forEach(([name, value], i) => {
       if (i > 0) out.appendChild(document.createTextNode(", "));
-      const field = ((tr && tr.fields) || []).find((f) => f.name === name);
+      const field = fields.find((f) => f.name === name);
       out.appendChild(tNodes("suggest.set", { name: field ? fieldChip(field) : name, value: valueView(value, undefined, false) }));
     });
     return out;
