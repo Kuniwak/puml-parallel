@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // Sliced is the part of a diagram around some of its states. Diagram holds

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
 )
 
 func writeTempFile(t *testing.T, name, content string) string {

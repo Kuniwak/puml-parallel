@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/lts"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 func mustParse(t *testing.T, text string) clause.And {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 const (

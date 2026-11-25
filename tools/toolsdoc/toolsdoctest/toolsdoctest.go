@@ -5,7 +5,7 @@ package toolsdoctest
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
 )
 
 // StubHelp returns a command function that writes usage to stderr and succeeds,

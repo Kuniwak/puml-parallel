@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
 )
 
 // Role is the clause an atom is in, as the lint request names it.

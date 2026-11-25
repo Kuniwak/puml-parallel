@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/ident"
 )
 
 const id = ident.Pattern

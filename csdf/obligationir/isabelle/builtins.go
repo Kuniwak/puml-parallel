@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir"
 )
 
 // ValPrelude declares val, the type of every value (docs/CLAUSE_DESIGN.md).

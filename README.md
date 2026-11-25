@@ -13,7 +13,7 @@ Download binaries from [Releases](https://github.com/Kuniwak/puml-parallel/relea
 Or build a tool with Go, for example:
 
 ```console
-$ go install github.com/Kuniwak/puml-parallel/v3/tools/csdfparallel@latest
+$ go install github.com/Kuniwak/puml-parallel/v4/tools/csdfparallel@latest
 ```
 
 The module path ends in `/v3` since 3.0.0, as Go requires of a major version 2 or later.

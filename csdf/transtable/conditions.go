@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligation"
 )
 
 // Conditions says how much of what holds along a way the condition of an

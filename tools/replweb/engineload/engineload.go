@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Kuniwak/puml-parallel/v3/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v4/tools/replweb"
 )
 
 // Source gives an engine.

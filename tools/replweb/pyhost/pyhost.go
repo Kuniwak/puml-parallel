@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
 )
 
 // Result is what a command of csdfbmc run in the host exits with and
