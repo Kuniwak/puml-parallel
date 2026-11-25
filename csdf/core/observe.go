@@ -16,10 +16,10 @@ import (
 // declared, or the instance as a whole while a variable is not declared.
 // Whether an instance exists is always read.
 func (p Promotion) Observed() (Promotion, error) {
-	obs := map[string]*Observation{}
+	obs := map[string]observed{}
 	for _, f := range p.Families {
 		if f.Local != nil {
-			obs[f.Map] = f.Local.Observation()
+			obs[f.Map] = observed{Observation: f.Local.Observation(), hidden: f.Local.unobserved()}
 		}
 	}
 	read := func(where string, c clause.And) (clause.And, error) {
@@ -61,7 +61,7 @@ func (p Promotion) Observed() (Promotion, error) {
 // throughObservations is c with each @at of an observed family's instance
 // naming the states of the views it names, obs being the observation of
 // each observed family by its map.
-func throughObservations(obs map[string]*Observation, c clause.And) (clause.And, error) {
+func throughObservations(obs map[string]observed, c clause.And) (clause.And, error) {
 	out := clause.And{Conjuncts: make([]clause.Formula, len(c.Conjuncts))}
 	for i, f := range c.Conjuncts {
 		g, err := formulaThroughObservations(obs, f)
@@ -73,7 +73,7 @@ func throughObservations(obs map[string]*Observation, c clause.And) (clause.And,
 	return out, nil
 }
 
-func formulaThroughObservations(obs map[string]*Observation, f clause.Formula) (clause.Formula, error) {
+func formulaThroughObservations(obs map[string]observed, f clause.Formula) (clause.Formula, error) {
 	switch f := f.(type) {
 	case clause.And:
 		return throughObservations(obs, f)
@@ -120,7 +120,7 @@ func formulaThroughObservations(obs map[string]*Observation, f clause.Formula) (
 
 // observedAt is, for an @at of an instance of an observed family, the map
 // of the family and its observation; o is nil for any other formula.
-func observedAt(obs map[string]*Observation, b clause.Builtin) (m clause.Free, o *Observation) {
+func observedAt(obs map[string]observed, b clause.Builtin) (m clause.Free, o *Observation) {
 	if b.Op != clause.OpAt || len(b.Args) == 0 {
 		return clause.Free{}, nil
 	}
@@ -132,7 +132,7 @@ func observedAt(obs map[string]*Observation, b clause.Builtin) (m clause.Free, o
 	if !ok {
 		return clause.Free{}, nil
 	}
-	return m, obs[m.Name]
+	return m, obs[m.Name].Observation
 }
 
 // viewStates are the states of the views names, which an @at of the entry
@@ -157,7 +157,7 @@ func viewStates(m clause.Free, key clause.Term, o *Observation, names []string) 
 // termObserved reports, as an error, a part of t that reads of an
 // instance of an observed family a variable its local diagram does not
 // declare, or the instance as a whole.
-func termObserved(obs map[string]*Observation, t clause.Term) error {
+func termObserved(obs map[string]observed, t clause.Term) error {
 	switch t := t.(type) {
 	case clause.Field:
 		if ix, ok := t.Of.(clause.Index); ok {
@@ -173,8 +173,8 @@ func termObserved(obs map[string]*Observation, t clause.Term) error {
 		}
 		return termObserved(obs, t.Of)
 	case clause.Index:
-		if m, o := observedMap(obs, t); o != nil && len(o.Hidden) > 0 {
-			return fmt.Errorf("it reads %s[%s], an instance as a whole, but the local diagram of %s does not declare %s observed; read a declared variable, or add ' CSDF-OBSERVE %s to it", termName(m), entryKey(t.Key), m.Name, strings.Join(o.Hidden, ", "), o.Hidden[0])
+		if m, o := observedMap(obs, t); o != nil && len(o.hidden) > 0 {
+			return fmt.Errorf("it reads %s[%s], an instance as a whole, but the local diagram of %s does not declare %s observed; read a declared variable, or add ' CSDF-OBSERVE %s to it", termName(m), entryKey(t.Key), m.Name, strings.Join(o.hidden, ", "), o.hidden[0])
 		}
 		if err := termObserved(obs, t.Map); err != nil {
 			return err
@@ -192,12 +192,23 @@ func termObserved(obs map[string]*Observation, t clause.Term) error {
 
 // observedMap is, for an entry of the map of an observed family, the map
 // and its observation; o is nil for any other entry.
-func observedMap(obs map[string]*Observation, ix clause.Index) (clause.Free, *Observation) {
+func observedMap(obs map[string]observed, ix clause.Index) (clause.Free, *observed) {
 	m, ok := ix.Map.(clause.Free)
 	if !ok {
 		return clause.Free{}, nil
 	}
-	return m, obs[m.Name]
+	o, ok := obs[m.Name]
+	if !ok {
+		return clause.Free{}, nil
+	}
+	return m, &o
+}
+
+// observed is the observation of a family's local diagram, with the
+// variables of the diagram it does not declare, in order.
+type observed struct {
+	*Observation
+	hidden []string
 }
 
 func termName(m clause.Free) string {
