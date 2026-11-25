@@ -146,6 +146,12 @@ func TestNewMainFunc(t *testing.T) {
 			wantStdoutEmpty: true,
 			wantStderr:      "shipments is no promoted map",
 		},
+		"-only is refused for a diagram with no directive": {
+			args:            []string{"-only", "receipts", "../../../examples/valid/skip.puml"},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "receipts is no promoted map",
+		},
 		"-v prints the version": {
 			args:       []string{"-v"},
 			wantStdout: []string{version.Version + "\n"},

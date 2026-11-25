@@ -156,11 +156,14 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 
 // ExpandTree is the diagram tree says, as the tools evaluate it: Lower's
 // when it holds no promotion directive (csdf.HoldsDirectives), with no
-// warnings; otherwise the expansion of the global diagram it is
+// warnings, keep then naming no map; otherwise the expansion of the global diagram it is
 // (ReadPromotionTree, each !include read by include, then Expand with
 // keep), with the warnings of the promotion.
 func ExpandTree(tree *csdf.SyntaxTree, include Include, keep []string) (*core.Diagram, []core.Warning, error) {
 	if !csdf.HoldsDirectives(tree.Body) {
+		if len(keep) > 0 {
+			return nil, nil, fmt.Errorf("coreio.ExpandTree: %s is no promoted map: the diagram holds no promotion directive", keep[0])
+		}
 		d, err := Lower(tree)
 		if err != nil {
 			return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
