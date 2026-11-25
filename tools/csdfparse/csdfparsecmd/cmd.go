@@ -5,8 +5,6 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v4/cli"
 	"github.com/Kuniwak/puml-parallel/v4/csdf"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v4/pngsrc"
 	"github.com/Kuniwak/puml-parallel/v4/version"
 )
@@ -29,11 +27,8 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}
-		d, err := coreio.Lower(tree)
-		if err != nil {
-			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
-		}
-		raw, err := core.MarshalDiagram(d)
+		tree.Path = opts.Path
+		raw, err := csdf.MarshalSyntaxTree(tree)
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}

@@ -11,39 +11,61 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestNewMainFuncPrintsTheDiagramAsJSON(t *testing.T) {
+func TestNewMainFuncPrintsTheSyntaxTreeAsJSON(t *testing.T) {
 	tests := map[string]struct {
 		args  []string
 		stdin string
 		want  string
 	}{
-		"a diagram on standard input, its clauses as formulas": {
-			stdin: `@startuml
+		"a plain diagram on standard input, its clauses as written": {
+			stdin: `@startuml D
+' a comment
 state "Initial" as s0
 s0 : n ; N
-state "Done" as s1
 [*] --> s0 : $n' == 0
-s0 --> s1 : finish?result ; $n < $result
-s1 --> [*]
+s0 --> s0 : finish?r ; $n < $r
+s0 --> [*]
 note as channels
   channel finish : N
 end note
 @enduml
 `,
-			want: `{"version": 3, "name": "", "states": ["s0", "s1"], "labels": {"s0": "Initial", "s1": "Done"},
-"vars": {"s0": [{"name": "n", "type": "N"}], "s1": []}, "channels": {"finish": ["N"]}, "init": "s0", "init_line": 5,
-"init_post": [{"kind": "atom", "pieces": ["", " == 0"], "holes": [0], "args": [{"kind": "free", "name": "n", "primed": true}],
-  "text": ["", " == 0"], "primed": [true], "function": "$_0 == 0"}],
-"edges": [{"src": "s0", "dst": "s1", "channel": "finish", "fields": [{"dir": "?", "name": "result"}], "label": "finish?result",
-  "guard": [{"kind": "atom", "pieces": ["", " < ", ""], "holes": [0, 1], "args": [{"kind": "free", "name": "n"}, {"kind": "free", "name": "result"}],
-    "text": ["", " < ", ""], "primed": [false, false], "function": "$_0 < $_1"}],
-  "post": [], "line": 6}],
-"ends": [{"src": "s1", "guard": []}], "assumes": [], "families": []}`,
+			want: `{"kind": "csdf-syntax-tree", "version": 1, "name": "D", "line": 1, "col": 1, "body": [
+  {"kind": "comment", "line": 2, "col": 1, "text": " a comment", "block": false},
+  {"kind": "state", "line": 3, "col": 1, "id": "s0", "label": "Initial"},
+  {"kind": "state_var", "line": 4, "col": 1, "state": "s0", "name": "n", "type": "N"},
+  {"kind": "start_edge", "line": 5, "col": 1, "dst": "s0", "post": {"line": 5, "col": 14, "text": "$n' == 0", "conjuncts": [
+    {"kind": "atom", "offset": 0, "parts": [
+      {"kind": "hole", "offset": 0, "braced": false, "term": {"kind": "var", "offset": 1, "name": "n", "primed": true}},
+      {"kind": "text", "text": " == 0"}]}]}},
+  {"kind": "edge", "line": 6, "col": 1, "src": "s0", "dst": "s0",
+    "event": {"line": 6, "col": 13, "text": "finish?r", "channel": "finish", "fields": [{"dir": "?", "name": "r"}]},
+    "guard": {"line": 6, "col": 24, "text": "$n < $r", "conjuncts": [
+      {"kind": "atom", "offset": 0, "parts": [
+        {"kind": "hole", "offset": 0, "braced": false, "term": {"kind": "var", "offset": 1, "name": "n", "primed": false}},
+        {"kind": "text", "text": " < "},
+        {"kind": "hole", "offset": 5, "braced": false, "term": {"kind": "var", "offset": 6, "name": "r", "primed": false}}]}]},
+    "post": null},
+  {"kind": "end_edge", "line": 7, "col": 1, "src": "s0", "guard": null},
+  {"kind": "note", "line": 8, "col": 1, "id": "channels", "lines": [
+    {"kind": "channel", "line": 9, "col": 3, "name": "finish", "fields": ["N"]}]}]}`,
 		},
-		"a file argument, as standard input": {
-			args: []string{"../../../examples/valid/skip.puml"},
-			want: `{"version": 3, "name": "", "states": ["s0"], "labels": {"s0": "SKIP"}, "vars": {"s0": []}, "channels": {}, "init": "s0", "init_post": [], "init_line": 5,
-"edges": [], "ends": [{"src": "s0", "guard": []}], "assumes": [], "families": []}`,
+		"a global diagram, its directives and pragmas as written, and the path of its file": {
+			args: []string{"testdata/global.puml"},
+			want: `{"kind": "csdf-syntax-tree", "version": 1, "path": "testdata/global.puml", "name": "G", "line": 1, "col": 1, "body": [
+  {"kind": "pragma", "line": 2, "col": 1, "name": "define", "arg": "PROMOTED"},
+  {"kind": "state", "line": 3, "col": 1, "id": "running", "label": "稼働中", "body": [
+    {"kind": "state_var", "line": 4, "col": 3, "state": "running", "name": "users", "type": "UserId ⇸ User"},
+    {"kind": "state", "line": 5, "col": 3, "id": "runningUsers", "label": "users : (利用者ID : UserId) ⇸ User", "stereotype": "promote", "body": [
+      {"kind": "pragma", "line": 6, "col": 5, "name": "include", "arg": "local/USER.puml"}]}]},
+  {"kind": "start_edge", "line": 9, "col": 1, "dst": "running", "post": null},
+  {"kind": "note", "line": 10, "col": 1, "side": "bottom", "of": "runningUsers", "lines": [
+    {"kind": "constrain", "line": 11, "col": 3,
+      "event": {"line": 11, "col": 3, "text": "JOIN?利用者ID", "channel": "JOIN", "fields": [{"dir": "?", "name": "利用者ID"}]},
+      "guard": {"line": 11, "col": 3, "text": "ok", "conjuncts": [{"kind": "atom", "offset": 0, "parts": [{"kind": "text", "text": "ok"}]}]}},
+    {"kind": "text", "line": 12, "col": 3, "text": "why it is so"}]},
+  {"kind": "note", "line": 14, "col": 1, "id": "s1", "lines": [
+    {"kind": "sync", "line": 15, "col": 3, "event": "LOG", "targets": [{"map": "users", "id": "利用者ID"}], "guard": null}]}]}`,
 		},
 	}
 	for name, tt := range tests {
@@ -77,20 +99,44 @@ end note
 	}
 }
 
-func TestNewMainFuncRefusesADiagramThatStillHoldsDirectives(t *testing.T) {
+func TestNewMainFuncParsesEveryExample(t *testing.T) {
+	for _, path := range []string{
+		"../../../examples/promote/RECEIPTS.puml",
+		"../../../examples/promote/MODES.puml",
+		"../../../examples/promote/local/CYCLE.puml",
+		"../../../examples/valid/skip.puml",
+	} {
+		t.Run(path, func(t *testing.T) {
+			// Setup
+			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+			spy := cli.SpyProcInout()
+
+			// Execute
+			exitStatus := cmdFunc([]string{path}, spy.New())
+
+			// Assert
+			if exitStatus != 0 {
+				t.Fatalf("want 0, got %d: %s", exitStatus, spy.Stderr.String())
+			}
+		})
+	}
+}
+
+func TestNewMainFuncRefusesASyntaxError(t *testing.T) {
 	// Setup
 	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 	spy := cli.SpyProcInout()
+	spy.Stdin = cli.StubStdin(strings.NewReader("@startuml\nbogus\n@enduml\n"))
 
 	// Execute
-	exitStatus := cmdFunc([]string{"../../../examples/promote/RECEIPTS.puml"}, spy.New())
+	exitStatus := cmdFunc(nil, spy.New())
 
 	// Assert
 	if exitStatus == 0 {
 		t.Fatal("want a nonzero exit status")
 	}
-	if !strings.Contains(spy.Stderr.String(), "csdfpromote") {
-		t.Errorf("want a hint to run csdfpromote first, got %q", spy.Stderr.String())
+	if !strings.Contains(spy.Stderr.String(), "line 2") {
+		t.Errorf("want the line of the error, got %q", spy.Stderr.String())
 	}
 }
 

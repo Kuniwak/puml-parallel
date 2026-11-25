@@ -34,7 +34,7 @@ func Registry() []toolsdoc.Entry {
 	return []toolsdoc.Entry{
 		{
 			Name:    "csdfparse",
-			Summary: "Parses a Composable State Diagram and prints the parsed structure as JSON.",
+			Summary: "Parses a Composable State Diagram and prints its concrete syntax tree as JSON.",
 			Run:     tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
 		},
 		{

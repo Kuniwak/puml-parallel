@@ -12,6 +12,8 @@ import (
 type Options struct {
 	Common *tools.CommonOptions
 	Bytes  []byte
+	// Path is the path of the file read, "" for standard input.
+	Path string
 }
 
 // CommonOptions returns the parsed common options.
@@ -25,9 +27,12 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 			w := flags.Output()
 			fmt.Fprintf(w, `Usage: csdfparse [options] [file.puml|file.png]
 
-Parses a Composable State Diagram and prints it as JSON, its clauses as
-formulas (core.DiagramDoc, version 2): the shape csdfbmc reads. A diagram
-that still holds promotion directives is refused; run csdfpromote first.
+Parses a Composable State Diagram, plain or global, and prints its concrete
+syntax tree as JSON ("kind": "csdf-syntax-tree", version 1; docs/SYNTAX.md):
+every element in the order written, comments, pragmas, CSDF-IGNORE regions,
+notes and <<promote>> blocks included, each with its line and column, and
+each clause as its own syntax tree. Nothing is expanded or resolved: a
+directive is printed as written, and an !include as its path.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Options:
@@ -59,10 +64,10 @@ Examples:
 			return &Options{Common: tools.CommonOptionsVersion}, nil
 		}
 
-		bs, err := tools.ValidateArgsAsFilePath(flags.Args(), inout)
+		path, bs, err := tools.ValidateArgsAsFileInput(flags.Args(), inout)
 		if err != nil {
 			return nil, fmt.Errorf("csdfparsecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Bytes: bs}, nil
+		return &Options{Common: commonOpts, Bytes: bs, Path: path}, nil
 	}
 }
