@@ -715,8 +715,25 @@
         shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
       list.appendChild(item);
     });
+    if (app.choice && app.view && app.view.mode === "values") list.appendChild(pendingEntry(app.choice, chain.length));
     const current = list.querySelector("li.current");
     if (current) current.scrollIntoView({ block: "nearest" });
+  }
+
+  // pendingEntry is the event chosen, choice, whose values are awaited, as
+  // the n-th entry of the history to be: tentative until they are chosen,
+  // with a way back to choosing another event.
+  function pendingEntry(choice, n) {
+    const tr = choice.transition;
+    return el("li", { class: "pending" }, [
+      el("div", { class: "history-head" }, [
+        el("span", { class: "step-number", text: t("history.eventNumber", { n }) }),
+        eventChip(tr),
+        tr.dst !== choice.src ? el("span", { class: "to", text: t("history.to", { state: tr.dst_name }) }) : null,
+        el("span", { class: "here", text: t("history.pending") }),
+      ]),
+      el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
+    ]);
   }
 
   function clausesList(rows) {
@@ -940,7 +957,6 @@
     const promoted = (pending.families || []).length > 0;
     if (app.choice) {
       root.appendChild(stepBar(2));
-      root.appendChild(chosenBox(app.choice.transition));
     }
     if (app.tab === "details") {
       root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
@@ -994,17 +1010,6 @@
   // shows it: its direction, ? or !, and its name.
   function fieldChip(f) {
     return el("code", { class: "event-part event-field", text: f.dir + f.name });
-  }
-
-  // chosenBox says which transition the values are the result of, with a
-  // way back to choosing another.
-  function chosenBox(tr) {
-    return el("div", { class: "chosen" }, [
-      el("span", { class: "label", text: t("chosen.label") }),
-      eventChip(tr),
-      tr.dst !== app.choice.src ? el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }) : null,
-      el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
-    ]);
   }
 
   function renderValueChoices(root, pending) {

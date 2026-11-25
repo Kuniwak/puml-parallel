@@ -236,9 +236,6 @@ form input:disabled { background: var(--bg); color: var(--muted); }
 .steps li + li::before { content: "→"; position: absolute; left: -1.15rem; color: var(--muted); font-weight: normal; }
 .steps li.active { border-color: var(--accent); background: var(--accent-soft); color: var(--text); font-weight: 600; }
 .steps li.done { color: var(--text); }
-.chosen { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; padding: .4rem .6rem; margin: 0 0 .6rem; border: 1px solid var(--border); border-radius: 6px; }
-.chosen .label, .chosen .dst { color: var(--muted); font-size: .85rem; }
-.chosen button { margin-left: auto; }
 ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
 .instance { border-left: 3px solid var(--border); padding-left: .45rem; }
 .instance.changed { border-radius: 3px; }
@@ -271,3 +268,5 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 .choice.blocked .event-part { color: var(--muted); border-color: var(--muted); }
 #history .history-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .4rem; }
 #history .history-head .step-number, #history .history-head .here { margin: 0; }
+#history li.pending { border-style: dashed; border-color: var(--accent); background: transparent; cursor: default; opacity: .85; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem; }
+#history li.pending .here { color: var(--accent); font-weight: normal; font-style: italic; }
