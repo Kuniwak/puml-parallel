@@ -372,13 +372,70 @@ class Family:
     than init, the start state, which is absence, and holds the vars of
     that state as its fields, of the types types gives. key is the ID
     parameter of the promote directive, and key_type the type of the IDs
-    that key the map."""
+    that key the map. observes is what a clause may read of an instance,
+    as its local diagram declares it, in order: (view, its states) for a
+    view and (variable, None) for a variable; None when it declares
+    nothing, and everything is observed."""
     init: str
     states: tuple[str, ...]
     vars: FrozenMap   # local state -> the tuple of its variables, in declaration order
     key: str
     key_type: str = ""
     types: FrozenMap = field(default_factory=lambda: FrozenMap({}))   # local variable -> its type
+    observes: tuple | None = None
+
+
+    def observation(self) -> tuple:
+        """What a clause may read of an instance: observes, or, when the
+        local diagram declares nothing, a view of each state but the start
+        state, named after it and of it alone, and every variable."""
+        if self.observes is not None:
+            return self.observes
+        views = tuple((s, (s,)) for s in self.states if s != self.init)
+        return views + tuple((v, None) for v in self.types)
+
+
+@dataclass(frozen=True)
+class Seen:
+    """What a clause sees of an instance at a local state: the fields it
+    observes, None for all; the views it is at; every view of its family."""
+    fields: frozenset | None
+    at: frozenset
+    views: frozenset
+
+
+def observed_by_state(families) -> FrozenMap:
+    """What a clause sees of an instance at each local state of the
+    families (Family.observation). Local states are unique across the
+    families of a diagram, so a state names its family."""
+    out = {}
+    for fam in families.values():
+        observation = fam.observation()
+        views = frozenset(name for name, states in observation if states is not None)
+        declared = None if fam.observes is None else {name for name, states in observation if states is None}
+        for s in fam.states:
+            fields = None if declared is None else frozenset(v for v in fam.vars[s] if v in declared)
+            at = frozenset(name for name, states in observation if states is not None and s in states)
+            out[s] = Seen(fields, at, views)
+    return FrozenMap(out)
+
+
+def _observes_of(docs, where: str) -> tuple | None:
+    """The observation docs declare, each {"view", "states"} or {"var"};
+    None for none."""
+    if docs is None:
+        return None
+    if not isinstance(docs, list):
+        raise ValueError(f"{where}: its observation {docs!r} is not a list")
+    out = []
+    for d in docs:
+        if isinstance(d, dict) and "view" in d:
+            _fields(d, f"{where}: a view", ("view", "states"))
+            out.append((d["view"], tuple(d["states"])))
+        else:
+            _fields(d, f"{where}: an observed variable", ("var",))
+            out.append((d["var"], None))
+    return tuple(out)
 
 
 def _typed_vars(docs, where: str, types: dict[str, str]) -> tuple[str, ...]:
@@ -398,7 +455,7 @@ def _typed_vars(docs, where: str, types: dict[str, str]) -> tuple[str, ...]:
 
 
 def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
-    _fields(doc, "a family", ("map", "key", "key_type", "init", "states", "vars"))
+    _fields(doc, "a family", ("map", "key", "key_type", "init", "states", "vars"), ("observes",))
     m, states = doc["map"], tuple(doc["states"])
     if not isinstance(doc["key"], str) or not doc["key"]:
         raise ValueError(f"the family of {m}: no key names the IDs of its map")
@@ -414,7 +471,8 @@ def _family_of(doc: dict, held: set[str]) -> tuple[str, Family]:
         raise ValueError(f"the family of {m}: its start state {doc['init']}, which is absence, holds variables")
     types: dict[str, str] = {}
     local = {s: _typed_vars(doc["vars"][s], f"the family of {m}", types) for s in states}
-    return m, Family(doc["init"], states, FrozenMap(local), doc["key"], doc["key_type"], FrozenMap(types))
+    return m, Family(doc["init"], states, FrozenMap(local), doc["key"], doc["key_type"], FrozenMap(types),
+                     _observes_of(doc.get("observes"), f"the family of {m}"))
 
 
 def _states(doc: dict) -> tuple:

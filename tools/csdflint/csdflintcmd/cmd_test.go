@@ -213,11 +213,11 @@ func TestNewMainFuncFailsWithTwoOnAGlueItCannotUse(t *testing.T) {
 	testCases := map[string]testCase{
 		"a glue that ends at once": {Evaluator: "sh -c 'exit 0'", WantSaid: "the glue ended without answering"},
 		"a glue that does not answer lint": {
-			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2}"; cat > /dev/null'`,
+			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 3}"; cat > /dev/null'`,
 			WantSaid:  "the fake glue does not answer lint",
 		},
 		"a glue that ends after its hello": {
-			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 2, \"supports\": [\"lint\"]}"'`,
+			Evaluator: `sh -c 'read line; echo "{\"language\": \"fake\", \"protocol\": 3, \"supports\": [\"lint\"]}"'`,
 			WantSaid:  "the glue failed, so the atoms are not all checked",
 		},
 		"a blank command line": {Evaluator: "  ", WantSaid: "the command line of a glue is empty"},

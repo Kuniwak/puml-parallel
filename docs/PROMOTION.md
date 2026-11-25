@@ -69,9 +69,9 @@ The vocabulary is Z's.
 
 | Directive   | Z                                                                | CSP                                                                               |
 |:------------|:-----------------------------------------------------------------|:-----------------------------------------------------------------------------------|
-| `promote`   | free promotion: `θLocal = m(id)`, `m' = m ⊕ {id ↦ θLocal'}`      | the symbolic form of `\|\|\| id : dom m @ Local(m(id))[[e ← e(id)]]`               |
+| `promote`   | free promotion: `θLocal = m(id)`, `m' = m ⊕ {id ↦ θLocal'}`      | `F_G(⟦Local♯⟧)`: `\|\|\| id : ID @ Local♯[[e ← e.id]]` in parallel with the tracker (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
 | `sync`      | the conjunction of two framing schemas                            | alphabetised parallel, `[\| {e} \|]`                                               |
-| `constrain` | constrained promotion                                             | a monitor process in parallel (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
+| `constrain` | constrained promotion                                             | a guard of the tracker (docs/CLAUSE_DESIGN.md, the denotation of promotion) |
 
 
 How the directives are written
@@ -170,9 +170,10 @@ A second `!include` of the same file would collide with the first on every state
 ID, and PlantUML would merge the two boxes into one.
 
 A state that holds the map but has no block for it has that family **frozen**
-there, which is reported as `info`. This is deliberate: expanding into every
-state that holds the map would quietly write a specification in which receipts go
-on being logged during maintenance. Every state holds every family's map: the
+there, which is reported as `info`: the tracker refuses the family's events
+in that mode, its internal steps included, and its instances keep their local
+states and values. A family moves only in the states that hold a block for it,
+not in every state that holds its map. Every state holds every family's map: the
 instances exist whatever the mode, so a state that declares some maps and not
 others is refused. The edges that switch modes are hand-written. Every map is
 unchanged across them, since an edge of the global diagram cannot write an
@@ -232,6 +233,66 @@ it is included. Wrap them in a `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` region as
 well, so the core parser skips them too.
 
 
+Observations
+------------
+
+What a global diagram may read of an instance is part of the local
+diagram's interface: its **observation**. A local diagram declares it in
+line comments, which PlantUML does not draw, like `CSDF-IGNORE`
+(docs/SYNTAX.md gives the grammar):
+
+```plantuml
+' CSDF-OBSERVE active = A, B
+' CSDF-OBSERVE owner
+```
+
+- `CSDF-OBSERVE <view> = <state>, …` declares a view: a named set of local
+  states. A global clause reads it as `@at(m[k], <view>)`, which holds when instance
+  `k` is at one of the listed states.
+- `CSDF-OBSERVE <variable>` declares a state variable the global diagram may
+  read, as `m[k].<variable>`.
+
+A global clause, a sync clause and a constrain read only what the local
+diagram declares: `@at` names declared views, `m[k].x` names declared
+variables, and `m[k]`, the instance as the map of its variables, is read
+only when the local diagram declares every one of its variables. Whether an instance exists, `@in` and `@notin` of its key, is
+always observed, since the map's domain is it. A local diagram with no
+`CSDF-OBSERVE` line declares, for each state but its start state, a view
+of that state alone named after it, and every variable: `@at(m[k], S)`
+reads the view `S`.
+
+A `csdfbmc` glue sees an instance, in a map it is given whole, as the map
+of the variables its local diagram observes, and reads its views with
+`at(r, <view>, …)`, which holds when `r` is at one of the named views of
+its family; a name that is no view of its family is an error. `at` reads
+the position only; nothing reads what an instance can do next.
+
+The observation decides which local diagrams are interchangeable inside a
+promotion: two local diagrams are interchangeable if their ⟦P♯⟧ are
+SF-equivalent, the events and the observations those events carry
+included (docs/CLAUSE_DESIGN.md, P♯). The less a
+local diagram declares, the more diagrams can replace it, and the less a
+global clause may read.
+
+
+Promoting a promoted diagram
+----------------------------
+
+A promoted diagram is not a local diagram as it stands: its start mode holds
+the maps, and a creation is a self-loop of that mode. It becomes one with
+three changes, and no new syntax:
+
+- add a start state `S₀` with no variables, whose outgoing edge creates the
+  parent and empties every map in its post (`@empty(m')`);
+- add an edge into `S₀` that deletes the parent, whose guard requires every
+  map to be empty, so that the parent writes no child;
+- drop the global `assume` notes, since a local diagram has none.
+
+Include the expanded inner diagram, so changed, in the outer `<<promote>>`
+block. The outer global diagram then reads the inner instances through the
+outer map, as in `M[j].m[k]`, with the keys `(j, k)`.
+
+
 Expansion
 ---------
 
@@ -274,9 +335,10 @@ about, and it narrows nothing. A parameter of the constrain that no matching
 edge takes is a warning — a mistyped name would otherwise be a free variable
 sitting in a guard, and nothing else would notice.
 
-`tau` is promoted without an instance ID — an internal event with an argument is
-an observable one — and the instance is implicitly existentially quantified.
-Syncing `tau` is an error. A promoted `tau` is a self-loop, so
+In the closed meaning, after ρ and hiding, a promoted `tau` has no instance ID
+— an internal event with an argument is an observable one — and the instance is
+implicitly existentially quantified. Syncing `tau` is an error. A promoted `tau`
+is a self-loop of the global state, so
 `csdflivelockfree` will not call the result structurally livelock-free and will
 emit a predicate obligation instead. That is the right answer, not a defect: the
 obligation to discharge is that the number of instances in `〈S〉` goes down.
@@ -451,6 +513,10 @@ Errors:
 | A `sync` of a map that is not promoted, or of an event a side lacks      | There is nothing to merge.                                                      |
 | A `sync` whose maps never move in the same state                         | The event they take together can never happen.                                  |
 | A `constrain` no generated edge matches in channel and field directions | It constrains nothing.                                                          |
+| A `CSDF-OBSERVE` view named like a state or a variable of its diagram, or declared twice | `@at` would read one name as two things.                                         |
+| A `CSDF-OBSERVE` view listing a state its diagram lacks, `S₀`, or one state twice | `S₀` is absence, which `@notin` reads.                                           |
+| A `CSDF-OBSERVE` variable no state of its diagram holds, or declared twice | There is nothing to observe.                                                     |
+| A global clause reading what the local diagram does not declare          | The global diagram reads only the observation.                                   |
 | A note holding a second directive                                        | One note, one directive.                                                        |
 | A directive body that does not parse                                     | —                                                                               |
 

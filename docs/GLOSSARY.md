@@ -21,7 +21,7 @@ Promotion
 Writing a family of like instances as one state variable holding a partial map
 from instance IDs to local states, and every local transition as a self-loop on
 the global state that updates one key of that map.
-The term is Z's; the CSP reading is `||| id : dom m @ Local(m(id))[[e <- e(id)]]`.
+The term is Z's; the CSP reading is `F_G(⟦Local♯⟧) = (||| id : ID @ Local♯[[e.(o, o') <- e.id.(o, o')]]) [| E_pub |] M_G`, the local diagram with its observations in parallel with the tracker M_G (docs/CLAUSE_DESIGN.md).
 `csdfpromote` generates that form from the diagram of one instance.
 Refer to PROMOTION.md.
 

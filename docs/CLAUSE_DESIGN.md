@@ -79,7 +79,7 @@ its kind:
 | Kind | Operators | Obligation |
 |---|---|---|
 | Change of representation | splitting a conjunction, parsing and printing, α-renaming | ⟦op(D)⟧ =SF ⟦D⟧ |
-| Constructor | composition, hiding, channel renaming, promotion, replicated composition | ⟦op(D₁, …)⟧ =SF op_sem(⟦D₁⟧, …), where op_sem is the CSP operator |
+| Constructor | composition, hiding, channel renaming, promotion, replicated composition | ⟦op(D₁, …)⟧ =SF op_sem(⟦D₁⟧, …), where op_sem is the CSP operator; for promotion, ⟦promote(P, G)♯⟧ =SF F_G(⟦P♯⟧), a CSP context applied to the local diagram with its observations (below) |
 | Abstraction | restriction, data abstraction | ⟦op(D)⟧ ⊑SF ⟦D⟧: the original refines its abstraction (P ⊑ Q reads "Q refines P") |
 | Analysis | evaluation, translation to logic, refinement checking | sound with respect to ⟦·⟧, and complete where stated |
 | Optimisation | partial-order reduction, symmetry, cone of influence | the answer to the property checked is unchanged; the graph may differ |
@@ -93,37 +93,73 @@ capture-free (P3), to a fresh name made from its own (`x` becomes `x2`),
 before pairing the states. A renamed variable keeps the type of the one it
 was named like (docs/SYNTAX.md declares it).
 
-For promotion, op_sem is a CSP term built from the local diagram P:
+For promotion, op_sem is a CSP context applied to the meaning of the local
+diagram with its observations, not to ⟦P⟧ alone.
 
-- each instance i runs P with every channel c renamed to c.i, starting at
-  P's start state S₀, which means that the instance does not exist
-  (docs/PROMOTION.md, the local-diagram contract): an edge out of S₀
-  creates it, an edge into S₀ deletes it;
-- all instances are interleaved over the set of IDs, ||| i ∈ ID;
-- a sync renames the local events it takes to the global event and
-  synchronises on it (for `MOVE`, `DEPART.from` and `ARRIVE.to` become
-  `MOVE`);
-- what a clause of the global diagram reads of a bound instance is carried
-  by the event: instance i offers `MOVE.i.v` for the values v it holds, its
-  prefix being `MOVE.i!v → …`, and the global side receives them with
-  `MOVE.i?x`. One process depends on another's state only through
-  communication, so a clause reading two instances is this communication,
-  written implicitly;
-- a many-to-one renaming then forgets the carried values, `MOVE.i.v` to
-  `MOVE.i`, so the alphabet of the promoted diagram is what the author
-  wrote. Renaming introduces no τ, so divergence is unchanged by it.
+- The local diagram P declares its **observation** obs(s, v): a function of
+  its local state s and the values v of its state variables
+  (docs/PROMOTION.md, Observations). An observation always tells whether
+  s is S₀, that is whether the instance exists, so `@in` and `@notin` of
+  its key are always readable. A local diagram that declares none declares
+  a view of each state but S₀, named after it, and every variable, so
+  obs(s, v) = (s, v).
+- A **public event** is e.k.(o, o′): the event e of P, the key k of the
+  instance, and the observation o before and o′ after the step. Every τ
+  step of P is a public event τ.k.(o, o′) too, whether or not it changes
+  the observation, so the tracker synchronises on it. For an event that only the global diagram has, a global
+  edge that reads instance k without moving it, the instance offers a
+  self-loop at every state carrying its current observation, e.k.(o, o).
+- **P♯** is P with these public events, without the key: e.(o, o′),
+  τ.(o, o′) and the self-loops. Its states are P's. The meaning of a local
+  diagram as a part of a promotion is ⟦P♯⟧, and two local diagrams are
+  interchangeable inside a promotion if ⟦P♯⟧ =SF ⟦P′♯⟧. The coarser the
+  observation, the more local diagrams are interchangeable, and the less a
+  global clause may read.
+- The **tracker** M_G is the global diagram G as one process. Its state is
+  the current mode and each family's map; m[k] holds the observation of
+  instance k, and k is in the domain of m iff the instance is not at S₀. On
+  a public event it evaluates G's guards on the maps it holds, writes m[k]
+  from the post-observation o′, and refuses every public event of a family
+  frozen in the current mode, τ.k.(o, o′) included, so a frozen instance
+  keeps its local state and values.
+- The context is
 
-The offers are part of this term, not of the local diagram: P keeps its own
-meaning, and only the instance as it appears in the term offers the event
-(P12). Read alone, that instance offers an event that leaves it unchanged,
-so hiding the event there would make a τ self-loop; in the promoted term
-the step is a τ self-loop only if the global side is unchanged as well.
+      F_G(X) = ( |||_{k ∈ ID} X⟦e.(o, o′) ↦ e.k.(o, o′)⟧ ) [| E_pub |] M_G
+
+  with E_pub the public events. With several families, every family's
+  instances are interleaved inside, and M_G holds every family's map.
+- ⟦promote(P, G)♯⟧ = F_G(⟦P♯⟧): a promoted diagram is again a diagram with
+  public events, so it can be the local diagram of another promotion
+  (docs/PROMOTION.md, Promoting a promoted diagram), and
+  ⟦promote(promote(Q, H), G)♯⟧ = F_G(F_H(⟦Q♯⟧)).
+- The forgetful renaming ρ: e.k.(o, o′) ↦ e.k and the hiding of τ are
+  applied once, at the outermost diagram only:
+
+      ⟦outermost⟧ = ρ(⟦…♯⟧) \ {τ}
+
+  ρ renames the public events of local edges and of global-only self-loops
+  back to the events the author wrote; they are not hidden. Only the
+  τ.k.(o, o′), all of them, are renamed to τ and hidden. ρ is many-to-one and introduces
+  no τ, so it adds no divergence.
+
+F_G uses only CSP operators, so promotion is congruent and monotone under
+stable failures in ⟦P♯⟧: X =SF X′ implies F_G(X) =SF F_G(X′), and
+X ⊑SF X′ implies F_G(X) ⊑SF F_G(X′). A nested promotion is a composition
+of contexts, so it is too. The observations are part of this term, not of
+⟦P⟧: P keeps its own meaning, and only P♯ carries them (P12). A sync renames
+the local public events it takes to the global event and synchronises on
+it (for `MOVE`, `DEPART.from` and `ARRIVE.to` become `MOVE`); what a clause
+of G reads of an instance is what the tracker holds of it, written there by
+communication, since one process depends on another's state only through
+communication. In the promoted term a global-only self-loop is a τ
+self-loop only if hidden, and ρ does not hide it.
 
 Absence is P's own start state, not a state added beside it, for two
-reasons. The term is then exactly ||| over the IDs of P itself, so promotion
-is syntax sugar that changes no meaning. And it adds no state: bounded
+reasons. The term then interleaves P♯ itself over every ID, so absence
+needs no process of its own. And it adds no state: bounded
 checking walks one control state fewer per instance than a separate absent
-state would. So S₀ holds no state variables, has no self-loop, and P has no
+state would. So S₀ holds no state variables, P has no self-loop at S₀
+(P♯ has only the global-only self-loops there), and P has no
 end edge; creation and deletion are ordinary edges of P, so a sync may take
 them like any other. The post of P's start edge and of a deletion say
 nothing, since there is no instance for them to be about, and are dropped
@@ -134,11 +170,12 @@ name is one field of the global event, so the moves that name it agree on
 its value. A move that receives it reads that value; a move that sends it
 fixes it, and two moves that send it must send equal values.
 
-A constrain `e?q… ; c` (docs/PROMOTION.md) is sugar for one more process
-in parallel: a monitor that synchronises on every event of the promotion,
-follows every instance as the instances do, and offers an event matching
+A constrain `e?q… ; c` (docs/PROMOTION.md) is a guard of the tracker: a
+monitor, part of M_G, that synchronises on every event of the promotion,
+follows every instance through the observations it carries, and offers an event matching
 `e` in channel and field directions only with values for which `c` holds
-of the maps as they are. A monitor that only follows and refuses adds no
+of the maps as they are. Like every clause of G, `c` reads only what the
+local diagrams observe. A monitor that only follows and refuses adds no
 behaviour of its own, so the term stays CSP; conjoining `c` onto the guard
 of every generated edge that matches `e` is its expansion, and it reads any
 map, since the monitor holds them all. The monitor passes every other
@@ -155,8 +192,8 @@ another shape than its own is refused, since it would constrain some edges
 of the channel and not others; one matching no generated edge is refused
 too.
 
-A global diagram of several states, its **modes**, is sugar for one more
-process in parallel too: a controller whose states are the modes. It
+A global diagram of several states, its **modes**, is the tracker's
+control: a controller, part of M_G, whose states are the modes. It
 synchronises on every event of the promotion and on the hand-written global
 edges. In a mode it offers an instance's event, or a sync, only if every
 family taking part moves there, that is has a `<<promote>>` block there. A
@@ -261,7 +298,8 @@ the FD conclusion is conditional on the impl's assumptions.
 Restricting a promotion to some of its families (`-only`) is an
 approximation, not an abstraction in the sense of the table above. The
 families left out go, with their maps, the edges only they take, and every
-clause that reads a left-out map, which is taken as true and reported. On a
+clause that reads a left-out map, which is taken as true and reported. The
+`CSDF-OBSERVE` declarations stay, but for a variable that is a left-out map. On a
 sync that a kept family takes with a left-out one, the kept side stays and
 the event keeps every field: the left-out side becomes the environment,
 which offers any value. The restricted promotion offers events a left-out
@@ -291,10 +329,12 @@ it: it renders a gloss, written as a line comment above the edge, which no
 reader of the diagram reads back. Printing with templates and reading the
 result back gives the same diagram.
 
-The map of a promoted diagram is then the tuple of the instances' local
-states, domain membership is "not at S₀", and an instance's control state
-is its position in P; the obligation is that the expanded graph of the
-promoted diagram is stable-failures equivalent to that term.
+The map of a promoted diagram then holds each instance's observation,
+domain membership is "not at S₀", and an instance's control state is its
+position in P. Model checking works on the flat expansion, whose map holds
+each instance's local state and values; the obligation is that the flat
+expansion is stable-failures equivalent to the closed meaning,
+ρ(⟦…♯⟧) \ {τ}.
 
 ## Operators on clauses
 
@@ -483,6 +523,9 @@ name.
 - The holes are the atom's arguments (P9), so obligations, reduction and
   restriction need no glue (Q1, Q3).
 - A glue receives the text without the holes and the values for them (P8).
+  An instance among them is the map of the variables its family observes,
+  with the views it is at and the views of its family, which the glue's
+  `at(r, C, …)` reads as `@at` does.
 - The builtins are what tools state (P7). Two updates of one map in one step
   bind the intermediate map with ∃ (P5, P6).
 
@@ -548,6 +591,12 @@ disjunction of clauses is introduced, and a `constrain` note, conjoined to
 every edge of its event, can say it where an edge cannot be split per
 state.
 
+`@at` names views of t's local diagram: `t at C`, with C a view
+(`CSDF-OBSERVE C = S₁, …, Sₙ`, docs/PROMOTION.md), says that t is at one
+of the states of C; it is `t at S₁, …, Sₙ`. A local diagram that declares
+no observation has a view of each state but its start state, named after
+it, so there `t at S` names the view of the state S alone.
+
 - What it reads: t, and nothing else; the states are names, not variables.
   So free-name extraction (O9), and with it partial-order reduction, cone
   of influence, symmetry and restriction, sees exactly the reads of `t at
@@ -562,13 +611,26 @@ state.
 - Printing and JSON (O12): `@at(t, S₁, …, Sₙ)`; the diagram JSON writes one
   state as `state` and two or more as `states`.
 
-A clause of a local diagram reads only its own instance, because the
-instances are interleaved (|||) and one process does not see another's
-state. A clause of the global diagram, on a sync, may read the instances
-that sync binds, `at` included, through the communication in the
-denotation of promotion. Encoding control this way preserves the expanded
-graph, once the renaming there has forgotten the values carried, since only
-transitions change it.
+What a clause may read of an instance is bounded three ways, so that
+promotion stays a context:
+
+- Reads go downward only. A global diagram reads its local diagrams, an
+  outer promotion reads the inner ones, and a clause of a local diagram
+  reads only its own instance, because the instances are interleaved (|||)
+  and one process does not see another's state. No local diagram reads
+  the global diagram or another instance.
+- A clause reads data and positions only: values and `at`. It never reads
+  what an instance can or cannot do next, its readiness or its refusals;
+  a clause that did would make the meaning of a promotion depend on
+  refusals of ⟦P♯⟧ in a way no CSP operator does, and promotion would not
+  be monotone.
+- A clause of the global diagram reads only what the local diagram
+  declares as its observation: the declared variables, `at` over the
+  declared views, and an instance as the map of its variables when every
+  variable is declared. It reads them from the tracker's map, which the public
+  events write. Encoding control this way preserves the expanded graph,
+  once ρ has forgotten the observations carried, since only transitions
+  change it.
 
 Authors write atoms, builtins, ∧ and ∃; tools write ∃ too, when hiding
 binds a field or promotion chains two moves. A choice the system makes
@@ -612,7 +674,9 @@ Only operators whose obligation preserves divergence may be used before it:
 changes of representation and constructors (for hiding, divergence is part
 of what is checked). A constructor used before one must meet its obligation
 under failures-divergences, not only =SF; promotion does, since its term
-adds only synchronisation and renaming, neither of which introduces τ. Abstractions and optimisations proven only under ⊑SF
+adds only synchronisation and renaming, neither of which introduces τ: the
+τ.k.(o, o′) hidden at the outermost diagram are exactly the τ steps of P, made
+visible on the way and hidden again. Abstractions and optimisations proven only under ⊑SF
 must not be; partial-order reduction preserves divergence only with a cycle
 proviso, and must say so before it is used for one.
 

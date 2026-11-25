@@ -124,6 +124,134 @@ type Diagram struct {
 	// whose instances each map holds: what an instance in the map may be
 	// (docs/PROMOTION.md). A diagram no promotion made has none.
 	Families []FamilyStates
+	// Observes is, for a local diagram, what a clause of the global diagram
+	// may read of its instances (docs/PROMOTION.md, Observations); nil when
+	// it declares nothing, and everything is observed.
+	Observes *Observation
+}
+
+// Observation is what a local diagram declares a global clause may read of
+// an instance, in the order it declares them: views, each a named set of
+// local states, and state variables. Whether the instance exists is always
+// observed.
+type Observation struct {
+	Observables []Observable
+}
+
+// Observation is what a clause of a global diagram may read of an instance
+// of d: the observation d declares, or, when it declares none, a view of
+// each state but its start state, named after it and of it alone, and every
+// variable.
+func (d *Diagram) Observation() *Observation {
+	if d.Observes != nil {
+		return d.Observes
+	}
+	o := &Observation{}
+	for _, s := range d.States {
+		if s != d.Init {
+			o.Observables = append(o.Observables, Observable{Name: s, States: []string{s}})
+		}
+	}
+	for _, v := range d.varNames() {
+		o.Observables = append(o.Observables, Observable{Name: v})
+	}
+	return o
+}
+
+// unobserved are the state variables of d its observation does not
+// declare, in order.
+func (d *Diagram) unobserved() []string {
+	o := d.Observation()
+	var out []string
+	for _, v := range d.varNames() {
+		if !o.Observes(v) {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// varNames are the state variables of d, each once, in the order its
+// states hold them.
+func (d *Diagram) varNames() []string {
+	var vars []string
+	for _, s := range d.States {
+		for _, v := range d.Vars[s] {
+			if !slices.Contains(vars, v) {
+				vars = append(vars, v)
+			}
+		}
+	}
+	return vars
+}
+
+// Observable is one declaration of an observation: the view Name of the
+// local states States, or, when States is nil, the state variable Name.
+type Observable struct {
+	Name   string
+	States []string
+}
+
+// IsView says whether d declares a view rather than a variable.
+func (d Observable) IsView() bool { return d.States != nil }
+
+// View is the states of the view name; ok is false when o declares no such
+// view.
+func (o *Observation) View(name string) (states []string, ok bool) {
+	for _, d := range o.Observables {
+		if d.IsView() && d.Name == name {
+			return d.States, true
+		}
+	}
+	return nil, false
+}
+
+// Observes says whether o declares the state variable v.
+func (o *Observation) Observes(v string) bool {
+	return slices.ContainsFunc(o.Observables, func(d Observable) bool { return !d.IsView() && d.Name == v })
+}
+
+// within is o in the diagram d, cut from the one o was declared in: each
+// view keeps the states d has, an empty view staying, and a variable no
+// state of d holds is dropped; nil for no observation.
+func (o *Observation) within(d *Diagram) *Observation {
+	if o == nil {
+		return nil
+	}
+	held := map[string]bool{}
+	for _, vs := range d.Vars {
+		for _, v := range vs {
+			held[v] = true
+		}
+	}
+	out := &Observation{}
+	for _, ob := range o.Observables {
+		if !ob.IsView() {
+			if held[ob.Name] {
+				out.Observables = append(out.Observables, ob)
+			}
+			continue
+		}
+		kept := []string{}
+		for _, s := range ob.States {
+			if slices.Contains(d.States, s) {
+				kept = append(kept, s)
+			}
+		}
+		out.Observables = append(out.Observables, Observable{Name: ob.Name, States: kept})
+	}
+	return out
+}
+
+// Views are the names of the views of o, in the order it declares them.
+func (o *Observation) Views() []string {
+	var names []string
+	for _, d := range o.Observables {
+		if d.IsView() {
+			names = append(names, d.Name)
+		}
+	}
+	return names
 }
 
 // FamilyStates is what an instance in the map Map may be: at one of
@@ -146,6 +274,9 @@ type FamilyStates struct {
 	// as the local diagram gives them, both outside the meaning.
 	Blocks map[string]string
 	Labels map[string]string
+	// Observes is the observation of the local diagram, what a clause of
+	// the diagram may read of an instance; nil when everything is.
+	Observes *Observation
 }
 
 // clone is f sharing no slice or map with it.
@@ -154,7 +285,7 @@ func (f FamilyStates) clone() FamilyStates {
 	for s, vs := range f.Vars {
 		vars[s] = slices.Clone(vs)
 	}
-	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types), Blocks: maps.Clone(f.Blocks)}
+	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types), Blocks: maps.Clone(f.Blocks), Observes: f.Observes}
 }
 
 // cloneFamilies are fs, each cloned.
