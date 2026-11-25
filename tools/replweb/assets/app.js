@@ -433,9 +433,15 @@
   }
 
   // variableView shows the value of the variable name: the instances of
-  // a family by instancesView, anything else by valueView.
+  // a family by instancesView, or in words when there are none, anything
+  // else by valueView.
   function variableView(name, value, before, compare) {
     if (isInstances(name, value)) return instancesView(name, value, isMap(before) ? before : undefined, compare);
+    if (isFamily(name) && isMap(value) && Object.keys(value).length === 0) {
+      const none = el("span", { class: "hint", text: t("instances.none") });
+      if (compare && show(before) !== show(value)) { none.classList.add("changed"); none.title = t("history.changed"); }
+      return none;
+    }
     return valueView(value, before, compare);
   }
 
