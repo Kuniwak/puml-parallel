@@ -1280,13 +1280,13 @@
 
   // recordEditor is the editor of a record of the shape node: a row each
   // attribute, which stay when the checks declare it; else attributes
-  // can be added and removed.
-  function recordEditor(node) {
+  // can be added and removed. valueOf(key) is the editor of an attribute.
+  function recordEditor(node, valueOf = (key) => editorOf(node.fields[key] || UNKNOWN)) {
     const open = !node.declared;
     const names = Object.keys(node.fields);
     return rowTable({
       keyOf: (key, fixed) => fixed ? fixedKey(key) : writtenKey(null, key),
-      valueOf: (key) => editorOf(node.fields[key] || UNKNOWN),
+      valueOf,
       spread: (v) => {
         const given = isMap(v) ? v : {};
         return names.concat(Object.keys(given).filter((k) => !names.includes(k)))
@@ -1298,11 +1298,11 @@
   }
 
   // mapEditor is the editor of a map whose keys are of the shape keyNode,
-  // or unknown when null, and whose values are of the shape valueNode.
-  function mapEditor(keyNode, valueNode) {
+  // or unknown when null, and whose values valueOf() edits.
+  function mapEditor(keyNode, valueOf) {
     return rowTable({
       keyOf: (key) => writtenKey(keyNode, key),
-      valueOf: () => editorOf(valueNode),
+      valueOf,
       spread: (v) => Object.entries(isMap(v) ? v : {}).map(([key, value]) => ({ key, fixed: false, value })),
       gather: (pairs) => Object.fromEntries(pairs),
       growing: true,
@@ -1324,14 +1324,20 @@
   // as shape tells of them: a row each instance by its ID, with the local
   // state it is at and the fields it holds there.
   function instancesEditor(shape) {
-    const keyNode = ((config.shapes && config.shapes.types) || {})[shape.key_type];
-    return rowTable({
-      keyOf: (key) => writtenKey(keyNode && keyNode.kind === "scalar" ? keyNode : null, key),
-      valueOf: () => instanceEditor(shape),
-      spread: (v) => Object.entries(isMap(v) ? v : {}).map(([key, value]) => ({ key, fixed: false, value })),
-      gather: (pairs) => Object.fromEntries(pairs),
-      growing: true,
-    });
+    return mapEditor(keyNodeOf(shape.key_type), () => instanceEditor(shape));
+  }
+
+  // keyNodeOf is the shape -shapes gives of the key type named type when
+  // it is a scalar, else null.
+  function keyNodeOf(type) {
+    const node = ((config.shapes && config.shapes.types) || {})[type];
+    return node && node.kind === "scalar" ? node : null;
+  }
+
+  // typeEditor is the editor of a value of the type named type: as -shapes
+  // tells of it, else one line of JSON.
+  function typeEditor(type) {
+    return varEditor(type) || jsonEditor([]);
   }
 
   // instanceEditor is the editor of an instance: the local state it is at,
@@ -1349,13 +1355,10 @@
     const build = (values) => {
       const s = local();
       const names = s ? (s.fields || []).map((f) => f.name) : [];
-      fields = s && names.length > 0 ? rowTable({
-        keyOf: (key) => fixedKey(key),
-        valueOf: (key) => varEditor((s.fields.find((f) => f.name === key) || {}).type) || jsonEditor([]),
-        spread: () => names.map((key) => ({ key, fixed: true, value: values ? values[key] : undefined })),
-        gather: (pairs) => Object.fromEntries(pairs),
-        growing: false,
-      }) : null;
+      fields = s && names.length > 0 ? recordEditor(
+        { declared: true, fields: Object.fromEntries(names.map((n) => [n, UNKNOWN])) },
+        (key) => typeEditor(s.fields.find((f) => f.name === key).type)) : null;
+      if (fields && values) fields.set(Object.fromEntries(names.filter((n) => n in values).map((n) => [n, values[n]])));
       holder.replaceChildren(...(fields ? [fields.node] : []));
     };
     const kept = () => { if (!fields) return {}; const v = fields.get(); return "value" in v ? v.value : {}; };
@@ -1397,9 +1400,8 @@
     if (!shape) return null;
     const declared = (config.shapes && config.shapes.declared) || [];
     if (!shape.key) return editorOf(markDeep(shape.node, declared.includes(type)));
-    const keyNode = ((config.shapes && config.shapes.types) || {})[shape.key];
-    const valueType = String(type).split("⇸")[1].trim();
-    return mapEditor(keyNode && keyNode.kind === "scalar" ? keyNode : null, markDeep(shape.node, declared.includes(valueType)));
+    const valueNode = markDeep(shape.node, declared.includes(String(type).split("⇸")[1].trim()));
+    return mapEditor(keyNodeOf(shape.key), () => editorOf(valueNode));
   }
 
   // markDeep is node with every record in it marked declared, or not.
