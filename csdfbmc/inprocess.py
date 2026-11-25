@@ -1,19 +1,69 @@
 """csdfbmc's commands run in this interpreter rather than as a process, for
 a host that starts no process: a web page running Python in WebAssembly
 (csdfreplweb -checks). run(["next", ...]) is what "csdfbmc next ..." exits
-with and prints on its standard output and standard error."""
+with and prints on its standard output and standard error. The inputs a
+call names stay open for the next call that names them unchanged, so a
+session reads a diagram and its checks once."""
 from __future__ import annotations
 
+import argparse
 import io
-from contextlib import redirect_stderr, redirect_stdout
+import os
+import shlex
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, ExitStack, contextmanager, redirect_stderr, redirect_stdout
 
 # The commands run takes, by the word that names them.
 COMMANDS = ("next",)
 
 
-def run(args: list[str]) -> list:
+class Sessions:
+    """The Explorer the last call opened, kept for the calls after it that
+    name the same inputs, unchanged on disk; opener opens one."""
+
+    def __init__(self, opener: Callable[[argparse.Namespace], AbstractContextManager] | None = None):
+        if opener is None:
+            from csdfbmc.next import explorer_of
+            opener = explorer_of
+        self._opener = opener
+        self._key: tuple | None = None
+        self._explorer = None
+        self._stack = ExitStack()
+
+    def __call__(self, a: argparse.Namespace) -> AbstractContextManager:
+        return self._session(a)
+
+    @contextmanager
+    def _session(self, a: argparse.Namespace) -> Iterator:
+        key = _key(a)
+        if key != self._key:
+            self.close()
+            stack = ExitStack()
+            self._explorer = stack.enter_context(self._opener(a))
+            self._stack, self._key = stack, key
+        yield self._explorer
+
+    def close(self) -> None:
+        """Close the Explorer kept, and the glue started for it."""
+        self._key, self._explorer = None, None
+        self._stack.close()
+
+
+def _key(a: argparse.Namespace) -> tuple:
+    """What the inputs a names are: the arguments that name them, and the
+    size and time of change of each file among them."""
+    words = [a.diagram, a.checks] + (shlex.split(a.evaluator_module) if a.evaluator_module else [])
+    files = tuple((w, os.stat(w).st_mtime_ns, os.stat(w).st_size) for w in words if os.path.isfile(w))
+    return (a.diagram, a.checks, a.evaluator, a.evaluator_module, tuple(a.env), files)
+
+
+# The sessions of this interpreter.
+SESSIONS = Sessions()
+
+
+def run(args: list[str], sessions: Sessions = SESSIONS) -> list:
     """The exit code, standard output and standard error of the command
-    args name, run in this interpreter."""
+    args name, run in this interpreter over the inputs sessions keeps."""
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
         if not args or args[0] not in COMMANDS:
@@ -21,5 +71,5 @@ def run(args: list[str]) -> list:
             code = 2
         else:
             from csdfbmc.next import main
-            code = main(list(args[1:]))
+            code = main(list(args[1:]), sessions)
     return [code, out.getvalue(), err.getvalue()]
