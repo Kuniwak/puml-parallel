@@ -63,10 +63,11 @@ func NewParseError(line, col int, err error) *ParseError {
 }
 
 // Parse reads the concrete syntax tree of the diagram in source, plain or
-// global, nothing of its meaning read. A failure is a *ParseError tagged
+// global, nothing of its meaning read; path is the file source was read
+// from, "" when it is not known. A failure is a *ParseError tagged
 // with the position the parser stopped at, unless it already says where it
 // is.
-func Parse(source string) (*SyntaxTree, error) {
+func Parse(path, source string) (*SyntaxTree, error) {
 	p := newSourceParser(source)
 	tree, err := p.parse()
 	if err != nil {
@@ -76,6 +77,7 @@ func Parse(source string) (*SyntaxTree, error) {
 		}
 		return nil, &ParseError{Line: p.line, Col: p.col, err: err}
 	}
+	tree.Path = path
 	return tree, nil
 }
 

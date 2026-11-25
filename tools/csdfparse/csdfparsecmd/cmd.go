@@ -23,11 +23,10 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: reading PlantUML source: %w", err)
 		}
-		tree, err := csdf.Parse(source)
+		tree, err := csdf.Parse(opts.Path, source)
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}
-		tree.Path = opts.Path
 		raw, err := csdf.MarshalSyntaxTree(tree)
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)

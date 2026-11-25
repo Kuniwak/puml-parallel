@@ -27,7 +27,7 @@ func TestParseReadsEveryExample(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := Parse(string(src)); err != nil {
+			if _, err := Parse("", string(src)); err != nil {
 				t.Error(err)
 			}
 		})
@@ -63,7 +63,7 @@ func TestParseReadsTheElementsWhereTheyAreWritten(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Act
-			tree, err := Parse(tt.source)
+			tree, err := Parse("", tt.source)
 
 			// Assert
 			if err != nil {
@@ -78,7 +78,7 @@ func TestParseReadsTheElementsWhereTheyAreWritten(t *testing.T) {
 
 func TestPlainRefusesAGlobalDiagramWithTheHint(t *testing.T) {
 	// Arrange
-	tree, err := Parse("@startuml\n!include x.puml\n@enduml\n")
+	tree, err := Parse("", "@startuml\n!include x.puml\n@enduml\n")
 	if err != nil {
 		t.Fatal(err)
 	}

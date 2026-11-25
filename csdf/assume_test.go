@@ -71,7 +71,7 @@ func TestParseReadsAnAssumeNoteAfterTheEndEdge(t *testing.T) {
 }
 
 func TestParseRefusesAnUnterminatedNote(t *testing.T) {
-	_, err := Parse("@startuml\n[*] --> s0\nnote as n\n  assume x\n@enduml\n")
+	_, err := Parse("", "@startuml\n[*] --> s0\nnote as n\n  assume x\n@enduml\n")
 	if err == nil || !strings.Contains(err.Error(), "unterminated note at line 3") {
 		t.Errorf("Parse() error = %v, want an unterminated note at line 3", err)
 	}

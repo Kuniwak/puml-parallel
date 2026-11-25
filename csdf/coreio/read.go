@@ -51,7 +51,7 @@ func Lower(tree *csdf.SyntaxTree) (*core.Diagram, error) {
 // read reads the syntax tree of source, csdf.Parse's, and lowers it, each
 // clause by parse.
 func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
-	tree, err := csdf.Parse(source)
+	tree, err := csdf.Parse("", source)
 	if err != nil {
 		return nil, err
 	}

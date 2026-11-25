@@ -6,7 +6,7 @@ import "fmt"
 // the plain diagram the tree says. Its clauses are left to the clause
 // language's own tests.
 func parseAccepting(content string) (*Diagram, error) {
-	tree, err := Parse(content)
+	tree, err := Parse("", content)
 	if err != nil {
 		return nil, err
 	}

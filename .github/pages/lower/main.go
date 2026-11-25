@@ -26,7 +26,7 @@ func run(in io.Reader, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	tree, err := csdf.Parse(string(source))
+	tree, err := csdf.Parse("", string(source))
 	if err != nil {
 		return err
 	}
