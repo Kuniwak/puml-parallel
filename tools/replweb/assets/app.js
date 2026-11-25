@@ -756,11 +756,13 @@
   }
 
   function renderControls() {
-    const root = document.getElementById("controls");
-    root.replaceChildren();
+    const pane = document.getElementById("controls");
+    pane.replaceChildren();
     const v = app.view;
     if (!v) return;
-    root.appendChild(tabBar());
+    // The tabs are the top of the panel they switch.
+    const root = el("div", { class: "tab-panel", role: "tabpanel", "aria-labelledby": "tab-" + app.tab });
+    pane.append(tabBar(), root);
     if (v.mode === "values") { renderValueForm(root, v.pending); return; }
     const state = v.state;
     if (v.mode === "ended") {

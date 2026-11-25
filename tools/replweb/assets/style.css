@@ -148,12 +148,16 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .choice.blocked .event { color: var(--muted); }
 .choice .reason { margin: .15rem 0; color: var(--muted); font-size: .9rem; }
 .suggestion { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .88rem; word-break: break-all; }
-.tabs { display: flex; gap: .25rem; margin: 0 0 .75rem; border-bottom: 1px solid var(--border); }
+#controls { background: none; border: none; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+#controls > p { padding: .75rem 1rem; margin: 0; }
+.tabs { display: flex; gap: .25rem; margin: 0; padding-left: .5rem; flex: none; position: relative; z-index: 1; }
+.tab-panel { flex: 1; min-height: 0; overflow: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: .75rem 1rem; }
 .tabs .tab {
   border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0;
   background: none; color: var(--muted); padding: .35rem .9rem; margin-bottom: -1px; cursor: pointer; font: inherit;
 }
 .tabs .tab.selected { border-color: var(--border); background: var(--panel); color: var(--text); font-weight: 600; }
+.tabs .tab:not(.selected):hover { color: var(--text); }
 .clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .clauses dt { color: var(--muted); }
 .clauses dd { margin: 0; word-break: break-word; }
