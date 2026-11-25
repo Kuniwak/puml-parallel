@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
 )
 
 // Suggestion is one set of values a checker says the pending post admits:
@@ -69,6 +69,22 @@ func (s *Session) Suggest() ([]Suggestion, error) {
 		return s.suggester.Initial()
 	}
 	return s.suggester.Next(*s.pending.Prev, s.pending.Edge)
+}
+
+// SuggestEdge asks the session's suggester about the idx-th outgoing
+// transition of the current state without selecting it: none suggested
+// says no values satisfy that transition from here.
+func (s *Session) SuggestEdge(idx int) ([]Suggestion, error) {
+	if s.mode == ModeEnded {
+		return nil, ErrEnded
+	}
+	if s.mode != ModeCommand {
+		return nil, errors.New("animation.Session.SuggestEdge: not in command mode")
+	}
+	if idx < 0 || idx >= len(Outgoing(s.diagram, s.current.ID)) {
+		return nil, ErrIndexOutOfRange
+	}
+	return s.suggester.Next(s.current, idx)
 }
 
 // RenderSuggestions renders what the checker admits, numbered so that a

@@ -3,7 +3,7 @@ package replweb
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -131,6 +131,7 @@ func TestMapSVGMapsTheLocalDiagramsOfAPromotion(t *testing.T) {
 				States: map[string]string{"none": "ent0003", "on": "ent0004"},
 				Edges:  map[int]string{0: "lnk7", 1: "lnk8", 2: "lnk9"},
 				Start:  "lnk6",
+				Block:  "ent0002",
 			},
 		},
 	}

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/version"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/version"
 )
 
 type Subcommand struct {

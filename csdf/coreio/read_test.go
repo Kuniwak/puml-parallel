@@ -9,10 +9,10 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 func mustParse(t *testing.T, text string) clause.And {
@@ -381,5 +381,35 @@ func TestReadTagsARefusedClauseWithTheLineOfItsEdge(t *testing.T) {
 	}
 	if parseErr.Line != 4 {
 		t.Errorf("line = %d, want 4", parseErr.Line)
+	}
+}
+
+func TestReadAuthoredKeepsTheObservations(t *testing.T) {
+	cases := []struct {
+		name   string
+		source string
+		want   *core.Observation
+	}{
+		{
+			name:   "none declared",
+			source: "@startuml\nstate \"n\" as n\nstate \"a\" as a\na : x ; any\n[*] --> n\nn --> a : MAKE\n@enduml\n",
+			want:   nil,
+		},
+		{
+			name:   "a view and a variable",
+			source: "@startuml\n' CSDF-OBSERVE live = a\n' CSDF-OBSERVE x\nstate \"n\" as n\nstate \"a\" as a\na : x ; any\n[*] --> n\nn --> a : MAKE\n@enduml\n",
+			want:   &core.Observation{Observables: []core.Observable{{Name: "live", States: []string{"a"}}, {Name: "x"}}},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			d, err := ReadAuthored(c.source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(c.want, d.Observes); diff != "" {
+				t.Errorf("Observes (-want +got):\n%s", diff)
+			}
+		})
 	}
 }

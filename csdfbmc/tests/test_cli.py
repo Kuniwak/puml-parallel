@@ -9,7 +9,7 @@ import unittest
 from contextlib import redirect_stderr
 
 from csdfbmc.tests import fixture
-from csdfbmc.tests.fixture import atom, diagram, edge, fld, idx
+from csdfbmc.tests.fixture import atom, bound, diagram, edge, eq, exists, fld, idx, lit
 from csdfbmc.tests.test_explore import COUNTER, OPENING
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,6 +56,18 @@ class GlueTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(2, code)
                 self.assertIn(said, err)
+
+    def test_a_key_error_is_said_as_its_message(self):
+        # Setup: dec's guard ranges an ∃ over R, an on_demand_record.
+        d = dict(COUNTER, edges=[dict(COUNTER["edges"][0], guard=[exists("R", eq(bound(0), lit({"x": 0})))]), COUNTER["edges"][1]])
+        checks = "from csdfbmc.values import on_demand_record\nTYPES = {'R': on_demand_record(x=[0, 1])}\n"
+
+        # Execute
+        code, _, err = walk(self, "--evaluator-module", "csdfbmc.python_glue", d=d, checks=checks)
+
+        # Assert
+        self.assertEqual(2, code)
+        self.assertIn("csdfbmc: R is an on_demand_record", err)
 
     def test_a_diagram_of_another_version_is_a_loading_error(self):
         # Execute
@@ -323,6 +335,22 @@ class NextCommandTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual((0, {"candidates": want}), (code, json.loads(out)))
+
+    def test_edge_reads_an_instance_back_as_it_printed_it(self):
+        # Setup
+        from contextlib import redirect_stdout
+        from csdfbmc.next import main
+        d = os.path.join(ROOT, "examples", "bmc", "attempts")
+        state = json.dumps({"state_id": "running", "values": [{"name": "m", "value": {"t1": {"at": "attSent", "fields": {"優先度": 1}}}}]})
+        out = io.StringIO()
+
+        # Execute
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            code = main([os.path.join(d, "attempts.json"), os.path.join(d, "checks.py"), "--evaluator-module", "csdfbmc.python_glue", "--state", state, "--edge", "0"])
+
+        # Assert
+        self.assertEqual(0, code)
+        self.assertNotEqual([], json.loads(out.getvalue())["candidates"])
 
 
 if __name__ == "__main__":

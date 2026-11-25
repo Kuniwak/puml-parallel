@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // DiagramJSONVersion is the version of the shape DiagramDoc writes; a
@@ -47,14 +47,92 @@ type DiagramDoc struct {
 // parameter Key and KeyType, the type of the IDs that key the map, its
 // local states in order, the start state among them, which is absence, and
 // the variables of every local state with their types, an instance's
-// fields there (an empty list for one with none).
+// fields there (an empty list for one with none), and, when its local
+// diagram declares one, its observation (Observes), none when everything
+// is observed.
 type FamilyDoc struct {
-	Map     string              `json:"map"`
-	Key     string              `json:"key"`
-	KeyType string              `json:"key_type"`
-	Init    string              `json:"init"`
-	States  []string            `json:"states"`
-	Vars    map[string][]VarDoc `json:"vars"`
+	Map      string              `json:"map"`
+	Key      string              `json:"key"`
+	KeyType  string              `json:"key_type"`
+	Init     string              `json:"init"`
+	States   []string            `json:"states"`
+	Vars     map[string][]VarDoc `json:"vars"`
+	Observes *[]ObservableDoc    `json:"observes,omitempty"`
+}
+
+// ObservableDoc is one declaration of an observation (Observable): a view,
+// {"view": NAME, "states": [STATE, ...]}, or a state variable, {"var":
+// NAME}.
+type ObservableDoc struct {
+	View   string
+	States []string
+	Var    string
+}
+
+func (d ObservableDoc) MarshalJSON() ([]byte, error) {
+	if d.View != "" {
+		return json.Marshal(struct {
+			View   string   `json:"view"`
+			States []string `json:"states"`
+		}{d.View, append([]string{}, d.States...)})
+	}
+	return json.Marshal(struct {
+		Var string `json:"var"`
+	}{d.Var})
+}
+
+func (d *ObservableDoc) UnmarshalJSON(b []byte) error {
+	var v struct {
+		View   *string  `json:"view"`
+		States []string `json:"states"`
+		Var    *string  `json:"var"`
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
+		return fmt.Errorf("an observable: %w", err)
+	}
+	switch {
+	case v.View != nil && v.Var == nil && v.States != nil:
+		*d = ObservableDoc{View: *v.View, States: v.States}
+	case v.Var != nil && v.View == nil && v.States == nil:
+		*d = ObservableDoc{Var: *v.Var}
+	default:
+		return fmt.Errorf("an observable %s is neither {\"view\", \"states\"} nor {\"var\"}", b)
+	}
+	return nil
+}
+
+// observableDocs are the declarations of o; none for no observation.
+func observableDocs(o *Observation) *[]ObservableDoc {
+	if o == nil {
+		return nil
+	}
+	out := []ObservableDoc{}
+	for _, d := range o.Observables {
+		if d.IsView() {
+			out = append(out, ObservableDoc{View: d.Name, States: d.States})
+		} else {
+			out = append(out, ObservableDoc{Var: d.Name})
+		}
+	}
+	return &out
+}
+
+// observationOf is the observation docs declare; nil for none.
+func observationOf(docs *[]ObservableDoc) *Observation {
+	if docs == nil {
+		return nil
+	}
+	o := &Observation{}
+	for _, d := range *docs {
+		if d.View != "" {
+			o.Observables = append(o.Observables, Observable{Name: d.View, States: append([]string{}, d.States...)})
+		} else {
+			o.Observables = append(o.Observables, Observable{Name: d.Var})
+		}
+	}
+	return o
 }
 
 // VarDoc is a state variable and its type.
@@ -463,7 +541,7 @@ func diagramDocOf(d *Diagram) (DiagramDoc, error) {
 		if f.KeyType.IsZero() {
 			return DiagramDoc{}, fmt.Errorf("the family of %s: its IDs have no type", f.Map)
 		}
-		fd := FamilyDoc{Map: f.Map, Key: f.Key, KeyType: f.KeyType.String(), Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]VarDoc{}}
+		fd := FamilyDoc{Map: f.Map, Key: f.Key, KeyType: f.KeyType.String(), Init: f.Init, States: append([]string{}, f.States...), Vars: map[string][]VarDoc{}, Observes: observableDocs(f.Observes)}
 		for _, s := range f.States {
 			if fd.Vars[s], err = varDocs(f.Vars[s], f.Types); err != nil {
 				return DiagramDoc{}, fmt.Errorf("the family of %s, at %s: %w", f.Map, s, err)
@@ -598,7 +676,7 @@ func (doc DiagramDoc) diagram() (*Diagram, error) {
 		if err != nil {
 			return nil, fmt.Errorf("the family of %s: the type of its IDs: %w", fd.Map, err)
 		}
-		f := FamilyStates{Map: fd.Map, Key: fd.Key, KeyType: key, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}, Types: map[string]types.Type{}}
+		f := FamilyStates{Map: fd.Map, Key: fd.Key, KeyType: key, Init: fd.Init, States: append([]string{}, fd.States...), Vars: map[string][]string{}, Types: map[string]types.Type{}, Observes: observationOf(fd.Observes)}
 		if !slices.Equal(slices.Sorted(maps.Keys(fd.Vars)), slices.Sorted(slices.Values(fd.States))) {
 			return nil, fmt.Errorf("the family of %s: its variables are of the states %v, not of each of its states %v", fd.Map, slices.Sorted(maps.Keys(fd.Vars)), fd.States)
 		}

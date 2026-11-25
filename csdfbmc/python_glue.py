@@ -6,7 +6,9 @@ csdfbmc loads in-process with --evaluator-module; run as a command
 (python3 -m csdfbmc.python_glue), it speaks the same requests as JSON lines
 on its standard input and output.
 
-An atom is a Python expression whose holes are names of their own. A guard
+An atom is a Python expression whose holes are names of their own. An
+instance of a family is the map of its fields, and at(r, VIEW, ...) says
+whether it is at one of the views of its family. A guard
 atom is any expression; a post atom is $x' == expression, $x' in
 expression, or a tuple of every value after the step on the left, where
 expression reads none of them. An atom that is not Python of the pure
@@ -23,8 +25,8 @@ from typing import Callable
 
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, tells_apart
 from csdfbmc.protocol import atom_handler, atom_text
-from csdfbmc.checks import check_pure
-from csdfbmc.values import freeze
+from csdfbmc.checks import PurityError, check_pure
+from csdfbmc.values import at, freeze
 
 LANGUAGE = "python"
 
@@ -35,7 +37,7 @@ class Glue:
     the atoms, checked against the pure subset like a checks module."""
 
     def __init__(self, defs: list[str]):
-        self.globals = dict(FORMAL_GLOBALS)
+        self.globals = dict(FORMAL_GLOBALS, at=at)
         for path in defs:
             self.globals.update(_load_defs(path))
         self._compiled: dict[str, object] = {}
@@ -63,6 +65,27 @@ class Glue:
         if found is None:
             return None
         return re.sub(rf"{_HOLE}(\d+)", r"argument \1", found[1]) + ", so the IDs are not interchangeable"
+
+    def atom_lint(self, atom: dict, role: str) -> str | None:
+        """Why the atom is not Python of the pure subset in role, guard or
+        post, or reads a name that is neither a hole, a builtin nor a
+        definition; None when it is not so."""
+        if role not in ("guard", "post"):
+            raise ValueError(f"lint asks of an atom in the role 'guard' or 'post', not {role!r}")
+        try:
+            source, names = _atom_source(atom)
+            check_pure(source, f"<atom {source!r}>")
+            if role == "post":
+                primed = [n for n, p in zip(names, atom["primed"]) if p]
+                _post_shape(source, primed, [n for n in names if n not in primed])
+        except SyntaxError as e:
+            return f"SyntaxError: {e.msg}"
+        except (PurityError, ValueError) as e:
+            return str(e)
+        undefined = sorted(free_names(ast.parse(source, mode="eval")) - set(self.globals) - set(names))
+        if undefined:
+            return f"{', '.join(undefined)} is neither a builtin nor a definition of the glue's arguments"
+        return None
 
     def atom_post(self, atom: dict, values: list) -> list[list]:
         """The values after the step, of the primed arguments in order, that
@@ -152,7 +175,7 @@ def evaluator(args: list[str]) -> Callable[[dict], dict]:
     """The handler of the protocol's requests; args are the paths of the
     modules of shared definitions."""
     glue = Glue(args)
-    return atom_handler(LANGUAGE, guard=glue.atom_guard, post=glue.atom_post, symmetric=glue.atom_symmetric)
+    return atom_handler(LANGUAGE, guard=glue.atom_guard, post=glue.atom_post, symmetric=glue.atom_symmetric, lint=glue.atom_lint)
 
 
 if __name__ == "__main__":

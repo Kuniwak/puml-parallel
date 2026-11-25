@@ -3,7 +3,35 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, encode, freeze, partial_map, record, sample, samples_in, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Instance, Rec, Strict, same_value, decode, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, views_key, visible
+
+
+class InstanceTest(unittest.TestCase):
+    def test_equals_the_map_of_its_fields_wherever_it_is(self):
+        # Setup
+        live = Instance(FrozenMap(cnt=1), at={"live"}, views={"live", "gone"})
+        gone = Instance(FrozenMap(cnt=1), at={"gone"}, views={"live", "gone"})
+
+        # Execute, Assert
+        self.assertEqual(live, {"cnt": 1})
+        self.assertEqual(FrozenMap(cnt=1), live)
+        self.assertEqual(live, gone)
+        self.assertEqual(hash(FrozenMap(cnt=1)), hash(live))
+
+    def test_is_told_apart_by_its_views_only_by_views_key(self):
+        # Setup
+        live = Instance(FrozenMap(cnt=1), at={"live"}, views={"live", "gone"})
+        gone = Instance(FrozenMap(cnt=1), at={"gone"}, views={"live", "gone"})
+
+        # Execute, Assert
+        self.assertTrue(same_value(live, gone))
+        self.assertNotEqual(views_key((FrozenMap(a=live),)), views_key((FrozenMap(a=gone),)))
+        self.assertIsNone(views_key((FrozenMap(a=FrozenMap(cnt=1)),)))
+        self.assertEqual(views_key(live), views_key(pickle.loads(pickle.dumps(live))))
+
+    def test_reads_a_field_named_like_its_views_as_the_field(self):
+        r = Instance(FrozenMap(at=1, views=2, views_at=3), at={"live"}, views={"live"})
+        self.assertEqual((1, 2, 3), (r.at, r.views, r.views_at))
 
 
 class FrozenMapTest(unittest.TestCase):
@@ -50,6 +78,60 @@ class DomainBuilderTest(unittest.TestCase):
         self.assertIn(FrozenMap({"状態": "B", "在庫": 2}), rs)
         self.assertTrue(all(isinstance(r, FrozenMap) for r in rs))
 
+    def test_an_on_demand_record_tells_its_size_without_listing_it(self):
+        # Setup: 10^40 records, which no list could hold
+        rs = on_demand_record(**{f"f{i}": range(10) for i in range(40)})
+
+        # Execute
+        size = rs.size()
+
+        # Assert
+        self.assertEqual(10 ** 40, size)
+
+    def test_an_on_demand_record_tells_its_values_by_their_parts_and_their_kinds(self):
+        big = on_demand_record(**{f"f{i}": range(10) for i in range(40)})
+        nested = on_demand_record(n=[1], r=on_demand_record(b=[False]))
+        tests = {
+            "a record of every part's values": (big, FrozenMap({f"f{i}": i % 10 for i in range(40)}), True),
+            "a part out of its values": (big, FrozenMap({f"f{i}": 10 for i in range(40)}), False),
+            "a record of other parts": (big, FrozenMap({"f0": 0}), False),
+            "no record": (big, "not a record", False),
+            "a nested record of the parts' values": (nested, FrozenMap({"n": 1, "r": FrozenMap({"b": False})}), True),
+            "a part of another kind, True for 1": (nested, FrozenMap({"n": True, "r": FrozenMap({"b": False})}), False),
+            "a nested part of another kind, 0 for False": (nested, FrozenMap({"n": 1, "r": FrozenMap({"b": 0})}), False),
+        }
+        for name, (rs, value, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = value in rs
+
+                # Assert
+                self.assertEqual(want, got)
+
+    def test_an_on_demand_record_of_a_sample_takes_the_values_beyond_it(self):
+        # Setup
+        rs = on_demand_record(id=sample(["t1"], beyond=["t2"]), n=[0])
+
+        # Execute
+        wide = beyond_samples({"R": rs})["R"]
+
+        # Assert
+        self.assertEqual((1, 2), (rs.size(), wide.size()))
+        self.assertIn(FrozenMap({"id": "t2", "n": 0}), wide)
+
+    def test_a_listed_type_built_of_an_on_demand_record_is_refused(self):
+        inner = on_demand_record(x=[0, 1])
+        tests = {
+            "a record of one": (lambda: record(r=inner), "record\\(r=…\\) is given an on_demand_record for r"),
+            "the keys of a partial map": (lambda: partial_map(inner, [0]), "partial_map is given an on_demand_record for its keys"),
+            "the values of a partial map": (lambda: partial_map(["k"], inner), "partial_map is given an on_demand_record for its values"),
+        }
+        for name, (build, said) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                with self.assertRaisesRegex(ValueError, said):
+                    build()
+
     def test_partial_map_enumerates_every_partial_function_up_to_the_size(self):
         ms = partial_map(["t1", "t2"], ["x", "y"], max_size=1)
         # the empty map, and one entry for each of two keys times two values
@@ -67,6 +149,8 @@ class DomainBuilderTest(unittest.TestCase):
             "a sample": (ids, [ids]),
             "a record of a field of a sample": (record(id=ids, 額=[1]), [ids]),
             "a record of a record of a sample": (record(r=record(id=ids)), [ids]),
+            "an on-demand record of a field of a sample": (on_demand_record(id=ids, 額=[1]), [ids]),
+            "an on-demand record of a record of a sample": (on_demand_record(r=record(id=ids)), [ids]),
             "a map keyed by a sample, its values of another": (partial_map(ids, other), [ids, other]),
             "the same values listed by hand": ([FrozenMap({"id": "t1"})], []),
             "a record of values of no sample": (record(id=["t1"]), []),
@@ -103,6 +187,38 @@ class DomainBuilderTest(unittest.TestCase):
                 # Execute / Assert
                 with self.assertRaisesRegex(ValueError, refused):
                     sample(values, beyond=beyond)
+
+
+class DecodeTest(unittest.TestCase):
+    def test_reads_a_json_value_back_as_the_value_of_its_type(self):
+        tests = {
+            "an array as the set it encodes": ([50, 100], [frozenset(), frozenset({50, 100})], FrozenSet({50, 100})),
+            "a set nested in a record": ({"coins": [50]}, record(coins=[frozenset({50})]), FrozenMap({"coins": FrozenSet({50})})),
+            "a value no member encodes, frozen": ([1], [frozenset()], (1,)),
+            "an on_demand_record's value, frozen": ({"n": 1}, on_demand_record(n=[1]), FrozenMap({"n": 1})),
+        }
+        for name, (value, values, want) in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = decode(value, values)
+
+                # Assert
+                self.assertTrue(same_value(want, got), got)
+
+    def test_reads_an_encoded_value_back_as_the_value_it_encodes(self):
+        tests = {
+            "an instance": Rec("attSent", FrozenMap({"優先度": 1})),
+            "a map of instances": FrozenMap({"t1": Rec("idle", FrozenMap({"n": (1, 2)}))}),
+            "a value left out": LEFT_OUT,
+            "a map that is not an instance": FrozenMap({"at": 1, "fields": 2}),
+        }
+        for name, value in tests.items():
+            with self.subTest(name):
+                # Execute
+                got = decode(encode(value))
+
+                # Assert
+                self.assertTrue(same_value(value, got), got)
 
 
 class SameValueTest(unittest.TestCase):

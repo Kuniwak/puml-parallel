@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // Write writes d in the syntax Read reads, so that Read(Write(d)) is d up to
@@ -37,6 +37,7 @@ func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (strin
 		return fmt.Errorf("coreio.Write: %d end edges; the syntax holds one end edge", len(d.Ends))
 	}
 	b.WriteString("@startuml" + titled(d.Name) + "\n")
+	writeObserves(b, d.Observes)
 	for _, s := range d.States {
 		writeState(b, d, s)
 	}
@@ -69,6 +70,26 @@ func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (strin
 	}
 	writeChannels(b, d.Channels)
 	return nil
+}
+
+// writeObserves writes the CSDF-OBSERVE lines of o, in the order it
+// declares them; a view of no state, which a slice may leave, is written
+// "<view> =".
+func writeObserves(b *strings.Builder, o *core.Observation) {
+	if o == nil {
+		return
+	}
+	for _, d := range o.Observables {
+		if d.IsView() {
+			if len(d.States) == 0 {
+				fmt.Fprintf(b, "' CSDF-OBSERVE %s =\n", d.Name)
+				continue
+			}
+			fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", d.Name, strings.Join(d.States, ", "))
+			continue
+		}
+		fmt.Fprintf(b, "' CSDF-OBSERVE %s\n", d.Name)
+	}
 }
 
 // writeState writes the state s of d: its declaration, labelled with its

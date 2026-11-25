@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -246,6 +246,31 @@ type admittingOnly struct {
 
 func (a admittingOnly) Admit(_ *core.Diagram, _ Pending, values []Value) error {
 	return AmongSuggestions([]Suggestion{{Values: json.RawMessage(a.values)}}, values)
+}
+
+func TestAmongSuggestionsNamesWhetherTheCheckerAdmitsAnyValues(t *testing.T) {
+	tests := map[string]struct {
+		suggestions []Suggestion
+		wantCode    string
+	}{
+		"values other than those suggested": {suggestions: []Suggestion{{Values: json.RawMessage(`[1]`)}}, wantCode: "not_suggested"},
+		"no values suggested at all":        {suggestions: []Suggestion{}, wantCode: "none_admitted"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := AmongSuggestions(tt.suggestions, []Value{{Name: "x", Value: json.Number("2")}})
+
+			// Assert
+			var refused *RefusedValuesError
+			if !errors.As(err, &refused) {
+				t.Fatalf("AmongSuggestions() = %v, want a *RefusedValuesError", err)
+			}
+			if refused.Code != tt.wantCode {
+				t.Errorf("code = %q, want %q", refused.Code, tt.wantCode)
+			}
+		})
+	}
 }
 
 func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {

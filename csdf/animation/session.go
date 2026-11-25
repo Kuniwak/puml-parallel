@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
 )
 
 // ErrIndexOutOfRange is returned by Select and Jump when the given index is not

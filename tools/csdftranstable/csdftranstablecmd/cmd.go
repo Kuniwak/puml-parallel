@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/transtable"
-	"github.com/Kuniwak/puml-parallel/v3/version"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/transtable"
+	"github.com/Kuniwak/puml-parallel/v4/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

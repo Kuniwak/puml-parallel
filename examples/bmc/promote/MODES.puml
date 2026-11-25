@@ -1,0 +1,42 @@
+@startuml MODES
+' examples/promote/MODES.puml with every clause written in Python.
+' Two maps and two operating modes. members is driven in both, reviews only
+' while running: the <<promote>> block is what says where a family moves, so
+' reviews is held still in 縮退中. The mode-switching edges are hand-written; the
+' frame that keeps every map across them is promotion's to write.
+'
+' A map is named by the title of its block, not by its PlantUML alias, because
+' the alias has to be unique across the diagram. Only one block per map carries
+' the !include: a second copy of the same file would collide with the first on
+' every state ID and PlantUML would merge the two boxes into one. The other
+' parents hold a bodyless block that names the map and nothing else.
+!define PROMOTED
+
+state "稼働中" as running {
+  running : members ; MemberId ⇸ Member
+  running : reviews ; ReviewId ⇸ Review
+
+  state "members : (会員ID : MemberId) ⇸ Member" as runningMembers <<promote>> {
+    !include local/MEMBER.puml
+  }
+  state "reviews : (審査ID : ReviewId) ⇸ Review" as runningReviews <<promote>> {
+    !include local/REVIEW.puml
+  }
+}
+
+state "縮退中" as degraded {
+  degraded : members ; MemberId ⇸ Member
+  degraded : reviews ; ReviewId ⇸ Review
+
+  state "members : (会員ID : MemberId) ⇸ Member" as degradedMembers <<promote>>
+}
+
+[*] --> running
+
+running --> degraded : DEGRADE
+degraded --> running : RECOVER
+
+note bottom of runningReviews
+  constrain REVIEW_BEGIN?審査ID?会員ID ; @in(会員ID, members)
+end note
+@enduml

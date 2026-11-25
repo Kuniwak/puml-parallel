@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v4/tools"
 )
 
 // DefaultPumlExec is the PlantUML command -puml-exec runs unless told

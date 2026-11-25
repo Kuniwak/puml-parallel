@@ -1,0 +1,28 @@
+@startuml MEMBER
+' examples/promote/local/MEMBER.puml with every clause written in Python.
+' The start state means that no such member exists: leaving it opens a
+' membership and entering it closes one. The state IDs carry a "mem" prefix
+' because !include drops every local diagram into one namespace.
+' CSDF-IGNORE-BEGIN
+!ifndef PROMOTED
+title 会員 1 人のライフサイクル
+!endif
+' CSDF-IGNORE-END
+
+state "未入会" as memNone
+state "在籍中" as memActive
+memActive : checkouts ; Nat
+state "停止中" as memSuspended
+memSuspended : checkouts ; Nat
+memSuspended : reason ; SuspendReason
+
+[*] --> memNone
+
+memNone --> memActive : OPEN ; ; $checkouts' == 0
+memActive --> memSuspended : SUSPEND?理由 ; ; @eq(reason', 理由) ∧ @eq(checkouts', checkouts)
+memSuspended --> memActive : RESUME ; ; @eq(checkouts', checkouts)
+memActive --> memNone : CLOSE ; $checkouts == 0
+note as memberChannels
+  channel SUSPEND : SuspendReason
+end note
+@enduml

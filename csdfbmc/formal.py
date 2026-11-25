@@ -1,6 +1,6 @@
 """What a formal expression may use besides its holes: a few pure
 builtins. An instance of a family reaches an expression as the map of its
-fields; its state is read only through the builtin @at, never by a glue."""
+fields; a glue reads the views it is at with at(r, VIEW, ...)."""
 from __future__ import annotations
 
 import ast

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/tools"
-	"github.com/Kuniwak/puml-parallel/v3/version"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/tools"
+	"github.com/Kuniwak/puml-parallel/v4/version"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -29,6 +29,25 @@ state "Second" as s1
 s0 --> s1 : a
 s1 --> s0 : a ; g
 s1 --> s0 : b
+@enduml
+`,
+		},
+		"a local diagram keeps its observations": {
+			Args: []string{},
+			Stdin: `@startuml
+' CSDF-OBSERVE live = s1
+state "s1" as s1
+state "s0" as s0
+[*] --> s0
+s0 --> s1 : a
+@enduml
+`,
+			Want: `@startuml
+' CSDF-OBSERVE live = s1
+state "s0" as s0
+state "s1" as s1
+[*] --> s0
+s0 --> s1 : a
 @enduml
 `,
 		},

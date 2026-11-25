@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir/irjson"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir/isabelle"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir/lean"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/irjson"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/isabelle"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/lean"
 )
 
 type Name string

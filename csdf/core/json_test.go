@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -194,6 +194,15 @@ func jsonDiagrams(t *testing.T) map[string]struct {
 			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": [{"name": "m", "type": "K ⇸ Member"}]}, "channels": {},
 "init": "G", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [],
 "families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": [{"name": "cnt", "type": "N"}]}}]}`,
+		},
+		"a promoted diagram whose family observes a view and a variable": {
+			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m"}}, Types: map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("Member"))}, Init: "G", InitPost: clause.And{},
+				Families: []FamilyStates{{Map: "m", Key: "k", KeyType: types.Named("K"), Init: "none", States: []string{"none", "open"}, Vars: map[string][]string{"open": {"cnt"}}, Types: map[string]types.Type{"cnt": types.Named("N")},
+					Observes: &Observation{Observables: []Observable{{Name: "live", States: []string{"open"}}, {Name: "cnt"}, {Name: "gone", States: []string{}}}}}}},
+			want: `{"version": 3, "name": "", "states": ["G"], "labels": {}, "vars": {"G": [{"name": "m", "type": "K ⇸ Member"}]}, "channels": {},
+"init": "G", "init_post": [], "init_line": 0, "edges": [], "ends": [], "assumes": [],
+"families": [{"map": "m", "key": "k", "key_type": "K", "init": "none", "states": ["none", "open"], "vars": {"none": [], "open": [{"name": "cnt", "type": "N"}]},
+  "observes": [{"view": "live", "states": ["open"]}, {"var": "cnt"}, {"view": "gone", "states": []}]}]}`,
 		},
 		"an @at over several states of a family": {
 			d: &Diagram{States: []string{"G"}, Vars: map[string][]string{"G": {"m", "x"}}, Types: map[string]types.Type{"m": types.MapOf(types.Named("K"), types.Named("Member")), "x": types.Named("K")}, Init: "G", InitPost: clause.And{},

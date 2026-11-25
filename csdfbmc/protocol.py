@@ -9,7 +9,7 @@ argument each hole reads; and whether each argument is a value after the
 step. A glue never sees a name; values come by argument index. The requests
 are:
 
-- {"op": "hello", "protocol": 2} -> {"language": NAME, "protocol": 2}, first.
+- {"op": "hello", "protocol": 3} -> {"language": NAME, "protocol": 3}, first.
   It may add "supports": [OP, ...], the optional requests below it answers.
 - {"op": "guard", "atom": ATOM, "values": [[VALUE, ...], ...]}
   -> {"results": [true | false, ...]}, one per list of values.
@@ -27,6 +27,13 @@ supports it:
   false, "why": MESSAGE}: whether the atom tells apart two IDs of a group,
   which the arguments params range over and the arguments maps are keyed by.
 
+Another is optional, for a lint, which reads the atoms without values and so
+without walking any state (csdflint, given a glue):
+
+- {"op": "lint", "atom": ATOM, "role": "guard" | "post"} -> {"ok": true}, or
+  {"ok": false, "why": MESSAGE}: whether the atom is one of the glue's
+  language in that role, as far as the glue can tell without values.
+
 What an atom reads is its holes, which the tools know themselves, so the
 protocol asks nothing about it. Which atoms are functions of the environment
 is the checks module's to say (csdfbmc.environment); every other atom is
@@ -40,8 +47,12 @@ Values cross the protocol in a tagged JSON encoding, since JSON has no
 tuples, sets or maps with keys other than strings: integers, finite
 floats, strings, booleans and null as themselves, and {"tuple": [...]}, {"set": [...]},
 {"map": [[key, value], ...]} for the containers of csdfbmc.values. An
-instance of a family crosses as the map of its fields: its state is a
-position, which a glue never sees (docs/CLAUSE_DESIGN.md, control state).
+instance of a family crosses as {"instance": {"fields": [[key, value],
+...], "at": [VIEW, ...], "views": [VIEW, ...]}}: the fields its family
+observes, the views it is at and every view of its family
+(docs/PROMOTION.md, Observations). A glue reads it as the map of its
+fields, equal to one with the same entries, and reads the views only
+through at(r, VIEW, ...); its local state is not carried.
 A number with a point or an exponent is a float and any other an integer,
 of any size: 1 and 1.0 are two values, which a glue keeps apart
 (docs/CLAUSE_DESIGN.md, Literals). NaN and the infinities, which JSON
@@ -50,8 +61,7 @@ cannot write, are no values; negative zero, which a glue may well compute
 
 hello comes first and agrees on the protocol for the rest of the session: a
 glue refuses a request before it and a hello asking a protocol it does not
-speak. Protocol 1, which named clauses and asked analyse and beyond, is no
-longer spoken.
+speak. Only protocol 3 is spoken.
 
 A glue written in Python may also be loaded in-process: a module whose
 evaluator(args) returns a function from a request to its answer, with the
@@ -66,12 +76,12 @@ import subprocess
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap, FrozenSet, kind_key, unsigned_zero
+from csdfbmc.values import FrozenMap, FrozenSet, Instance, kind_key, unsigned_zero, views_key
 
 _TAGS = ("tuple", "set", "map")
 
 # The protocol of atoms, the one the checker speaks.
-PROTOCOL = 2
+PROTOCOL = 3
 
 
 def to_wire(value):
@@ -82,6 +92,9 @@ def to_wire(value):
         if not math.isfinite(value):
             raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite")
         return unsigned_zero(value)
+    if isinstance(value, Instance):
+        return {"instance": {"fields": [[to_wire(k), to_wire(v)] for k, v in value.items()],
+                             "at": sorted(value._at), "views": sorted(value._views)}}
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
@@ -98,6 +111,12 @@ def from_wire(wire):
         return wire
     if isinstance(wire, float) and math.isfinite(wire):
         return unsigned_zero(wire)
+    if isinstance(wire, dict) and wire.keys() == {"instance"}:
+        r = wire["instance"]
+        if (isinstance(r, dict) and r.keys() == {"fields", "at", "views"} and isinstance(r["fields"], list)
+                and all(isinstance(kv, list) and len(kv) == 2 for kv in r["fields"])
+                and all(isinstance(n, list) and all(isinstance(v, str) for v in n) for n in (r["at"], r["views"]))):
+            return Instance(((from_wire(k), from_wire(v)) for k, v in r["fields"]), at=r["at"], views=r["views"])
     if isinstance(wire, dict) and len(wire) == 1:
         (tag, items), = wire.items()
         if tag in _TAGS and isinstance(items, list):
@@ -107,7 +126,7 @@ def from_wire(wire):
                 return FrozenSet(from_wire(v) for v in items)
             if all(isinstance(kv, list) and len(kv) == 2 for kv in items):
                 return FrozenMap((from_wire(k), from_wire(v)) for k, v in items)
-    raise ValueError(f"{wire!r} is not a value in the tagged encoding: a scalar, or one of {list(_TAGS)} as the only key")
+    raise ValueError(f"{wire!r} is not a value in the tagged encoding: a scalar, or one of {list(_TAGS) + ['instance']} as the only key")
 
 
 class EvaluatorError(Exception):
@@ -162,13 +181,23 @@ def NO_SYMMETRIC(atom: dict, params: list[int], maps: list[int], groups: list[li
     raise EvaluatorError("this glue does not answer symmetric")
 
 
+AtomLint = Callable[[dict, str], "str | None"]
+
+
+def NO_LINT(atom: dict, role: str) -> str | None:
+    """The lint of a glue that does not answer it: atom_handler leaves it out
+    of hello's supports and refuses the request."""
+    raise EvaluatorError("this glue does not answer lint")
+
+
 def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Callable[[dict, list], list[list]],
-                 symmetric: AtomSymmetric) -> Handle:
+                 symmetric: AtomSymmetric, lint: AtomLint) -> Handle:
     """The Handle of a glue: guard(atom, values) and post(atom, values)
     evaluate an atom under one list of values of its arguments,
     symmetric(atom, params, maps, groups) answers what symmetry reduction
-    asks, or is NO_SYMMETRIC. hello comes first, and a request before it is
-    refused."""
+    asks, or is NO_SYMMETRIC, and lint(atom, role) says why the atom is not
+    of the language in the role, None when it is, or is NO_LINT. hello comes
+    first, and a request before it is refused."""
     greeted: list[bool] = []
 
     def handle(request: dict) -> dict:
@@ -179,7 +208,8 @@ def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Ca
                     return {"error": f"this glue speaks protocol {PROTOCOL}, not {request.get('protocol', 1)!r}"}
                 greeted[:] = [True]
                 hello = {"language": language, "protocol": PROTOCOL}
-                return hello if symmetric is NO_SYMMETRIC else dict(hello, supports=["symmetric"])
+                supports = [op for op, f, none in (("symmetric", symmetric, NO_SYMMETRIC), ("lint", lint, NO_LINT)) if f is not none]
+                return dict(hello, supports=supports) if supports else hello
             if not greeted:
                 return {"error": "say hello first: the protocol is agreed on by hello"}
             if "atom" not in request:
@@ -191,6 +221,9 @@ def atom_handler(language: str, *, guard: Callable[[dict, list], bool], post: Ca
             if op == "symmetric" and symmetric is not NO_SYMMETRIC:
                 why = symmetric(request["atom"], request["params"], request["maps"], request["groups"])
                 return {"symmetric": True} if why is None else {"symmetric": False, "why": why}
+            if op == "lint" and lint is not NO_LINT:
+                why = lint(request["atom"], request["role"])
+                return {"ok": True} if why is None else {"ok": False, "why": why}
         except Exception as e:  # what the atom raised is the answer, reported with it
             return {"error": f"{type(e).__name__}: {e}"}
         return {"error": f"protocol {PROTOCOL} has no request {op!r}"}
@@ -452,7 +485,7 @@ class Memoising:
 
     def _ask(self, op: str, atom: dict, values: list[list]) -> list:
         shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
-        keys = [(op, shape, kind_key(tuple(vs))) for vs in values]
+        keys = [(op, shape, kind_key(tuple(vs)), views_key(tuple(vs))) for vs in values]
         asked: dict[tuple, list] = {}
         for key, vs in zip(keys, values):
             if key not in self._answers:

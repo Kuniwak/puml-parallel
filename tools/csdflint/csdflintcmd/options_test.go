@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/tools"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -92,6 +92,12 @@ func TestNewParseOptionsFuncNG(t *testing.T) {
 		},
 		`two "-" arguments (representative value)`: {
 			Args: []string{"-", "-"},
+		},
+		"both forms of a glue": {
+			Args: []string{"-evaluator", "glue", "-evaluator-module", "csdfbmc.python_glue", "-"},
+		},
+		"-python without -evaluator-module": {
+			Args: []string{"-evaluator", "glue", "-python", "python3", "-"},
 		},
 	}
 

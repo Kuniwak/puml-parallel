@@ -12,6 +12,7 @@ natural.
 from __future__ import annotations
 
 import itertools
+import math
 from collections.abc import ItemsView, Mapping, Set as AbstractSet
 from dataclasses import dataclass
 from typing import Callable, Iterable
@@ -121,6 +122,48 @@ class FrozenMap(Mapping):
     def __reduce__(self):
         # Built again from its entries, each key of its kind.
         return FrozenMap, (tuple(self._d.values()),)
+
+
+class Instance(FrozenMap):
+    """An instance of a family as a glue sees it: the map of the fields it
+    observes, with the views it is at, _at, among the views of its
+    family, _views (docs/PROMOTION.md, Observations). It is the value of the
+    map of its fields, wherever it is (kind_key), so that an atom compares
+    it with a map; views_key tells where it is."""
+
+    __slots__ = ("_at", "_views")
+
+    def __init__(self, fields=(), /, *, at, views):
+        super().__init__(fields)
+        object.__setattr__(self, "_at", frozenset(at))
+        object.__setattr__(self, "_views", frozenset(views))
+
+    def __repr__(self):
+        return f"Instance({super().__repr__()}, at={sorted(self._at)!r})"
+
+    def __reduce__(self):
+        return _instance, (tuple(self._d.values()), tuple(self._at), tuple(self._views))
+
+
+def views_key(value):
+    """Where each instance in value is, the views it is at and those of its
+    family, in the order kind_key would meet them: with kind_key, a key that
+    tells apart two values an atom may answer differently about. None when
+    value holds no instance."""
+    if isinstance(value, Instance):
+        return (value._at, value._views, views_key(FrozenMap(value)))
+    if isinstance(value, Mapping):
+        found = [(kind_key(k), views_key(k), views_key(v)) for k, v in value.items()]
+    elif isinstance(value, (tuple, AbstractSet)):
+        found = [(kind_key(v), views_key(v)) for v in value]
+    else:
+        return None
+    kept = frozenset(f for f in found if any(x is not None for x in f[1:]))
+    return kept or None
+
+
+def _instance(fields, at, views):
+    return Instance(fields, at=at, views=views)
 
 
 class _Items(ItemsView):
@@ -269,18 +312,36 @@ def unsigned_zero(f: float) -> float:
     return f + 0.0
 
 
-def visible(value):
-    """value as a glue, a ghost update or an invariant sees it: each
-    instance as the map of its fields, without its state."""
+def visible(value, seen: Mapping = FrozenMap()):
+    """value as a glue, a ghost update or an invariant sees it. seen gives,
+    for a local state, what a clause sees of an instance there
+    (csdfbmc.model.observed_by_state): an instance at a state it gives is
+    the Instance of the fields it observes and the views it is at; at a
+    state it does not, the map of all its fields, without its state."""
     if isinstance(value, Rec):
-        return FrozenMap((k, visible(v)) for k, v in value.fields.items())
+        fields = ((k, visible(v, seen)) for k, v in value.fields.items())
+        s = seen.get(value.state)
+        if s is None:
+            return FrozenMap(fields)
+        return Instance(((k, v) for k, v in fields if s.fields is None or k in s.fields), at=s.at, views=s.views)
     if isinstance(value, FrozenMap):
-        return FrozenMap((visible(k), visible(v)) for k, v in value.items())
+        return FrozenMap((visible(k, seen), visible(v, seen)) for k, v in value.items())
     if isinstance(value, tuple):
-        return tuple(visible(v) for v in value)
+        return tuple(visible(v, seen) for v in value)
     if isinstance(value, AbstractSet):
-        return FrozenSet(visible(v) for v in value)
+        return FrozenSet(visible(v, seen) for v in value)
     return value
+
+
+def at(r, *views) -> bool:
+    """Whether the instance r is at one of views, each a view of its family
+    (docs/PROMOTION.md, Observations)."""
+    if not isinstance(r, Instance):
+        raise ValueError(f"at reads an instance of a family, not {r!r}")
+    for v in views:
+        if v not in r._views:
+            raise ValueError(f"at: {v} is no view of the instance; its views are {', '.join(sorted(r._views)) or 'none'}")
+    return any(v in r._at for v in views)
 
 
 def freeze(value):
@@ -361,15 +422,15 @@ class Built(list):
 def _kept(values: Iterable):
     """values as a part of a Built: a Sample or a Built as itself, so that
     what it is built of stays known; any other iterable as a tuple."""
-    return values if isinstance(values, (Sample, Built)) else tuple(values)
+    return values if isinstance(values, (Sample, Built, OnDemandRecord)) else tuple(values)
 
 
 def samples_in(values: Iterable) -> list[Sample]:
-    """The samples the values of a type are, or are built of by record and
-    partial_map, each once. Values listed by hand are built of nothing."""
+    """The samples the values of a type are, or are built of by record,
+    on_demand_record and partial_map, each once. Values listed by hand are built of nothing."""
     if isinstance(values, Sample):
         return [values]
-    if isinstance(values, Built):
+    if isinstance(values, (Built, OnDemandRecord)):
         found: dict[int, Sample] = {}
         for part in values.parts.values():
             found.update((id(x), x) for x in samples_in(part))
@@ -384,6 +445,8 @@ def _widened(values: Iterable) -> Iterable:
         return tuple(values) + values.beyond
     if isinstance(values, Built) and samples_in(values):
         return values.build(**{k: _widened(v) for k, v in values.parts.items()})
+    if isinstance(values, OnDemandRecord) and samples_in(values):
+        return OnDemandRecord({k: _widened(v) for k, v in values.parts.items()})
     return values
 
 
@@ -396,14 +459,111 @@ def beyond_samples(types: dict[str, Iterable]) -> dict[str, Iterable]:
 
 def record(**fields: Iterable) -> Built:
     """Every record whose fields range over the given domains."""
+    for n, vs in fields.items():
+        _refuse_unlisted(vs, f"record({n}=…) is given an on_demand_record for {n}",
+                         "build the record with on_demand_record instead, or give the part a listed type such as record(…)")
     fields = {n: _kept(vs) for n, vs in fields.items()}
     names = list(fields)
     return Built([FrozenMap(zip(names, combo)) for combo in itertools.product(*(fields[n] for n in names))], record, fields)
 
 
+class OnDemandRecord:
+    """The records whose fields range over the given domains, never
+    listed: its size and whether a value is one of them are computed from
+    its parts (a field -> the values it was given)."""
+
+    def __init__(self, parts: dict):
+        self.parts = parts
+
+    def size(self) -> int:
+        """How many records it has; len cannot tell more than sys.maxsize."""
+        return math.prod(size_of(vs) for vs in self.parts.values())
+
+    def __contains__(self, value) -> bool:
+        return (isinstance(value, Mapping) and set(value) == set(self.parts)
+                and all(is_value_of(vs, value[k]) for k, vs in self.parts.items()))
+
+
+def decode(value, values=None):
+    """The JSON value value read back as the value it is encoded from
+    (encode): the member of values, the values of its type, with the same
+    encoding, so an array is read as the set it encodes; else value
+    unencoded, an {"at", "fields"} object as an instance and
+    {"left_out": true} as a value left out. An on_demand_record's values
+    are not listed, so its value is unencoded."""
+    if values is not None and listable(values):
+        text = encode(freeze(value))
+        for v in values:
+            if encode(freeze(v)) == text:
+                return freeze(v)
+    return _unencoded(value)
+
+
+def _unencoded(value):
+    if isinstance(value, Mapping):
+        if value.keys() == {"left_out"} and value["left_out"] is True:
+            return LEFT_OUT
+        if value.keys() == {"at", "fields"} and isinstance(value["at"], str):
+            return Rec(value["at"], _unencoded(value["fields"]))
+        return FrozenMap((_unencoded(k), _unencoded(v)) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return tuple(_unencoded(v) for v in value)
+    return freeze(value)
+
+
+def is_value_of(values, value) -> bool:
+    """Whether value is one of the values of a type, told apart by kind
+    (same_value); an on_demand_record tells it by its parts, unlisted."""
+    if isinstance(values, OnDemandRecord):
+        return value in values
+    return any(same_value(value, freeze(v)) for v in values)
+
+
+def size_of(values) -> int:
+    """How many values a type has, an on_demand_record's too, which len
+    cannot tell beyond sys.maxsize."""
+    return values.size() if isinstance(values, OnDemandRecord) else len(values)
+
+
+class UnlistableType(ValueError):
+    """A value of a type whose values are never listed, an
+    on_demand_record, would range over the whole type."""
+
+
+def listable(values) -> bool:
+    """Whether the values of a type may be listed: an on_demand_record's
+    are made from its parts instead, one by one."""
+    return not isinstance(values, OnDemandRecord)
+
+
+def record_parts(values) -> dict | None:
+    """The parts of a type of records built by record or on_demand_record,
+    a field -> the values it ranges over, whose product the type is; None
+    for any other type."""
+    if isinstance(values, OnDemandRecord) or isinstance(values, Built) and values.build is record:
+        return values.parts
+    return None
+
+
+def _refuse_unlisted(values, what: str, instead: str) -> None:
+    """Refuses an on_demand_record where the values of a listed type are
+    built of it, saying what to write instead."""
+    if isinstance(values, OnDemandRecord):
+        raise UnlistableType(f"{what}, whose records are never listed, while it lists every value it builds; {instead}")
+
+
+def on_demand_record(**fields: Iterable) -> OnDemandRecord:
+    """Every record whose fields range over the given domains, as record,
+    declared by its parts and never listed."""
+    return OnDemandRecord({n: _kept(vs) for n, vs in fields.items()})
+
+
 def partial_map(keys: Iterable, values: Iterable, max_size: int | None = None) -> Built:
     """Every partial function from keys to values with at most max_size
     entries (all sizes when max_size is None), the empty one included."""
+    for vs, what in ((keys, "keys"), (values, "values")):
+        _refuse_unlisted(vs, f"partial_map is given an on_demand_record for its {what}",
+                         f"give its {what} a listed type such as record(…)")
     keys = _kept(keys)
     values = _kept(values)
     limit = len(keys) if max_size is None else min(max_size, len(keys))

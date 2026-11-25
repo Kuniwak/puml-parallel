@@ -5,10 +5,10 @@ package coreio
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // ReadAuthored reads a diagram an author wrote: its clauses are read by
@@ -99,6 +99,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 	if e := src.EndEdge; e != nil {
 		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
 	}
+	d.Observes = observationOf(src.Observes)
 	if err := d.NamesBound(); err != nil {
 		return nil, err
 	}
@@ -154,6 +155,26 @@ func eventOf(e csdf.Event) core.Event {
 	out := core.Event{Channel: e.Channel()}
 	for _, f := range e.Fields() {
 		out.Fields = append(out.Fields, core.Field{Send: f.Dir == csdf.Sent, Name: f.Name})
+	}
+	return out
+}
+
+// observationOf is the observation the CSDF-OBSERVE lines os declare, nil
+// when there is none.
+func observationOf(os []csdf.Observe) *core.Observation {
+	if len(os) == 0 {
+		return nil
+	}
+	out := &core.Observation{}
+	for _, o := range os {
+		d := core.Observable{Name: o.Name}
+		if o.IsView() {
+			d.States = []string{}
+			for _, s := range o.States {
+				d.States = append(d.States, string(s))
+			}
+		}
+		out.Observables = append(out.Observables, d)
 	}
 	return out
 }

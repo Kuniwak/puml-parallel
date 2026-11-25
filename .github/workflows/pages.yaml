@@ -41,9 +41,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # Laying out a drawing needs Graphviz.
-      - name: Install Graphviz
-        run: sudo apt-get install -y --no-install-recommends graphviz
+      # Laying out a drawing needs Graphviz, and measuring its Japanese
+      # labels a font that has their glyphs.
+      - name: Install Graphviz and a Japanese font
+        run: sudo apt-get install -y --no-install-recommends graphviz fonts-noto-cjk
 
       - name: Cache PlantUML
         id: plantuml-cache
@@ -70,23 +71,9 @@ jobs:
           chmod +x ~/.local/bin/plantuml
           echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
+      # The pages and their index; the script writes the same site locally.
       - name: Write the pages
-        run: |
-          set -euo pipefail
-          go build -o "${RUNNER_TEMP}/csdfreplweb" ./tools/csdfreplweb
-          mkdir -p site
-          {
-            echo '<!doctype html><meta charset="utf-8"><title>csdfreplweb examples</title>'
-            echo '<h1>csdfreplweb examples</h1><ul>'
-          } > site/index.html
-          for f in examples/valid/vending_machine.puml examples/valid/client_server.puml \
-                   examples/compose/user_vending_machine.puml examples/promote/*.puml; do
-            case "$f" in *.expanded.puml) continue ;; esac
-            name="$(basename "$f" .puml)"
-            "${RUNNER_TEMP}/csdfreplweb" "$f" > "site/${name}.html"
-            echo "<li><a href=\"${name}.html\">${f}</a></li>" >> site/index.html
-          done
-          echo '</ul>' >> site/index.html
+        run: .github/pages/build.sh site
 
       - name: Upload the pages
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

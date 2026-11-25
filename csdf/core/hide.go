@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
 )
 
 // Hide is d with the channels hidden (docs/CLAUSE_DESIGN.md, a
@@ -18,7 +18,7 @@ import (
 // on the value chosen. A sent field names a value already bound, so it is
 // dropped.
 func Hide(d *Diagram, channels []string) (*Diagram, error) {
-	out := &Diagram{Name: d.Name, Labels: d.Labels, States: d.States, Vars: d.Vars, Types: d.Types, Init: d.Init, InitPost: d.InitPost, Ends: d.Ends, Assumes: d.Assumes, Families: cloneFamilies(d.Families)}
+	out := &Diagram{Name: d.Name, Labels: d.Labels, States: d.States, Vars: d.Vars, Types: d.Types, Init: d.Init, InitPost: d.InitPost, Ends: d.Ends, Assumes: d.Assumes, Families: cloneFamilies(d.Families), Observes: d.Observes.within(d)}
 	for c, ts := range d.Channels {
 		if slices.Contains(channels, c) {
 			continue

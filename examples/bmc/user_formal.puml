@@ -1,0 +1,32 @@
+@startuml
+' examples/valid/user.puml with every clause written in Python, the
+' customer of vending_machine_formal.puml; vending_machine_formal_defs.py
+' names the types.
+
+state "userIdle" as userIdle
+userIdle : wanted ; ProductSet
+state "userGonnaBuy" as userGonnaBuy
+userGonnaBuy : product ; Product
+state "userPaying" as userPaying
+userPaying : product ; Product
+state "userChoosing" as userChoosing
+userChoosing : product ; Product
+state "userWaiting" as userWaiting
+
+[*] --> userIdle : $wanted' == set()
+userIdle --> userIdle : tau ; ; $wanted' in WANTS
+userIdle --> userGonnaBuy : showAvailable?products ; $products & $wanted != set() ; $product' in $products & $wanted
+userGonnaBuy --> userPaying : insert?coin ; ; @eq(product', product)
+userPaying --> userGonnaBuy : showPurchasable?products ; $product not in $products ; @eq(product', product)
+userPaying --> userChoosing : showPurchasable?products ; $product in $products ; @eq(product', product)
+userChoosing --> userWaiting : choose!product
+userWaiting --> userIdle : drop?product ; ; $wanted' == set()
+
+note as channels
+  channel choose : Product
+  channel drop : Product
+  channel insert : Coin
+  channel showAvailable : ProductSet
+  channel showPurchasable : ProductSet
+end note
+@enduml

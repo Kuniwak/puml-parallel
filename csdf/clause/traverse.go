@@ -115,6 +115,20 @@ func EachTerm(f Formula, visit func(Term)) {
 	}
 }
 
+// EachAtom calls visit on each atom of f, in order, under any ∃.
+func EachAtom(f Formula, visit func(Atom)) {
+	switch f := f.(type) {
+	case And:
+		for _, c := range f.Conjuncts {
+			EachAtom(c, visit)
+		}
+	case Exists:
+		EachAtom(f.Body, visit)
+	case Atom:
+		visit(f)
+	}
+}
+
 // PrimedNames are the names of the primed free variables of f, the
 // variables it names after the step, in order of appearance, each once: a
 // primed variable anywhere in a term counts, a key or an argument of a

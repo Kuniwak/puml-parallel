@@ -13,7 +13,7 @@ import argparse
 import json
 import sys
 
-from csdfbmc.cli import LOADING_ERRORS, add_inputs, opened
+from csdfbmc.cli import LOADING_ERRORS, loading_message, add_inputs, opened
 from csdfbmc.explore import Explorer, as_met, every_transition
 
 
@@ -32,7 +32,7 @@ def main(argv=None) -> int:
             candidates = _candidates(Explorer(diagram, checks, client, environment=environment, left_out=(), ample=every_transition,
                                                      canonical=as_met), a)
     except (*LOADING_ERRORS, IndexError, TypeError) as e:
-        print(f"csdfbmc next: {e}", file=sys.stderr)
+        print(f"csdfbmc next: {loading_message(e)}", file=sys.stderr)
         return 2
     json.dump({"candidates": candidates}, sys.stdout, ensure_ascii=False)
     print()

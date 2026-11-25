@@ -5,7 +5,7 @@ import re
 import unittest
 from pathlib import Path
 
-from csdfbmc.model import Atom, Bound, Builtin, Diagram, Exists, Free, Index
+from csdfbmc.model import Atom, Bound, Builtin, Diagram, Exists, Free, Index, observed_by_state
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import continues_name, atom, builtin, diagram, edge, end, exists, family, idx
 
@@ -46,6 +46,23 @@ class DiagramTest(unittest.TestCase):
         # Assert
         f = d.families["m"]
         self.assertEqual(("key", "none", ("none", "open"), {"none": (), "open": ("cnt", "tag")}), (f.key, f.init, f.states, f.vars))
+
+    def test_reads_the_observation_of_each_family(self):
+        # Setup
+        observing = dict(family("m", "none", {"none": [], "open": ["cnt", "tag"]}),
+                         observes=[{"view": "live", "states": ["open"]}, {"var": "cnt"}, {"view": "gone", "states": []}])
+        doc = diagram({"G": ["m", "n"]}, "G", families=[observing, family("n", "nil", {"nil": []})])
+
+        # Execute
+        d = Diagram.from_json(doc)
+
+        # Assert
+        self.assertEqual(((("live", ("open",)), ("cnt", None), ("gone", ())), None),
+                         (d.families["m"].observes, d.families["n"].observes))
+        seen = observed_by_state(d.families)
+        self.assertEqual((frozenset({"cnt"}), frozenset({"live"}), frozenset({"live", "gone"})),
+                         (seen["open"].fields, seen["open"].at, seen["open"].views))
+        self.assertEqual((None, frozenset(), frozenset()), (seen["nil"].fields, seen["nil"].at, seen["nil"].views))
 
     def test_reads_the_declared_types(self):
         # Setup

@@ -3,9 +3,9 @@ package obligation_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligation"
 	"github.com/google/go-cmp/cmp"
 )
 

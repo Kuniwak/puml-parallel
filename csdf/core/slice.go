@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // Sliced is the part of a diagram around some of its states. Diagram holds
@@ -63,6 +63,7 @@ func Slice(d *Diagram, states []string, context int) (*Sliced, error) {
 			out.Vars[s] = vs
 		}
 	}
+	out.Observes = d.Observes.within(out)
 	if in[d.Init] {
 		out.Init, out.InitPost, out.InitLine = d.Init, d.InitPost, d.InitLine
 	}

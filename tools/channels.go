@@ -3,7 +3,7 @@ package tools
 import (
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf"
+	"github.com/Kuniwak/puml-parallel/v4/csdf"
 )
 
 // ParseChannels parses a semicolon-separated list of channels as written on

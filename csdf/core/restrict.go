@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // Restrict is the promoted diagram d kept to the families of the maps keep,
@@ -67,6 +67,7 @@ func Restrict(d *Diagram, maps, keep []string) (*Diagram, []Warning, error) {
 			}
 		}
 	}
+	out.Observes = d.Observes.within(out)
 	for v, t := range d.Types {
 		if !gone[v] {
 			if out.Types == nil {

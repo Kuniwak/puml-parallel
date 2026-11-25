@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -286,7 +286,8 @@ func TestTheViewOfAPromotionPlacesTheInstancesAtTheirLocalStates(t *testing.T) {
 		Values: `[{"b": {"at": "itMade", "fields": {"n": 0}}, "a": {"at": "itMade", "fields": {"n": 1}}}]`}))
 
 	// Assert
-	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}}}}
+	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}},
+		Labels: map[string]string{"itNone": "none", "itMade": "made"}}}
 	if diff := cmp.Diff(want, view.Families); diff != "" {
 		t.Errorf("families (-want +got):\n%s", diff)
 	}
@@ -325,6 +326,45 @@ func TestHandleSelectMovesToValues(t *testing.T) {
 	view := decodeView(t, resp)
 	if view.Mode != "values" || view.Pending == nil || view.Pending.Group.ID != "s1" {
 		t.Errorf("select view = %+v, want values mode pending s1", view)
+	}
+}
+
+type noneAdmitted struct{ animation.NoSuggester }
+
+func (noneAdmitted) Next(animation.State, int) ([]animation.Suggestion, error) {
+	return []animation.Suggestion{}, nil
+}
+
+func TestHandleSuggestTellsWhatATransitionAdmitsWithoutSelectingIt(t *testing.T) {
+	// Setup
+	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
+		return noneAdmitted{}, animation.NoCleanup, nil
+	})
+	id := service.Handle(Request{Command: CommandSessionNew, Content: []byte(twoStateDiagram)}).Session
+	if resp := service.Handle(Request{Command: CommandStatevar, Session: id, Values: "[0]"}); !resp.OK {
+		t.Fatalf("statevar failed: %s", resp.Error)
+	}
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandSuggest, Session: id, Index: intPtr(0)})
+
+	// Assert
+	if !resp.OK {
+		t.Fatalf("suggest failed: %s", resp.Error)
+	}
+	if string(resp.Data) != `{"suggestions":[]}` {
+		t.Errorf("data = %s, want no suggestions", resp.Data)
+	}
+	if view := decodeView(t, service.Handle(Request{Command: CommandRead, Session: id})); view.Mode != "command" {
+		t.Errorf("mode = %q, want command: nothing is selected", view.Mode)
+	}
+}
+
+func TestHandleSuggestWithoutACheckerSaysSo(t *testing.T) {
+	service, id := advance(t)
+	resp := service.Handle(Request{Command: CommandSuggest, Session: id, Index: intPtr(0)})
+	if resp.OK || resp.Code != ErrorCodeNoChecker {
+		t.Errorf("suggest = %+v, want a failure of code %q", resp, ErrorCodeNoChecker)
 	}
 }
 

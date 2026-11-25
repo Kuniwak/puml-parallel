@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
 )
 
 func TestResolveSocketPath(t *testing.T) {

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v3/cli"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir/isabelle"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/obligationir/target"
-	"github.com/Kuniwak/puml-parallel/v3/tools"
+	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/isabelle"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/target"
+	"github.com/Kuniwak/puml-parallel/v4/tools"
 )
 
 type Options struct {

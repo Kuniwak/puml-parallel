@@ -7,8 +7,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
 // written are diagrams with the text Write writes of them.
@@ -22,6 +22,47 @@ func written(t *testing.T) []struct {
 		d    *core.Diagram
 		want string
 	}{
+		{
+			name: "observations",
+			d: &core.Diagram{
+				States:   []string{"n", "a", "b"},
+				Vars:     map[string][]string{"a": {"x"}, "b": {"x", "y"}},
+				Types:    map[string]types.Type{"x": types.Named("N"), "y": types.Named("N")},
+				Init:     "n",
+				Edges:    []core.Edge{{Src: "n", Dst: "a", Event: core.Event{Channel: "make"}, Post: mustParse(t, "$x' = 0")}},
+				Observes: &core.Observation{Observables: []core.Observable{{Name: "live", States: []string{"a", "b"}}, {Name: "y"}, {Name: "first", States: []string{"a"}}, {Name: "x"}}},
+			},
+			want: `@startuml
+' CSDF-OBSERVE live = a, b
+' CSDF-OBSERVE y
+' CSDF-OBSERVE first = a
+' CSDF-OBSERVE x
+state "n" as n
+state "a" as a
+a : x ; N
+state "b" as b
+b : x ; N
+b : y ; N
+[*] --> n
+n --> a : make ; ; $x' = 0
+@enduml
+`,
+		},
+		{
+			name: "a view of no state",
+			d: &core.Diagram{
+				States:   []string{"a"},
+				Vars:     map[string][]string{},
+				Init:     "a",
+				Observes: &core.Observation{Observables: []core.Observable{{Name: "v", States: []string{}}}},
+			},
+			want: `@startuml
+' CSDF-OBSERVE v =
+state "a" as a
+[*] --> a
+@enduml
+`,
+		},
 		{
 			name: "states, variables, the start edge and edges",
 			d: &core.Diagram{
