@@ -815,8 +815,14 @@
     return words.every((w) => text.includes(w));
   }
 
+  // localLabel is the label the local diagram of map gives its state id.
+  function localLabel(map, id) {
+    return (app.familyLabels.get(map) || {})[id] || id;
+  }
+
   function moveName(m) {
-    return m.parallel > 0 ? t("moves.edgeParallel", { src: m.src, dst: m.dst, n: m.parallel + 1 }) : t("moves.edge", { src: m.src, dst: m.dst });
+    const src = localLabel(m.map, m.src), dst = localLabel(m.map, m.dst);
+    return m.parallel > 0 ? t("moves.edgeParallel", { src, dst, n: m.parallel + 1 }) : t("moves.edge", { src, dst });
   }
 
   // groupTransitions groups transitions by the family of each of their
@@ -896,8 +902,13 @@
     for (const [map, edges] of byMap) {
       const count = new Set([...edges.values()].flatMap((g) => g.transitions)).size;
       list.appendChild(groupBox("map:" + map, map, count, (body) => {
+        const sources = [...edges.values()].map((g) => g.move.src);
         for (const [edge, group] of edges) {
-          body.appendChild(groupBox("edge:" + map + "/" + edge, moveName(group.move), group.transitions.length, (inner) => {
+          // A group is named by where it leaves from, and by where it goes
+          // only when another group leaves from there too.
+          const shared = sources.filter((src) => src === group.move.src).length > 1;
+          const name = shared ? moveName(group.move) : t("moves.from", { src: localLabel(map, group.move.src) });
+          body.appendChild(groupBox("edge:" + map + "/" + edge, name, group.transitions.length, (inner) => {
             for (const tr of group.transitions) inner.appendChild(choiceButton(tr));
           }, narrowed && edges.size === 1, count));
         }
