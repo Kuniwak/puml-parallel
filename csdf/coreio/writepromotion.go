@@ -32,9 +32,6 @@ type WrittenPromotion struct {
 // ReadPromotionAsWritten reads the global diagram source as ReadPromotion
 // does, but reads none of the files it includes, keeping the paths instead.
 func ReadPromotionAsWritten(source string) (WrittenPromotion, error) {
-	if err := csdf.CheckIgnoreRegions(source); err != nil {
-		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)
-	}
 	tree, err := csdf.Parse("", source)
 	if err != nil {
 		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)

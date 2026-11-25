@@ -17,9 +17,6 @@ import (
 // ReadPromotion reads a global diagram (docs/PROMOTION.md): its syntax tree
 // (csdf.Parse), read by ReadPromotionTree.
 func ReadPromotion(source string, include Include) (core.Promotion, error) {
-	if err := csdf.CheckIgnoreRegions(source); err != nil {
-		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
-	}
 	tree, err := csdf.Parse("", source)
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
