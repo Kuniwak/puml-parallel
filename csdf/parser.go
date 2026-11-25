@@ -1024,7 +1024,7 @@ func syncSyntax(pos Pos, text string) (*SyncSyntax, error) {
 	if _, guard, ok := strings.Cut(text, ";"); ok {
 		g, err := clauseAt(pos, pos.Line, "guard", strings.TrimSpace(guard))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("sync %s: %w", m[1], err)
 		}
 		s.Guard = g
 	}
@@ -1043,7 +1043,7 @@ func constrainSyntax(pos Pos, text string) (*ConstrainSyntax, error) {
 	if hasGuard {
 		g, err := clauseAt(pos, pos.Line, "guard", strings.TrimSpace(guard))
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("constrain %s: %w", strings.TrimSpace(head), err)
 		}
 		c.Guard = g
 	}
