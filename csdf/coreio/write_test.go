@@ -49,6 +49,21 @@ n --> a : make ; ; $x' = 0
 `,
 		},
 		{
+			name: "a view of no state",
+			d: &core.Diagram{
+				States:   []string{"a"},
+				Vars:     map[string][]string{},
+				Init:     "a",
+				Observes: &core.Observation{Observables: []core.Observable{{Name: "v", States: []string{}}}},
+			},
+			want: `@startuml
+' CSDF-OBSERVE v =
+state "a" as a
+[*] --> a
+@enduml
+`,
+		},
+		{
 			name: "states, variables, the start edge and edges",
 			d: &core.Diagram{
 				States:   []string{"s"},
@@ -233,12 +248,6 @@ func TestWriteRefuses(t *testing.T) {
 			d: &core.Diagram{States: []string{"a"}, Init: "a",
 				Ends: []core.End{{Src: "a"}, {Src: "a"}}},
 			want: "one end edge",
-		},
-		{
-			name: "a view of no state, which the syntax cannot write",
-			d: &core.Diagram{States: []string{"a"}, Init: "a",
-				Observes: &core.Observation{Observables: []core.Observable{{Name: "v", States: []string{}}}}},
-			want: "the view v lists no state",
 		},
 	}
 	for _, c := range cases {

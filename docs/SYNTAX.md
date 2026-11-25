@@ -46,7 +46,7 @@ ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 ignore_line = *unicode_char LF
 observe_line = observe_marker (observe_view / var) *(HTAB / SP) LF
 observe_marker = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" 1*(HTAB / SP)
-observe_view = name *(HTAB / SP) "=" *(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)
+observe_view = name *(HTAB / SP) "=" [*(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)]
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_letter = <any character in Unicode general category L>
 unicode_digit = <any character in Unicode general category N>
@@ -74,7 +74,8 @@ discarded. The marker is followed by a tab or a space, so `' CSDF-OBSERVED` and
 `' CSDF-OBSERVE-X` are plain line comments. Inside `observe_line` only tabs and spaces
 separate, never a block comment, as in `ignore_begin`. An `observe_line` declares an observation of a local
 diagram (docs/PROMOTION.md, Observations), and PlantUML draws nothing for it.
-`' CSDF-OBSERVE c = S₁, …` declares the view `c` of the states `S₁ …`; `' CSDF-OBSERVE x`
+`' CSDF-OBSERVE c = S₁, …` declares the view `c` of the states `S₁ …`, and
+`' CSDF-OBSERVE c =` a view of no state, at which no instance is; `' CSDF-OBSERVE x`
 declares the state variable `x`. A view name is distinct from every state ID and every
 state variable of the diagram, and a view lists distinct states of the diagram, none its
 start state; a variable is one some state holds; a view or variable is declared once. A

@@ -46,6 +46,11 @@ func TestParseObserveLines(t *testing.T) {
 				{Name: "two", States: []StateID{"A", "B"}, Line: 9},
 			},
 		},
+		{
+			name:  "a view with no state",
+			extra: "' CSDF-OBSERVE live =\n",
+			want:  []Observe{{Name: "live", States: []StateID{}, Line: 8}},
+		},
 		{name: "OBSERVED is a plain comment", extra: "' CSDF-OBSERVED live = A\n", want: nil},
 		{name: "OBSERVE-X is a plain comment", extra: "' CSDF-OBSERVE-X live = A\n", want: nil},
 		{name: "a marker with nothing after is a plain comment", extra: "' CSDF-OBSERVE\n", want: nil},
@@ -74,7 +79,6 @@ func TestParseRefusesObserveLines(t *testing.T) {
 		want  string
 	}{
 		{name: "a marker with no body", extra: "' CSDF-OBSERVE   \n", want: "line 8"},
-		{name: "a view with no state", extra: "' CSDF-OBSERVE live =\n", want: "line 8"},
 		{name: "a trailing comma", extra: "' CSDF-OBSERVE live = A,\n", want: "line 8"},
 		{name: "two variables", extra: "' CSDF-OBSERVE x y\n", want: "line 8"},
 		{name: "a block comment inside", extra: "' CSDF-OBSERVE live = A /' c '/\n", want: "line 8"},

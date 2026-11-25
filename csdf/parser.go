@@ -690,7 +690,8 @@ func (p *Parser) readObserve(body string) error {
 }
 
 // parseObserve reads the body of an observe line, written at line:
-// "<view> = <state>, …" or "<variable>", separated by tabs and spaces only.
+// "<view> = <state>, …", "<view> =" for a view of no state, or
+// "<variable>", separated by tabs and spaces only.
 func parseObserve(body string, line int) (Observe, error) {
 	name, states, isView := strings.Cut(body, "=")
 	name = strings.Trim(name, " \t")
@@ -702,6 +703,9 @@ func parseObserve(body string, line int) (Observe, error) {
 		return o, nil
 	}
 	o.States = []StateID{}
+	if strings.Trim(states, " \t") == "" {
+		return o, nil
+	}
 	for _, s := range strings.Split(states, ",") {
 		s = strings.Trim(s, " \t")
 		if err := ident.Check(s); err != nil {

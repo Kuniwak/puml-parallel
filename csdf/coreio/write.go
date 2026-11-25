@@ -75,8 +75,8 @@ func writeBody(b *strings.Builder, d *core.Diagram, gloss func(core.Edge) (strin
 }
 
 // writeObserves writes the CSDF-OBSERVE lines of o, in the order it
-// declares them. A view of no state, which a slice may leave, is an error:
-// the syntax writes a view with one state or more.
+// declares them; a view of no state, which a slice may leave, is written
+// "<view> =".
 func writeObserves(b *strings.Builder, o *core.Observation) error {
 	if o == nil {
 		return nil
@@ -84,7 +84,8 @@ func writeObserves(b *strings.Builder, o *core.Observation) error {
 	for _, d := range o.Observables {
 		if d.IsView() {
 			if len(d.States) == 0 {
-				return fmt.Errorf("the view %s lists no state, which a CSDF-OBSERVE line cannot write", d.Name)
+				fmt.Fprintf(b, "' CSDF-OBSERVE %s =\n", d.Name)
+				continue
 			}
 			fmt.Fprintf(b, "' CSDF-OBSERVE %s = %s\n", d.Name, strings.Join(d.States, ", "))
 			continue
