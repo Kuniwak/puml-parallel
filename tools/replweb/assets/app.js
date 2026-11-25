@@ -191,7 +191,6 @@
     const history = await send({ command: "history" });
     app.history = history.ok ? history.data.history || [] : [];
     render();
-    autoContinue();
     checkAdmits();
   }
 
@@ -225,17 +224,6 @@
     return app.admits.get(admitsKey(app.view.state, tr.index)) === "none";
   }
 
-  // A state whose values the post determines, all of them, takes them
-  // without asking; so does a state of no variables.
-  function autoContinue() {
-    const v = app.view;
-    if (!v || v.mode !== "values" || !v.pending || app.error) return;
-    const vars = v.pending.group.vars || [];
-    const values = vars.map((name) => determinedValue(v.pending, name));
-    if (values.some((value) => value === undefined)) return;
-    enterValues(values.map(show), vars.length > 0);
-  }
-
   // determinedValue is the value the post determines of name, undefined
   // when it determines none.
   function determinedValue(pending, name) {
@@ -253,19 +241,19 @@
     await refresh();
   }
 
-  async function enterValues(texts, auto) {
+  async function enterValues(texts) {
     const values = "[" + texts.join(", ") + "]";
     const resp = await send({ command: "statevar", values });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
     app.error = null;
     const c = app.choice;
     if (!c) {
-      app.entries.push({ kind: "initial", auto, parent: null, path: { initial: values, steps: [] } });
+      app.entries.push({ kind: "initial", parent: null, path: { initial: values, steps: [] } });
     } else {
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", auto, event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
+        kind: "step", event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -725,7 +713,6 @@
       const head = el("div", null, [
         el("span", { class: "step-number", text: t("history.stepNumber", { step: k + 1 }) }),
         el("span", { text: label }),
-        entry.auto ? el("span", { class: "auto", text: t("history.auto") }) : null,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
       ]);
       const item = el("li", {
