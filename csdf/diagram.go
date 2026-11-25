@@ -7,11 +7,8 @@ import (
 	"strings"
 )
 
-// What a global diagram carries and a plain one does not. Such a diagram's edges
-// are not the whole of its behaviour, so parsing it here would be worse than
-// failing - and it does fail, on syntax the core grammar has no rule for. The
-// hint says what the author is missing rather than leaving them to read a column
-// number.
+// What a global diagram carries and a plain one does not, read off the text by
+// HoldsPromotionDirectives for a reader that has not parsed it.
 //
 // A note on its own is not a trace: notes are PlantUML's, and the advice for one
 // that was not wrapped is CSDF-IGNORE. It counts only next to a directive body.
@@ -21,8 +18,11 @@ var (
 	promotionDirectiveRe = regexp.MustCompile(`(?m)^\s*(?:sync|constrain)\s`)
 )
 
-// PromotionHintError is a parse error on a source that still holds promotion
-// directives. It wraps the parse error, so a caller can still reach it.
+// PromotionHintError is a refusal of a diagram that still holds promotion
+// directives: its edges are not the whole of its behaviour, so reading it as
+// a plain diagram would be worse than failing (Plain). The hint says what the
+// author is missing rather than leaving them to read a column number. It wraps
+// the refusal, so a caller can still reach it.
 //
 // It says the fact and not what to run: which tool expands a promotion is the
 // tool layer's business, and this package is the grammar.
@@ -62,23 +62,13 @@ func NewParseError(line, col int, err error) *ParseError {
 	return &ParseError{Line: line, Col: col, err: err}
 }
 
-// ParseSource reads the structure of the diagram in source, its clauses
-// left as written. A failure is a *ParseError tagged with the position the
-// parser stopped at, unless it already says where it is, and is hinted when
-// the source still holds promotion directives.
-func ParseSource(source string) (*Diagram, error) {
-	d, err := NewParser(source).parseAt()
-	if err != nil {
-		return nil, withHint(err, source)
-	}
-	return d, nil
-}
-
-// parseAt parses as parse does and tags a failure with the position the
-// parser stopped at, as a *ParseError, unless the failure already says
-// where it is.
-func (p *Parser) parseAt() (*Diagram, error) {
-	diagram, err := p.parse()
+// Parse reads the concrete syntax tree of the diagram in source, plain or
+// global, nothing of its meaning read. A failure is a *ParseError tagged
+// with the position the parser stopped at, unless it already says where it
+// is.
+func Parse(source string) (*SyntaxTree, error) {
+	p := NewParser(source)
+	tree, err := p.parse()
 	if err != nil {
 		var tagged *ParseError
 		if errors.As(err, &tagged) {
@@ -86,16 +76,7 @@ func (p *Parser) parseAt() (*Diagram, error) {
 		}
 		return nil, &ParseError{Line: p.line, Col: p.col, err: err}
 	}
-	return diagram, nil
-}
-
-// withHint adds the promotion hint to a parse error when the source looks like a
-// global diagram.
-func withHint(err error, source string) error {
-	if !HoldsPromotionDirectives(source) {
-		return err
-	}
-	return &PromotionHintError{err: err}
+	return tree, nil
 }
 
 // HoldsPromotionDirectives reports whether source looks like a global

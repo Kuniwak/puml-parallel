@@ -37,20 +37,31 @@ func Read(source string) (*core.Diagram, error) {
 	return d, nil
 }
 
-// Lower is the diagram src says, what the tools evaluate: its clauses are
-// read by clause.Parse, as Read reads them.
-func Lower(src *csdf.Diagram) (*core.Diagram, error) {
-	d, err := lower(src, clause.Parse)
+// Lower is the diagram tree says, what the tools evaluate: the plain
+// diagram csdf.Plain reads of it, its clauses read by clause.Parse, as Read
+// reads them. A tree holding promotion directives is refused
+// (csdf.PromotionHintError): a core.Diagram has no place for them.
+func Lower(tree *csdf.SyntaxTree) (*core.Diagram, error) {
+	d, err := lowerTree(tree, clause.Parse)
 	if err != nil {
 		return nil, fmt.Errorf("coreio.Lower: %w", err)
 	}
 	return d, nil
 }
 
-// read reads source with the structure csdf.ParseSource reads, each clause by
-// parse.
+// read reads the syntax tree of source, csdf.Parse's, and lowers it, each
+// clause by parse.
 func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
-	src, err := csdf.ParseSource(source)
+	tree, err := csdf.Parse(source)
+	if err != nil {
+		return nil, err
+	}
+	return lowerTree(tree, parse)
+}
+
+// lowerTree lowers the plain diagram tree says, each clause by parse.
+func lowerTree(tree *csdf.SyntaxTree, parse func(string) (clause.And, error)) (*core.Diagram, error) {
+	src, err := csdf.Plain(tree)
 	if err != nil {
 		return nil, err
 	}

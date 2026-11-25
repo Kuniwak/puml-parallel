@@ -13,5 +13,5 @@ func ParseEdgeLine(text string, line int) (Edge, error) {
 	if err != nil {
 		return Edge{}, fmt.Errorf("csdf.ParseEdgeLine: %w", err)
 	}
-	return e, nil
+	return edgeOf(e), nil
 }
