@@ -258,13 +258,16 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 }
 @keyframes csdf-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { #diagram-loading .spinner { animation: none; } }
-.event-chip { display: inline-flex; align-items: baseline; gap: .3rem; max-width: 100%; }
-.event-tag { font-size: .7rem; line-height: 1.4; padding: 0 .35rem; border-radius: 3px; background: var(--accent); color: var(--accent-text); font-weight: 600; white-space: nowrap; }
-.event-name { display: inline-flex; flex-wrap: wrap; gap: .15rem; }
-.event-part { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; overflow-wrap: anywhere; }
-.event-field { font-weight: 500; border: 1px dashed var(--accent); padding: 0 .25rem; }
-.choice.blocked .event-tag { background: var(--muted); }
-.choice.blocked .event-part { color: var(--muted); border-color: var(--muted); }
+.event-chip {
+  display: inline-flex; align-items: baseline; max-width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600;
+  color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent);
+  border-radius: 999px; padding: 0 .5rem 0 .35rem; overflow-wrap: anywhere;
+}
+.event-chip::before { content: ""; align-self: center; width: .42em; height: .42em; margin-right: .35rem; background: var(--accent); transform: rotate(45deg); flex: none; }
+.event-field { font-weight: 400; font-style: italic; opacity: .8; }
+.choice.blocked .event-chip { color: var(--muted); border-color: var(--muted); }
+.choice.blocked .event-chip::before { background: var(--muted); }
 #history .history-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .4rem; }
 #history .history-head .step-number, #history .history-head .here { margin: 0; }
 #history li.pending { border-style: dashed; border-color: var(--accent); background: transparent; cursor: default; opacity: .85; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem; }

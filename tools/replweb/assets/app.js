@@ -998,17 +998,18 @@
   let helpCount = 0;
 
   // eventChip shows the event of tr, {event, channel, fields}, as an
-  // event, wherever one is named: a tag saying so, then its name, or, for
-  // a channel with fields, the channel and each field apart.
+  // event, wherever one is named: one chip of the event's mark holding its
+  // name, the fields of a channel told apart from the channel by tone.
   function eventChip(tr) {
     const fields = tr.fields || [];
     const parts = tr.channel && fields.length > 0
-      ? [el("code", { class: "event-part", text: tr.channel }), ...fields.map(fieldChip)]
-      : [el("code", { class: "event-part", text: tr.event })];
-    return el("span", { class: "event-chip", title: tr.event }, [
-      el("span", { class: "event-tag", text: t("event.tag") }),
-      el("span", { class: "event-name" }, parts),
-    ]);
+      ? [el("span", { class: "event-channel", text: tr.channel }), ...fields.map(fieldPart)]
+      : [el("span", { class: "event-channel", text: tr.event })];
+    return el("code", { class: "event-chip", title: t("event.title", { event: tr.event }) }, parts);
+  }
+
+  function fieldPart(f) {
+    return el("span", { class: "event-field", text: f.dir + f.name });
   }
 
   // paramsView shows the values params, by field name, the fields of the
@@ -1026,10 +1027,10 @@
     return out;
   }
 
-  // fieldChip is a field of an event, {dir, name}, as the event chip
-  // shows it: its direction, ? or !, and its name.
+  // fieldChip is a field of an event, {dir, name}, standing alone: a chip
+  // like the event's, holding the field as the event chip shows it.
   function fieldChip(f) {
-    return el("code", { class: "event-part event-field", text: f.dir + f.name });
+    return el("code", { class: "event-chip field-chip", title: t("event.fieldTitle", { field: f.dir + f.name }) }, [fieldPart(f)]);
   }
 
   function renderValueChoices(root, pending) {
