@@ -241,7 +241,9 @@
     await refresh();
   }
 
-  async function enterValues(texts) {
+  // enterValues enters the values texts, which the event's fields took
+  // the values params of, when known.
+  async function enterValues(texts, params) {
     const values = "[" + texts.join(", ") + "]";
     const resp = await send({ command: "statevar", values });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
@@ -253,7 +255,7 @@
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
+        kind: "step", event: c.transition.event, channel: c.transition.channel, fields: c.transition.fields || [], params: params || null, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -685,7 +687,8 @@
   function renderHistory() {
     const list = document.getElementById("history");
     list.replaceChildren();
-    if (app.history.length === 0) list.appendChild(el("li", { class: "hint", text: t("history.empty") }));
+    const awaiting = app.view && app.view.mode === "values";
+    if (app.history.length === 0 && !awaiting) list.appendChild(el("li", { class: "hint", text: t("history.empty") }));
     const chain = app.current >= 0 ? chainOf(app.current) : [];
     chain.forEach((i, k) => {
       const h = app.history[i];
@@ -696,7 +699,7 @@
       // the one before, which under a promotion it always is.
       const moved = parent && parent.state.state_id !== h.state.state_id;
       const label = entry.kind === "step"
-        ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry.event),
+        ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry),
           moved ? el("span", { class: "to", text: t("history.to", { state: h.state.state_name }) }) : null]
         : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: h.state.state_name })];
       const head = el("div", { class: "history-head" }, [
@@ -708,11 +711,35 @@
         tabindex: "0",
         onclick: () => jump(i),
         onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(i); } },
-      }, [head, shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
+      }, [head,
+        entry.params && Object.keys(entry.params).length > 0 ? el("p", { class: "params-line" }, [paramsView(entry.params, entry)]) : null,
+        shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
       list.appendChild(item);
     });
+    if (awaiting) list.appendChild(pendingEntry(app.choice, chain.length, app.view.pending));
     const current = list.querySelector("li.current");
     if (current) current.scrollIntoView({ block: "nearest" });
+  }
+
+  // pendingEntry is the entry of the history to be whose values, pending,
+  // are awaited: the n-th, of the event chosen, choice, with a way back to
+  // choosing another, or the start when there is none; tentative until the
+  // values are chosen, and holding those the diagram fixes.
+  function pendingEntry(choice, n, pending) {
+    const tr = choice ? choice.transition : null;
+    const head = tr
+      ? [el("span", { class: "step-number", text: t("history.eventNumber", { n }) }), eventChip(tr),
+        tr.dst !== choice.src ? el("span", { class: "to", text: t("history.to", { state: tr.dst_name }) }) : null]
+      : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: pending.group.state_name })];
+    const determined = pending.determined || [];
+    return el("li", { class: "pending" }, [
+      el("div", { class: "history-head" }, [...head, el("span", { class: "here", text: t("history.pending") })]),
+      tr ? el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }) : null,
+      determined.length > 0 ? el("div", { class: "determined" }, [
+        el("p", { class: "hint", text: t("values.determined") }),
+        valuesList(determined.map((d) => ({ name: d.name, value: d.value })), null),
+      ]) : null,
+    ]);
   }
 
   function clausesList(rows) {
@@ -729,11 +756,13 @@
   }
 
   function renderControls() {
-    const root = document.getElementById("controls");
-    root.replaceChildren();
+    const pane = document.getElementById("controls");
+    pane.replaceChildren();
     const v = app.view;
     if (!v) return;
-    root.appendChild(tabBar());
+    // The tabs are the top of the panel they switch.
+    const root = el("div", { class: "tab-panel", role: "tabpanel", "aria-labelledby": "tab-" + app.tab });
+    pane.append(tabBar(), root);
     if (v.mode === "values") { renderValueForm(root, v.pending); return; }
     const state = v.state;
     if (v.mode === "ended") {
@@ -792,7 +821,7 @@
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
-      el("div", { class: "event" }, [eventChip(tr.event)]),
+      el("div", { class: "event" }, [eventChip(tr)]),
       blocked ? el("p", { class: "reason", text: t("controls.conditionFails") }) : document.createTextNode(""),
       clausesList(rows),
     ]);
@@ -936,15 +965,15 @@
     const promoted = (pending.families || []).length > 0;
     if (app.choice) {
       root.appendChild(stepBar(2));
-      root.appendChild(chosenBox(app.choice.transition));
     }
     if (app.tab === "details") {
-      root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
+      root.appendChild(el("h2", null, [
+        el("span", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }),
+        (group.vars || []).length > 0 ? helpButton(t("values.hint")) : null,
+      ]));
       renderValueDetails(root, pending);
     } else {
-      root.appendChild(app.choice
-        ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition.event) })])
-        : el("h2", { text: t("suggest.titleInitial") }));
+      if (!app.choice) root.appendChild(el("h2", null, [el("span", { text: t("suggest.titleInitial") }), helpButton(t("suggest.hintInitial"))]));
       renderValueChoices(root, pending);
     }
   }
@@ -960,40 +989,68 @@
     return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
   }
 
-  // eventChip shows the event name as an event, wherever one is named: a
-  // tag saying so, then the name.
-  function eventChip(name) {
-    return el("span", { class: "event-chip" }, [
+  // helpButton is a "?" that shows text on demand: while the pointer is
+  // over it, while it has the focus, or after a click or tap until the
+  // next one or Escape.
+  function helpButton(text) {
+    const id = "help-" + (++helpCount);
+    const tip = el("span", { class: "help-tip", role: "tooltip", id, text });
+    const button = el("button", { type: "button", class: "help", "aria-label": t("help.label"), "aria-describedby": id, text: "?" });
+    const wrap = el("span", { class: "help-wrap" }, [button, tip]);
+    button.addEventListener("click", (e) => { e.preventDefault(); wrap.classList.toggle("open"); });
+    button.addEventListener("keydown", (e) => { if (e.key === "Escape") { wrap.classList.remove("open"); button.blur(); } });
+    return wrap;
+  }
+  let helpCount = 0;
+
+  // eventChip shows the event of tr, {event, channel, fields}, as an
+  // event, wherever one is named: one chip, a tag saying it is an event,
+  // then its name, the fields of a channel told apart from it by tone.
+  function eventChip(tr) {
+    const fields = tr.fields || [];
+    const parts = tr.channel && fields.length > 0
+      ? [el("span", { class: "event-channel", text: tr.channel }), ...fields.map(fieldPart)]
+      : [el("span", { class: "event-channel", text: tr.event })];
+    return el("span", { class: "event-chip", title: t("event.title", { event: tr.event }) }, [
       el("span", { class: "event-tag", text: t("event.tag") }),
-      el("code", { class: "event-name", text: name }),
+      el("code", { class: "event-body" }, parts),
     ]);
   }
 
-  // chosenBox says which transition the values are the result of, with a
-  // way back to choosing another.
-  function chosenBox(tr) {
-    return el("div", { class: "chosen" }, [
-      el("span", { class: "label", text: t("chosen.label") }),
-      eventChip(tr.event),
-      tr.dst !== app.choice.src ? el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }) : null,
-      el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
+  function fieldPart(f) {
+    return el("span", { class: "event-field", text: f.dir + f.name });
+  }
+
+  // paramsView shows the values params, by field name, the fields of the
+  // event of tr took, in the order of the fields: each field as fieldChip
+  // shows it, then its value.
+  function paramsView(params, tr) {
+    const out = el("span", { class: "params" });
+    const fields = (tr && tr.fields) || [];
+    const at = (name) => { const i = fields.findIndex((f) => f.name === name); return i < 0 ? fields.length : i; };
+    Object.entries(params).sort(([a], [b]) => at(a) - at(b)).forEach(([name, value], i) => {
+      if (i > 0) out.appendChild(document.createTextNode(", "));
+      const field = fields.find((f) => f.name === name);
+      out.appendChild(tNodes("suggest.set", { name: field ? fieldChip(field) : name, value: valueView(value, undefined, false) }));
+    });
+    return out;
+  }
+
+  // fieldChip is a field of an event, {dir, name}, standing alone: a chip
+  // like the event's, holding the field as the event chip shows it.
+  function fieldChip(f) {
+    return el("span", { class: "event-chip field-chip", title: t("event.fieldTitle", { field: f.dir + f.name }) }, [
+      el("code", { class: "event-body" }, [fieldPart(f)]),
     ]);
   }
 
   function renderValueChoices(root, pending) {
     const vars = pending.group.vars || [];
     root.appendChild(errorBox());
-    const determined = pending.determined || [];
-    if (determined.length > 0 && !app.error) {
-      root.appendChild(el("p", { class: "hint", text: t("values.determined") }));
-      const note = instancesNote(pending);
-      if (note) root.appendChild(note);
-      root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
-    }
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
-      renderSuggestions(root, vars, previous, suggestions, t(app.choice ? "suggest.hint" : "suggest.hintInitial"));
+      renderSuggestions(root, vars, previous, suggestions);
     } else {
       const why = !app.suggesting ? "choose.noChecker" : pending.suggest_error ? "choose.failed" : "choose.none";
       root.appendChild(el("p", { class: "notice", text: t(why) }));
@@ -1022,8 +1079,7 @@
     return null;
   }
 
-  // varLabel is how the prompt names the variable name; that a name is
-  // the instances of a diagram is said once, by instancesNote.
+  // varLabel is how the prompt names the variable name.
   function varLabel(pending, name) {
     return name;
   }
@@ -1132,16 +1188,8 @@
     ]);
   }
 
-  // instancesNote says once, for a prompt with maps of instances, that
-  // those names are the instances of the diagrams they are named after,
-  // and how one is written.
   function stateVars(state) {
     return (state.values || []).map((v) => v.name);
-  }
-
-  function instancesNote(pending) {
-    const maps = (pending.families || []).filter((m) => (pending.group.vars || []).includes(m));
-    return maps.length > 0 ? el("p", { class: "hint shape", text: t("values.instancesNote", { example: maps[0] }) }) : null;
   }
 
   function renderValueDetails(root, pending) {
@@ -1167,9 +1215,6 @@
       },
     });
     if (vars.length === 0) form.appendChild(el("p", { class: "hint", text: t("values.none", { state: group.state_name }) }));
-    else form.appendChild(el("p", { class: "hint", text: t("values.hint") }));
-    const note = instancesNote(pending);
-    if (note) form.appendChild(note);
     const types = group.types || {};
     vars.forEach((name, i) => {
       const id = "value-" + i;
@@ -1181,18 +1226,20 @@
       input.value = fixed !== undefined ? show(fixed) : "";
       if (fixed !== undefined) input.disabled = true;
       inputs.push(input);
-      form.appendChild(el("label", { for: id }, [
-        el("span", { text: varLabel(pending, name) }),
-        types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
+      const instances = (pending.families || []).includes(name);
+      form.appendChild(el("div", { class: "field-label" }, [
+        el("label", { for: id }, [
+          el("span", { text: varLabel(pending, name) }),
+          types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
+        ]),
+        fixed !== undefined ? helpButton(t("values.fixed")) : instances ? helpButton(t("values.instancesNote", { example: name })) : null,
       ]));
       form.appendChild(input);
       const shape = (pending.shapes || []).find((s) => s.map === name);
       if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
       const help = !shape && fixed === undefined && types[name] ? typeHelp(types[name]) : null;
       if (help) form.appendChild(help);
-      if (fixed !== undefined) {
-        form.appendChild(el("p", { class: "hint fixed", text: t("values.fixed") }));
-      } else if (before) {
+      if (fixed === undefined && before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
           variableView(name, before.value, undefined, false),
@@ -1210,29 +1257,21 @@
   }
 
   // renderSuggestions shows the values the checker admits as buttons, each
-  // saying what changes from before, under the hint.
-  function renderSuggestions(root, vars, previous, suggestions, hint) {
-    root.appendChild(el("p", { class: "hint", text: hint }));
+  // saying what changes from before.
+  function renderSuggestions(root, vars, previous, suggestions) {
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
       const lines = [];
       const params = Object.entries(s.params || {});
-      if (params.length > 0) {
-        const shownParams = el("span");
-        params.forEach(([k, v], j) => {
-          if (j > 0) shownParams.appendChild(document.createTextNode(", "));
-          shownParams.appendChild(tNodes("suggest.set", { name: k, value: valueView(v, undefined, false) }));
-        });
-        lines.push(tNodes("suggest.params", { params: shownParams }));
-      }
+      if (params.length > 0) lines.push(paramsView(s.params, app.choice && app.choice.transition));
       const changes = changesOf(vars, previous, s.values);
       const shown = changes.slice(0, CHANGE_LIMIT);
       if (changes.length === 0) lines.push(t("suggest.nothingChanges"));
-      lines.push(...shown);
+      else lines.push(changesTable(shown));
       if (changes.length > shown.length) lines.push(t("suggest.more", { n: changes.length - shown.length }));
       list.appendChild(el("button", {
         type: "button", class: "choice suggestion", id: "suggestion-" + i,
-        onclick: () => enterValues(s.values.map(show)),
+        onclick: () => enterValues(s.values.map(show), s.params),
       }, lines.map((line) => typeof line === "string" ? el("div", { text: line }) : el("div", null, [line]))));
     });
     root.appendChild(list);
@@ -1241,51 +1280,69 @@
   // A suggestion lists at most this many of its changes.
   const CHANGE_LIMIT = 8;
 
-  // changesOf says, line by line, what values make of the variables vars
-  // held in previous: a map entry by entry.
+  // changesOf are the rows of what values make of the variables vars held
+  // in previous, {name, before, after}, before or after null when there
+  // was or is none: a map entry by entry, the instances of a family one
+  // by one.
   function changesOf(vars, previous, values) {
-    const lines = [];
+    const rows = [];
+    const view = (x) => valueView(x, undefined, false);
     vars.forEach((name, i) => {
       const before = previous.find((p) => p.name === name);
       const after = values[i];
-      const view = (x) => valueView(x, undefined, false);
-      if (!before) { lines.push(tNodes("suggest.set", { name, value: variableView(name, after, undefined, false) })); return; }
+      if (!before) { rows.push({ name, before: null, after: variableView(name, after, undefined, false) }); return; }
       if (show(before.value) === show(after)) return;
       if (isInstances(name, after) || (isFamily(name) && isInstances(name, before.value))) {
-        lines.push(...instanceChanges(name, before.value, after));
+        rows.push(...instanceChanges(name, before.value, after));
         return;
       }
       if (isMap(before.value) && isMap(after)) {
-        const keys = new Set(Object.keys(before.value).concat(Object.keys(after)));
-        for (const key of keys) {
-          const entry = name + "[" + key + "]";
-          if (!(key in after)) lines.push(t("suggest.removed", { name: entry }));
-          else if (!(key in before.value)) lines.push(tNodes("suggest.set", { name: entry, value: view(after[key]) }));
-          else if (show(before.value[key]) !== show(after[key])) {
-            lines.push(tNodes("suggest.change", { name: entry, before: view(before.value[key]), after: view(after[key]) }));
-          }
+        for (const key of new Set(Object.keys(before.value).concat(Object.keys(after)))) {
+          const had = key in before.value, has = key in after;
+          if (had && has && show(before.value[key]) === show(after[key])) continue;
+          rows.push({
+            name: name + "[" + key + "]",
+            before: had ? view(before.value[key]) : null,
+            after: has ? valueView(after[key], had ? before.value[key] : undefined, had) : null,
+          });
         }
         return;
       }
-      lines.push(tNodes("suggest.change", { name, before: view(before.value), after: view(after) }));
+      rows.push({ name, before: view(before.value), after: valueView(after, before.value, true) });
     });
-    return lines;
+    return rows;
   }
 
-  // instanceChanges are the lines of what after makes of the instances of
-  // map held in before: each instance new or changed, as instanceItem
-  // shows it, and each removed.
+  // instanceChanges are the rows of what after makes of the instances of
+  // map held in before, each shown as instanceItem shows it.
   function instanceChanges(map, before, after) {
-    const lines = [];
+    const rows = [];
     const prev = isMap(before) ? before : {};
     const next = isMap(after) ? after : {};
+    const item = (id, inst, was, compare) => el("ul", { class: "instances" }, [instanceItem(map, id, inst, was, compare)]);
     for (const id of [...new Set(Object.keys(prev).concat(Object.keys(next)))].sort()) {
-      if (!(id in next)) lines.push(t("suggest.removed", { name: map + "[" + id + "]" }));
-      else if (show(prev[id]) !== show(next[id])) {
-        lines.push(el("ul", { class: "instances" }, [instanceItem(map, id, next[id], prev[id], true)]));
-      }
+      if (show(prev[id]) === show(next[id])) continue;
+      rows.push({
+        name: map + "[" + id + "]",
+        before: id in prev ? item(id, prev[id], undefined, false) : null,
+        after: id in next ? item(id, next[id], prev[id], id in prev) : null,
+      });
     }
-    return lines;
+    return rows;
+  }
+
+  // changesTable shows rows of changesOf as a table of each variable, its
+  // value before and after, a dash where there is none.
+  function changesTable(rows) {
+    const none = () => el("span", { class: "none", text: t("changes.none") });
+    return el("table", { class: "value-table changes" }, [
+      el("tr", null, [el("th", { text: t("changes.variable") }), el("th", { text: t("changes.before") }), el("th", { text: t("changes.after") })]),
+      ...rows.map((r) => el("tr", null, [
+        el("th", { text: r.name }),
+        el("td", null, [r.before || none()]),
+        el("td", { class: r.before ? "" : "changed" }, [r.after || none()]),
+      ])),
+    ]);
   }
 
   function isMap(value) {

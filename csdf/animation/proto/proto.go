@@ -123,12 +123,16 @@ type End struct {
 // writes them, as animation.ClauseText does: "(none)" for a clause of no
 // conjunct, as in the text output.
 type Transition struct {
-	Index   int    `json:"index"`
-	Event   string `json:"event"`
-	Dst     string `json:"dst"`
-	DstName string `json:"dst_name"`
-	Guard   string `json:"guard"`
-	Post    string `json:"post"`
+	Index int    `json:"index"`
+	Event string `json:"event"`
+	// Channel and Fields are Event taken apart: its channel, and its
+	// fields in order, each with its direction.
+	Channel string       `json:"channel"`
+	Fields  []EventField `json:"fields,omitempty"`
+	Dst     string       `json:"dst"`
+	DstName string       `json:"dst_name"`
+	Guard   string       `json:"guard"`
+	Post    string       `json:"post"`
 	// PostFrame is Post split for people (animation.FrameOf).
 	PostFrame animation.Frame `json:"post_frame"`
 	// Line is where the reader read the edge, as core.Edge.Line is: 0 when
@@ -137,6 +141,13 @@ type Transition struct {
 	// Moves are, for a diagram expanded from a promotion, the local edges
 	// the transition is made of; none for a controller's own edge.
 	Moves []Move `json:"moves,omitempty"`
+}
+
+// EventField is a field of an event: Dir, "?" for one received or "!"
+// for one sent, and its Name.
+type EventField struct {
+	Dir  string `json:"dir"`
+	Name string `json:"name"`
 }
 
 // Move is one local edge a transition of a promoted diagram takes: the
