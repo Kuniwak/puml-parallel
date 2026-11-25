@@ -186,6 +186,7 @@
   }
 
   async function refresh() {
+    app.valueForm = null;
     const read = await send({ command: "read" });
     if (!read.ok) { app.error = errorText(read); render(); return; }
     app.view = read.data;
@@ -1194,6 +1195,229 @@
     ]);
   }
 
+  // ---- Value editors: a value of a known shape entered as a form ----
+
+  // An editor is {node, get, set, focus}: get() is {value} when every box
+  // holds a value, else {problem}; set(value) shows value in the boxes.
+  // Each fires "input" on node when edited.
+
+  // editorOf is the editor of a value of the shape node.
+  function editorOf(node) {
+    if (node.kind === "record") return tableEditor({ fixedKeys: Object.keys(node.fields), fieldNode: (k) => node.fields[k], open: !node.declared });
+    if (node.kind === "collection") return tableEditor({ list: true, fieldNode: () => node.items });
+    return leafEditor(node);
+  }
+
+  // mapEditor is the editor of a map whose keys are of the shape keyNode,
+  // or unknown when null, and whose values are of the shape valueNode.
+  function mapEditor(keyNode, valueNode) {
+    return tableEditor({ fixedKeys: [], fieldNode: () => valueNode, open: true, keyNode });
+  }
+
+  const UNKNOWN = { kind: "scalar" };
+
+  // edited tells the editors around node that it was edited.
+  function edited(node) {
+    node.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  // leafEditor is the editor of a scalar: a checkbox for a truth value, a
+  // list to pick from for one of values known, with any other value still
+  // enterable; a number box for a number; else one line of JSON.
+  function leafEditor(node) {
+    const values = node.values || [];
+    if (values.length === 2 && values.includes(true) && values.includes(false)) return checkEditor();
+    const free = node.numeric ? numberEditor() : jsonEditor(node.examples || []);
+    if (values.length === 0) return free;
+    const OTHER = "other";
+    const select = el("select", { class: "leaf" }, [
+      el("option", { value: "", text: t("editor.unset") }),
+      ...values.map((v, i) => el("option", { value: String(i), text: typeof v === "string" ? v : show(v) })),
+      el("option", { value: OTHER, text: t("editor.other") }),
+    ]);
+    const pick = el("span", { class: "leaf-pick" }, [select, free.node]);
+    const sync = () => { free.node.hidden = select.value !== OTHER; };
+    select.addEventListener("change", () => { sync(); if (select.value === OTHER) free.focus(); edited(pick); });
+    sync();
+    return {
+      node: pick,
+      get: () => select.value === OTHER ? free.get() : select.value === "" ? { problem: true } : { value: values[Number(select.value)] },
+      set: (v) => {
+        const i = values.findIndex((x) => show(x) === show(v) || (typeof v === "string" && typeof x !== "string" && String(x) === v));
+        select.value = i >= 0 ? String(i) : OTHER;
+        if (i < 0) free.set(v);
+        sync();
+      },
+      focus: () => select.focus(),
+    };
+  }
+
+  function checkEditor() {
+    const box = el("input", { type: "checkbox", class: "leaf" });
+    return { node: box, get: () => ({ value: box.checked }), set: (v) => { box.checked = v === true; }, focus: () => box.focus() };
+  }
+
+  function numberEditor() {
+    const box = el("input", { type: "number", class: "leaf", step: "any" });
+    return {
+      node: box,
+      get: () => box.value === "" || !Number.isFinite(Number(box.value)) ? { problem: true } : { value: Number(box.value) },
+      set: (v) => { box.value = typeof v === "number" || (typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v))) ? String(Number(v)) : ""; },
+      focus: () => box.focus(),
+    };
+  }
+
+  // jsonEditor is one line of JSON, the constants examples shown in it
+  // while it is empty.
+  function jsonEditor(examples) {
+    const box = el("input", { type: "text", class: "leaf json", autocomplete: "off", spellcheck: "false" });
+    if (examples && examples.length > 0) box.placeholder = examples.map(show).join(", ");
+    return {
+      node: box,
+      get: () => { try { return box.value.trim() === "" ? { problem: true } : { value: JSON.parse(box.value) }; } catch (e) { return { problem: true }; } },
+      set: (v) => { box.value = v === undefined ? "" : show(v); },
+      focus: () => box.focus(),
+    };
+  }
+
+  // tableEditor is the editor of a record, a map or a list as a table of
+  // a key and a value a row. The keys fixedKeys are rows that stay; open,
+  // more rows can be added and removed, each by a key keyNode tells (a box
+  // of JSON text when null); a list's rows are keyed by their place. Rows
+  // added or removed can be reordered by dragging their keys.
+  function tableEditor({ fixedKeys = [], fieldNode, open = false, list = false, keyNode = null }) {
+    const body = el("tbody");
+    const table = el("table", { class: "value-table editor-table" }, [body]);
+    const rows = [];
+    const node = el("div", { class: "editor-wrap" }, [table]);
+    const changed = () => edited(node);
+    let dragging = null;
+    const renumber = () => { if (list) rows.forEach((r, i) => { r.keyCell.textContent = String(i); }); };
+    const addRow = (key, fixed) => {
+      const value = editorOf(fieldNode(key) || UNKNOWN);
+      const keyEditor = fixed || list ? null : keyNode && ((keyNode.values || []).length > 0 || keyNode.numeric) ? leafEditor(keyNode) : textKeyEditor();
+      if (keyEditor && key !== undefined) keyEditor.set(key);
+      const keyCell = el("th", null, fixed ? [el("span", { text: key })] : keyEditor ? [keyEditor.node] : []);
+      const row = { key, fixed, value, keyEditor, keyCell, tr: null };
+      const remove = fixed ? null : el("button", { type: "button", class: "row-remove", "aria-label": t("editor.remove"), title: t("editor.remove"), text: "×",
+        onclick: () => { rows.splice(rows.indexOf(row), 1); row.tr.remove(); renumber(); changed(); } });
+      row.tr = el("tr", null, [keyCell, el("td", null, [value.node]), remove ? el("td", { class: "row-tools" }, [remove]) : null]);
+      if (!fixed) draggable(row);
+      rows.push(row);
+      body.appendChild(row.tr);
+      renumber();
+      return row;
+    };
+    // draggable lets row be dragged by its key to another place among the
+    // rows of this table, not of a table nested in it or around it.
+    const draggable = (row) => {
+      const handle = row.keyCell;
+      handle.classList.add("drag-handle");
+      handle.setAttribute("draggable", "true");
+      handle.title = t("editor.drag");
+      handle.addEventListener("dragstart", (e) => { e.stopPropagation(); dragging = row; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", ""); });
+      handle.addEventListener("dragend", () => { dragging = null; });
+      row.tr.addEventListener("dragover", (e) => { if (dragging && dragging !== row) { e.preventDefault(); e.stopPropagation(); } });
+      row.tr.addEventListener("drop", (e) => {
+        const from = dragging;
+        if (!from || from === row) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const i = rows.indexOf(from), j = rows.indexOf(row);
+        rows.splice(i, 1);
+        rows.splice(j, 0, from);
+        body.insertBefore(from.tr, i < j ? row.tr.nextSibling : row.tr);
+        dragging = null;
+        renumber();
+        changed();
+      });
+    };
+    for (const k of fixedKeys) addRow(k, !open);
+    if (open || list) {
+      node.appendChild(el("button", { type: "button", class: "row-add", text: t("editor.add"),
+        onclick: () => { const r = addRow(undefined, false); (r.keyEditor || r.value).focus(); changed(); } }));
+    }
+    const keyOf = (r) => {
+      if (r.fixed || list) return { value: r.key };
+      const k = r.keyEditor.get();
+      return "problem" in k ? k : { value: typeof k.value === "string" ? k.value : show(k.value) };
+    };
+    return {
+      node,
+      get: () => {
+        const out = list ? [] : {};
+        for (const r of rows) {
+          const k = keyOf(r), v = r.value.get();
+          if ("problem" in k || "problem" in v) return { problem: true };
+          if (list) out.push(v.value); else out[k.value] = v.value;
+        }
+        return { value: out };
+      },
+      set: (v) => {
+        for (const r of rows.splice(0)) r.tr.remove();
+        if (list) {
+          for (const x of Array.isArray(v) ? v : []) addRow(undefined, false).value.set(x);
+        } else {
+          const given = isMap(v) ? v : {};
+          for (const k of fixedKeys) { const r = addRow(k, !open); if (k in given) r.value.set(given[k]); }
+          for (const [k, x] of Object.entries(given)) if (!fixedKeys.includes(k)) addRow(k, !open).value.set(x);
+        }
+        renumber();
+      },
+      focus: () => { const r = rows[0]; if (r) (r.keyEditor && !r.fixed ? r.keyEditor : r.value).focus(); else table.focus(); },
+    };
+  }
+
+  // textKeyEditor is a key as written, a string.
+  function textKeyEditor() {
+    const box = el("input", { type: "text", class: "leaf key", autocomplete: "off", spellcheck: "false" });
+    return {
+      node: box,
+      get: () => box.value === "" ? { problem: true } : { value: box.value },
+      set: (v) => { box.value = v === undefined ? "" : String(v); },
+      focus: () => box.focus(),
+    };
+  }
+
+  // varEditor is the editor of a value of the type named type, as -shapes
+  // tells of it, or null when it tells nothing. A record of a type the
+  // checks declare keeps its attributes; one the clauses reveal may have
+  // more, and so takes rows added.
+  function varEditor(type) {
+    const shape = typeShape(type);
+    if (!shape) return null;
+    const declared = (config.shapes && config.shapes.declared) || [];
+    if (!shape.key) return editorOf(markDeep(shape.node, declared.includes(type)));
+    const keyNode = ((config.shapes && config.shapes.types) || {})[shape.key];
+    const valueType = String(type).split("⇸")[1].trim();
+    return mapEditor(keyNode && keyNode.kind === "scalar" ? keyNode : null, markDeep(shape.node, declared.includes(valueType)));
+  }
+
+  // markDeep is node with every record in it marked declared, or not.
+  function markDeep(node, declared) {
+    if (node.kind === "record") return { ...node, declared, fields: Object.fromEntries(Object.entries(node.fields).map(([k, v]) => [k, markDeep(v, declared)])) };
+    if (node.kind === "collection") return { ...node, items: markDeep(node.items, declared) };
+    return node;
+  }
+
+  // withJSON is editor with a "{}" button, kept out of the way, that shows
+  // a box of the value as JSON text, read and written both ways.
+  function withJSON(editor) {
+    const text = el("textarea", { class: "json-text", rows: "3", spellcheck: "false", hidden: "" });
+    const toggle = el("button", { type: "button", class: "json-toggle", "aria-label": t("editor.json"), title: t("editor.json"), "aria-expanded": "false", text: "{}" });
+    const fill = () => { const v = editor.get(); text.value = "value" in v ? show(v.value) : ""; };
+    toggle.addEventListener("click", () => {
+      text.hidden = !text.hidden;
+      toggle.setAttribute("aria-expanded", String(!text.hidden));
+      if (!text.hidden) { fill(); text.focus(); }
+    });
+    editor.node.addEventListener("input", () => { if (!text.hidden && document.activeElement !== text) fill(); });
+    text.addEventListener("input", () => {
+      try { editor.set(JSON.parse(text.value)); text.classList.remove("bad"); } catch (e) { text.classList.add("bad"); }
+    });
+    return { ...editor, toggle, node: el("div", { class: "editor" }, [editor.node, text]) };
+  }
+
   function stateVars(state) {
     return (state.values || []).map((v) => v.name);
   }
@@ -1210,46 +1434,71 @@
     const formal = formalClauses(keys, pending, written);
     if (formal) root.appendChild(formal);
     root.appendChild(errorBox());
+    // The form stays while the same values are asked for, so that what
+    // was entered outlives a refusal.
+    const key = language;
+    if (app.valueForm && app.valueForm.key === key) { root.appendChild(app.valueForm.form); app.valueForm.focus(); return; }
     const previous = pending.previous ? pending.previous.values || [] : [];
-    const inputs = [];
+    const fields = [];
     const form = el("form", {
       onsubmit: (e) => {
         e.preventDefault();
-        const problem = valueProblem(vars.map((name) => varLabel(pending, name)), inputs.map((i) => i.value));
-        if (problem) { app.error = problem; render(); return; }
-        enterValues(inputs.map((i) => i.value));
+        const read = fields.map((f) => f.read());
+        const problem = read.find((r) => r.problem);
+        if (problem) { app.error = problem.problem; render(); return; }
+        enterValues(read.map((r) => r.text));
       },
     });
     if (vars.length === 0) form.appendChild(el("p", { class: "hint" }, [tNodes("values.none", { state: stateChip(group.state_name) })]));
     const types = group.types || {};
     vars.forEach((name, i) => {
       const id = "value-" + i;
+      const label = varLabel(pending, name);
       const before = previous.find((p) => p.name === name);
       const fixed = determinedValue(pending, name);
-      // A value the diagram fixes is filled in; any other box starts empty,
+      const shape = (pending.shapes || []).find((s) => s.map === name);
+      // A value of a known shape is entered as a form, else as JSON text.
+      // A value the diagram fixes is filled in; any other starts empty,
       // with the value from before beside it, so that each is decided.
-      const input = el("input", { type: "text", id, autocomplete: "off", spellcheck: "false" });
-      input.value = fixed !== undefined ? show(fixed) : "";
-      if (fixed !== undefined) input.disabled = true;
-      inputs.push(input);
+      const made = !shape && types[name] ? varEditor(types[name]) : null;
+      const editor = made ? withJSON(made) : null;
+      const input = editor ? null : el("input", { type: "text", id, autocomplete: "off", spellcheck: "false" });
+      if (editor && fixed !== undefined) editor.set(fixed);
+      if (input) input.value = fixed !== undefined ? show(fixed) : "";
+      const box = editor ? editor.node : input;
+      box.id = id;
+      if (fixed !== undefined) {
+        box.classList.add("fixed");
+        for (const c of [box, ...box.querySelectorAll("input, select, button, textarea")]) c.disabled = true;
+      }
+      fields.push({
+        focus: () => (editor || input).focus(),
+        empty: () => editor ? "problem" in editor.get() : input.value === "",
+        read: () => {
+          if (!editor) { const problem = valueProblem([label], [input.value]); return problem ? { problem } : { text: input.value }; }
+          const v = editor.get();
+          return "problem" in v ? { problem: t("values.incomplete", { name: label }) } : { text: show(v.value) };
+        },
+      });
       const instances = (pending.families || []).includes(name);
       form.appendChild(el("div", { class: "field-label" }, [
         el("label", { for: id }, [
-          el("span", { text: varLabel(pending, name) }),
+          el("span", { text: label }),
           types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
         ]),
         fixed !== undefined ? helpButton(t("values.fixed")) : instances ? helpButton(t("values.instancesNote", { example: name })) : null,
+        editor && fixed === undefined ? editor.toggle : null,
       ]));
-      form.appendChild(input);
-      const shape = (pending.shapes || []).find((s) => s.map === name);
+      form.appendChild(box);
       if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
-      const help = !shape && fixed === undefined && types[name] ? typeHelp(types[name]) : null;
-      if (help) form.appendChild(help);
       if (fixed === undefined && before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
           variableView(name, before.value, undefined, false),
-          el("button", { type: "button", text: t("values.keep"), onclick: () => { input.value = show(before.value); input.focus(); } }),
+          el("button", { type: "button", text: t("values.keep"), onclick: () => {
+            if (editor) { editor.set(before.value); edited(editor.node); } else input.value = show(before.value);
+            (editor || input).focus();
+          } }),
         ]));
       }
     });
@@ -1258,8 +1507,10 @@
       app.choice ? el("button", { type: "button", text: t("values.cancel"), onclick: cancelChoice }) : null,
     ]));
     root.appendChild(form);
-    const first = inputs.find((i) => i.value === "") || inputs[0];
-    if (first) first.focus({ preventScroll: true });
+    const open = vars.map((name) => determinedValue(pending, name) === undefined);
+    const focus = () => { const first = fields.find((f, i) => open[i] && f.empty()) || fields.find((f, i) => open[i]); if (first) first.focus(); };
+    app.valueForm = { key, form, focus };
+    focus();
   }
 
   // renderSuggestions shows the values the checker admits as buttons, each

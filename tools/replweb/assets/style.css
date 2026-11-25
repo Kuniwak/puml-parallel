@@ -304,3 +304,25 @@ button.help { width: 1.25rem; height: 1.25rem; padding: 0; border-radius: 50%; f
 .state-tag { display: inline-flex; align-items: center; padding: 0 .35rem; background: var(--state-border); color: var(--state-bg); font-size: .7rem; font-weight: 600; white-space: nowrap; }
 .state-body { padding: 0 .35rem; background: var(--state-bg); color: var(--state-text); font-size: .92em; font-weight: 600; overflow-wrap: anywhere; }
 .instance-at.changed .state-body { background: var(--changed); }
+
+/* Value editors: a value of a known shape entered as a form. */
+.editor { margin: .15rem 0 .25rem; }
+.editor-wrap { display: inline-flex; flex-direction: column; align-items: flex-start; gap: .2rem; max-width: 100%; }
+.editor-table > tbody > tr > td { padding: .15rem .3rem; }
+.editor-table > tbody > tr > th { white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; vertical-align: middle; }
+.editor-table .drag-handle { cursor: grab; }
+.editor-table .drag-handle::before { content: "⋮⋮"; color: var(--muted); margin-right: .3rem; letter-spacing: -.2em; }
+.editor-table td.row-tools { border: none; vertical-align: middle; }
+.leaf { padding: .2rem .4rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+input.leaf[type=number] { width: 7rem; }
+input.leaf.json, input.leaf.key { width: 10rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.leaf-pick { display: inline-flex; gap: .3rem; align-items: center; }
+button.row-remove { padding: 0 .4rem; line-height: 1.2; color: var(--muted); border-color: transparent; background: transparent; }
+button.row-add { font-size: .8rem; padding: .1rem .5rem; color: var(--muted); }
+/* The JSON of a value is there for copying, out of the first look. */
+button.json-toggle { margin-left: auto; padding: 0 .35rem; font-size: .7rem; line-height: 1.4; color: var(--muted); border-color: transparent; background: transparent; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; opacity: .6; }
+button.json-toggle:hover, button.json-toggle[aria-expanded=true] { opacity: 1; }
+textarea.json-text { display: block; width: 100%; margin-top: .3rem; padding: .35rem .5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: inherit; font: .85rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+textarea.json-text.bad { border-color: var(--error-text); }
+.editor.fixed .row-add, .editor.fixed button.row-remove { display: none; }
+.editor [hidden], .editor[hidden] { display: none !important; }
