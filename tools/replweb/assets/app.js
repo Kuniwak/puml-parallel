@@ -1203,15 +1203,9 @@
 
   // editorOf is the editor of a value of the shape node.
   function editorOf(node) {
-    if (node.kind === "record") return tableEditor({ fixedKeys: Object.keys(node.fields), fieldNode: (k) => node.fields[k], open: !node.declared });
-    if (node.kind === "collection") return tableEditor({ list: true, fieldNode: () => node.items });
+    if (node.kind === "record") return recordEditor(node);
+    if (node.kind === "collection") return listEditor(node.items);
     return leafEditor(node);
-  }
-
-  // mapEditor is the editor of a map whose keys are of the shape keyNode,
-  // or unknown when null, and whose values are of the shape valueNode.
-  function mapEditor(keyNode, valueNode) {
-    return tableEditor({ fixedKeys: [], fieldNode: () => valueNode, open: true, keyNode });
   }
 
   const UNKNOWN = { kind: "scalar" };
@@ -1280,28 +1274,26 @@
     };
   }
 
-  // tableEditor is the editor of a record, a map or a list as a table of
-  // a key and a value a row. The keys fixedKeys are rows that stay; open,
-  // more rows can be added and removed, each by a key keyNode tells (a box
-  // of JSON text when null); a list's rows are keyed by their place. Rows
-  // added or removed can be reordered by dragging their keys.
-  function tableEditor({ fixedKeys = [], fieldNode, open = false, list = false, keyNode = null }) {
+  // rowTable is the editor of a value as a table of a key and a value a
+  // row. keyOf(key, fixed) is the key of a row, valueOf(key) the editor of
+  // its value; spread(value) are the rows of a value, {key, fixed, value},
+  // and gather(pairs) the value of the rows' keys and values. Growing, rows
+  // can be added; a row not fixed can be removed and moved by dragging its
+  // key.
+  function rowTable({ keyOf, valueOf, spread, gather, growing }) {
     const body = el("tbody");
     const table = el("table", { class: "value-table editor-table" }, [body]);
     const rows = [];
     const node = el("div", { class: "editor-wrap" }, [table]);
     const changed = () => edited(node);
+    const renumber = () => rows.forEach((r, i) => { if (r.key.place) r.key.place(i); });
     let dragging = null;
-    const renumber = () => { if (list) rows.forEach((r, i) => { r.keyCell.textContent = String(i); }); };
     const addRow = (key, fixed) => {
-      const value = editorOf(fieldNode(key) || UNKNOWN);
-      const keyEditor = fixed || list ? null : keyNode && ((keyNode.values || []).length > 0 || keyNode.numeric) ? leafEditor(keyNode) : textKeyEditor();
-      if (keyEditor && key !== undefined) keyEditor.set(key);
-      const keyCell = el("th", null, fixed ? [el("span", { text: key })] : keyEditor ? [keyEditor.node] : []);
-      const row = { key, fixed, value, keyEditor, keyCell, tr: null };
+      const row = { key: keyOf(key, fixed), value: valueOf(key), fixed, keyCell: null, tr: null };
+      row.keyCell = el("th", null, [row.key.node]);
       const remove = fixed ? null : el("button", { type: "button", class: "row-remove", "aria-label": t("editor.remove"), title: t("editor.remove"), text: "×",
         onclick: () => { rows.splice(rows.indexOf(row), 1); row.tr.remove(); renumber(); changed(); } });
-      row.tr = el("tr", null, [keyCell, el("td", null, [value.node]), remove ? el("td", { class: "row-tools" }, [remove]) : null]);
+      row.tr = el("tr", null, [row.keyCell, el("td", null, [row.value.node]), remove ? el("td", { class: "row-tools" }, [remove]) : null]);
       if (!fixed) draggable(row);
       rows.push(row);
       body.appendChild(row.tr);
@@ -1332,40 +1324,98 @@
         changed();
       });
     };
-    for (const k of fixedKeys) addRow(k, !open);
-    if (open || list) {
-      node.appendChild(el("button", { type: "button", class: "row-add", text: t("editor.add"),
-        onclick: () => { const r = addRow(undefined, false); (r.keyEditor || r.value).focus(); changed(); } }));
-    }
-    const keyOf = (r) => {
-      if (r.fixed || list) return { value: r.key };
-      const k = r.keyEditor.get();
-      return "problem" in k ? k : { value: typeof k.value === "string" ? k.value : show(k.value) };
+    const set = (v) => {
+      for (const r of rows.splice(0)) r.tr.remove();
+      for (const { key, fixed, value } of spread(v)) {
+        const r = addRow(key, fixed);
+        if (value !== undefined) r.value.set(value);
+      }
     };
+    set(undefined);
+    if (growing) {
+      node.appendChild(el("button", { type: "button", class: "row-add", text: t("editor.add"),
+        onclick: () => { const r = addRow(undefined, false); (r.key.focus ? r.key : r.value).focus(); changed(); } }));
+    }
     return {
       node,
       get: () => {
-        const out = list ? [] : {};
+        const pairs = [];
         for (const r of rows) {
-          const k = keyOf(r), v = r.value.get();
+          const k = r.key.get(), v = r.value.get();
           if ("problem" in k || "problem" in v) return { problem: true };
-          if (list) out.push(v.value); else out[k.value] = v.value;
+          pairs.push([k.value, v.value]);
         }
-        return { value: out };
+        return { value: gather(pairs) };
       },
-      set: (v) => {
-        for (const r of rows.splice(0)) r.tr.remove();
-        if (list) {
-          for (const x of Array.isArray(v) ? v : []) addRow(undefined, false).value.set(x);
-        } else {
-          const given = isMap(v) ? v : {};
-          for (const k of fixedKeys) { const r = addRow(k, !open); if (k in given) r.value.set(given[k]); }
-          for (const [k, x] of Object.entries(given)) if (!fixedKeys.includes(k)) addRow(k, !open).value.set(x);
-        }
-        renumber();
-      },
-      focus: () => { const r = rows[0]; if (r) (r.keyEditor && !r.fixed ? r.keyEditor : r.value).focus(); else table.focus(); },
+      set,
+      focus: () => { const r = rows[0]; if (r) (r.key.focus && !r.fixed ? r.key : r.value).focus(); else table.focus(); },
     };
+  }
+
+  // fixedKey is the key key, as it is.
+  function fixedKey(key) {
+    return { node: el("span", { text: key }), get: () => ({ value: key }) };
+  }
+
+  // writtenKey is a key written, as keyNode tells when it tells which
+  // values or that a number, else as text; key is what it starts with.
+  function writtenKey(keyNode, key) {
+    const editor = keyNode && ((keyNode.values || []).length > 0 || keyNode.numeric) ? leafEditor(keyNode) : textKeyEditor();
+    if (key !== undefined) editor.set(key);
+    return {
+      node: editor.node,
+      focus: () => editor.focus(),
+      get: () => { const k = editor.get(); return "problem" in k ? k : { value: typeof k.value === "string" ? k.value : show(k.value) }; },
+    };
+  }
+
+  // placeKey is the key of a list's row, its place.
+  function placeKey() {
+    const node = el("span");
+    let at = 0;
+    return { node, place: (i) => { at = i; node.textContent = String(i); }, get: () => ({ value: at }) };
+  }
+
+  // recordEditor is the editor of a record of the shape node: a row each
+  // attribute, which stay when the checks declare it; else attributes
+  // can be added and removed.
+  function recordEditor(node) {
+    const open = !node.declared;
+    const names = Object.keys(node.fields);
+    return rowTable({
+      keyOf: (key, fixed) => fixed ? fixedKey(key) : writtenKey(null, key),
+      valueOf: (key) => editorOf(node.fields[key] || UNKNOWN),
+      spread: (v) => {
+        const given = isMap(v) ? v : {};
+        return names.concat(Object.keys(given).filter((k) => !names.includes(k)))
+          .map((key) => ({ key, fixed: !open, value: given[key] }));
+      },
+      gather: (pairs) => Object.fromEntries(pairs),
+      growing: open,
+    });
+  }
+
+  // mapEditor is the editor of a map whose keys are of the shape keyNode,
+  // or unknown when null, and whose values are of the shape valueNode.
+  function mapEditor(keyNode, valueNode) {
+    return rowTable({
+      keyOf: (key) => writtenKey(keyNode, key),
+      valueOf: () => editorOf(valueNode),
+      spread: (v) => Object.entries(isMap(v) ? v : {}).map(([key, value]) => ({ key, fixed: false, value })),
+      gather: (pairs) => Object.fromEntries(pairs),
+      growing: true,
+    });
+  }
+
+  // listEditor is the editor of a list of items of the shape items.
+  function listEditor(items) {
+    return rowTable({
+      keyOf: () => placeKey(),
+      valueOf: () => editorOf(items),
+      spread: (v) => (Array.isArray(v) ? v : []).map((value) => ({ key: undefined, fixed: false, value })),
+      gather: (pairs) => pairs.map(([, value]) => value),
+      growing: true,
+    });
   }
 
   // textKeyEditor is a key as written, a string.
