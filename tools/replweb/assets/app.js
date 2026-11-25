@@ -1215,19 +1215,19 @@
     node.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
-  // leafEditor is the editor of a scalar: a checkbox for a truth value, a
-  // list to pick from for one of values known, with any other value still
-  // enterable; a number box for a number; else one line of JSON.
+  // leafEditor is the editor of a scalar: a list to pick from for one of
+  // values known, with any other value still enterable but for a truth
+  // value; a number box for a number; else one line of JSON.
   function leafEditor(node) {
     const values = node.values || [];
-    if (values.length === 2 && values.includes(true) && values.includes(false)) return checkEditor();
+    const truth = values.length === 2 && values.includes(true) && values.includes(false);
     const free = node.numeric ? numberEditor() : jsonEditor(node.examples || []);
     if (values.length === 0) return free;
     const OTHER = "other";
     const select = el("select", { class: "leaf" }, [
       el("option", { value: "", text: t("editor.unset") }),
       ...values.map((v, i) => el("option", { value: String(i), text: typeof v === "string" ? v : show(v) })),
-      el("option", { value: OTHER, text: t("editor.other") }),
+      truth ? null : el("option", { value: OTHER, text: t("editor.other") }),
     ]);
     const pick = el("span", { class: "leaf-pick" }, [select, free.node]);
     const sync = () => { free.node.hidden = select.value !== OTHER; };
@@ -1244,11 +1244,6 @@
       },
       focus: () => select.focus(),
     };
-  }
-
-  function checkEditor() {
-    const box = el("input", { type: "checkbox", class: "leaf" });
-    return { node: box, get: () => ({ value: box.checked }), set: (v) => { box.checked = v === true; }, focus: () => box.focus() };
   }
 
   function numberEditor() {
