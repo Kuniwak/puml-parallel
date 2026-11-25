@@ -782,9 +782,11 @@
     const written = proseOfEdge(app.view.state.state_id, tr.index);
     const names = namesOf(stateVars(app.view.state), tr.event);
     const blocked = admitsNone(tr);
+    // Where it goes is said only when it leaves the current state.
+    const goesTo = tr.dst !== app.view.state.state_id ? [[t("controls.goesTo"), tr.dst_name]] : [];
     const rows = details
-      ? [...clauseRows(["guard", "post"], tr, written, names), [t("controls.goesTo"), tr.dst_name]]
-      : [...(blocked ? clauseRows(["guard"], tr, written, names) : []), [t("controls.goesTo"), tr.dst_name]];
+      ? [...clauseRows(["guard", "post"], tr, written, names), ...goesTo]
+      : [...(blocked ? clauseRows(["guard"], tr, written, names) : []), ...goesTo];
     const button = el("button", {
       type: "button", class: blocked ? "choice blocked" : "choice", onclick: () => choose(tr),
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
