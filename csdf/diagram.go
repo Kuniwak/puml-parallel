@@ -69,14 +69,6 @@ func Parse(path, source string) (*SyntaxTree, error) {
 	return tree, nil
 }
 
-// HoldsPromotionDirectives reports whether source is a global diagram: its
-// syntax tree holds a promotion directive (HoldsDirectives). A source that
-// does not parse holds none.
-func HoldsPromotionDirectives(source string) bool {
-	tree, err := Parse("", source)
-	return err == nil && HoldsDirectives(tree.Body)
-}
-
 // BlankIgnoreRegions is source with every CSDF-IGNORE region, markers
 // included, replaced by empty lines, so that what is left keeps its line
 // numbers. An unterminated region runs to the end of the source, which the

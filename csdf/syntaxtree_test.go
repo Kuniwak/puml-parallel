@@ -112,7 +112,7 @@ func TestPlainDoesNotHintAtAMistakeOfAGlobalDiagram(t *testing.T) {
 	}
 }
 
-func TestHoldsPromotionDirectivesReadsTheSyntaxTree(t *testing.T) {
+func TestHoldsDirectivesReadsTheSyntaxTree(t *testing.T) {
 	tests := map[string]struct {
 		source string
 		want   bool
@@ -127,11 +127,15 @@ func TestHoldsPromotionDirectivesReadsTheSyntaxTree(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Act
-			got := HoldsPromotionDirectives(tt.source)
+			tree, err := Parse("", tt.source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := HoldsDirectives(tree.Body)
 
 			// Assert
 			if got != tt.want {
-				t.Errorf("HoldsPromotionDirectives() = %v, want %v", got, tt.want)
+				t.Errorf("HoldsDirectives() = %v, want %v", got, tt.want)
 			}
 		})
 	}

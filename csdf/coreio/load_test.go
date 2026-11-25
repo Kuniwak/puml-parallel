@@ -202,7 +202,7 @@ itNone --> itMade : MAKE ; ; $n' は 0
 			raw: global, wantErr: "item.puml",
 		},
 		"a plain diagram that does not parse is refused with the parse error": {
-			raw: "@startuml\n[*] --> \n@enduml\n", wantErr: "coreio.ReadExpandedBytes: coreio.ReadBytes:",
+			raw: "@startuml\n[*] --> \n@enduml\n", wantErr: "coreio.ReadExpandedBytes:",
 		},
 	}
 	for name, tt := range cases {

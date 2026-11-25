@@ -425,7 +425,7 @@ func TestRunREPLRejectsBadFiles(t *testing.T) {
 		"invalid file": {file: writeDiagram(t, "not PlantUML"), want: "cannot read the diagram"},
 		"a clause of the old syntax": {
 			file: writeDiagram(t, "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n"),
-			want: "cannot read the diagram: animation.ReadDiagram: coreio.ReadExpandedBytes: coreio.ReadBytes: coreio.Read:",
+			want: "cannot read the diagram: animation.ReadDiagram: coreio.ReadExpandedBytes:",
 		},
 	}
 
