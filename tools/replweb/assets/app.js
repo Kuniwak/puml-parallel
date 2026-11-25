@@ -1266,7 +1266,7 @@
       const changes = changesOf(vars, previous, s.values);
       const shown = changes.slice(0, CHANGE_LIMIT);
       if (changes.length === 0) lines.push(t("suggest.nothingChanges"));
-      lines.push(...shown);
+      else lines.push(changesTable(shown));
       if (changes.length > shown.length) lines.push(t("suggest.more", { n: changes.length - shown.length }));
       list.appendChild(el("button", {
         type: "button", class: "choice suggestion", id: "suggestion-" + i,
@@ -1279,51 +1279,69 @@
   // A suggestion lists at most this many of its changes.
   const CHANGE_LIMIT = 8;
 
-  // changesOf says, line by line, what values make of the variables vars
-  // held in previous: a map entry by entry.
+  // changesOf are the rows of what values make of the variables vars held
+  // in previous, {name, before, after}, before or after null when there
+  // was or is none: a map entry by entry, the instances of a family one
+  // by one.
   function changesOf(vars, previous, values) {
-    const lines = [];
+    const rows = [];
+    const view = (x) => valueView(x, undefined, false);
     vars.forEach((name, i) => {
       const before = previous.find((p) => p.name === name);
       const after = values[i];
-      const view = (x) => valueView(x, undefined, false);
-      if (!before) { lines.push(tNodes("suggest.set", { name, value: variableView(name, after, undefined, false) })); return; }
+      if (!before) { rows.push({ name, before: null, after: variableView(name, after, undefined, false) }); return; }
       if (show(before.value) === show(after)) return;
       if (isInstances(name, after) || (isFamily(name) && isInstances(name, before.value))) {
-        lines.push(...instanceChanges(name, before.value, after));
+        rows.push(...instanceChanges(name, before.value, after));
         return;
       }
       if (isMap(before.value) && isMap(after)) {
-        const keys = new Set(Object.keys(before.value).concat(Object.keys(after)));
-        for (const key of keys) {
-          const entry = name + "[" + key + "]";
-          if (!(key in after)) lines.push(t("suggest.removed", { name: entry }));
-          else if (!(key in before.value)) lines.push(tNodes("suggest.set", { name: entry, value: view(after[key]) }));
-          else if (show(before.value[key]) !== show(after[key])) {
-            lines.push(tNodes("suggest.change", { name: entry, before: view(before.value[key]), after: view(after[key]) }));
-          }
+        for (const key of new Set(Object.keys(before.value).concat(Object.keys(after)))) {
+          const had = key in before.value, has = key in after;
+          if (had && has && show(before.value[key]) === show(after[key])) continue;
+          rows.push({
+            name: name + "[" + key + "]",
+            before: had ? view(before.value[key]) : null,
+            after: has ? valueView(after[key], had ? before.value[key] : undefined, had) : null,
+          });
         }
         return;
       }
-      lines.push(tNodes("suggest.change", { name, before: view(before.value), after: view(after) }));
+      rows.push({ name, before: view(before.value), after: valueView(after, before.value, true) });
     });
-    return lines;
+    return rows;
   }
 
-  // instanceChanges are the lines of what after makes of the instances of
-  // map held in before: each instance new or changed, as instanceItem
-  // shows it, and each removed.
+  // instanceChanges are the rows of what after makes of the instances of
+  // map held in before, each shown as instanceItem shows it.
   function instanceChanges(map, before, after) {
-    const lines = [];
+    const rows = [];
     const prev = isMap(before) ? before : {};
     const next = isMap(after) ? after : {};
+    const item = (id, inst, was, compare) => el("ul", { class: "instances" }, [instanceItem(map, id, inst, was, compare)]);
     for (const id of [...new Set(Object.keys(prev).concat(Object.keys(next)))].sort()) {
-      if (!(id in next)) lines.push(t("suggest.removed", { name: map + "[" + id + "]" }));
-      else if (show(prev[id]) !== show(next[id])) {
-        lines.push(el("ul", { class: "instances" }, [instanceItem(map, id, next[id], prev[id], true)]));
-      }
+      if (show(prev[id]) === show(next[id])) continue;
+      rows.push({
+        name: map + "[" + id + "]",
+        before: id in prev ? item(id, prev[id], undefined, false) : null,
+        after: id in next ? item(id, next[id], prev[id], id in prev) : null,
+      });
     }
-    return lines;
+    return rows;
+  }
+
+  // changesTable shows rows of changesOf as a table of each variable, its
+  // value before and after, a dash where there is none.
+  function changesTable(rows) {
+    const none = () => el("span", { class: "none", text: t("changes.none") });
+    return el("table", { class: "value-table changes" }, [
+      el("tr", null, [el("th", { text: t("changes.variable") }), el("th", { text: t("changes.before") }), el("th", { text: t("changes.after") })]),
+      ...rows.map((r) => el("tr", null, [
+        el("th", { text: r.name }),
+        el("td", null, [r.before || none()]),
+        el("td", { class: r.before ? "" : "changed" }, [r.after || none()]),
+      ])),
+    ]);
   }
 
   function isMap(value) {
