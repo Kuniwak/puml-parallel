@@ -105,5 +105,8 @@ func AmongSuggestions(suggestions []Suggestion, values []Value) error {
 			return nil
 		}
 	}
-	return refused("the checker admits none of these values; enter one of its suggestions")
+	if len(suggestions) == 0 {
+		return refusedAs("none_admitted", nil, "the checker admits no values here; the condition does not hold")
+	}
+	return refusedAs("not_suggested", nil, "the checker admits none of these values; enter one of its suggestions")
 }

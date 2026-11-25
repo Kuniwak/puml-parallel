@@ -26,6 +26,7 @@
       <span class="legend" id="legend"></span>
     </div>
     <div id="diagram">{{.SVG}}</div>
+    <div id="diagram-loading" role="status"><span class="spinner" aria-hidden="true"></span><span data-msg="app.loading"></span></div>
   </section>
   <div class="side">
     <section class="pane" aria-labelledby="history-title">
@@ -34,12 +35,10 @@
       </div>
       <div class="row">
         <button type="button" id="back" data-msg="history.back"></button>
+        <button type="button" id="to-start" data-msg="history.toStart"></button>
         <button type="button" id="save" data-msg="history.save"></button>
       </div>
-      <p class="hint" data-msg="history.hint"></p>
       <ol id="history"></ol>
-      <h3 data-msg="trace.title"></h3>
-      <div class="trace" id="trace"></div>
     </section>
     <section class="pane" id="controls" aria-live="polite"></section>
   </div>

@@ -248,6 +248,31 @@ func (a admittingOnly) Admit(_ *core.Diagram, _ Pending, values []Value) error {
 	return AmongSuggestions([]Suggestion{{Values: json.RawMessage(a.values)}}, values)
 }
 
+func TestAmongSuggestionsNamesWhetherTheCheckerAdmitsAnyValues(t *testing.T) {
+	tests := map[string]struct {
+		suggestions []Suggestion
+		wantCode    string
+	}{
+		"values other than those suggested": {suggestions: []Suggestion{{Values: json.RawMessage(`[1]`)}}, wantCode: "not_suggested"},
+		"no values suggested at all":        {suggestions: []Suggestion{}, wantCode: "none_admitted"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			err := AmongSuggestions(tt.suggestions, []Value{{Name: "x", Value: json.Number("2")}})
+
+			// Assert
+			var refused *RefusedValuesError
+			if !errors.As(err, &refused) {
+				t.Fatalf("AmongSuggestions() = %v, want a *RefusedValuesError", err)
+			}
+			if refused.Code != tt.wantCode {
+				t.Errorf("code = %q, want %q", refused.Code, tt.wantCode)
+			}
+		})
+	}
+}
+
 func TestEnterValuesTakesOnlyWhatTheSuggesterAdmits(t *testing.T) {
 	tests := map[string]struct {
 		values  string
@@ -312,6 +337,57 @@ func TestAmongSuggestionsComparesValuesAsLiterals(t *testing.T) {
 			// Assert
 			if got := err == nil; got != tt.admitted {
 				t.Errorf("AmongSuggestions(%s, %s) = %v, want admitted %v", tt.suggested, tt.entered, err, tt.admitted)
+			}
+		})
+	}
+}
+
+func TestEnterValuesNamesWhatIsWrongWithInstancesByACode(t *testing.T) {
+	tests := map[string]struct {
+		members string
+		code    string
+		args    map[string]string
+	}{
+		"not a map": {
+			members: `[]`, code: "not_instances", args: map[string]string{"map": "members"},
+		},
+		"an instance of no at": {
+			members: `{"a": {"fields": {}}}`, code: "not_an_instance", args: map[string]string{"map": "members", "id": "a"},
+		},
+		"a state of no family": {
+			members: `{"a": {"at": "frozen", "fields": {}}}`, code: "no_such_local_state",
+			args: map[string]string{"map": "members", "id": "a", "state": "frozen", "states": "opened, closed"},
+		},
+		"the start state, which is absence": {
+			members: `{"a": {"at": "none", "fields": {}}}`, code: "start_local_state",
+			args: map[string]string{"map": "members", "id": "a", "state": "none"},
+		},
+		"a field left out": {
+			members: `{"a": {"at": "opened", "fields": {}}}`, code: "wrong_fields",
+			args: map[string]string{"map": "members", "id": "a", "state": "opened", "want": "count", "got": ""},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			session, err := NewSession(promotedDiagram(), NoSuggester{})
+			if err != nil {
+				t.Fatalf("Setup: NewSession() error = %v", err)
+			}
+
+			// Execute
+			_, err = session.EnterValues(`[` + tt.members + `, 0]`)
+
+			// Assert
+			var refused *RefusedValuesError
+			if !errors.As(err, &refused) {
+				t.Fatalf("EnterValues() error = %v, want refused values", err)
+			}
+			if refused.Code != tt.code {
+				t.Errorf("Code = %q, want %q", refused.Code, tt.code)
+			}
+			if diff := cmp.Diff(tt.args, refused.Args); diff != "" {
+				t.Errorf("Args mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

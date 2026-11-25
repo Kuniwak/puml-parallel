@@ -2,6 +2,7 @@ package proto
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -184,7 +185,7 @@ func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
 
 	// Assert
 	want := []Transition{{Index: 0, Event: "insert?coin", Dst: "s1", DstName: "Done",
-		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", Line: 7}}
+		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", PostFrame: animation.Frame{Rest: "$result' is done"}, Line: 7}}
 	if diff := cmp.Diff(want, decodeView(t, resp).Transitions); diff != "" {
 		t.Errorf("transitions mismatch (-want +got):\n%s", diff)
 	}
@@ -285,7 +286,8 @@ func TestTheViewOfAPromotionPlacesTheInstancesAtTheirLocalStates(t *testing.T) {
 		Values: `[{"b": {"at": "itMade", "fields": {"n": 0}}, "a": {"at": "itMade", "fields": {"n": 1}}}]`}))
 
 	// Assert
-	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}}}}
+	want := []FamilyView{{Map: "items", Block: "runItems", Instances: map[string][]string{"itMade": {"a", "b"}},
+		Labels: map[string]string{"itNone": "none", "itMade": "made"}}}
 	if diff := cmp.Diff(want, view.Families); diff != "" {
 		t.Errorf("families (-want +got):\n%s", diff)
 	}
@@ -324,6 +326,45 @@ func TestHandleSelectMovesToValues(t *testing.T) {
 	view := decodeView(t, resp)
 	if view.Mode != "values" || view.Pending == nil || view.Pending.Group.ID != "s1" {
 		t.Errorf("select view = %+v, want values mode pending s1", view)
+	}
+}
+
+type noneAdmitted struct{ animation.NoSuggester }
+
+func (noneAdmitted) Next(animation.State, int) ([]animation.Suggestion, error) {
+	return []animation.Suggestion{}, nil
+}
+
+func TestHandleSuggestTellsWhatATransitionAdmitsWithoutSelectingIt(t *testing.T) {
+	// Setup
+	service := NewService("test-version", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
+		return noneAdmitted{}, animation.NoCleanup, nil
+	})
+	id := service.Handle(Request{Command: CommandSessionNew, Content: []byte(twoStateDiagram)}).Session
+	if resp := service.Handle(Request{Command: CommandStatevar, Session: id, Values: "[0]"}); !resp.OK {
+		t.Fatalf("statevar failed: %s", resp.Error)
+	}
+
+	// Execute
+	resp := service.Handle(Request{Command: CommandSuggest, Session: id, Index: intPtr(0)})
+
+	// Assert
+	if !resp.OK {
+		t.Fatalf("suggest failed: %s", resp.Error)
+	}
+	if string(resp.Data) != `{"suggestions":[]}` {
+		t.Errorf("data = %s, want no suggestions", resp.Data)
+	}
+	if view := decodeView(t, service.Handle(Request{Command: CommandRead, Session: id})); view.Mode != "command" {
+		t.Errorf("mode = %q, want command: nothing is selected", view.Mode)
+	}
+}
+
+func TestHandleSuggestWithoutACheckerSaysSo(t *testing.T) {
+	service, id := advance(t)
+	resp := service.Handle(Request{Command: CommandSuggest, Session: id, Index: intPtr(0)})
+	if resp.OK || resp.Code != ErrorCodeNoChecker {
+		t.Errorf("suggest = %+v, want a failure of code %q", resp, ErrorCodeNoChecker)
 	}
 }
 
@@ -620,5 +661,146 @@ func TestHandleEndEndsTheRunAtAnEndEdge(t *testing.T) {
 	}
 	if again.OK || !strings.Contains(again.Error, "the run has ended") {
 		t.Errorf("end after the end = %+v, want a refusal", again)
+	}
+}
+
+type failingSuggester struct{ animation.NoSuggester }
+
+func (failingSuggester) Initial() ([]animation.Suggestion, error) {
+	return nil, errors.New("the checker broke")
+}
+
+func TestASuggesterThatFailsSaysWhyInTheView(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, func(*core.Diagram) (animation.Suggester, func(), error) {
+		return failingSuggester{}, animation.NoCleanup, nil
+	})
+	resp := service.Handle(Request{Command: CommandSessionNew, Path: "diagram.puml", Content: []byte(twoStateDiagram)})
+	if !resp.OK {
+		t.Fatalf("session_new failed: %s", resp.Error)
+	}
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	if view := decodeView(t, read); view.Pending == nil || view.Pending.SuggestError != "the checker broke" {
+		t.Errorf("read view = %+v, want the checker's error", view.Pending)
+	}
+}
+
+func TestThePromptOfAPromotionSaysTheValuesThePostDetermines(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	want := []animation.Value{{Name: "items", Value: map[string]any{}}}
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff(want, view.Pending.Determined); diff != "" {
+		t.Errorf("Pending.Determined mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptOfAPromotionSplitsItsPostIntoItsFrame(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff([]string{"items"}, view.Pending.PostFrame.Emptied); diff != "" {
+		t.Errorf("Pending.PostFrame.Emptied mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptOfAPromotionNamesTheMapsOfInstances(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	if diff := cmp.Diff([]string{"items"}, view.Pending.Families); diff != "" {
+		t.Errorf("Pending.Families mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptOfAPromotionTellsTheShapeOfEachInstance(t *testing.T) {
+	// Setup
+	service := NewService("dev", false, AnyEnvironment, animation.NoSuggesters)
+	resp := service.Handle(Request{Command: CommandSessionNew, Content: []byte(promotionGlobal),
+		Includes: map[string]string{"item.puml": promotionLocal}})
+
+	// Execute
+	read := service.Handle(Request{Command: CommandRead, Session: resp.Session})
+
+	// Assert
+	view := decodeView(t, read)
+	if view.Pending == nil {
+		t.Fatalf("read view = %+v, want a prompt", view)
+	}
+	want := []InstanceShape{{Map: "items", KeyType: "ID", States: []LocalShape{
+		{State: "itMade", Name: "made", Fields: []Field{{Name: "n", Type: "n"}}},
+	}}}
+	if diff := cmp.Diff(want, view.Pending.Shapes); diff != "" {
+		t.Errorf("Pending.Shapes mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestThePromptNamesTheEdgeItFollows(t *testing.T) {
+	tests := map[string]struct {
+		prepare func(t *testing.T) (*Service, string, Request)
+		want    int
+	}{
+		"the start edge": {
+			prepare: func(t *testing.T) (*Service, string, Request) {
+				service, id := newSession(t)
+				return service, id, Request{Command: CommandRead, Session: id}
+			},
+			want: -1,
+		},
+		"an outgoing edge": {
+			prepare: func(t *testing.T) (*Service, string, Request) {
+				service, id := advance(t)
+				return service, id, Request{Command: CommandSelect, Session: id, Index: intPtr(0)}
+			},
+			want: 0,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			service, _, req := tt.prepare(t)
+
+			// Execute
+			resp := service.Handle(req)
+
+			// Assert
+			if got := decodeView(t, resp).Pending.Edge; got != tt.want {
+				t.Errorf("Pending.Edge = %d, want %d", got, tt.want)
+			}
+		})
 	}
 }

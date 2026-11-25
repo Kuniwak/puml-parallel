@@ -1,0 +1,33 @@
+@startuml
+' examples/valid/vending_machine.puml with every clause written in Python.
+' vending_machine_formal_defs.py names the constants and the types. Give
+' vending_machine.puml to csdfreplweb -prose to show its clauses.
+
+state "vmIdle" as vmIdle
+vmIdle : availableProducts ; ProductSet
+state "vmCoinsInserted" as vmCoinsInserted
+vmCoinsInserted : availableProducts ; ProductSet
+vmCoinsInserted : coins ; CoinSet
+state "vmWaitingChoosing" as vmWaitingChoosing
+vmWaitingChoosing : availableProducts ; ProductSet
+vmWaitingChoosing : coins ; CoinSet
+state "vmDropping" as vmDropping
+vmDropping : availableProducts ; ProductSet
+vmDropping : dispensing ; Product
+
+[*] --> vmIdle : $availableProducts' == INITIAL
+vmIdle --> vmIdle : showAvailable!availableProducts ; ; @eq(availableProducts', availableProducts)
+vmIdle --> vmCoinsInserted : insert?coin ; ; $coins' == {$coin} ∧ @eq(availableProducts', availableProducts)
+vmCoinsInserted --> vmWaitingChoosing : showPurchasable?purchasableProducts ; ; @eq(availableProducts', availableProducts) ∧ @eq(coins', coins)
+vmWaitingChoosing --> vmCoinsInserted : insert?coin ; ; $coins' == $coins | {$coin} ∧ @eq(availableProducts', availableProducts)
+vmWaitingChoosing --> vmDropping : choose?product ; $product in $availableProducts ; @eq(dispensing', product) ∧ @eq(availableProducts', availableProducts)
+vmDropping --> vmIdle : drop?product ; $product == $dispensing ; $availableProducts' == $availableProducts - {$product}
+
+note as channels
+  channel choose : Product
+  channel drop : Product
+  channel insert : Coin
+  channel showAvailable : ProductSet
+  channel showPurchasable : ProductSet
+end note
+@enduml

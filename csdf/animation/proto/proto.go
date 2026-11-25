@@ -24,6 +24,7 @@ const (
 	CommandEnd           = "end"
 	CommandBack          = "back"
 	CommandReplay        = "replay"
+	CommandSuggest       = "suggest"
 	CommandServerVersion = "server_version"
 )
 
@@ -33,7 +34,7 @@ type Request struct {
 	Session string `json:"session,omitempty"` // "" => resolve the single session
 	Path    string `json:"path,omitempty"`    // session_new: label for listings
 	Content []byte `json:"content,omitempty"` // session_new: diagram bytes (base64)
-	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end (required)
+	Index   *int   `json:"index,omitempty"`   // select (optional) / jump, end, suggest (required)
 	Values  string `json:"values,omitempty"`  // statevar: JSON-array text
 	// Pick enters the N-th suggestion of the pending prompt instead of Values
 	// (statevar), when the daemon has a checker to suggest from.
@@ -71,13 +72,17 @@ type Response struct {
 // Error codes carried by Response.Code.
 const (
 	// ErrorCodeRefusedValues: the values do not fit the state, or the
-	// checker does not admit them; Args["reason"] says why.
+	// checker does not admit them; Args["reason"] says why. A refusal
+	// whose kind the engine names (animation.RefusedValuesError.Code)
+	// carries that code instead, its particulars beside "reason" in Args.
 	ErrorCodeRefusedValues = "refused_values"
 	// ErrorCodeIndexOutOfRange: no transition, end edge or history entry
 	// has the index.
 	ErrorCodeIndexOutOfRange = "index_out_of_range"
 	// ErrorCodeEnded: the run has ended; only a jump goes on.
 	ErrorCodeEnded = "ended"
+	// ErrorCodeNoChecker: the daemon has no checker to suggest values.
+	ErrorCodeNoChecker = "no_checker"
 )
 
 // View is the structured current position of a session, returned by read,
@@ -97,11 +102,13 @@ type View struct {
 // FamilyView is where the instances of the family of Map are: the IDs of
 // those at each local state, sorted, a state no instance is at left out.
 // Block is the <<promote>> block that draws the family in State's mode, ""
-// when there is none.
+// when there is none. Labels are the labels of the local states the local
+// diagram gives, by their IDs.
 type FamilyView struct {
 	Map       string              `json:"map"`
 	Block     string              `json:"block,omitempty"`
 	Instances map[string][]string `json:"instances"`
+	Labels    map[string]string   `json:"labels,omitempty"`
 }
 
 // End is one end edge from the current state, which end takes: its guard
@@ -122,6 +129,8 @@ type Transition struct {
 	DstName string `json:"dst_name"`
 	Guard   string `json:"guard"`
 	Post    string `json:"post"`
+	// PostFrame is Post split for people (animation.FrameOf).
+	PostFrame animation.Frame `json:"post_frame"`
 	// Line is where the reader read the edge, as core.Edge.Line is: 0 when
 	// it has none, as in an expansion.
 	Line int `json:"line,omitempty"`
@@ -153,9 +162,50 @@ type Pending struct {
 	Group    animation.Target `json:"group"`
 	Guard    string           `json:"guard"`
 	Post     string           `json:"post"`
+	// PostFrame is Post split for people (animation.FrameOf).
+	PostFrame animation.Frame `json:"post_frame"`
+	// Edge is the index of the edge the prompt follows among the outgoing
+	// edges of Previous, as Transition.Index numbers them; -1 for the start
+	// edge.
+	Edge int `json:"edge"`
 	// Suggestions are the values the checker admits for this prompt, when
 	// the daemon has a checker; nil otherwise.
 	Suggestions []animation.Suggestion `json:"suggestions,omitempty"`
+	// SuggestError is why the checker could not suggest values, when it
+	// failed.
+	SuggestError string `json:"suggest_error,omitempty"`
+	// Determined are the values the post fixes by builtins alone
+	// (animation.Determined), which a client may enter without asking.
+	Determined []animation.Value `json:"determined,omitempty"`
+	// Families are the variables of Group that hold the instances of a
+	// family, in declaration order: what a client words in terms of the
+	// local diagrams.
+	Families []string `json:"families,omitempty"`
+	// Shapes tell, for each of Families, how an instance is written: the
+	// type of its IDs and, for every local state but the start state
+	// (absence), the fields an instance there holds.
+	Shapes []InstanceShape `json:"shapes,omitempty"`
+}
+
+// InstanceShape is how an instance of the family of Map is written.
+type InstanceShape struct {
+	Map     string       `json:"map"`
+	KeyType string       `json:"key_type,omitempty"`
+	States  []LocalShape `json:"states"`
+}
+
+// LocalShape is a local state an instance may be at: its ID, its label,
+// and the fields an instance there holds, in declaration order.
+type LocalShape struct {
+	State  string  `json:"state"`
+	Name   string  `json:"name"`
+	Fields []Field `json:"fields,omitempty"`
+}
+
+// Field is a field of an instance and its type, as the diagram writes it.
+type Field struct {
+	Name string `json:"name"`
+	Type string `json:"type,omitempty"`
 }
 
 // SessionRef carries a single session id (session_new, session_rm).
@@ -176,6 +226,12 @@ type TraceData struct {
 // HistoryData is the history payload.
 type HistoryData struct {
 	History []animation.HistoryEntry `json:"history"`
+}
+
+// SuggestData is the suggest payload: the values the checker admits after
+// the transition asked about, none when no values satisfy it.
+type SuggestData struct {
+	Suggestions []animation.Suggestion `json:"suggestions"`
 }
 
 // SessionListData is the session_list payload.
