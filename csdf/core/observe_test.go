@@ -52,7 +52,7 @@ func TestPromoteRefusesAGlobalReadTheLocalDiagramDoesNotDeclare(t *testing.T) {
 	}{
 		{"@at of a state", halt("@at(locations[loc], open)"), "G --> H : HALT: @at(locations[loc], open) reads open, which the local diagram of locations does not declare as a view; it reads only its views (live); add ' CSDF-OBSERVE <view> = open to it"},
 		{"a variable not declared", halt("${locations[loc].stock} = 0"), "G --> H : HALT: it reads locations[loc].stock, but the local diagram of locations does not declare stock observed; add ' CSDF-OBSERVE stock to it"},
-		{"an instance as a whole", halt("${locations[loc]} = 0"), "it reads locations[loc], an instance as a whole"},
+		{"an instance as a whole", halt("${locations[loc]} = 0"), "it reads locations[loc], an instance as a whole, but the local diagram of locations does not declare stock observed"},
 		{"in a sync", promotion(locations, Sync{Event: "MOVE", Guard: mustParse(t, "${locations[from].stock} = 0"), Targets: []Target{
 			{Map: "locations", ID: "from", Event: "DEPART"}}}), "sync MOVE: it reads locations[from].stock"},
 		{"in a constrain", constrained(locations, Constrain{Event: ev("OPEN", recv("loc")), Guard: mustParse(t, "@at(locations[loc], open)")}), "constrain OPEN: @at(locations[loc], open)"},
@@ -176,5 +176,27 @@ func TestPromoteCarriesTheObservationIntoTheFamily(t *testing.T) {
 	want := &Observation{Observables: []Observable{{Name: "live", States: []string{"open"}}, {Name: "stock"}}}
 	if diff := cmp.Diff(want, got.Families[0].Observes); diff != "" {
 		t.Errorf("observation (-want +got):\n%s", diff)
+	}
+}
+
+func TestPromoteReadsAnInstanceAsAWholeWhenEveryVariableIsObserved(t *testing.T) {
+	cases := map[string]*Diagram{
+		"every variable declared": observedLocation(t, "stock"),
+		"no declaration":          location(t),
+	}
+	for name, local := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			locations := Family{Map: "locations", ID: "loc", Local: local}
+			p := modes(locations, Edge{Src: "G", Dst: "H", Event: ev("HALT", recv("loc")), Guard: mustParse(t, "${locations[loc]} = 0")})
+
+			// Execute
+			_, _, err := promote(p)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

@@ -136,6 +136,43 @@ type Diagram struct {
 // observed.
 type Observation struct {
 	Observables []Observable
+	// Hidden are the state variables of the local diagram it does not
+	// declare, in order; set by Diagram.Observation, nil elsewhere.
+	Hidden []string
+}
+
+// Observation is what a clause of a global diagram may read of an instance
+// of d: the observation d declares, or, when it declares none, a view of
+// each state but its start state, named after it and of it alone, and every
+// variable. Hidden lists the variables it does not declare.
+func (d *Diagram) Observation() *Observation {
+	var vars []string
+	for _, s := range d.States {
+		for _, v := range d.Vars[s] {
+			if !slices.Contains(vars, v) {
+				vars = append(vars, v)
+			}
+		}
+	}
+	if d.Observes != nil {
+		o := &Observation{Observables: d.Observes.Observables}
+		for _, v := range vars {
+			if !o.Observes(v) {
+				o.Hidden = append(o.Hidden, v)
+			}
+		}
+		return o
+	}
+	o := &Observation{}
+	for _, s := range d.States {
+		if s != d.Init {
+			o.Observables = append(o.Observables, Observable{Name: s, States: []string{s}})
+		}
+	}
+	for _, v := range vars {
+		o.Observables = append(o.Observables, Observable{Name: v})
+	}
+	return o
 }
 
 // Observable is one declaration of an observation: the view Name of the

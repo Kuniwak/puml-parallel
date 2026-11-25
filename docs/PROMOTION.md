@@ -253,8 +253,9 @@ line comments, which PlantUML does not draw, like `CSDF-IGNORE`
   read, as `m[k].<variable>`.
 
 A global clause, a sync clause and a constrain read only what the local
-diagram declares: `@at` names declared views, and `m[k].x` names declared
-variables. Whether an instance exists, `@in` and `@notin` of its key, is
+diagram declares: `@at` names declared views, `m[k].x` names declared
+variables, and `m[k]`, the instance as the map of its variables, is read
+only when the local diagram declares every one of its variables. Whether an instance exists, `@in` and `@notin` of its key, is
 always observed, since the map's domain is it. A local diagram with no
 `CSDF-OBSERVE` line declares, for each state but its start state, a view
 of that state alone named after it, and every variable: `@at(m[k], S)`

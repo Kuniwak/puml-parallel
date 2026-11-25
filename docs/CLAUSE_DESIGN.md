@@ -625,8 +625,9 @@ promotion stays a context:
   refusals of ⟦P♯⟧ in a way no CSP operator does, and promotion would not
   be monotone.
 - A clause of the global diagram reads only what the local diagram
-  declares as its observation: the declared variables, and `at` over the
-  declared views. It reads them from the tracker's map, which the public
+  declares as its observation: the declared variables, `at` over the
+  declared views, and an instance as the map of its variables when every
+  variable is declared. It reads them from the tracker's map, which the public
   events write. Encoding control this way preserves the expanded graph,
   once ρ has forgotten the observations carried, since only transitions
   change it.

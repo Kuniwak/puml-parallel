@@ -432,7 +432,9 @@ end note
 - A local diagram's `CSDF-OBSERVE` lines declare what the clauses of the
   global diagram may read of its instances (docs/PROMOTION.md,
   Observations); a local diagram with none observes a view of each
-  state, named after it, and every variable.
+  state, named after it, and every variable. `@at` names declared views,
+  `m[k].x` a declared variable, and `m[k]` is read only when every
+  variable of the local diagram is declared.
 - `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
   `!define` are for the picture and are skipped.
 - A second `sync` of one event, a second block of one map, and

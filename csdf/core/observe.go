@@ -9,21 +9,18 @@ import (
 )
 
 // Observed is p with every clause of its global diagram read through the
-// observations of the local diagrams (docs/PROMOTION.md, Observations): an
-// @at naming a view names its states instead. It reports, as an error, a
-// clause that reads of an instance of a family whose local diagram
-// declares observations what that diagram does not declare: an @at naming
-// a state rather than a view, a variable not declared, or the instance as a
-// whole. Whether an instance exists is always read.
+// observations of the local diagrams (docs/PROMOTION.md, Observations;
+// Diagram.Observation): an @at naming a view names its states instead. It
+// reports, as an error, a clause that reads of an instance what its local
+// diagram does not declare: an @at naming no view, a variable not
+// declared, or the instance as a whole while a variable is not declared.
+// Whether an instance exists is always read.
 func (p Promotion) Observed() (Promotion, error) {
 	obs := map[string]*Observation{}
 	for _, f := range p.Families {
-		if f.Local != nil && f.Local.Observes != nil {
-			obs[f.Map] = f.Local.Observes
+		if f.Local != nil {
+			obs[f.Map] = f.Local.Observation()
 		}
-	}
-	if len(obs) == 0 {
-		return p, nil
 	}
 	read := func(where string, c clause.And) (clause.And, error) {
 		out, err := throughObservations(obs, c)
@@ -176,8 +173,8 @@ func termObserved(obs map[string]*Observation, t clause.Term) error {
 		}
 		return termObserved(obs, t.Of)
 	case clause.Index:
-		if m, o := observedMap(obs, t); o != nil {
-			return fmt.Errorf("it reads %s[%s], an instance as a whole, but the local diagram of %s declares what it observes; read a declared variable, or @at a declared view", termName(m), entryKey(t.Key), m.Name)
+		if m, o := observedMap(obs, t); o != nil && len(o.Hidden) > 0 {
+			return fmt.Errorf("it reads %s[%s], an instance as a whole, but the local diagram of %s does not declare %s observed; read a declared variable, or add ' CSDF-OBSERVE %s to it", termName(m), entryKey(t.Key), m.Name, strings.Join(o.Hidden, ", "), o.Hidden[0])
 		}
 		if err := termObserved(obs, t.Map); err != nil {
 			return err
