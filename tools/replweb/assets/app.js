@@ -241,7 +241,9 @@
     await refresh();
   }
 
-  async function enterValues(texts) {
+  // enterValues enters the values texts, which the event's fields took
+  // the values params of, when known.
+  async function enterValues(texts, params) {
     const values = "[" + texts.join(", ") + "]";
     const resp = await send({ command: "statevar", values });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
@@ -253,7 +255,7 @@
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", event: c.transition.event, channel: c.transition.channel, fields: c.transition.fields || [], line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
+        kind: "step", event: c.transition.event, channel: c.transition.channel, fields: c.transition.fields || [], params: params || null, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -708,7 +710,9 @@
         tabindex: "0",
         onclick: () => jump(i),
         onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(i); } },
-      }, [head, shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
+      }, [head,
+        entry.params && Object.keys(entry.params).length > 0 ? el("p", { class: "hint" }, [tNodes("suggest.params", { params: paramsView(entry.params, entry) })]) : null,
+        shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
       list.appendChild(item);
     });
     const current = list.querySelector("li.current");
@@ -974,6 +978,18 @@
     ]);
   }
 
+  // paramsView shows the values params, by field name, the fields of the
+  // event of tr took: each field as fieldChip shows it, then its value.
+  function paramsView(params, tr) {
+    const out = el("span", { class: "params" });
+    Object.entries(params).forEach(([name, value], i) => {
+      if (i > 0) out.appendChild(document.createTextNode(", "));
+      const field = ((tr && tr.fields) || []).find((f) => f.name === name);
+      out.appendChild(tNodes("suggest.set", { name: field ? fieldChip(field) : name, value: valueView(value, undefined, false) }));
+    });
+    return out;
+  }
+
   // fieldChip is a field of an event, {dir, name}, as the event chip
   // shows it: its direction, ? or !, and its name.
   function fieldChip(f) {
@@ -1228,14 +1244,7 @@
     suggestions.forEach((s, i) => {
       const lines = [];
       const params = Object.entries(s.params || {});
-      if (params.length > 0) {
-        const shownParams = el("span");
-        params.forEach(([k, v], j) => {
-          if (j > 0) shownParams.appendChild(document.createTextNode(", "));
-          shownParams.appendChild(tNodes("suggest.set", { name: k, value: valueView(v, undefined, false) }));
-        });
-        lines.push(tNodes("suggest.params", { params: shownParams }));
-      }
+      if (params.length > 0) lines.push(tNodes("suggest.params", { params: paramsView(s.params, app.choice && app.choice.transition) }));
       const changes = changesOf(vars, previous, s.values);
       const shown = changes.slice(0, CHANGE_LIMIT);
       if (changes.length === 0) lines.push(t("suggest.nothingChanges"));
@@ -1243,7 +1252,7 @@
       if (changes.length > shown.length) lines.push(t("suggest.more", { n: changes.length - shown.length }));
       list.appendChild(el("button", {
         type: "button", class: "choice suggestion", id: "suggestion-" + i,
-        onclick: () => enterValues(s.values.map(show)),
+        onclick: () => enterValues(s.values.map(show), s.params),
       }, lines.map((line) => typeof line === "string" ? el("div", { text: line }) : el("div", null, [line]))));
     });
     root.appendChild(list);
