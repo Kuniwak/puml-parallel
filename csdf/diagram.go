@@ -3,19 +3,7 @@ package csdf
 import (
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
-)
-
-// What a global diagram carries and a plain one does not, read off the text by
-// HoldsPromotionDirectives for a reader that has not parsed it.
-//
-// A note on its own is not a trace: notes are PlantUML's, and the advice for one
-// that was not wrapped is CSDF-IGNORE. It counts only next to a directive body.
-var (
-	promotionBlockRe     = regexp.MustCompile(`(?m)^\s*state\s.*<<promote>>|^\s*!include\s`)
-	promotionNoteRe      = regexp.MustCompile(`(?m)^\s*note\s+(?:as|left|right|top|bottom)\s`)
-	promotionDirectiveRe = regexp.MustCompile(`(?m)^\s*(?:sync|constrain)\s`)
 )
 
 // PromotionHintError is a refusal of a diagram that still holds promotion
@@ -81,18 +69,12 @@ func Parse(path, source string) (*SyntaxTree, error) {
 	return tree, nil
 }
 
-// HoldsPromotionDirectives reports whether source looks like a global
-// diagram: it holds a <<promote>> block or an !include, or a note whose
-// body is a sync or constrain directive, outside CSDF-IGNORE regions.
+// HoldsPromotionDirectives reports whether source is a global diagram: its
+// syntax tree holds a promotion directive (HoldsDirectives). A source that
+// does not parse holds none.
 func HoldsPromotionDirectives(source string) bool {
-	// What a CSDF-IGNORE region holds is PlantUML's alone - a theme, a skin, a
-	// title - so an !include in there is not a directive.
-	source = BlankIgnoreRegions(source)
-
-	if promotionBlockRe.MatchString(source) {
-		return true
-	}
-	return promotionNoteRe.MatchString(source) && promotionDirectiveRe.MatchString(source)
+	tree, err := Parse("", source)
+	return err == nil && HoldsDirectives(tree.Body)
 }
 
 // BlankIgnoreRegions is source with every CSDF-IGNORE region, markers

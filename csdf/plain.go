@@ -9,20 +9,15 @@ import (
 // variables, its edges, and what its notes assume and declare, each clause
 // as written. A tree the plain grammar does not have, such as a global
 // diagram's, is refused; a failure is a *ParseError at the element refused,
-// and is a *PromotionHintError when tree holds promotion directives, whose
+// and is a *PromotionHintError when that element is a promotion directive
+// or holds one: a diagram holding directives is a global one, whose
 // edges are not the whole of its behaviour.
 func Plain(tree *SyntaxTree) (*Diagram, error) {
-	d, err := plain(tree)
-	if err != nil {
-		if holdsDirectives(tree.Body) {
-			return nil, &PromotionHintError{err: err}
-		}
-		return nil, err
-	}
-	return d, nil
+	return plain(tree)
 }
 
 func plain(tree *SyntaxTree) (*Diagram, error) {
+	r := refuser{global: HoldsDirectives(tree.Body)}
 	d := &Diagram{
 		Name:        tree.Name,
 		States:      map[StateID]State{},
@@ -41,19 +36,19 @@ func plain(tree *SyntaxTree) (*Diagram, error) {
 			continue
 		}
 		if _, ok := e.(*NoteSyntax); ended && !ok {
-			return nil, refusedAt(e.Position(), "expected @enduml after end edge at line %d, col %d", e.Position().Line, e.Position().Col)
+			return nil, r.refuse(e, e.Position(), "expected @enduml after end edge at line %d, col %d", e.Position().Line, e.Position().Col)
 		}
 		next := StateID("")
 		switch e := e.(type) {
 		case *StateSyntax:
 			if e.Composite || e.Stereotype != "" {
-				return nil, refusedAt(e.Pos, "the state %s at line %d, col %d has a stereotype or a block, which a plain diagram's state does not have", e.ID, e.Line, e.Col)
+				return nil, r.refuse(e, e.Pos, "the state %s at line %d, col %d has a stereotype or a block, which a plain diagram's state does not have", e.ID, e.Line, e.Col)
 			}
 			d.States[StateID(e.ID)] = State{Name: e.Label, Vars: []StateVar{}, Line: e.Line}
 			next = StateID(e.ID)
 		case *StateVarSyntax:
 			if StateID(e.State) != current || current == "" {
-				return nil, refusedAt(e.Pos, "unexpected syntax at line %d, col %d", e.Line, e.Col)
+				return nil, r.refuse(e, e.Pos, "unexpected syntax at line %d, col %d", e.Line, e.Col)
 			}
 			s := d.States[current]
 			s.Vars = append(s.Vars, StateVar{Name: Var(e.Name), Type: e.Type})
@@ -67,11 +62,11 @@ func plain(tree *SyntaxTree) (*Diagram, error) {
 			d.EndEdge = &EndEdge{Src: StateID(e.Src), Guard: e.Guard, Line: e.Line}
 			ended = true
 		case *NoteSyntax:
-			if err := plainNote(d, e); err != nil {
+			if err := plainNote(d, e, r); err != nil {
 				return nil, err
 			}
 		default:
-			return nil, refusedAt(e.Position(), "unexpected syntax at line %d, col %d", e.Position().Line, e.Position().Col)
+			return nil, r.refuse(e, e.Position(), "unexpected syntax at line %d, col %d", e.Position().Line, e.Position().Col)
 		}
 		current = next
 	}
@@ -81,9 +76,30 @@ func plain(tree *SyntaxTree) (*Diagram, error) {
 	return d, nil
 }
 
-// refusedAt is a refusal of the element at pos.
-func refusedAt(pos Pos, format string, args ...any) error {
-	return &ParseError{Line: pos.Line, Col: pos.Col, err: fmt.Errorf("csdf.Plain: "+format, args...)}
+// refuser refuses an element of a diagram, global when the diagram holds
+// promotion directives.
+type refuser struct{ global bool }
+
+// refuse is a refusal at pos of the element of, hinted (PromotionHintError)
+// when of is a promotion directive or holds one, or when the diagram is
+// global and of is what a global diagram has and a plain one does not: a
+// preprocessor line, a state with a stereotype or a block, a note.
+func (r refuser) refuse(of Element, pos Pos, format string, args ...any) error {
+	var err error = &ParseError{Line: pos.Line, Col: pos.Col, err: fmt.Errorf("csdf.Plain: "+format, args...)}
+	if HoldsDirectives([]Element{of}) || r.global && isGlobalSyntax(of) {
+		err = &PromotionHintError{err: err}
+	}
+	return err
+}
+
+// isGlobalSyntax reports whether e is what a global diagram has and a
+// plain one does not.
+func isGlobalSyntax(e Element) bool {
+	switch e.(type) {
+	case *PragmaSyntax, *StateSyntax, *NoteSyntax:
+		return true
+	}
+	return false
 }
 
 func edgeOf(e *EdgeSyntax) Edge {
@@ -116,13 +132,13 @@ func observeOf(o *ObserveSyntax) Observe {
 // note floats and holds one assume directive, or channel declarations; a
 // note for the picture goes in a CSDF-IGNORE region, as every other
 // PlantUML-only line does.
-func plainNote(d *Diagram, n *NoteSyntax) error {
+func plainNote(d *Diagram, n *NoteSyntax, r refuser) error {
 	const hint = "a note holds one assume directive (\"note as <id>\", \"assume <text>\", \"end note\") or channel declarations (\"channel <name> : <type>.<type>\"); a note for the picture goes in a CSDF-IGNORE region"
 	if n.ID == "" {
-		return refusedAt(n.Pos, "a note is floating, not anchored to a state, at line %d, col %d: %s", n.Line, n.Col, hint)
+		return r.refuse(n, n.Pos, "a note is floating, not anchored to a state, at line %d, col %d: %s", n.Line, n.Col, hint)
 	}
 	if len(n.Lines) == 0 {
-		return refusedAt(n.Pos, "the note at line %d holds no assume directive and no channel declaration: %s", n.Line, hint)
+		return r.refuse(n, n.Pos, "the note at line %d holds no assume directive and no channel declaration: %s", n.Line, hint)
 	}
 	var assumption *Assumption
 	var channels []ChannelDecl
@@ -130,18 +146,18 @@ func plainNote(d *Diagram, n *NoteSyntax) error {
 		switch l := l.(type) {
 		case *AssumeSyntax:
 			if assumption != nil {
-				return refusedAt(l.Pos, "the note at line %d holds a second assume directive at line %d; write one note per assumption", n.Line, l.Line)
+				return r.refuse(n, l.Pos, "the note at line %d holds a second assume directive at line %d; write one note per assumption", n.Line, l.Line)
 			}
 			if channels != nil {
-				return refusedAt(l.Pos, "the note at line %d declares channels and holds an assume directive at line %d; write the assume directive in a note of its own", n.Line, l.Line)
+				return r.refuse(n, l.Pos, "the note at line %d declares channels and holds an assume directive at line %d; write the assume directive in a note of its own", n.Line, l.Line)
 			}
 			if strings.TrimSpace(l.Text) == "" {
-				return refusedAt(l.Pos, "the assume directive at line %d has no text", l.Line)
+				return r.refuse(n, l.Pos, "the assume directive at line %d has no text", l.Line)
 			}
 			assumption = &Assumption{ID: n.ID, Text: Predicate(l.Text), Line: l.Line}
 		case *ChannelSyntax:
 			if assumption != nil {
-				return refusedAt(l.Pos, "the note at line %d holds an assume directive and declares a channel at line %d; write the assume directive in a note of its own", n.Line, l.Line)
+				return r.refuse(n, l.Pos, "the note at line %d holds an assume directive and declares a channel at line %d; write the assume directive in a note of its own", n.Line, l.Line)
 			}
 			decl, err := ParseChannelDecl(l.Text, l.Line)
 			if err != nil {
@@ -149,7 +165,7 @@ func plainNote(d *Diagram, n *NoteSyntax) error {
 			}
 			channels = append(channels, decl)
 		default:
-			return refusedAt(l.Position(), "unexpected line %d in the note at line %d: %s", l.Position().Line, n.Line, hint)
+			return r.refuse(n, l.Position(), "unexpected line %d in the note at line %d: %s", l.Position().Line, n.Line, hint)
 		}
 	}
 	if assumption != nil {
@@ -162,11 +178,11 @@ func plainNote(d *Diagram, n *NoteSyntax) error {
 // holdsDirectives reports whether body holds a promotion directive: a
 // <<promote>> block, an !include, or a note holding a sync or constrain
 // directive.
-func holdsDirectives(body []Element) bool {
+func HoldsDirectives(body []Element) bool {
 	for _, e := range body {
 		switch e := e.(type) {
 		case *StateSyntax:
-			if e.Stereotype == "promote" || holdsDirectives(e.Body) {
+			if e.Stereotype == "promote" || HoldsDirectives(e.Body) {
 				return true
 			}
 		case *PragmaSyntax:

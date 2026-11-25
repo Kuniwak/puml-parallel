@@ -1,6 +1,7 @@
 package csdf
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -89,5 +90,49 @@ func TestPlainRefusesAGlobalDiagramWithTheHint(t *testing.T) {
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "holds promotion directives") {
 		t.Errorf("Plain() error = %v, want the promotion hint", err)
+	}
+}
+
+// The hint is for a refusal of what a global diagram has; a mistake in a
+// diagram that also holds directives is the refusal alone.
+func TestPlainDoesNotHintAtAMistakeOfAGlobalDiagram(t *testing.T) {
+	// Arrange
+	tree, err := Parse("", "@startuml\ns : x\n!include x.puml\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	_, err = Plain(tree)
+
+	// Assert
+	var hinted *PromotionHintError
+	if err == nil || errors.As(err, &hinted) {
+		t.Errorf("Plain() error = %v, want a refusal of the variable without the hint", err)
+	}
+}
+
+func TestHoldsPromotionDirectivesReadsTheSyntaxTree(t *testing.T) {
+	tests := map[string]struct {
+		source string
+		want   bool
+	}{
+		"an !include":            {source: "@startuml\n!include x.puml\n@enduml\n", want: true},
+		"a sync note":            {source: "@startuml\nnote as n\n  sync E : m(i)\nend note\n@enduml\n", want: true},
+		"a <<promote>> block":    {source: "@startuml\nstate \"S\" as s {\n  state \"m : (i : I) ⇸ T\" as b <<promote>>\n}\n@enduml\n", want: true},
+		"an !include ignored":    {source: "@startuml\n' CSDF-IGNORE-BEGIN\n!include x.puml\n' CSDF-IGNORE-END\n@enduml\n", want: false},
+		"a note for the picture": {source: "@startuml\nnote left of s\n  for the picture, sync\nend note\n@enduml\n", want: false},
+		"a diagram without any":  {source: "@startuml\n[*] --> s\n@enduml\n", want: false},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Act
+			got := HoldsPromotionDirectives(tt.source)
+
+			// Assert
+			if got != tt.want {
+				t.Errorf("HoldsPromotionDirectives() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
