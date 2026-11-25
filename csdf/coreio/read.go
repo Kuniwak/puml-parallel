@@ -153,17 +153,6 @@ func lowerTree(tree *csdf.SyntaxTree, formula formulaOf) (*core.Diagram, error) 
 	return d, nil
 }
 
-// readEdge reads one edge line, written at line, as every diagram reads an
-// edge, and lowers it as a diagram's edges are lowered, each clause turned
-// into a formula by formula.
-func readEdge(text string, line int, formula formulaOf) (core.Edge, error) {
-	e, err := csdf.ParseEdgeLine(text, line)
-	if err != nil {
-		return core.Edge{}, err
-	}
-	return edgeOf(csdf.PlainEdge(e), formula)
-}
-
 // formulaAt is the formula of c, the clause written on line as the which of
 // that line, true when c is not written. A refusal is tagged with the line.
 func formulaAt(c *csdf.ClauseSyntax, line int, which string, formula formulaOf) (clause.And, error) {

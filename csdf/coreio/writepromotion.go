@@ -35,7 +35,11 @@ func ReadPromotionAsWritten(source string) (WrittenPromotion, error) {
 	if err := csdf.CheckIgnoreRegions(source); err != nil {
 		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)
 	}
-	r, err := readPromotion(source, nil)
+	tree, err := csdf.Parse("", source)
+	if err != nil {
+		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)
+	}
+	r, err := readPromotion(tree, nil)
 	if err != nil {
 		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)
 	}
