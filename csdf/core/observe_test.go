@@ -161,3 +161,20 @@ func TestRestrictKeepsTheObservationsOfTheVariablesKept(t *testing.T) {
 		t.Errorf("Observes (-want +got):\n%s", diff)
 	}
 }
+
+func TestPromoteCarriesTheObservationIntoTheFamily(t *testing.T) {
+	// Setup
+	locations := Family{Map: "locations", ID: "loc", Local: observedLocation(t, "stock")}
+
+	// Execute
+	got, _, err := promote(promotion(locations))
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &Observation{Observables: []Observable{{Name: "live", States: []string{"open"}}, {Name: "stock"}}}
+	if diff := cmp.Diff(want, got.Families[0].Observes); diff != "" {
+		t.Errorf("observation (-want +got):\n%s", diff)
+	}
+}
