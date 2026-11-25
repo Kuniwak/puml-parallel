@@ -29,9 +29,9 @@ class InstanceTest(unittest.TestCase):
         self.assertIsNone(views_key((FrozenMap(a=FrozenMap(cnt=1)),)))
         self.assertEqual(views_key(live), views_key(pickle.loads(pickle.dumps(live))))
 
-    def test_keeps_a_field_named_like_its_views(self):
-        r = Instance(FrozenMap(views_at=1, views=2), at=set(), views=set())
-        self.assertEqual((1, 2), (r["views_at"], r["views"]))
+    def test_reads_a_field_named_like_its_views_as_the_field(self):
+        r = Instance(FrozenMap(at=1, views=2, views_at=3), at={"live"}, views={"live"})
+        self.assertEqual((1, 2, 3), (r.at, r.views, r.views_at))
 
 
 class FrozenMapTest(unittest.TestCase):

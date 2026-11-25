@@ -13,7 +13,7 @@ import warnings
 from csdfbmc.protocol import (NO_CLOSE, NO_LINT, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
                               start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
-from csdfbmc.values import FrozenMap, Instance, same_value
+from csdfbmc.values import FrozenMap, Instance, at, same_value
 
 GREATER = {"text": ["", " > ", ""], "holes": [0, 1], "primed": [False, False]}
 NEXT = {"text": ["", " == ", " + 1"], "holes": [0, 1], "primed": [True, False]}
@@ -60,7 +60,7 @@ class WireEncodingTest(unittest.TestCase):
         # Assert
         self.assertEqual({"instance": {"fields": [["cnt", 1]], "at": ["live"], "views": ["gone", "live"]}}, wire)
         self.assertTrue(same_value(r, back))
-        self.assertEqual((frozenset({"live"}), frozenset({"live", "gone"})), (back.views_at, back.views))
+        self.assertEqual((True, False), (at(back, "live"), at(back, "gone")))
 
     def test_a_checked_glue_asks_again_of_an_instance_at_other_views(self):
         # Setup

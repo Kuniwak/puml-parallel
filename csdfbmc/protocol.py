@@ -94,7 +94,7 @@ def to_wire(value):
         return unsigned_zero(value)
     if isinstance(value, Instance):
         return {"instance": {"fields": [[to_wire(k), to_wire(v)] for k, v in value.items()],
-                             "at": sorted(value.views_at), "views": sorted(value.views)}}
+                             "at": sorted(value._at), "views": sorted(value._views)}}
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):

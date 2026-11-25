@@ -126,23 +126,23 @@ class FrozenMap(Mapping):
 
 class Instance(FrozenMap):
     """An instance of a family as a glue sees it: the map of the fields it
-    observes, with the views it is at, views_at, among the views of its
-    family, views (docs/PROMOTION.md, Observations). It is the value of the
+    observes, with the views it is at, _at, among the views of its
+    family, _views (docs/PROMOTION.md, Observations). It is the value of the
     map of its fields, wherever it is (kind_key), so that an atom compares
     it with a map; views_key tells where it is."""
 
-    __slots__ = ("views_at", "views")
+    __slots__ = ("_at", "_views")
 
     def __init__(self, fields=(), /, *, at, views):
         super().__init__(fields)
-        object.__setattr__(self, "views_at", frozenset(at))
-        object.__setattr__(self, "views", frozenset(views))
+        object.__setattr__(self, "_at", frozenset(at))
+        object.__setattr__(self, "_views", frozenset(views))
 
     def __repr__(self):
-        return f"Instance({super().__repr__()}, at={sorted(self.views_at)!r})"
+        return f"Instance({super().__repr__()}, at={sorted(self._at)!r})"
 
     def __reduce__(self):
-        return _instance, (tuple(self._d.values()), tuple(self.views_at), tuple(self.views))
+        return _instance, (tuple(self._d.values()), tuple(self._at), tuple(self._views))
 
 
 def views_key(value):
@@ -151,7 +151,7 @@ def views_key(value):
     tells apart two values an atom may answer differently about. None when
     value holds no instance."""
     if isinstance(value, Instance):
-        return (value.views_at, value.views, views_key(FrozenMap(value)))
+        return (value._at, value._views, views_key(FrozenMap(value)))
     if isinstance(value, Mapping):
         found = [(kind_key(k), views_key(k), views_key(v)) for k, v in value.items()]
     elif isinstance(value, (tuple, AbstractSet)):
@@ -339,9 +339,9 @@ def at(r, *views) -> bool:
     if not isinstance(r, Instance):
         raise ValueError(f"at reads an instance of a family, not {r!r}")
     for v in views:
-        if v not in r.views:
-            raise ValueError(f"at: {v} is no view of the instance; its views are {', '.join(sorted(r.views)) or 'none'}")
-    return any(v in r.views_at for v in views)
+        if v not in r._views:
+            raise ValueError(f"at: {v} is no view of the instance; its views are {', '.join(sorted(r._views)) or 'none'}")
+    return any(v in r._at for v in views)
 
 
 def freeze(value):
