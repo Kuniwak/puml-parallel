@@ -77,6 +77,56 @@ func TestParseReadsTheElementsWhereTheyAreWritten(t *testing.T) {
 	}
 }
 
+// The JSON of the syntax tree of every example reads back into a tree whose
+// JSON is the same.
+func TestUnmarshalSyntaxTreeReadsBackEveryExample(t *testing.T) {
+	err := filepath.WalkDir("../examples", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == "invalid" {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || filepath.Ext(path) != ".puml" {
+			return nil
+		}
+		t.Run(path, func(t *testing.T) {
+			// Arrange
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tree, err := Parse(path, string(src))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := MarshalSyntaxTree(tree)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Act
+			back, err := UnmarshalSyntaxTree(want)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := MarshalSyntaxTree(back)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(string(want), string(got)); diff != "" {
+				t.Error(diff)
+			}
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPlainRefusesAGlobalDiagramWithTheHint(t *testing.T) {
 	// Arrange
 	tree, err := Parse("", "@startuml\n!include x.puml\n@enduml\n")
