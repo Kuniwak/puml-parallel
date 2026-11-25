@@ -1,9 +1,15 @@
 """csdfbmc's commands run in this interpreter rather than as a process, for
 a host that starts no process: a web page running Python in WebAssembly
 (csdfreplweb -checks). run(["next", ...]) is what "csdfbmc next ..." exits
-with and prints on its standard output and standard error. The inputs a
-call names stay open for the next call that names them unchanged, so a
-session reads a diagram and its checks once."""
+with and prints on its standard output and standard error, over the
+inputs a Sessions keeps open.
+
+A Sessions keeps the inputs the last call opened for the calls after it
+that name them alike: the same arguments, and the same size and time of
+change of each file among the diagram, the checks and the words of
+--evaluator-module. It opens them again when any of these differ; a file
+those files read in turn is not looked at, and close() is how a host
+drops what is kept."""
 from __future__ import annotations
 
 import argparse
@@ -21,10 +27,7 @@ class Sessions:
     """The Explorer the last call opened, kept for the calls after it that
     name the same inputs, unchanged on disk; opener opens one."""
 
-    def __init__(self, opener: Callable[[argparse.Namespace], AbstractContextManager] | None = None):
-        if opener is None:
-            from csdfbmc.next import explorer_of
-            opener = explorer_of
+    def __init__(self, opener: Callable[[argparse.Namespace], AbstractContextManager]):
         self._opener = opener
         self._key: tuple | None = None
         self._explorer = None
@@ -57,11 +60,7 @@ def _key(a: argparse.Namespace) -> tuple:
     return (a.diagram, a.checks, a.evaluator, a.evaluator_module, tuple(a.env), files)
 
 
-# The sessions of this interpreter.
-SESSIONS = Sessions()
-
-
-def run(args: list[str], sessions: Sessions = SESSIONS) -> list:
+def run(args: list[str], sessions: Sessions) -> list:
     """The exit code, standard output and standard error of the command
     args name, run in this interpreter over the inputs sessions keeps."""
     out, err = io.StringIO(), io.StringIO()
