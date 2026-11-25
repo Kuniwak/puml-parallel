@@ -12,10 +12,10 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v3/csdfbmc"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v4/csdfbmc"
 
-	"github.com/Kuniwak/puml-parallel/v3/version"
+	"github.com/Kuniwak/puml-parallel/v4/version"
 )
 
 //go:embed assets/page.html.tmpl assets/style.css assets/app.js assets/messages.js assets/wasm_exec.js

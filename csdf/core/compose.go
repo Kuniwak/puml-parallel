@@ -5,9 +5,9 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
 )
 
 // Compose is the interface parallel of l and r synchronised on the channels

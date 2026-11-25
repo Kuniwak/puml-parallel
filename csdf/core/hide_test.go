@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/lts"
 )
 
 func TestHideIsTheHidingOfTheMeaning(t *testing.T) {

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/Kuniwak/puml-parallel/v3/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
 )
 
 // Protocol is the protocol of atoms a glue is asked to speak.
