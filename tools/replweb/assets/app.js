@@ -102,7 +102,9 @@
     const sys = py.pyimport("sys");
     sys.path.insert(0, python.lib);
     sys.path.insert(0, python.work);
-    const run = py.pyimport("csdfbmc.inprocess").run;
+    const inprocess = py.pyimport("csdfbmc.inprocess");
+    const sessions = inprocess.Sessions(py.pyimport("csdfbmc.next").explorer_of);
+    const run = (args) => inprocess.run(args, sessions);
     window.csdfreplPython = {
       checker: JSON.stringify(python.checker),
       writeFile,

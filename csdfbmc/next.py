@@ -12,12 +12,24 @@ or just the array of values in declaration order. Prints
 import argparse
 import json
 import sys
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager
 
 from csdfbmc.cli import LOADING_ERRORS, loading_message, add_inputs, opened
 from csdfbmc.explore import Explorer, as_met, every_transition
 
 
-def main(argv=None) -> int:
+@contextmanager
+def explorer_of(a: argparse.Namespace) -> Iterator[Explorer]:
+    """The Explorer next asks, over the inputs the parsed arguments name;
+    the glue started for it is closed on leaving."""
+    with opened(a) as (diagram, checks, client, environment):
+        yield Explorer(diagram, checks, client, environment=environment, left_out=(), ample=every_transition, canonical=as_met)
+
+
+def main(argv=None, explorers: Callable[[argparse.Namespace], AbstractContextManager[Explorer]] = explorer_of) -> int:
+    """What "csdfbmc next argv" exits with; explorers gives the Explorer
+    the parsed arguments name."""
     ap = argparse.ArgumentParser(prog="csdfbmc next", description=__doc__.split("\n\n")[1])
     add_inputs(ap)
     ap.add_argument("--initial", action="store_true", help="the values of the start state")
@@ -28,9 +40,8 @@ def main(argv=None) -> int:
         ap.error("give --initial, or both --state and --edge")
 
     try:
-        with opened(a) as (diagram, checks, client, environment):
-            candidates = _candidates(Explorer(diagram, checks, client, environment=environment, left_out=(), ample=every_transition,
-                                                     canonical=as_met), a)
+        with explorers(a) as explorer:
+            candidates = _candidates(explorer, a)
     except (*LOADING_ERRORS, IndexError, TypeError) as e:
         print(f"csdfbmc next: {loading_message(e)}", file=sys.stderr)
         return 2

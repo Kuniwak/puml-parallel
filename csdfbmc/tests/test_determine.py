@@ -3,7 +3,7 @@ guard's order."""
 import json
 import unittest
 
-from csdfbmc.determine import Bind, Witness, blocked, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.determine import Bind, Keyed, Witness, blocked, decides_early, determine, draws, keyed, part_reads, place, witness
 from csdfbmc.model import App, Bound, Builtin, Exists, Field, Free, Index, Lit
 
 
@@ -217,6 +217,29 @@ class WitnessTest(unittest.TestCase):
 def other_of(*terms):
     """A conjunct that reads terms and binds nothing."""
     return Builtin("at", terms, states=("s",))
+
+
+class KeyedTest(unittest.TestCase):
+    def test_the_parts_of_a_record_a_map_is_read_at_are_drawn_from_its_keys(self):
+        M = Free("m")
+        R = Free("r")
+        levels = ["v", ("r", "k"), ("r", "a")]
+        at = Builtin("at", (Index(M, R),), states=("s",))
+        tests = {
+            "an entry read by the record": ([at], Keyed(0, "r", (1, 2), ("k", "a"), M)),
+            "a membership of the record": ([Builtin("in", (R, M))], Keyed(0, "r", (1, 2), ("k", "a"), M)),
+            "an entry read inside a term": ([eq(Field(Index(M, R), "x"), N)], Keyed(0, "r", (1, 2), ("k", "a"), M)),
+            "after a conjunct over earlier levels": ([other("v"), at], Keyed(1, "r", (1, 2), ("k", "a"), M)),
+            "after a conjunct reading a part": ([eq(Field(R, "k"), N), at], None),
+            "a map over a field": ([Builtin("at", (Index(V, R),), states=("s",))], None),
+            "a map after the step": ([Builtin("at", (Index(Free("m", primed=True), R),), states=("s",))], None),
+            "a field not split": ([Builtin("at", (Index(M, V),), states=("s",))], None),
+            "an entry read under an ∃": ([Exists("K", (Builtin("at", (Index(M, R),), states=("s",)),))], None),
+        }
+        for name, (guard, want) in tests.items():
+            with self.subTest(name):
+                # Execute / Assert
+                self.assertEqual(want, keyed(tuple(guard), levels, {"m", "n"}))
 
 
 if __name__ == "__main__":

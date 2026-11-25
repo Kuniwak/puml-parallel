@@ -204,6 +204,63 @@ def _reads(read: set, level) -> bool:
 
 
 @dataclass(frozen=True)
+class Keyed:
+    """The conjunct at place in the guard reads the map at the field, m[f]
+    or @in(f, m), so it is false of every value of f the map has not as a
+    key: levels, the places of the parts of f in the levels of the
+    product, and keys, the key of the record each of them is."""
+    place: int
+    field: str
+    levels: tuple
+    keys: tuple
+    map: object
+
+
+def keyed(guard: tuple, levels: list, known: set[str]) -> Keyed | None:
+    """The first conjunct of guard, outside an ∃, that reads a map m at a
+    field f whose parts range one by one, m[f] anywhere in its terms or
+    @in(f, m), m over the names known before the step, when no conjunct
+    before it reads a part of f or a later level. Reading m at a key it
+    has not makes the conjunct false (Missing), so the values of f's parts
+    no key of m gives are rejected there before anything else of the
+    guard reads them, and drawing them from m's keys drops only values
+    evaluating the guard in full would reject."""
+    names = set(levels)
+    deepest = -1
+    for i, c in enumerate(guard):
+        if not isinstance(c, Exists):
+            for f, m in _keyings(c):
+                places = tuple(d for d, name in enumerate(levels) if isinstance(name, tuple) and name[0] == f)
+                if places and min(places) > deepest and _over(m, known, set()):
+                    return Keyed(i, f, places, tuple(levels[d][1] for d in places), m)
+        deepest = _deepest(c, levels, names, deepest)
+    return None
+
+
+def _keyings(c) -> list[tuple[str, object]]:
+    """(f, m) for every m[f], f a field, among the terms of the conjunct c,
+    and for @in(f, m), in the order they are read."""
+    out: list = []
+    if isinstance(c, Builtin) and c.op == "in" and isinstance(c.args[0], Free) and not c.args[0].primed:
+        out.append((c.args[0].name, c.args[1]))
+
+    def walk(t):
+        if isinstance(t, Index):
+            walk(t.map)
+            walk(t.key)
+            if isinstance(t.key, Free) and not t.key.primed:
+                out.append((t.key.name, t.map))
+        elif isinstance(t, Field):
+            walk(t.of)
+        elif hasattr(t, "args") and not isinstance(t, Exists):
+            for a in t.args:
+                walk(a)
+    for a in getattr(c, "args", ()):
+        walk(a)
+    return out
+
+
+@dataclass(frozen=True)
 class Witness:
     """The conjunct at place in the guard, ∃ j : type. @in(j, map) ∧ l = t
     ∧ …, holds of the values of the levels it binds exactly when they are

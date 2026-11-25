@@ -15,7 +15,7 @@ from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, observed_by_state, show
-from csdfbmc.determine import Witness, blocked, decides_early, determine, draws, part_reads, place, witness
+from csdfbmc.determine import Keyed, Witness, blocked, decides_early, determine, draws, keyed, part_reads, place, witness
 from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
 from csdfbmc.protocol import ClientLike
@@ -199,7 +199,8 @@ class _Plan:
     values its parts take. draws: the map term each level a leading
     membership decides is drawn from, by its place in levels (draws).
     witness: the ∃ that draws levels from the entries of a map, or None
-    (witness)."""
+    (witness). keyed: the conjunct that draws the parts of a field from
+    the keys of a map, or None (keyed)."""
     levels: list
     steps: list
     inside: int
@@ -209,6 +210,7 @@ class _Plan:
     records: dict
     draws: dict
     witness: Witness | None
+    keyed: Keyed | None
 
     def size(self, depth: int) -> int:
         """How many values the levels from depth on give in all."""
@@ -620,7 +622,7 @@ class Explorer:
         last_part = {b.field: i for i, b in binds.items() if b.key is not None}
         records = {f: shape[0] for f, shape in split.items()}
         return _Plan(levels, steps, inside, {f: shape[0] for f, shape in shapes.items()}, last_part, frozenset(ranged), records,
-                     draws(e.guard, names, known), witness(e.guard, names, known))
+                     draws(e.guard, names, known), witness(e.guard, names, known), keyed(e.guard, names, known))
 
     def _params(self, e: Edge, plan: "_Plan", prefix: tuple, bound: dict) -> dict:
         """The values of the fields of e the prefix of the levels and the
@@ -686,6 +688,9 @@ class Explorer:
             return run
 
         levels = [lambda prefix, vs=vs: vs for _, vs in plan.levels]
+        if plan.keyed is not None:
+            for d, level in self._keyed(state, plan, plan.keyed).items():
+                levels[d] = level
         for d, m in plan.draws.items():
             levels[d] = self._drawn(state, plan, d, m)
         if plan.witness is not None:
@@ -716,6 +721,21 @@ class Explorer:
             return lambda prefix: vs
         kept = keys_among(vs, mv)
         return lambda prefix: kept
+
+    def _keyed(self, state: State, plan: "_Plan", k: Keyed) -> dict[int, Callable[[tuple], list]]:
+        """The levels of the parts of k's field drawn from the keys of its
+        map in state: at each, the values the keys give there, with the
+        levels before it the values those keys give; the first of its
+        values when no key gives one, so that the conjunct is still asked
+        and rejects it. A key that is no record of those parts gives none.
+        Nothing is drawn when the map is no map (_map_at), for the guard to
+        say so where it reads it."""
+        mv = self._map_at(state, k.map)
+        if mv is None:
+            return {}
+        entries = [dict(zip(k.levels, (key[p] for p in k.keys))) for key in mv
+                   if isinstance(key, Mapping) and all(p in key for p in k.keys)]
+        return entry_levels({d: plan.levels[d][1] for d in k.levels}, entries)
 
     def _witnessed(self, state: State, plan: "_Plan", w: Witness) -> dict[int, Callable[[tuple], list]]:
         """The levels w binds drawn from the entries of its map in state:
