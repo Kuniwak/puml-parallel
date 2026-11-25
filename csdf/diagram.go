@@ -55,12 +55,19 @@ func (e *ParseError) Error() string { return e.err.Error() }
 
 func (e *ParseError) Unwrap() error { return e.err }
 
+// NewParseError is err tagged with the position line and col it is at; col is
+// 0 when the position is a whole line, such as that of a clause, whose own
+// position is not the line's.
+func NewParseError(line, col int, err error) *ParseError {
+	return &ParseError{Line: line, Col: col, err: err}
+}
+
 // ParseSource reads the structure of the diagram in source, its clauses
-// checked by check. A failure is a *ParseError tagged with the position the
+// left as written. A failure is a *ParseError tagged with the position the
 // parser stopped at, unless it already says where it is, and is hinted when
 // the source still holds promotion directives.
-func ParseSource(source string, check func(Predicate) error) (*Diagram, error) {
-	d, err := NewParserCheckingClauses(source, check).parseAt()
+func ParseSource(source string) (*Diagram, error) {
+	d, err := NewParser(source).parseAt()
 	if err != nil {
 		return nil, withHint(err, source)
 	}

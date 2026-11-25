@@ -3,6 +3,8 @@
 package coreio
 
 import (
+	"slices"
+
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/v4/csdf"
@@ -38,9 +40,18 @@ func Read(source string) (*core.Diagram, error) {
 // read reads source with the structure csdf.ParseSource reads, each clause by
 // parse.
 func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
-	check, clauses := parseOnce(parse)
-	src, err := csdf.ParseSource(source, check)
+	src, err := csdf.ParseSource(source)
 	if err != nil {
+		return nil, err
+	}
+	return lower(src, parse)
+}
+
+// lower is the diagram src says, each clause read by parse: what the tools
+// evaluate.
+func lower(src *csdf.Diagram, parse func(string) (clause.And, error)) (*core.Diagram, error) {
+	check, clauses := parseOnce(parse)
+	if err := checkClauses(src, check); err != nil {
 		return nil, err
 	}
 	d := &core.Diagram{
@@ -112,11 +123,53 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 // readEdge reads one edge line, written at line, its clauses by parse.
 func readEdge(text string, line int, parse func(string) (clause.And, error)) (core.Edge, error) {
 	check, clauses := parseOnce(parse)
-	e, err := csdf.ParseEdgeLine(text, line, check)
+	e, err := csdf.ParseEdgeLine(text, line)
 	if err != nil {
 		return core.Edge{}, err
 	}
+	if err := checkClause(e.Line, "guard", e.Guard, check); err != nil {
+		return core.Edge{}, err
+	}
+	if err := checkClause(e.Line, "post", e.Post, check); err != nil {
+		return core.Edge{}, err
+	}
 	return edgeOf(e, clauses), nil
+}
+
+// writtenClause is a clause of a diagram: the line it is on and which of
+// the line it is.
+type writtenClause struct {
+	line  int
+	which string
+	pred  csdf.Predicate
+}
+
+// checkClauses reads every clause of src by check, in the order of the
+// lines they are on.
+func checkClauses(src *csdf.Diagram, check func(csdf.Predicate) error) error {
+	cs := []writtenClause{{src.StartEdge.Line, "post", src.StartEdge.Post}}
+	for _, e := range src.Edges {
+		cs = append(cs, writtenClause{e.Line, "guard", e.Guard}, writtenClause{e.Line, "post", e.Post})
+	}
+	if e := src.EndEdge; e != nil {
+		cs = append(cs, writtenClause{e.Line, "guard", e.Guard})
+	}
+	slices.SortStableFunc(cs, func(a, b writtenClause) int { return a.line - b.line })
+	for _, c := range cs {
+		if err := checkClause(c.line, c.which, c.pred, check); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkClause refuses a predicate check refuses, saying the line it was
+// written on and which predicate of the line it is.
+func checkClause(line int, which string, pred csdf.Predicate, check func(csdf.Predicate) error) error {
+	if err := check(pred); err != nil {
+		return csdf.NewParseError(line, 0, fmt.Errorf("line %d, the %s: %w", line, which, err))
+	}
+	return nil
 }
 
 // parseOnce gives a check that reads each predicate by parse, keeping what

@@ -9,7 +9,7 @@ import (
 
 func TestParseEdgeLine(t *testing.T) {
 	// Execute
-	got, err := ParseEdgeLine("a --> b : HALT?why ; g ; p", 7, acceptClauses)
+	got, err := ParseEdgeLine("a --> b : HALT?why ; g ; p", 7)
 
 	// Assert
 	if err != nil {
@@ -23,7 +23,7 @@ func TestParseEdgeLine(t *testing.T) {
 
 func TestParseEdgeLineRefusesWithTheLine(t *testing.T) {
 	// Execute
-	_, err := ParseEdgeLine("a --> b : HALT??", 7, acceptClauses)
+	_, err := ParseEdgeLine("a --> b : HALT??", 7)
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "line 7") {
