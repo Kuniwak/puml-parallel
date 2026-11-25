@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v4/csdf"
 	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
@@ -149,7 +150,7 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 func ExpandTree(tree *csdf.SyntaxTree, include Include, keep []string) (*core.Diagram, []core.Warning, error) {
 	if !csdf.HoldsDirectives(tree.Body) {
 		if len(keep) > 0 {
-			return nil, nil, fmt.Errorf("coreio.ExpandTree: %s is no promoted map: the diagram holds no promotion directive", keep[0])
+			return nil, nil, fmt.Errorf("coreio.ExpandTree: %s is no promoted map: the diagram holds no promotion directive", strings.Join(keep, ", "))
 		}
 		d, err := Lower(tree)
 		if err != nil {
