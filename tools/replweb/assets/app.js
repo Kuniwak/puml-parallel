@@ -191,7 +191,6 @@
     const history = await send({ command: "history" });
     app.history = history.ok ? history.data.history || [] : [];
     render();
-    autoContinue();
     checkAdmits();
   }
 
@@ -225,17 +224,6 @@
     return app.admits.get(admitsKey(app.view.state, tr.index)) === "none";
   }
 
-  // A state whose values the post determines, all of them, takes them
-  // without asking; so does a state of no variables.
-  function autoContinue() {
-    const v = app.view;
-    if (!v || v.mode !== "values" || !v.pending || app.error) return;
-    const vars = v.pending.group.vars || [];
-    const values = vars.map((name) => determinedValue(v.pending, name));
-    if (values.some((value) => value === undefined)) return;
-    enterValues(values.map(show), vars.length > 0);
-  }
-
   // determinedValue is the value the post determines of name, undefined
   // when it determines none.
   function determinedValue(pending, name) {
@@ -253,19 +241,19 @@
     await refresh();
   }
 
-  async function enterValues(texts, auto) {
+  async function enterValues(texts) {
     const values = "[" + texts.join(", ") + "]";
     const resp = await send({ command: "statevar", values });
     if (!resp.ok) { app.error = errorText(resp); render(); return; }
     app.error = null;
     const c = app.choice;
     if (!c) {
-      app.entries.push({ kind: "initial", auto, parent: null, path: { initial: values, steps: [] } });
+      app.entries.push({ kind: "initial", parent: null, path: { initial: values, steps: [] } });
     } else {
       const parent = app.entries[app.current];
       const step = { event: c.transition.event, src: c.src, dst: c.transition.dst, line: c.transition.line || 0, values };
       app.entries.push({
-        kind: "step", auto, event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
+        kind: "step", event: c.transition.event, line: c.transition.line || 0, moves: c.transition.moves || [], parent: app.current,
         path: { initial: parent.path.initial, steps: parent.path.steps.concat([step]) },
       });
     }
@@ -445,9 +433,15 @@
   }
 
   // variableView shows the value of the variable name: the instances of
-  // a family by instancesView, anything else by valueView.
+  // a family by instancesView, or in words when there are none, anything
+  // else by valueView.
   function variableView(name, value, before, compare) {
     if (isInstances(name, value)) return instancesView(name, value, isMap(before) ? before : undefined, compare);
+    if (isFamily(name) && isMap(value) && Object.keys(value).length === 0) {
+      const none = el("span", { class: "hint", text: t("instances.none") });
+      if (compare && show(before) !== show(value)) { none.classList.add("changed"); none.title = t("history.changed"); }
+      return none;
+    }
     return valueView(value, before, compare);
   }
 
@@ -725,7 +719,6 @@
       const head = el("div", null, [
         el("span", { class: "step-number", text: t("history.stepNumber", { step: k + 1 }) }),
         el("span", { text: label }),
-        entry.auto ? el("span", { class: "auto", text: t("history.auto") }) : null,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
       ]);
       const item = el("li", {
@@ -738,8 +731,6 @@
     });
     const current = list.querySelector("li.current");
     if (current) current.scrollIntoView({ block: "nearest" });
-    const trace = app.history[app.current] ? app.history[app.current].trace : [];
-    document.getElementById("trace").textContent = trace.length ? trace.join(" → ") : t("trace.empty");
   }
 
   function clausesList(rows) {
@@ -899,8 +890,12 @@
     ]);
     let filled = false;
     const fillOnce = () => { if (!filled) { filled = true; fill(body); } };
+    // Opening the group here fires a toggle too, later: that one is not
+    // the user's, so it neither is remembered nor calls onOpen.
+    let opening = open;
     if (open) { box.open = true; fillOnce(); }
     box.addEventListener("toggle", () => {
+      if (opening) { opening = false; return; }
       app.openGroups.set(key, box.open);
       if (box.open) fillOnce();
       if (box.open && onOpen) onOpen();
@@ -1395,7 +1390,10 @@
         const bbox = box.getBBox();
         let x = bbox.x + 6;
         for (const id of shown) {
-          x += drawPiece(overlay, x, bbox.y, id, pieceColour(fv.map, id), "csdf-piece", t("piece.title", { id, state })).width + 3;
+          const piece = drawPiece(overlay, x, bbox.y, id, pieceColour(fv.map, id), "csdf-piece", t("piece.title", { id, state }));
+          piece.node.dataset.map = fv.map;
+          piece.node.dataset.state = state;
+          x += piece.width + 3;
         }
         if (ids.length > PIECE_LIMIT) {
           const label = app.expanded.has(key) ? "−" : t("instances.more", { n: ids.length - shown.length });
@@ -1496,12 +1494,14 @@
     // zoomTo keeps the point of the drawing at the middle of the pane
     // where it was, as far as the edges of the drawing allow.
     const zoomTo = (scale) => {
-      const cx = (box.scrollLeft + box.clientWidth / 2) / app.scale;
-      const cy = (box.scrollTop + box.clientHeight / 2) / app.scale;
+      const [mx, my] = slackOf();
+      const cx = (box.scrollLeft - mx + box.clientWidth / 2) / app.scale;
+      const cy = (box.scrollTop - my + box.clientHeight / 2) / app.scale;
       app.scale = scale;
       apply();
-      box.scrollLeft = cx * scale - box.clientWidth / 2;
-      box.scrollTop = cy * scale - box.clientHeight / 2;
+      const [nx, ny] = slackOf();
+      box.scrollLeft = cx * scale + nx - box.clientWidth / 2;
+      box.scrollTop = cy * scale + ny - box.clientHeight / 2;
     };
     setupBlockChooser();
     document.getElementById("zoom-in").addEventListener("click", () => zoomTo(app.scale * 1.25));
@@ -1521,21 +1521,29 @@
     apply();
   }
 
-  // focusOf is what the drawing centres on: the edges of the last step,
-  // else the state being entered or the current one, unless that state is
-  // larger than the pane (the mode of a promotion), then the start edge.
+  // focusOf is what the drawing centres on. In a block: the local edges of
+  // the transition chosen, else where the last step moved pieces to, else
+  // the local states holding instances, else the local start. Else: the
+  // whole's piece, else the edges of the last step, else the state being
+  // entered or the current one, unless that state is larger than the pane
+  // (the mode of a promotion), then the start edge.
   function focusOf(v) {
     const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
     if (app.block) {
       const inBlock = (m) => app.block.includes(m.map);
       const chosen = app.choice ? (app.choice.transition.moves || []).filter(inBlock) : [];
-      const moved = last && last.kind === "step" ? (last.moves || []).filter(inBlock) : [];
-      const links = [...chosen, ...moved].map(localLinkOf).filter(Boolean);
-      if (links.length > 0) return links;
+      if (chosen.length > 0) {
+        const links = chosen.map(localLinkOf).filter(Boolean);
+        if (links.length > 0) return links;
+      }
+      const moved = movedTo(last).filter((o) => inBlock(o));
+      if (moved.length > 0) return moved.map((o) => o.pieces.length > 0 ? o.pieces : [o.node]).flat();
       const occupied = [...occupiedStates(v), ...emptyInits(v)].filter((o) => app.block.includes(o.map)).map((o) => o.node);
       if (occupied.length > 0) return occupied;
       return app.block.map(localInitOf).filter(Boolean);
     }
+    const whole = document.querySelector("#csdf-overlay .csdf-piece-whole");
+    if (whole) return [whole];
     if (last && last.kind === "step") {
       const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
       if (links.length > 0) return links;
@@ -1548,6 +1556,17 @@
       if (r.width <= box.clientWidth && r.height <= box.clientHeight) return [state];
     }
     return [svgElement(highlights.start)].filter(Boolean);
+  }
+
+  // movedTo are the local states the last step, entry last, moved
+  // instances to: {map, node, pieces}, their boxes and the pieces on them.
+  function movedTo(last) {
+    if (!last || last.kind !== "step") return [];
+    return (last.moves || []).map((m) => ({
+      map: m.map,
+      node: svgElement(families[m.map] && families[m.map].states[m.dst]),
+      pieces: [...document.querySelectorAll("#csdf-overlay .csdf-piece")].filter((p) => p.dataset.map === m.map && p.dataset.state === m.dst),
+    })).filter((o) => o.node);
   }
 
   // localInitOf is the box of the local start state of the family of map,
@@ -1625,33 +1644,17 @@
     showCurrent();
   }
 
-  function blocksToShow(v) {
-    const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
-    const moved = last && last.kind === "step" ? (last.moves || []).map((m) => m.map) : [];
-    const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
-    const maps = [...new Set([...chosen, ...moved])].filter((m) => families[m]);
-    if (maps.length > 0) return maps;
-    if (app.block) return app.block;
-    const occupied = [...new Set(occupiedStates(v).map((o) => o.map))].sort();
-    if (occupied.length > 0) return [occupied[0]];
-    const movable = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort();
-    const first = movable[0] || Object.keys(families).sort()[0];
-    return first ? [first] : [];
-  }
-
-  // showCurrent brings what the current step is about into the middle of
-  // the pane, switching to its blocks on a promotion.
+  // showCurrent brings the current piece into the middle of the pane: on
+  // a promotion the local edges of the transition chosen, else the pieces
+  // the last step moved, each in its block; else the whole's piece, in the
+  // whole drawing.
   function showCurrent() {
     const v = app.view;
     if (!v) return;
-    if (Object.keys(families).length > 0) {
-      const maps = blocksToShow(v);
-      if (maps.length > 0) { showBlocks(maps); return; }
-    }
-    const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
-    const state = svgElement(highlights.states[id]);
-    const nodes = state ? [state] : focusOf(v);
-    centreOn(nodes);
+    const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
+    const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
+    const moved = movedTo(last).map((o) => o.map);
+    showBlocks([...new Set([...chosen, ...moved])].filter((m) => families[m]));
   }
 
   // ---- Showing one block at a time ----
@@ -1705,6 +1708,18 @@
     d.svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
     d.svg.style.width = w * app.scale + "px";
     d.svg.style.height = h * app.scale + "px";
+    // Room around the drawing of half the pane lets any part of it be
+    // scrolled to the middle of the pane.
+    const box = document.getElementById("diagram");
+    d.svg.style.margin = `${Math.round(box.clientHeight / 2)}px ${Math.round(box.clientWidth / 2)}px`;
+  }
+
+  // slackOf is the room left of and above the drawing, [x, y].
+  function slackOf() {
+    const d = app.drawing;
+    if (!d) return [0, 0];
+    const style = d.svg.style;
+    return [parseFloat(style.marginLeft) || 0, parseFloat(style.marginTop) || 0];
   }
 
   // showBlocks shows only the blocks of maps (all of the drawing for
@@ -1758,7 +1773,19 @@
     ]));
   }
 
+  // reveal takes the loading cover off the drawing once what the first
+  // render scrolled to has been painted; it is safe to call twice.
+  function reveal() {
+    const cover = document.getElementById("diagram-loading");
+    if (!cover) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => cover.remove()));
+  }
+
+  // The cover comes off at the latest after this long, whatever happens.
+  const REVEAL_TIMEOUT_MS = 60000;
+
   function fail(message) {
+    reveal();
     const root = document.getElementById("controls");
     root.replaceChildren(el("p", { class: "error", role: "alert", text: t("app.failed", { message }) }));
   }
@@ -1772,6 +1799,7 @@
     document.getElementById("save").addEventListener("click", save);
     document.getElementById("show-current").addEventListener("click", showCurrent);
     setupDiagram();
+    setTimeout(reveal, REVEAL_TIMEOUT_MS);
     try {
       const engine = transports[config.transport || "wasm"]();
       if (config.python) {
@@ -1795,6 +1823,7 @@
       app.session = created.session;
       showWarnings(created.warnings);
       await refresh();
+      reveal();
     } catch (e) {
       fail(String(e && e.message ? e.message : e));
     }

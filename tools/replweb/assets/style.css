@@ -131,13 +131,13 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
 .values { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .values dt { color: var(--muted); }
 .values dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+.values dd .hint { font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; margin: 0; }
 .values .changed, .value-table .changed { background: var(--changed); border-radius: 3px; }
 .value-table { border-collapse: collapse; font-size: inherit; display: inline-table; vertical-align: top; }
 .value-table th, .value-table td { border: 1px solid var(--border, #ccc); padding: .05rem .4rem; text-align: left; vertical-align: top; }
 .value-table th { color: var(--muted); font-weight: normal; font-family: inherit; }
 .value-list { margin: 0; padding-left: 1.1rem; }
 .suggestion .value-table, .before .value-table { font-size: .85em; }
-.trace { font-size: .9rem; }
 .choice {
   display: block;
   width: 100%;
@@ -156,7 +156,6 @@ button.primary { background: var(--accent); color: var(--accent-text); border-co
   background: none; color: var(--muted); padding: .35rem .9rem; margin-bottom: -1px; cursor: pointer; font: inherit;
 }
 .tabs .tab.selected { border-color: var(--border); background: var(--panel); color: var(--text); font-weight: 600; }
-.auto { color: var(--muted); font-size: .85em; margin-left: .5em; }
 .clauses { margin: .2rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0 .75rem; font-size: .88rem; }
 .clauses dt { color: var(--muted); }
 .clauses dd { margin: 0; word-break: break-word; }
@@ -253,3 +252,16 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 .instance-at::before { content: "→ "; color: var(--muted); font-weight: normal; }
 .instance-at.changed { border-radius: 3px; padding: 0 .2rem; }
 .instance .values { margin-left: 1.1rem; }
+.diagram-pane { position: relative; }
+#diagram-loading {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center; gap: .6rem;
+  background: var(--panel); color: var(--muted); border-radius: 8px;
+}
+#diagram-loading .spinner {
+  width: 1.2rem; height: 1.2rem; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: csdf-spin .8s linear infinite;
+}
+@keyframes csdf-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #diagram-loading .spinner { animation: none; } }
