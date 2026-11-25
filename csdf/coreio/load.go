@@ -1,6 +1,7 @@
 package coreio
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 
@@ -183,4 +184,37 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
 	}
 	return canonical, warnings, nil
+}
+
+// ReadTreeBytes reads the syntax tree of the diagram in raw: the JSON
+// csdfparse prints (IsSyntaxTreeJSON), or a .puml text or a .png, parsed.
+func ReadTreeBytes(raw []byte) (*csdf.SyntaxTree, error) {
+	if IsSyntaxTreeJSON(raw) {
+		tree, err := csdf.UnmarshalSyntaxTree(raw)
+		if err != nil {
+			return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
+		}
+		return tree, nil
+	}
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadTreeBytes: reading PlantUML source: %w", err)
+	}
+	tree, err := csdf.Parse("", src)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
+	}
+	return tree, nil
+}
+
+// IsSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: it
+// opens with "{", which no PlantUML source or PNG does.
+func IsSyntaxTreeJSON(raw []byte) bool {
+	return bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{"))
+}
+
+// UnresolvedInclude refuses every !include: that of a syntax tree, which
+// csdfinclude resolves.
+func UnresolvedInclude(path string) (string, error) {
+	return "", fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote), or give csdfpromote the .puml", path)
 }
