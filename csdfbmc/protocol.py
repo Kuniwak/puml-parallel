@@ -76,7 +76,7 @@ import subprocess
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap, FrozenSet, Instance, kind_key, unsigned_zero
+from csdfbmc.values import FrozenMap, FrozenSet, Instance, kind_key, unsigned_zero, views_key
 
 _TAGS = ("tuple", "set", "map")
 
@@ -485,7 +485,7 @@ class Memoising:
 
     def _ask(self, op: str, atom: dict, values: list[list]) -> list:
         shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
-        keys = [(op, shape, kind_key(tuple(vs))) for vs in values]
+        keys = [(op, shape, kind_key(tuple(vs)), views_key(tuple(vs))) for vs in values]
         asked: dict[tuple, list] = {}
         for key, vs in zip(keys, values):
             if key not in self._answers:

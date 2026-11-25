@@ -5,7 +5,7 @@ import re
 import unittest
 from pathlib import Path
 
-from csdfbmc.model import Atom, Bound, Builtin, Diagram, Exists, Free, Index, observed_fields
+from csdfbmc.model import Atom, Bound, Builtin, Diagram, Exists, Free, Index, observed_by_state
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import continues_name, atom, builtin, diagram, edge, end, exists, family, idx
 
@@ -59,7 +59,10 @@ class DiagramTest(unittest.TestCase):
         # Assert
         self.assertEqual(((("live", ("open",)), ("cnt", None), ("gone", ())), None),
                          (d.families["m"].observes, d.families["n"].observes))
-        self.assertEqual({"none": frozenset(), "open": frozenset({"cnt"})}, dict(observed_fields(d.families)))
+        seen = observed_by_state(d.families)
+        self.assertEqual((frozenset({"cnt"}), frozenset({"live"}), frozenset({"live", "gone"})),
+                         (seen["open"].fields, seen["open"].at, seen["open"].views))
+        self.assertEqual((None, frozenset(), frozenset()), (seen["nil"].fields, seen["nil"].at, seen["nil"].views))
 
     def test_reads_the_declared_types(self):
         # Setup

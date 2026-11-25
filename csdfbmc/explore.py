@@ -14,7 +14,7 @@ from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, observed_fields, show
+from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, observed_by_state, show
 from csdfbmc.determine import Witness, blocked, decides_early, determine, draws, part_reads, place, witness
 from csdfbmc.product import entry_levels, keys_among, pruned_product
 from csdfbmc.progress import unsaid
@@ -353,7 +353,7 @@ class Explorer:
         self.d = diagram
         self.checks = checks
         self.environment = environment
-        seen = observed_fields(diagram.families)
+        seen = observed_by_state(diagram.families)
         self.meaning = AtomMeaning(client, environment, checks.carrier, seen)
         self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given, seen))
         self.max_states = max_states

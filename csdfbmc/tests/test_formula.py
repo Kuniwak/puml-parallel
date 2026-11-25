@@ -8,7 +8,7 @@ from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.formula import Evaluator, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Family, formula_of, observed_fields
+from csdfbmc.model import Family, formula_of, observed_by_state
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx, lit
 from csdfbmc.values import LEFT_OUT, FrozenMap, Rec, same_value
@@ -42,7 +42,7 @@ class ByName(dict):
 
 
 def evaluator(env=environment.NONE, given=None, families=None):
-    seen = observed_fields(families or {})
+    seen = observed_by_state(families or {})
     return Evaluator(AtomMeaning(fixture.glue(), env, CARRIER, seen), CARRIER, apply_given(given or {}, seen))
 
 
@@ -115,6 +115,35 @@ class GuardTest(unittest.TestCase):
         self.assertFalse(evaluator(families=silent).holds(whole, {"m": clubs}))
         self.assertTrue(evaluator(given=fields, families=observing).holds(given, {"m": clubs, "x": ("cnt",)}))
         self.assertTrue(evaluator(given=fields, families=silent).holds(given, {"m": clubs, "x": ("cnt", "tag")}))
+
+    def test_a_glue_reads_the_views_an_instance_is_at(self):
+        # Setup
+        clubs = FrozenMap({"a": inst("open", cnt=1)})
+        observing = {"m": Family("none", ("none", "open", "shut"), FrozenMap({"none": (), "open": ("cnt",), "shut": ()}), "k", "k",
+                                 FrozenMap({"cnt": "cnt"}), (("live", ("open",)), ("idle", ("shut",))))}
+        silent = {"m": dataclasses.replace(observing["m"], observes=None)}
+        at = lambda *views: formula_of([atom("at($m['a'], " + ", ".join(repr(v) for v in views) + ")")])
+        tests = {
+            "at a declared view": (observing, at("live"), True),
+            "at another declared view": (observing, at("idle"), False),
+            "at one of several views": (observing, at("idle", "live"), True),
+            "at the view of a state with no declaration": (silent, at("open"), True),
+            "at the view of another state with no declaration": (silent, at("shut"), False),
+        }
+        for name, (families, clause, want) in tests.items():
+            with self.subTest(name):
+                # Execute, Assert
+                self.assertEqual(want, evaluator(families=families).holds(clause, {"m": clubs}))
+
+    def test_a_glue_refuses_at_of_a_name_that_is_no_view(self):
+        # Setup
+        clubs = FrozenMap({"a": inst("open", cnt=1)})
+        observing = {"m": Family("none", ("none", "open"), FrozenMap({"none": (), "open": ("cnt",)}), "k", "k",
+                                 FrozenMap({"cnt": "cnt"}), (("live", ("open",)),))}
+
+        # Execute, Assert
+        with self.assertRaisesRegex(Exception, "open is no view of the instance; its views are live"):
+            evaluator(families=observing).holds(formula_of([atom("at($m['a'], 'open')")]), {"m": clubs})
 
     def test_an_environment_function_of_a_term_is_the_one_given(self):
         # Setup

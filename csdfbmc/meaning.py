@@ -23,7 +23,7 @@ def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tu
     """The apply of an Evaluator: the environment function of a term (App)
     named fn, as the checks module's ENVIRONMENT gives it, applied to the
     values of its arguments as a glue sees them, seen giving the fields
-    observed at each local state (csdfbmc.model.observed_fields)."""
+    observed at each local state (csdfbmc.model.observed_by_state)."""
     def apply(fn: str, args: tuple):
         g = given.get(fn)
         if not callable(g):
@@ -37,7 +37,7 @@ class AtomMeaning:
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
     carrier gives the values of a type, for the values after the
     step of a post atom the environment decides, and seen the fields
-    observed at each local state (csdfbmc.model.observed_fields)."""
+    observed at each local state (csdfbmc.model.observed_by_state)."""
 
     def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list], seen: Mapping):
         self.client = client

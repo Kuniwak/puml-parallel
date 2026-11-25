@@ -62,6 +62,26 @@ class WireEncodingTest(unittest.TestCase):
         self.assertTrue(same_value(r, back))
         self.assertEqual((frozenset({"live"}), frozenset({"live", "gone"})), (back.views_at, back.views))
 
+    def test_a_checked_glue_asks_again_of_an_instance_at_other_views(self):
+        # Setup
+        asked = []
+        def handle(request):
+            if request["op"] == "hello":
+                return HELLO
+            asked.append(request["values"])
+            return {"results": [True for _ in request["values"]]}
+        client = checked(Client(handle, NO_CLOSE))
+        live = Instance(FrozenMap({"cnt": 1}), at={"live"}, views={"live", "gone"})
+        gone = Instance(FrozenMap({"cnt": 1}), at={"gone"}, views={"live", "gone"})
+
+        # Execute
+        client.guard(GREATER, [[FrozenMap(a=live), 0]])
+        client.guard(GREATER, [[FrozenMap(a=gone), 0]])
+        client.guard(GREATER, [[FrozenMap(a=live), 0]])
+
+        # Assert
+        self.assertEqual(2, len(asked))
+
     def test_a_boolean_stays_a_boolean(self):
         self.assertIs(True, from_wire(to_wire(True)))
         self.assertIsNot(True, from_wire(to_wire(1)))

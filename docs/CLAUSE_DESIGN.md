@@ -100,8 +100,9 @@ diagram with its observations, not to ⟦P⟧ alone.
   its local state s and the values v of its state variables
   (docs/PROMOTION.md, Observations). An observation always tells whether
   s is S₀, that is whether the instance exists, so `@in` and `@notin` of
-  its key are always readable. A local diagram that declares none observes
-  everything, obs(s, v) = (s, v).
+  its key are always readable. A local diagram that declares none declares
+  a view of each state but S₀, named after it, and every variable, so
+  obs(s, v) = (s, v).
 - A **public event** is e.k.(o, o′): the event e of P, the key k of the
   instance, and the observation o before and o′ after the step. Every τ
   step of P is a public event τ.k.(o, o′) too, whether or not it changes
@@ -522,6 +523,9 @@ name.
 - The holes are the atom's arguments (P9), so obligations, reduction and
   restriction need no glue (Q1, Q3).
 - A glue receives the text without the holes and the values for them (P8).
+  An instance among them is the map of the variables its family observes,
+  with the views it is at and the views of its family, which the glue's
+  `at(r, C, …)` reads as `@at` does.
 - The builtins are what tools state (P7). Two updates of one map in one step
   bind the intermediate map with ∃ (P5, P6).
 
@@ -587,13 +591,11 @@ disjunction of clauses is introduced, and a `constrain` note, conjoined to
 every edge of its event, can say it where an edge cannot be split per
 state.
 
-`t at C`, with C a view of local states that t's local diagram declares
+`@at` names views of t's local diagram: `t at C`, with C a view
 (`CSDF-OBSERVE C = S₁, …, Sₙ`, docs/PROMOTION.md), says that t is at one
-of the states of C; it is `t at S₁, …, Sₙ`. A view is named apart from
-every state of its local diagram, so a name in `@at` is a state or a view
-and never both. A local diagram that declares observations is read by
-views only: `@at` on one of its instances names declared views, and a
-single state is observed by a view of one state.
+of the states of C; it is `t at S₁, …, Sₙ`. A local diagram that declares
+no observation has a view of each state but its start state, named after
+it, so there `t at S` names the view of the state S alone.
 
 - What it reads: t, and nothing else; the states are names, not variables.
   So free-name extraction (O9), and with it partial-order reduction, cone

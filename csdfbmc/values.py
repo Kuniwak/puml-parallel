@@ -36,8 +36,6 @@ def kind_key(value):
         return (float, value + 0.0)
     if isinstance(value, Rec):
         return (Rec, value.state, kind_key(value.fields))
-    if isinstance(value, Instance):
-        return (Instance, value.views_at, value.views, value._key)
     if isinstance(value, FrozenMap):
         return value._key
     if isinstance(value, Mapping):
@@ -129,10 +127,9 @@ class FrozenMap(Mapping):
 class Instance(FrozenMap):
     """An instance of a family as a glue sees it: the map of the fields it
     observes, with the views it is at, views_at, among the views of its
-    family, views (docs/PROMOTION.md, Observations). It equals the map of
-    its fields, wherever it is, so that an atom compares it with a map;
-    kind_key tells it apart by its views too, so that an answer about it
-    is never one about it elsewhere."""
+    family, views (docs/PROMOTION.md, Observations). It is the value of the
+    map of its fields, wherever it is (kind_key), so that an atom compares
+    it with a map; views_key tells where it is."""
 
     __slots__ = ("views_at", "views")
 
@@ -141,20 +138,28 @@ class Instance(FrozenMap):
         object.__setattr__(self, "views_at", frozenset(at))
         object.__setattr__(self, "views", frozenset(views))
 
-    def __eq__(self, other):
-        if isinstance(other, FrozenMap):
-            return self._key == other._key
-        if isinstance(other, Mapping):
-            return self._key == kind_key(other)
-        return NotImplemented
-
-    __hash__ = FrozenMap.__hash__
-
     def __repr__(self):
         return f"Instance({super().__repr__()}, at={sorted(self.views_at)!r})"
 
     def __reduce__(self):
         return _instance, (tuple(self._d.values()), tuple(self.views_at), tuple(self.views))
+
+
+def views_key(value):
+    """Where each instance in value is, the views it is at and those of its
+    family, in the order kind_key would meet them: with kind_key, a key that
+    tells apart two values an atom may answer differently about. None when
+    value holds no instance."""
+    if isinstance(value, Instance):
+        return (value.views_at, value.views, views_key(FrozenMap(value)))
+    if isinstance(value, Mapping):
+        found = [(kind_key(k), views_key(k), views_key(v)) for k, v in value.items()]
+    elif isinstance(value, (tuple, AbstractSet)):
+        found = [(kind_key(v), views_key(v)) for v in value]
+    else:
+        return None
+    kept = frozenset(f for f in found if any(x is not None for x in f[1:]))
+    return kept or None
 
 
 def _instance(fields, at, views):
@@ -308,14 +313,17 @@ def unsigned_zero(f: float) -> float:
 
 
 def visible(value, seen: Mapping = FrozenMap()):
-    """value as a glue, a ghost update or an invariant sees it: each
-    instance as the map of its fields, without its state. seen gives, for
-    a local state, the only fields seen of an instance there (the
-    observation of its family, csdfbmc.model.observed_fields); every field
-    of an instance at a state it does not give."""
+    """value as a glue, a ghost update or an invariant sees it. seen gives,
+    for a local state, what a clause sees of an instance there
+    (csdfbmc.model.observed_by_state): an instance at a state it gives is
+    the Instance of the fields it observes and the views it is at; at a
+    state it does not, the map of all its fields, without its state."""
     if isinstance(value, Rec):
-        kept = seen.get(value.state)
-        return FrozenMap((k, visible(v, seen)) for k, v in value.fields.items() if kept is None or k in kept)
+        fields = ((k, visible(v, seen)) for k, v in value.fields.items())
+        s = seen.get(value.state)
+        if s is None:
+            return FrozenMap(fields)
+        return Instance(((k, v) for k, v in fields if s.fields is None or k in s.fields), at=s.at, views=s.views)
     if isinstance(value, FrozenMap):
         return FrozenMap((visible(k, seen), visible(v, seen)) for k, v in value.items())
     if isinstance(value, tuple):
@@ -323,6 +331,17 @@ def visible(value, seen: Mapping = FrozenMap()):
     if isinstance(value, AbstractSet):
         return FrozenSet(visible(v, seen) for v in value)
     return value
+
+
+def at(r, *views) -> bool:
+    """Whether the instance r is at one of views, each a view of its family
+    (docs/PROMOTION.md, Observations)."""
+    if not isinstance(r, Instance):
+        raise ValueError(f"at reads an instance of a family, not {r!r}")
+    for v in views:
+        if v not in r.views:
+            raise ValueError(f"at: {v} is no view of the instance; its views are {', '.join(sorted(r.views)) or 'none'}")
+    return any(v in r.views_at for v in views)
 
 
 def freeze(value):

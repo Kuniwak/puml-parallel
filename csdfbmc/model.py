@@ -385,19 +385,38 @@ class Family:
     observes: tuple | None = None
 
 
-def observed_fields(families) -> FrozenMap:
-    """The fields a clause sees of an instance at each local state of a
-    family that declares its observation: the variables it declares that
-    the state holds. A state of a family that declares none is not in it,
-    and every field there is seen. Local states are unique across the
+    def observation(self) -> tuple:
+        """What a clause may read of an instance: observes, or, when the
+        local diagram declares nothing, a view of each state but the start
+        state, named after it and of it alone, and every variable."""
+        if self.observes is not None:
+            return self.observes
+        views = tuple((s, (s,)) for s in self.states if s != self.init)
+        return views + tuple((v, None) for v in self.types)
+
+
+@dataclass(frozen=True)
+class Seen:
+    """What a clause sees of an instance at a local state: the fields it
+    observes, None for all; the views it is at; every view of its family."""
+    fields: frozenset | None
+    at: frozenset
+    views: frozenset
+
+
+def observed_by_state(families) -> FrozenMap:
+    """What a clause sees of an instance at each local state of the
+    families (Family.observation). Local states are unique across the
     families of a diagram, so a state names its family."""
     out = {}
     for fam in families.values():
-        if fam.observes is None:
-            continue
-        declared = {name for name, states in fam.observes if states is None}
+        observation = fam.observation()
+        views = frozenset(name for name, states in observation if states is not None)
+        declared = None if fam.observes is None else {name for name, states in observation if states is None}
         for s in fam.states:
-            out[s] = frozenset(v for v in fam.vars[s] if v in declared)
+            fields = None if declared is None else frozenset(v for v in fam.vars[s] if v in declared)
+            at = frozenset(name for name, states in observation if states is not None and s in states)
+            out[s] = Seen(fields, at, views)
     return FrozenMap(out)
 
 
