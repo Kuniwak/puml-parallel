@@ -215,7 +215,6 @@ form label .type { margin-left: .5rem; color: var(--muted); font-size: .8rem; fo
 form .before { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; font-size: .8rem; color: var(--muted); margin: .15rem 0 .5rem; }
 form .before code { color: var(--text); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; max-width: 100%; overflow-wrap: anywhere; }
 form .before button { font-size: .75rem; padding: .1rem .4rem; }
-form .hint.shape, form .hint.fixed { font-size: .75rem; margin: .1rem 0; }
 
 form details.shape { font-size: .8rem; margin: .1rem 0 .5rem; }
 form details.shape summary { cursor: pointer; color: var(--accent); }
@@ -270,3 +269,13 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 #history .history-head .step-number, #history .history-head .here { margin: 0; }
 #history li.pending { border-style: dashed; border-color: var(--accent); background: transparent; cursor: default; opacity: .85; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .3rem; }
 #history li.pending .here { color: var(--accent); font-weight: normal; font-style: italic; }
+.help-wrap { position: relative; display: inline-block; margin-left: .35rem; vertical-align: middle; font-weight: normal; }
+button.help { width: 1.25rem; height: 1.25rem; padding: 0; border-radius: 50%; font-size: .75rem; line-height: 1; color: var(--muted); }
+.help-tip {
+  display: none; position: absolute; z-index: 5; top: calc(100% + 4px); left: 0;
+  width: max-content; max-width: min(22rem, 80vw); padding: .45rem .6rem;
+  background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25); font-size: .82rem; line-height: 1.45; white-space: normal;
+}
+.help-wrap:hover .help-tip, .help-wrap:focus-within .help-tip, .help-wrap.open .help-tip { display: block; }
+.field-label { display: flex; align-items: center; flex-wrap: wrap; }

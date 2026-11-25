@@ -959,12 +959,15 @@
       root.appendChild(stepBar(2));
     }
     if (app.tab === "details") {
-      root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
+      root.appendChild(el("h2", null, [
+        el("span", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }),
+        (group.vars || []).length > 0 ? helpButton(t("values.hint")) : null,
+      ]));
       renderValueDetails(root, pending);
     } else {
       root.appendChild(app.choice
         ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition) })])
-        : el("h2", { text: t("suggest.titleInitial") }));
+        : el("h2", null, [el("span", { text: t("suggest.titleInitial") }), helpButton(t("suggest.hintInitial"))]));
       renderValueChoices(root, pending);
     }
   }
@@ -979,6 +982,20 @@
     };
     return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
   }
+
+  // helpButton is a "?" that shows text on demand: while the pointer is
+  // over it, while it has the focus, or after a click or tap until the
+  // next one or Escape.
+  function helpButton(text) {
+    const id = "help-" + (++helpCount);
+    const tip = el("span", { class: "help-tip", role: "tooltip", id, text });
+    const button = el("button", { type: "button", class: "help", "aria-label": t("help.label"), "aria-describedby": id, text: "?" });
+    const wrap = el("span", { class: "help-wrap" }, [button, tip]);
+    button.addEventListener("click", (e) => { e.preventDefault(); wrap.classList.toggle("open"); });
+    button.addEventListener("keydown", (e) => { if (e.key === "Escape") { wrap.classList.remove("open"); button.blur(); } });
+    return wrap;
+  }
+  let helpCount = 0;
 
   // eventChip shows the event of tr, {event, channel, fields}, as an
   // event, wherever one is named: a tag saying so, then its name, or, for
@@ -1021,14 +1038,12 @@
     const determined = pending.determined || [];
     if (determined.length > 0 && !app.error) {
       root.appendChild(el("p", { class: "hint", text: t("values.determined") }));
-      const note = instancesNote(pending);
-      if (note) root.appendChild(note);
       root.appendChild(valuesList(determined.map((d) => ({ name: varLabel(pending, d.name), value: d.value })), null));
     }
     const previous = pending.previous ? pending.previous.values || [] : [];
     const suggestions = pending.suggestions || [];
     if (app.suggesting && !pending.suggest_error && suggestions.length > 0) {
-      renderSuggestions(root, vars, previous, suggestions, app.choice ? null : t("suggest.hintInitial"));
+      renderSuggestions(root, vars, previous, suggestions);
     } else {
       const why = !app.suggesting ? "choose.noChecker" : pending.suggest_error ? "choose.failed" : "choose.none";
       root.appendChild(el("p", { class: "notice", text: t(why) }));
@@ -1057,8 +1072,7 @@
     return null;
   }
 
-  // varLabel is how the prompt names the variable name; that a name is
-  // the instances of a diagram is said once, by instancesNote.
+  // varLabel is how the prompt names the variable name.
   function varLabel(pending, name) {
     return name;
   }
@@ -1167,16 +1181,8 @@
     ]);
   }
 
-  // instancesNote says once, for a prompt with maps of instances, that
-  // those names are the instances of the diagrams they are named after,
-  // and how one is written.
   function stateVars(state) {
     return (state.values || []).map((v) => v.name);
-  }
-
-  function instancesNote(pending) {
-    const maps = (pending.families || []).filter((m) => (pending.group.vars || []).includes(m));
-    return maps.length > 0 ? el("p", { class: "hint shape", text: t("values.instancesNote", { example: maps[0] }) }) : null;
   }
 
   function renderValueDetails(root, pending) {
@@ -1202,9 +1208,6 @@
       },
     });
     if (vars.length === 0) form.appendChild(el("p", { class: "hint", text: t("values.none", { state: group.state_name }) }));
-    else form.appendChild(el("p", { class: "hint", text: t("values.hint") }));
-    const note = instancesNote(pending);
-    if (note) form.appendChild(note);
     const types = group.types || {};
     vars.forEach((name, i) => {
       const id = "value-" + i;
@@ -1216,18 +1219,20 @@
       input.value = fixed !== undefined ? show(fixed) : "";
       if (fixed !== undefined) input.disabled = true;
       inputs.push(input);
-      form.appendChild(el("label", { for: id }, [
-        el("span", { text: varLabel(pending, name) }),
-        types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
+      const instances = (pending.families || []).includes(name);
+      form.appendChild(el("div", { class: "field-label" }, [
+        el("label", { for: id }, [
+          el("span", { text: varLabel(pending, name) }),
+          types[name] ? el("span", { class: "type", text: t("values.type", { type: types[name] }) }) : null,
+        ]),
+        fixed !== undefined ? helpButton(t("values.fixed")) : instances ? helpButton(t("values.instancesNote", { example: name })) : null,
       ]));
       form.appendChild(input);
       const shape = (pending.shapes || []).find((s) => s.map === name);
       if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
       const help = !shape && fixed === undefined && types[name] ? typeHelp(types[name]) : null;
       if (help) form.appendChild(help);
-      if (fixed !== undefined) {
-        form.appendChild(el("p", { class: "hint fixed", text: t("values.fixed") }));
-      } else if (before) {
+      if (fixed === undefined && before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
           variableView(name, before.value, undefined, false),
@@ -1245,9 +1250,8 @@
   }
 
   // renderSuggestions shows the values the checker admits as buttons, each
-  // saying what changes from before, under the hint if any.
-  function renderSuggestions(root, vars, previous, suggestions, hint) {
-    if (hint) root.appendChild(el("p", { class: "hint", text: hint }));
+  // saying what changes from before.
+  function renderSuggestions(root, vars, previous, suggestions) {
     const list = el("div", { class: "suggestions" });
     suggestions.forEach((s, i) => {
       const lines = [];
