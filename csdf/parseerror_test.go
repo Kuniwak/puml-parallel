@@ -32,8 +32,11 @@ func TestParseNamesTheDirectiveOfAMalformedGuard(t *testing.T) {
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
+			// Arrange: a note whose one line is the directive.
+			source := "@startuml\nnote as n\n  " + c.line + "\nend note\n@enduml\n"
+
 			// Act
-			_, err := csdf.Parse("", "@startuml\nnote as n\n  "+c.line+"\nend note\n@enduml\n")
+			_, err := csdf.Parse("", source)
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), c.want) {
