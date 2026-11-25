@@ -17,8 +17,8 @@ const (
 	observeMarker     = "CSDF-OBSERVE"
 )
 
-// Parser reads the concrete syntax tree of a diagram.
-type Parser struct {
+// sourceParser reads the concrete syntax tree of a diagram.
+type sourceParser struct {
 	input string
 	pos   int
 	line  int
@@ -28,11 +28,11 @@ type Parser struct {
 	sink *[]Element
 }
 
-// NewParser reads the concrete syntax tree of a diagram; its clauses are
+// newSourceParser reads the concrete syntax tree of a diagram; its clauses are
 // read as written, for the reader of their meaning (coreio's,
 // csdf/clause).
-func NewParser(input string) *Parser {
-	return &Parser{
+func newSourceParser(input string) *sourceParser {
+	return &sourceParser{
 		input: input,
 		pos:   0,
 		line:  1,
@@ -41,9 +41,9 @@ func NewParser(input string) *Parser {
 	}
 }
 
-func (p *Parser) here() Pos { return Pos{Line: p.line, Col: p.col} }
+func (p *sourceParser) here() Pos { return Pos{Line: p.line, Col: p.col} }
 
-func (p *Parser) parse() (*SyntaxTree, error) {
+func (p *sourceParser) parse() (*SyntaxTree, error) {
 	tree := &SyntaxTree{Pos: p.here()}
 	p.sink = &tree.Body
 
@@ -78,7 +78,7 @@ func (p *Parser) parse() (*SyntaxTree, error) {
 // parseBody reads elements into body up to @enduml, or, for the block of
 // the state opened (nil at the top), up to the "}" that closes it, which it
 // consumes.
-func (p *Parser) parseBody(body *[]Element, opened *StateSyntax) error {
+func (p *sourceParser) parseBody(body *[]Element, opened *StateSyntax) error {
 	outer := p.sink
 	p.sink = body
 	defer func() { p.sink = outer }()
@@ -113,7 +113,7 @@ func (p *Parser) parseBody(body *[]Element, opened *StateSyntax) error {
 	}
 }
 
-func (p *Parser) parseElement() (Element, error) {
+func (p *sourceParser) parseElement() (Element, error) {
 	switch {
 	case p.peek() == '!':
 		return p.parsePragma()
@@ -149,7 +149,7 @@ func (p *Parser) parseElement() (Element, error) {
 }
 
 // parsePragma reads a line of PlantUML's preprocessor, "!name arg".
-func (p *Parser) parsePragma() (*PragmaSyntax, error) {
+func (p *sourceParser) parsePragma() (*PragmaSyntax, error) {
 	at := p.here()
 	p.advance() // !
 	start := p.pos
@@ -169,7 +169,7 @@ func (p *Parser) parsePragma() (*PragmaSyntax, error) {
 	return &PragmaSyntax{Pos: at, Name: name, Arg: arg}, nil
 }
 
-func (p *Parser) parseState() (*StateSyntax, error) {
+func (p *sourceParser) parseState() (*StateSyntax, error) {
 	at := p.here()
 	if !p.expectString("state") {
 		return nil, fmt.Errorf("csdf.Parser.parseState: expected 'state' at line %d, col %d", p.line, p.col)
@@ -235,7 +235,7 @@ func (p *Parser) parseState() (*StateSyntax, error) {
 }
 
 // parseStateVar reads "<state> : <name>" or "<state> : <name> ; <type>".
-func (p *Parser) parseStateVar() (*StateVarSyntax, error) {
+func (p *sourceParser) parseStateVar() (*StateVarSyntax, error) {
 	at := p.here()
 	state, err := p.parseID()
 	if err != nil {
@@ -277,7 +277,7 @@ func (p *Parser) parseStateVar() (*StateVarSyntax, error) {
 	return &StateVarSyntax{Pos: at, State: state, Name: name, Type: typ}, nil
 }
 
-func (p *Parser) parseStateName() (string, error) {
+func (p *sourceParser) parseStateName() (string, error) {
 	if !p.expectChar('"') {
 		return "", fmt.Errorf("csdf.Parser.parseStateName: expected '\"' at line %d, col %d", p.line, p.col)
 	}
@@ -311,7 +311,7 @@ func (p *Parser) parseStateName() (string, error) {
 	return result.String(), nil
 }
 
-func (p *Parser) parseStartEdge() (*StartEdgeSyntax, error) {
+func (p *sourceParser) parseStartEdge() (*StartEdgeSyntax, error) {
 	at := p.here()
 	if !p.expectString("[*]") {
 		return nil, fmt.Errorf("csdf.Parser.parseStartEdge: expected '[*]' at line %d, col %d", p.line, p.col)
@@ -353,7 +353,7 @@ func (p *Parser) parseStartEdge() (*StartEdgeSyntax, error) {
 	return edge, nil
 }
 
-func (p *Parser) parseEdge() (*EdgeSyntax, error) {
+func (p *sourceParser) parseEdge() (*EdgeSyntax, error) {
 	at := p.here()
 	src, err := p.parseName()
 	if err != nil {
@@ -427,7 +427,7 @@ func (p *Parser) parseEdge() (*EdgeSyntax, error) {
 
 // parseClause reads a clause by read, written on line as the which of that
 // line, into its syntax tree.
-func (p *Parser) parseClause(line int, which string, read func() (string, error)) (*ClauseSyntax, error) {
+func (p *sourceParser) parseClause(line int, which string, read func() (string, error)) (*ClauseSyntax, error) {
 	at := p.here()
 	text, err := read()
 	if err != nil {
@@ -448,7 +448,7 @@ func clauseAt(pos Pos, line int, which, text string) (*ClauseSyntax, error) {
 	return &ClauseSyntax{Pos: pos, Text: text, Syntax: s}, nil
 }
 
-func (p *Parser) parseEvent() (EventSyntax, error) {
+func (p *sourceParser) parseEvent() (EventSyntax, error) {
 	at := p.here()
 	text, err := p.parseUntilSemicolon()
 	if err != nil {
@@ -477,7 +477,7 @@ func eventSyntax(pos Pos, text string) (EventSyntax, error) {
 	return out, nil
 }
 
-func (p *Parser) parseID() (string, error) {
+func (p *sourceParser) parseID() (string, error) {
 	var result strings.Builder
 
 	if p.isAtEnd() || !ident.IsRune(p.peekRune()) {
@@ -500,7 +500,7 @@ func (p *Parser) parseID() (string, error) {
 
 // parseName reads an identifier that names something, refusing one that
 // ident.CheckName refuses. The probes read with parseID, which only reads.
-func (p *Parser) parseName() (string, error) {
+func (p *sourceParser) parseName() (string, error) {
 	line, col := p.line, p.col
 	name, err := p.parseID()
 	if err != nil {
@@ -512,15 +512,15 @@ func (p *Parser) parseName() (string, error) {
 	return name, nil
 }
 
-func (p *Parser) parseUntilSemicolon() (string, error) {
+func (p *sourceParser) parseUntilSemicolon() (string, error) {
 	return p.parseUntil(';', '\n')
 }
 
-func (p *Parser) parseUntilNewline() (string, error) {
+func (p *sourceParser) parseUntilNewline() (string, error) {
 	return p.parseUntil('\n')
 }
 
-func (p *Parser) parseUntil(stops ...byte) (string, error) {
+func (p *sourceParser) parseUntil(stops ...byte) (string, error) {
 	var result strings.Builder
 	var lastWritten byte
 
@@ -555,12 +555,12 @@ func (p *Parser) parseUntil(stops ...byte) (string, error) {
 	return strings.TrimSpace(result.String()), nil
 }
 
-func (p *Parser) peekRune() rune {
+func (p *sourceParser) peekRune() rune {
 	r, _ := p.peekRuneSize()
 	return r
 }
 
-func (p *Parser) peekRuneSize() (rune, int) {
+func (p *sourceParser) peekRuneSize() (rune, int) {
 	if p.isAtEnd() {
 		return 0, 0
 	}
@@ -569,13 +569,13 @@ func (p *Parser) peekRuneSize() (rune, int) {
 
 // probe is a copy of p that reads ahead without moving p or adding to
 // what p has read.
-func (p *Parser) probe() *Parser {
+func (p *sourceParser) probe() *sourceParser {
 	probe := *p
 	probe.sink = &[]Element{}
 	return &probe
 }
 
-func (p *Parser) isEdge() (bool, error) {
+func (p *sourceParser) isEdge() (bool, error) {
 	probe := p.probe()
 	_, err := probe.parseID()
 	if err != nil {
@@ -587,7 +587,7 @@ func (p *Parser) isEdge() (bool, error) {
 	return probe.peekString("-->"), nil
 }
 
-func (p *Parser) isEndEdge() (bool, error) {
+func (p *sourceParser) isEndEdge() (bool, error) {
 	probe := p.probe()
 	_, err := probe.parseID()
 	if err != nil {
@@ -605,7 +605,7 @@ func (p *Parser) isEndEdge() (bool, error) {
 	return probe.peekString("[*]"), nil
 }
 
-func (p *Parser) isStateVar() (bool, error) {
+func (p *sourceParser) isStateVar() (bool, error) {
 	probe := p.probe()
 	if _, err := probe.parseID(); err != nil {
 		return false, nil
@@ -616,7 +616,7 @@ func (p *Parser) isStateVar() (bool, error) {
 	return probe.peek() == ':', nil
 }
 
-func (p *Parser) peek() byte {
+func (p *sourceParser) peek() byte {
 	if p.isAtEnd() {
 		return 0
 	}
@@ -625,7 +625,7 @@ func (p *Parser) peek() byte {
 
 // advance moves past one byte; the column counts code points, so a byte
 // that continues one does not move it.
-func (p *Parser) advance() byte {
+func (p *sourceParser) advance() byte {
 	if p.isAtEnd() {
 		return 0
 	}
@@ -641,11 +641,11 @@ func (p *Parser) advance() byte {
 	return c
 }
 
-func (p *Parser) isAtEnd() bool {
+func (p *sourceParser) isAtEnd() bool {
 	return p.pos >= len(p.input)
 }
 
-func (p *Parser) expectChar(expected byte) bool {
+func (p *sourceParser) expectChar(expected byte) bool {
 	if p.isAtEnd() || p.peek() != expected {
 		return false
 	}
@@ -653,7 +653,7 @@ func (p *Parser) expectChar(expected byte) bool {
 	return true
 }
 
-func (p *Parser) expectString(expected string) bool {
+func (p *sourceParser) expectString(expected string) bool {
 	if p.pos+len(expected) > len(p.input) {
 		return false
 	}
@@ -666,7 +666,7 @@ func (p *Parser) expectString(expected string) bool {
 	return true
 }
 
-func (p *Parser) peekString(expected string) bool {
+func (p *sourceParser) peekString(expected string) bool {
 	if p.pos+len(expected) > len(p.input) {
 		return false
 	}
@@ -675,7 +675,7 @@ func (p *Parser) peekString(expected string) bool {
 
 // skipTrivia moves past whitespace, comments, CSDF-IGNORE regions and
 // CSDF-OBSERVE lines, adding all but whitespace to the body being read.
-func (p *Parser) skipTrivia() error {
+func (p *sourceParser) skipTrivia() error {
 	for {
 		for !p.isAtEnd() && (p.peek() == ' ' || p.peek() == '\t' || p.peek() == '\n' || p.peek() == '\r') {
 			p.advance()
@@ -707,7 +707,7 @@ func (p *Parser) skipTrivia() error {
 }
 
 // readLineComment reads the line comment at the current position.
-func (p *Parser) readLineComment() {
+func (p *sourceParser) readLineComment() {
 	at := p.here()
 	end := p.pos + 1
 	for end < len(p.input) && p.input[end] != '\n' {
@@ -719,7 +719,7 @@ func (p *Parser) readLineComment() {
 
 // lineCommentBody returns the trimmed text of the line comment at the current
 // position (the leading "'" excluded). The Parser is not advanced.
-func (p *Parser) lineCommentBody() string {
+func (p *sourceParser) lineCommentBody() string {
 	end := p.pos + 1
 	for end < len(p.input) && p.input[end] != '\n' {
 		end++
@@ -731,7 +731,7 @@ func (p *Parser) lineCommentBody() string {
 // the current position, the marker being "CSDF-OBSERVE" followed by a tab or
 // a space; ok is false for a line comment the marker does not start, which
 // is a plain one. The Parser is not advanced.
-func (p *Parser) observeBody() (body string, ok bool) {
+func (p *sourceParser) observeBody() (body string, ok bool) {
 	end := p.pos + 1
 	for end < len(p.input) && p.input[end] != '\n' {
 		end++
@@ -746,7 +746,7 @@ func (p *Parser) observeBody() (body string, ok bool) {
 
 // readObserve reads body, the rest of an observe line at the current
 // position, as a view or a variable, and consumes the line.
-func (p *Parser) readObserve(body string) error {
+func (p *sourceParser) readObserve(body string) error {
 	at := p.here()
 	o, err := parseObserve(strings.TrimRight(body, " \t\r"), at)
 	if err != nil {
@@ -787,7 +787,7 @@ func parseObserve(body string, pos Pos) (*ObserveSyntax, error) {
 // skipIgnoreRegion reads the lines from the "' CSDF-IGNORE-BEGIN" marker
 // (current position) through the matching "' CSDF-IGNORE-END" marker,
 // inclusive, keeping the lines between them.
-func (p *Parser) skipIgnoreRegion() error {
+func (p *sourceParser) skipIgnoreRegion() error {
 	at := p.here()
 	region := &IgnoreSyntax{Pos: at, Lines: []string{}}
 	p.skipLine() // consume the begin-marker line
@@ -807,7 +807,7 @@ func (p *Parser) skipIgnoreRegion() error {
 	return fmt.Errorf("csdf.Parser.skipIgnoreRegion: unterminated CSDF-IGNORE region at line %d, col %d", at.Line, at.Col)
 }
 
-func (p *Parser) skipInlineTrivia() error {
+func (p *sourceParser) skipInlineTrivia() error {
 	for {
 		for !p.isAtEnd() && (p.peek() == ' ' || p.peek() == '\t') {
 			p.advance()
@@ -822,7 +822,7 @@ func (p *Parser) skipInlineTrivia() error {
 }
 
 // skipBlockComment reads the block comment at the current position.
-func (p *Parser) skipBlockComment() error {
+func (p *sourceParser) skipBlockComment() error {
 	at := p.here()
 	p.expectString("/'")
 	start := p.pos
@@ -837,7 +837,7 @@ func (p *Parser) skipBlockComment() error {
 	return nil
 }
 
-func (p *Parser) expectNewlines() bool {
+func (p *sourceParser) expectNewlines() bool {
 	count := 0
 	for !p.isAtEnd() && (p.peek() == '\n' || p.peek() == '\r') {
 		if p.peek() == '\n' {
@@ -848,7 +848,7 @@ func (p *Parser) expectNewlines() bool {
 	return count > 0
 }
 
-func (p *Parser) skipLine() {
+func (p *sourceParser) skipLine() {
 	for !p.isAtEnd() && p.peek() != '\n' {
 		p.advance()
 	}
@@ -863,7 +863,7 @@ var noteSides = []string{"left", "right", "top", "bottom"}
 // parseNote reads a note, floating ("note as <id>") or anchored ("note
 // <side> of <state>"), and its lines up to "end note" (docs/SYNTAX.md,
 // docs/PROMOTION.md).
-func (p *Parser) parseNote() (*NoteSyntax, error) {
+func (p *sourceParser) parseNote() (*NoteSyntax, error) {
 	at := p.here()
 	p.expectString("note")
 	if err := p.skipInlineTrivia(); err != nil {
@@ -1082,7 +1082,7 @@ func splitFieldTypes(text string) []string {
 	return append(out, text[start:])
 }
 
-func (p *Parser) parseEndEdge() (*EndEdgeSyntax, error) {
+func (p *sourceParser) parseEndEdge() (*EndEdgeSyntax, error) {
 	at := p.here()
 	src, err := p.parseName()
 	if err != nil {

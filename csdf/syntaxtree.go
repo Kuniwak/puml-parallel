@@ -37,7 +37,11 @@ type SyntaxTree struct {
 	Body []Element
 }
 
-// Element is an element of the body of a diagram or of a state block.
+// Element is an element of the body of a diagram or of a state block, or a
+// line of a note: one of the *...Syntax types of this file. It is a sealed
+// sum type, a deliberate exception to preferring function types over
+// one-method interfaces: no function type could tell the cases apart, and
+// no package outside this one adds a case.
 type Element interface{ Position() Pos }
 
 // Position is where the element starts.

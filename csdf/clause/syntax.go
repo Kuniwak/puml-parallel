@@ -57,6 +57,9 @@ func (*SynHole) synPart() {}
 
 // SynTerm is a term as written: *SynVar, *SynLit, *SynIndex, *SynField,
 // *SynApp or *SynPrime.
+//
+// SynConjunct, SynPart and SynTerm are sealed sum types, as Formula, Part and
+// Term are (term.go): no package outside this one adds a case.
 type SynTerm interface{ synTerm() }
 
 // SynVar is a variable by its name, primed when a prime follows the name.

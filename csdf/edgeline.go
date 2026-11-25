@@ -7,7 +7,7 @@ import "fmt"
 // this one, such as a global diagram's hand-written edges, so that it reads
 // an edge label as every diagram does.
 func ParseEdgeLine(text string, line int) (Edge, error) {
-	p := NewParser(text + "\n")
+	p := newSourceParser(text + "\n")
 	p.line = line
 	e, err := p.parseEdge()
 	if err != nil {

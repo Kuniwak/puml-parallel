@@ -3,9 +3,8 @@
 package coreio
 
 import (
-	"slices"
-
 	"fmt"
+	"slices"
 
 	"github.com/Kuniwak/puml-parallel/v4/csdf"
 	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"

@@ -67,7 +67,7 @@ func NewParseError(line, col int, err error) *ParseError {
 // with the position the parser stopped at, unless it already says where it
 // is.
 func Parse(source string) (*SyntaxTree, error) {
-	p := NewParser(source)
+	p := newSourceParser(source)
 	tree, err := p.parse()
 	if err != nil {
 		var tagged *ParseError
