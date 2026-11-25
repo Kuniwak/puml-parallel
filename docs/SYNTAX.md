@@ -526,6 +526,11 @@ eventName       = channel
 | `noteAnchor`       | `Anchor`           | The block the note points at, which is drawn as a line. A floating `note as <id>` points at nothing: PlantUML's state diagrams have no `<id> .. <state>` link.                              |
 | `preprocessorLine` | N/A                | A PlantUML preprocessor line such as `!define` or `!ifndef`. The syntax tree keeps it as written; `csdfpromote` discards it, and it is how a local diagram hides its PlantUML-only lines when it is included.                              |
 
+What this grammar has and the plain one does not (a preprocessor line, a
+state with a stereotype or a block, a note) is what `csdf.Plain` hints at
+promotion for when it refuses it in a global diagram (`isGlobalSyntax` in
+`csdf/plain.go`); a change to either grammar changes that list.
+
 The Syntax Tree as JSON
 -----------------------
 `csdfparse` prints the concrete syntax tree of a diagram, plain or global

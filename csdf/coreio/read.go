@@ -161,7 +161,7 @@ func readEdge(text string, line int, formula formulaOf) (core.Edge, error) {
 	if err != nil {
 		return core.Edge{}, err
 	}
-	return edgeOf(e, formula)
+	return edgeOf(csdf.PlainEdge(e), formula)
 }
 
 // formulaAt is the formula of c, the clause written on line as the which of

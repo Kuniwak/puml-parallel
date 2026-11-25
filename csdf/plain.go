@@ -13,10 +13,6 @@ import (
 // or holds one: a diagram holding directives is a global one, whose
 // edges are not the whole of its behaviour.
 func Plain(tree *SyntaxTree) (*Diagram, error) {
-	return plain(tree)
-}
-
-func plain(tree *SyntaxTree) (*Diagram, error) {
 	r := refuser{global: HoldsDirectives(tree.Body)}
 	d := &Diagram{
 		Name:        tree.Name,
@@ -57,7 +53,7 @@ func plain(tree *SyntaxTree) (*Diagram, error) {
 		case *StartEdgeSyntax:
 			d.StartEdge = StartEdge{Dst: StateID(e.Dst), Post: e.Post, Line: e.Line}
 		case *EdgeSyntax:
-			d.Edges = append(d.Edges, edgeOf(e))
+			d.Edges = append(d.Edges, PlainEdge(e))
 		case *EndEdgeSyntax:
 			d.EndEdge = &EndEdge{Src: StateID(e.Src), Guard: e.Guard, Line: e.Line}
 			ended = true
@@ -93,7 +89,8 @@ func (r refuser) refuse(of Element, pos Pos, format string, args ...any) error {
 }
 
 // isGlobalSyntax reports whether e is what a global diagram has and a
-// plain one does not.
+// plain one does not. Keep it in step with the global diagram grammar
+// (docs/SYNTAX.md, "Global Diagram Format") and the plain one.
 func isGlobalSyntax(e Element) bool {
 	switch e.(type) {
 	case *PragmaSyntax, *StateSyntax, *NoteSyntax:
@@ -102,7 +99,8 @@ func isGlobalSyntax(e Element) bool {
 	return false
 }
 
-func edgeOf(e *EdgeSyntax) Edge {
+// PlainEdge is the edge e says, its clauses still syntax trees.
+func PlainEdge(e *EdgeSyntax) Edge {
 	fields := make([]Field, 0, len(e.Event.Fields))
 	for _, f := range e.Event.Fields {
 		fields = append(fields, Field{Dir: Direction(f.Dir), Name: f.Name})
@@ -175,7 +173,8 @@ func plainNote(d *Diagram, n *NoteSyntax, r refuser) error {
 	return nil
 }
 
-// holdsDirectives reports whether body holds a promotion directive: a
+// HoldsDirectives reports whether body holds a promotion directive (a
+// global diagram's, docs/PROMOTION.md): a
 // <<promote>> block, an !include, or a note holding a sync or constrain
 // directive.
 func HoldsDirectives(body []Element) bool {
