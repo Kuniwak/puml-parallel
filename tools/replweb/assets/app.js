@@ -890,8 +890,12 @@
     ]);
     let filled = false;
     const fillOnce = () => { if (!filled) { filled = true; fill(body); } };
+    // Opening the group here fires a toggle too, later: that one is not
+    // the user's, so it neither is remembered nor calls onOpen.
+    let opening = open;
     if (open) { box.open = true; fillOnce(); }
     box.addEventListener("toggle", () => {
+      if (opening) { opening = false; return; }
       app.openGroups.set(key, box.open);
       if (box.open) fillOnce();
       if (box.open && onOpen) onOpen();
@@ -1386,7 +1390,10 @@
         const bbox = box.getBBox();
         let x = bbox.x + 6;
         for (const id of shown) {
-          x += drawPiece(overlay, x, bbox.y, id, pieceColour(fv.map, id), "csdf-piece", t("piece.title", { id, state })).width + 3;
+          const piece = drawPiece(overlay, x, bbox.y, id, pieceColour(fv.map, id), "csdf-piece", t("piece.title", { id, state }));
+          piece.node.dataset.map = fv.map;
+          piece.node.dataset.state = state;
+          x += piece.width + 3;
         }
         if (ids.length > PIECE_LIMIT) {
           const label = app.expanded.has(key) ? "−" : t("instances.more", { n: ids.length - shown.length });
@@ -1517,9 +1524,9 @@
   // focusOf is what the drawing centres on. In a block: the local edges of
   // the transition chosen, else where the last step moved pieces to, else
   // the local states holding instances, else the local start. Else: the
-  // edges of the last step, else the state being entered or the current
-  // one, unless that state is larger than the pane (the mode of a
-  // promotion), then the start edge.
+  // whole's piece, else the edges of the last step, else the state being
+  // entered or the current one, unless that state is larger than the pane
+  // (the mode of a promotion), then the start edge.
   function focusOf(v) {
     const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
     if (app.block) {
@@ -1530,11 +1537,13 @@
         if (links.length > 0) return links;
       }
       const moved = movedTo(last).filter((o) => inBlock(o));
-      if (moved.length > 0) return moved.map((o) => o.node);
+      if (moved.length > 0) return moved.map((o) => o.pieces.length > 0 ? o.pieces : [o.node]).flat();
       const occupied = [...occupiedStates(v), ...emptyInits(v)].filter((o) => app.block.includes(o.map)).map((o) => o.node);
       if (occupied.length > 0) return occupied;
       return app.block.map(localInitOf).filter(Boolean);
     }
+    const whole = document.querySelector("#csdf-overlay .csdf-piece-whole");
+    if (whole) return [whole];
     if (last && last.kind === "step") {
       const links = [linkOf(last.line), ...(last.moves || []).map(localLinkOf)].filter(Boolean);
       if (links.length > 0) return links;
@@ -1549,12 +1558,15 @@
     return [svgElement(highlights.start)].filter(Boolean);
   }
 
-  // movedTo are the boxes of the local states the last step, entry last,
-  // moved instances to, where their pieces now are: {map, node}.
+  // movedTo are the local states the last step, entry last, moved
+  // instances to: {map, node, pieces}, their boxes and the pieces on them.
   function movedTo(last) {
     if (!last || last.kind !== "step") return [];
-    return (last.moves || []).map((m) => ({ map: m.map, node: svgElement(families[m.map] && families[m.map].states[m.dst]) }))
-      .filter((o) => o.node);
+    return (last.moves || []).map((m) => ({
+      map: m.map,
+      node: svgElement(families[m.map] && families[m.map].states[m.dst]),
+      pieces: [...document.querySelectorAll("#csdf-overlay .csdf-piece")].filter((p) => p.dataset.map === m.map && p.dataset.state === m.dst),
+    })).filter((o) => o.node);
   }
 
   // localInitOf is the box of the local start state of the family of map,
@@ -1632,33 +1644,17 @@
     showCurrent();
   }
 
-  function blocksToShow(v) {
-    const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
-    const moved = last && last.kind === "step" ? (last.moves || []).map((m) => m.map) : [];
-    const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
-    const maps = [...new Set([...chosen, ...moved])].filter((m) => families[m]);
-    if (maps.length > 0) return maps;
-    if (app.block) return app.block;
-    const occupied = [...new Set(occupiedStates(v).map((o) => o.map))].sort();
-    if (occupied.length > 0) return [occupied[0]];
-    const movable = (v.transitions || []).flatMap((tr) => tr.moves || []).map((m) => m.map).filter((m) => families[m]).sort();
-    const first = movable[0] || Object.keys(families).sort()[0];
-    return first ? [first] : [];
-  }
-
-  // showCurrent brings what the current step is about into the middle of
-  // the pane, switching to its blocks on a promotion.
+  // showCurrent brings the current piece into the middle of the pane: on
+  // a promotion the local edges of the transition chosen, else the pieces
+  // the last step moved, each in its block; else the whole's piece, in the
+  // whole drawing.
   function showCurrent() {
     const v = app.view;
     if (!v) return;
-    if (Object.keys(families).length > 0) {
-      const maps = blocksToShow(v);
-      if (maps.length > 0) { showBlocks(maps); return; }
-    }
-    const id = v.mode === "values" ? v.pending.group.state_id : v.state && v.state.state_id;
-    const state = svgElement(highlights.states[id]);
-    const nodes = state ? [state] : focusOf(v);
-    centreOn(nodes);
+    const last = app.entries.length > 0 ? app.entries[app.entries.length - 1] : null;
+    const chosen = app.choice ? (app.choice.transition.moves || []).map((m) => m.map) : [];
+    const moved = movedTo(last).map((o) => o.map);
+    showBlocks([...new Set([...chosen, ...moved])].filter((m) => families[m]));
   }
 
   // ---- Showing one block at a time ----
@@ -1712,10 +1708,10 @@
     d.svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
     d.svg.style.width = w * app.scale + "px";
     d.svg.style.height = h * app.scale + "px";
-    // A block is small: room around it of half the pane lets any part of
-    // it be scrolled to the middle of the pane.
+    // Room around the drawing of half the pane lets any part of it be
+    // scrolled to the middle of the pane.
     const box = document.getElementById("diagram");
-    d.svg.style.margin = app.block ? `${Math.round(box.clientHeight / 2)}px ${Math.round(box.clientWidth / 2)}px` : "";
+    d.svg.style.margin = `${Math.round(box.clientHeight / 2)}px ${Math.round(box.clientWidth / 2)}px`;
   }
 
   // slackOf is the room left of and above the drawing, [x, y].
