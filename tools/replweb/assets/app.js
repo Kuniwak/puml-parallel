@@ -477,7 +477,7 @@
     const dot = el("span", { class: "dot" });
     dot.style.background = pieceColour(map, id).fill;
     const labels = app.familyLabels.get(map) || {};
-    const at = el("span", { class: "instance-at", text: labels[inst.at] || inst.at });
+    const at = el("span", { class: "instance-at" }, [stateChip(labels[inst.at] || inst.at)]);
     if (known && before.at !== inst.at) { at.classList.add("changed"); at.title = t("history.changed"); }
     const fields = Object.entries(inst.fields).map(([name, value]) => ({ name, value }));
     const beforeFields = known ? Object.entries(before.fields).map(([name, value]) => ({ name, value })) : null;
@@ -700,8 +700,8 @@
       const moved = parent && parent.state.state_id !== h.state.state_id;
       const label = entry.kind === "step"
         ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry),
-          moved ? el("span", { class: "to", text: t("history.to", { state: h.state.state_name }) }) : null]
-        : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: h.state.state_name })];
+          moved ? el("span", { class: "to" }, [tNodes("history.to", { state: stateChip(h.state.state_name) })]) : null]
+        : [el("span", { class: "step-number", text: t("history.start") }), stateChip(h.state.state_name)];
       const head = el("div", { class: "history-head" }, [
         ...label,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
@@ -729,8 +729,8 @@
     const tr = choice ? choice.transition : null;
     const head = tr
       ? [el("span", { class: "step-number", text: t("history.eventNumber", { n }) }), eventChip(tr),
-        tr.dst !== choice.src ? el("span", { class: "to", text: t("history.to", { state: tr.dst_name }) }) : null]
-      : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: pending.group.state_name })];
+        tr.dst !== choice.src ? el("span", { class: "to" }, [tNodes("history.to", { state: stateChip(tr.dst_name) })]) : null]
+      : [el("span", { class: "step-number", text: t("history.start") }), stateChip(pending.group.state_name)];
     const determined = pending.determined || [];
     return el("li", { class: "pending" }, [
       el("div", { class: "history-head" }, [...head, el("span", { class: "here", text: t("history.pending") })]),
@@ -766,7 +766,7 @@
     if (v.mode === "values") { renderValueForm(root, v.pending); return; }
     const state = v.state;
     if (v.mode === "ended") {
-      root.appendChild(el("p", { class: "notice", text: t("controls.ended", { state: state.state_name }) }));
+      root.appendChild(el("p", { class: "notice" }, [tNodes("controls.ended", { state: stateChip(state.state_name) })]));
       root.appendChild(errorBox());
       return;
     }
@@ -776,7 +776,7 @@
     const transitions = app.tab === "details" ? all : all.filter((tr) => possible(v, tr));
     const ends = v.ends || [];
     if (transitions.length === 0 && ends.length === 0) {
-      root.appendChild(el("p", { class: "error", text: t("controls.deadlock", { state: state.state_name }) }));
+      root.appendChild(el("p", { class: "error" }, [tNodes("controls.deadlock", { state: stateChip(state.state_name) })]));
       return;
     }
     if (transitions.some((tr) => (tr.moves || []).length > 0)) {
@@ -855,8 +855,8 @@
   }
 
   function moveName(m) {
-    const src = localLabel(m.map, m.src), dst = localLabel(m.map, m.dst);
-    return m.parallel > 0 ? t("moves.edgeParallel", { src, dst, n: m.parallel + 1 }) : t("moves.edge", { src, dst });
+    const src = stateChip(localLabel(m.map, m.src)), dst = stateChip(localLabel(m.map, m.dst));
+    return m.parallel > 0 ? tNodes("moves.edgeParallel", { src, dst, n: m.parallel + 1 }) : tNodes("moves.edge", { src, dst });
   }
 
   // groupTransitions groups transitions by the family of each of their
@@ -900,7 +900,7 @@
     const open = forceOpen || (remembered !== undefined ? remembered : outer <= OPEN_LIMIT);
     const body = el("div", { class: "group-body" });
     const box = el("details", { class: "group" }, [
-      el("summary", null, [el("span", { text: summary }), el("span", { class: "count", text: t("controls.count", { n: count }) })]),
+      el("summary", null, [typeof summary === "string" ? el("span", { text: summary }) : summary, el("span", { class: "count", text: t("controls.count", { n: count }) })]),
       body,
     ]);
     let filled = false;
@@ -927,7 +927,7 @@
     if (filter) {
       const sample = transitions.flatMap((tr) => tr.moves || []).find((m) => m.map === filter.map && m.local_edge === filter.edge);
       list.appendChild(el("div", { class: "edge-filter" }, [
-        el("span", { text: t("controls.edgeFilter", { map: filter.map, edge: sample ? moveName(sample) : String(filter.edge) }) }),
+        tNodes("controls.edgeFilter", { map: filter.map, edge: sample ? moveName(sample) : String(filter.edge) }),
         el("button", { type: "button", text: t("controls.clearFilter"), onclick: () => { app.edgeFilter = null; renderTransitionGroups(list, transitions); renderDiagram(); } }),
       ]));
     }
@@ -941,7 +941,7 @@
           // A group is named by where it leaves from, and by where it goes
           // only when another group leaves from there too.
           const shared = sources.filter((src) => src === group.move.src).length > 1;
-          const name = shared ? moveName(group.move) : t("moves.from", { src: localLabel(map, group.move.src) });
+          const name = shared ? moveName(group.move) : tNodes("moves.from", { src: stateChip(localLabel(map, group.move.src)) });
           body.appendChild(groupBox("edge:" + map + "/" + edge, name, group.transitions.length, (inner) => {
             for (const tr of group.transitions) inner.appendChild(choiceButton(tr));
           }, narrowed && edges.size === 1, count));
@@ -968,7 +968,7 @@
     }
     if (app.tab === "details") {
       root.appendChild(el("h2", null, [
-        el("span", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }),
+        promoted ? el("span", { text: t("values.titleNext") }) : tNodes("values.title", { state: stateChip(group.state_name) }),
         (group.vars || []).length > 0 ? helpButton(t("values.hint")) : null,
       ]));
       renderValueDetails(root, pending);
@@ -1002,6 +1002,15 @@
     return wrap;
   }
   let helpCount = 0;
+
+  // stateChip shows the state named label as a state, wherever one is
+  // named: a chip like the event's, grey as the boxes of the drawing are.
+  function stateChip(label) {
+    return el("span", { class: "state-chip" }, [
+      el("span", { class: "state-tag", text: t("state.tag") }),
+      el("span", { class: "state-body", text: label }),
+    ]);
+  }
 
   // eventChip shows the event of tr, {event, channel, fields}, as an
   // event, wherever one is named: one chip, a tag saying it is an event,
@@ -1214,7 +1223,7 @@
         enterValues(inputs.map((i) => i.value));
       },
     });
-    if (vars.length === 0) form.appendChild(el("p", { class: "hint", text: t("values.none", { state: group.state_name }) }));
+    if (vars.length === 0) form.appendChild(el("p", { class: "hint" }, [tNodes("values.none", { state: stateChip(group.state_name) })]));
     const types = group.types || {};
     vars.forEach((name, i) => {
       const id = "value-" + i;
