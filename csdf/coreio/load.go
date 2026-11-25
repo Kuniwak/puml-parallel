@@ -187,32 +187,34 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 	return canonical, warnings, nil
 }
 
-// ReadTreeBytes reads the syntax tree of the diagram in raw: the JSON
-// csdfparse prints (IsSyntaxTreeJSON), or a .puml text or a .png, parsed.
-func ReadTreeBytes(raw []byte) (*csdf.SyntaxTree, error) {
+// ReadTreeBytes reads the syntax tree of the diagram in raw, and what its
+// !include lines are to be read by: the JSON csdfparse prints
+// (isSyntaxTreeJSON), whose !include UnresolvedInclude refuses, or a .puml
+// text or a .png, parsed, whose !include files reads.
+func ReadTreeBytes(raw []byte, files Include) (*csdf.SyntaxTree, Include, error) {
 	raw = bytes.TrimPrefix(raw, utf8BOM)
-	if IsSyntaxTreeJSON(raw) {
+	if isSyntaxTreeJSON(raw) {
 		tree, err := csdf.UnmarshalSyntaxTree(raw)
 		if err != nil {
-			return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
+			return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
 		}
-		return tree, nil
+		return tree, UnresolvedInclude, nil
 	}
 	src, err := pngsrc.Extract(raw)
 	if err != nil {
-		return nil, fmt.Errorf("coreio.ReadTreeBytes: reading PlantUML source: %w", err)
+		return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: reading PlantUML source: %w", err)
 	}
 	tree, err := csdf.Parse("", src)
 	if err != nil {
-		return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
+		return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
 	}
-	return tree, nil
+	return tree, files, nil
 }
 
-// IsSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: after
+// isSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: after
 // a UTF-8 byte order mark and whitespace, if any, it opens with "{", which
 // no PlantUML source or PNG does.
-func IsSyntaxTreeJSON(raw []byte) bool {
+func isSyntaxTreeJSON(raw []byte) bool {
 	return bytes.HasPrefix(bytes.TrimSpace(bytes.TrimPrefix(raw, utf8BOM)), []byte("{"))
 }
 

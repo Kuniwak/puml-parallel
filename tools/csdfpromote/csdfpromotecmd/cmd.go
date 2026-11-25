@@ -28,7 +28,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 // mainFormula expands the promotion with csdf/core and prints it as PUML.
 func mainFormula(opts *Options, inout *cli.ProcInout) error {
-	tree, err := coreio.ReadTreeBytes(opts.Bytes)
+	tree, include, err := coreio.ReadTreeBytes(opts.Bytes, coreio.FileIncluder(opts.Base))
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
@@ -48,7 +48,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		templates = &loaded
 	}
 
-	canonical, warnings, err := coreio.ExpandTree(tree, includeOf(opts), opts.Only)
+	canonical, warnings, err := coreio.ExpandTree(tree, include, opts.Only)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
@@ -93,14 +93,4 @@ func report(w io.Writer, warnings []core.Warning, werror bool) error {
 		return errors.New("the promotion has warnings and -Werror is set")
 	}
 	return nil
-}
-
-// includeOf is what reads the !include lines of the input: the files they
-// name for PlantUML, and none for a syntax tree, whose !include csdfinclude
-// resolves.
-func includeOf(opts *Options) coreio.Include {
-	if coreio.IsSyntaxTreeJSON(opts.Bytes) {
-		return coreio.UnresolvedInclude
-	}
-	return coreio.FileIncluder(opts.Base)
 }
