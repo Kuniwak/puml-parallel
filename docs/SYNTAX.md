@@ -534,8 +534,8 @@ written and nothing of what it means: no directive is expanded, no
 `!include` resolved, and no clause turned into a formula. Every element of
 the source is kept in the order written; whitespace is not. Each node has a
 `line` and a `col`, 1-based, the column counted in Unicode code points,
-where it starts. A comment written inside a line comes before the element
-of that line.
+where it starts, and a body lists its elements in that order: a comment
+written inside a line comes after the element of that line.
 
 The object is `{"kind": "csdf-syntax-tree", "version": 1, "path", "name",
 "line", "col", "body"}`. `path` is the file the source was read from, left

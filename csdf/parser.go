@@ -3,6 +3,7 @@ package csdf
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -43,6 +44,14 @@ func newSourceParser(input string) *sourceParser {
 
 func (p *sourceParser) here() Pos { return Pos{Line: p.line, Col: p.col} }
 
+// comparePos orders positions as the source does.
+func comparePos(a, b Pos) int {
+	if a.Line != b.Line {
+		return a.Line - b.Line
+	}
+	return a.Col - b.Col
+}
+
 func (p *sourceParser) parse() (*SyntaxTree, error) {
 	tree := &SyntaxTree{Pos: p.here()}
 	p.sink = &tree.Body
@@ -81,7 +90,11 @@ func (p *sourceParser) parse() (*SyntaxTree, error) {
 func (p *sourceParser) parseBody(body *[]Element, opened *StateSyntax) error {
 	outer := p.sink
 	p.sink = body
-	defer func() { p.sink = outer }()
+	defer func() {
+		p.sink = outer
+		// A comment inside a line is read before the element of the line.
+		slices.SortStableFunc(*body, func(a, b Element) int { return comparePos(a.Position(), b.Position()) })
+	}()
 	for {
 		if err := p.skipTrivia(); err != nil {
 			return err

@@ -50,8 +50,8 @@ func TestParseReadsTheElementsWhereTheyAreWritten(t *testing.T) {
 				&IgnoreSyntax{Pos: Pos{2, 1}, Lines: []string{"  title T"}},
 				&ObserveSyntax{Pos: Pos{5, 1}, Name: "v", View: true, States: []string{"s0"}},
 				&PragmaSyntax{Pos: Pos{6, 1}, Name: "include", Arg: "x.puml"},
-				&CommentSyntax{Pos: Pos{7, 17}, Text: " why ", Block: true},
 				&StateSyntax{Pos: Pos{7, 1}, ID: "s0", Label: "S"},
+				&CommentSyntax{Pos: Pos{7, 17}, Text: " why ", Block: true},
 			},
 		},
 		"a column counted in code points": {

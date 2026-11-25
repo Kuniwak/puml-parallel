@@ -48,8 +48,8 @@ type Element interface{ Position() Pos }
 func (p Pos) Position() Pos { return p }
 
 // CommentSyntax is a comment: a line comment "' text", or a block comment
-// "/' text '/" (Block). A comment written inside a line comes before the
-// element of that line.
+// "/' text '/" (Block). A comment written inside a line comes after the
+// element of that line, by its position.
 type CommentSyntax struct {
 	Pos
 	Text  string
