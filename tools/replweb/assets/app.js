@@ -1091,30 +1091,6 @@
     return name;
   }
 
-  // shapeHelp tells how the instances of a map are written: an example,
-  // and every local state an instance may be at with the fields it holds.
-  function shapeHelp(shape) {
-    const first = shape.states[0];
-    const fields = first ? "{" + (first.fields || []).map((f) => JSON.stringify(f.name) + ": " + shapeExample(f.type)).join(", ") + "}" : "{}";
-    const example = first ? "{" + JSON.stringify(t("shape.id", { type: shape.key_type || "ID" })) + ": {\"at\": " + JSON.stringify(first.state) + ", \"fields\": " + fields + "}}" : "{}";
-    const rows = shape.states.map((s) => el("li", null, [
-      el("code", { text: s.state }),
-      el("span", { text: s.name !== s.state ? " " + s.name : "" }),
-      el("span", { class: "fields", text: (s.fields || []).length > 0
-        ? t("shape.fields", { fields: s.fields.map((f) => f.type && f.type !== f.name ? f.name + " (" + f.type + ")" : f.name).join(", ") })
-        : t("shape.noFields") }),
-    ]));
-    return el("details", { class: "shape" }, [
-      el("summary", { text: t("shape.summary") }),
-      el("p", { class: "hint", text: t("shape.empty") }),
-      el("p", { class: "hint", text: t("shape.example") }),
-      el("code", { class: "example", text: example }),
-      el("p", { class: "hint", text: t("shape.states") }),
-      el("ul", null, rows),
-      ...[...new Set(shape.states.flatMap((s) => (s.fields || []).map((f) => f.type)))].map(typeHelp),
-    ]);
-  }
-
   // typeShape is what csdfbmc shapes (-shapes) says the values of the type
   // named type look like, or null when it says nothing worth showing: for
   // a map type K ⇸ V, that of V, each value under its key.
@@ -1124,75 +1100,6 @@
     if (known(types[type])) return { node: types[type], key: null };
     const [key, value] = String(type).split("⇸").map((x) => x.trim());
     return value && known(types[value]) ? { node: types[value], key } : null;
-  }
-
-  // skeleton is an example value of the shape node: a record of its
-  // attributes, a list of one item, its first allowed value, a constant
-  // it is compared with, else
-  // 0 for a number and "…" for anything else.
-  function skeleton(node) {
-    if (node.kind === "record") return Object.fromEntries(Object.entries(node.fields).map(([k, v]) => [k, skeleton(v)]));
-    if (node.kind === "collection") return [skeleton(node.items)];
-    if ((node.values || []).length > 0) return node.values[0];
-    if ((node.examples || []).length > 0) return node.examples[0];
-    return node.numeric ? 0 : "…";
-  }
-
-  // shapeLeaves lists the attributes of node whose values something is
-  // known of, as table rows by their paths: the values they may take, else
-  // the constants they are compared with, else that they are numbers.
-  function shapeLeaves(node, path) {
-    if (node.kind === "record") return Object.entries(node.fields).flatMap(([k, v]) => shapeLeaves(v, path.concat([k])));
-    if (node.kind === "collection") return shapeLeaves(node.items, path.concat(["[…]"]));
-    const text = allowedText(node);
-    if (text === null) return [];
-    const name = path.length > 0 ? path.join(".").replaceAll(".[…]", "[…]") : t("typeShape.value");
-    return [el("tr", null, [el("th", { text: name }), el("td", { text })])];
-  }
-
-  // allowedText says which values a scalar node takes, or null when
-  // nothing is known: its values, a run of consecutive integers as a
-  // range; else the constants it is compared with; else that it is a number.
-  function allowedText(node) {
-    const plain = (x) => typeof x === "string" ? x : JSON.stringify(x);
-    const values = node.values || [];
-    if (values.length > 0) {
-      const run = values.length > 2 && values.every((x, i) => Number.isInteger(x) && (i === 0 || x === values[i - 1] + 1));
-      return run ? t("typeShape.range", { from: values[0], to: values[values.length - 1] }) : values.map(plain).join(t("list.separator"));
-    }
-    const examples = node.examples || [];
-    if (examples.length > 0) return t("typeShape.examples", { values: examples.map(plain).join(t("list.separator")) });
-    return node.numeric ? t("typeShape.number") : null;
-  }
-
-  // exampleOf is an example value of what typeShape gives.
-  function exampleOf(shape) {
-    const value = skeleton(shape.node);
-    return shape.key ? { [t("shape.id", { type: shape.key })]: value } : value;
-  }
-
-  // shapeExample is the example JSON of a value of type, or "…".
-  function shapeExample(type) {
-    const shape = typeShape(type);
-    return shape ? JSON.stringify(exampleOf(shape)) : "…";
-  }
-
-  // typeHelp tells what a value of type looks like, as far as the clauses
-  // of the diagram tell (-shapes), or is null when they tell nothing.
-  function typeHelp(type) {
-    const shape = typeShape(type);
-    if (!shape) return null;
-    const leaves = shapeLeaves(shape.node, []);
-    return el("details", { class: "shape type-shape" }, [
-      el("summary", { text: t("typeShape.summary", { type }) }),
-      el("p", { class: "hint", text: t(((config.shapes && config.shapes.declared) || []).includes(type) ? "typeShape.declared" : "typeShape.note") }),
-      leaves.length > 0 ? el("table", { class: "value-table type-table" }, [
-        el("tr", null, [el("th", { text: t("typeShape.item") }), el("th", { text: t("typeShape.allowed") })]),
-        ...leaves,
-      ]) : null,
-      el("p", { class: "hint", text: t("typeShape.exampleLabel") }),
-      el("code", { class: "example", text: JSON.stringify(exampleOf(shape)) }),
-    ]);
   }
 
   // ---- Value editors: a value of a known shape entered as a form ----
@@ -1413,6 +1320,63 @@
     });
   }
 
+  // instancesEditor is the editor of the instances of a local diagram,
+  // as shape tells of them: a row each instance by its ID, with the local
+  // state it is at and the fields it holds there.
+  function instancesEditor(shape) {
+    const keyNode = ((config.shapes && config.shapes.types) || {})[shape.key_type];
+    return rowTable({
+      keyOf: (key) => writtenKey(keyNode && keyNode.kind === "scalar" ? keyNode : null, key),
+      valueOf: () => instanceEditor(shape),
+      spread: (v) => Object.entries(isMap(v) ? v : {}).map(([key, value]) => ({ key, fixed: false, value })),
+      gather: (pairs) => Object.fromEntries(pairs),
+      growing: true,
+    });
+  }
+
+  // instanceEditor is the editor of an instance: the local state it is at,
+  // picked, and a table of the fields it holds there, which follows the
+  // state picked, keeping the values of the fields of the same names.
+  function instanceEditor(shape) {
+    const labels = app.familyLabels.get(shape.map) || {};
+    const at = el("select", { class: "leaf instance-state" }, [
+      el("option", { value: "", text: t("editor.unset") }),
+      ...shape.states.map((s) => el("option", { value: s.state, text: labels[s.state] || (s.name !== s.state ? s.name : s.state) })),
+    ]);
+    const holder = el("div", { class: "instance-fields" });
+    let fields = null;
+    const local = () => shape.states.find((s) => s.state === at.value);
+    const build = (values) => {
+      const s = local();
+      const names = s ? (s.fields || []).map((f) => f.name) : [];
+      fields = s && names.length > 0 ? rowTable({
+        keyOf: (key) => fixedKey(key),
+        valueOf: (key) => varEditor((s.fields.find((f) => f.name === key) || {}).type) || jsonEditor([]),
+        spread: () => names.map((key) => ({ key, fixed: true, value: values ? values[key] : undefined })),
+        gather: (pairs) => Object.fromEntries(pairs),
+        growing: false,
+      }) : null;
+      holder.replaceChildren(...(fields ? [fields.node] : []));
+    };
+    const kept = () => { if (!fields) return {}; const v = fields.get(); return "value" in v ? v.value : {}; };
+    at.addEventListener("change", () => { build(kept()); edited(node); });
+    const node = el("div", { class: "instance-editor" }, [at, holder]);
+    build(undefined);
+    return {
+      node,
+      get: () => {
+        if (!local()) return { problem: true };
+        const v = fields ? fields.get() : { value: {} };
+        return "problem" in v ? v : { value: { at: at.value, fields: v.value } };
+      },
+      set: (v) => {
+        at.value = isInstance(v) && shape.states.some((s) => s.state === v.at) ? v.at : "";
+        build(isInstance(v) ? v.fields : undefined);
+      },
+      focus: () => at.focus(),
+    };
+  }
+
   // textKeyEditor is a key as written, a string.
   function textKeyEditor() {
     const box = el("input", { type: "text", class: "leaf key", autocomplete: "off", spellcheck: "false" });
@@ -1505,7 +1469,7 @@
       // A value of a known shape is entered as a form, else as JSON text.
       // A value the diagram fixes is filled in; any other starts empty,
       // with the value from before beside it, so that each is decided.
-      const made = !shape && types[name] ? varEditor(types[name]) : null;
+      const made = shape ? instancesEditor(shape) : types[name] ? varEditor(types[name]) : null;
       const editor = made ? withJSON(made) : null;
       const input = editor ? null : el("input", { type: "text", id, autocomplete: "off", spellcheck: "false" });
       if (editor && fixed !== undefined) editor.set(fixed);
@@ -1535,7 +1499,6 @@
         editor && fixed === undefined ? editor.toggle : null,
       ]));
       form.appendChild(box);
-      if (shape && fixed === undefined) form.appendChild(shapeHelp(shape));
       if (fixed === undefined && before) {
         form.appendChild(el("div", { class: "before" }, [
           el("span", { text: t("values.before") }),
