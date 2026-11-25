@@ -127,6 +127,33 @@ func TestUnmarshalSyntaxTreeReadsBackEveryExample(t *testing.T) {
 	}
 }
 
+func TestUnmarshalSyntaxTreeNamesTheElementItRefuses(t *testing.T) {
+	cases := map[string]struct{ body, want string }{
+		"a malformed clause in an edge": {
+			body: `{"kind":"edge","line":7,"col":1,"src":"a","dst":"b","event":{"line":7,"col":7,"text":"E","channel":"E","fields":[]},"guard":{"line":7,"col":11,"text":"@ne(x)"},"post":null}`,
+			want: `the edge at line 7: the clause "@ne(x)": `,
+		},
+		"an element of unknown kind": {
+			body: `{"kind":"bogus","line":3,"col":1}`,
+			want: "the bogus at line 3: an element of unknown kind",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			raw := `{"kind":"csdf-syntax-tree","version":1,"name":"","line":1,"col":1,"body":[` + c.body + `]}`
+
+			// Act
+			_, err := UnmarshalSyntaxTree([]byte(raw))
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("got %v, want an error containing %q", err, c.want)
+			}
+		})
+	}
+}
+
 func TestPlainRefusesAGlobalDiagramWithTheHint(t *testing.T) {
 	// Arrange
 	tree, err := Parse("", "@startuml\n!include x.puml\n@enduml\n")
