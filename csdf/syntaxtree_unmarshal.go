@@ -2,6 +2,7 @@ package csdf
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -89,16 +90,17 @@ func elementsOf(raws []json.RawMessage) ([]Element, error) {
 func elementOf(bs json.RawMessage) (Element, error) {
 	var r rawElement
 	if err := json.Unmarshal(bs, &r); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("an element: %w", err)
 	}
-	guard, err := r.Guard.syntax()
+	e, err := r.element()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("the %s at line %d: %w", r.Kind, r.Line, err)
 	}
-	post, err := r.Post.syntax()
-	if err != nil {
-		return nil, err
-	}
+	return e, nil
+}
+
+// element is the element r is the JSON of.
+func (r *rawElement) element() (Element, error) {
 	switch r.Kind {
 	case "comment":
 		return &CommentSyntax{Pos: r.Pos, Text: r.Text, Block: r.Block}, nil
@@ -107,7 +109,7 @@ func elementOf(bs json.RawMessage) (Element, error) {
 	case "ignore":
 		var lines []string
 		if err := json.Unmarshal(r.Lines, &lines); err != nil {
-			return nil, fmt.Errorf("the ignore at line %d: %w", r.Line, err)
+			return nil, err
 		}
 		return &IgnoreSyntax{Pos: r.Pos, Lines: lines}, nil
 	case "observe":
@@ -115,27 +117,45 @@ func elementOf(bs json.RawMessage) (Element, error) {
 	case "state":
 		s := &StateSyntax{Pos: r.Pos, ID: r.ID, Label: r.Label, Stereotype: r.Stereotype, Composite: r.Body != nil}
 		if r.Body != nil {
-			if s.Body, err = elementsOf(*r.Body); err != nil {
+			body, err := elementsOf(*r.Body)
+			if err != nil {
 				return nil, err
 			}
+			s.Body = body
 		}
 		return s, nil
 	case "state_var":
 		return &StateVarSyntax{Pos: r.Pos, State: r.State, Name: r.Name, Type: r.Type}, nil
 	case "start_edge":
+		post, err := r.Post.syntax()
+		if err != nil {
+			return nil, err
+		}
 		return &StartEdgeSyntax{Pos: r.Pos, Dst: r.Dst, Post: post}, nil
 	case "edge":
 		e, err := eventOf(r.Event)
 		if err != nil {
 			return nil, err
 		}
+		guard, err := r.Guard.syntax()
+		if err != nil {
+			return nil, err
+		}
+		post, err := r.Post.syntax()
+		if err != nil {
+			return nil, err
+		}
 		return &EdgeSyntax{Pos: r.Pos, Src: r.Src, Dst: r.Dst, Event: e, Guard: guard, Post: post}, nil
 	case "end_edge":
+		guard, err := r.Guard.syntax()
+		if err != nil {
+			return nil, err
+		}
 		return &EndEdgeSyntax{Pos: r.Pos, Src: r.Src, Guard: guard}, nil
 	case "note":
 		var raws []json.RawMessage
 		if err := json.Unmarshal(r.Lines, &raws); err != nil {
-			return nil, fmt.Errorf("the note at line %d: %w", r.Line, err)
+			return nil, err
 		}
 		lines, err := elementsOf(raws)
 		if err != nil {
@@ -145,6 +165,8 @@ func elementOf(bs json.RawMessage) (Element, error) {
 	case "assume":
 		return &AssumeSyntax{Pos: r.Pos, Text: r.Text}, nil
 	case "channel":
+		// The JSON keeps no text of a channel; it is written again from the
+		// name and the field types, not with the spacing of the source.
 		text := r.Name
 		if len(r.Fields) > 0 {
 			text += " : " + strings.Join(r.Fields, ".")
@@ -153,7 +175,11 @@ func elementOf(bs json.RawMessage) (Element, error) {
 	case "sync":
 		var event string
 		if err := json.Unmarshal(r.Event, &event); err != nil {
-			return nil, fmt.Errorf("the sync at line %d: %w", r.Line, err)
+			return nil, err
+		}
+		guard, err := r.Guard.syntax()
+		if err != nil {
+			return nil, err
 		}
 		return &SyncSyntax{Pos: r.Pos, Event: event, Targets: r.Targets, Guard: guard}, nil
 	case "constrain":
@@ -161,11 +187,15 @@ func elementOf(bs json.RawMessage) (Element, error) {
 		if err != nil {
 			return nil, err
 		}
+		guard, err := r.Guard.syntax()
+		if err != nil {
+			return nil, err
+		}
 		return &ConstrainSyntax{Pos: r.Pos, Event: e, Guard: guard}, nil
 	case "text":
 		return &ProseSyntax{Pos: r.Pos, Text: r.Text}, nil
 	}
-	return nil, fmt.Errorf("an element of unknown kind %q at line %d", r.Kind, r.Line)
+	return nil, errors.New("an element of unknown kind")
 }
 
 func eventOf(bs json.RawMessage) (EventSyntax, error) {
@@ -183,7 +213,7 @@ func (c *rawClause) syntax() (*ClauseSyntax, error) {
 	}
 	s, err := clause.ParseSyntax(c.Text)
 	if err != nil {
-		return nil, fmt.Errorf("the clause at line %d: %w", c.Line, err)
+		return nil, fmt.Errorf("the clause %q: %w", c.Text, err)
 	}
 	return &ClauseSyntax{Pos: c.Pos, Text: c.Text, Syntax: s}, nil
 }
