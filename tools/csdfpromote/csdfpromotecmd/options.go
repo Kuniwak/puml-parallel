@@ -75,7 +75,8 @@ directive is printed as it is, its end edges included.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 The input is PlantUML, a .puml text or a .png, or the syntax tree csdfparse
-prints (JSON). PlantUML's !include is read from the file it names; a
+prints (JSON): an input that opens with "{", after a UTF-8 byte order mark
+and whitespace if any, is read as the tree, any other as PlantUML. PlantUML's !include is read from the file it names; a
 syntax tree's is refused, as it is csdfinclude's to resolve.
 
 Every predicate of the expansion is its clauses joined by the connective " ∧ ":

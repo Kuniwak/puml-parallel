@@ -190,6 +190,7 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 // ReadTreeBytes reads the syntax tree of the diagram in raw: the JSON
 // csdfparse prints (IsSyntaxTreeJSON), or a .puml text or a .png, parsed.
 func ReadTreeBytes(raw []byte) (*csdf.SyntaxTree, error) {
+	raw = bytes.TrimPrefix(raw, utf8BOM)
 	if IsSyntaxTreeJSON(raw) {
 		tree, err := csdf.UnmarshalSyntaxTree(raw)
 		if err != nil {
@@ -208,11 +209,15 @@ func ReadTreeBytes(raw []byte) (*csdf.SyntaxTree, error) {
 	return tree, nil
 }
 
-// IsSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: it
-// opens with "{", which no PlantUML source or PNG does.
+// IsSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: after
+// a UTF-8 byte order mark and whitespace, if any, it opens with "{", which
+// no PlantUML source or PNG does.
 func IsSyntaxTreeJSON(raw []byte) bool {
-	return bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{"))
+	return bytes.HasPrefix(bytes.TrimSpace(bytes.TrimPrefix(raw, utf8BOM)), []byte("{"))
 }
+
+// utf8BOM is the byte order mark an editor may write before UTF-8 text.
+var utf8BOM = []byte("\xef\xbb\xbf")
 
 // UnresolvedInclude refuses every !include: that of a syntax tree, which
 // csdfinclude resolves.

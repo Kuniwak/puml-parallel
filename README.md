@@ -169,7 +169,9 @@ local states and the variables each holds, `families`): the shape `csdfbmc`
 reads.
 
 A diagram with no directive is printed as it is, its end edges included.
-`csdfpromote` reads the syntax tree `csdfparse` prints as well as PlantUML;
+`csdfpromote` reads the syntax tree `csdfparse` prints as well as PlantUML,
+telling them by content: an input that opens with `{`, after a UTF-8 byte
+order mark and whitespace if any, is the tree, any other PlantUML;
 a tree's `!include` is not resolved but refused, pointing at `csdfinclude`,
 while from PlantUML `csdfpromote` reads the files an `!include` names itself.
 
