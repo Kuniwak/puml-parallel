@@ -612,27 +612,6 @@
     ]);
   }
 
-  // piecesList lists where each instance is, by the colour of its piece;
-  // null when there are no instances.
-  function piecesList(v) {
-    const items = [];
-    for (const fv of v.families || []) {
-      for (const [state, ids] of Object.entries(fv.instances || {})) {
-        for (const id of ids) items.push({ map: fv.map, id, state });
-      }
-    }
-    if (items.length === 0) return null;
-    items.sort((a, b) => a.map.localeCompare(b.map) || a.id.localeCompare(b.id));
-    const list = el("ul", { class: "pieces" });
-    for (const it of items) {
-      const dot = el("span", { class: "dot" });
-      const colour = pieceColour(it.map, it.id);
-      dot.style.background = colour.fill;
-      list.appendChild(el("li", null, [dot, el("span", { text: t("controls.piece", { id: it.id, state: it.state }) })]));
-    }
-    return el("div", { class: "hint" }, [el("span", { text: t("controls.pieces") }), list]);
-  }
-
   // renderLegend shows what each mark on the drawing means, by a small
   // sample of the mark.
   function renderLegend() {
@@ -760,10 +739,6 @@
       return;
     }
     root.appendChild(stepBar(1));
-    root.appendChild(el("h2", { text: t("controls.title") }));
-    root.appendChild(el("p", { class: "hint now" }, [el("span", { class: "dot dot-whole" }), el("span", { text: t("controls.now", { state: state.state_name }) })]));
-    const pieces = piecesList(v);
-    if (pieces) root.appendChild(pieces);
     root.appendChild(errorBox());
     const all = v.transitions || [];
     const transitions = app.tab === "details" ? all : all.filter((tr) => possible(v, tr));
@@ -918,7 +893,6 @@
     }
     if (shown.length === 0) { list.appendChild(el("p", { class: "hint", text: t("controls.noMatch") })); return; }
     const { byMap, own } = groupTransitions(shown);
-    if (byMap.size > 0) list.appendChild(el("p", { class: "hint", text: t("controls.byFamily") }));
     for (const [map, edges] of byMap) {
       const count = new Set([...edges.values()].flatMap((g) => g.transitions)).size;
       list.appendChild(groupBox("map:" + map, map, count, (body) => {
