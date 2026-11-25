@@ -282,3 +282,4 @@ button.help { width: 1.25rem; height: 1.25rem; padding: 0; border-radius: 50%; f
 }
 .help-wrap:hover .help-tip, .help-wrap:focus-within .help-tip, .help-wrap.open .help-tip { display: block; }
 .field-label { display: flex; align-items: center; flex-wrap: wrap; }
+.params-line { margin: .15rem 0; font-size: .88rem; }

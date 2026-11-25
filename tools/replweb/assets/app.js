@@ -711,7 +711,7 @@
         onclick: () => jump(i),
         onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jump(i); } },
       }, [head,
-        entry.params && Object.keys(entry.params).length > 0 ? el("p", { class: "hint" }, [tNodes("suggest.params", { params: paramsView(entry.params, entry) })]) : null,
+        entry.params && Object.keys(entry.params).length > 0 ? el("p", { class: "params-line" }, [paramsView(entry.params, entry)]) : null,
         shownBeside(i) ? el("p", { class: "hint", text: t("history.valuesBeside") }) : valuesList(h.state.values, parent ? parent.state.values : null)]);
       list.appendChild(item);
     });
@@ -1257,7 +1257,7 @@
     suggestions.forEach((s, i) => {
       const lines = [];
       const params = Object.entries(s.params || {});
-      if (params.length > 0) lines.push(tNodes("suggest.params", { params: paramsView(s.params, app.choice && app.choice.transition) }));
+      if (params.length > 0) lines.push(paramsView(s.params, app.choice && app.choice.transition));
       const changes = changesOf(vars, previous, s.values);
       const shown = changes.slice(0, CHANGE_LIMIT);
       if (changes.length === 0) lines.push(t("suggest.nothingChanges"));
