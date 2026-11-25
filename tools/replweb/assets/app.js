@@ -1070,11 +1070,6 @@
         el("button", { type: "button", class: "primary", id: "to-details", text: t("choose.toDetails"), onclick: () => setTab("details") }),
       ]));
     }
-    const types = pending.group.types || {};
-    for (const type of new Set(vars.map((name) => types[name]).filter((x) => x))) {
-      const help = typeHelp(type);
-      if (help) root.appendChild(help);
-    }
   }
 
   // valueProblem says, in the tester's words, what keeps the boxes from
