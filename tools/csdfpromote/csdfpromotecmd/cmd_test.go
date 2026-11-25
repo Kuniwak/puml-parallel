@@ -102,6 +102,26 @@ func TestNewMainFuncReadsTheSyntaxTreeCsdfparsePrints(t *testing.T) {
 	}
 }
 
+// A syntax tree is read as csdfparse printed it, its !include unresolved,
+// even where the file it names is there.
+func TestNewMainFuncRefusesTheIncludeOfASyntaxTree(t *testing.T) {
+	// Setup
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	spy := cli.SpyProcInout()
+	spy.Stdin = strings.NewReader(syntaxTreeOf(t, membersPath))
+
+	// Execute
+	exitStatus := cmdFunc([]string{"-base", "../../../examples/promote", "-format", "json"}, spy.New())
+
+	// Assert
+	if exitStatus != 1 {
+		t.Fatalf("want 1, got %d", exitStatus)
+	}
+	if want := "csdfinclude"; !strings.Contains(spy.Stderr.String(), want) {
+		t.Errorf("want %q on stderr, got %q", want, spy.Stderr.String())
+	}
+}
+
 // The command's other runs differ only in what they print, so they are one
 // table: the arguments, the exit status, and what standard output has to say.
 func TestNewMainFunc(t *testing.T) {

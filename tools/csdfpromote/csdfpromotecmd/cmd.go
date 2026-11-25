@@ -31,7 +31,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 // mainFormula expands the promotion with csdf/core and prints it as PUML.
 func mainFormula(opts *Options, inout *cli.ProcInout) error {
-	tree, err := readTree(opts.Bytes)
+	tree, include, err := readTree(opts.Bytes, coreio.FileIncluder(opts.Base))
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
@@ -51,7 +51,7 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 		templates = &loaded
 	}
 
-	canonical, warnings, err := coreio.ExpandTree(tree, coreio.FileIncluder(opts.Base), opts.Only)
+	canonical, warnings, err := coreio.ExpandTree(tree, include, opts.Only)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
@@ -84,17 +84,26 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 	return nil
 }
 
-// readTree reads the syntax tree of the diagram in raw: the JSON csdfparse
-// prints, or a .puml text or a .png, parsed.
-func readTree(raw []byte) (*csdf.SyntaxTree, error) {
+// readTree reads the syntax tree of the diagram in raw, and what its
+// !include lines are read by: the JSON csdfparse prints, whose !include is
+// refused, as csdfinclude resolves it; or a .puml text or a .png, parsed,
+// whose !include is read by include.
+func readTree(raw []byte, include coreio.Include) (*csdf.SyntaxTree, coreio.Include, error) {
 	if isJSON(raw) {
-		return csdf.UnmarshalSyntaxTree(raw)
+		tree, err := csdf.UnmarshalSyntaxTree(raw)
+		return tree, unresolved, err
 	}
 	src, err := pngsrc.Extract(raw)
 	if err != nil {
-		return nil, fmt.Errorf("reading PlantUML source: %w", err)
+		return nil, nil, fmt.Errorf("reading PlantUML source: %w", err)
 	}
-	return csdf.Parse("", src)
+	tree, err := csdf.Parse("", src)
+	return tree, include, err
+}
+
+// unresolved refuses the !include of a syntax tree.
+func unresolved(path string) (string, error) {
+	return "", fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote), or give csdfpromote the .puml", path)
 }
 
 // isJSON reports whether raw is JSON rather than PlantUML: it opens with
