@@ -41,9 +41,10 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # Laying out a drawing needs Graphviz.
-      - name: Install Graphviz
-        run: sudo apt-get install -y --no-install-recommends graphviz
+      # Laying out a drawing needs Graphviz, and measuring its Japanese
+      # labels a font that has their glyphs.
+      - name: Install Graphviz and a Japanese font
+        run: sudo apt-get install -y --no-install-recommends graphviz fonts-noto-cjk
 
       - name: Cache PlantUML
         id: plantuml-cache
