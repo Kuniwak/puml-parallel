@@ -114,23 +114,25 @@ func SortedStates(m map[StateID]State) []StateWithID {
 	return ss
 }
 
+// StartEdge, Edge and EndEdge hold their clauses as syntax trees, nil for a
+// clause not written; lowering turns them into formulas.
 type StartEdge struct {
-	Dst  StateID   `json:"dst"`
-	Post Predicate `json:"post"`
-	Line int       `json:"line"` // 1-based source line of the start edge.
+	Dst  StateID       `json:"dst"`
+	Post *ClauseSyntax `json:"post"`
+	Line int           `json:"line"` // 1-based source line of the start edge.
 }
 
 type Edge struct {
-	Src   StateID   `json:"src"`
-	Dst   StateID   `json:"dst"`
-	Event Event     `json:"event"`
-	Guard Predicate `json:"guard"`
-	Post  Predicate `json:"post"`
-	Line  int       `json:"line"` // 1-based source line of the transition.
+	Src   StateID       `json:"src"`
+	Dst   StateID       `json:"dst"`
+	Event Event         `json:"event"`
+	Guard *ClauseSyntax `json:"guard"`
+	Post  *ClauseSyntax `json:"post"`
+	Line  int           `json:"line"` // 1-based source line of the transition.
 }
 
 type EndEdge struct {
-	Src   StateID   `json:"src"`
-	Guard Predicate `json:"guard"`
-	Line  int       `json:"line"` // 1-based source line of the transition.
+	Src   StateID       `json:"src"`
+	Guard *ClauseSyntax `json:"guard"`
+	Line  int           `json:"line"` // 1-based source line of the transition.
 }

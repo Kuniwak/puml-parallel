@@ -136,8 +136,8 @@ done --> [*]
 			if diagram.EndEdge.Src != tt.wantSrc {
 				t.Errorf("parseAccepting() EndEdge.Src = %q, want %q", diagram.EndEdge.Src, tt.wantSrc)
 			}
-			if diagram.EndEdge.Guard != Predicate(tt.wantGuard) {
-				t.Errorf("parseAccepting() EndEdge.Guard = %q, want %q", diagram.EndEdge.Guard, tt.wantGuard)
+			if textOf(diagram.EndEdge.Guard) != Predicate(tt.wantGuard) {
+				t.Errorf("parseAccepting() EndEdge.Guard = %q, want %q", textOf(diagram.EndEdge.Guard), tt.wantGuard)
 			}
 			// The line the declaration starts on, like every other edge: it names
 			// the end edge's generated predicate aliases downstream.
@@ -268,8 +268,8 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 			t.Errorf("parseAccepting() vars[%d] = %#v, want %#v", i, initial.Vars[i], want)
 		}
 	}
-	if diagram.StartEdge.Post != "initialize now" {
-		t.Errorf("parseAccepting() start post = %q, want %q", diagram.StartEdge.Post, "initialize now")
+	if textOf(diagram.StartEdge.Post) != "initialize now" {
+		t.Errorf("parseAccepting() start post = %q, want %q", textOf(diagram.StartEdge.Post), "initialize now")
 	}
 	if len(diagram.Edges) != 1 {
 		t.Fatalf("parseAccepting() edges = %#v, want one edge", diagram.Edges)
@@ -278,18 +278,18 @@ s1 /' before arrow '/ --> /' before destination '/ [*] /' before colon '/ : /' b
 	if edge.Event != "finish?result?code" {
 		t.Errorf("parseAccepting() event = %q, want %q", edge.Event, "finish?result?code")
 	}
-	if edge.Guard != "ready && done" {
-		t.Errorf("parseAccepting() guard = %q, want %q", edge.Guard, "ready && done")
+	if textOf(edge.Guard) != "ready && done" {
+		t.Errorf("parseAccepting() guard = %q, want %q", textOf(edge.Guard), "ready && done")
 	}
-	if edge.Post != "complete now" {
-		t.Errorf("parseAccepting() post = %q, want %q", edge.Post, "complete now")
+	if textOf(edge.Post) != "complete now" {
+		t.Errorf("parseAccepting() post = %q, want %q", textOf(edge.Post), "complete now")
 	}
 	if diagram.EndEdge == nil {
 		t.Fatal("parseAccepting() end edge = nil")
 	}
 	// A clause language's quotes are not the tools': the comment is removed.
-	if diagram.EndEdge.Guard != `"guard "` {
-		t.Errorf("parseAccepting() end guard = %q", diagram.EndEdge.Guard)
+	if textOf(diagram.EndEdge.Guard) != `"guard "` {
+		t.Errorf("parseAccepting() end guard = %q", textOf(diagram.EndEdge.Guard))
 	}
 
 	// Teardown: no resources to release.
@@ -754,10 +754,10 @@ s1 --> [*] : mail \@ host
 	if err != nil {
 		t.Fatalf("parseAccepting() error = %v", err)
 	}
-	if got, want := diagram.Edges[0].Guard, Predicate(`f(x) \; g(x) ∧ h`); got != want {
+	if got, want := textOf(diagram.Edges[0].Guard), Predicate(`f(x) \; g(x) ∧ h`); got != want {
 		t.Errorf("guard = %q, want %q", got, want)
 	}
-	if got, want := diagram.Edges[0].Post, Predicate(`a \∧ b`); got != want {
+	if got, want := textOf(diagram.Edges[0].Post), Predicate(`a \∧ b`); got != want {
 		t.Errorf("post = %q, want %q", got, want)
 	}
 }
@@ -775,10 +775,10 @@ s0 --> s1 : go ; s == "a;b" ; t == "a\;b" \\; u
 	if err != nil {
 		t.Fatalf("parseAccepting() error = %v", err)
 	}
-	if got, want := diagram.Edges[0].Guard, Predicate(`s == "a`); got != want {
+	if got, want := textOf(diagram.Edges[0].Guard), Predicate(`s == "a`); got != want {
 		t.Errorf("guard = %q, want %q", got, want)
 	}
-	if got, want := diagram.Edges[0].Post, Predicate(`b" ; t == "a\;b" \\; u`); got != want {
+	if got, want := textOf(diagram.Edges[0].Post), Predicate(`b" ; t == "a\;b" \\; u`); got != want {
 		t.Errorf("post = %q, want %q", got, want)
 	}
 }

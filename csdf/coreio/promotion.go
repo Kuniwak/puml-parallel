@@ -465,7 +465,7 @@ func (r *promotionReader) edge(l, src, dst string) error {
 	if dst == "[*]" {
 		return fmt.Errorf("%s: a global end edge %s", name, notYetEnd)
 	}
-	e, err := readEdge(l, r.lineNo, clause.ParseAuthored)
+	e, err := readEdge(l, r.lineNo, clause.AuthoredFormulaOf)
 	if err != nil {
 		return located{fmt.Errorf("%s: %w", name, err)}
 	}

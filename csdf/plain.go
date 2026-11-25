@@ -60,11 +60,11 @@ func plain(tree *SyntaxTree) (*Diagram, error) {
 			d.States[current] = s
 			next = current
 		case *StartEdgeSyntax:
-			d.StartEdge = StartEdge{Dst: StateID(e.Dst), Post: predicateOf(e.Post), Line: e.Line}
+			d.StartEdge = StartEdge{Dst: StateID(e.Dst), Post: e.Post, Line: e.Line}
 		case *EdgeSyntax:
 			d.Edges = append(d.Edges, edgeOf(e))
 		case *EndEdgeSyntax:
-			d.EndEdge = &EndEdge{Src: StateID(e.Src), Guard: predicateOf(e.Guard), Line: e.Line}
+			d.EndEdge = &EndEdge{Src: StateID(e.Src), Guard: e.Guard, Line: e.Line}
 			ended = true
 		case *NoteSyntax:
 			if err := plainNote(d, e); err != nil {
@@ -86,13 +86,6 @@ func refusedAt(pos Pos, format string, args ...any) error {
 	return &ParseError{Line: pos.Line, Col: pos.Col, err: fmt.Errorf("csdf.Plain: "+format, args...)}
 }
 
-func predicateOf(c *ClauseSyntax) Predicate {
-	if c == nil {
-		return ""
-	}
-	return Predicate(c.Text)
-}
-
 func edgeOf(e *EdgeSyntax) Edge {
 	fields := make([]Field, 0, len(e.Event.Fields))
 	for _, f := range e.Event.Fields {
@@ -102,8 +95,8 @@ func edgeOf(e *EdgeSyntax) Edge {
 		Src:   StateID(e.Src),
 		Dst:   StateID(e.Dst),
 		Event: NewEvent(e.Event.Channel, fields...),
-		Guard: predicateOf(e.Guard),
-		Post:  predicateOf(e.Post),
+		Guard: e.Guard,
+		Post:  e.Post,
 		Line:  e.Line,
 	}
 }

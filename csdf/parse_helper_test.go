@@ -32,3 +32,11 @@ func (p plainParser) parse() (*Diagram, error) { return parseAccepting(p.input) 
 func newParser(input string) plainParser {
 	return plainParser{input: input}
 }
+
+// textOf is the text of the clause c, "" when it is not written.
+func textOf(c *ClauseSyntax) Predicate {
+	if c == nil {
+		return ""
+	}
+	return Predicate(c.Text)
+}
