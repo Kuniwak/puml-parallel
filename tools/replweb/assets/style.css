@@ -15,6 +15,9 @@
   --error-bg: #fdecec;
   --error-text: #a51d1d;
   --var: #0b57d0;
+  --state-bg: #f1f1f1;
+  --state-border: #6b6b6b;
+  --state-text: #1c1f24;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -33,6 +36,9 @@
     --error-bg: #3d1c1c;
     --error-text: #ffb3b3;
     --var: #8ab4ff;
+    --state-bg: #2b3038;
+    --state-border: #8a919c;
+    --state-text: #e6e9ee;
   }
 }
 * { box-sizing: border-box; }
@@ -245,7 +251,7 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 .instance-head { display: flex; align-items: center; gap: .1rem .4rem; flex-wrap: wrap; }
 .instance-head .dot { margin-right: 0; }
 .instance-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.instance-at { font-weight: 600; font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
+.instance-at { font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
 .instance-at::before { content: "→ "; color: var(--muted); font-weight: normal; }
 .instance-at.changed { border-radius: 3px; padding: 0 .2rem; }
 .instance .values { margin-left: 1.1rem; }
@@ -294,3 +300,7 @@ button.help { width: 1.25rem; height: 1.25rem; padding: 0; border-radius: 50%; f
 .value-table.changes > tbody > tr > th:first-child, .value-table.changes > tr > th:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
 .value-table.changes .none { color: var(--muted); }
 #history li.pending .determined { flex-basis: 100%; }
+.state-chip { display: inline-flex; align-items: stretch; max-width: 100%; vertical-align: baseline; border: 1px solid var(--state-border); border-radius: 4px; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; font-style: normal; }
+.state-tag { display: inline-flex; align-items: center; padding: 0 .35rem; background: var(--state-border); color: var(--state-bg); font-size: .7rem; font-weight: 600; white-space: nowrap; }
+.state-body { padding: 0 .35rem; background: var(--state-bg); color: var(--state-text); font-size: .92em; font-weight: 600; overflow-wrap: anywhere; }
+.instance-at.changed .state-body { background: var(--changed); }
