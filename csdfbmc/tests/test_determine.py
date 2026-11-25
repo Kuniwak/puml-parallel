@@ -219,10 +219,6 @@ def other_of(*terms):
     return Builtin("at", terms, states=("s",))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class KeyedTest(unittest.TestCase):
     def test_the_parts_of_a_record_a_map_is_read_at_are_drawn_from_its_keys(self):
         M = Free("m")
@@ -244,3 +240,7 @@ class KeyedTest(unittest.TestCase):
             with self.subTest(name):
                 # Execute / Assert
                 self.assertEqual(want, keyed(tuple(guard), levels, {"m", "n"}))
+
+
+if __name__ == "__main__":
+    unittest.main()
