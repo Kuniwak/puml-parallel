@@ -253,11 +253,19 @@ line comments, which PlantUML does not draw, like `CSDF-IGNORE`
   read, as `m[k].<variable>`.
 
 A global clause, a sync clause and a constrain read only what the local
-diagram declares: `@at` names declared views, and `m[k].x` names declared
-variables. Whether an instance exists, `@in` and `@notin` of its key, is
+diagram declares: `@at` names declared views, `m[k].x` names declared
+variables, and `m[k]`, the instance as the map of its variables, is read
+only when the local diagram declares every one of its variables. Whether an instance exists, `@in` and `@notin` of its key, is
 always observed, since the map's domain is it. A local diagram with no
-`CSDF-OBSERVE` line observes everything: its local state, which `@at` reads
-by state names, and every variable.
+`CSDF-OBSERVE` line declares, for each state but its start state, a view
+of that state alone named after it, and every variable: `@at(m[k], S)`
+reads the view `S`.
+
+A `csdfbmc` glue sees an instance, in a map it is given whole, as the map
+of the variables its local diagram observes, and reads its views with
+`at(r, <view>, …)`, which holds when `r` is at one of the named views of
+its family; a name that is no view of its family is an error. `at` reads
+the position only; nothing reads what an instance can do next.
 
 The observation decides which local diagrams are interchangeable inside a
 promotion: two local diagrams are interchangeable if their ⟦P♯⟧ are

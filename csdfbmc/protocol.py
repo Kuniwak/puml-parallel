@@ -9,7 +9,7 @@ argument each hole reads; and whether each argument is a value after the
 step. A glue never sees a name; values come by argument index. The requests
 are:
 
-- {"op": "hello", "protocol": 2} -> {"language": NAME, "protocol": 2}, first.
+- {"op": "hello", "protocol": 3} -> {"language": NAME, "protocol": 3}, first.
   It may add "supports": [OP, ...], the optional requests below it answers.
 - {"op": "guard", "atom": ATOM, "values": [[VALUE, ...], ...]}
   -> {"results": [true | false, ...]}, one per list of values.
@@ -47,8 +47,12 @@ Values cross the protocol in a tagged JSON encoding, since JSON has no
 tuples, sets or maps with keys other than strings: integers, finite
 floats, strings, booleans and null as themselves, and {"tuple": [...]}, {"set": [...]},
 {"map": [[key, value], ...]} for the containers of csdfbmc.values. An
-instance of a family crosses as the map of its fields: its state is a
-position, which a glue never sees (docs/CLAUSE_DESIGN.md, control state).
+instance of a family crosses as {"instance": {"fields": [[key, value],
+...], "at": [VIEW, ...], "views": [VIEW, ...]}}: the fields its family
+observes, the views it is at and every view of its family
+(docs/PROMOTION.md, Observations). A glue reads it as the map of its
+fields, equal to one with the same entries, and reads the views only
+through at(r, VIEW, ...); its local state is not carried.
 A number with a point or an exponent is a float and any other an integer,
 of any size: 1 and 1.0 are two values, which a glue keeps apart
 (docs/CLAUSE_DESIGN.md, Literals). NaN and the infinities, which JSON
@@ -57,8 +61,7 @@ cannot write, are no values; negative zero, which a glue may well compute
 
 hello comes first and agrees on the protocol for the rest of the session: a
 glue refuses a request before it and a hello asking a protocol it does not
-speak. Protocol 1, which named clauses and asked analyse and beyond, is no
-longer spoken.
+speak. Only protocol 3 is spoken.
 
 A glue written in Python may also be loaded in-process: a module whose
 evaluator(args) returns a function from a request to its answer, with the
@@ -73,12 +76,12 @@ import subprocess
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap, FrozenSet, kind_key, unsigned_zero
+from csdfbmc.values import FrozenMap, FrozenSet, Instance, kind_key, unsigned_zero, views_key
 
 _TAGS = ("tuple", "set", "map")
 
 # The protocol of atoms, the one the checker speaks.
-PROTOCOL = 2
+PROTOCOL = 3
 
 
 def to_wire(value):
@@ -89,6 +92,9 @@ def to_wire(value):
         if not math.isfinite(value):
             raise TypeError(f"{value!r} is not a value the protocol carries: a float is finite")
         return unsigned_zero(value)
+    if isinstance(value, Instance):
+        return {"instance": {"fields": [[to_wire(k), to_wire(v)] for k, v in value.items()],
+                             "at": sorted(value._at), "views": sorted(value._views)}}
     if isinstance(value, Mapping):
         return {"map": [[to_wire(k), to_wire(v)] for k, v in value.items()]}
     if isinstance(value, tuple):
@@ -105,6 +111,12 @@ def from_wire(wire):
         return wire
     if isinstance(wire, float) and math.isfinite(wire):
         return unsigned_zero(wire)
+    if isinstance(wire, dict) and wire.keys() == {"instance"}:
+        r = wire["instance"]
+        if (isinstance(r, dict) and r.keys() == {"fields", "at", "views"} and isinstance(r["fields"], list)
+                and all(isinstance(kv, list) and len(kv) == 2 for kv in r["fields"])
+                and all(isinstance(n, list) and all(isinstance(v, str) for v in n) for n in (r["at"], r["views"]))):
+            return Instance(((from_wire(k), from_wire(v)) for k, v in r["fields"]), at=r["at"], views=r["views"])
     if isinstance(wire, dict) and len(wire) == 1:
         (tag, items), = wire.items()
         if tag in _TAGS and isinstance(items, list):
@@ -114,7 +126,7 @@ def from_wire(wire):
                 return FrozenSet(from_wire(v) for v in items)
             if all(isinstance(kv, list) and len(kv) == 2 for kv in items):
                 return FrozenMap((from_wire(k), from_wire(v)) for k, v in items)
-    raise ValueError(f"{wire!r} is not a value in the tagged encoding: a scalar, or one of {list(_TAGS)} as the only key")
+    raise ValueError(f"{wire!r} is not a value in the tagged encoding: a scalar, or one of {list(_TAGS) + ['instance']} as the only key")
 
 
 class EvaluatorError(Exception):
@@ -473,7 +485,7 @@ class Memoising:
 
     def _ask(self, op: str, atom: dict, values: list[list]) -> list:
         shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
-        keys = [(op, shape, kind_key(tuple(vs))) for vs in values]
+        keys = [(op, shape, kind_key(tuple(vs)), views_key(tuple(vs))) for vs in values]
         asked: dict[tuple, list] = {}
         for key, vs in zip(keys, values):
             if key not in self._answers:

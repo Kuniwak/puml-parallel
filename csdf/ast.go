@@ -41,7 +41,22 @@ type Diagram struct {
 	// Channels are the channels the channel notes declare, in the order
 	// they are written.
 	Channels []ChannelDecl `json:"channels,omitempty"`
+	// Observes are the observations the CSDF-OBSERVE lines declare, in the
+	// order they are written; nil when there is none, and the diagram
+	// observes everything (docs/PROMOTION.md, Observations).
+	Observes []Observe `json:"observes,omitempty"`
 }
+
+// Observe is one CSDF-OBSERVE line: a view Name of the local states States,
+// or, when States is nil, the state variable Name.
+type Observe struct {
+	Name   string    `json:"name"`
+	States []StateID `json:"states,omitempty"`
+	Line   int       `json:"line"` // 1-based source line of the CSDF-OBSERVE line.
+}
+
+// IsView says whether o declares a view rather than a variable.
+func (o Observe) IsView() bool { return o.States != nil }
 
 // ChannelDecl declares a channel and the type of each of its fields, in
 // order; a channel with no field has none.

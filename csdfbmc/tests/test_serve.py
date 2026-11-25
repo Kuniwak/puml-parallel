@@ -10,7 +10,7 @@ from csdfbmc.serve import main
 class ServeTest(unittest.TestCase):
     def test_a_module_glue_answers_over_lines(self):
         # Setup
-        lines = [{"op": "hello", "protocol": 2},
+        lines = [{"op": "hello", "protocol": 3},
                  {"op": "lint", "atom": {"text": ["", " > LIMIT"], "holes": [0], "primed": [False]}, "role": "guard"}]
         stdin = io.StringIO("".join(json.dumps(r) + "\n" for r in lines))
         stdout = io.StringIO()

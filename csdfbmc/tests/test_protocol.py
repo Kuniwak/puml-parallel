@@ -13,11 +13,11 @@ import warnings
 from csdfbmc.protocol import (NO_CLOSE, NO_LINT, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
                               start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
-from csdfbmc.values import FrozenMap, same_value
+from csdfbmc.values import FrozenMap, Instance, at, same_value
 
 GREATER = {"text": ["", " > ", ""], "holes": [0, 1], "primed": [False, False]}
 NEXT = {"text": ["", " == ", " + 1"], "holes": [0, 1], "primed": [True, False]}
-HELLO = {"language": "fake", "protocol": 2}
+HELLO = {"language": "fake", "protocol": 3}
 
 
 class WireEncodingTest(unittest.TestCase):
@@ -48,6 +48,39 @@ class WireEncodingTest(unittest.TestCase):
     def test_a_nested_value_comes_back_equal_through_json(self):
         v = FrozenMap({"t1": FrozenMap({"state": "印刷済み", "枚数": 2}), 3: (1, frozenset({"a"}))})
         self.assertEqual(v, from_wire(json.loads(json.dumps(to_wire(v)))))
+
+    def test_an_instance_crosses_with_its_fields_the_views_it_is_at_and_its_family_s_views(self):
+        # Setup
+        r = Instance(FrozenMap({"cnt": 1}), at={"live"}, views={"live", "gone"})
+
+        # Execute
+        wire = to_wire(r)
+        back = from_wire(json.loads(json.dumps(wire)))
+
+        # Assert
+        self.assertEqual({"instance": {"fields": [["cnt", 1]], "at": ["live"], "views": ["gone", "live"]}}, wire)
+        self.assertTrue(same_value(r, back))
+        self.assertEqual((True, False), (at(back, "live"), at(back, "gone")))
+
+    def test_a_checked_glue_asks_again_of_an_instance_at_other_views(self):
+        # Setup
+        asked = []
+        def handle(request):
+            if request["op"] == "hello":
+                return HELLO
+            asked.append(request["values"])
+            return {"results": [True for _ in request["values"]]}
+        client = checked(Client(handle, NO_CLOSE))
+        live = Instance(FrozenMap({"cnt": 1}), at={"live"}, views={"live", "gone"})
+        gone = Instance(FrozenMap({"cnt": 1}), at={"gone"}, views={"live", "gone"})
+
+        # Execute
+        client.guard(GREATER, [[FrozenMap(a=live), 0]])
+        client.guard(GREATER, [[FrozenMap(a=gone), 0]])
+        client.guard(GREATER, [[FrozenMap(a=live), 0]])
+
+        # Assert
+        self.assertEqual(2, len(asked))
 
     def test_a_boolean_stays_a_boolean(self):
         self.assertIs(True, from_wire(to_wire(True)))
@@ -116,8 +149,8 @@ class ClientTest(unittest.TestCase):
 
     def test_a_wrong_answer_is_refused(self):
         tests = {
-            "a glue speaking protocol 1": ({"hello": {"language": "old", "protocol": 1}}, lambda c: None, "protocol 2"),
-            "a hello naming no language": ({"hello": {"protocol": 2}}, lambda c: None, "names no language"),
+            "a glue speaking protocol 1": ({"hello": {"language": "old", "protocol": 1}}, lambda c: None, "protocol 3"),
+            "a hello naming no language": ({"hello": {"protocol": 3}}, lambda c: None, "names no language"),
             "a hello whose supports are not names": ({"hello": dict(HELLO, supports=[1])}, lambda c: None, "not a list of requests"),
             "fewer results than lists of values":
                 ({"hello": HELLO, "guard": {"results": [True]}}, lambda c: c.guard(GREATER, [[1, 2], [3, 4]]), "one result per list of values"),
@@ -176,7 +209,7 @@ class CheckedTest(unittest.TestCase):
 
 
 class HandlerTest(unittest.TestCase):
-    """A glue speaks protocol 2 after its hello agreed on it, and only that."""
+    """A glue speaks protocol 3 after its hello agreed on it, and only that."""
 
     def handle(self):
         return atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC, lint=NO_LINT)
@@ -193,7 +226,7 @@ class HandlerTest(unittest.TestCase):
                 # Setup
                 handle = self.handle()
                 if greet:
-                    handle({"op": "hello", "protocol": 2})
+                    handle({"op": "hello", "protocol": 3})
 
                 # Execute
                 answer = handle(request)
@@ -202,17 +235,17 @@ class HandlerTest(unittest.TestCase):
                 self.assertIn(said, answer.get("error", ""))
 
     def test_a_hello_asking_another_protocol_is_refused(self):
-        for name, hello in {"protocol 1, named by none": {"op": "hello"}, "protocol 3": {"op": "hello", "protocol": 3}}.items():
+        for name, hello in {"protocol 1, named by none": {"op": "hello"}, "protocol 2": {"op": "hello", "protocol": 2}}.items():
             with self.subTest(name):
                 # Execute
                 answer = self.handle()(hello)
 
                 # Assert
-                self.assertIn("speaks protocol 2", answer.get("error", ""))
+                self.assertIn("speaks protocol 3", answer.get("error", ""))
 
     def test_a_glue_without_symmetric_supports_nothing(self):
         # Execute
-        hello = self.handle()({"op": "hello", "protocol": 2})
+        hello = self.handle()({"op": "hello", "protocol": 3})
 
         # Assert
         self.assertEqual(HELLO, hello)
@@ -224,13 +257,13 @@ class LintHandlerTest(unittest.TestCase):
 
     def handle(self, lint):
         handle = atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC, lint=lint)
-        handle({"op": "hello", "protocol": 2})
+        handle({"op": "hello", "protocol": 3})
         return handle
 
     def test_a_glue_with_lint_supports_it(self):
         # Execute
         hello = atom_handler("fake", guard=lambda a, vs: True, post=lambda a, vs: [], symmetric=NO_SYMMETRIC,
-                             lint=lambda a, role: None)({"op": "hello", "protocol": 2})
+                             lint=lambda a, role: None)({"op": "hello", "protocol": 3})
 
         # Assert
         self.assertEqual(dict(HELLO, supports=["lint"]), hello)
@@ -258,26 +291,26 @@ class ServeTest(unittest.TestCase):
         return [json.loads(line) for line in out.getvalue().splitlines()]
 
     def test_a_line_that_is_not_a_request_is_answered_with_an_error(self):
-        answers = self.serve(["not json", json.dumps({"op": "hello", "protocol": 2})], lambda r: HELLO)
+        answers = self.serve(["not json", json.dumps({"op": "hello", "protocol": 3})], lambda r: HELLO)
         self.assertIn("error", answers[0])
         self.assertEqual(HELLO, answers[1])
 
     def test_what_the_handle_raises_is_answered_with_an_error(self):
         def handle(request):
             raise KeyError("boom")
-        self.assertIn("boom", self.serve([json.dumps({"op": "hello", "protocol": 2})], handle)[0]["error"])
+        self.assertIn("boom", self.serve([json.dumps({"op": "hello", "protocol": 3})], handle)[0]["error"])
 
     def test_the_values_of_an_atom_post_are_encoded_both_ways(self):
         # Setup
         def handle(request):
             if request["op"] == "hello":
-                return {"language": "fake", "protocol": 2}
+                return {"language": "fake", "protocol": 3}
             return {"results": [[[frozenset(vs)]] for vs in request["values"]]}
         request = {"op": "post", "atom": {"text": ["", " == ", ""], "holes": [0, 1], "primed": [True, False]},
                    "values": [[{"set": [1]}]]}
 
         # Execute
-        answers = self.serve([json.dumps({"op": "hello", "protocol": 2}), json.dumps(request)], handle)
+        answers = self.serve([json.dumps({"op": "hello", "protocol": 3}), json.dumps(request)], handle)
 
         # Assert
         self.assertEqual({"results": [[[{"set": [{"set": [1]}]}]]]}, answers[1])

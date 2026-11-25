@@ -46,7 +46,7 @@ ignore_end = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-IGNORE-END" *(HTAB / SP) LF
 ignore_line = *unicode_char LF
 observe_line = observe_marker (observe_view / var) *(HTAB / SP) LF
 observe_marker = *(HTAB / SP) "'" *(HTAB / SP) "CSDF-OBSERVE" 1*(HTAB / SP)
-observe_view = name *(HTAB / SP) "=" *(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)
+observe_view = name *(HTAB / SP) "=" [*(HTAB / SP) stateID *(*(HTAB / SP) "," *(HTAB / SP) stateID)]
 block_comment = "/'" *(LF / unicode_char_except_squote / (%x27 unicode_char_except_slash)) "'/"
 unicode_letter = <any character in Unicode general category L>
 unicode_digit = <any character in Unicode general category N>
@@ -74,10 +74,13 @@ discarded. The marker is followed by a tab or a space, so `' CSDF-OBSERVED` and
 `' CSDF-OBSERVE-X` are plain line comments. Inside `observe_line` only tabs and spaces
 separate, never a block comment, as in `ignore_begin`. An `observe_line` declares an observation of a local
 diagram (docs/PROMOTION.md, Observations), and PlantUML draws nothing for it.
-`' CSDF-OBSERVE c = S₁, …` declares the view `c` of the states `S₁ …`; `' CSDF-OBSERVE x`
+`' CSDF-OBSERVE c = S₁, …` declares the view `c` of the states `S₁ …`, and
+`' CSDF-OBSERVE c =` a view of no state, at which no instance is; `' CSDF-OBSERVE x`
 declares the state variable `x`. A view name is distinct from every state ID and every
 state variable of the diagram, and a view lists distinct states of the diagram, none its
 start state; a variable is one some state holds; a view or variable is declared once. A
+diagram with no `observe_line` declares, for each state but its start state, the view of
+that state alone named after it, and every variable. A
 line that matches `observe_marker` and is not an `observe_line` is a parse error.
 A diagram that is not a local diagram of a promotion may declare observations; they say
 nothing until it is promoted.
@@ -279,7 +282,7 @@ builtin  = "@eq(" term ", " term ")"        ; equal
          / "@notin(" term ", " term ")"     ; key not in the domain of a map
          / "@update(" term ", " term ", " term ", " term ")"  ; after, before, key, value
          / "@frame(" term ", " term *(", " term) ")"          ; after, before, keys
-         / "@at(" term 1*(", " id) ")"      ; instance at one of the states, or declared views, of its local diagram
+         / "@at(" term 1*(", " id) ")"      ; instance at one of the views of its local diagram
          / "@empty(" term ")"               ; a map without entries
 exists   = "@exists(" name " : " type ") (" clause ")"
 type     = <a type, as a state variable declares it: a name, any, or K ⇸ V>
@@ -428,7 +431,10 @@ end note
     the instance's local diagram observes it.
 - A local diagram's `CSDF-OBSERVE` lines declare what the clauses of the
   global diagram may read of its instances (docs/PROMOTION.md,
-  Observations); a local diagram with none observes everything.
+  Observations); a local diagram with none observes a view of each
+  state, named after it, and every variable. `@at` names declared views,
+  `m[k].x` a declared variable, and `m[k]` is read only when every
+  variable of the local diagram is declared.
 - `CSDF-IGNORE` regions, `'` comments and preprocessor lines such as
   `!define` are for the picture and are skipped.
 - A second `sync` of one event, a second block of one map, and

@@ -6,7 +6,9 @@ csdfbmc loads in-process with --evaluator-module; run as a command
 (python3 -m csdfbmc.python_glue), it speaks the same requests as JSON lines
 on its standard input and output.
 
-An atom is a Python expression whose holes are names of their own. A guard
+An atom is a Python expression whose holes are names of their own. An
+instance of a family is the map of its fields, and at(r, VIEW, ...) says
+whether it is at one of the views of its family. A guard
 atom is any expression; a post atom is $x' == expression, $x' in
 expression, or a tuple of every value after the step on the left, where
 expression reads none of them. An atom that is not Python of the pure
@@ -24,7 +26,7 @@ from typing import Callable
 from csdfbmc.formal import FORMAL_GLOBALS, free_names, tells_apart
 from csdfbmc.protocol import atom_handler, atom_text
 from csdfbmc.checks import PurityError, check_pure
-from csdfbmc.values import freeze
+from csdfbmc.values import at, freeze
 
 LANGUAGE = "python"
 
@@ -35,7 +37,7 @@ class Glue:
     the atoms, checked against the pure subset like a checks module."""
 
     def __init__(self, defs: list[str]):
-        self.globals = dict(FORMAL_GLOBALS)
+        self.globals = dict(FORMAL_GLOBALS, at=at)
         for path in defs:
             self.globals.update(_load_defs(path))
         self._compiled: dict[str, object] = {}

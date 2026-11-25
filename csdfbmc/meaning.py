@@ -4,7 +4,8 @@ and the glue's answer for every other atom (csdfbmc.protocol). The checker
 knows no clause language by name.
 
 A glue receives the values of an atom's arguments by index, each instance
-of a family as the map of its fields (csdfbmc.values.visible).
+of a family as the map of the fields its family observes
+(csdfbmc.values.visible).
 """
 from __future__ import annotations
 
@@ -18,15 +19,16 @@ from csdfbmc.protocol import ClientLike
 from csdfbmc.values import freeze, same_value, visible
 
 
-def apply_given(given: Mapping[str, object]) -> Callable[[str, tuple], object]:
+def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tuple], object]:
     """The apply of an Evaluator: the environment function of a term (App)
     named fn, as the checks module's ENVIRONMENT gives it, applied to the
-    values of its arguments as a glue sees them."""
+    values of its arguments as a glue sees them, seen giving the fields
+    observed at each local state (csdfbmc.model.observed_by_state)."""
     def apply(fn: str, args: tuple):
         g = given.get(fn)
         if not callable(g):
             raise ValueError(f"no environment function {fn}, which a term applies, is given in ENVIRONMENT")
-        return freeze(g(*(visible(a) for a in args)))
+        return freeze(g(*(visible(a, seen) for a in args)))
     return apply
 
 
@@ -34,13 +36,18 @@ class AtomMeaning:
     """The meaning of the atoms: environment decides the declared ones, the
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
     carrier gives the values of a type, for the values after the
-    step of a post atom the environment decides."""
+    step of a post atom the environment decides, and seen the fields
+    observed at each local state (csdfbmc.model.observed_by_state)."""
 
-    def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list]):
+    def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list], seen: Mapping):
         self.client = client
         self.environment = environment
         self.carrier = carrier
+        self.seen = seen
         self.decided: dict[str, None] = {}
+
+    def _visible(self, value):
+        return visible(value, self.seen)
 
     def of_environment(self, atom: Atom) -> bool:
         return atom.function in self.environment.declared
@@ -56,18 +63,18 @@ class AtomMeaning:
         """Whether an atom that reads no value after the step holds of the
         values of its arguments."""
         if self.of_environment(atom):
-            return self._decide(atom, tuple(visible(a) for a in args))
-        return self.client.guard(atom.wire, [[visible(a) for a in args]])[0]
+            return self._decide(atom, tuple(self._visible(a) for a in args))
+        return self.client.guard(atom.wire, [[self._visible(a) for a in args]])[0]
 
     def post(self, atom: Atom, before: list, types: list[str]) -> list[tuple]:
         """The values after the step of the primed arguments, in order, that
         an atom allows from the values before it of the others. names name
         the primed arguments' types, over which the environment chooses."""
         if not self.of_environment(atom):
-            return [tuple(freeze(v) for v in after) for after in self.client.post(atom.wire, [[visible(a) for a in before]])[0]]
+            return [tuple(freeze(v) for v in after) for after in self.client.post(atom.wire, [[self._visible(a) for a in before]])[0]]
         out = []
         for after in itertools.product(*(self.carrier(t) for t in types)):
-            if self._decide(atom, tuple(visible(a) for a in self.merge(atom, before, list(after)))):
+            if self._decide(atom, tuple(self._visible(a) for a in self.merge(atom, before, list(after)))):
                 out.append(tuple(after))
         return out
 
@@ -75,10 +82,10 @@ class AtomMeaning:
         """Whether an atom that reads values after the step holds of the
         values of all its arguments."""
         if self.of_environment(atom):
-            return self._decide(atom, tuple(visible(a) for a in args))
+            return self._decide(atom, tuple(self._visible(a) for a in args))
         before = [a for a, p in zip(args, atom.primed) if not p]
-        after = tuple(visible(a) for a, p in zip(args, atom.primed) if p)
-        return any(same_value(after, tuple(visible(v) for v in t)) for t in self.post(atom, before, []))
+        after = tuple(self._visible(a) for a, p in zip(args, atom.primed) if p)
+        return any(same_value(after, tuple(self._visible(v) for v in t)) for t in self.post(atom, before, []))
 
     @staticmethod
     def merge(atom: Atom, before: list, after: list) -> list:

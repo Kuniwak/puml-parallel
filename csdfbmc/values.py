@@ -124,6 +124,48 @@ class FrozenMap(Mapping):
         return FrozenMap, (tuple(self._d.values()),)
 
 
+class Instance(FrozenMap):
+    """An instance of a family as a glue sees it: the map of the fields it
+    observes, with the views it is at, _at, among the views of its
+    family, _views (docs/PROMOTION.md, Observations). It is the value of the
+    map of its fields, wherever it is (kind_key), so that an atom compares
+    it with a map; views_key tells where it is."""
+
+    __slots__ = ("_at", "_views")
+
+    def __init__(self, fields=(), /, *, at, views):
+        super().__init__(fields)
+        object.__setattr__(self, "_at", frozenset(at))
+        object.__setattr__(self, "_views", frozenset(views))
+
+    def __repr__(self):
+        return f"Instance({super().__repr__()}, at={sorted(self._at)!r})"
+
+    def __reduce__(self):
+        return _instance, (tuple(self._d.values()), tuple(self._at), tuple(self._views))
+
+
+def views_key(value):
+    """Where each instance in value is, the views it is at and those of its
+    family, in the order kind_key would meet them: with kind_key, a key that
+    tells apart two values an atom may answer differently about. None when
+    value holds no instance."""
+    if isinstance(value, Instance):
+        return (value._at, value._views, views_key(FrozenMap(value)))
+    if isinstance(value, Mapping):
+        found = [(kind_key(k), views_key(k), views_key(v)) for k, v in value.items()]
+    elif isinstance(value, (tuple, AbstractSet)):
+        found = [(kind_key(v), views_key(v)) for v in value]
+    else:
+        return None
+    kept = frozenset(f for f in found if any(x is not None for x in f[1:]))
+    return kept or None
+
+
+def _instance(fields, at, views):
+    return Instance(fields, at=at, views=views)
+
+
 class _Items(ItemsView):
     """The entries of a FrozenMap, an entry among them when its key and its
     value are of their kinds (kind_key)."""
@@ -270,18 +312,36 @@ def unsigned_zero(f: float) -> float:
     return f + 0.0
 
 
-def visible(value):
-    """value as a glue, a ghost update or an invariant sees it: each
-    instance as the map of its fields, without its state."""
+def visible(value, seen: Mapping = FrozenMap()):
+    """value as a glue, a ghost update or an invariant sees it. seen gives,
+    for a local state, what a clause sees of an instance there
+    (csdfbmc.model.observed_by_state): an instance at a state it gives is
+    the Instance of the fields it observes and the views it is at; at a
+    state it does not, the map of all its fields, without its state."""
     if isinstance(value, Rec):
-        return FrozenMap((k, visible(v)) for k, v in value.fields.items())
+        fields = ((k, visible(v, seen)) for k, v in value.fields.items())
+        s = seen.get(value.state)
+        if s is None:
+            return FrozenMap(fields)
+        return Instance(((k, v) for k, v in fields if s.fields is None or k in s.fields), at=s.at, views=s.views)
     if isinstance(value, FrozenMap):
-        return FrozenMap((visible(k), visible(v)) for k, v in value.items())
+        return FrozenMap((visible(k, seen), visible(v, seen)) for k, v in value.items())
     if isinstance(value, tuple):
-        return tuple(visible(v) for v in value)
+        return tuple(visible(v, seen) for v in value)
     if isinstance(value, AbstractSet):
-        return FrozenSet(visible(v) for v in value)
+        return FrozenSet(visible(v, seen) for v in value)
     return value
+
+
+def at(r, *views) -> bool:
+    """Whether the instance r is at one of views, each a view of its family
+    (docs/PROMOTION.md, Observations)."""
+    if not isinstance(r, Instance):
+        raise ValueError(f"at reads an instance of a family, not {r!r}")
+    for v in views:
+        if v not in r._views:
+            raise ValueError(f"at: {v} is no view of the instance; its views are {', '.join(sorted(r._views)) or 'none'}")
+    return any(v in r._at for v in views)
 
 
 def freeze(value):

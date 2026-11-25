@@ -39,7 +39,7 @@ func (f Family) States() FamilyStates {
 			vars[s] = slices.Clone(vs)
 		}
 	}
-	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types), Blocks: maps.Clone(f.Blocks)}
+	return FamilyStates{Map: f.Map, Key: f.ID, KeyType: f.Key, Init: f.Local.Init, States: slices.Clone(f.Local.States), Vars: vars, Types: maps.Clone(f.Local.Types), Blocks: maps.Clone(f.Blocks), Observes: f.Local.Observes}
 }
 
 // movesIn says whether f takes its events in mode.
@@ -145,6 +145,10 @@ func Promote(p Promotion) (*Diagram, []Warning, error) {
 		maps = append(maps, f.Map)
 		out.Families = append(out.Families, f.States())
 		start = append(start, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{clause.Free{Name: f.Map, Primed: true}}})
+	}
+	p, err := p.Observed()
+	if err != nil {
+		return nil, nil, fmt.Errorf("core.Promote: %w", err)
 	}
 	if err := controllerVars(p, maps); err != nil {
 		return nil, nil, fmt.Errorf("core.Promote: %w", err)
