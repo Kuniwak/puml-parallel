@@ -213,7 +213,7 @@ end note
 			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n' CSDF-IGNORE-BEGIN\nskinparam x y\n@enduml\n",
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      "unterminated CSDF-IGNORE region",
+			wantStderr:      "Error: csdf.Parser.skipIgnoreRegion: unterminated CSDF-IGNORE region at line 4, col 1",
 		},
 		"a warning is printed at its level": {
 			args:       []string{"../../../examples/promote/MODES.puml"},
