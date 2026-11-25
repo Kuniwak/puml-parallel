@@ -270,17 +270,21 @@ def unsigned_zero(f: float) -> float:
     return f + 0.0
 
 
-def visible(value):
+def visible(value, seen: Mapping = FrozenMap()):
     """value as a glue, a ghost update or an invariant sees it: each
-    instance as the map of its fields, without its state."""
+    instance as the map of its fields, without its state. seen gives, for
+    a local state, the only fields seen of an instance there (the
+    observation of its family, csdfbmc.model.observed_fields); every field
+    of an instance at a state it does not give."""
     if isinstance(value, Rec):
-        return FrozenMap((k, visible(v)) for k, v in value.fields.items())
+        kept = seen.get(value.state)
+        return FrozenMap((k, visible(v, seen)) for k, v in value.fields.items() if kept is None or k in kept)
     if isinstance(value, FrozenMap):
-        return FrozenMap((visible(k), visible(v)) for k, v in value.items())
+        return FrozenMap((visible(k, seen), visible(v, seen)) for k, v in value.items())
     if isinstance(value, tuple):
-        return tuple(visible(v) for v in value)
+        return tuple(visible(v, seen) for v in value)
     if isinstance(value, AbstractSet):
-        return FrozenSet(visible(v) for v in value)
+        return FrozenSet(visible(v, seen) for v in value)
     return value
 
 
