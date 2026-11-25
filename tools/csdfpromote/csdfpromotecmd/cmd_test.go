@@ -98,6 +98,14 @@ func TestNewMainFunc(t *testing.T) {
 			wantStdout:   []string{`"version":3`, `"kind":"builtin","op":"notin"`},
 			wantNoStdout: []string{"@startuml", `"origin"`},
 		},
+		"-format json prints a diagram with no directive as it is, its end edge included": {
+			args:       []string{"-format", "json", "../../../examples/valid/skip.puml"},
+			wantStdout: []string{`"version":3`, `"ends":[{"src":"s0","guard":[]}]`},
+		},
+		"a diagram with no directive is printed as it is": {
+			args:       []string{"../../../examples/valid/skip.puml"},
+			wantStdout: []string{"s0 --> [*]"},
+		},
 		"an unknown -format is refused": {
 			args:            []string{"-format", "tsv", membersPath},
 			wantExit:        1,
