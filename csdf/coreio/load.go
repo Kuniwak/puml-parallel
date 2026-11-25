@@ -147,20 +147,33 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
+	d, warnings, err := ExpandTree(tree, include, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	return d, warnings, nil
+}
+
+// ExpandTree is the diagram tree says, as the tools evaluate it: Lower's
+// when it holds no promotion directive (csdf.HoldsDirectives), with no
+// warnings; otherwise the expansion of the global diagram it is
+// (ReadPromotionTree, each !include read by include, then Expand with
+// keep), with the warnings of the promotion.
+func ExpandTree(tree *csdf.SyntaxTree, include Include, keep []string) (*core.Diagram, []core.Warning, error) {
 	if !csdf.HoldsDirectives(tree.Body) {
 		d, err := Lower(tree)
 		if err != nil {
-			return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+			return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 		}
 		return d, nil, nil
 	}
-	prom, err := ReadPromotion(src, include)
+	prom, err := ReadPromotionTree(tree, include)
 	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 	}
-	expanded, warnings, err := Expand(prom, nil)
+	expanded, warnings, err := Expand(prom, keep)
 	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 	}
 	return expanded, warnings, nil
 }
