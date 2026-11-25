@@ -118,20 +118,6 @@ func ReadBytes(raw []byte) (*core.Diagram, error) {
 	return d, nil
 }
 
-// ReadPromotionBytes reads the global diagram in raw, a .puml text or a
-// .png, as ReadPromotion does.
-func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
-	src, err := pngsrc.Extract(raw)
-	if err != nil {
-		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: reading PlantUML source: %w", err)
-	}
-	prom, err := ReadPromotion(src, include)
-	if err != nil {
-		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: %w", err)
-	}
-	return prom, nil
-}
-
 // ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
 // ReadBytes does, unless it holds promotion directives
 // (csdf.HoldsDirectives): then it is the expansion csdfpromote
