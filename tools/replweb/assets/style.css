@@ -238,7 +238,6 @@ form input:disabled { background: var(--bg); color: var(--muted); }
 .steps li.done { color: var(--text); }
 .chosen { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; padding: .4rem .6rem; margin: 0 0 .6rem; border: 1px solid var(--border); border-radius: 6px; }
 .chosen .label, .chosen .dst { color: var(--muted); font-size: .85rem; }
-.chosen .event { font-weight: 600; color: var(--accent); }
 .chosen button { margin-left: auto; }
 ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
 .instance { border-left: 3px solid var(--border); padding-left: .45rem; }
@@ -263,3 +262,8 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 }
 @keyframes csdf-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { #diagram-loading .spinner { animation: none; } }
+.event-chip { display: inline-flex; align-items: baseline; gap: .3rem; max-width: 100%; }
+.event-tag { font-size: .7rem; line-height: 1.4; padding: 0 .35rem; border-radius: 3px; background: var(--accent); color: var(--accent-text); font-weight: 600; white-space: nowrap; }
+.event-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; overflow-wrap: anywhere; }
+.choice.blocked .event-tag { background: var(--muted); }
+.choice.blocked .event-name { color: var(--muted); }

@@ -787,7 +787,7 @@
       onmouseenter: () => hover(tr), onmouseleave: () => hover(null),
       onfocus: () => hover(tr), onblur: () => hover(null),
     }, [
-      el("div", { class: "event", text: tr.event }),
+      el("div", { class: "event" }, [eventChip(tr.event)]),
       blocked ? el("p", { class: "reason", text: t("controls.conditionFails") }) : document.createTextNode(""),
       clausesList(rows),
     ]);
@@ -937,7 +937,9 @@
       root.appendChild(el("h2", { text: promoted ? t("values.titleNext") : t("values.title", { state: group.state_name }) }));
       renderValueDetails(root, pending);
     } else {
-      root.appendChild(el("h2", { text: app.choice ? t("suggest.title", { event: app.choice.transition.event }) : t("suggest.titleInitial") }));
+      root.appendChild(app.choice
+        ? el("h2", null, [tNodes("suggest.title", { event: eventChip(app.choice.transition.event) })])
+        : el("h2", { text: t("suggest.titleInitial") }));
       renderValueChoices(root, pending);
     }
   }
@@ -953,12 +955,21 @@
     return el("ol", { class: "steps", "aria-label": t("steps.label") }, [step(1, "steps.choose"), step(2, "steps.values")]);
   }
 
+  // eventChip shows the event name as an event, wherever one is named: a
+  // tag saying so, then the name.
+  function eventChip(name) {
+    return el("span", { class: "event-chip" }, [
+      el("span", { class: "event-tag", text: t("event.tag") }),
+      el("code", { class: "event-name", text: name }),
+    ]);
+  }
+
   // chosenBox says which transition the values are the result of, with a
   // way back to choosing another.
   function chosenBox(tr) {
     return el("div", { class: "chosen" }, [
       el("span", { class: "label", text: t("chosen.label") }),
-      el("span", { class: "event", text: tr.event }),
+      eventChip(tr.event),
       el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }),
       el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
     ]);
