@@ -226,11 +226,6 @@ form .before { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; 
 form .before code { color: var(--text); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; max-width: 100%; overflow-wrap: anywhere; }
 form .before button { font-size: .75rem; padding: .1rem .4rem; }
 
-form details.shape { font-size: .8rem; margin: .1rem 0 .5rem; }
-form details.shape summary { cursor: pointer; color: var(--accent); }
-form details.shape code.example { display: block; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--accent-soft); padding: .2rem .4rem; border-radius: 3px; }
-form details.shape ul { margin: .2rem 0; padding-left: 1.2rem; }
-form details.shape .fields { color: var(--muted); }
 form input:disabled { background: var(--bg); color: var(--muted); }
 
 /* Variables in clauses, as the diagram's own pictures mark them: in the
@@ -326,3 +321,4 @@ textarea.json-text { display: block; width: 100%; margin-top: .3rem; padding: .3
 textarea.json-text.bad { border-color: var(--error-text); }
 .editor.fixed .row-add, .editor.fixed button.row-remove { display: none; }
 .editor [hidden], .editor[hidden] { display: none !important; }
+.instance-editor { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; }
