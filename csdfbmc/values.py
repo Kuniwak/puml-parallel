@@ -36,6 +36,8 @@ def kind_key(value):
         return (float, value + 0.0)
     if isinstance(value, Rec):
         return (Rec, value.state, kind_key(value.fields))
+    if isinstance(value, Instance):
+        return (Instance, value.views_at, value.views, value._key)
     if isinstance(value, FrozenMap):
         return value._key
     if isinstance(value, Mapping):
@@ -122,6 +124,41 @@ class FrozenMap(Mapping):
     def __reduce__(self):
         # Built again from its entries, each key of its kind.
         return FrozenMap, (tuple(self._d.values()),)
+
+
+class Instance(FrozenMap):
+    """An instance of a family as a glue sees it: the map of the fields it
+    observes, with the views it is at, views_at, among the views of its
+    family, views (docs/PROMOTION.md, Observations). It equals the map of
+    its fields, wherever it is, so that an atom compares it with a map;
+    kind_key tells it apart by its views too, so that an answer about it
+    is never one about it elsewhere."""
+
+    __slots__ = ("views_at", "views")
+
+    def __init__(self, fields=(), /, *, at, views):
+        super().__init__(fields)
+        object.__setattr__(self, "views_at", frozenset(at))
+        object.__setattr__(self, "views", frozenset(views))
+
+    def __eq__(self, other):
+        if isinstance(other, FrozenMap):
+            return self._key == other._key
+        if isinstance(other, Mapping):
+            return self._key == kind_key(other)
+        return NotImplemented
+
+    __hash__ = FrozenMap.__hash__
+
+    def __repr__(self):
+        return f"Instance({super().__repr__()}, at={sorted(self.views_at)!r})"
+
+    def __reduce__(self):
+        return _instance, (tuple(self._d.values()), tuple(self.views_at), tuple(self.views))
+
+
+def _instance(fields, at, views):
+    return Instance(fields, at=at, views=views)
 
 
 class _Items(ItemsView):

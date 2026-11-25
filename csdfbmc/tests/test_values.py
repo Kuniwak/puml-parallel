@@ -3,7 +3,34 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Rec, Strict, same_value, decode, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Instance, Rec, Strict, same_value, decode, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, visible
+
+
+class InstanceTest(unittest.TestCase):
+    def test_equals_the_map_of_its_fields_wherever_it_is(self):
+        # Setup
+        live = Instance(FrozenMap(cnt=1), at={"live"}, views={"live", "gone"})
+        gone = Instance(FrozenMap(cnt=1), at={"gone"}, views={"live", "gone"})
+
+        # Execute, Assert
+        self.assertEqual(live, {"cnt": 1})
+        self.assertEqual(FrozenMap(cnt=1), live)
+        self.assertEqual(live, gone)
+        self.assertEqual(hash(FrozenMap(cnt=1)), hash(live))
+
+    def test_is_another_value_at_other_views(self):
+        # Setup
+        live = Instance(FrozenMap(cnt=1), at={"live"}, views={"live", "gone"})
+        gone = Instance(FrozenMap(cnt=1), at={"gone"}, views={"live", "gone"})
+
+        # Execute, Assert
+        self.assertFalse(same_value(live, gone))
+        self.assertFalse(same_value(live, FrozenMap(cnt=1)))
+        self.assertTrue(same_value(live, pickle.loads(pickle.dumps(live))))
+
+    def test_keeps_a_field_named_like_its_views(self):
+        r = Instance(FrozenMap(views_at=1, views=2), at=set(), views=set())
+        self.assertEqual((1, 2), (r["views_at"], r["views"]))
 
 
 class FrozenMapTest(unittest.TestCase):

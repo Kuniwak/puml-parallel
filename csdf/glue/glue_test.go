@@ -136,7 +136,7 @@ func TestSplitCommandRefusesWhatAShellCannotRead(t *testing.T) {
 
 // fakeGlue is a glue that says hello with lint and then runs script.
 func fakeGlue(script string) *exec.Cmd {
-	return exec.Command("sh", "-c", `read line; echo '{"language": "fake", "protocol": 2, "supports": ["lint"]}'; `+script)
+	return exec.Command("sh", "-c", `read line; echo '{"language": "fake", "protocol": 3, "supports": ["lint"]}'; `+script)
 }
 
 func TestLintRefusesAnAnswerItCannotTrust(t *testing.T) {
@@ -170,7 +170,7 @@ func TestLintRefusesAnAnswerItCannotTrust(t *testing.T) {
 func TestLintSaysTheGlueEndedWithoutAnsweringWhenItStopsReadingFirst(t *testing.T) {
 	// Setup: the glue closes its input before it answers the hello, so the
 	// lint request after the hello cannot be written.
-	c, err := glue.Start(exec.Command("sh", "-c", `read line; exec <&-; echo '{"language": "fake", "protocol": 2, "supports": ["lint"]}'`))
+	c, err := glue.Start(exec.Command("sh", "-c", `read line; exec <&-; echo '{"language": "fake", "protocol": 3, "supports": ["lint"]}'`))
 	if err != nil {
 		t.Fatal(err)
 	}
