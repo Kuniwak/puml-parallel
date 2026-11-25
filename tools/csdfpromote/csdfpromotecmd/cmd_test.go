@@ -84,50 +84,13 @@ func syntaxTreeOf(t *testing.T, path string) string {
 	return string(bs)
 }
 
-func TestNewMainFuncReadsTheSyntaxTreeCsdfparsePrints(t *testing.T) {
-	// Setup
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
-	spy.Stdin = strings.NewReader(syntaxTreeOf(t, "../../../examples/valid/skip.puml"))
-
-	// Execute
-	exitStatus := cmdFunc([]string{"-format", "json"}, spy.New())
-
-	// Assert
-	if exitStatus != 0 {
-		t.Fatalf("want 0, got %d: %s", exitStatus, spy.Stderr.String())
-	}
-	if want := `"ends":[{"src":"s0","guard":[]}]`; !strings.Contains(spy.Stdout.String(), want) {
-		t.Errorf("want %q in the output, got:\n%s", want, spy.Stdout.String())
-	}
-}
-
-// A syntax tree is read as csdfparse printed it, its !include unresolved,
-// even where the file it names is there.
-func TestNewMainFuncRefusesTheIncludeOfASyntaxTree(t *testing.T) {
-	// Setup
-	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
-	spy := cli.SpyProcInout()
-	spy.Stdin = strings.NewReader(syntaxTreeOf(t, membersPath))
-
-	// Execute
-	exitStatus := cmdFunc([]string{"-base", "../../../examples/promote", "-format", "json"}, spy.New())
-
-	// Assert
-	if exitStatus != 1 {
-		t.Fatalf("want 1, got %d", exitStatus)
-	}
-	if want := "csdfinclude"; !strings.Contains(spy.Stderr.String(), want) {
-		t.Errorf("want %q on stderr, got %q", want, spy.Stderr.String())
-	}
-}
-
 // The command's other runs differ only in what they print, so they are one
 // table: the arguments, the exit status, and what standard output has to say.
 func TestNewMainFunc(t *testing.T) {
 	cases := map[string]struct {
 		args            []string
 		stdin           string
+		stdinTreeOf     string // the path whose syntax tree is the standard input
 		wantExit        int
 		wantStdoutEmpty bool
 		wantStdout      []string
@@ -232,6 +195,20 @@ end note
 			wantStdoutEmpty: true,
 			wantStderr:      "reviews",
 		},
+		"the syntax tree csdfparse prints is read": {
+			args:        []string{"-format", "json"},
+			stdinTreeOf: "../../../examples/valid/skip.puml",
+			wantStdout:  []string{`"ends":[{"src":"s0","guard":[]}]`},
+		},
+		// The file the !include names is there, but a tree is read as
+		// csdfparse printed it.
+		"the !include of a syntax tree is refused": {
+			args:            []string{"-base", "../../../examples/promote", "-format", "json"},
+			stdinTreeOf:     membersPath,
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "csdfinclude",
+		},
 		"an unterminated CSDF-IGNORE region is refused": {
 			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n' CSDF-IGNORE-BEGIN\nskinparam x y\n@enduml\n",
 			wantExit:        1,
@@ -248,7 +225,11 @@ end note
 		t.Run(name, func(t *testing.T) {
 			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 			spy := cli.SpyProcInout()
-			spy.Stdin = strings.NewReader(c.stdin)
+			stdin := c.stdin
+			if c.stdinTreeOf != "" {
+				stdin = syntaxTreeOf(t, c.stdinTreeOf)
+			}
+			spy.Stdin = strings.NewReader(stdin)
 
 			exitStatus := cmdFunc(c.args, spy.New())
 
