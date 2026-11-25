@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/csdf"
 	"github.com/Kuniwak/puml-parallel/v4/tools"
 	"github.com/Kuniwak/puml-parallel/v4/version"
 	"github.com/google/go-cmp/cmp"
@@ -62,6 +63,42 @@ func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
 				t.Errorf("mismatch (-recorded +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// syntaxTreeOf is the JSON csdfparse prints for the diagram at path.
+func syntaxTreeOf(t *testing.T, path string) string {
+	t.Helper()
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := csdf.Parse(path, string(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs, err := csdf.MarshalSyntaxTree(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(bs)
+}
+
+func TestNewMainFuncReadsTheSyntaxTreeCsdfparsePrints(t *testing.T) {
+	// Setup
+	cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
+	spy := cli.SpyProcInout()
+	spy.Stdin = strings.NewReader(syntaxTreeOf(t, "../../../examples/valid/skip.puml"))
+
+	// Execute
+	exitStatus := cmdFunc([]string{"-format", "json"}, spy.New())
+
+	// Assert
+	if exitStatus != 0 {
+		t.Fatalf("want 0, got %d: %s", exitStatus, spy.Stderr.String())
+	}
+	if want := `"ends":[{"src":"s0","guard":[]}]`; !strings.Contains(spy.Stdout.String(), want) {
+		t.Errorf("want %q in the output, got:\n%s", want, spy.Stdout.String())
 	}
 }
 

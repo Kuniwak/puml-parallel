@@ -1,6 +1,7 @@
 package csdfpromotecmd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -30,11 +31,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 // mainFormula expands the promotion with csdf/core and prints it as PUML.
 func mainFormula(opts *Options, inout *cli.ProcInout) error {
-	src, err := pngsrc.Extract(opts.Bytes)
-	if err != nil {
-		return fmt.Errorf("csdfpromotecmd.NewMainFunc: reading PlantUML source: %w", err)
-	}
-	tree, err := csdf.Parse("", src)
+	tree, err := readTree(opts.Bytes)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}
@@ -85,6 +82,25 @@ func mainFormula(opts *Options, inout *cli.ProcInout) error {
 	}
 	fmt.Fprint(inout.Stdout, text)
 	return nil
+}
+
+// readTree reads the syntax tree of the diagram in raw: the JSON csdfparse
+// prints, or a .puml text or a .png, parsed.
+func readTree(raw []byte) (*csdf.SyntaxTree, error) {
+	if isJSON(raw) {
+		return csdf.UnmarshalSyntaxTree(raw)
+	}
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return nil, fmt.Errorf("reading PlantUML source: %w", err)
+	}
+	return csdf.Parse("", src)
+}
+
+// isJSON reports whether raw is JSON rather than PlantUML: it opens with
+// "{", which no PlantUML source or PNG does.
+func isJSON(raw []byte) bool {
+	return bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{"))
 }
 
 // report writes each warning on w; with werror, one of level Warn is an
