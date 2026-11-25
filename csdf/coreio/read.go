@@ -37,6 +37,16 @@ func Read(source string) (*core.Diagram, error) {
 	return d, nil
 }
 
+// Lower is the diagram src says, what the tools evaluate: its clauses are
+// read by clause.Parse, as Read reads them.
+func Lower(src *csdf.Diagram) (*core.Diagram, error) {
+	d, err := lower(src, clause.Parse)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.Lower: %w", err)
+	}
+	return d, nil
+}
+
 // read reads source with the structure csdf.ParseSource reads, each clause by
 // parse.
 func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
