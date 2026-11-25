@@ -267,3 +267,5 @@ ul.instances { list-style: none; margin: 0; padding: 0; display: grid; gap: .3re
 .event-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 0 .3rem; border-radius: 3px; overflow-wrap: anywhere; }
 .choice.blocked .event-tag { background: var(--muted); }
 .choice.blocked .event-name { color: var(--muted); }
+#history .history-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: .1rem .4rem; }
+#history .history-head .step-number, #history .history-head .here { margin: 0; }

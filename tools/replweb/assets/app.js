@@ -691,13 +691,16 @@
       const h = app.history[i];
       if (!h) return;
       const entry = app.entries[originOf(i)] || { kind: "initial", parent: null };
-      const label = entry.kind === "step"
-        ? t("history.step", { event: entry.event, state: h.state.state_name })
-        : t("history.initial", { state: h.state.state_name });
       const parent = k > 0 ? app.history[chain[k - 1]] : null;
-      const head = el("div", null, [
-        el("span", { class: "step-number", text: t("history.stepNumber", { step: k + 1 }) }),
-        el("span", { text: label }),
+      // An event is named alone; the state it led to only when it is not
+      // the one before, which under a promotion it always is.
+      const moved = parent && parent.state.state_id !== h.state.state_id;
+      const label = entry.kind === "step"
+        ? [el("span", { class: "step-number", text: t("history.eventNumber", { n: k }) }), eventChip(entry.event),
+          moved ? el("span", { class: "to", text: t("history.to", { state: h.state.state_name }) }) : null]
+        : [el("span", { class: "step-number", text: t("history.start") }), el("span", { text: h.state.state_name })];
+      const head = el("div", { class: "history-head" }, [
+        ...label,
         i === app.current ? el("span", { class: "here", text: t("history.current") }) : null,
       ]);
       const item = el("li", {
@@ -970,7 +973,7 @@
     return el("div", { class: "chosen" }, [
       el("span", { class: "label", text: t("chosen.label") }),
       eventChip(tr.event),
-      el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }),
+      tr.dst !== app.choice.src ? el("span", { class: "dst", text: t("chosen.goesTo", { state: tr.dst_name }) }) : null,
       el("button", { type: "button", id: "back-to-choose", text: t("chosen.back"), onclick: cancelChoice }),
     ]);
   }
