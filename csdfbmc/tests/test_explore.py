@@ -506,6 +506,33 @@ class PruningTest(unittest.TestCase):
         self.assertEqual({FrozenMap(k=4, a=3, b=0, **pad), FrozenMap(k=4, a=3, b=1, **pad), FrozenMap(k=7, a=1, b=0, **pad), FrozenMap(k=7, a=1, b=1, **pad)},
                          {params["r"] for _, _, _, _, params in transitions})
 
+    # c?r: the entry of m at the record r is at s.
+    KEYED = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
+        edge("q", "q", "c?r", guard=[builtin("at", idx("m", "r"), state="s")], post=[eq("m'", "m")])],
+        channels={"c": ["R"]})
+
+    def test_the_parts_of_a_record_a_map_is_read_at_are_drawn_from_its_keys(self):
+        # The guard is asked once per key of m, never of the 200 records
+        # of R no key is.
+        r = on_demand_record(k=list(range(20)), a=list(range(5)), b=[0, 1])
+        tests = {
+            "an empty map": (FrozenMap(), 1, set()),
+            "a map with a key": (FrozenMap({FrozenMap(k=4, a=3, b=1): inst("s")}), 1, {FrozenMap(k=4, a=3, b=1)}),
+        }
+        for name, (m, asks, want) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(self.KEYED, Checks(types={"R": r}))
+                asked = []
+                holds = x.ev.holds
+                x.ev.holds = lambda clause, before, *rest: asked.extend(clause) or holds(clause, before, *rest)
+
+                # Execute
+                transitions = x.transitions(("q", (m,), ()))
+
+                # Assert
+                self.assertEqual((asks, want), (len(asked), {params["r"] for _, _, _, _, params in transitions}))
+
     def test_a_received_on_demand_record_no_conjunct_reads_ranges_over_its_parts(self):
         # Setup: the guard reads no part of r, so every record of R is received.
         d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "id", "m")])])
