@@ -1648,11 +1648,16 @@ $ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
 ```
 
 With `-shapes FILE`, the JSON `csdfbmc shapes` prints of the diagram, the
-page shows under each input whose type it knows a collapsible "What a T
-looks like": an example value built from the attributes the clauses read and
-the constants they compare them with, and the values known of each
-attribute; "How to write the instances" shows the same for the types of the
-instances' fields.
+Details tab asks for each value whose type it knows as a form: a record, a
+map and a list as a table of a row each, a value of the values known as a
+list to pick from that still takes any other, a number as a number box, a
+truth value as a checkbox, and anything else as one line of JSON. A record
+of a type `TYPES` declares keeps its attributes; the rows of any other
+table can be added, removed and moved by dragging their keys. The "{}"
+beside a value opens it as JSON text, read and written both ways. "How to
+write the instances" shows, for the types of the instances' fields, an
+example value built from the attributes the clauses read and the
+constants they compare them with, and the values known of each attribute.
 
 ```console
 $ csdfparse examples/bmc/printer_formal.puml > printer.json
