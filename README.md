@@ -1217,7 +1217,7 @@ at in the REPL; an instance is written `{"at": STATE, "fields": {…}}`. The
 exit status is 1 when something was found, 2 when the inputs could not be
 read.
 
-`csdfbmc shapes <diagram.json>` prints what the clauses, written in Python,
+`csdfbmc shapes <diagram.json> [<checks.py>]` prints what the clauses, written in Python,
 reveal of the values of the diagram's types: the attributes they read
 (`$x['a']['b']`, and builtin terms such as `$x.a`), the keys of the dicts a
 post builds (`$x' == {"a": …}`), the constants an attribute is compared with
@@ -1236,6 +1236,13 @@ attribute no clause mentions is absent, a type no clause reads anything of
 is left out, and a value is known only where a clause compares an attribute
 with a constant; a value passed through a helper of the definitions is not
 followed. A map type `K ⇸ V` is no shape: its values are of `V`.
+
+Given the checks module, each type its `TYPES` gives takes its shape from
+`TYPES` instead: a `record(...)` is a record of its fields' shapes, finitely
+many constants (a list, a `range`) are a scalar with all of them in order as
+`"values"` (and `"numeric": true` when they are integers), a `sample` gives
+its values as `"examples"`, and values it cannot list are a bare scalar.
+Types `TYPES` does not give keep the shapes the clauses reveal.
 `csdfreplweb -shapes` shows it to testers.
 
 The first worked example, `examples/bmc/printer_formal.puml`, is a two-state
