@@ -377,6 +377,14 @@ func viewResponse(e *entry) Response {
 	return Response{OK: true, Session: e.id, Output: buf.String(), Data: mustData(view)}
 }
 
+func eventFields(e core.Event) []EventField {
+	var out []EventField
+	for _, f := range e.Fields {
+		out = append(out, EventField{Dir: f.Dir(), Name: f.Name})
+	}
+	return out
+}
+
 func transitionsOf(sess *animation.Session) []Transition {
 	edges := sess.Transitions()
 	out := make([]Transition, len(edges))
@@ -384,6 +392,8 @@ func transitionsOf(sess *animation.Session) []Transition {
 		out[i] = Transition{
 			Index:     i,
 			Event:     edge.Event.Label(),
+			Channel:   edge.Event.Channel,
+			Fields:    eventFields(edge.Event),
 			Dst:       edge.Dst,
 			DstName:   animation.StateName(sess.Diagram(), edge.Dst),
 			Guard:     animation.ClauseText(edge.Guard),

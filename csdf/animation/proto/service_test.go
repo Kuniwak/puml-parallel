@@ -123,6 +123,27 @@ func TestHandleStatevarAdvancesToCommand(t *testing.T) {
 	}
 }
 
+func TestATransitionTellsTheChannelAndFieldsOfItsEvent(t *testing.T) {
+	// Setup
+	service, id := newSession(t)
+
+	// Execute
+	view := decodeView(t, service.Handle(Request{Command: CommandStatevar, Session: id, Values: "[0]"}))
+
+	// Assert
+	if len(view.Transitions) != 1 {
+		t.Fatalf("transitions = %+v, want one", view.Transitions)
+	}
+	tr := view.Transitions[0]
+	want := []EventField{{Dir: "?", Name: "coin"}}
+	if tr.Channel != "insert" {
+		t.Errorf("channel = %q, want insert", tr.Channel)
+	}
+	if diff := cmp.Diff(want, tr.Fields); diff != "" {
+		t.Errorf("fields (-want +got):\n%s", diff)
+	}
+}
+
 func TestHandleStatevarReportsSolverErrors(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -184,7 +205,7 @@ func TestHandleSelectShowsTheClausesCanonically(t *testing.T) {
 	resp := service.Handle(Request{Command: CommandRead, Session: id})
 
 	// Assert
-	want := []Transition{{Index: 0, Event: "insert?coin", Dst: "s1", DstName: "Done",
+	want := []Transition{{Index: 0, Event: "insert?coin", Channel: "insert", Fields: []EventField{{Dir: "?", Name: "coin"}}, Dst: "s1", DstName: "Done",
 		Guard: "@ne(count, 9) ∧ $count >= 0", Post: "$result' is done", PostFrame: animation.Frame{Rest: "$result' is done"}, Line: 7}}
 	if diff := cmp.Diff(want, decodeView(t, resp).Transitions); diff != "" {
 		t.Errorf("transitions mismatch (-want +got):\n%s", diff)
