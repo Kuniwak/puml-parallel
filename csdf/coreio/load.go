@@ -201,7 +201,9 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 // naming csdfparse.
 func ReadTreeJSON(raw []byte) (*csdf.SyntaxTree, error) {
 	raw = bytes.TrimPrefix(raw, utf8BOM)
-	if !isSyntaxTreeJSON(raw) {
+	// After whitespace, if any, JSON opens with "{", which no PlantUML
+	// source or PNG does.
+	if !bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{")) {
 		return nil, errors.New("coreio.ReadTreeJSON: want the syntax tree csdfparse prints (JSON), not PlantUML; run csdfparse on the diagram first")
 	}
 	tree, err := csdf.UnmarshalSyntaxTree(raw)
@@ -209,13 +211,6 @@ func ReadTreeJSON(raw []byte) (*csdf.SyntaxTree, error) {
 		return nil, fmt.Errorf("coreio.ReadTreeJSON: %w", err)
 	}
 	return tree, nil
-}
-
-// isSyntaxTreeJSON reports whether raw, its byte order mark stripped, is
-// JSON rather than PlantUML: after whitespace, if any, it opens with "{",
-// which no PlantUML source or PNG does.
-func isSyntaxTreeJSON(raw []byte) bool {
-	return bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{"))
 }
 
 // utf8BOM is the byte order mark an editor may write before UTF-8 text.

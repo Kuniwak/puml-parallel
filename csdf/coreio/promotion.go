@@ -69,8 +69,8 @@ func readPromotion(tree *csdf.SyntaxTree, local localDiagram) (*promotionReader,
 	return r, nil
 }
 
-// localDiagram is the local diagram the !include p of a <<promote>> block
-// names, nil when it is not read.
+// localDiagram reads the local diagram the !include p of a <<promote>>
+// block names; the Diagram it returns is nil when it reads none.
 type localDiagram func(p *csdf.PragmaSyntax) (*core.Diagram, error)
 
 // lowerIncluded is the local diagram of the tree p's resolved !include
