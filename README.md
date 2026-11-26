@@ -1072,25 +1072,32 @@ record no equality binds then range one by one, in the order of its type
 the other parts with it. An atom that reads the whole record, `r` as a hole
 (`${r}['k'] in ${m}`), is opaque and waits for every part; write the part as
 a term, `@in(r.k, m)`, for it to prune. A field or part `t` that a
-membership `@in(t, m)` reads first, `m` over the state only, with no
-conjunct before it reading `t` or a later field, takes only the values of
-its type that are keys of `m`. Likewise "some entry of `m` matches the
+membership `@in(t, m)` reads, `m` over the state only, takes only the
+values of its type that are keys of `m`, wherever the membership is in the
+guard. Likewise "some entry of `m` matches the
 received record", written `@exists(j : K) (@in(j, m) ∧ @eq(r.k, m[j].id) ∧
 @eq(r.a, m[j].x))` with `m` a term over the state, which may apply
 environment functions (`@in(j, candidates(m1, m2))`), takes for the fields or parts
 its equalities bind only the values the entries of `m` give, when those
-are next to each other in the event and no conjunct before it reads them
-or a later field; the same condition as an atom is opaque and tries every
-value. Nothing is evaluated when a later
+are next to each other in the event, wherever the `∃` is in the guard;
+the same condition as an atom is opaque and tries every value. Nothing is evaluated when a later
 field has no value. An equality that binds computes its term where evaluating
 the guard in order reaches it, so only for values the conjuncts before it
 hold of: `@at(m[k], s) ∧ @eq(v, m[k].y)` reads no `y` of an instance not
 at `s`. A term that reads an entry its map does not have makes its
-equality false; another error of it is an error there. So the conjuncts
-are evaluated in order, on the values evaluating the guard in full would
-read, only less often. That holds as long as a value an equality binds
-lies in its field's type: a bound value is taken whatever the type holds,
-where the full product over the type would have none. A sent field (`c!y`) sends
+equality false; another error of it is an error there. A bound value is
+taken whatever its field's type holds, where the full product over the
+type would have none.
+
+The checker relies on a precondition: a clause, an atom or environment
+function of a glue, and the arguments of a builtin are pure and raise
+nothing. A model that breaks it has no defined result. A step is then
+taken for exactly the values evaluating the guard in full holds of, but
+which conjuncts and terms are evaluated, and in what order, is not
+guaranteed: a membership or an `∃` may draw values before a conjunct
+written ahead of it is asked. When an expression csdfbmc evaluates raises
+all the same, it stops with the error. Reading an entry a map does not
+have is no error: it makes the clause false (Missing), as above. A sent field (`c!y`) sends
 the value `y` has at the step. A field hidden by `csdfhide` is bound by
 `∃` in the guard and the post, and ranges over the type the `∃` names.
 
@@ -1219,7 +1226,7 @@ satisfies C (tried N)`, C the conjunct first false for the most of the N
 values of the fields tried; or `the guard holds, but the post admits no
 successor`. A field whose type is a plain list, not a sample, adds how to
 tell the bound from a deadlock. The conjuncts are evaluated in their order,
-each up to the first false, as a step evaluates them. In `--json`, the
+each up to the first false, over every value of the full product. In `--json`, the
 deadlock and its group carry `stuck`, a list of `{"edge", "reason"
 ("state", "fields" or "post"), "fields", "conjunct", "tried", "hint"}`.
 

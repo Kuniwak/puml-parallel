@@ -400,9 +400,21 @@ result:
 | Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
 | Q4 | Narrowed types for values | approximating the environment and bounded checking (O7) |
-| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t`, or `f[k] = t` or `f.k = t` where f is a field of the event, k a literal key and t a term over the state and the other fields, when no conjunct before the equality reads f; t is computed where evaluating the guard in order reaches the equality, which agrees with evaluating the guard over the full product of the fields' types when the value computed lies in f's type | computing f, or its part k, instead of enumerating it (O7) |
+| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t`, or `f[k] = t` or `f.k = t` where f is a field of the event, k a literal key and t a term over the state and the other fields, when no conjunct before the equality reads f; t is computed where evaluating the guard in order reaches the equality, which agrees with evaluating the guard over the full product of the fields' types when the value computed lies in f's type and the clauses are pure and raise nothing (below) | computing f, or its part k, instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
+
+Q5 and the drawing of values from a map (`@in(t, m)`, or an ∃ whose body
+starts with `@in(j, m)`, m a term over the state that may apply
+environment functions) rest on one precondition: a clause, a glue's
+atoms and environment functions, and the arguments of a builtin are pure
+and raise nothing. A model that breaks it has no defined result. Under
+it, a conjunction holds of the same values whatever order its conjuncts
+are asked in, so a checker may evaluate them in any order, or not at all
+where another conjunct is false; it states no order. An expression it
+evaluates that raises all the same stops it with the error. Reading an
+entry a map does not have is no error but false (Missing), so a clause
+that does so stays false whatever the order.
 
 Bounded checking tells the bound from the diagram without Q2. A type given
 as a sample has more values than the walk ranges over, and the checks

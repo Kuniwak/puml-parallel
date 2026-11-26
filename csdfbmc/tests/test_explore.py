@@ -1,4 +1,5 @@
 """The walk: the states a diagram reaches, and what it finds among them."""
+import copy
 import itertools
 import unittest
 
@@ -532,6 +533,28 @@ class PruningTest(unittest.TestCase):
         self.assertEqual(({FrozenMap(k=4, a=3), FrozenMap(k=7, a=1)}, (100, 98)),
                          ({t[4]["r"] for t in transitions}, (x.stats[0].tried, x.stats[0].pruned)))
 
+    def test_the_parts_an_entry_decides_are_drawn_though_a_conjunct_before_the_exists_reads_them(self):
+        # Setup: @ne(r.k, 4) reads a part the ∃ draws before it; the steps
+        # are those of the guard with the ∃ first, and (r.k, r.a) is drawn
+        # from the two entries of m all the same.
+        some = self.ENTRY["edges"][0]["guard"][0]
+        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+        types = Checks(types=dict(self.ENTRY_TYPES, R=record(k=list(range(20)), a=list(range(5)))))
+
+        def run(guard):
+            d = copy.deepcopy(self.ENTRY)
+            d["edges"][0]["guard"] = guard
+            x = fixture.explorer(d, types, stats=True)
+            return [t[4]["r"] for t in x.transitions(("q", (m,), ()))], (x.stats[0].tried, x.stats[0].pruned)
+
+        # Execute
+        got = run([builtin("ne", fld("r", "k"), lit(4)), some])
+        first = run([some, builtin("ne", fld("r", "k"), lit(4))])
+
+        # Assert
+        self.assertEqual(([FrozenMap(k=7, a=1)], (100, 99)), got)
+        self.assertEqual(first[0], got[0])
+
     def test_a_split_record_is_made_from_its_parts_without_listing_its_type(self):
         # Setup: R says its parts but lists none of its records, so the
         # records received are made from the parts alone.
@@ -911,7 +934,7 @@ class OracleTest(unittest.TestCase):
             "a membership after a conjunct reading a later field": (
                 "c?k?j", ["K", "J"], [atom("$j は g"), builtin("in", "k", "m"), atom("$k は f")], [], (FrozenMap({2: 0}),), "fg"),
             "a membership after a conjunct reading a later field, before one reading both": (
-                "c?k?j", ["K", "J"], [atom("$j は e"), builtin("in", "k", "m"), atom("$k $j は i")], [], (FrozenMap({2: 0}),), "ei"),
+                "c?k?j", ["K", "J"], [atom("$j は g"), builtin("in", "k", "m"), atom("$k $j は i")], [], (FrozenMap({2: 0}),), "gi"),
             "a membership of an empty map after a conjunct over an earlier field": (
                 "c?j?k", ["J", "K"], [atom("$j は g"), builtin("in", "k", "m"), atom("$k は f")], [], (FrozenMap(),), "fg"),
             "a membership of an entry the map does not have": (
@@ -932,8 +955,8 @@ class OracleTest(unittest.TestCase):
             "an entry without the field": (
                 "c?p", ["P"], [some_entry()], [], (FrozenMap({1: FrozenMap({"id": 2})}),), ""),
             "entries after a conjunct reading a later field, before one reading both": (
-                "c?p?j", ["P", "J"], [atom("$j は e"), some_entry(), atom("${} $j は i", fld("p", "k"))], [],
-                (entries((2, 1)),), "ei"),
+                "c?p?j", ["P", "J"], [atom("$j は g"), some_entry(), atom("${} $j は i", fld("p", "k"))], [],
+                (entries((2, 1)),), "gi"),
             "entries of no map": (
                 "c?p", ["P"], [some_entry()], [], (5,), ""),
             "an error reading a part of a part after a false conjunct": (

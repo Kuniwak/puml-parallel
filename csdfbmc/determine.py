@@ -155,22 +155,20 @@ def decides_early(guard: tuple, levels: list, steps: list, f: str) -> bool:
 def draws(guard: tuple, levels: list, known: set[str]) -> dict[int, object]:
     """The levels a membership of guard decides, by their places in
     levels, each with the map term m of the first @in(t, m) where t is the
-    level, a field or a part of one with a literal key, m reads only the
-    names known before the step, and no conjunct before it reads the level
-    or a later one. The values of such a level outside m are rejected by
-    that conjunct before anything else of the guard reads them, so drawing
-    the level from m drops only values evaluating the guard in full would
-    reject there."""
+    level, a field or a part of one with a literal key, and m reads only
+    the names known before the step. The values of such a level outside m
+    make the guard false, so drawing the level from m drops only values
+    evaluating the guard in full would reject; the conjuncts being pure
+    and raising nothing (README), the order they are asked in does not
+    matter."""
     names = set(levels)
     out: dict[int, object] = {}
-    deepest = -1
     for c in guard:
         if isinstance(c, Builtin) and c.op == "in":
             t, m = c.args
             d = _level_of(t, levels, names)
-            if d is not None and d > deepest and d not in out and not free_names(m, primed=True) and free_names(m, primed=False) <= known:
+            if d is not None and d not in out and not free_names(m, primed=True) and free_names(m, primed=False) <= known:
                 out[d] = m
-        deepest = _deepest(c, levels, names, deepest)
     return out
 
 
@@ -181,10 +179,6 @@ def _level_of(t, levels: list, names: set) -> int | None:
     return levels.index(next(iter(read))) if _is_level(t) and len(read) == 1 and read <= names else None
 
 
-def _deepest(c, levels: list, names: set, deepest: int) -> int:
-    """The deepest place in levels the conjunct c or one before it reads,
-    deepest being that of those before it."""
-    return max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
 
 
 def _level(t) -> tuple[str, object] | None:
@@ -204,9 +198,6 @@ def _is_level(t) -> bool:
     return _level(t) is not None
 
 
-def _reads(read: set, level) -> bool:
-    """Whether what a conjunct reads, as part_reads says it, reads level."""
-    return level in read or (isinstance(level, tuple) and level[0] in read)
 
 
 @dataclass(frozen=True)
@@ -225,21 +216,18 @@ class Keyed:
 def keyed(guard: tuple, levels: list, known: set[str]) -> Keyed | None:
     """The first conjunct of guard, outside an ∃, that reads a map m at a
     field f whose parts range one by one, m[f] anywhere in its terms or
-    @in(f, m), m over the names known before the step, when no conjunct
-    before it reads a part of f or a later level. Reading m at a key it
-    has not makes the conjunct false (Missing), so the values of f's parts
-    no key of m gives are rejected there before anything else of the
-    guard reads them, and drawing them from m's keys drops only values
-    evaluating the guard in full would reject."""
-    names = set(levels)
-    deepest = -1
+    @in(f, m), m over the names known before the step. Reading m at a key
+    it has not makes the conjunct false (Missing), so the values of f's
+    parts no key of m gives make the guard false, and drawing them from
+    m's keys drops only values evaluating the guard in full would reject;
+    the conjuncts being pure and raising nothing (README), the order they
+    are asked in does not matter."""
     for i, c in enumerate(guard):
         if not isinstance(c, Exists):
             for f, m in _keyings(c):
                 places = tuple(d for d, name in enumerate(levels) if isinstance(name, tuple) and name[0] == f)
-                if places and min(places) > deepest and _over(m, known, set()):
+                if places and _over(m, known, set()):
                     return Keyed(i, f, places, tuple(levels[d][1] for d in places), m)
-        deepest = _deepest(c, levels, names, deepest)
     return None
 
 
@@ -281,25 +269,23 @@ class Witness:
 
 
 def witness(guard: tuple, levels: list, known: set[str]) -> Witness | None:
-    """The first ∃ of guard that draws levels from the entries of a map,
-    when no conjunct before it reads one of those levels or a later one:
+    """The first ∃ of guard that draws levels from the entries of a map:
     its body is @in(j, m), j its bound name and m a term over the names
     known before the step, which may apply environment functions, as an
     equality that binds may (determine), then equalities, each of a level not bound before in
     it, a field or a part of one with a literal key, and a term over j
     and the names known, which may apply environment functions too; and the levels it binds are
     next to each other in levels. The values of those levels no entry
-    gives make the ∃ false before anything else of the guard reads them,
-    so drawing them from the entries drops only values evaluating the
-    guard in full would reject there."""
+    gives make the ∃, and so the guard, false, so drawing them from the
+    entries drops only values evaluating the guard in full would reject;
+    the conjuncts being pure and raising nothing (README), the order they
+    are asked in does not matter."""
     names = set(levels)
-    deepest = -1
     for i, c in enumerate(guard):
         if isinstance(c, Exists):
             w = _witness(i, c, levels, names, known)
-            if w is not None and min(w.levels) > deepest:
+            if w is not None:
                 return w
-        deepest = _deepest(c, levels, names, deepest)
     return None
 
 

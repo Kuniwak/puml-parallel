@@ -172,9 +172,9 @@ class DrawsTest(unittest.TestCase):
             "not a level": ([Builtin("in", (N, M))], {}),
             "a part of a part": ([Builtin("in", (Field(k, "z"), M))], {}),
             "a non-membership": ([Builtin("notin", (V, M))], {}),
-            "after a conjunct reading the level": ([other_of(k), Builtin("in", (k, M))], {}),
-            "after a conjunct reading the whole record": ([other("r"), Builtin("in", (k, M))], {}),
-            "after a conjunct reading a later level": ([other_of(Field(Free("r"), "a")), Builtin("in", (k, M))], {}),
+            "after a conjunct reading the level": ([other_of(k), Builtin("in", (k, M))], {1: M}),
+            "after a conjunct reading the whole record": ([other("r"), Builtin("in", (k, M))], {1: M}),
+            "after a conjunct reading a later level": ([other_of(Field(Free("r"), "a")), Builtin("in", (k, M))], {1: M}),
         }
         for name, (guard, want) in tests.items():
             with self.subTest(name):
@@ -212,8 +212,8 @@ class WitnessTest(unittest.TestCase):
             "a term after the step": ([some(eq(k, Index(Free("m", primed=True), J)))], None),
             "a conjunct not an equality": ([some(eq(k, idk), other("n"))], None),
             "no equality": ([some()], None),
-            "after a conjunct reading a level it binds": ([other_of(k), some(eq(k, idk))], None),
-            "after a conjunct reading a later level": ([other_of(b), some(eq(k, idk))], None),
+            "after a conjunct reading a level it binds": ([other_of(k), some(eq(k, idk))], Witness(1, (1,), M, "K", (idk,))),
+            "after a conjunct reading a later level": ([other_of(b), some(eq(k, idk))], Witness(1, (1,), M, "K", (idk,))),
         }
         for name, (guard, want) in tests.items():
             with self.subTest(name):
@@ -237,7 +237,7 @@ class KeyedTest(unittest.TestCase):
             "a membership of the record": ([Builtin("in", (R, M))], Keyed(0, "r", (1, 2), ("k", "a"), M)),
             "an entry read inside a term": ([eq(Field(Index(M, R), "x"), N)], Keyed(0, "r", (1, 2), ("k", "a"), M)),
             "after a conjunct over earlier levels": ([other("v"), at], Keyed(1, "r", (1, 2), ("k", "a"), M)),
-            "after a conjunct reading a part": ([eq(Field(R, "k"), N), at], None),
+            "after a conjunct reading a part": ([eq(Field(R, "k"), N), at], Keyed(1, "r", (1, 2), ("k", "a"), M)),
             "a map over a field": ([Builtin("at", (Index(V, R),), states=("s",))], None),
             "a map after the step": ([Builtin("at", (Index(Free("m", primed=True), R),), states=("s",))], None),
             "a field not split": ([Builtin("at", (Index(M, V),), states=("s",))], None),
