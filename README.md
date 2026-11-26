@@ -1076,7 +1076,8 @@ membership `@in(t, m)` reads first, `m` over the state only, with no
 conjunct before it reading `t` or a later field, takes only the values of
 its type that are keys of `m`. Likewise "some entry of `m` matches the
 received record", written `@exists(j : K) (@in(j, m) ∧ @eq(r.k, m[j].id) ∧
-@eq(r.a, m[j].x))` with `m` over the state, takes for the fields or parts
+@eq(r.a, m[j].x))` with `m` a term over the state, which may apply
+environment functions (`@in(j, candidates(m1, m2))`), takes for the fields or parts
 its equalities bind only the values the entries of `m` give, when those
 are next to each other in the event and no conjunct before it reads them
 or a later field; the same condition as an atom is opaque and tries every

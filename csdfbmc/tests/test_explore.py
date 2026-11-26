@@ -509,6 +509,29 @@ class PruningTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((2, steps), (len(asked), len(transitions)))
 
+    # c?r: some entry of cands(m), an environment function of m, has id r.k and x r.a.
+    ENTRY_FN = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
+        edge("q", "q", "c?r", guard=[exists("K", builtin("in", bound(0), {"kind": "app", "fn": "cands", "args": [fixture.term("m")]}),
+                                            eq(fld("r", "k"), fld(idx({"kind": "app", "fn": "cands", "args": [fixture.term("m")]}, bound(0)), "id")),
+                                            eq(fld("r", "a"), fld(idx({"kind": "app", "fn": "cands", "args": [fixture.term("m")]}, bound(0)), "x")))],
+             post=[eq("m'", "m")])],
+        channels={"c": ["R"]})
+
+    def test_the_parts_an_entry_of_an_environment_functions_map_decides_are_drawn_from_its_entries(self):
+        # Setup: cands(m) is m, so (r.k, r.a) is drawn from its two entries
+        # and the other 98 values of the product are pruned.
+        given = environment.over({"cands": lambda m: m}, {})
+        x = fixture.explorer(self.ENTRY_FN, Checks(types=dict(self.ENTRY_TYPES, R=record(k=list(range(20)), a=list(range(5))))),
+                             environment=given, stats=True)
+        m = FrozenMap({1: FrozenMap({"id": 4, "x": 3}), 2: FrozenMap({"id": 7, "x": 1})})
+
+        # Execute
+        transitions = x.transitions(("q", (m,), ()))
+
+        # Assert
+        self.assertEqual(({FrozenMap(k=4, a=3), FrozenMap(k=7, a=1)}, (100, 98)),
+                         ({t[4]["r"] for t in transitions}, (x.stats[0].tried, x.stats[0].pruned)))
+
     def test_a_split_record_is_made_from_its_parts_without_listing_its_type(self):
         # Setup: R says its parts but lists none of its records, so the
         # records received are made from the parts alone.

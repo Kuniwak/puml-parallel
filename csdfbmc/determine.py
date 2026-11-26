@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from csdfbmc.model import Bound, Builtin, Exists, Field, Free, Index, Lit, free_names, literal_parts, names_of
+from csdfbmc.model import App, Bound, Builtin, Exists, Field, Free, Index, Lit, free_names, literal_parts, names_of
 
 
 @dataclass(frozen=True)
@@ -283,10 +283,11 @@ class Witness:
 def witness(guard: tuple, levels: list, known: set[str]) -> Witness | None:
     """The first ∃ of guard that draws levels from the entries of a map,
     when no conjunct before it reads one of those levels or a later one:
-    its body is @in(j, m), j its bound name and m over the names known
-    before the step, then equalities, each of a level not bound before in
+    its body is @in(j, m), j its bound name and m a term over the names
+    known before the step, which may apply environment functions, as an
+    equality that binds may (determine), then equalities, each of a level not bound before in
     it, a field or a part of one with a literal key, and a term over j
-    and the names known, applying no function; and the levels it binds are
+    and the names known, which may apply environment functions too; and the levels it binds are
     next to each other in levels. The values of those levels no entry
     gives make the ∃ false before anything else of the guard reads them,
     so drawing them from the entries drops only values evaluating the
@@ -308,7 +309,7 @@ def _witness(i: int, c, levels: list, names: set, known: set[str]) -> Witness | 
     if len(c.body) < 2 or not (isinstance(c.body[0], Builtin) and c.body[0].op == "in"):
         return None
     j, m = c.body[0].args
-    if j != Bound(0) or not _over(m, known, set()):
+    if j != Bound(0) or not _over(m, known, set(), apply=True):
         return None
     bound, terms = [], []
     for e in c.body[1:]:
@@ -326,18 +327,19 @@ def _witness(i: int, c, levels: list, names: set, known: set[str]) -> Witness | 
 
 def _equal_level(e, levels: list, names: set, known: set[str]) -> tuple[int, object] | None:
     """(the place of the level, the term) of the equality e, one side a
-    level and the other a term over the bound index 0 and the names known;
-    None when it is not one."""
+    level and the other a term over the bound index 0 and the names known,
+    which may apply environment functions; None when it is not one."""
     for x, y in ((e.args[0], e.args[1]), (e.args[1], e.args[0])):
         d = _level_of(x, levels, names)
-        if d is not None and _over(y, known, {0}):
+        if d is not None and _over(y, known, {0}, apply=True):
             return d, y
     return None
 
 
-def _over(t, known: set[str], indices: set[int]) -> bool:
+def _over(t, known: set[str], indices: set[int], apply: bool = False) -> bool:
     """Whether t is a term over the names known before the step and the
-    bound indices given, applying no function."""
+    bound indices given, applying environment functions only when apply
+    says so."""
     if isinstance(t, Free):
         return not t.primed and t.name in known
     if isinstance(t, Bound):
@@ -345,7 +347,9 @@ def _over(t, known: set[str], indices: set[int]) -> bool:
     if isinstance(t, Lit):
         return True
     if isinstance(t, Index):
-        return _over(t.map, known, indices) and _over(t.key, known, indices)
+        return _over(t.map, known, indices, apply) and _over(t.key, known, indices, apply)
     if isinstance(t, Field):
-        return _over(t.of, known, indices)
+        return _over(t.of, known, indices, apply)
+    if isinstance(t, App):
+        return apply and all(_over(a, known, indices, apply) for a in t.args)
     return False
