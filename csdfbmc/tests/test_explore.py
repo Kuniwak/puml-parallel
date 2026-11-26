@@ -234,37 +234,26 @@ class FieldTest(unittest.TestCase):
         self.assertEqual(["c(v=5, w=1)", "c(v=5, w=2)"], labels)
         self.assertEqual((3, ["?w"]), (x.stats[0].tried, sorted(x.stats[0].ranged)))
 
-    def test_a_field_an_equality_binds_to_a_value_outside_its_type_takes_no_step(self):
-        # Setup: n holds 9, which V lacks, so no value of the full product holds.
-        guards = {"the equality alone": [eq("v", "n")],
-                  "a conjunct reading the field before it": [builtin("notin", "v", "s"), eq("v", "n")]}
-        for name, guard in guards.items():
+    def test_an_equality_binding_a_field_or_a_part_to_a_value_outside_its_type_takes_no_step(self):
+        # Setup: n holds 8, which neither V nor the part count of W has, so
+        # no value of the full product holds.
+        part = [eq(idx("w", lit("to")), lit("p")), eq(idx("w", lit("count")), "n")]
+        tests = {
+            "a field, the equality alone": ([eq("w", "n")], [4, 5]),
+            "a field, a conjunct reading it before the equality": ([builtin("notin", "w", "s"), eq("w", "n")], [4, 5]),
+            "a part of a record": (part, record(to=["p", "q"], count=[0, 1])),
+            "a part of an on_demand_record": (part, on_demand_record(to=["p", "q"], count=[0, 1])),
+            "a part of a list of records": (part, [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(2)]),
+        }
+        for name, (guard, w) in tests.items():
             with self.subTest(name):
-                d = diagram({"a": ["n", "s"]}, "a", init_post=[eq("n'", lit(9)), eq("s'", lit([]))], edges=[
-                    edge("a", "a", "c?v", guard=guard, post=[eq("n'", "n"), eq("s'", "s")])],
-                    channels={"c": ["V"]})
-                x = fixture.explorer(d, Checks(types={"V": [4, 5]}))
+                d = diagram({"a": ["n", "s"]}, "a", init_post=[eq("n'", lit(8)), eq("s'", lit([]))], edges=[
+                    edge("a", "a", "c?w", guard=guard, post=[eq("n'", "n"), eq("s'", "s")])],
+                    types={"n": "N", "s": "S"}, channels={"c": ["W"]})
+                checks = Checks(types={"N": list(range(9)), "S": [()], "W": w})
 
                 # Execute
-                labels = [label for _, label, _, _ in x.successors(("a", (9, ()), ()))]
-
-                # Assert
-                self.assertEqual([], labels)
-
-    def test_a_part_an_equality_binds_to_a_value_outside_its_type_takes_no_step(self):
-        # Setup: n holds 8, which the part count lacks.
-        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(8))], edges=[
-            edge("a", "a", "warn?w", guard=[eq(idx("w", lit("to")), lit("p")), eq(idx("w", lit("count")), "n")], post=[eq("n'", "n")])],
-            types={"n": "N"}, channels={"warn": ["W"]})
-        types = {"a record": record(to=["p", "q"], count=[0, 1]),
-                 "an on_demand_record": on_demand_record(to=["p", "q"], count=[0, 1]),
-                 "a list of records": [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(2)]}
-        for name, w in types.items():
-            with self.subTest(name):
-                checks = Checks(types={"N": list(range(9)), "W": w})
-
-                # Execute
-                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8,), ()))]
+                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8, ()), ()))]
 
                 # Assert
                 self.assertEqual([], labels)

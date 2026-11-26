@@ -675,14 +675,16 @@ class Explorer:
         field f, or, given key, of the part key of that type; an
         on_demand_record tells it by its parts, unlisted (is_value_of).
         True when the type has no values to tell it by: any, a type TYPES
-        has not, or, for a part, a type that does not say its parts."""
+        has not, or, for a part, a type that does not say its parts, whose
+        record is told whole once its parts are bound. A part a type of
+        records lacks is never bound (_record_parts)."""
         values = self.checks.types.get(self.d.field_type(e, f))
         if values is None:
             return True
         if key is None:
             return is_value_of(values, value)
         parts = record_parts(values)
-        return parts is None or key not in parts or is_value_of(parts[key], value)
+        return parts is None or is_value_of(parts[key], value)
 
     @staticmethod
     def _parts_so_far(plan: "_Plan", f: str, ranging: dict, bound: dict) -> FrozenMap:
