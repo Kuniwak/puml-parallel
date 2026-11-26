@@ -8,6 +8,7 @@ package decorate
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -33,14 +34,14 @@ var (
 // WordsOf are the words of the language lang names (en, ja), and whether
 // there are any.
 func WordsOf(lang string) (Words, bool) {
-	switch lang {
-	case "en":
-		return English, true
-	case "ja":
-		return Japanese, true
-	}
-	return Words{}, false
+	w, ok := byLanguage[lang]
+	return w, ok
 }
+
+// Languages are the names of the languages there are words of, sorted.
+func Languages() []string { return slices.Sorted(maps.Keys(byLanguage)) }
+
+var byLanguage = map[string]Words{"en": English, "ja": Japanese}
 
 const (
 	varColour    = "#0b57d0"

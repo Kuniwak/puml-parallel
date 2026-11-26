@@ -10,6 +10,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v6/cli"
 	"github.com/Kuniwak/puml-parallel/v6/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/decorate"
 	"github.com/Kuniwak/puml-parallel/v6/tools"
 )
 
@@ -172,9 +173,6 @@ Examples:
 	}
 }
 
-// proseLanguages are the languages a -prose may be written in.
-var proseLanguages = []string{"en", "ja"}
-
 // proseFiles are the values of -prose, LANG=FILE, the file by its language.
 type proseFiles map[string]string
 
@@ -191,8 +189,8 @@ func (p proseFiles) Set(v string) error {
 	if !ok || file == "" {
 		return fmt.Errorf("want LANG=FILE, such as ja=diagram_ja.puml, not %q", v)
 	}
-	if !slices.Contains(proseLanguages, lang) {
-		return fmt.Errorf("unknown language %q in %q (want %s)", lang, v, strings.Join(proseLanguages, " or "))
+	if _, ok := decorate.WordsOf(lang); !ok {
+		return fmt.Errorf("unknown language %q in %q (want %s)", lang, v, strings.Join(decorate.Languages(), " or "))
 	}
 	if seen, ok := p[lang]; ok {
 		return fmt.Errorf("%s is already the prose in %s", seen, lang)
