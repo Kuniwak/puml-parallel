@@ -6,11 +6,11 @@ import (
 	"io"
 	"os"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v5/tools"
-	"github.com/Kuniwak/puml-parallel/v5/version"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v6/tools"
+	"github.com/Kuniwak/puml-parallel/v6/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

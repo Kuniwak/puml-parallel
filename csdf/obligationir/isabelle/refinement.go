@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v6/csdf"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir"
 )
 
 // WriteRefinement writes the refinement obligation of two diagrams

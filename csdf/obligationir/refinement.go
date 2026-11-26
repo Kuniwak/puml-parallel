@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/logic"
 )
 
 // IRRefinementMode selects the CSP model the refinement is stated in.

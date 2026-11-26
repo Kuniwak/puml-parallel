@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
 )
 
 // UnmarshalSyntaxTree reads the JSON MarshalSyntaxTree writes back into a

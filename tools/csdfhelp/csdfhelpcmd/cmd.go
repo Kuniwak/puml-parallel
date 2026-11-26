@@ -3,10 +3,10 @@ package csdfhelpcmd
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
-	"github.com/Kuniwak/puml-parallel/v5/tools"
-	"github.com/Kuniwak/puml-parallel/v5/tools/toolsdoc"
-	"github.com/Kuniwak/puml-parallel/v5/version"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
+	"github.com/Kuniwak/puml-parallel/v6/tools"
+	"github.com/Kuniwak/puml-parallel/v6/tools/toolsdoc"
+	"github.com/Kuniwak/puml-parallel/v6/version"
 )
 
 // NewCommandFunc composes csdfhelp's own command function. Its registry entry

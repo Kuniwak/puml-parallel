@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v6/csdf"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir"
 )
 
 // Notation spells the formulas of an obligation in Isabelle/HOL, every value

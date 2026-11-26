@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
-	"github.com/Kuniwak/puml-parallel/v5/tools"
-	"github.com/Kuniwak/puml-parallel/v5/tools/csdflint/csdflintcmd"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
+	"github.com/Kuniwak/puml-parallel/v6/tools"
+	"github.com/Kuniwak/puml-parallel/v6/tools/csdflint/csdflintcmd"
 	"github.com/google/go-cmp/cmp"
 )
 

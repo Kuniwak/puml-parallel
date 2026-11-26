@@ -31,11 +31,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir/isabelle"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir/lean"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir/isabelle"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir/lean"
 )
 
 const (

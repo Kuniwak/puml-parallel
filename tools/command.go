@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
 )
 
 // CommonOptionsCarrier is implemented by every tool's parsed options so generic

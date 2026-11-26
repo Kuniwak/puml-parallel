@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
-	"github.com/Kuniwak/puml-parallel/v5/csdfbmc"
-	"github.com/Kuniwak/puml-parallel/v5/tools"
-	"github.com/Kuniwak/puml-parallel/v5/version"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
+	"github.com/Kuniwak/puml-parallel/v6/csdfbmc"
+	"github.com/Kuniwak/puml-parallel/v6/tools"
+	"github.com/Kuniwak/puml-parallel/v6/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

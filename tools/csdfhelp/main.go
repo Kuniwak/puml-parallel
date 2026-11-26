@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/Kuniwak/puml-parallel/v5/tools/csdfhelp/csdfhelpcmd"
+	"github.com/Kuniwak/puml-parallel/v6/tools/csdfhelp/csdfhelpcmd"
 )
 
 func main() {
