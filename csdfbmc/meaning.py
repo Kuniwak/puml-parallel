@@ -32,6 +32,16 @@ def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tu
     return apply
 
 
+class Answers:
+    """The glue's answers about the atoms, by atom and the values of its
+    arguments as the walk holds them (kind_key): guards whether it holds,
+    posts the values after the step."""
+
+    def __init__(self):
+        self.guards: dict[tuple, bool] = {}
+        self.posts: dict[tuple, list] = {}
+
+
 class AtomMeaning:
     """The meaning of the atoms: environment decides the declared ones, the
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
@@ -42,24 +52,26 @@ class AtomMeaning:
     The glue is asked about an atom once per list of values, which a pure
     atom allows. The values are keyed as the walk holds them, before they
     are made visible: what the glue sees of them is a function of them and
-    seen, and their kind_key tells apart an instance's states and fields."""
+    seen, and their kind_key tells apart an instance's states and fields.
+    answers keeps them, and may be shared by the meanings of one seen."""
 
-    def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list], seen: Mapping):
+    def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list], seen: Mapping,
+                 answers: Answers | None = None):
         self.client = client
         self.environment = environment
         self.carrier = carrier
         self.seen = seen
         self.decided: dict[str, None] = {}
-        self._answers: dict[tuple, object] = {}
+        self.answers = Answers() if answers is None else answers
 
     def _visible(self, value):
         return visible(value, self.seen)
 
-    def _ask(self, ask: Callable, atom: Atom, args: list):
-        key = (ask.__name__, atom, kind_key(tuple(args)))
-        if key not in self._answers:
-            self._answers[key] = ask(atom.wire, [[self._visible(a) for a in args]])[0]
-        return self._answers[key]
+    def _asked(self, answers: dict, ask: Callable, atom: Atom, args: list):
+        key = (atom, kind_key(tuple(args)))
+        if key not in answers:
+            answers[key] = ask(atom.wire, [[self._visible(a) for a in args]])[0]
+        return answers[key]
 
     def of_environment(self, atom: Atom) -> bool:
         return atom.function in self.environment.declared
@@ -76,14 +88,14 @@ class AtomMeaning:
         values of its arguments."""
         if self.of_environment(atom):
             return self._decide(atom, tuple(self._visible(a) for a in args))
-        return self._ask(self.client.guard, atom, args)
+        return self._asked(self.answers.guards, self.client.guard, atom, args)
 
     def post(self, atom: Atom, before: list, types: list[str]) -> list[tuple]:
         """The values after the step of the primed arguments, in order, that
         an atom allows from the values before it of the others. names name
         the primed arguments' types, over which the environment chooses."""
         if not self.of_environment(atom):
-            return [tuple(forget_views(freeze(v)) for v in after) for after in self._ask(self.client.post, atom, before)]
+            return [tuple(forget_views(freeze(v)) for v in after) for after in self._asked(self.answers.posts, self.client.post, atom, before)]
         out = []
         for after in itertools.product(*(self.carrier(t) for t in types)):
             if self._decide(atom, tuple(self._visible(a) for a in self.merge(atom, before, list(after)))):
