@@ -188,7 +188,7 @@ class FieldTest(unittest.TestCase):
         self.assertEqual({0, 1, 2}, {s[1][0] for s in result.states})
 
     def test_a_field_an_equality_of_the_guard_determines_is_computed_not_enumerated(self):
-        # Setup: x has no type, and 5 would lie outside one anyway (Q5).
+        # Setup: x has no type, so any value it is bound to is taken (Q5).
         d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 5")], edges=[
             edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])])
 
@@ -199,7 +199,7 @@ class FieldTest(unittest.TestCase):
         self.assertEqual(["report(x=5)"], [label for _, label, _, _ in fixture.explorer(d).successors(result.states[0])])
 
     def test_the_parts_of_a_record_field_equalities_of_the_guard_determine_are_computed(self):
-        # Setup: the count the state holds, 8, lies outside the record's part.
+        # Setup
         to, count = eq(idx("w", lit("to")), "t"), eq(idx("w", lit("count")), "n")
         guards = {"together": [to, count], "apart by a conjunct over the state": [to, atom("$n > 0"), count],
                   "written as fields": [eq(fld("w", "to"), "t"), eq(fld("w", "count"), "n")]}
@@ -209,16 +209,16 @@ class FieldTest(unittest.TestCase):
         }
         for (gname, guard), (tname, w) in itertools.product(guards.items(), types.items()):
             with self.subTest(guard=gname, type=tname):
-                d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(8))], edges=[
+                d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(3))], edges=[
                     edge("a", "a", "warn?w", guard=guard, post=[eq("t'", "t"), eq("n'", "n")])],
                     types={"t": "T", "n": "N"}, channels={"warn": ["W"]})
                 checks = Checks(types={"T": ["p", "q"], "N": list(range(9)), "W": w})
 
                 # Execute
-                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", ("p", 8), ()))]
+                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", ("p", 3), ()))]
 
                 # Assert
-                self.assertEqual(["warn(w={'to': 'p', 'count': 8})"], labels)
+                self.assertEqual(["warn(w={'to': 'p', 'count': 3})"], labels)
 
     def test_an_equality_determines_its_field_after_a_conjunct_over_a_later_field(self):
         # Setup
@@ -234,18 +234,53 @@ class FieldTest(unittest.TestCase):
         self.assertEqual(["c(v=5, w=1)", "c(v=5, w=2)"], labels)
         self.assertEqual((3, ["?w"]), (x.stats[0].tried, sorted(x.stats[0].ranged)))
 
+    def test_a_field_an_equality_binds_to_a_value_outside_its_type_takes_no_step(self):
+        # Setup: n holds 9, which V lacks, so no value of the full product holds.
+        guards = {"the equality alone": [eq("v", "n")],
+                  "a conjunct reading the field before it": [builtin("notin", "v", "s"), eq("v", "n")]}
+        for name, guard in guards.items():
+            with self.subTest(name):
+                d = diagram({"a": ["n", "s"]}, "a", init_post=[eq("n'", lit(9)), eq("s'", lit([]))], edges=[
+                    edge("a", "a", "c?v", guard=guard, post=[eq("n'", "n"), eq("s'", "s")])],
+                    channels={"c": ["V"]})
+                x = fixture.explorer(d, Checks(types={"V": [4, 5]}))
+
+                # Execute
+                labels = [label for _, label, _, _ in x.successors(("a", (9, ()), ()))]
+
+                # Assert
+                self.assertEqual([], labels)
+
+    def test_a_part_an_equality_binds_to_a_value_outside_its_type_takes_no_step(self):
+        # Setup: n holds 8, which the part count lacks.
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(8))], edges=[
+            edge("a", "a", "warn?w", guard=[eq(idx("w", lit("to")), lit("p")), eq(idx("w", lit("count")), "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"warn": ["W"]})
+        types = {"a record": record(to=["p", "q"], count=[0, 1]),
+                 "an on_demand_record": on_demand_record(to=["p", "q"], count=[0, 1]),
+                 "a list of records": [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(2)]}
+        for name, w in types.items():
+            with self.subTest(name):
+                checks = Checks(types={"N": list(range(9)), "W": w})
+
+                # Execute
+                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8,), ()))]
+
+                # Assert
+                self.assertEqual([], labels)
+
     def test_a_part_no_equality_determines_ranges_over_the_values_of_the_part(self):
         # Setup
-        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(8))], edges=[
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(1))], edges=[
             edge("a", "a", "warn?w", guard=[eq(idx("w", lit("count")), "n")], post=[eq("n'", "n")])],
             types={"n": "N"}, channels={"warn": ["W"]})
         checks = Checks(types={"N": list(range(9)), "W": record(to=["p", "q"], count=[0, 1])})
 
         # Execute
-        labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8,), ()))]
+        labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (1,), ()))]
 
         # Assert
-        self.assertEqual(["warn(w={'to': 'p', 'count': 8})", "warn(w={'to': 'q', 'count': 8})"], labels)
+        self.assertEqual(["warn(w={'to': 'p', 'count': 1})", "warn(w={'to': 'q', 'count': 1})"], labels)
 
     def test_a_list_of_records_some_part_of_which_no_equality_determines_is_enumerated(self):
         # Setup
@@ -828,7 +863,7 @@ class PruningTest(unittest.TestCase):
     def test_a_term_an_equality_determines_is_computed_only_where_the_conjuncts_before_it_hold(self):
         tests = {
             "the instance elsewhere, so the conjunct before is false": (inst("a", x=0), []),
-            "the instance there": (inst("b", x=0, y=7), ["c(id=1, v=7)"]),
+            "the instance there": (inst("b", x=0, y=1), ["c(id=1, v=1)"]),
         }
         for name, (instance, labels) in tests.items():
             with self.subTest(name):

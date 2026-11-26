@@ -1050,8 +1050,8 @@ disagree admit no successor. A clause that reads an entry its map does not
 have (`m[k]` with `k` not in `m`) is false, never a default value. A field
 an event receives ranges over its type, except one an equality of the guard
 binds (`@eq(x, n)`) to a term over the state and the fields, wherever a
-conjunct that reads the field is: it is computed, whatever its type holds,
-before a conjunct reads it. So are the parts of a record field equalities of
+conjunct that reads the field is: it is computed before a conjunct reads
+it, and a value outside its type makes the guard false. So are the parts of a record field equalities of
 the guard bind (`@eq(w.count, n)` or `@eq(w["count"], n)`, a literal key):
 the term may read other parts of the same field
 (`@eq(r["parent"], m[r.src].parent)`), and a part the term of an equality
@@ -1091,9 +1091,11 @@ is false of, so the term, like every clause, must be pure and raise
 nothing; `@at(m[k], s) ∧ @eq(v, m[k].y)` may read `y` of an instance not
 at `s`, which a function of the term must then take without raising. A
 term that reads an entry its map does not have makes its equality false;
-another error of it stops the check with the error. A bound value is
-taken whatever its field's type holds, where the full product over the
-type would have none.
+another error of it stops the check with the error. A bound value outside
+the type of its field, or of its part, makes the guard false, as the full
+product over the type has no such value: a type of records tells a value
+by its parts, an on_demand_record's too, and a field of the type any, or of
+a type `TYPES` has not, takes any value.
 
 The checker relies on a precondition: a clause, an atom or environment
 function of a glue, and the arguments of a builtin are pure and raise

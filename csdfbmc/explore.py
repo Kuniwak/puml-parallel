@@ -647,13 +647,17 @@ class Explorer:
         state with the fields the prefix and the steps before bound: an
         equality that binds computes its term and adds what it binds to
         bound, and the field to before; one whose term reads an entry its
-        map does not have is false."""
+        map does not have is false, and so is one whose value lies outside
+        the type of what it binds (_in_type), as no value of the full
+        product holds of it."""
         if b is None:
             return self.ev.holds((e.guard[i],), before)
         try:
             value = self.ev.value(b.term, before, {}, ())
         except Missing:
             return False  # the guard reads an entry its map does not have: false
+        if not self._in_type(e, b.field, value, b.key):
+            return False
         if b.key is None:
             bound[b.field] = before[b.field] = value
             return True
@@ -661,8 +665,24 @@ class Explorer:
         ranging = {name: v for (name, _), v in zip(plan.levels, prefix)}
         before[b.field] = self._parts_so_far(plan, b.field, ranging, bound)
         if plan.last_part[b.field] == i:
+            if not self._in_type(e, b.field, before[b.field]):
+                return False
             bound[b.field] = before[b.field]
         return True
+
+    def _in_type(self, e: Edge, f: str, value, key=None) -> bool:
+        """Whether value is one of the type e's channel declares of the
+        field f, or, given key, of the part key of that type; an
+        on_demand_record tells it by its parts, unlisted (is_value_of).
+        True when the type has no values to tell it by: any, a type TYPES
+        has not, or, for a part, a type that does not say its parts."""
+        values = self.checks.types.get(self.d.field_type(e, f))
+        if values is None:
+            return True
+        if key is None:
+            return is_value_of(values, value)
+        parts = record_parts(values)
+        return parts is None or key not in parts or is_value_of(parts[key], value)
 
     @staticmethod
     def _parts_so_far(plan: "_Plan", f: str, ranging: dict, bound: dict) -> FrozenMap:
