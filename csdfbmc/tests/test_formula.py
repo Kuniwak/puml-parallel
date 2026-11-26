@@ -6,7 +6,7 @@ import unittest
 
 from csdfbmc import environment
 from csdfbmc.checks import Checks
-from csdfbmc.formula import Evaluator, PostError, solve
+from csdfbmc.formula import Evaluator, GuardTally, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
 from csdfbmc.model import Family, formula_of, observed_by_state
 from csdfbmc.tests import fixture
@@ -54,6 +54,23 @@ M = FrozenMap({"a": inst("open", cnt=1)})
 
 
 class GuardTest(unittest.TestCase):
+    def test_a_tally_counts_the_conjuncts_evaluated_up_to_the_first_that_does_not_hold(self):
+        tests = {
+            "all hold": ([eq("x", "y"), eq("y", "x")], True, 2),
+            "the first does not": ([builtin("ne", "x", "y"), eq("x", "y")], False, 1),
+            "none": ([], True, 0),
+        }
+        for name, (clause, holds, evaluated) in tests.items():
+            with self.subTest(name):
+                # Setup
+                tally = GuardTally()
+
+                # Execute
+                got = evaluator().holds(formula_of(clause), {"x": 1, "y": 1}, tally=tally)
+
+                # Assert
+                self.assertEqual((holds, evaluated), (got, tally.evaluated))
+
     def test_a_clause_holds_or_not(self):
         tests = {
             "eq of equal values": ([eq("x", "y")], {"x": 1, "y": 1}, True),

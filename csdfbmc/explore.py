@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
-from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
+from csdfbmc.formula import Evaluator, GuardTally, Missing, PostError, Tally, solve
 from csdfbmc.meaning import Answers, AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, observed_by_state, show
 from csdfbmc.determine import Keyed, Witness, blocked, decides_early, determine, draws, keyed, part_reads, place, witness
@@ -670,16 +670,7 @@ class Explorer:
         return FrozenMap((k, ranging[(f, k)] if (f, k) in ranging else bound[(f, k)])
                          for k in plan.keys[f] if (f, k) in ranging or (f, k) in bound)
 
-    def _holds_counted(self, guard: tuple, before: dict, evaluated: list) -> bool:
-        """Whether every conjunct of guard holds of before, evaluated in
-        order until one does not; evaluated[0] counts those evaluated."""
-        for c in guard:
-            evaluated[0] += 1
-            if not self.ev.holds((c,), before):
-                return False
-        return True
-
-    def _guarded_offers(self, state: State, e: Edge, plan: "_Plan", evaluated: list):
+    def _guarded_offers(self, state: State, e: Edge, plan: "_Plan", tally: GuardTally):
         """The values of the fields e receives, each with the number of the
         leading conjuncts of the guard that hold of them, in the order of
         the product of the values the fields range over (plan). The
@@ -698,7 +689,7 @@ class Explorer:
                 partial = {f: self._parts_so_far(plan, f, ranging, bound) for f in plan.last_part if f not in params}
                 before = self._before(state, params | partial)
                 for i, b in group:
-                    evaluated[0] += 1
+                    tally.evaluated += 1
                     if not self._step(e, plan, i, b, prefix, bound, before):
                         return None
                 return bound
@@ -817,12 +808,12 @@ class Explorer:
         where = e.describe()
         stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
         tried = 0
-        evaluated = [0]
+        guards = GuardTally()
         plan = self._field_plan(state, e, stats.ranged if stats else None)
-        for params, held in self._guarded_offers(state, e, plan, evaluated):
+        for params, held in self._guarded_offers(state, e, plan, guards):
             tried += 1
             before = self._before(state, params)
-            if not self._holds_counted(e.guard[held:], before, evaluated):
+            if not self.ev.holds(e.guard[held:], before, tally=guards):
                 continue
             label = self._label(e, before)
             tally = Tally()
@@ -848,7 +839,7 @@ class Explorer:
         if stats:
             stats.tried += full
             stats.pruned += full - tried
-            stats.guard_evaluated += evaluated[0]
+            stats.guard_evaluated += guards.evaluated
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -871,7 +862,7 @@ class Explorer:
         """The first transition of e from state, as taken, its ghosts left
         aside; None when it has none."""
         where = e.describe()
-        for params, held in self._guarded_offers(state, e, self._field_plan(state, e), [0]):
+        for params, held in self._guarded_offers(state, e, self._field_plan(state, e), GuardTally()):
             before = self._before(state, params)
             if self.ev.holds(e.guard[held:], before) and self._successor_values(e.post, before, e.dst, where):
                 return self._label(e, before)

@@ -471,7 +471,7 @@ class PruningTest(unittest.TestCase):
         x = fixture.explorer(self.PART, Checks(types=self.PART_TYPES), stats=True)
         asked = []
         holds = x.ev.holds
-        x.ev.holds = lambda clause, before, *rest: asked.extend(c.op for c in clause) or holds(clause, before, *rest)
+        x.ev.holds = lambda clause, before, *rest, **kw: asked.extend(c.op for c in clause) or holds(clause, before, *rest, **kw)
 
         # Execute
         transitions = x.transitions(("q", (FrozenMap({1: 0}),), ()))
@@ -500,7 +500,7 @@ class PruningTest(unittest.TestCase):
                 x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=r)))
                 asked = []
                 holds = x.ev.holds
-                x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
+                x.ev.holds = lambda clause, before, *rest, **kw: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest, **kw)
 
                 # Execute
                 transitions = x.transitions(("q", (m,), ()))
@@ -556,7 +556,7 @@ class PruningTest(unittest.TestCase):
                 x = fixture.explorer(self.KEYED, Checks(types={"R": r}))
                 asked = []
                 holds = x.ev.holds
-                x.ev.holds = lambda clause, before, *rest: asked.extend(clause) or holds(clause, before, *rest)
+                x.ev.holds = lambda clause, before, *rest, **kw: asked.extend(clause) or holds(clause, before, *rest, **kw)
 
                 # Execute
                 transitions = x.transitions(("q", (m,), ()))
@@ -701,7 +701,7 @@ class PruningTest(unittest.TestCase):
         x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
         calls = []
         holds = x.ev.holds
-        x.ev.holds = lambda clause, before, *rest: calls.append(len(clause)) or holds(clause, before, *rest)
+        x.ev.holds = lambda clause, before, *rest, **kw: calls.append(len(clause)) or holds(clause, before, *rest, **kw)
 
         # Execute
         x.transitions(("q", (FrozenMap(),), ()))
