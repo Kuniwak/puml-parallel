@@ -28,7 +28,7 @@ func NewMainFunc() cli.MainFunc[*Options] {
 
 // mainFormula expands the promotion with csdf/core and prints it as PUML.
 func mainFormula(opts *Options, inout *cli.ProcInout) error {
-	tree, err := coreio.ReadTreeBytes(opts.Bytes, opts.Base, coreio.FileIncluder(opts.Base))
+	tree, err := coreio.ReadTreeJSON(opts.Bytes)
 	if err != nil {
 		return fmt.Errorf("csdfpromotecmd.NewMainFunc: %w", err)
 	}

@@ -8,6 +8,8 @@ import (
 	"github.com/Kuniwak/puml-parallel/v5/cli"
 	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
 	"github.com/Kuniwak/puml-parallel/v5/tools"
+	"github.com/Kuniwak/puml-parallel/v5/tools/csdfinclude/csdfincludecmd"
+	"github.com/Kuniwak/puml-parallel/v5/tools/csdfparse/csdfparsecmd"
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdfpromote/csdfpromotecmd"
 	"github.com/google/go-cmp/cmp"
 )
@@ -20,7 +22,6 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 		"printer_retry": {json: "../examples/bmc/printer_retry_formal.json", puml: "../examples/bmc/printer_retry_formal.puml"},
 		"attempts":      {json: "../examples/bmc/attempts/attempts.json", puml: "../examples/bmc/attempts/ATTEMPTS.puml"},
 	}
-	run := tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc())
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
@@ -28,21 +29,18 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			spy := cli.SpyProcInout()
-			spy.Stdin = strings.NewReader("")
 
 			// Execute
-			exit := run([]string{"-format", "json", tt.puml}, spy.New())
+			tree := pipe(t, tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()), []string{tt.puml}, "")
+			resolved := pipe(t, tools.NewCommandFunc(csdfincludecmd.NewParseOptionsFunc(), csdfincludecmd.NewMainFunc()), nil, tree)
+			out := pipe(t, tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc()), []string{"-format", "json"}, resolved)
 
 			// Assert
-			if exit != 0 {
-				t.Fatalf("want 0, got %d: %s", exit, spy.Stderr.String())
-			}
 			want, err := core.UnmarshalDiagram(recorded)
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := core.UnmarshalDiagram([]byte(spy.Stdout.String()))
+			got, err := core.UnmarshalDiagram([]byte(out))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,4 +51,16 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 			}
 		})
 	}
+}
+
+// pipe is what run prints with args and stdin, as a stage of a shell
+// pipeline; a nonzero exit fails the test.
+func pipe(t *testing.T, run func([]string, *cli.ProcInout) int, args []string, stdin string) string {
+	t.Helper()
+	spy := cli.SpyProcInout()
+	spy.Stdin = strings.NewReader(stdin)
+	if exit := run(args, spy.New()); exit != 0 {
+		t.Fatalf("want 0, got %d: %s", exit, spy.Stderr.String())
+	}
+	return spy.Stdout.String()
 }

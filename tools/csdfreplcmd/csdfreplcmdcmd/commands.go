@@ -304,7 +304,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 	return func(args []string, inout *cli.ProcInout) (*clientOptions, error) {
 		flags := newFlagSet("csdfreplcmd session new", inout)
 		setLeafUsage(flags, "csdfreplcmd session new [-json] <file.puml|file.png>",
-			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote reads it, each !include read relative to the\nfile and sent to the daemon with it; the promotion's warnings are printed\non stderr.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
+			"Start a new exploration session from a Composable State Diagram file and\nprint its session id on stdout. A clause of the old syntax is refused.\nA global diagram holding promotion directives is explored as its\nexpansion, as csdfpromote expands it, each !include resolved relative to the\nfile and sent to the daemon with it; the promotion's warnings are printed\non stderr.\n\nExample:\n  SID=$(csdfreplcmd session new examples/valid/vending_machine.puml)")
 		cf := declareConnFlags(flags)
 		declareJSON(flags, cf)
 		opts, err := parseLeaf(flags, args, cf)

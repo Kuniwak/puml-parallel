@@ -37,10 +37,11 @@ func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
 			// Setup
 			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 			spy := cli.SpyProcInout()
+			spy.Stdin = strings.NewReader(resolvedTreeOf(t, path))
 			golden := strings.TrimSuffix(path, ".puml") + ".expanded.puml"
 
 			// Execute
-			exitStatus := cmdFunc([]string{path}, spy.New())
+			exitStatus := cmdFunc(nil, spy.New())
 
 			// Assert
 			if exitStatus != 0 {
@@ -70,11 +71,22 @@ func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
 // resolvedTreeOf is the JSON csdfinclude prints for the diagram at path.
 func resolvedTreeOf(t *testing.T, path string) string {
 	t.Helper()
-	tree, err := csdf.UnmarshalSyntaxTree([]byte(syntaxTreeOf(t, path)))
+	src, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := coreio.ResolveIncludes(tree, filepath.Dir(path), coreio.FileIncluder(filepath.Dir(path)))
+	return resolvedTreeOfSource(t, path, string(src))
+}
+
+// resolvedTreeOfSource is the JSON csdfinclude prints for source, parsed
+// as read from path.
+func resolvedTreeOfSource(t *testing.T, path, source string) string {
+	t.Helper()
+	tree, err := csdf.Parse(path, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := coreio.ResolveFileIncludes(tree, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,6 +123,7 @@ func TestNewMainFunc(t *testing.T) {
 		stdin           string
 		stdinTreeOf     string // the path whose syntax tree is the standard input
 		stdinResolvedOf string // the path whose resolved syntax tree is the standard input
+		stdinSourceAt   string // the path stdin is parsed as read from, its tree resolved, when set
 		wantExit        int
 		wantStdoutEmpty bool
 		wantStdout      []string
@@ -118,76 +131,89 @@ func TestNewMainFunc(t *testing.T) {
 		wantStderr      string
 	}{
 		"-no-comments is refused as an unknown flag": {
-			args:            []string{"-no-comments", membersPath},
+			args:            []string{"-no-comments"},
+			stdinResolvedOf: membersPath,
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "flag provided but not defined: -no-comments",
 		},
 		"-lint-only prints nothing": {
-			args:            []string{"-lint-only", membersPath},
+			args:            []string{"-lint-only"},
+			stdinResolvedOf: membersPath,
 			wantStdoutEmpty: true,
 		},
 		"-json is refused as an unknown flag": {
-			args:            []string{"-json", membersPath},
+			args:            []string{"-json"},
+			stdinResolvedOf: membersPath,
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "flag provided but not defined: -json",
 		},
 		"-format json prints the expansion as csdfparse prints a diagram": {
-			args:         []string{"-format", "json", membersPath},
-			wantStdout:   []string{`"version":3`, `"kind":"builtin","op":"notin"`},
-			wantNoStdout: []string{"@startuml", `"origin"`},
+			args:            []string{"-format", "json"},
+			stdinResolvedOf: membersPath,
+			wantStdout:      []string{`"version":3`, `"kind":"builtin","op":"notin"`},
+			wantNoStdout:    []string{"@startuml", `"origin"`},
 		},
 		"-format json prints a diagram with no directive as it is, its end edge included": {
-			args:       []string{"-format", "json", "../../../examples/valid/skip.puml"},
-			wantStdout: []string{`"version":3`, `"ends":[{"src":"s0","guard":[]}]`},
+			args:            []string{"-format", "json"},
+			stdinResolvedOf: "../../../examples/valid/skip.puml",
+			wantStdout:      []string{`"version":3`, `"ends":[{"src":"s0","guard":[]}]`},
 		},
 		"a diagram with no directive is printed as it is": {
-			args:       []string{"../../../examples/valid/skip.puml"},
-			wantStdout: []string{"s0 --> [*]"},
+			stdinResolvedOf: "../../../examples/valid/skip.puml",
+			wantStdout:      []string{"s0 --> [*]"},
 		},
 		"an unknown -format is refused": {
-			args:            []string{"-format", "tsv", membersPath},
+			args:            []string{"-format", "tsv"},
+			stdinResolvedOf: membersPath,
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "unknown output",
 		},
 		"-template glosses the builtins in a line comment": {
-			args:       []string{"-template", "../../../examples/promote/templates/ja.tmpl", membersPath},
-			wantStdout: []string{"' members[会員ID] は〈memActive〉", "@notin(会員ID, members')"},
+			args:            []string{"-template", "../../../examples/promote/templates/ja.tmpl"},
+			stdinResolvedOf: membersPath,
+			wantStdout:      []string{"' members[会員ID] は〈memActive〉", "@notin(会員ID, members')"},
 		},
 		"-template is refused with -format json": {
-			args:            []string{"-template", "../../../examples/promote/templates/ja.tmpl", "-format", "json", membersPath},
+			args:            []string{"-template", "../../../examples/promote/templates/ja.tmpl", "-format", "json"},
+			stdinResolvedOf: membersPath,
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "-format json takes none",
 		},
 		"-only keeps the named families, and says what its result means": {
-			args:         []string{"-only", "receipts", "../../../examples/promote/RECEIPTS.puml"},
-			wantStdout:   []string{"running : receipts"},
-			wantNoStdout: []string{"REPORT", "running : cycles"},
-			wantStderr:   "note: a restriction keeps only safety",
+			args:            []string{"-only", "receipts"},
+			stdinResolvedOf: "../../../examples/promote/RECEIPTS.puml",
+			wantStdout:      []string{"running : receipts"},
+			wantNoStdout:    []string{"REPORT", "running : cycles"},
+			wantStderr:      "note: a restriction keeps only safety",
 		},
 		"-only names a family by its map, not its type": {
-			args:            []string{"-only", "Receipt", "../../../examples/promote/RECEIPTS.puml"},
+			args:            []string{"-only", "Receipt"},
+			stdinResolvedOf: "../../../examples/promote/RECEIPTS.puml",
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "Receipt is no promoted map",
 		},
 		"-only with -format json drops what reads a left-out map, and says so": {
-			args:         []string{"-only", "receipts", "-format", "json", "../../../examples/promote/RECEIPTS.puml"},
-			wantStdout:   []string{`"version":3`},
-			wantNoStdout: []string{"cycles"},
-			wantStderr:   "dropped, as it reads a left-out map",
+			args:            []string{"-only", "receipts", "-format", "json"},
+			stdinResolvedOf: "../../../examples/promote/RECEIPTS.puml",
+			wantStdout:      []string{`"version":3`},
+			wantNoStdout:    []string{"cycles"},
+			wantStderr:      "dropped, as it reads a left-out map",
 		},
 		"-only refuses an unknown family": {
-			args:            []string{"-only", "shipments", "../../../examples/promote/RECEIPTS.puml"},
+			args:            []string{"-only", "shipments"},
+			stdinResolvedOf: "../../../examples/promote/RECEIPTS.puml",
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "shipments is no promoted map",
 		},
 		"-only is refused for a diagram with no directive": {
-			args:            []string{"-only", "receipts", "../../../examples/valid/skip.puml"},
+			args:            []string{"-only", "receipts"},
+			stdinResolvedOf: "../../../examples/valid/skip.puml",
 			wantExit:        1,
 			wantStdoutEmpty: true,
 			wantStderr:      "receipts is no promoted map",
@@ -198,7 +224,7 @@ func TestNewMainFunc(t *testing.T) {
 		},
 		// The sync names a map no block promotes.
 		"an unsound promotion is refused, with the reason and no diagram": {
-			args: []string{"-base", "../../../examples/promote"},
+			stdinSourceAt: "../../../examples/promote/A.puml",
 			stdin: `@startuml A
 state "稼働中" as running {
   state "members : (会員ID : 会員ID) ⇸ Member" as runningMembers <<promote>> {
@@ -215,15 +241,14 @@ end note
 			wantStdoutEmpty: true,
 			wantStderr:      "reviews",
 		},
-		"the syntax tree csdfparse prints is read": {
+		"a syntax tree with no directive is read": {
 			args:        []string{"-format", "json"},
 			stdinTreeOf: "../../../examples/valid/skip.puml",
 			wantStdout:  []string{`"ends":[{"src":"s0","guard":[]}]`},
 		},
-		// The file the !include names is there, but a tree is read as
-		// csdfparse printed it.
-		"the !include of a syntax tree is refused": {
-			args:            []string{"-base", "../../../examples/promote", "-format", "json"},
+		// The file the !include names is there, but csdfinclude resolves it.
+		"an unresolved !include is refused, naming csdfinclude": {
+			args:            []string{"-format", "json"},
 			stdinTreeOf:     membersPath,
 			wantExit:        1,
 			wantStdoutEmpty: true,
@@ -234,15 +259,15 @@ end note
 			stdinResolvedOf: membersPath,
 			wantStdout:      []string{`"version":3`, `"kind":"builtin","op":"notin"`},
 		},
-		"an unterminated CSDF-IGNORE region is refused": {
-			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n' CSDF-IGNORE-BEGIN\nskinparam x y\n@enduml\n",
+		"PlantUML is refused, naming csdfparse": {
+			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n@enduml\n",
 			wantExit:        1,
 			wantStdoutEmpty: true,
-			wantStderr:      "Error: csdf.Parser.skipIgnoreRegion: unterminated CSDF-IGNORE region at line 4, col 1",
+			wantStderr:      "run csdfparse on the diagram first",
 		},
 		"a warning is printed at its level": {
-			args:       []string{"../../../examples/promote/MODES.puml"},
-			wantStderr: "info: reviews: frozen in degraded",
+			stdinResolvedOf: "../../../examples/promote/MODES.puml",
+			wantStderr:      "info: reviews: frozen in degraded",
 		},
 	}
 
@@ -256,6 +281,9 @@ end note
 			}
 			if c.stdinResolvedOf != "" {
 				stdin = resolvedTreeOf(t, c.stdinResolvedOf)
+			}
+			if c.stdinSourceAt != "" {
+				stdin = resolvedTreeOfSource(t, c.stdinSourceAt, c.stdin)
 			}
 			spy.Stdin = strings.NewReader(stdin)
 

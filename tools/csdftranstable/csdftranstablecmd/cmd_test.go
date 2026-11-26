@@ -142,7 +142,7 @@ A --> B : a
 		// tool but csdfpromote has to refuse one.
 		"a global diagram": {
 			Args:       []string{"../../../examples/promote/RECEIPTS.puml"},
-			WantStderr: "run csdfpromote on it first",
+			WantStderr: "expand it first: csdfparse x.puml | csdfinclude | csdfpromote",
 		},
 	}
 

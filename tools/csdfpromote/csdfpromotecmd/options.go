@@ -4,7 +4,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v5/cli"
@@ -41,10 +40,7 @@ func ParseOutput(name string) (Output, error) {
 }
 
 type Options struct {
-	Common *tools.CommonOptions
-	// Base is what an !include path is resolved against: the directory the
-	// input was read from, or the working directory when it came from stdin.
-	Base     string
+	Common   *tools.CommonOptions
 	Template string
 	Werror   bool
 	LintOnly bool
@@ -65,7 +61,7 @@ func NewParseOptionsFunc() cli.ParseOptionsFunc[*Options] {
 		flags.SetOutput(inout.Stderr)
 		flags.Usage = func() {
 			w := flags.Output()
-			fmt.Fprintf(w, `Usage: csdfpromote [options] [file.puml|file.png|file.json]
+			fmt.Fprintf(w, `Usage: csdfpromote [options] [file.json]
 
 Expands the promotion directives of a global Composable State Diagram: every
 local diagram named by a <<promote>> block becomes self-loops on the state the
@@ -74,10 +70,11 @@ result is plain PlantUML, which every other tool reads. A diagram with no
 directive is printed as it is, its end edges included.
 A file argument, a "-" argument, and standard input are all equivalent.
 
-The input is PlantUML, a .puml text or a .png, or the syntax tree csdfparse
-prints (JSON): an input that opens with "{", after a UTF-8 byte order mark
-and whitespace if any, is read as the tree, any other as PlantUML. PlantUML's !include is read from the file it names; a
-syntax tree's is refused, as it is csdfinclude's to resolve.
+The input is the syntax tree csdfparse prints (JSON), its !include lines
+resolved by csdfinclude; PlantUML is refused, and so is an !include left
+unresolved:
+
+  csdfparse GLOBAL.puml | csdfinclude | csdfpromote
 
 Every predicate of the expansion is its clauses joined by the connective " ∧ ":
 the generated ones are builtins (@in, @notin, @at, @frame, @update, @empty,
@@ -107,19 +104,18 @@ Options:
 			flags.PrintDefaults()
 			fmt.Fprintf(w, `
 Examples:
-  $ csdfpromote path/to/GLOBAL.puml
-  $ csdfpromote -lint-only -Werror path/to/GLOBAL.puml
-  $ csdfpromote -template examples/promote/templates/ja.tmpl path/to/GLOBAL.puml
-  $ csdfpromote path/to/GLOBAL.puml | csdflivelockfree -
-  $ csdfpromote -format json path/to/GLOBAL.puml
+  $ csdfparse path/to/GLOBAL.puml | csdfinclude | csdfpromote
+  $ csdfparse path/to/GLOBAL.puml | csdfinclude | csdfpromote -lint-only -Werror
+  $ csdfparse path/to/GLOBAL.puml | csdfinclude | csdfpromote -template examples/promote/templates/ja.tmpl
+  $ csdfparse path/to/GLOBAL.puml | csdfinclude | csdfpromote | csdflivelockfree -
+  $ csdfparse path/to/GLOBAL.puml | csdfinclude | csdfpromote -format json
   $ csdfparse path/to/LOCAL.puml | csdfpromote -format json
-  $ csdfpromote -only orders,Shipment -format json path/to/GLOBAL.puml
+  $ csdfparse path/to/GLOBAL.puml | csdfinclude | csdfpromote -only orders,Shipment -format json
 `)
 		}
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
-		base := flags.String("base", "", "directory to resolve !include paths against (default: the directory of the input file)")
 		templatePath := flags.String("template", "", "file of templates glossing the builtins of each edge in a line comment (default: none)")
 		werror := flags.Bool("Werror", false, "treat warnings as errors")
 		lintOnly := flags.Bool("lint-only", false, "check the directives without printing the expansion")
@@ -147,22 +143,13 @@ Examples:
 			return nil, fmt.Errorf("csdfpromotecmd.NewParseOptionsFunc: %w", err)
 		}
 
-		path, bs, err := tools.ValidateArgsAsFileInput(flags.Args(), inout)
+		_, bs, err := tools.ValidateArgsAsFileInput(flags.Args(), inout)
 		if err != nil {
 			return nil, fmt.Errorf("csdfpromotecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
 
-		resolved := *base
-		if resolved == "" {
-			resolved = "."
-			if path != "" {
-				resolved = filepath.Dir(path)
-			}
-		}
-
 		return &Options{
 			Common:   commonOpts,
-			Base:     resolved,
 			Template: *templatePath,
 			Werror:   *werror,
 			LintOnly: *lintOnly,

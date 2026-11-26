@@ -41,8 +41,8 @@ from IDs to {"at": <state>, "fields": {...}}, at a state of the family other
 than its start state and with exactly that state's variables as fields.
 
 A global diagram holding promotion directives (docs/PROMOTION.md) is
-explored as its expansion, read as csdfpromote reads it, families included,
-each !include read relative to the file; the promotion's warnings are
+explored as its expansion, as csdfpromote expands it, families included,
+each !include resolved relative to the file as csdfinclude resolves it; the promotion's warnings are
 printed on the standard error. A diagram without them reads unchanged.
 
 Without -checks, values a builtin of the guard or the post (@eq, @ne, @in,

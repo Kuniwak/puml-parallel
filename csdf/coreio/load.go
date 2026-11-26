@@ -194,34 +194,6 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 	return canonical, warnings, nil
 }
 
-// ReadTreeBytes reads the syntax tree of the diagram in raw: the JSON
-// csdfparse prints (isSyntaxTreeJSON), as it is, its !include lines
-// resolved only if they were, or a .puml text or a .png, parsed, its
-// !include lines resolved by files reading against base (ResolveIncludes).
-func ReadTreeBytes(raw []byte, base string, files Include) (*csdf.SyntaxTree, error) {
-	raw = bytes.TrimPrefix(raw, utf8BOM)
-	if isSyntaxTreeJSON(raw) {
-		tree, err := csdf.UnmarshalSyntaxTree(raw)
-		if err != nil {
-			return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
-		}
-		return tree, nil
-	}
-	src, err := pngsrc.Extract(raw)
-	if err != nil {
-		return nil, fmt.Errorf("coreio.ReadTreeBytes: reading PlantUML source: %w", err)
-	}
-	parsed, err := csdf.Parse("", src)
-	if err != nil {
-		return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
-	}
-	tree, err := ResolveIncludes(parsed, base, files)
-	if err != nil {
-		return nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
-	}
-	return tree, nil
-}
-
 // ReadTreeJSON reads the syntax tree csdfparse prints (JSON), after a
 // UTF-8 byte order mark if any; other input, such as PlantUML, is refused,
 // naming csdfparse.
@@ -250,5 +222,5 @@ var utf8BOM = []byte("\xef\xbb\xbf")
 // UnresolvedInclude is the refusal of the !include of path left unresolved
 // in a syntax tree, which csdfinclude resolves.
 func UnresolvedInclude(path string) error {
-	return fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote), or give csdfpromote the .puml", path)
+	return fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote)", path)
 }
