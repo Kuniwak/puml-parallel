@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"github.com/Kuniwak/puml-parallel/v6/csdfbmc"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -24,22 +25,22 @@ func python(t *testing.T) string {
 	return path
 }
 
-// pythonCommand runs the interpreter with -E -s -B and args. A run still
+// pythonCommand runs the interpreter with args, as PythonArgs gives them. A run still
 // going a minute before the test binary's deadline is sent SIGABRT, on which
 // the interpreter writes every thread's traceback to its standard error: a
 // hang names where it waits instead of being killed silently.
-func pythonCommand(t *testing.T, args ...string) *exec.Cmd {
+func pythonCommand(t *testing.T, args []string) *exec.Cmd {
 	t.Helper()
 	deadline, ok := t.Deadline()
 	if !ok {
-		return pythonCommandAbortedAt(t, time.Time{}, args...)
+		return pythonCommandAbortedAt(t, time.Time{}, args)
 	}
-	return pythonCommandAbortedAt(t, deadline.Add(-time.Minute), args...)
+	return pythonCommandAbortedAt(t, deadline.Add(-time.Minute), args)
 }
 
 // pythonCommandAbortedAt is pythonCommand, sending SIGABRT at abort unless it
 // is zero.
-func pythonCommandAbortedAt(t *testing.T, abort time.Time, args ...string) *exec.Cmd {
+func pythonCommandAbortedAt(t *testing.T, abort time.Time, args []string) *exec.Cmd {
 	t.Helper()
 	ctx := context.Background()
 	if !abort.IsZero() {
@@ -47,7 +48,7 @@ func pythonCommandAbortedAt(t *testing.T, abort time.Time, args ...string) *exec
 		ctx, cancel = context.WithDeadline(ctx, abort)
 		t.Cleanup(cancel)
 	}
-	cmd := exec.CommandContext(ctx, python(t), append([]string{"-E", "-s", "-B", "-X", "faulthandler"}, args...)...)
+	cmd := exec.CommandContext(ctx, python(t), append([]string{"-X", "faulthandler"}, args...)...)
 	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGABRT) }
 	cmd.WaitDelay = 10 * time.Second
 	return cmd
@@ -65,7 +66,7 @@ func runGlue(t *testing.T, requests ...map[string]any) []map[string]any {
 		}
 		in.Write(append(b, '\n'))
 	}
-	cmd := pythonCommand(t, "-m", "csdfbmc.python_glue")
+	cmd := pythonCommand(t, csdfbmc.ModuleArgs(".", "csdfbmc.python_glue"))
 	cmd.Dir = ".."
 	cmd.Stdin = strings.NewReader(in.String())
 	out, err := cmd.Output()
@@ -89,7 +90,7 @@ func runGlue(t *testing.T, requests ...map[string]any) []map[string]any {
 }
 
 func TestPythonUnitTestsPass(t *testing.T) {
-	cmd := pythonCommand(t, "-m", "unittest", "discover", "-s", "tests", "-t", "..")
+	cmd := pythonCommand(t, csdfbmc.ModuleArgs("..", "unittest", "discover", "-s", "tests", "-t", ".."))
 	cmd.Dir = "."
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("python unit tests failed: %v\n%s", err, out)
@@ -99,8 +100,8 @@ func TestPythonUnitTestsPass(t *testing.T) {
 // The printer with retries checks six properties at once; as written it reports a
 // deadlock after the retries and nothing else.
 func TestThePrinterRetryExampleReportsADeadlockAfterTheRetries(t *testing.T) {
-	cmd := pythonCommand(t, "-m", "csdfbmc", "examples/bmc/printer_retry_formal.json", "examples/bmc/printer_retry_formal_checks.py",
-		"--evaluator-module", "csdfbmc.python_glue examples/bmc/printer_retry_formal_checks.py", "--avoid", "完了", "--within", "printing")
+	cmd := pythonCommand(t, csdfbmc.PythonArgs(".", "examples/bmc/printer_retry_formal.json", "examples/bmc/printer_retry_formal_checks.py",
+		"--evaluator-module", "csdfbmc.python_glue examples/bmc/printer_retry_formal_checks.py", "--avoid", "完了", "--within", "printing"))
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
@@ -129,7 +130,7 @@ func TestThePrinterExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 		{"--evaluator-module", "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"},
 	} {
 		t.Run(glue[0], func(t *testing.T) {
-			cmd := pythonCommand(t, append([]string{"-m", "csdfbmc", "examples/bmc/printer_formal.json", "examples/bmc/printer_formal_defs.py"}, glue...)...)
+			cmd := pythonCommand(t, csdfbmc.PythonArgs(".", append([]string{"examples/bmc/printer_formal.json", "examples/bmc/printer_formal_defs.py"}, glue...)...))
 			cmd.Dir = ".."
 			out, err := cmd.CombinedOutput()
 			if exit, ok := err.(*exec.ExitError); !ok || exit.ExitCode() != 1 {
@@ -147,8 +148,8 @@ func TestThePrinterExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 // of the bound is done; the IDs are a sample, so that is the bound
 // reached, not a deadlock. No cycle avoids DONE.
 func TestThePromotedExampleStopsOnlyWhenEveryIDIsDone(t *testing.T) {
-	cmd := pythonCommand(t, "-m", "csdfbmc", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
-		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "DONE")
+	cmd := pythonCommand(t, csdfbmc.PythonArgs(".", "examples/bmc/attempts/attempts.json", "examples/bmc/attempts/checks.py",
+		"--evaluator-module", "csdfbmc.python_glue", "--avoid", "DONE"))
 	cmd.Dir = ".."
 	out, err := cmd.CombinedOutput()
 	if err != nil {
