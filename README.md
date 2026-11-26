@@ -1711,7 +1711,10 @@ edges of its expansion, moving the same local edges). `csdfreplweb` refuses
 another, naming the first difference. Its `!include`s are read relative to
 it. Give `-prose` once per language: the page shows the version in the
 language it is shown in, else the English one, else the other. The language
-is the one `-prose` gives, never read from the file name.
+is the one `-prose` gives, never read from the file name. The prose's
+builtins and `@exists`, such as those `csdfpromote` writes, are spelled in
+that language as `csdfdecorate` spells them, and its conjuncts are joined
+by its word for "and"; a clause that cannot be spelled is refused.
 
 ```console
 $ csdfreplweb -checks examples/bmc/printer_formal_defs.py \

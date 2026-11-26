@@ -64,7 +64,7 @@ func TestProseOfGivesTheClausesOfTheOtherVersionByEdge(t *testing.T) {
 	d, prose := readTestDiagram(t, trayFormal), readTestDiagram(t, trayProse)
 
 	// Execute
-	got, err := ProseOf(d, prose)
+	got, err := ProseOf(d, prose, animation.English)
 
 	// Assert
 	if err != nil {
@@ -73,13 +73,30 @@ func TestProseOfGivesTheClausesOfTheOtherVersionByEdge(t *testing.T) {
 	want := &Prose{
 		InitPost: "the tray is empty",
 		Edges: map[string][]Clauses{
-			"idle": {{Guard: "enough paper for n sheets", Post: "n sheets fewer ∧ none jammed"}, {Guard: "(none)", Post: "one sheet more"}},
+			"idle": {{Guard: "enough paper for n sheets", Post: "n sheets fewer and none jammed"}, {Guard: "(none)", Post: "one sheet more"}},
 			"busy": {{Guard: "(none)", Post: "(none)"}},
 		},
 		Ends: map[string][]string{"busy": {"the tray is empty"}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ProseOf mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestProseOfSpellsTheBuiltinsInTheLanguageOfTheProse(t *testing.T) {
+	// Setup
+	prose := strings.Replace(trayProse, "refill ; ; one sheet more", "refill ; @ne(paper, 9) ; 一枚増える", 1)
+	d, p := readTestDiagram(t, trayFormal), readTestDiagram(t, prose)
+
+	// Execute
+	got, err := ProseOf(d, p, animation.Japanese)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Clauses{Guard: "paper は 9 でない", Post: "一枚増える"}); got.Edges["idle"][1] != want {
+		t.Errorf("ProseOf() refill = %+v, want %+v", got.Edges["idle"][1], want)
 	}
 }
 
@@ -148,7 +165,7 @@ func TestProseOfRefusesAnotherDiagram(t *testing.T) {
 			d, prose := readTestDiagram(t, trayFormal), readTestDiagram(t, strings.Replace(trayProse, tt.old, tt.new, 1))
 
 			// Execute
-			_, err := ProseOf(d, prose)
+			_, err := ProseOf(d, prose, animation.English)
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
@@ -170,7 +187,7 @@ func TestProseOfRefusesAnEdgeMovingOtherLocalEdges(t *testing.T) {
 	prose := &core.Diagram{States: []string{"a"}, Init: "a", Edges: []core.Edge{edge(1)}}
 
 	// Execute
-	_, err := ProseOf(d, prose)
+	_, err := ProseOf(d, prose, animation.English)
 
 	// Assert
 	if want := "the 1st edge goes a --> a : tick moving items#0 here, and no edge of the prose goes so"; err == nil || !strings.Contains(err.Error(), want) {
@@ -194,7 +211,7 @@ func TestProseOfTakesTheExpansionOfAPromotion(t *testing.T) {
 	d, prose := read(), read()
 
 	// Execute
-	got, err := ProseOf(d, prose)
+	got, err := ProseOf(d, prose, animation.English)
 
 	// Assert
 	if err != nil {
@@ -218,7 +235,7 @@ func TestProseOfPairsTheEdgesOfAPromotionByTheirMovesWhateverTheirOrder(t *testi
 	prose := &core.Diagram{States: []string{"run"}, Init: "run", Edges: []core.Edge{edge(1, "second"), edge(0, "first")}}
 
 	// Execute
-	got, err := ProseOf(d, prose)
+	got, err := ProseOf(d, prose, animation.English)
 
 	// Assert
 	if err != nil {
