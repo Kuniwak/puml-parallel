@@ -28,6 +28,15 @@ func TestParseReadsAnAssumeNote(t *testing.T) {
 	}
 }
 
+func TestParseReadsAnAssumeNoteWithCommentsAmongItsLines(t *testing.T) {
+	d := mustParseAccepting("@startuml\n[*] --> s0\nnote as fair\n  ' why\n  assume finitely many steps\n  ' more\nend note\n@enduml\n")
+
+	want := []Assumption{{ID: "fair", Text: "finitely many steps", Line: 5}}
+	if diff := cmp.Diff(want, d.Assumptions); diff != "" {
+		t.Error(diff)
+	}
+}
+
 func TestParseGivesAnEmptyAssumptionListRatherThanNull(t *testing.T) {
 	bs, err := json.Marshal(mustParseAccepting("@startuml\n[*] --> s0\n@enduml\n"))
 	if err != nil {

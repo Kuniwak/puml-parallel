@@ -135,12 +135,13 @@ func plainNote(d *Diagram, n *NoteSyntax, r refuser) error {
 	if n.ID == "" {
 		return r.refuse(n, n.Pos, "a note is floating, not anchored to a state, at line %d, col %d: %s", n.Line, n.Col, hint)
 	}
-	if len(n.Lines) == 0 {
+	lines := n.Content()
+	if len(lines) == 0 {
 		return r.refuse(n, n.Pos, "the note at line %d holds no assume directive and no channel declaration: %s", n.Line, hint)
 	}
 	var assumption *Assumption
 	var channels []ChannelDecl
-	for _, l := range n.Lines {
+	for _, l := range lines {
 		switch l := l.(type) {
 		case *AssumeSyntax:
 			if assumption != nil {
@@ -189,7 +190,7 @@ func HoldsDirectives(body []Element) bool {
 				return true
 			}
 		case *NoteSyntax:
-			for _, l := range e.Lines {
+			for _, l := range e.Content() {
 				switch l.(type) {
 				case *SyncSyntax, *ConstrainSyntax:
 					return true

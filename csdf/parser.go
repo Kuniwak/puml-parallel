@@ -924,7 +924,10 @@ func (p *sourceParser) parseNote() (*NoteSyntax, error) {
 		return nil, fmt.Errorf("csdf.Parser.parseNote: expected newline after the note's head at line %d, col %d", p.line, p.col)
 	}
 
-	directed := false
+	directed, opened := false, false
+	outer := p.sink
+	p.sink = &note.Lines
+	defer func() { p.sink = outer }()
 	for {
 		for !p.isAtEnd() && (p.peek() == ' ' || p.peek() == '\t') {
 			p.advance()
@@ -948,8 +951,8 @@ func (p *sourceParser) parseNote() (*NoteSyntax, error) {
 		case strings.HasPrefix(text, "end") && strings.TrimSpace(strings.TrimPrefix(text, "end")) == "note":
 			return note, nil
 		}
-		if len(note.Lines) == 0 {
-			directed = opensDirective(text)
+		if !opened {
+			directed, opened = opensDirective(text), true
 		}
 		line, err := noteLine(lineAt, text, directed)
 		if err != nil {

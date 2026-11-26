@@ -559,7 +559,7 @@ is the list of elements. Each element has a `kind`:
 | `start_edge` | `dst`, `post`                            | `[*] --> dst : post`.                                                                                    |
 | `edge`       | `src`, `dst`, `event`, `guard`, `post`   | `src --> dst : event ; guard ; post`.                                                                    |
 | `end_edge`   | `src`, `guard`                           | `src --> [*] : guard`.                                                                                   |
-| `note`       | `id` or `side` and `of`, `lines`         | `note as id`, or `note side of of`, and its lines up to `end note`, blank ones left out.                 |
+| `note`       | `id` or `side` and `of`, `lines`         | `note as id`, or `note side of of`, and its lines up to `end note`, blank ones left out and line comments among them where written. |
 
 An `event` is `{"line", "col", "text", "channel", "fields"}`, each field
 `{"dir": "?" | "!", "name"}`. A `guard` or `post` is `null` when it is not

@@ -149,15 +149,28 @@ type EndEdgeSyntax struct {
 }
 
 // NoteSyntax is a note: floating, "note as ID", or anchored, "note Side of
-// Of", and its lines up to "end note", blank ones left out. When its first
-// line opens a directive (assume, channel, sync, constrain), each line is
-// read as a directive or prose; otherwise every line is prose.
+// Of", and its lines up to "end note", blank ones left out, its line
+// comments among them where they are written. When its first line but the
+// comments opens a directive (assume, channel, sync, constrain), each line
+// is read as a directive or prose; otherwise every line is prose.
 type NoteSyntax struct {
 	Pos
 	ID    string
 	Side  string
 	Of    string
 	Lines []Element
+}
+
+// Content gives the lines of the note but its comments, in order: what the
+// note says.
+func (n *NoteSyntax) Content() []Element {
+	var out []Element
+	for _, l := range n.Lines {
+		if _, ok := l.(*CommentSyntax); !ok {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // AssumeSyntax is "assume Text".

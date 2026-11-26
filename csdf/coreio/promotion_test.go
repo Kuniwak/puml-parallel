@@ -202,6 +202,29 @@ end note
 			},
 		},
 		{
+			name: "a constrain after a comment, a comment among its lines",
+			source: `@startuml
+state "稼働中" as running {
+  state "shipments : (s : 出荷ID) ⇸ Shipment" as runningShipments <<promote>> {
+    !include local/SHIPMENT.puml
+  }
+}
+[*] --> running
+note bottom of runningShipments
+  ' CSDF-OPTIMIZATION ORDER: none
+  constrain ORDER?s ; @empty(shipments)
+  ' a remark
+end note
+@enduml
+`,
+			want: core.Promotion{
+				Labels: map[string]string{"running": "稼働中"},
+				Modes:  []string{"running"}, Init: "running",
+				Families:   []core.Family{{Map: "shipments", ID: "s", Key: types.Named("出荷ID"), Val: types.Named("Shipment"), Local: shp, Blocks: map[string]string{"running": "runningShipments"}}},
+				Constrains: []core.Constrain{{Event: core.Event{Channel: "ORDER", Fields: []core.Field{{Name: "s"}}}, Guard: mustParse(t, "@empty(shipments)")}},
+			},
+		},
+		{
 			name: "modes, a bodyless block, a frozen family, hand-written edges, the start post and an assumption",
 			source: `@startuml
 state "稼働中" as running {
