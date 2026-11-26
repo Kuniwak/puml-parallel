@@ -224,13 +224,16 @@ class EdgeStats:
     tried: the values of its fields in the full product the walk ranges
     over, enumerated or not. pruned: those of them dropped without being
     enumerated, because the guard's leading conjuncts rejected the values
-    of the fields before them (Explorer._guarded_offers). guard_held: the
+    of the fields before them (Explorer._guarded_offers). guard_evaluated:
+    the conjuncts of the guard evaluated, of the values of some fields or
+    of all of them. guard_held: the
     values the whole guard held of. checked: the valuations after the step
     checked against its post. successors: the successors they gave.
     ranged: what nothing determined, which ranged over its type, a field as
     ?name, a value after the step as the post names it."""
     tried: int = 0
     pruned: int = 0
+    guard_evaluated: int = 0
     guard_held: int = 0
     checked: int = 0
     successors: int = 0
@@ -239,13 +242,14 @@ class EdgeStats:
     def add(self, other: "EdgeStats") -> None:
         self.tried += other.tried
         self.pruned += other.pruned
+        self.guard_evaluated += other.guard_evaluated
         self.guard_held += other.guard_held
         self.checked += other.checked
         self.successors += other.successors
         self.ranged |= other.ranged
 
     def to_json(self, edge: Edge) -> dict:
-        return {"edge": edge.describe(), "tried": self.tried, "pruned": self.pruned, "guard_held": self.guard_held, "checked": self.checked,
+        return {"edge": edge.describe(), "tried": self.tried, "pruned": self.pruned, "guard_evaluated": self.guard_evaluated, "guard_held": self.guard_held, "checked": self.checked,
                 "successors": self.successors, "ranged": sorted(self.ranged)}
 
 
@@ -666,7 +670,16 @@ class Explorer:
         return FrozenMap((k, ranging[(f, k)] if (f, k) in ranging else bound[(f, k)])
                          for k in plan.keys[f] if (f, k) in ranging or (f, k) in bound)
 
-    def _guarded_offers(self, state: State, e: Edge, plan: "_Plan"):
+    def _holds_counted(self, guard: tuple, before: dict, evaluated: list) -> bool:
+        """Whether every conjunct of guard holds of before, evaluated in
+        order until one does not; evaluated[0] counts those evaluated."""
+        for c in guard:
+            evaluated[0] += 1
+            if not self.ev.holds((c,), before):
+                return False
+        return True
+
+    def _guarded_offers(self, state: State, e: Edge, plan: "_Plan", evaluated: list):
         """The values of the fields e receives, each with the number of the
         leading conjuncts of the guard that hold of them, in the order of
         the product of the values the fields range over (plan). The
@@ -685,6 +698,7 @@ class Explorer:
                 partial = {f: self._parts_so_far(plan, f, ranging, bound) for f in plan.last_part if f not in params}
                 before = self._before(state, params | partial)
                 for i, b in group:
+                    evaluated[0] += 1
                     if not self._step(e, plan, i, b, prefix, bound, before):
                         return None
                 return bound
@@ -803,11 +817,12 @@ class Explorer:
         where = e.describe()
         stats = self.stats.setdefault(self._edge_index[id(e)], EdgeStats()) if record and self.stats is not None else None
         tried = 0
+        evaluated = [0]
         plan = self._field_plan(state, e, stats.ranged if stats else None)
-        for params, held in self._guarded_offers(state, e, plan):
+        for params, held in self._guarded_offers(state, e, plan, evaluated):
             tried += 1
             before = self._before(state, params)
-            if not self.ev.holds(e.guard[held:], before):
+            if not self._holds_counted(e.guard[held:], before, evaluated):
                 continue
             label = self._label(e, before)
             tally = Tally()
@@ -833,6 +848,7 @@ class Explorer:
         if stats:
             stats.tried += full
             stats.pruned += full - tried
+            stats.guard_evaluated += evaluated[0]
         return out
 
     def transitions(self, state: State) -> list[tuple[str, str, State, Edge, dict]]:
@@ -855,7 +871,7 @@ class Explorer:
         """The first transition of e from state, as taken, its ghosts left
         aside; None when it has none."""
         where = e.describe()
-        for params, held in self._guarded_offers(state, e, self._field_plan(state, e)):
+        for params, held in self._guarded_offers(state, e, self._field_plan(state, e), [0]):
             before = self._before(state, params)
             if self.ev.holds(e.guard[held:], before) and self._successor_values(e.post, before, e.dst, where):
                 return self._label(e, before)
