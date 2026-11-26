@@ -200,7 +200,8 @@ func conjunctText(f clause.Formula, w Words) string {
 }
 
 // opened is e in w's words, its variable named apart from the names free
-// in it, and whether it could be opened.
+// in it and its body in parentheses when it has more than one conjunct,
+// and whether it could be opened.
 func opened(e clause.Exists, w Words) (string, bool) {
 	if w.Exists == "" {
 		return "", false
@@ -214,7 +215,14 @@ func opened(e clause.Exists, w Words) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	return fmt.Sprintf(w.Exists, name, e.Type, strings.Join(spelled(body, w), w.And)), true
+	parts := spelled(body, w)
+	text := strings.Join(parts, w.And)
+	if len(parts) > 1 {
+		// The body in parentheses, so that a conjunct after the ∃ is not
+		// read as a part of it.
+		text = "(" + text + ")"
+	}
+	return fmt.Sprintf(w.Exists, name, e.Type, text), true
 }
 
 // holed is a with each hole written $ and its term, without braces or

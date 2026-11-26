@@ -177,9 +177,12 @@ func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
 		"frame of no key in Japanese": {Japanese, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m}}, "m' は m"},
 		"at in English":               {English, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k is at A, B"},
 		"at in Japanese":              {Japanese, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k は A・B にある"},
-		"exists in English":           {English, exists, "for some n2 of T, n' is n2 and n2 is not n"},
-		"exists in Japanese":          {Japanese, exists, "ある T の n2 について n' は n2 かつ n2 は n でない"},
-		"a hole without braces":       {Japanese, hole, "$m'[k].x が 0"},
+		"exists in English":           {English, exists, "for some n2 of T, (n' is n2 and n2 is not n)"},
+		"exists in Japanese":          {Japanese, exists, "ある T の n2 について (n' は n2 かつ n2 は n でない)"},
+		"exists of one conjunct": {English, clause.Exists{Hint: "x", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+			clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
+		}}}, "for some x of T, n' is x"},
+		"a hole without braces":                          {Japanese, hole, "$m'[k].x が 0"},
 		"a hole before text that would read as its path": {English, clause.Atom{Parts: []clause.Part{clause.Hole{Term: m}, clause.Text(".x and [k]")}}, "$m .x and [k]"},
 	}
 	for name, tt := range tests {
