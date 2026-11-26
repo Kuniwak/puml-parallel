@@ -47,7 +47,7 @@ func TestMaterializedPackageRunsUnderPython(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Materialize() error = %v", err)
 	}
-	cmd := exec.Command(py, csdfbmc.PythonArgs(dir, "--help")...)
+	cmd := exec.Command(py, watched(secondsLeft(t), csdfbmc.PythonArgs(dir, "--help"))...)
 	cmd.Dir = t.TempDir() // not the repository: the materialized copy must stand alone
 	out, err := cmd.CombinedOutput()
 	if err != nil || !strings.Contains(string(out), "usage: csdfbmc") {

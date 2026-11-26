@@ -2,12 +2,15 @@ package csdfbmc_test
 
 import (
 	"bufio"
-	"context"
+	"bytes"
 	"encoding/json"
 	"github.com/Kuniwak/puml-parallel/v6/csdfbmc"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -25,33 +28,43 @@ func python(t *testing.T) string {
 	return path
 }
 
-// pythonCommand runs the interpreter with args, as PythonArgs gives them. A run still
-// going a minute before the test binary's deadline is sent SIGABRT, on which
-// the interpreter writes every thread's traceback to its standard error: a
-// hang names where it waits instead of being killed silently.
+// pythonCommand runs the interpreter with args, as PythonArgs gives them,
+// watched: a run still going a minute before the test binary's deadline
+// writes every thread's traceback to its standard error and exits, so a hang
+// names where it waits instead of being killed silently.
 func pythonCommand(t *testing.T, args []string) *exec.Cmd {
 	t.Helper()
-	deadline, ok := t.Deadline()
-	if !ok {
-		return pythonCommandAbortedAt(t, time.Time{}, args)
-	}
-	return pythonCommandAbortedAt(t, deadline.Add(-time.Minute), args)
+	return exec.Command(python(t), watched(secondsLeft(t), args)...)
 }
 
-// pythonCommandAbortedAt is pythonCommand, sending SIGABRT at abort unless it
-// is zero.
-func pythonCommandAbortedAt(t *testing.T, abort time.Time, args []string) *exec.Cmd {
-	t.Helper()
-	ctx := context.Background()
-	if !abort.IsZero() {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, abort)
-		t.Cleanup(cancel)
+// secondsLeft is how long a run may take: until a minute before the test
+// binary's deadline, or a day when it has none (go test -timeout 0).
+func secondsLeft(t *testing.T) float64 {
+	deadline, ok := t.Deadline()
+	if !ok {
+		return (24 * time.Hour).Seconds()
 	}
-	cmd := exec.CommandContext(ctx, python(t), append([]string{"-X", "faulthandler"}, args...)...)
-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGABRT) }
-	cmd.WaitDelay = 10 * time.Second
-	return cmd
+	return time.Until(deadline.Add(-time.Minute)).Seconds()
+}
+
+// watchdog runs the code after it once it has set faulthandler to write the
+// tracebacks and exit after the seconds given.
+const watchdog = `import faulthandler, sys; faulthandler.dump_traceback_later(float(sys.argv.pop(1)), exit=True); exec(sys.argv.pop(1))`
+
+// watched runs args, the flags, -c and its code as PythonArgs gives them,
+// under the watchdog.
+func watched(seconds float64, args []string) []string {
+	c := slices.Index(args, "-c")
+	return slices.Concat(args[:c+1], []string{watchdog, strconv.FormatFloat(seconds, 'f', -1, 64)}, args[c+1:])
+}
+
+// shellWords joins args as one shell-quoted line, as --evaluator reads it.
+func shellWords(args []string) string {
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = "'" + strings.ReplaceAll(a, "'", `'\''`) + "'"
+	}
+	return strings.Join(quoted, " ")
 }
 
 // runGlue runs the reference glue as a command, writes each request to it as
@@ -69,13 +82,11 @@ func runGlue(t *testing.T, requests ...map[string]any) []map[string]any {
 	cmd := pythonCommand(t, csdfbmc.ModuleArgs(".", "csdfbmc.python_glue"))
 	cmd.Dir = ".."
 	cmd.Stdin = strings.NewReader(in.String())
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		var stderr []byte
-		if exit, ok := err.(*exec.ExitError); ok {
-			stderr = exit.Stderr
-		}
-		t.Fatalf("the glue failed: %v\n%s", err, stderr)
+		t.Fatalf("the glue failed: %v\n%s", err, stderr.Bytes())
 	}
 	var answers []map[string]any
 	sc := bufio.NewScanner(strings.NewReader(string(out)))
@@ -126,7 +137,7 @@ func TestThePrinterRetryExampleReportsADeadlockAfterTheRetries(t *testing.T) {
 func TestThePrinterExampleReportsADeadlockThroughTheGlue(t *testing.T) {
 	py := python(t)
 	for _, glue := range [][]string{
-		{"--evaluator", py + " -E -s -B -m csdfbmc.python_glue examples/bmc/printer_formal_defs.py"},
+		{"--evaluator", shellWords(append([]string{py}, watched(secondsLeft(t), csdfbmc.ModuleArgs(".", "csdfbmc.python_glue", "examples/bmc/printer_formal_defs.py"))...))},
 		{"--evaluator-module", "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"},
 	} {
 		t.Run(glue[0], func(t *testing.T) {
@@ -166,5 +177,24 @@ func TestThePromotedExampleStopsOnlyWhenEveryIDIsDone(t *testing.T) {
 	}
 	if strings.Contains(text, "cycle") {
 		t.Errorf("want no cycle, got:\n%s", text)
+	}
+}
+
+// A run past its time writes every thread's traceback, naming where it
+// waited, and exits with a failure.
+func TestAWatchedRunPastItsTimeWritesWhereItWaits(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "sleeper.py"), []byte("import time\ndef waiting_here():\n    time.sleep(60)\nwaiting_here()\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(python(t), watched(1, csdfbmc.ModuleArgs(dir, "sleeper"))...)
+
+	out, err := cmd.CombinedOutput()
+
+	if err == nil {
+		t.Fatalf("want the run to fail, got it ended\n%s", out)
+	}
+	if !strings.Contains(string(out), "waiting_here") {
+		t.Errorf("want the traceback to name waiting_here, got:\n%s", out)
 	}
 }
