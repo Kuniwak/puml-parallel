@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/lint"
 )
 
 func TestRunAllKeepsTheInputsInTheOrderTheyWereGiven(t *testing.T) {

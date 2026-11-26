@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
 )
 
 // SelfTransitionDivergenceRule reports a tau edge on a cycle of tau edges

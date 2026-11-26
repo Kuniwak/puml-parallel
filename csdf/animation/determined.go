@@ -1,8 +1,8 @@
 package animation
 
 import (
-	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
 )
 
 // Determined are the values of p's target variables that builtin conjuncts

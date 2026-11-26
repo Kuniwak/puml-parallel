@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf"
-	"github.com/Kuniwak/puml-parallel/v6/usererr"
+	"github.com/Kuniwak/puml-parallel/v7/csdf"
+	"github.com/Kuniwak/puml-parallel/v7/usererr"
 )
 
 // includeAt is the !include reached from es by indexes, each the place of

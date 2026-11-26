@@ -5,8 +5,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
 )
 
 // Templates gloss the builtins of a formula promotion for a reader

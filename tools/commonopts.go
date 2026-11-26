@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/Kuniwak/puml-parallel/v6/cli"
-	"github.com/Kuniwak/puml-parallel/v6/slograw"
+	"github.com/Kuniwak/puml-parallel/v7/cli"
+	"github.com/Kuniwak/puml-parallel/v7/slograw"
 )
 
 type CommonOptions struct {

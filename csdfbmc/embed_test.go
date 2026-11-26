@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdfbmc"
+	"github.com/Kuniwak/puml-parallel/v7/csdfbmc"
 )
 
 func TestMaterializeWritesThePackageOnceUnderAContentHash(t *testing.T) {

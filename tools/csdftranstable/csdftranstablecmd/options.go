@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v6/cli"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/transtable"
-	"github.com/Kuniwak/puml-parallel/v6/tools"
+	"github.com/Kuniwak/puml-parallel/v7/cli"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/transtable"
+	"github.com/Kuniwak/puml-parallel/v7/tools"
 )
 
 type Options struct {

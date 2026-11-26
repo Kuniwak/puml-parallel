@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
 )
 
 // Loader reads the diagram a REFER expression of a composition tree names.

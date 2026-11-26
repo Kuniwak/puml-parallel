@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"syscall/js"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/animation/bmc"
 )
 
 // Global finds the host the page sets as globalThis[name] once Python is

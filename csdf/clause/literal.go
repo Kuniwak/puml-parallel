@@ -12,7 +12,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/ident"
 )
 
 // Lit is a literal (docs/CLAUSE_DESIGN.md, "Literals"): a JSON value

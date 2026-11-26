@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
 )
 
 // LiteralSpeller spells the values of literals in a prover, each case a

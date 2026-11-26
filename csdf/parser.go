@@ -7,9 +7,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/ident"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/types"
 )
 
 const (

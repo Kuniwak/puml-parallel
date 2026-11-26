@@ -5,10 +5,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/obligation"
 )
 
 // WriteMarkdown writes the result as a Markdown section. A rejection says

@@ -3,7 +3,7 @@ package replweb
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
 	"github.com/google/go-cmp/cmp"
 )
 

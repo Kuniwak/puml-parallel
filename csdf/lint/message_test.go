@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/lint"
 )
 
 // TestMessagesNeedNoQuoting keeps every finding one line of the TSV. A message

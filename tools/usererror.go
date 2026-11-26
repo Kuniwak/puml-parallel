@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf"
-	"github.com/Kuniwak/puml-parallel/v6/usererr"
+	"github.com/Kuniwak/puml-parallel/v7/csdf"
+	"github.com/Kuniwak/puml-parallel/v7/usererr"
 )
 
 // UserFacing is implemented by an error whose own message is the one to show.
