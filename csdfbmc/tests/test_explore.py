@@ -532,11 +532,13 @@ class PruningTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((2, steps), (len(asked), len(transitions)))
 
+    CANDS = {"kind": "app", "fn": "cands", "args": [fixture.term("m")]}
+
     # c?r: some entry of cands(m), an environment function of m, has id r.k and x r.a.
     ENTRY_FN = diagram({"q": ["m"]}, "q", init_post=[eq("m'", "m")], edges=[
-        edge("q", "q", "c?r", guard=[exists("K", builtin("in", bound(0), {"kind": "app", "fn": "cands", "args": [fixture.term("m")]}),
-                                            eq(fld("r", "k"), fld(idx({"kind": "app", "fn": "cands", "args": [fixture.term("m")]}, bound(0)), "id")),
-                                            eq(fld("r", "a"), fld(idx({"kind": "app", "fn": "cands", "args": [fixture.term("m")]}, bound(0)), "x")))],
+        edge("q", "q", "c?r", guard=[exists("K", builtin("in", bound(0), CANDS),
+                                            eq(fld("r", "k"), fld(idx(CANDS, bound(0)), "id")),
+                                            eq(fld("r", "a"), fld(idx(CANDS, bound(0)), "x")))],
              post=[eq("m'", "m")])],
         channels={"c": ["R"]})
 

@@ -35,7 +35,7 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
     Of the two sides of an equality, the one whose term reads only fields
     before it in fields is bound first."""
     order = {f: i for i, f in enumerate(fields)}
-    reads_first: set[str] = set(ranged)
+    read_by_terms: set[str] = set(ranged)
     whole: set[str] = set()
     parts: dict[str, list] = {}
     read_parts: dict[str, set] = {}
@@ -43,7 +43,7 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
     binds: dict[int, Bind] = {}
 
     def bindable(f: str, key) -> bool:
-        if f not in order or f in reads_first or f in whole or f in closed:
+        if f not in order or f in read_by_terms or f in whole or f in closed:
             return False
         if key is None:
             return f not in parts and f not in read_parts
@@ -57,7 +57,7 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
             if g in parts:
                 closed.add(g)
             elif g not in whole:
-                reads_first.add(g)
+                read_by_terms.add(g)
 
     for i, c in enumerate(guard):
         bind = _bind(c, order, known, bindable)
@@ -76,7 +76,7 @@ def blocked(guard: tuple, fields: list[str], known: set[str], f: str, key) -> ob
     """The first equality of guard that would bind the part key of the
     field f were it the guard alone, when the guard binds no such part, so
     that an equality before it, binding by a term that reads the part,
-    keeps it from binding; None otherwise. No field ranges but those the guard reads first."""
+    keeps it from binding; None otherwise. No field ranges but those the term of an equality reads before it binds them."""
     def binds(g: tuple) -> bool:
         return any((b.field, b.key) == (f, key) for b in determine(g, fields, known, frozenset()).values())
     if binds(guard):
@@ -208,8 +208,6 @@ def _level_of(t, levels: list, names: set) -> int | None:
     return levels.index(next(iter(read))) if _is_level(t) and len(read) == 1 and read <= names else None
 
 
-
-
 def _level(t) -> tuple[str, object] | None:
     """(f, None) when t is a variable f before the step, (f, k) when it is
     a part of one by a literal key, f.k or f[k]; None otherwise."""
@@ -225,8 +223,6 @@ def _level(t) -> tuple[str, object] | None:
 def _is_level(t) -> bool:
     """Whether t is a field, or a part of one by a literal key."""
     return _level(t) is not None
-
-
 
 
 @dataclass(frozen=True)
