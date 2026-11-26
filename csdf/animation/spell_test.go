@@ -1,10 +1,24 @@
 package animation
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
 )
+
+func TestSpellConjunctShouldRefuseAPhraseOfAnUnknownBuiltin(t *testing.T) {
+	// Setup
+	w := Phrases{Builtins: map[clause.Op]string{"bogus": "%[1]s is bogus"}}
+
+	// Execute
+	_, err := spellConjunct(clause.Builtin{Op: "bogus", Args: []clause.Term{free("k", false)}}, w, nil)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "@bogus") {
+		t.Errorf("spellConjunct() error = %v, want one naming @bogus", err)
+	}
+}
 
 func free(name string, primed bool) clause.Term { return clause.Free{Name: name, Primed: primed} }
 
