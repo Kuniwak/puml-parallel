@@ -129,7 +129,7 @@ class Instance(FrozenMap):
     observes, with the views it is at, _at, among the views of its
     family, _views (docs/PROMOTION.md, Observations). It is the value of the
     map of its fields, wherever it is (kind_key), so that an atom compares
-    it with a map; views_key tells where it is."""
+    it with a map; at tells where it is."""
 
     __slots__ = ("_at", "_views")
 
@@ -143,23 +143,6 @@ class Instance(FrozenMap):
 
     def __reduce__(self):
         return _instance, (tuple(self._d.values()), tuple(self._at), tuple(self._views))
-
-
-def views_key(value):
-    """Where each instance in value is, the views it is at and those of its
-    family, in the order kind_key would meet them: with kind_key, a key that
-    tells apart two values an atom may answer differently about. None when
-    value holds no instance."""
-    if isinstance(value, Instance):
-        return (value._at, value._views, views_key(FrozenMap(value)))
-    if isinstance(value, Mapping):
-        found = [(kind_key(k), views_key(k), views_key(v)) for k, v in value.items()]
-    elif isinstance(value, (tuple, AbstractSet)):
-        found = [(kind_key(v), views_key(v)) for v in value]
-    else:
-        return None
-    kept = frozenset(f for f in found if any(x is not None for x in f[1:]))
-    return kept or None
 
 
 def _instance(fields, at, views):
