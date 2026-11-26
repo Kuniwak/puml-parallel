@@ -57,12 +57,14 @@ type CommentSyntax struct {
 }
 
 // PragmaSyntax is a line of PlantUML's preprocessor, "!name arg", such as
-// !include, whose Arg is the path as written, or !define. It is not
-// resolved.
+// !include, whose Arg is the path as written, or !define. Parse does not
+// resolve it; an !include resolved (coreio.ResolveIncludes) holds in Tree
+// the tree of the file it names, nil until then; no other pragma holds one.
 type PragmaSyntax struct {
 	Pos
 	Name string
 	Arg  string
+	Tree *SyntaxTree
 }
 
 // IgnoreSyntax is a CSDF-IGNORE region: the lines between its markers, as
@@ -233,12 +235,21 @@ func (c *CommentSyntax) MarshalJSON() ([]byte, error) {
 }
 
 func (p *PragmaSyntax) MarshalJSON() ([]byte, error) {
+	var tree json.RawMessage
+	if p.Tree != nil {
+		bs, err := MarshalSyntaxTree(p.Tree)
+		if err != nil {
+			return nil, err
+		}
+		tree = bs
+	}
 	return json.Marshal(struct {
 		Kind string `json:"kind"`
 		Pos
-		Name string `json:"name"`
-		Arg  string `json:"arg"`
-	}{"pragma", p.Pos, p.Name, p.Arg})
+		Name string          `json:"name"`
+		Arg  string          `json:"arg"`
+		Tree json.RawMessage `json:"tree,omitempty"`
+	}{"pragma", p.Pos, p.Name, p.Arg, tree})
 }
 
 func (i *IgnoreSyntax) MarshalJSON() ([]byte, error) {

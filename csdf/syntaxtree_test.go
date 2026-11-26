@@ -133,6 +133,10 @@ func TestUnmarshalSyntaxTreeNamesTheElementItRefuses(t *testing.T) {
 			body: `{"kind":"edge","line":7,"col":1,"src":"a","dst":"b","event":{"line":7,"col":7,"text":"E","channel":"E","fields":[]},"guard":{"line":7,"col":11,"text":"@ne(x)"},"post":null}`,
 			want: `the edge at line 7: the clause "@ne(x)": `,
 		},
+		"a tree in a pragma other than !include": {
+			body: `{"kind":"pragma","line":2,"col":1,"name":"define","arg":"X","tree":{"kind":"csdf-syntax-tree","version":1,"name":"","line":1,"col":1,"body":[]}}`,
+			want: "the pragma at line 2: !define holds a tree; only an !include does",
+		},
 		"an element of unknown kind": {
 			body: `{"kind":"bogus","line":3,"col":1}`,
 			want: "the bogus at line 3: an element of unknown kind",
@@ -151,6 +155,36 @@ func TestUnmarshalSyntaxTreeNamesTheElementItRefuses(t *testing.T) {
 				t.Errorf("got %v, want an error containing %q", err, c.want)
 			}
 		})
+	}
+}
+
+// A resolved !include carries the tree of the file it names, written in
+// full, and reads back with it.
+func TestUnmarshalSyntaxTreeReadsBackAnIncludedTree(t *testing.T) {
+	// Arrange
+	included := &SyntaxTree{Pos: Pos{1, 1}, Path: "local/A.puml", Name: "A", Body: []Element{
+		&StateSyntax{Pos: Pos{2, 1}, ID: "s0", Label: "S"},
+	}}
+	tree := &SyntaxTree{Pos: Pos{1, 1}, Name: "G", Body: []Element{
+		&PragmaSyntax{Pos: Pos{2, 3}, Name: "include", Arg: "local/A.puml", Tree: included},
+	}}
+	want, err := MarshalSyntaxTree(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Act
+	back, err := UnmarshalSyntaxTree(want)
+
+	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(tree, back); diff != "" {
+		t.Error(diff)
+	}
+	if !strings.Contains(string(want), `"arg":"local/A.puml","tree":{"kind":"csdf-syntax-tree","version":1,"path":"local/A.puml"`) {
+		t.Errorf("want the included tree after the path written, got %s", want)
 	}
 }
 

@@ -61,6 +61,7 @@ type rawElement struct {
 	Of         string             `json:"of"`
 	Fields     []string           `json:"fields"`
 	Targets    []SyncTargetSyntax `json:"targets"`
+	Tree       json.RawMessage    `json:"tree"`
 }
 
 type rawClause struct {
@@ -105,7 +106,18 @@ func (r *rawElement) element() (Element, error) {
 	case "comment":
 		return &CommentSyntax{Pos: r.Pos, Text: r.Text, Block: r.Block}, nil
 	case "pragma":
-		return &PragmaSyntax{Pos: r.Pos, Name: r.Name, Arg: r.Arg}, nil
+		p := &PragmaSyntax{Pos: r.Pos, Name: r.Name, Arg: r.Arg}
+		if r.Tree != nil {
+			if r.Name != "include" {
+				return nil, fmt.Errorf("!%s holds a tree; only an !include does", r.Name)
+			}
+			tree, err := UnmarshalSyntaxTree(r.Tree)
+			if err != nil {
+				return nil, err
+			}
+			p.Tree = tree
+		}
+		return p, nil
 	case "ignore":
 		var lines []string
 		if err := json.Unmarshal(r.Lines, &lines); err != nil {
