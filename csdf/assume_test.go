@@ -20,20 +20,27 @@ end note
 `
 
 func TestParseReadsAnAssumeNote(t *testing.T) {
-	d := mustParseAccepting(assumeSource)
-
-	want := []Assumption{{ID: "fair", Text: "the run has finitely many tau steps", Line: 7}}
-	if diff := cmp.Diff(want, d.Assumptions); diff != "" {
-		t.Error(diff)
+	cases := map[string]struct {
+		source string
+		want   []Assumption
+	}{
+		"alone": {
+			source: assumeSource,
+			want:   []Assumption{{ID: "fair", Text: "the run has finitely many tau steps", Line: 7}},
+		},
+		"with comments among its lines": {
+			source: "@startuml\n[*] --> s0\nnote as fair\n  ' why\n  assume finitely many steps\n  ' more\nend note\n@enduml\n",
+			want:   []Assumption{{ID: "fair", Text: "finitely many steps", Line: 5}},
+		},
 	}
-}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			d := mustParseAccepting(c.source)
 
-func TestParseReadsAnAssumeNoteWithCommentsAmongItsLines(t *testing.T) {
-	d := mustParseAccepting("@startuml\n[*] --> s0\nnote as fair\n  ' why\n  assume finitely many steps\n  ' more\nend note\n@enduml\n")
-
-	want := []Assumption{{ID: "fair", Text: "finitely many steps", Line: 5}}
-	if diff := cmp.Diff(want, d.Assumptions); diff != "" {
-		t.Error(diff)
+			if diff := cmp.Diff(c.want, d.Assumptions); diff != "" {
+				t.Error(diff)
+			}
+		})
 	}
 }
 
