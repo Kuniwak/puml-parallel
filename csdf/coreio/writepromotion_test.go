@@ -145,7 +145,7 @@ func writePromotion(t *testing.T, source string) string {
 
 func expand(t *testing.T, source, dir string) string {
 	t.Helper()
-	p, err := ReadPromotion(source, dir, FileIncluder(dir))
+	p, err := ReadPromotion(source, FileIncluder(dir))
 	if err != nil {
 		t.Fatal(err)
 	}

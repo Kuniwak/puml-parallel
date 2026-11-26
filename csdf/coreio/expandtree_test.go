@@ -44,7 +44,7 @@ func TestExpandTree(t *testing.T) {
 			}
 			tree := parsed
 			if !c.unresolved {
-				tree, err = ResolveIncludes(parsed, "", files(map[string]string{"S.puml": shipment}))
+				tree, err = ResolveIncludes(parsed, files(map[string]string{"S.puml": shipment}))
 				if err != nil {
 					t.Fatal(err)
 				}

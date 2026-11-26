@@ -20,7 +20,7 @@ func TestMapSVGTellsParallelLocalEdgesApartAsPlantUMLDrawsThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, _, err := animation.ReadDiagram(source, "../../examples/promote", coreio.FileIncluder("../../examples/promote"))
+	d, _, err := animation.ReadDiagram(source, coreio.FileIncluder("../../examples/promote"))
 	if err != nil {
 		t.Fatal(err)
 	}

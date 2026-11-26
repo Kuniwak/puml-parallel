@@ -62,8 +62,7 @@ func LoadPromotion(path string) (core.Promotion, error) {
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.LoadPromotion: %w", err)
 	}
-	dir := filepath.Dir(path)
-	prom, err := ReadPromotion(src, dir, FileIncluder(dir))
+	prom, err := ReadPromotion(src, FileIncluder(filepath.Dir(path)))
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.LoadPromotion: %s: %w", path, err)
 	}
@@ -74,37 +73,41 @@ func LoadPromotion(path string) (core.Promotion, error) {
 // sources, which maps each such path to its source; a path it does not hold
 // is refused.
 func SourcesIncluder(sources map[string]string) Include {
-	return func(p string) (string, error) {
+	return func(p string) (string, string, error) {
 		src, ok := sources[p]
 		if !ok {
-			return "", fmt.Errorf("coreio.SourcesIncluder: %s is not among the included files given", p)
+			return "", "", fmt.Errorf("coreio.SourcesIncluder: %s is not among the included files given", p)
 		}
-		return src, nil
+		return src, p, nil
 	}
 }
 
 // RecordingIncluder is include, recording in sources what it includes by
 // the path written.
 func RecordingIncluder(include Include, sources map[string]string) Include {
-	return func(p string) (string, error) {
-		src, err := include(p)
+	return func(p string) (string, string, error) {
+		src, read, err := include(p)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		sources[p] = src
-		return src, nil
+		return src, read, nil
 	}
 }
 
 // FileIncluder includes a file by the path an !include writes, relative to
 // dir unless it is absolute: a .puml file, or a .png with its source
-// embedded.
+// embedded. The path read is dir joined to the path written.
 func FileIncluder(dir string) Include {
-	return func(p string) (string, error) {
+	return func(p string) (string, string, error) {
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(dir, p)
 		}
-		return pngsrc.ReadFile(p)
+		src, err := pngsrc.ReadFile(p)
+		if err != nil {
+			return "", "", err
+		}
+		return src, p, nil
 	}
 }
 
@@ -125,11 +128,10 @@ func ReadBytes(raw []byte) (*core.Diagram, error) {
 // ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
 // ReadBytes does, unless it holds promotion directives
 // (csdf.HoldsDirectives): then it is the expansion csdfpromote
-// prints for it (Expand), each !include resolved by include reading
-// against base (ResolveIncludes), with the warnings of the promotion. A
-// diagram without promotion directives reads as ReadBytes reads it, with
-// no warnings.
-func ReadExpandedBytes(raw []byte, base string, include Include) (*core.Diagram, []core.Warning, error) {
+// prints for it (Expand), each !include resolved by include
+// (ResolveIncludes), with the warnings of the promotion. A diagram without
+// promotion directives reads as ReadBytes reads it, with no warnings.
+func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warning, error) {
 	src, err := pngsrc.Extract(raw)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: reading PlantUML source: %w", err)
@@ -138,7 +140,7 @@ func ReadExpandedBytes(raw []byte, base string, include Include) (*core.Diagram,
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
-	tree, err := ResolveIncludes(parsed, base, include)
+	tree, err := ResolveIncludes(parsed, include)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}

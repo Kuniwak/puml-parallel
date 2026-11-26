@@ -38,12 +38,12 @@ waiting --> done : SHIP
 
 // files is an include that reads from a map of paths to sources.
 func files(m map[string]string) Include {
-	return func(path string) (string, error) {
+	return func(path string) (string, string, error) {
 		s, ok := m[path]
 		if !ok {
-			return "", fmt.Errorf("no file %s", path)
+			return "", "", fmt.Errorf("no file %s", path)
 		}
-		return s, nil
+		return s, path, nil
 	}
 }
 
@@ -250,7 +250,7 @@ end note
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			got, err := ReadPromotion(c.source, "", include)
+			got, err := ReadPromotion(c.source, include)
 
 			// Assert
 			if err != nil {
@@ -366,7 +366,7 @@ func TestReadPromotionRefuses(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Execute
-			_, err := ReadPromotion(c.source, "", files(map[string]string{"S.puml": shipment}))
+			_, err := ReadPromotion(c.source, files(map[string]string{"S.puml": shipment}))
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), c.want) {
@@ -378,7 +378,7 @@ func TestReadPromotionRefuses(t *testing.T) {
 
 func TestReadPromotionNamesTheLineOfABadEdgeOnce(t *testing.T) {
 	// Execute
-	_, err := ReadPromotion(promoting("[*] --> running\nrunning --> running : a??\n"), "", files(map[string]string{"S.puml": shipment}))
+	_, err := ReadPromotion(promoting("[*] --> running\nrunning --> running : a??\n"), files(map[string]string{"S.puml": shipment}))
 
 	// Assert
 	if err == nil || strings.Count(err.Error(), "line 8") != 1 {
@@ -436,7 +436,7 @@ end note
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			p, err := ReadPromotion(c.source, "", files(map[string]string{"L.puml": location}))
+			p, err := ReadPromotion(c.source, files(map[string]string{"L.puml": location}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -484,7 +484,7 @@ end note
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			// Setup
-			p, err := ReadPromotion(global(c.guard), "", files(map[string]string{"L.puml": observed}))
+			p, err := ReadPromotion(global(c.guard), files(map[string]string{"L.puml": observed}))
 			if err != nil {
 				t.Fatal(err)
 			}

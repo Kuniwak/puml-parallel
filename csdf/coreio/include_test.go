@@ -2,6 +2,7 @@ package coreio
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -30,6 +31,14 @@ func includeAt(t *testing.T, es []csdf.Element, at ...int) *csdf.PragmaSyntax {
 	return p
 }
 
+// under is include, saying it read each file from under dir.
+func under(dir string, include Include) Include {
+	return func(p string) (string, string, error) {
+		src, read, err := include(p)
+		return src, filepath.Join(dir, read), err
+	}
+}
+
 func TestResolveIncludes(t *testing.T) {
 	sources := map[string]string{
 		"local/A.puml":     "@startuml A\n!include sub/B.puml\n@enduml\n",
@@ -48,7 +57,7 @@ func TestResolveIncludes(t *testing.T) {
 			wantName: "A",
 			wantPath: "local/A.puml",
 		},
-		"the path of the file read, joined to base": {
+		"the path of the file include read": {
 			source:   "@startuml G\n!include local/A.puml\n@enduml\n",
 			base:     "dir",
 			at:       []int{0},
@@ -72,7 +81,7 @@ func TestResolveIncludes(t *testing.T) {
 			}
 
 			// Execute
-			got, err := ResolveIncludes(tree, c.base, SourcesIncluder(sources))
+			got, err := ResolveIncludes(tree, under(c.base, SourcesIncluder(sources)))
 
 			// Assert
 			if err != nil {
@@ -151,7 +160,7 @@ func TestResolveIncludesLeavesTheTreeGivenAsItIs(t *testing.T) {
 	}
 
 	// Execute
-	if _, err := ResolveIncludes(tree, "", SourcesIncluder(map[string]string{"A.puml": "@startuml A\n@enduml\n"})); err != nil {
+	if _, err := ResolveIncludes(tree, SourcesIncluder(map[string]string{"A.puml": "@startuml A\n@enduml\n"})); err != nil {
 		t.Fatal(err)
 	}
 
@@ -172,7 +181,7 @@ func TestResolveIncludesRefusesWithAnIncludeError(t *testing.T) {
 	sources := map[string]string{"A.puml": "@startuml A\n\n!include B.puml\n@enduml\n"}
 
 	// Execute
-	_, err = ResolveIncludes(tree, "", SourcesIncluder(sources))
+	_, err = ResolveIncludes(tree, SourcesIncluder(sources))
 
 	// Assert
 	var ie *IncludeError
@@ -222,7 +231,7 @@ func TestResolveIncludesRefuses(t *testing.T) {
 			}
 
 			// Execute
-			_, err = ResolveIncludes(tree, "", SourcesIncluder(c.sources))
+			_, err = ResolveIncludes(tree, SourcesIncluder(c.sources))
 
 			// Assert
 			if err == nil || !strings.Contains(err.Error(), c.wantErr) {

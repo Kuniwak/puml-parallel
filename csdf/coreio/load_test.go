@@ -208,7 +208,7 @@ itNone --> itMade : MAKE ; ; $n' は 0
 	for name, tt := range cases {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			d, warnings, err := ReadExpandedBytes([]byte(tt.raw), "", SourcesIncluder(tt.sources))
+			d, warnings, err := ReadExpandedBytes([]byte(tt.raw), SourcesIncluder(tt.sources))
 
 			// Assert
 			if tt.wantErr != "" {

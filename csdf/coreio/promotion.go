@@ -15,14 +15,14 @@ import (
 )
 
 // ReadPromotion reads a global diagram (docs/PROMOTION.md): its syntax tree
-// (csdf.Parse), each !include resolved by include reading against base
-// (ResolveIncludes), read by ReadPromotionTree.
-func ReadPromotion(source, base string, include Include) (core.Promotion, error) {
+// (csdf.Parse), each !include resolved by include (ResolveIncludes), read
+// by ReadPromotionTree.
+func ReadPromotion(source string, include Include) (core.Promotion, error) {
 	parsed, err := csdf.Parse("", source)
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
-	tree, err := ResolveIncludes(parsed, base, include)
+	tree, err := ResolveIncludes(parsed, include)
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
@@ -89,8 +89,9 @@ func lowerIncluded(p *csdf.PragmaSyntax) (*core.Diagram, error) {
 // leaveUnread reads no local diagram, for a promotion read as written.
 func leaveUnread(*csdf.PragmaSyntax) (*core.Diagram, error) { return nil, nil }
 
-// Include is the source of the file an !include names, by the path written.
-type Include func(path string) (string, error)
+// Include reads the file an !include names, by the path written: its
+// source, and the path of the file read.
+type Include func(path string) (source, read string, err error)
 
 type promotionReader struct {
 	local    localDiagram

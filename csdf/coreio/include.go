@@ -15,14 +15,13 @@ import (
 // ResolveIncludes is tree with each !include resolved: the pragma, its
 // path kept as written, holds the syntax tree of the file it names
 // (csdf.PragmaSyntax.Tree), read by include and parsed, its own !include
-// lines resolved in turn. include is given each file by its path relative
-// to base, the directory include reads against: an !include of the
-// outermost tree as written, one in an included file joined to that
-// file's directory. The Path of an included tree is the file read, base
-// joined to that path, or the path itself when it is absolute. A cycle of
-// !include is refused. The tree given is left as it is.
-func ResolveIncludes(tree *csdf.SyntaxTree, base string, include Include) (*csdf.SyntaxTree, error) {
-	r := &includeResolver{base: base, include: include}
+// lines resolved in turn. include is given an !include of the outermost
+// tree as written, and one in an included file joined to that file's
+// directory, as written there. The Path of an included tree is the path of
+// the file include read. A cycle of !include is refused. The tree given is
+// left as it is.
+func ResolveIncludes(tree *csdf.SyntaxTree, include Include) (*csdf.SyntaxTree, error) {
+	r := &includeResolver{include: include}
 	body, err := r.body(tree.Body, "")
 	if err != nil {
 		return nil, fmt.Errorf("coreio.ResolveIncludes: %w", err)
@@ -35,13 +34,13 @@ func ResolveIncludes(tree *csdf.SyntaxTree, base string, include Include) (*csdf
 // includeResolver resolves the !include lines of a tree, keeping the
 // files it is within by the path include is given.
 type includeResolver struct {
-	base    string
 	include Include
 	within  []string
 }
 
-// body is es with each !include resolved; dir is the directory, relative
-// to base, of the included file es is in, "" for the outermost tree.
+// body is es with each !include resolved; dir is the directory of the
+// included file es is in, as include was given it, "" for the outermost
+// tree.
 func (r *includeResolver) body(es []csdf.Element, dir string) ([]csdf.Element, error) {
 	out := make([]csdf.Element, 0, len(es))
 	for _, e := range es {
@@ -75,17 +74,13 @@ func (r *includeResolver) body(es []csdf.Element, dir string) ([]csdf.Element, e
 
 func (r *includeResolver) pragma(p *csdf.PragmaSyntax, dir string) (*csdf.PragmaSyntax, error) {
 	key := pumlline.Unquote(p.Arg)
-	path := key
-	if !filepath.IsAbs(key) {
-		if dir != "" {
-			key = filepath.Join(dir, key)
-		}
-		path = filepath.Join(r.base, key)
+	if !filepath.IsAbs(key) && dir != "" {
+		key = filepath.Join(dir, key)
 	}
 	if slices.Contains(r.within, key) {
 		return nil, unreadInclude(p, fmt.Errorf("a cycle of !include: %s", strings.Join(append(slices.Clone(r.within), key), ", ")))
 	}
-	src, err := r.include(key)
+	src, path, err := r.include(key)
 	if err != nil {
 		return nil, unreadInclude(p, err)
 	}
@@ -114,11 +109,11 @@ func ResolveFileIncludes(tree *csdf.SyntaxTree, base string) (*csdf.SyntaxTree, 
 	}
 	include := FileIncluder(base)
 	if base == "" {
-		include = func(string) (string, error) {
-			return "", errors.New("the syntax tree has no path to resolve it against, as csdfparse read standard input; give csdfparse the file, or a base directory")
+		include = func(string) (string, string, error) {
+			return "", "", errors.New("the syntax tree has no path to resolve it against, as csdfparse read standard input; give csdfparse the file, or a base directory")
 		}
 	}
-	return ResolveIncludes(tree, base, include)
+	return ResolveIncludes(tree, include)
 }
 
 // IncludeError is the refusal of the !include of Arg written on Line: its

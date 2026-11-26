@@ -322,7 +322,7 @@ func parseSessionNew() cli.ParseOptionsFunc[*clientOptions] {
 		// The daemon reads no file: the client reads what a promotion
 		// includes, relative to the file, and sends it along.
 		includes := map[string]string{}
-		if _, _, err := coreio.ReadExpandedBytes(content, filepath.Dir(path), coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(path)), includes)); err != nil {
+		if _, _, err := coreio.ReadExpandedBytes(content, coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(path)), includes)); err != nil {
 			return nil, fmt.Errorf("session new: %v", err)
 		}
 		opts.req = proto.Request{Command: proto.CommandSessionNew, Path: path, Content: content, Includes: includes}
