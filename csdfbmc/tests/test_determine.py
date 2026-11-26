@@ -35,8 +35,8 @@ class DetermineTest(unittest.TestCase):
             "either side": ([eq(N, V)], {0: Bind("v", None, N)}),
             "after a conjunct over the state": ([other("n"), eq(V, N)], {1: Bind("v", None, N)}),
             "after a conjunct over a later field": ([other("w"), eq(V, N)], {1: Bind("v", None, N)}),
-            "after a conjunct that reads the field": ([other("v"), eq(V, N)], {}),
-            "a term over a field read before": ([other("w"), eq(V, W)], {1: Bind("v", None, W)}),
+            "after a conjunct that reads the field": ([other("v"), eq(V, N)], {1: Bind("v", None, N)}),
+            "a field read before, bound": ([other("w"), eq(V, W)], {1: Bind("w", None, V)}),
             "a term over the field itself": ([eq(V, Index(V, N))], {}),
             "a term over a value after the step": ([eq(V, Free("n", primed=True))], {}),
             "a term over an unknown name": ([eq(V, Free("z"))], {}),
@@ -48,7 +48,7 @@ class DetermineTest(unittest.TestCase):
             "parts apart by a conjunct over others": ([eq(part("v", "x"), N), other("n", "w"), eq(part("v", "y"), N)],
                                                       {0: Bind("v", "x", N), 2: Bind("v", "y", N)}),
             "a part after a conjunct that reads the field": ([eq(part("v", "x"), N), other("v"), eq(part("v", "y"), N)],
-                                                             {0: Bind("v", "x", N)}),
+                                                             {0: Bind("v", "x", N), 2: Bind("v", "y", N)}),
             "parts written as fields": ([eq(Field(V, "x"), N), eq(part("v", "y"), N)],
                                         {0: Bind("v", "x", N), 1: Bind("v", "y", N)}),
             "a key bound once": ([eq(part("v", "x"), N), eq(part("v", "x"), N)], {0: Bind("v", "x", N)}),
@@ -57,10 +57,11 @@ class DetermineTest(unittest.TestCase):
             "a part over itself": ([eq(part("v", "x"), Index(N, part("v", "x")))], {}),
             "a part after a conjunct that reads another part": ([reads(part("v", "x")), eq(part("v", "y"), N)],
                                                                  {1: Bind("v", "y", N)}),
-            "a part after a conjunct that reads it": ([reads(part("v", "x")), eq(part("v", "x"), N)], {}),
+            "a part after a conjunct that reads it": ([reads(part("v", "x")), eq(part("v", "x"), N)], {1: Bind("v", "x", N)}),
             "a part a binding read before": ([eq(part("v", "y"), part("v", "x")), eq(part("v", "x"), N)],
                                              {0: Bind("v", "y", part("v", "x"))}),
-            "the whole after a conjunct that reads a part": ([reads(part("v", "x")), eq(V, N)], {}),
+            "the whole after a conjunct that reads a part": ([reads(part("v", "x")), eq(V, N)], {1: Bind("v", None, N)}),
+            "a field a binding read before": ([eq(W, V), eq(V, N)], {0: Bind("w", None, V)}),
         }
         for name, (guard, want) in tests.items():
             with self.subTest(name):
@@ -79,14 +80,16 @@ class DetermineTest(unittest.TestCase):
 
 
 class BlockedTest(unittest.TestCase):
-    def test_the_first_equality_a_conjunct_before_it_keeps_from_binding_a_part(self):
+    def test_the_first_equality_a_binding_before_it_keeps_from_binding_a_part(self):
+        by_x = eq(part("v", "y"), part("v", "x"))
         tests = {
-            "after a conjunct that reads the field": ([other("v"), eq(part("v", "x"), N)], eq(part("v", "x"), N)),
-            "the first of two": ([other("v"), eq(part("v", "x"), N), eq(N, part("v", "x"))], eq(part("v", "x"), N)),
+            "after a binding whose term reads the part": ([by_x, eq(part("v", "x"), N)], eq(part("v", "x"), N)),
+            "the first of two": ([by_x, eq(part("v", "x"), N), eq(N, part("v", "x"))], eq(part("v", "x"), N)),
+            "after a conjunct that reads the field": ([other("v"), eq(part("v", "x"), N)], None),
             "an equality that binds": ([eq(part("v", "x"), N), other("v")], None),
-            "another key": ([other("v"), eq(part("v", "y"), N)], None),
-            "no equality": ([other("v")], None),
-            "a term no order lets bind": ([other("v"), eq(part("v", "x"), Free("n", primed=True))], None),
+            "another key": ([by_x, eq(part("v", "z"), N)], None),
+            "no equality": ([by_x], None),
+            "a term no order lets bind": ([by_x, eq(part("v", "x"), Free("n", primed=True))], None),
         }
         for name, (guard, want) in tests.items():
             with self.subTest(name):
@@ -109,6 +112,11 @@ class PlaceTest(unittest.TestCase):
                                                      [(1, 0, None), (1, 1, Bind("v", None, W)), (1, 2, None)], 2),
             "a term over a field bound before": ([eq(V, N), eq(W, V)], {0: Bind("v", None, N), 1: Bind("w", None, V)}, [],
                                                  [(0, 0, Bind("v", None, N)), (0, 1, Bind("w", None, V))], 2),
+            "a conjunct reading a field bound later, after the binding": ([other("v"), eq(V, N)], {1: Bind("v", None, N)}, [],
+                                                                          [(0, 1, Bind("v", None, N)), (0, 0, None)], 1),
+            "a conjunct reading a part bound later, after the binding": ([reads(part("v", "x")), other("n"), eq(part("v", "x"), N)],
+                                                                         {2: Bind("v", "x", N)}, [("v", "z")],
+                                                                         [(0, 1, None), (1, 2, Bind("v", "x", N)), (1, 0, None)], 2),
             "the last part reads the parts that range": ([eq(part("v", "x"), N), eq(part("v", "y"), W)], {0: x, 1: y},
                                                          ["w", ("v", "z")], [(0, 0, x), (2, 1, y)], 2),
         }

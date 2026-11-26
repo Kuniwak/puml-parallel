@@ -547,9 +547,11 @@ class Explorer:
 
     def _blocked_hint(self, e: Edge, p: str, k) -> str:
         """The hint that an equality of e's guard would bind the part k of
-        p but for a conjunct before it reading p; empty when none would."""
+        p but for an equality before it binding by a term that reads the
+        part; empty when none would."""
         c = blocked(e.guard, list(e.params), set(self.d.vars[e.src]), p, k)
-        return "" if c is None else f"; the equality {show(c)} does not, as a conjunct before it reads {p}: move the equality before that conjunct"
+        return "" if c is None else (f"; the equality {show(c)} does not, as an equality before it binds by a term that reads "
+                                     f"{p}: move the equality before that one")
 
     def _field_plan(self, state: State, e: Edge, ranged: set[str] | None = None) -> "_Plan":
         """The plan of e from the state state is at (_make_plan), made once

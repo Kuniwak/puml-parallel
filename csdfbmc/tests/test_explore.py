@@ -456,6 +456,28 @@ class PruningTest(unittest.TestCase):
         self.assertEqual(([FrozenMap(key="p", lo=3)], (1, 0)),
                          ([t[4]["r"] for t in transitions], (x.stats[0].tried, x.stats[0].pruned)))
 
+    def test_a_part_a_conjunct_before_its_equality_reads_is_still_computed_not_ranged(self):
+        # Setup: the atom reads r["lo"] before the equality that binds it;
+        # the clauses being pure, the order does not matter.
+        def band(guard):
+            return diagram({"q": ["m"]}, "q", init_post=[eq("m'", lit({"p": 3, "q": 7}))], edges=[
+                edge("q", "q", "c?r", guard=guard, post=[eq("m'", "m")])], channels={"c": ["R"]})
+        key = eq(idx("r", lit("key")), lit("p"))
+        lo = eq(idx("r", lit("lo")), {"kind": "app", "fn": "band", "args": [fixture.term("m"), idx("r", lit("key"))]})
+        reads = atom("${} < 5", idx("r", lit("lo")))
+        given = environment.over({"band": lambda m, k: m[k]}, {})
+        types = Checks(types={"R": record(key=["p", "q"], lo=list(range(10)))})
+        state = ("q", (FrozenMap({"p": 3, "q": 7}),), ())
+        first = fixture.explorer(band([key, lo, reads]), types, environment=given)
+        x = fixture.explorer(band([key, reads, lo]), types, environment=given, stats=True)
+
+        # Execute
+        transitions = x.transitions(state)
+
+        # Assert
+        self.assertEqual(([t[4] for t in first.transitions(state)], (1, 0)),
+                         ([t[4] for t in transitions], (x.stats[0].tried, x.stats[0].pruned)))
+
     def test_the_conjuncts_evaluated_on_values_a_prefix_prunes_are_counted(self):
         # Setup: m is empty; @notin(id, m) holds of both ids, and @in(r.k, m)
         # is asked of one value of r.k after each, which it rejects.
@@ -653,16 +675,18 @@ class PruningTest(unittest.TestCase):
         self.assertEqual({FrozenMap(src=1, parent=FrozenMap(x=0)), FrozenMap(src=2, parent=FrozenMap(x=1))},
                          {params["r"] for _, _, _, _, params in transitions})
 
-    def test_a_part_an_equality_would_bind_after_a_conjunct_reading_the_field_is_refused_naming_the_equality(self):
-        # Setup: @notin reads r whole before the equality that would bind r.a,
-        # an on_demand_record, so nothing else can give r.a its values.
-        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[builtin("notin", "r", "m"), eq(idx("r", lit("a")), lit({"x": 0}))])])
+    def test_a_part_an_equality_would_bind_after_a_binding_reading_it_is_refused_naming_the_equality(self):
+        # Setup: r.k is bound by a term reading r.a before the equality that
+        # would bind r.a, an on_demand_record, so nothing else can give r.a
+        # its values.
+        d = dict(self.PART, edges=[dict(self.PART["edges"][0], guard=[eq(idx("r", lit("k")), idx(idx("r", lit("a")), lit("x"))),
+                                                                     eq(idx("r", lit("a")), lit({"x": 0}))])])
         x = fixture.explorer(d, Checks(types=dict(self.PART_TYPES, R=on_demand_record(k=[0, 1], a=on_demand_record(x=[0, 1])))))
 
         # Execute, Assert
         with self.assertRaisesRegex(PostError, r"nothing determines the part a of the field r, .*; "
-                                               r'the equality r\["a"\] == \{"x":0\} does not, as a conjunct before it reads r: '
-                                               r"move the equality before that conjunct"):
+                                               r'the equality r\["a"\] == \{"x":0\} does not, as an equality before it binds by a term that reads r: '
+                                               r"move the equality before that one"):
             x.transitions(("q", (FrozenMap(),), ()))
 
     def test_a_part_no_equality_would_bind_is_refused_without_naming_one(self):
@@ -920,7 +944,11 @@ class OracleTest(unittest.TestCase):
             "a part read by a key that is not a literal": (
                 "c?j?p", ["J", "P"], [atom("${} は f", fld("p", "k")), atom("${} は g", idx("p", "j"))], [], (0,), "fg"),
             "a builtin reading the whole record after a part": (
-                "c?p?j", ["P", "J"], [atom("${} は f", fld("p", "k")), eq("p", lit({"k": 2, "j": 1})), atom("$j は g")], [], (0,), "fg"),
+                "c?p?j", ["P", "J"], [atom("${} は f", fld("p", "k")), builtin("notin", "p", lit({})), atom("$j は g")], [], (0,), "fg"),
+            "an equality binding a part a conjunct before reads": (
+                "c?p?j", ["P", "J"], [atom("${} は f", fld("p", "k")), eq(idx("p", lit("k")), lit(2)), atom("$j は g")], [], (0,), "fg"),
+            "an equality binding a field a conjunct before reads": (
+                "c?k?j", ["K", "J"], [atom("$k は f"), eq("k", lit(2)), atom("$j は g")], [], (0,), "fg"),
             "a record with a determined part and one whose parts range": (
                 "c?q?p", ["P", "P"], [eq(idx("q", lit("k")), lit(2)), atom("${} は f", fld("p", "k")), atom("${} は g", fld("q", "j")),
                                       atom("${} は h", fld("p", "j"))], [], (0,), "fgh"),

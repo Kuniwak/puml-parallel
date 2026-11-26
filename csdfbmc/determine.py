@@ -1,6 +1,6 @@
 """What the equalities of a guard determine of the fields an event receives
-(Q5, docs/CLAUSE_DESIGN.md), read in the guard's order, so that a term is
-computed where evaluating the guard left to right would reach its equality
+(Q5, docs/CLAUSE_DESIGN.md), and the order a step asks the conjuncts in,
+so that a term is computed before a conjunct reads what it binds
 (csdfbmc.explore)."""
 from __future__ import annotations
 
@@ -23,15 +23,17 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
 
     An equality builtin binds a field f, f = t, or its part f.k or f[k]
     for a literal key k, when t reads no value after the step, not f, and only
-    the names known and the fields, and no conjunct before it reads f; a
-    field it reads that nothing has bound yet ranges then. A part f[k] may
-    be bound to a term over other parts of f, read f.j or f["j"]; a part
-    read before an equality binds it ranges, and reading a part alone does
-    not read the field. The parts of a field are bound until a conjunct
-    reads the field, which then holds the parts bound before; one equality
-    binds a key, the first. A field in ranged, or one read before an
-    equality binds it, ranges. Of the two sides of an equality, the one
-    whose term reads only fields before it in fields is bound first."""
+    the names known and the fields; a field it reads that nothing has bound
+    yet ranges then. A part f[k] may be bound to a term over other parts of
+    f, read f.j or f["j"]; a part the term of an equality before reads
+    ranges, and reading a part alone does not read the field. A conjunct
+    that binds nothing does not keep a field from binding, wherever it is:
+    the conjuncts being pure and raising nothing (README), it is asked
+    after the equalities binding what it reads (place). One equality binds
+    a key, the first, and none binds a field whose parts one binds before.
+    A field in ranged, or one the term of an equality before reads, ranges.
+    Of the two sides of an equality, the one whose term reads only fields
+    before it in fields is bound first."""
     order = {f: i for i, f in enumerate(fields)}
     reads_first: set[str] = set(ranged)
     whole: set[str] = set()
@@ -60,7 +62,6 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
     for i, c in enumerate(guard):
         bind = _bind(c, order, known, bindable)
         if bind is None:
-            read(_literal_reads(c, primed=None))
             continue
         binds[i] = bind
         if bind.key is None:
@@ -74,8 +75,8 @@ def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozense
 def blocked(guard: tuple, fields: list[str], known: set[str], f: str, key) -> object | None:
     """The first equality of guard that would bind the part key of the
     field f were it the guard alone, when the guard binds no such part, so
-    that a conjunct before the equality keeps it from binding; None
-    otherwise. No field ranges but those the guard reads first."""
+    that an equality before it, binding by a term that reads the part,
+    keeps it from binding; None otherwise. No field ranges but those the guard reads first."""
     def binds(g: tuple) -> bool:
         return any((b.field, b.key) == (f, key) for b in determine(g, fields, known, frozenset()).values())
     if binds(guard):
@@ -113,7 +114,8 @@ def place(guard: tuple, binds: dict[int, Bind], levels: list) -> tuple[list, int
     levels names the levels of the product in order: a field that ranges,
     or (field, key) for a part of one that ranges. A step is (the depth of
     the levels it reads, its place in guard, its Bind or None), in guard's
-    order; the depth never decreases, and the last equality binding a part
+    order but for a conjunct that binds nothing and reads what a later
+    equality binds, which follows that equality (_bound_first); the depth never decreases, and the last equality binding a part
     of a field reads the levels of its other parts. A conjunct reads the
     level of a part where it reads the part, f.k or f["k"] (part_reads),
     and every level of the field where it reads the field otherwise. The product asks every
@@ -125,8 +127,8 @@ def place(guard: tuple, binds: dict[int, Bind], levels: list) -> tuple[list, int
             depth[name[0]] = d + 1
     last_part = {b.field: i for i, b in binds.items() if b.key is not None}
     steps, at = [], 0
-    for i, c in enumerate(guard):
-        b = binds.get(i)
+    for i in _bound_first(guard, binds, last_part):
+        c, b = guard[i], binds.get(i)
         reads: set = part_reads(b.term if b else c, depth.keys())
         if b is not None and last_part.get(b.field) == i:
             reads = reads | {n for n in levels if isinstance(n, tuple) and n[0] == b.field}
@@ -134,6 +136,33 @@ def place(guard: tuple, binds: dict[int, Bind], levels: list) -> tuple[list, int
         steps.append((at, i, b))
     inside = max([sum(1 for d, _, _ in steps if d < len(levels))] + [j + 1 for j, (_, _, b) in enumerate(steps) if b is not None])
     return steps, inside
+
+
+def _bound_first(guard: tuple, binds: dict[int, Bind], last_part: dict[str, int]) -> list[int]:
+    """The places of guard in its order, but a conjunct that binds nothing
+    and reads a field or a part a later equality binds right after the last
+    such equality, so that it reads them bound; the conjuncts being pure
+    and raising nothing (README), the order they are asked in does not
+    matter."""
+    at: dict = {}
+    for j, b in binds.items():
+        at[(b.field, b.key)] = j
+        if b.key is None:
+            at[b.field] = j
+    after: dict[int, list] = {}
+    order = []
+    for i, c in enumerate(guard):
+        if i not in binds:
+            reads = _literal_reads(c, primed=False)
+            places = [at[n] for n in reads | names_of(reads) if n in at]
+            places += [last_part[f] for f in reads if f in last_part]
+            j = max(places, default=-1)
+            if j > i:
+                after.setdefault(j, []).append(i)
+                continue
+        order.append(i)
+        order += after.pop(i, [])
+    return order
 
 
 def part_reads(t, parts) -> set:

@@ -1047,13 +1047,15 @@ every valuation is then checked against the whole post, so two clauses that
 disagree admit no successor. A clause that reads an entry its map does not
 have (`m[k]` with `k` not in `m`) is false, never a default value. A field
 an event receives ranges over its type, except one an equality of the guard
-binds (`@eq(x, n)`) to a term over the state and the fields, when no
-conjunct before the equality reads the field: it is computed, whatever its
-type holds. So are the parts of a record field equalities of the guard bind
-(`@eq(w.count, n)` or `@eq(w["count"], n)`, a literal key), until a
-conjunct reads the field: the term may read other parts of the same field
-(`@eq(r["parent"], m[r.src].parent)`), and a conjunct that reads only parts (`@in(r.src, m)`)
-does not read the field, though a part it reads ranges. A conjunct that reads the whole field before such an equality (`${r}['k'] in ${m}`) keeps the equality from binding, so write the equality first; a part no type lists the values of is then refused naming the equality to move. The other parts range over their values in a type `record(…)` or
+binds (`@eq(x, n)`) to a term over the state and the fields, wherever a
+conjunct that reads the field is: it is computed, whatever its type holds,
+before a conjunct reads it. So are the parts of a record field equalities of
+the guard bind (`@eq(w.count, n)` or `@eq(w["count"], n)`, a literal key):
+the term may read other parts of the same field
+(`@eq(r["parent"], m[r.src].parent)`), and a part the term of an equality
+before reads ranges, which keeps a later equality from binding it, so write
+that equality first; a part no type lists the values of is then refused
+naming the equality to move. The other parts range over their values in a type `record(…)` or
 `on_demand_record(…)`; a list of
 records, or the type `any`, gives no parts to range over, so the field is
 computed only when equalities bind every key its records have, and
