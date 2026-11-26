@@ -95,14 +95,10 @@ def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
         return None
     found = []
     for x, y in ((c.args[0], c.args[1]), (c.args[1], c.args[0])):
-        if isinstance(x, Free) and not x.primed:
-            f, key = x.name, None
-        elif isinstance(x, Index) and isinstance(x.map, Free) and not x.map.primed and isinstance(x.key, Lit):
-            f, key = x.map.name, x.key.value
-        elif isinstance(x, Field) and isinstance(x.of, Free) and not x.of.primed:
-            f, key = x.of.name, x.name
-        else:
+        level = _level(x)
+        if level is None:
             continue
+        f, key = level
         reads = _literal_reads(y, primed=False)
         names = names_of(reads)
         if free_names(y, primed=True) or f in reads or (f, key) in reads or not names <= known | order.keys() or not bindable(f, key):
@@ -191,13 +187,21 @@ def _deepest(c, levels: list, names: set, deepest: int) -> int:
     return max([deepest] + [d for d, name in enumerate(levels) if _reads(part_reads(c, names), name)])
 
 
+def _level(t) -> tuple[str, object] | None:
+    """(f, None) when t is a variable f before the step, (f, k) when it is
+    a part of one by a literal key, f.k or f[k]; None otherwise."""
+    if isinstance(t, Free) and not t.primed:
+        return t.name, None
+    if isinstance(t, Field) and isinstance(t.of, Free) and not t.of.primed:
+        return t.of.name, t.name
+    if isinstance(t, Index) and isinstance(t.map, Free) and not t.map.primed and isinstance(t.key, Lit):
+        return t.map.name, t.key.value
+    return None
+
+
 def _is_level(t) -> bool:
     """Whether t is a field, or a part of one by a literal key."""
-    if isinstance(t, Free):
-        return not t.primed
-    if isinstance(t, Field):
-        return isinstance(t.of, Free) and not t.of.primed
-    return isinstance(t, Index) and isinstance(t.map, Free) and not t.map.primed and isinstance(t.key, Lit)
+    return _level(t) is not None
 
 
 def _reads(read: set, level) -> bool:
