@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
 )
 
 // AdmitByBuiltins refuses values entered for p's target when a builtin

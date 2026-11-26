@@ -3,10 +3,10 @@ package target_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/isabelle"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/lean"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir/isabelle"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir/lean"
 )
 
 // TestSpellFormulaParenthesisesWhatAProverWouldReadOtherwise holds both

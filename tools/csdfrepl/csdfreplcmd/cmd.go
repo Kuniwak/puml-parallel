@@ -5,10 +5,10 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/Kuniwak/puml-parallel/v4/cli"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v4/version"
+	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v5/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

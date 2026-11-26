@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kuniwak/puml-parallel/v4/cli"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation/proto"
 )
 
 const twoStateDiagram = `@startuml

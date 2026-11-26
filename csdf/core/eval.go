@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/types"
 )
 
 // Env is what a diagram takes from outside to be expanded: the values of

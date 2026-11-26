@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/clause"
 )
 
 // Observed is p with every clause of its global diagram read through the

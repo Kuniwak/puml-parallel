@@ -3,7 +3,7 @@ package csdf
 import (
 	"encoding/json"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/clause"
 )
 
 // The concrete syntax tree of a diagram (docs/SYNTAX.md, docs/PROMOTION.md):

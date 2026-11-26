@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/ident"
 )
 
 // Direction says who chooses the value of an event's field (docs/SYNTAX.md).

@@ -11,9 +11,9 @@ package main
 import (
 	"syscall/js"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/proto"
-	"github.com/Kuniwak/puml-parallel/v4/tools/replweb/pyhost"
-	"github.com/Kuniwak/puml-parallel/v4/version"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/v5/tools/replweb/pyhost"
+	"github.com/Kuniwak/puml-parallel/v5/version"
 )
 
 func main() {

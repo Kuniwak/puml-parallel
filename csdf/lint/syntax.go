@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf"
-	"github.com/Kuniwak/puml-parallel/v4/usererr"
+	"github.com/Kuniwak/puml-parallel/v5/csdf"
+	"github.com/Kuniwak/puml-parallel/v5/usererr"
 )
 
 // SyntaxErrorRule reports a file the CSDF grammar cannot read. Nothing else can

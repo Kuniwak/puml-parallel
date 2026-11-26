@@ -4,10 +4,10 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/transtable"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/transtable"
 	"github.com/google/go-cmp/cmp"
 )
 

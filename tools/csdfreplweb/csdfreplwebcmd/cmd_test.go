@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v4/cli"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v4/tools"
-	"github.com/Kuniwak/puml-parallel/v4/tools/replweb"
-	"github.com/Kuniwak/puml-parallel/v4/tools/replweb/engineload"
-	"github.com/Kuniwak/puml-parallel/v4/usererr"
+	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v5/tools"
+	"github.com/Kuniwak/puml-parallel/v5/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v5/tools/replweb/engineload"
+	"github.com/Kuniwak/puml-parallel/v5/usererr"
 	"github.com/google/go-cmp/cmp"
 )
 
