@@ -30,9 +30,25 @@ type Words struct {
 // English and Japanese are the words of those languages.
 var (
 	English = Words{Event: "Event", Condition: "Condition", Change: "Change", Kept: "Kept", Emptied: "Emptied", Before: "before", After: "after", Field: "event", Separator: ", ", Builtins: map[clause.Op]string{
-		clause.OpNe: "%[1]s is not %[2]s",
+		clause.OpEq:     "%[1]s is %[2]s",
+		clause.OpNe:     "%[1]s is not %[2]s",
+		clause.OpIn:     "%[2]s has %[1]s",
+		clause.OpNotIn:  "%[2]s has no %[1]s",
+		clause.OpEmpty:  "%[1]s is empty",
+		clause.OpUpdate: "%[1]s is %[2]s with %[3]s set to %[4]s",
+		clause.OpFrame:  "%[1]s is %[2]s except at %[3]s",
+		clause.OpAt:     "%[1]s is at %[2]s",
 	}}
-	Japanese = Words{Event: "イベント", Condition: "条件", Change: "変化", Kept: "維持", Emptied: "空にする", Before: "前状態", After: "次状態", Field: "イベント", Separator: "・"}
+	Japanese = Words{Event: "イベント", Condition: "条件", Change: "変化", Kept: "維持", Emptied: "空にする", Before: "前状態", After: "次状態", Field: "イベント", Separator: "・", Builtins: map[clause.Op]string{
+		clause.OpEq:     "%[1]s は %[2]s",
+		clause.OpNe:     "%[1]s は %[2]s でない",
+		clause.OpIn:     "%[2]s に %[1]s がある",
+		clause.OpNotIn:  "%[2]s に %[1]s がない",
+		clause.OpEmpty:  "%[1]s は空",
+		clause.OpUpdate: "%[1]s は %[2]s の %[3]s を %[4]s にしたもの",
+		clause.OpFrame:  "%[1]s は %[3]s のほか %[2]s と同じ",
+		clause.OpAt:     "%[1]s は %[2]s にある",
+	}}
 )
 
 // WordsOf are the words of the language lang names (en, ja), and whether
@@ -156,7 +172,7 @@ func spelled(c clause.And, w Words) []string {
 func conjunctText(f clause.Formula, w Words) string {
 	if b, ok := f.(clause.Builtin); ok {
 		if phrase, ok := w.Builtins[b.Op]; ok {
-			if text, ok := phrased(phrase, b); ok {
+			if text, ok := phrased(phrase, b, w.Separator); ok {
 				return text
 			}
 		}
@@ -164,15 +180,29 @@ func conjunctText(f clause.Formula, w Words) string {
 	return animation.ClauseText(clause.And{Conjuncts: []clause.Formula{f}})
 }
 
-// phrased is b in phrase, and whether every term of b could be printed.
-func phrased(phrase string, b clause.Builtin) (string, bool) {
-	operands := make([]any, len(b.Args))
+// phrased is b in phrase, and whether every term of b could be printed:
+// its terms are the operands in order, but that the terms of a variadic
+// builtin past those it always takes, and the states of @at, are one
+// operand, listed with sep.
+func phrased(phrase string, b clause.Builtin, sep string) (string, bool) {
+	printed := make([]string, len(b.Args))
 	for i, t := range b.Args {
 		s, err := clause.PrintTerm(t)
 		if err != nil {
 			return "", false
 		}
-		operands[i] = s
+		printed[i] = s
+	}
+	spec, _ := b.Op.Spec()
+	var operands []any
+	for _, s := range printed[:min(spec.Terms, len(printed))] {
+		operands = append(operands, s)
+	}
+	if spec.Variadic {
+		operands = append(operands, strings.Join(printed[min(spec.Terms, len(printed)):], sep))
+	}
+	if spec.State {
+		operands = append(operands, strings.Join(b.States, sep))
 	}
 	return fmt.Sprintf(phrase, operands...), true
 }

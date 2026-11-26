@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v6/csdf/coreio"
 )
 
@@ -128,5 +129,38 @@ func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
 	// Assert
 	if want := `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`; !strings.Contains(got, want) {
 		t.Errorf("Decorate() line = %q, want it to hold %q", got, want)
+	}
+}
+
+func free(name string, primed bool) clause.Term { return clause.Free{Name: name, Primed: primed} }
+
+func TestConjunctTextShouldSpellEachBuiltin(t *testing.T) {
+	m, m2, k, v := free("m", false), free("m", true), free("k", false), free("v", false)
+	cases := []struct {
+		words Words
+		b     clause.Builtin
+		want  string
+	}{
+		{English, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k is not v"},
+		{Japanese, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k は v でない"},
+		{English, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k is v"},
+		{Japanese, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k は v"},
+		{English, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m has k"},
+		{Japanese, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m に k がある"},
+		{English, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m has no k"},
+		{Japanese, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m に k がない"},
+		{English, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m is empty"},
+		{Japanese, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m は空"},
+		{English, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' is m with k set to v"},
+		{Japanese, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' は m の k を v にしたもの"},
+		{English, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' is m except at k, v"},
+		{Japanese, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' は k・v のほか m と同じ"},
+		{English, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k is at A, B"},
+		{Japanese, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k は A・B にある"},
+	}
+	for _, c := range cases {
+		if got := conjunctText(c.b, c.words); got != c.want {
+			t.Errorf("conjunctText(%v) = %q, want %q", c.b, got, c.want)
+		}
 	}
 }
