@@ -8,6 +8,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v5/csdf"
 	"github.com/Kuniwak/puml-parallel/v5/csdf/pumlline"
+	"github.com/Kuniwak/puml-parallel/v5/usererr"
 )
 
 // ResolveIncludes is tree with each !include resolved: the pragma, its
@@ -81,24 +82,56 @@ func (r *includeResolver) pragma(p *csdf.PragmaSyntax, dir string) (*csdf.Pragma
 		path = filepath.Join(r.base, key)
 	}
 	if slices.Contains(r.within, key) {
-		return nil, fmt.Errorf("line %d: !include %s: a cycle of !include: %s", p.Line, p.Arg, strings.Join(append(slices.Clone(r.within), key), ", "))
+		return nil, unreadInclude(p, fmt.Errorf("a cycle of !include: %s", strings.Join(append(slices.Clone(r.within), key), ", ")))
 	}
 	src, err := r.include(key)
 	if err != nil {
-		return nil, fmt.Errorf("line %d: !include %s: %w", p.Line, p.Arg, err)
+		return nil, unreadInclude(p, err)
 	}
 	tree, err := csdf.Parse(path, src)
 	if err != nil {
-		return nil, fmt.Errorf("line %d: !include %s: %s: %w", p.Line, p.Arg, path, err)
+		return nil, refusedInclude(p, path, err)
 	}
 	r.within = append(r.within, key)
 	body, err := r.body(tree.Body, filepath.Dir(key))
 	r.within = r.within[:len(r.within)-1]
 	if err != nil {
-		return nil, fmt.Errorf("line %d: !include %s: %s: %w", p.Line, p.Arg, path, err)
+		return nil, refusedInclude(p, path, err)
 	}
 	tree.Body = body
 	out := *p
 	out.Tree = tree
 	return &out, nil
 }
+
+// IncludeError is the refusal of the !include of Arg written on Line: its
+// file could not be read, or Err is in In, the file it names. Its message
+// is the one shown to a user, the line and the path written kept.
+type IncludeError struct {
+	Line int
+	Arg  string
+	In   string // the file Err is in, "" when the file was not read
+	Err  error
+}
+
+// unreadInclude refuses p, whose file could not be read for err.
+func unreadInclude(p *csdf.PragmaSyntax, err error) *IncludeError {
+	return &IncludeError{Line: p.Line, Arg: p.Arg, Err: err}
+}
+
+// refusedInclude refuses p for err in in, the file it names.
+func refusedInclude(p *csdf.PragmaSyntax, in string, err error) *IncludeError {
+	return &IncludeError{Line: p.Line, Arg: p.Arg, In: in, Err: err}
+}
+
+func (e *IncludeError) Error() string {
+	if e.In == "" {
+		return fmt.Sprintf("line %d: !include %s: %s", e.Line, e.Arg, usererr.Message(e.Err))
+	}
+	return fmt.Sprintf("line %d: !include %s: %s: %s", e.Line, e.Arg, e.In, usererr.Message(e.Err))
+}
+
+func (e *IncludeError) Unwrap() error { return e.Err }
+
+// UserFacing marks the message as the one to show.
+func (e *IncludeError) UserFacing() {}

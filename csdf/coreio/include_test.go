@@ -1,10 +1,12 @@
 package coreio
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v5/csdf"
+	"github.com/Kuniwak/puml-parallel/v5/usererr"
 )
 
 // includeAt is the !include reached from es by indexes, each the place of
@@ -102,6 +104,33 @@ func TestResolveIncludesLeavesTheTreeGivenAsItIs(t *testing.T) {
 	// Assert
 	if tree.Body[0].(*csdf.PragmaSyntax).Tree != nil {
 		t.Error("want the tree given left as it was")
+	}
+}
+
+// A refusal is an IncludeError, shown to a user with the line and the
+// path written of each !include down to its cause.
+func TestResolveIncludesRefusesWithAnIncludeError(t *testing.T) {
+	// Setup
+	tree, err := csdf.Parse("", "@startuml G\n!include A.puml\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := map[string]string{"A.puml": "@startuml A\n\n!include B.puml\n@enduml\n"}
+
+	// Execute
+	_, err = ResolveIncludes(tree, "", SourcesIncluder(sources))
+
+	// Assert
+	var ie *IncludeError
+	if !errors.As(err, &ie) {
+		t.Fatalf("got %v, want an IncludeError", err)
+	}
+	if ie.Line != 2 || ie.Arg != "A.puml" {
+		t.Errorf("got the !include of %q on line %d, want A.puml on line 2", ie.Arg, ie.Line)
+	}
+	want := "line 2: !include A.puml: A.puml: line 3: !include B.puml: coreio.SourcesIncluder: B.puml is not among the included files given"
+	if got := usererr.Message(err); got != want {
+		t.Errorf("shown as %q, want %q", got, want)
 	}
 }
 
