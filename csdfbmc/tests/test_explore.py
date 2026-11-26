@@ -434,6 +434,26 @@ class PruningTest(unittest.TestCase):
         # Assert
         self.assertEqual((24, 24), (x.stats[0].tried, x.stats[0].pruned))
 
+    # c?r: r.lo is an environment function of the state and the part key of r.
+    BAND = diagram({"q": ["m"]}, "q", init_post=[eq("m'", lit({"p": 3, "q": 7}))], edges=[
+        edge("q", "q", "c?r", guard=[eq(idx("r", lit("key")), lit("p")),
+                                     eq(idx("r", lit("lo")), {"kind": "app", "fn": "band", "args": [fixture.term("m"), idx("r", lit("key"))]})],
+             post=[eq("m'", "m")])],
+        channels={"c": ["R"]})
+
+    def test_a_part_an_environment_function_of_the_other_parts_determines_is_computed_not_ranged(self):
+        # Setup: r.key is "p", and band(m, "p") is 3, so r.lo is 3 alone.
+        given = environment.over({"band": lambda m, k: m[k]}, {})
+        x = fixture.explorer(self.BAND, Checks(types={"R": record(key=["p", "q"], lo=list(range(10)))}),
+                             environment=given, stats=True)
+
+        # Execute
+        transitions = x.transitions(("q", (FrozenMap({"p": 3, "q": 7}),), ()))
+
+        # Assert
+        self.assertEqual(([FrozenMap(key="p", lo=3)], (1, 0)),
+                         ([t[4]["r"] for t in transitions], (x.stats[0].tried, x.stats[0].pruned)))
+
     def test_a_part_a_membership_decides_is_drawn_from_the_keys_of_the_map(self):
         # Setup: m has key 1 only, so @in(r.k, m) is asked of r.k = 1 only,
         # for the id 2 @notin lets through.
