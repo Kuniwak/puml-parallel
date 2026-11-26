@@ -49,6 +49,8 @@ class DetermineTest(unittest.TestCase):
                                                       {0: Bind("v", "x", N), 2: Bind("v", "y", N)}),
             "a part after a conjunct that reads the field": ([eq(part("v", "x"), N), other("v"), eq(part("v", "y"), N)],
                                                              {0: Bind("v", "x", N)}),
+            "parts written as fields": ([eq(Field(V, "x"), N), eq(part("v", "y"), N)],
+                                        {0: Bind("v", "x", N), 1: Bind("v", "y", N)}),
             "a key bound once": ([eq(part("v", "x"), N), eq(part("v", "x"), N)], {0: Bind("v", "x", N)}),
             "the whole after its parts": ([eq(part("v", "x"), N), eq(V, N)], {0: Bind("v", "x", N)}),
             "a part over another part": ([eq(part("v", "y"), Index(N, part("v", "x")))], {0: Bind("v", "y", Index(N, part("v", "x")))}),

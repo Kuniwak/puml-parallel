@@ -21,8 +21,8 @@ class Bind:
 def determine(guard: tuple, fields: list[str], known: set[str], ranged: frozenset) -> dict[int, Bind]:
     """The equalities of guard that bind a field, by their places in it.
 
-    An equality builtin binds a field f, f = t, or its part f[k] for a
-    literal key k, when t reads no value after the step, not f, and only
+    An equality builtin binds a field f, f = t, or its part f.k or f[k]
+    for a literal key k, when t reads no value after the step, not f, and only
     the names known and the fields, and no conjunct before it reads f; a
     field it reads that nothing has bound yet ranges then. A part f[k] may
     be bound to a term over other parts of f, read f.j or f["j"]; a part
