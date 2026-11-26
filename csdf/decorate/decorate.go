@@ -78,29 +78,42 @@ const (
 
 // Decorate is source, the text d was read from, with the label of each
 // edge, the start edge and each end edge decorated, every line in its
-// place.
-func Decorate(source string, d *core.Diagram, w Words) string {
+// place; an error when a clause cannot be spelled in w.
+func Decorate(source string, d *core.Diagram, w Words) (string, error) {
 	lines := strings.Split(source, "\n")
-	relabel := func(line int, label string) {
+	relabel := func(line int, label string, err error) error {
+		if err != nil {
+			return fmt.Errorf("decorate.Decorate: line %d: %w", line, err)
+		}
 		if line < 1 || line > len(lines) {
-			return
+			return nil
 		}
 		if at := strings.Index(lines[line-1], " : "); at >= 0 {
 			lines[line-1] = lines[line-1][:at+3] + label
 		}
+		return nil
 	}
-	relabel(d.InitLine, block(w, nil, d.Init, "", nil, clause.And{}, d.InitPost))
+	label, err := block(w, nil, d.Init, "", nil, clause.And{}, d.InitPost)
+	if err := relabel(d.InitLine, label, err); err != nil {
+		return "", err
+	}
 	for _, e := range d.Edges {
-		relabel(e.Line, block(w, &e.Event, e.Src, e.Dst, d.Vars, e.Guard, e.Post))
+		label, err := block(w, &e.Event, e.Src, e.Dst, d.Vars, e.Guard, e.Post)
+		if err := relabel(e.Line, label, err); err != nil {
+			return "", err
+		}
 	}
 	for i, line := range lines {
 		if src, ok := endOf(line); ok {
 			if end := endFrom(d, src); end != nil {
-				relabel(i+1, block(w, nil, src, "", d.Vars, end.Guard, clause.And{}))
+				label, err := block(w, nil, src, "", d.Vars, end.Guard, clause.And{})
+				if err := relabel(i+1, label, err); err != nil {
+					return "", err
+				}
 			}
 		}
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), nil
 }
 
 var endLine = regexp.MustCompile(`^\s*(\S+)\s*-+>\s*\[\*\]\s*:`)
@@ -124,7 +137,7 @@ func endFrom(d *core.Diagram, src string) *core.End {
 
 // block is the decorated label of an edge from src to dst on ev (none for
 // the start and the end edges), with guard and post.
-func block(w Words, ev *core.Event, src, dst string, vars map[string][]string, guard, post clause.And) string {
+func block(w Words, ev *core.Event, src, dst string, vars map[string][]string, guard, post clause.And) (string, error) {
 	n := names{vars: map[string]bool{}, fields: map[string]bool{}}
 	for _, st := range []string{src, dst} {
 		for _, v := range vars[st] {
@@ -150,11 +163,19 @@ func block(w Words, ev *core.Event, src, dst string, vars map[string][]string, g
 	for nm := range n.fields {
 		avoid[nm] = true
 	}
-	section(&sb, w.Condition, spelled(guard, w, avoid), w, n)
-	section(&sb, w.Change, spelled(rest, w, avoid), w, n)
+	conditions, err := spelled(guard, w, avoid)
+	if err != nil {
+		return "", err
+	}
+	changes, err := spelled(rest, w, avoid)
+	if err != nil {
+		return "", err
+	}
+	section(&sb, w.Condition, conditions, w, n)
+	section(&sb, w.Change, changes, w, n)
 	listed(&sb, w.Emptied, emptied, w)
 	listed(&sb, w.Kept, unchanged, w)
-	return sb.String()
+	return sb.String(), nil
 }
 
 // names are the state variables and the event fields a label may mention.
@@ -169,52 +190,53 @@ func coloured(name string) string {
 }
 
 // spelled are the conjuncts of c, those of nested ∧ in their place, each
-// a builtin in w's words where w has a phrase for it, else as printed; a
-// variable an ∃ binds is named apart from avoid.
-func spelled(c clause.And, w Words, avoid map[string]bool) []string {
+// in w's words; a variable an ∃ binds is named apart from avoid. A
+// conjunct w has no phrase for, or one that cannot be printed, is an
+// error: the words never fall back on the clause syntax.
+func spelled(c clause.And, w Words, avoid map[string]bool) ([]string, error) {
 	var out []string
 	for _, f := range c.Conjuncts {
 		if inner, ok := f.(clause.And); ok {
-			out = append(out, spelled(inner, w, avoid)...)
+			parts, err := spelled(inner, w, avoid)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, parts...)
 			continue
 		}
-		out = append(out, conjunctText(f, w, avoid))
+		text, err := conjunctText(f, w, avoid)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, text)
 	}
-	return out
+	return out, nil
 }
 
-func conjunctText(f clause.Formula, w Words, avoid map[string]bool) string {
-	if b, ok := f.(clause.Builtin); ok {
-		if b.Op == clause.OpFrame && len(b.Args) == 2 {
+func conjunctText(f clause.Formula, w Words, avoid map[string]bool) (string, error) {
+	switch f := f.(type) {
+	case clause.Builtin:
+		if f.Op == clause.OpFrame && len(f.Args) == 2 {
 			// A frame of no key keeps the whole map: m' = m.
-			b.Op = clause.OpEq
+			f.Op = clause.OpEq
 		}
-		if phrase, ok := w.Builtins[b.Op]; ok {
-			if text, ok := phrased(phrase, b, w.Separator); ok {
-				return text
-			}
+		phrase, ok := w.Builtins[f.Op]
+		if !ok {
+			return "", fmt.Errorf("no phrase for @%s", f.Op)
 		}
+		return phrased(phrase, f, w.Separator)
+	case clause.Exists:
+		return opened(f, w, avoid)
+	case clause.Atom:
+		return holed(f)
 	}
-	if e, ok := f.(clause.Exists); ok {
-		if text, ok := opened(e, w, avoid); ok {
-			return text
-		}
-	}
-	if a, ok := f.(clause.Atom); ok {
-		if text, ok := holed(a); ok {
-			return text
-		}
-	}
-	return animation.ClauseText(clause.And{Conjuncts: []clause.Formula{f}})
+	return "", fmt.Errorf("no spelling of the conjunct %T", f)
 }
 
 // opened is e in w's words, its variable named apart from the names free
-// in it and from avoid, and its body in parentheses when it has more than one conjunct,
-// and whether it could be opened.
-func opened(e clause.Exists, w Words, avoid map[string]bool) (string, bool) {
-	if w.Exists == "" {
-		return "", false
-	}
+// in it and from avoid, and its body in parentheses when it has more than
+// one conjunct.
+func opened(e clause.Exists, w Words, avoid map[string]bool) (string, error) {
 	taken := maps.Clone(avoid)
 	for _, v := range clause.FreeVars(e) {
 		taken[v.Name] = true
@@ -223,23 +245,25 @@ func opened(e clause.Exists, w Words, avoid map[string]bool) (string, bool) {
 	taken[name] = true
 	body, err := clause.Open(e, clause.Free{Name: name})
 	if err != nil {
-		return "", false
+		return "", err
 	}
-	parts := spelled(body, w, taken)
+	parts, err := spelled(body, w, taken)
+	if err != nil {
+		return "", err
+	}
 	text := strings.Join(parts, w.And)
 	if len(parts) > 1 {
 		// The body in parentheses, so that a conjunct after the ∃ is not
 		// read as a part of it.
 		text = "(" + text + ")"
 	}
-	return fmt.Sprintf(w.Exists, name, e.Type, text), true
+	return fmt.Sprintf(w.Exists, name, e.Type, text), nil
 }
 
 // holed is a with each hole written $ and its term, without braces or
 // escapes, a space after a hole that text could otherwise continue, as a
-// name or as a path; and
-// whether every hole could be printed.
-func holed(a clause.Atom) (string, bool) {
+// name or as a path.
+func holed(a clause.Atom) (string, error) {
 	var sb strings.Builder
 	afterHole := false
 	for _, p := range a.Parts {
@@ -253,13 +277,13 @@ func holed(a clause.Atom) (string, bool) {
 		case clause.Hole:
 			s, err := clause.PrintTerm(p.Term)
 			if err != nil {
-				return "", false
+				return "", err
 			}
 			sb.WriteString("$" + s)
 			afterHole = true
 		}
 	}
-	return sb.String(), true
+	return sb.String(), nil
 }
 
 // continuesHole says whether text, after a hole, would read as part of it:
@@ -269,16 +293,15 @@ func continuesHole(text string) bool {
 	return strings.ContainsRune("_'.[(", r) || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-// phrased is b in phrase, and whether every term of b could be printed:
-// its terms are the operands in order, but that the terms of a variadic
+// phrased is b in phrase: its terms are the operands in order, but that the terms of a variadic
 // builtin past those it always takes, and the states of @at, are one
 // operand, listed with sep.
-func phrased(phrase string, b clause.Builtin, sep string) (string, bool) {
+func phrased(phrase string, b clause.Builtin, sep string) (string, error) {
 	printed := make([]string, len(b.Args))
 	for i, t := range b.Args {
 		s, err := clause.PrintTerm(t)
 		if err != nil {
-			return "", false
+			return "", err
 		}
 		printed[i] = s
 	}
@@ -293,7 +316,7 @@ func phrased(phrase string, b clause.Builtin, sep string) (string, bool) {
 	if spec.State {
 		operands = append(operands, strings.Join(b.States, sep))
 	}
-	return fmt.Sprintf(phrase, operands...), true
+	return fmt.Sprintf(phrase, operands...), nil
 }
 
 // section writes a line headed word for the first of parts and an

@@ -30,7 +30,11 @@ func decorated(t *testing.T, words Words) []string {
 	if err != nil {
 		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
 	}
-	return strings.Split(Decorate(machine, d, words), "\n")
+	out, err := Decorate(machine, d, words)
+	if err != nil {
+		t.Fatalf("Decorate() error = %v", err)
+	}
+	return strings.Split(out, "\n")
 }
 
 func TestDecorateShouldKeepEveryLineInItsPlace(t *testing.T) {
@@ -133,11 +137,31 @@ func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
 	}
 
 	// Execute
-	got := lineOf(t, strings.Split(Decorate(builtins, d, English), "\n"), "idle --> idle : ")
+	out, err := Decorate(builtins, d, English)
 
 	// Assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := lineOf(t, strings.Split(out, "\n"), "idle --> idle : ")
 	if want := `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`; !strings.Contains(got, want) {
 		t.Errorf("Decorate() line = %q, want it to hold %q", got, want)
+	}
+}
+
+func TestDecorateShouldRefuseABuiltinItHasNoPhraseFor(t *testing.T) {
+	// Setup
+	d, err := coreio.ReadBytes([]byte(builtins))
+	if err != nil {
+		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
+	}
+
+	// Execute
+	_, err = Decorate(builtins, d, Words{})
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "@eq") {
+		t.Errorf("Decorate() error = %v, want one naming @eq", err)
 	}
 }
 
@@ -191,9 +215,12 @@ func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got := conjunctText(tt.f, tt.words, map[string]bool{"cash": true})
+			got, err := conjunctText(tt.f, tt.words, map[string]bool{"cash": true})
 
 			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
 			if got != tt.want {
 				t.Errorf("conjunctText() = %q, want %q", got, tt.want)
 			}

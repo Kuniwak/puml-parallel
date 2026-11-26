@@ -22,7 +22,11 @@ func NewMainFunc() cli.MainFunc[*Options] {
 		if err != nil {
 			return fmt.Errorf("csdfdecoratecmd.NewMainFunc: %w", err)
 		}
-		fmt.Fprint(inout.Stdout, decorate.Decorate(string(opts.Bytes), d, opts.Words))
+		out, err := decorate.Decorate(string(opts.Bytes), d, opts.Words)
+		if err != nil {
+			return fmt.Errorf("csdfdecoratecmd.NewMainFunc: %w", err)
+		}
+		fmt.Fprint(inout.Stdout, out)
 		return nil
 	}
 }
