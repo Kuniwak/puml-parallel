@@ -1225,7 +1225,11 @@ the state count is the same.
 Only the values listed in `beyond` are tried, no other value outside the
 sample: with `sample([0, 1, 2, 3], beyond=[4])`, a state whose way out
 needs 8, say a count a post has taken past the sample, is still reported as
-a deadlock. List such a value in `beyond`, or widen the sample.
+a deadlock. List such a value in `beyond`, or widen the sample. A field an
+equality of the guard binds is narrowed by the sample as one that ranges
+is: a value it is bound to beyond the sample takes no step in the walk, and
+the state it leaves with no way out is the bound reached when the value is
+listed in `beyond`.
 
 Under the first deadlock of each shape, a `stuck:` line per edge out of it
 says why the edge takes no step: `guard false on the state: C`, C the

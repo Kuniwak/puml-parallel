@@ -1229,6 +1229,20 @@ class SampleTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
 
+    def test_a_field_bound_to_a_value_beyond_the_sample_is_the_bound_reached(self):
+        # Setup: n holds b, beyond the sample of K, so binding k to it takes
+        # no step in the walk, and does once the values beyond are tried.
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit("b"))], edges=[
+            edge("a", "a", "c?k", guard=[eq("k", "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"c": ["K"]})
+        checks = Checks(types={"N": ["b"], "K": sample(["a"], beyond=["b"])})
+
+        # Execute
+        result = fixture.explorer(d, checks).run()
+
+        # Assert
+        self.assertEqual(([], [(("a", ("b",), ()), "c(k=b)")]), (result.deadlocks, result.bound_reached))
+
     def test_an_end_edge_the_values_beyond_enable_is_the_witness(self):
         # Setup
         # The end edge is open only for a key b not in m, which no value of
