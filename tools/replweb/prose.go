@@ -15,7 +15,8 @@ import (
 // which the page shows in place of the diagram's own: the post of the start
 // edge, and the clauses of the edges and the guards of the end edges of
 // each state, by the ID of the state, in the order the engine numbers its
-// outgoing ones. Each is written as animation.ClauseText writes it.
+// outgoing ones. Each is spelled in the language of the prose
+// (animation.SpellText).
 type Prose struct {
 	InitPost string               `json:"init_post"`
 	Edges    map[string][]Clauses `json:"edges,omitempty"`
@@ -29,8 +30,8 @@ type Clauses struct {
 }
 
 // ProseOf is the clauses of prose, another version of d, by the edges of d
-// they belong to.
-func ProseOf(d, prose *core.Diagram) (*Prose, error) {
+// they belong to, spelled in phrases, those of the language prose is in.
+func ProseOf(d, prose *core.Diagram, phrases animation.Phrases) (*Prose, error) {
 	if err := correspond(d, prose); err != nil {
 		return nil, err
 	}
@@ -38,21 +39,56 @@ func ProseOf(d, prose *core.Diagram) (*Prose, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := &Prose{InitPost: animation.ClauseText(prose.InitPost)}
+	init, err := animation.SpellText(prose.InitPost, phrases, namesOf(prose, nil, prose.Init))
+	if err != nil {
+		return nil, fmt.Errorf("the start edge: %w", err)
+	}
+	out := &Prose{InitPost: init}
 	for i, e := range d.Edges {
 		if out.Edges == nil {
 			out.Edges = map[string][]Clauses{}
 		}
 		p := prose.Edges[pairs[i]]
-		out.Edges[e.Src] = append(out.Edges[e.Src], Clauses{Guard: animation.ClauseText(p.Guard), Post: animation.ClauseText(p.Post)})
+		avoid := namesOf(prose, &p.Event, p.Src, p.Dst)
+		guard, err := animation.SpellText(p.Guard, phrases, avoid)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: %w", p.Line, err)
+		}
+		post, err := animation.SpellText(p.Post, phrases, avoid)
+		if err != nil {
+			return nil, fmt.Errorf("line %d: %w", p.Line, err)
+		}
+		out.Edges[e.Src] = append(out.Edges[e.Src], Clauses{Guard: guard, Post: post})
 	}
 	for _, e := range prose.Ends {
 		if out.Ends == nil {
 			out.Ends = map[string][]string{}
 		}
-		out.Ends[e.Src] = append(out.Ends[e.Src], animation.ClauseText(e.Guard))
+		guard, err := animation.SpellText(e.Guard, phrases, namesOf(prose, nil, e.Src))
+		if err != nil {
+			return nil, fmt.Errorf("the end edge from %s: %w", e.Src, err)
+		}
+		out.Ends[e.Src] = append(out.Ends[e.Src], guard)
 	}
 	return out, nil
+}
+
+// namesOf are the variables of the states and the fields of ev (none for
+// the start and the end edges) a clause of prose may read, which a
+// variable an ∃ binds is named apart from.
+func namesOf(prose *core.Diagram, ev *core.Event, states ...string) map[string]bool {
+	names := map[string]bool{}
+	for _, st := range states {
+		for _, v := range prose.Vars[st] {
+			names[v] = true
+		}
+	}
+	if ev != nil {
+		for _, f := range ev.Fields {
+			names[f.Name] = true
+		}
+	}
+	return names
 }
 
 // MismatchError says how the prose version differs from the diagram, apart

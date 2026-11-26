@@ -152,7 +152,11 @@ func proseOf(opts *Options, d *core.Diagram) (map[string]*replweb.Prose, error) 
 		if err != nil {
 			return nil, err
 		}
-		clauses, err := replweb.ProseOf(d, prose)
+		phrases, ok := animation.PhrasesOf(lang)
+		if !ok {
+			return nil, proseError{file: file, err: fmt.Errorf("no phrases of the language %q (want %s)", lang, strings.Join(animation.Languages(), " or "))}
+		}
+		clauses, err := replweb.ProseOf(d, prose, phrases)
 		if err != nil {
 			return nil, proseError{file: file, err: err}
 		}
