@@ -298,6 +298,22 @@ func TestMainCarriesTheClausesOfTheProse(t *testing.T) {
 	}
 }
 
+func TestMainRefusesAProseOfALanguageWithoutPhrases(t *testing.T) {
+	// Setup
+	spy := cli.SpyProcInout()
+	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
+	prose := writeProse(t, "$用紙' == INITIAL", "用紙は初期枚数")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: map[string]string{"fr": prose}}
+
+	// Execute
+	err := newMainFunc(render, fakeEngine)(opts, spy.New())
+
+	// Assert
+	if msg := usererr.Message(err); !strings.Contains(msg, `"fr"`) || spy.Stdout.Len() != 0 {
+		t.Errorf("message = %q, want one naming the language, and nothing written", msg)
+	}
+}
+
 func TestMainRefusesAProseOfAnotherDiagram(t *testing.T) {
 	// Setup
 	spy := cli.SpyProcInout()
