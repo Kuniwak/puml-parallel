@@ -214,7 +214,8 @@ func opened(e clause.Exists, w Words) (string, bool) {
 }
 
 // holed is a with each hole written $ and its term, without braces or
-// escapes, a space after a hole that text could otherwise continue; and
+// escapes, a space after a hole that text could otherwise continue, as a
+// name or as a path; and
 // whether every hole could be printed.
 func holed(a clause.Atom) (string, bool) {
 	var sb strings.Builder
@@ -222,7 +223,7 @@ func holed(a clause.Atom) (string, bool) {
 	for _, p := range a.Parts {
 		switch p := p.(type) {
 		case clause.Text:
-			if afterHole && continuesName(string(p)) {
+			if afterHole && continuesHole(string(p)) {
 				sb.WriteString(" ")
 			}
 			sb.WriteString(string(p))
@@ -239,9 +240,11 @@ func holed(a clause.Atom) (string, bool) {
 	return sb.String(), true
 }
 
-func continuesName(text string) bool {
+// continuesHole says whether text, after a hole, would read as part of it:
+// a name going on, a prime, or a path (.f, [k], (args)).
+func continuesHole(text string) bool {
 	r, _ := utf8.DecodeRuneInString(text)
-	return r == '_' || r == '\'' || unicode.IsLetter(r) || unicode.IsDigit(r)
+	return strings.ContainsRune("_'.[(", r) || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // phrased is b in phrase, and whether every term of b could be printed:

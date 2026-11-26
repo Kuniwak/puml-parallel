@@ -178,6 +178,7 @@ func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
 		"exists in English":     {English, exists, "for some n2 of T, n' is n2 and n2 is not n"},
 		"exists in Japanese":    {Japanese, exists, "ある T の n2 について n' は n2 かつ n2 は n でない"},
 		"a hole without braces": {Japanese, hole, "$m'[k].x が 0"},
+		"a hole before text that would read as its path": {English, clause.Atom{Parts: []clause.Part{clause.Hole{Term: m}, clause.Text(".x and [k]")}}, "$m .x and [k]"},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
