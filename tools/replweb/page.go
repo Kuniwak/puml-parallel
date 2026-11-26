@@ -48,7 +48,7 @@ type Page struct {
 	Shapes json.RawMessage
 	// Prose are the clauses of other versions of the diagram, written for
 	// people, which the page shows in place of its own, by the language
-	// they are written in (LanguageOf); "" for those of no language.
+	// they are written in.
 	Prose map[string]*Prose
 }
 

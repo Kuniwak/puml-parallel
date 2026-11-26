@@ -284,7 +284,7 @@ func TestMainCarriesTheClausesOfTheProse(t *testing.T) {
 	spy := cli.SpyProcInout()
 	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
 	prose := writeProse(t, "$用紙' == INITIAL", "用紙は初期枚数")
-	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{prose}}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: map[string]string{"ja": prose}}
 
 	// Execute
 	err := newMainFunc(render, fakeEngine)(opts, spy.New())
@@ -293,7 +293,7 @@ func TestMainCarriesTheClausesOfTheProse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := `"prose":{"":{"init_post":"用紙は初期枚数"`; !strings.Contains(spy.Stdout.String(), want) {
+	if want := `"prose":{"ja":{"init_post":"用紙は初期枚数"`; !strings.Contains(spy.Stdout.String(), want) {
 		t.Errorf("the page does not hold %s", want)
 	}
 }
@@ -303,7 +303,7 @@ func TestMainRefusesAProseOfAnotherDiagram(t *testing.T) {
 	spy := cli.SpyProcInout()
 	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
 	prose := writeProse(t, "printing --> idle : 排紙", "printing --> printing : 排紙")
-	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{prose}}
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: map[string]string{"ja": prose}}
 
 	// Execute
 	err := newMainFunc(render, fakeEngine)(opts, spy.New())
@@ -314,13 +314,13 @@ func TestMainRefusesAProseOfAnotherDiagram(t *testing.T) {
 	}
 }
 
-func TestMainCarriesTheProseOfEachLanguageByItsFileName(t *testing.T) {
-	// Setup
+func TestMainCarriesTheProseOfEachLanguageByTheLanguageGivenNotItsFileName(t *testing.T) {
+	// Setup: each file is named after the other language
 	spy := cli.SpyProcInout()
 	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
-	en := writeProseAs(t, "printer_en.puml", "$用紙' == INITIAL", "the tray holds the initial sheets")
-	ja := writeProseAs(t, "printer_ja.puml", "$用紙' == INITIAL", "用紙は初期枚数")
-	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{en, ja}}
+	en := writeProseAs(t, "printer_ja.puml", "$用紙' == INITIAL", "the tray holds the initial sheets")
+	ja := writeProseAs(t, "printer_en.puml", "$用紙' == INITIAL", "用紙は初期枚数")
+	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: map[string]string{"en": en, "ja": ja}}
 
 	// Execute
 	err := newMainFunc(render, fakeEngine)(opts, spy.New())
@@ -333,22 +333,5 @@ func TestMainCarriesTheProseOfEachLanguageByItsFileName(t *testing.T) {
 		if !strings.Contains(spy.Stdout.String(), want) {
 			t.Errorf("the page does not hold %s", want)
 		}
-	}
-}
-
-func TestMainRefusesTwoProsesOfOneLanguage(t *testing.T) {
-	// Setup
-	spy := cli.SpyProcInout()
-	render := func([]string, string, []byte) ([]byte, error) { return []byte("<svg></svg>"), nil }
-	one := writeProseAs(t, "printer_ja.puml")
-	other := writeProseAs(t, "other_ja.puml")
-	opts := &Options{Common: &tools.CommonOptions{}, File: printerFormal, PumlExec: []string{"x"}, Pyodide: DefaultPyodide, Prose: []string{one, other}}
-
-	// Execute
-	err := newMainFunc(render, fakeEngine)(opts, spy.New())
-
-	// Assert
-	if msg := usererr.Message(err); !strings.Contains(msg, one) || !strings.Contains(msg, other) || spy.Stdout.Len() != 0 {
-		t.Errorf("message = %q, want one naming both proses, and nothing written", msg)
 	}
 }

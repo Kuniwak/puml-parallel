@@ -167,13 +167,36 @@ func TestNewParseOptionsFuncTakesTheProse(t *testing.T) {
 	spy := cli.SpyProcInout()
 
 	// Execute
-	opts, err := NewParseOptionsFunc()([]string{"-prose", "p_en.puml", "-prose", "p_ja.puml", "d.puml"}, spy.New())
+	opts, err := NewParseOptionsFunc()([]string{"-prose", "en=p.puml", "-prose", "ja=p_en.puml", "d.puml"}, spy.New())
 
 	// Assert
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff([]string{"p_en.puml", "p_ja.puml"}, opts.Prose); diff != "" {
+	if diff := cmp.Diff(map[string]string{"en": "p.puml", "ja": "p_en.puml"}, opts.Prose); diff != "" {
 		t.Errorf("Prose mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestNewParseOptionsFuncRefusesAProseOfNoKnownLanguage(t *testing.T) {
+	tests := map[string][]string{
+		"no language":      {"-prose", "p_ja.puml", "d.puml"},
+		"unknown language": {"-prose", "fr=p.puml", "d.puml"},
+		"no file":          {"-prose", "ja=", "d.puml"},
+		"language twice":   {"-prose", "ja=p.puml", "-prose", "ja=q.puml", "d.puml"},
+	}
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			spy := cli.SpyProcInout()
+
+			// Execute
+			_, err := NewParseOptionsFunc()(args, spy.New())
+
+			// Assert
+			if err == nil {
+				t.Errorf("NewParseOptionsFunc(%q) error = nil, want one", args)
+			}
+		})
 	}
 }

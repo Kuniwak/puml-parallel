@@ -4,10 +4,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v6/cli"
 	"github.com/Kuniwak/puml-parallel/v6/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/decorate"
 	"github.com/Kuniwak/puml-parallel/v6/tools"
 )
 
@@ -40,10 +43,9 @@ type Options struct {
 	// shows none.
 	Shapes string
 	// Prose are other versions of the diagram whose clauses are written
-	// for people, which the page shows in place of the diagram's own, each
-	// in the language its file name ends in (_ja.puml); none shows the
-	// diagram's own.
-	Prose []string
+	// for people, which the page shows in place of the diagram's own, by
+	// the language -prose gives each in; none shows the diagram's own.
+	Prose map[string]string
 }
 
 // CommonOptions returns the parsed common options.
@@ -96,10 +98,10 @@ diagram's own folded under them ("Formal clause"). The other version is
 the same diagram but for its clauses: the same states, variables,
 channels and start state, and the same edges and end edges in the same
 order; csdfreplweb refuses it, naming the first difference, otherwise.
-Give -prose once per language, each file named by its language, as in
-diagram_en.puml and diagram_ja.puml: the page shows the version in the
-language it is shown in, else the one whose name gives no language, else
-the English one.
+Give -prose once per language, as LANG=FILE with LANG en or ja, as in
+-prose en=diagram_en.puml -prose ja=diagram_ja.puml: the page shows the
+version in the language it is shown in, else the English one, else the
+other.
 
 The page carries the exploration engine compiled to WebAssembly. A
 release binary embeds it. Otherwise csdfreplweb builds it with the go
@@ -122,7 +124,7 @@ Examples:
       examples/bmc/printer_formal.puml > printer.html
   $ csdfparse diagram.puml | csdfpromote -format json > diagram.json && csdfbmc shapes diagram.json > shapes.json
   $ csdfreplweb -shapes shapes.json diagram.puml > diagram.html
-  $ csdfreplweb -prose diagram_en.puml -prose diagram_ja.puml diagram_formal.puml > diagram.html
+  $ csdfreplweb -prose en=diagram_en.puml -prose ja=diagram_ja.puml diagram_formal.puml > diagram.html
 `)
 		}
 
@@ -133,8 +135,8 @@ Examples:
 		var checker bmc.Checker
 		tools.DeclareCheckerOptions(flags, &checker)
 		shapes := flags.String("shapes", "", "JSON file csdfbmc shapes prints of the diagram, whose shapes of the types the page shows by the inputs")
-		var prose files
-		flags.Var(&prose, "prose", "another version of the diagram, the same but for its clauses, whose guards and posts the page shows in place of the diagram's; repeat it for each language, which the file name ends in, as in vending_ja.puml")
+		prose := proseFiles{}
+		flags.Var(prose, "prose", "LANG=FILE: another version of the diagram, the same but for its clauses, written in LANG (en or ja), whose guards and posts the page shows in place of the diagram's; repeat it for each language")
 		pyodide := flags.String("pyodide", DefaultPyodide, "with -checks, URL of the directory holding pyodide.js, which the page loads to run csdfbmc")
 
 		if err := flags.Parse(args); err != nil {
@@ -171,8 +173,28 @@ Examples:
 	}
 }
 
-// files are the values of a flag given once per file.
-type files []string
+// proseFiles are the values of -prose, LANG=FILE, the file by its language.
+type proseFiles map[string]string
 
-func (f *files) String() string     { return strings.Join(*f, ", ") }
-func (f *files) Set(v string) error { *f = append(*f, v); return nil }
+func (p proseFiles) String() string {
+	var parts []string
+	for _, lang := range slices.Sorted(maps.Keys(p)) {
+		parts = append(parts, lang+"="+p[lang])
+	}
+	return strings.Join(parts, " ")
+}
+
+func (p proseFiles) Set(v string) error {
+	lang, file, ok := strings.Cut(v, "=")
+	if !ok || file == "" {
+		return fmt.Errorf("want LANG=FILE, such as ja=diagram_ja.puml, not %q", v)
+	}
+	if _, ok := decorate.WordsOf(lang); !ok {
+		return fmt.Errorf("unknown language %q in %q (want %s)", lang, v, strings.Join(decorate.Languages(), " or "))
+	}
+	if seen, ok := p[lang]; ok {
+		return fmt.Errorf("%s is already the prose in %s", seen, lang)
+	}
+	p[lang] = file
+	return nil
+}
