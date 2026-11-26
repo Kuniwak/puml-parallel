@@ -1,0 +1,17 @@
+@startuml G
+!define PROMOTED
+state "稼働中" as running {
+  running : users ; UserId ⇸ User
+  state "users : (利用者ID : UserId) ⇸ User" as runningUsers <<promote>> {
+    !include local/USER.puml
+  }
+}
+[*] --> running
+note bottom of runningUsers
+  constrain JOIN?利用者ID ; ok
+  why it is so
+end note
+note as s1
+  sync LOG : users(利用者ID)
+end note
+@enduml

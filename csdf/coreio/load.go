@@ -134,7 +134,7 @@ func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
 
 // ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
 // ReadBytes does, unless it holds promotion directives
-// (csdf.HoldsPromotionDirectives): then it is the expansion csdfpromote
+// (csdf.HoldsDirectives): then it is the expansion csdfpromote
 // prints for it (Expand), each !include read by include, with the warnings
 // of the promotion. A diagram without promotion directives reads as
 // ReadBytes reads it, with no warnings.
@@ -143,14 +143,18 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: reading PlantUML source: %w", err)
 	}
-	if !csdf.HoldsPromotionDirectives(src) {
-		d, err := ReadBytes(raw)
+	tree, err := csdf.Parse("", src)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	if !csdf.HoldsDirectives(tree.Body) {
+		d, err := Lower(tree)
 		if err != nil {
 			return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 		}
 		return d, nil, nil
 	}
-	prom, err := ReadPromotionBytes(raw, include)
+	prom, err := ReadPromotion(src, include)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}

@@ -254,16 +254,16 @@ Semantics
 | `var`                                      | `Var`              | Represents a variable name.                                                                                                                                              |
 | `varType`                                  | `string`           | Represents the state variable's type (`type`). Leading and trailing whitespace is removed.                                                                                |
 | `channelsDecl`                             | `[]ChannelDecl`    | Declares channels, each `channelDecl` one: its name and the type of each of its fields, by position.                                                                     |
-| `event`                                    | `Event`            | An event: a channel and its `?` (received) and `!` (sent) fields, written without whitespace. `Event.Channel` and `Event.Fields` take it apart, and csdfparse writes them as `channel` and `fields` next to `event`. When it is exactly `tau`, it is an internal transition. |
+| `event`                                    | `Event`            | An event: a channel and its `?` (received) and `!` (sent) fields, written without whitespace. `Event.Channel` and `Event.Fields` take it apart, and the syntax tree writes them as `channel` and `fields` next to its `text`. When it is exactly `tau`, it is an internal transition. |
 | `guard`                                    | `string`           | Represents a natural language expression of guard conditions.                                                                                                            |
 | `post`                                     | `string`           | Represents a natural language expression of post-conditions.                                                                                                             |
 | `id`                                       | `string`           | Represents an ID string.                                                                                                                                                 |
 | `trivia`                                   | N/A                | Whitespace and comments accepted between declarations.                                                                                                                   |
 | `inlineTrivia`                             | N/A                | Horizontal whitespace and block comments accepted inside declarations.                                                                                                  |
-| `line_comment`                             | N/A                | PlantUML line comment beginning with `'`. It is not retained in the AST.                                                                                                 |
-| `ignore_region`                            | N/A                | Non-interpreted region delimited by `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` line comments, holding PlantUML-only directives. It is discarded while parsing.                  |
+| `line_comment`                             | N/A                | PlantUML line comment beginning with `'`. The syntax tree keeps it; it means nothing.                                                                                                 |
+| `ignore_region`                            | N/A                | Non-interpreted region delimited by `CSDF-IGNORE-BEGIN`/`CSDF-IGNORE-END` line comments, holding PlantUML-only directives. The syntax tree keeps its lines as written; they mean nothing.                  |
 | `observe_line`                             | `Observe`          | An observation the diagram declares: a view of states (`observe_view`, its name and states) or a state variable (`var`). |
-| `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. It is not retained in the AST.                                                                                         |
+| `block_comment`                            | N/A                | PlantUML block comment delimited by `/'` and `'/`. The syntax tree keeps it; it means nothing.                                                                                         |
 | `unicode_char_except_dquote_and_backslash` | `rune`             | Represents Unicode characters except double quotes and backslashes.                                                                                                      |
 | `unicode_char_except_semicolon`            | `rune`             | Represents Unicode characters except semicolons.                                                                                                                         |
 
@@ -524,4 +524,72 @@ eventName       = channel
 | `includeLine`      | `string`           | The local diagram of the family. Exactly one block per map carries it.                                                                                                                    |
 | `noteBlock`        | `Sync`/`Constrain` | A directive when its first non-empty line starts with `sync` or `constrain`; a note for the reader otherwise, and then discarded.                                                          |
 | `noteAnchor`       | `Anchor`           | The block the note points at, which is drawn as a line. A floating `note as <id>` points at nothing: PlantUML's state diagrams have no `<id> .. <state>` link.                              |
-| `preprocessorLine` | N/A                | A PlantUML preprocessor line such as `!define` or `!ifndef`. It is discarded, and it is how a local diagram hides its PlantUML-only lines when it is included.                              |
+| `preprocessorLine` | N/A                | A PlantUML preprocessor line such as `!define` or `!ifndef`. The syntax tree keeps it as written; `csdfpromote` discards it, and it is how a local diagram hides its PlantUML-only lines when it is included.                              |
+
+What this grammar has and the plain one does not (a preprocessor line, a
+state with a stereotype or a block, a note) is what `csdf.Plain` hints at
+promotion for when it refuses it in a global diagram (`isGlobalSyntax` in
+`csdf/plain.go`); a change to either grammar changes that list.
+
+The Syntax Tree as JSON
+-----------------------
+`csdfparse` prints the concrete syntax tree of a diagram, plain or global
+(`csdf.Parse`, `csdf.SyntaxTree`), as one JSON object. It says what is
+written and nothing of what it means: no directive is expanded, no
+`!include` resolved, and no clause turned into a formula. Every element of
+the source is kept in the order written; whitespace is not. Each node has a
+`line` and a `col`, 1-based, the column counted in Unicode code points,
+where it starts, and a body lists its elements in that order: a comment
+written inside a line comes after the element of that line.
+
+The object is `{"kind": "csdf-syntax-tree", "version": 1, "path", "name",
+"line", "col", "body"}`. `path` is the file the source was read from, left
+out for standard input; `name` is the rest of the `@startuml` line; `body`
+is the list of elements. Each element has a `kind`:
+
+| `kind`       | Fields                                   | Source                                                                                                  |
+|:-------------|:-----------------------------------------|:--------------------------------------------------------------------------------------------------------|
+| `comment`    | `text`, `block`                          | `' text`, or `/' text '/` when `block` is true.                                                         |
+| `pragma`     | `name`, `arg`                            | `!name arg`, such as `!include local/A.puml` (`arg` is the path as written) or `!define PROMOTED`.      |
+| `ignore`     | `lines`                                  | A CSDF-IGNORE region: the lines between its markers, as written.                                        |
+| `observe`    | `name`, `view`, `states`                 | A CSDF-OBSERVE line: a view of `states` when `view` is true, else a state variable.                      |
+| `state`      | `id`, `label`, `stereotype`, `body`      | `state "label" as id`, with `<<stereotype>>` if written, and `body`, the elements of its `{ … }` block, if it has one. |
+| `state_var`  | `state`, `name`, `type`                  | `state : name ; type`; `type` is left out when not written.                                              |
+| `start_edge` | `dst`, `post`                            | `[*] --> dst : post`.                                                                                    |
+| `edge`       | `src`, `dst`, `event`, `guard`, `post`   | `src --> dst : event ; guard ; post`.                                                                    |
+| `end_edge`   | `src`, `guard`                           | `src --> [*] : guard`.                                                                                   |
+| `note`       | `id` or `side` and `of`, `lines`         | `note as id`, or `note side of of`, and its lines up to `end note`, blank ones left out.                 |
+
+An `event` is `{"line", "col", "text", "channel", "fields"}`, each field
+`{"dir": "?" | "!", "name"}`. A `guard` or `post` is `null` when it is not
+written, and otherwise a clause, `{"line", "col", "text", "conjuncts"}`:
+`text` as written, and `conjuncts` its syntax tree (Clauses), each node with
+a `kind` and its `offset` into `text`, in code points:
+
+| `kind`    | Fields                     | Source                                                                    |
+|:----------|:---------------------------|:--------------------------------------------------------------------------|
+| `atom`    | `parts`                    | Text and holes; a part is `{"kind": "text", "text"}` or a `hole`.          |
+| `hole`    | `braced`, `term`           | `$name` or `$name'` (`braced` false), or `${term}`.                        |
+| `exists`  | `name`, `type`, `body`     | `@exists(name : type) (body)`, the name and type as written.               |
+| `builtin` | `op`, `args`, `states`     | `@op(args, states)`.                                                       |
+| `var`     | `name`, `primed`           | A variable by the name written, primed when a prime follows the name.     |
+| `lit`     | `text`                     | A literal as written.                                                     |
+| `index`   | `map`, `key`               | `map[key]`.                                                               |
+| `field`   | `of`, `name`               | `of.name`.                                                                |
+| `app`     | `fn`, `args`               | `fn(args)`.                                                               |
+| `prime`   | `of`                       | A path with a prime after it, `m[k].f'`.                                  |
+
+A line of a note is an element too. When the first line of the note opens a
+directive, each line is read as one, or as prose; otherwise every line is
+prose:
+
+| `kind`      | Fields                     | Source                                                                  |
+|:------------|:---------------------------|:------------------------------------------------------------------------|
+| `assume`    | `text`                     | `assume text`.                                                          |
+| `channel`   | `name`, `fields`           | `channel name : T1.T2`, each type as written.                           |
+| `sync`      | `event`, `targets`, `guard`| `sync event : map(id).event, … ; guard`, each target `{"map", "id", "event"}`, `event` left out when not written. |
+| `constrain` | `event`, `guard`           | `constrain event ; guard`.                                              |
+| `text`      | `text`                     | Any other line.                                                         |
+
+The tree is not the diagram the tools evaluate. That is `core.DiagramDoc`,
+which `csdfpromote -format json` writes (README.md).

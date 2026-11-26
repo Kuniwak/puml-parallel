@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/v4/cli"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v4/csdf"
+	"github.com/Kuniwak/puml-parallel/v4/pngsrc"
 	"github.com/Kuniwak/puml-parallel/v4/version"
 )
 
@@ -19,11 +19,15 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		d, err := coreio.ReadBytes(opts.Bytes)
+		source, err := pngsrc.Extract(opts.Bytes)
+		if err != nil {
+			return fmt.Errorf("csdfparsecmd.NewMainFunc: reading PlantUML source: %w", err)
+		}
+		tree, err := csdf.Parse(opts.Path, source)
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}
-		raw, err := core.MarshalDiagram(d)
+		raw, err := csdf.MarshalSyntaxTree(tree)
 		if err != nil {
 			return fmt.Errorf("csdfparsecmd.NewMainFunc: %w", err)
 		}

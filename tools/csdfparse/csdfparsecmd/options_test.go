@@ -56,6 +56,7 @@ func TestNewParseOptionsFuncOK(t *testing.T) {
 			Expected: &Options{
 				Common: tools.NewCommonOptionsDefault(),
 				Bytes:  []byte("@startuml\n@enduml\n"),
+				Path:   filepath.Join("testdata", "a.puml"),
 			},
 		},
 	}

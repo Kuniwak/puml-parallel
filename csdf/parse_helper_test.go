@@ -2,13 +2,15 @@ package csdf
 
 import "fmt"
 
-// acceptClauses is the check of a test that reads the structure of a diagram
-// and leaves its clauses to the clause language's own tests.
-func acceptClauses(Predicate) error { return nil }
-
-// parseAccepting reads content as ParseSource does, every clause accepted.
+// parseAccepting reads content as a plain diagram: its syntax tree, then
+// the plain diagram the tree says. Its clauses are left to the clause
+// language's own tests.
 func parseAccepting(content string) (*Diagram, error) {
-	return ParseSource(content, acceptClauses)
+	tree, err := Parse("", content)
+	if err != nil {
+		return nil, err
+	}
+	return Plain(tree)
 }
 
 // mustParseAccepting is parseAccepting for a source a test knows is well
@@ -21,7 +23,20 @@ func mustParseAccepting(content string) *Diagram {
 	return d
 }
 
-// newParser reads input with every clause accepted.
-func newParser(input string) *Parser {
-	return NewParserCheckingClauses(input, acceptClauses)
+// plainParser reads a plain diagram as parseAccepting does.
+type plainParser struct{ input string }
+
+func (p plainParser) parse() (*Diagram, error) { return parseAccepting(p.input) }
+
+// newParser reads input as parseAccepting does.
+func newParser(input string) plainParser {
+	return plainParser{input: input}
+}
+
+// textOf is the text of the clause c, "" when it is not written.
+func textOf(c *ClauseSyntax) Predicate {
+	if c == nil {
+		return ""
+	}
+	return Predicate(c.Text)
 }

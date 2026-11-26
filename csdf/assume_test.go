@@ -44,7 +44,6 @@ func TestParseRejectsANoteThatIsNotAnAssumption(t *testing.T) {
 		"empty":                       "@startuml\n[*] --> s0\nnote as n\nend note\n@enduml\n",
 		"anchored":                    "@startuml\nstate \"s0\" as s0\n[*] --> s0\nnote left of s0\n  assume x\nend note\n@enduml\n",
 		"two assumptions in one note": "@startuml\n[*] --> s0\nnote as n\n  assume x\n  assume y\nend note\n@enduml\n",
-		"unterminated":                "@startuml\n[*] --> s0\nnote as n\n  assume x\n@enduml\n",
 	}
 	for name, source := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -68,5 +67,12 @@ func TestParseReadsAnAssumeNoteAfterTheEndEdge(t *testing.T) {
 	}
 	if _, err := parseAccepting("@startuml\n[*] --> s0\ns0 --> [*]\ns0 --> s0 : a\n@enduml\n"); err == nil {
 		t.Error("parseAccepting() accepted an edge after the end edge")
+	}
+}
+
+func TestParseRefusesAnUnterminatedNote(t *testing.T) {
+	_, err := Parse("", "@startuml\n[*] --> s0\nnote as n\n  assume x\n@enduml\n")
+	if err == nil || !strings.Contains(err.Error(), "unterminated note at line 3") {
+		t.Errorf("Parse() error = %v, want an unterminated note at line 3", err)
 	}
 }

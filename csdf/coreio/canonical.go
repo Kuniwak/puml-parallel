@@ -73,14 +73,18 @@ func WriteCanonicalBytes(raw []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("coreio.WriteCanonicalBytes: reading PlantUML source: %w", err)
 	}
-	if csdf.HoldsPromotionDirectives(src) {
+	tree, err := csdf.Parse("", src)
+	if err != nil {
+		return "", fmt.Errorf("coreio.WriteCanonicalBytes: %w", err)
+	}
+	if csdf.HoldsDirectives(tree.Body) {
 		w, err := ReadPromotionAsWritten(src)
 		if err != nil {
 			return "", fmt.Errorf("coreio.WriteCanonicalBytes: %w", err)
 		}
 		return WritePromotion(w)
 	}
-	d, err := Read(src)
+	d, err := Lower(tree)
 	if err != nil {
 		return "", fmt.Errorf("coreio.WriteCanonicalBytes: %w", err)
 	}

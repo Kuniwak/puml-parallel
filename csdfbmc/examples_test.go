@@ -1,14 +1,15 @@
 package csdfbmc_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v4/cli"
 	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v4/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v4/tools"
-	"github.com/Kuniwak/puml-parallel/v4/tools/csdfparse/csdfparsecmd"
 	"github.com/Kuniwak/puml-parallel/v4/tools/csdfpromote/csdfpromotecmd"
 	"github.com/google/go-cmp/cmp"
 )
@@ -21,9 +22,9 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 		run  func(args []string, inout *cli.ProcInout) int
 		args []string
 	}{
-		"printer": {json: "../examples/bmc/printer_formal.json", run: tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
+		"printer": {json: "../examples/bmc/printer_formal.json", run: lowered,
 			args: []string{"../examples/bmc/printer_formal.puml"}},
-		"printer_retry": {json: "../examples/bmc/printer_retry_formal.json", run: tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
+		"printer_retry": {json: "../examples/bmc/printer_retry_formal.json", run: lowered,
 			args: []string{"../examples/bmc/printer_retry_formal.puml"}},
 		"attempts": {json: "../examples/bmc/attempts/attempts.json", run: tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc()),
 			args: []string{"-format", "json", "../examples/bmc/attempts/ATTEMPTS.puml"}},
@@ -60,4 +61,21 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 			}
 		})
 	}
+}
+
+// lowered prints the plain diagram at args[0] as core.DiagramDoc, lowered
+// by the Go reader (coreio.Load): what csdfbmc reads of it.
+func lowered(args []string, inout *cli.ProcInout) int {
+	d, err := coreio.Load(args[0])
+	if err != nil {
+		fmt.Fprintln(inout.Stderr, err)
+		return 1
+	}
+	raw, err := core.MarshalDiagram(d)
+	if err != nil {
+		fmt.Fprintln(inout.Stderr, err)
+		return 1
+	}
+	fmt.Fprintln(inout.Stdout, string(raw))
+	return 0
 }

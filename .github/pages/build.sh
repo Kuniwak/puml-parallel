@@ -11,7 +11,7 @@ trap 'rm -rf "$bin"' EXIT
 go build -o "$bin/csdfreplweb" ./tools/csdfreplweb
 go build -o "$bin/csdfdecorate" ./tools/csdfdecorate
 go build -o "$bin/csdfpromote" ./tools/csdfpromote
-go build -o "$bin/csdfparse" ./tools/csdfparse
+go build -o "$bin/lower" ./.github/pages/lower
 go build -o "$bin/csdfbmc" ./tools/csdfbmc
 mkdir -p "$site"
 
@@ -19,7 +19,7 @@ mkdir -p "$site"
 # diagram on standard input and the TYPES of the checks CHECKS say of the
 # values of its types.
 shapes() {
-  "$bin/csdfparse" > "$bin/diagram.json"
+  "$bin/lower" > "$bin/diagram.json"
   "$bin/csdfbmc" shapes "$bin/diagram.json" "$1" > "$bin/shapes.json"
 }
 

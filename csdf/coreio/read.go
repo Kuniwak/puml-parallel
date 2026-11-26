@@ -11,35 +11,72 @@ import (
 	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
 )
 
-// ReadAuthored reads a diagram an author wrote: its clauses are read by
-// clause.ParseAuthored, and each ∃ binds a name apart from those of the
-// diagram (core.Diagram.BindersApart).
+// ReadAuthored reads a diagram an author wrote: its syntax tree
+// (csdf.Parse), lowered by LowerAuthored.
 func ReadAuthored(source string) (*core.Diagram, error) {
-	d, err := read(source, clause.ParseAuthored)
+	tree, err := csdf.Parse("", source)
 	if err != nil {
 		return nil, fmt.Errorf("coreio.ReadAuthored: %w", err)
 	}
-	if err := d.BindersApart(); err != nil {
+	d, err := LowerAuthored(tree)
+	if err != nil {
 		return nil, fmt.Errorf("coreio.ReadAuthored: %w", err)
 	}
 	return d, nil
 }
 
-// Read reads a diagram a tool wrote, such as Write's: its clauses are read
-// by clause.Parse, so they may hold ∃.
+// Read reads a diagram a tool wrote, such as Write's: its syntax tree
+// (csdf.Parse), lowered by Lower.
 func Read(source string) (*core.Diagram, error) {
-	d, err := read(source, clause.Parse)
+	tree, err := csdf.Parse("", source)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.Read: %w", err)
+	}
+	d, err := Lower(tree)
 	if err != nil {
 		return nil, fmt.Errorf("coreio.Read: %w", err)
 	}
 	return d, nil
 }
 
-// read reads source with the structure csdf.ParseSource reads, each clause by
-// parse.
-func read(source string, parse func(string) (clause.And, error)) (*core.Diagram, error) {
-	check, clauses := parseOnce(parse)
-	src, err := csdf.ParseSource(source, check)
+// Lower is the diagram tree says, what the tools evaluate, for a diagram a
+// tool wrote: the plain diagram csdf.Plain reads of it, its clauses turned
+// into formulas by clause.FormulaOf, so they may hold ∃ binding any name. A
+// tree holding promotion directives is refused (csdf.PromotionHintError): a
+// core.Diagram has no place for them.
+func Lower(tree *csdf.SyntaxTree) (*core.Diagram, error) {
+	d, err := lowerTree(tree, clause.FormulaOf)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.Lower: %w", err)
+	}
+	return d, nil
+}
+
+// LowerAuthored is Lower for a diagram an author wrote: its clauses are
+// turned into formulas by clause.AuthoredFormulaOf, and each ∃ binds a name
+// apart from those of the diagram (core.Diagram.BindersApart).
+func LowerAuthored(tree *csdf.SyntaxTree) (*core.Diagram, error) {
+	d, err := lowerTree(tree, clause.AuthoredFormulaOf)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.LowerAuthored: %w", err)
+	}
+	if err := d.BindersApart(); err != nil {
+		return nil, fmt.Errorf("coreio.LowerAuthored: %w", err)
+	}
+	return d, nil
+}
+
+// formulaOf turns the syntax tree of a clause into its formula.
+type formulaOf func(clause.Syntax) (clause.And, error)
+
+// lowerTree is the diagram tree says, each clause turned into a formula by
+// formula.
+func lowerTree(tree *csdf.SyntaxTree, formula formulaOf) (*core.Diagram, error) {
+	src, err := csdf.Plain(tree)
+	if err != nil {
+		return nil, err
+	}
+	initPost, err := formulaAt(src.StartEdge.Post, src.StartEdge.Line, "post", formula)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +84,7 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		Name:     src.Name,
 		Vars:     map[string][]string{},
 		Init:     string(src.StartEdge.Dst),
-		InitPost: clauses(src.StartEdge.Post),
+		InitPost: initPost,
 		InitLine: src.StartEdge.Line,
 	}
 	for _, s := range csdf.SortedStates(src.States) {
@@ -85,7 +122,10 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		d.Channels[c.Name] = c.Fields
 	}
 	for _, e := range src.Edges {
-		edge := edgeOf(e, clauses)
+		edge, err := edgeOf(e, formula)
+		if err != nil {
+			return nil, err
+		}
 		for _, f := range edge.Event.Received() {
 			if core.ReceivesOver(f, d.Vars[edge.Src], d.Vars[edge.Dst]) {
 				return nil, fmt.Errorf("line %d: the edge %s -> %s receives %s, which names a state variable of %s or %s, over which it would bind", e.Line, edge.Src, edge.Dst, f, edge.Src, edge.Dst)
@@ -97,7 +137,11 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 		d.Assumes = append(d.Assumes, core.Assumption{ID: a.ID, Text: string(a.Text)})
 	}
 	if e := src.EndEdge; e != nil {
-		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: clauses(e.Guard)})
+		guard, err := formulaAt(e.Guard, e.Line, "guard", formula)
+		if err != nil {
+			return nil, err
+		}
+		d.Ends = append(d.Ends, core.End{Src: string(e.Src), Guard: guard})
 	}
 	d.Observes = observationOf(src.Observes)
 	if err := d.NamesBound(); err != nil {
@@ -109,46 +153,48 @@ func read(source string, parse func(string) (clause.And, error)) (*core.Diagram,
 	return d, nil
 }
 
-// readEdge reads one edge line, written at line, its clauses by parse.
-func readEdge(text string, line int, parse func(string) (clause.And, error)) (core.Edge, error) {
-	check, clauses := parseOnce(parse)
-	e, err := csdf.ParseEdgeLine(text, line, check)
+// readEdge reads one edge line, written at line, as every diagram reads an
+// edge, and lowers it as a diagram's edges are lowered, each clause turned
+// into a formula by formula.
+func readEdge(text string, line int, formula formulaOf) (core.Edge, error) {
+	e, err := csdf.ParseEdgeLine(text, line)
 	if err != nil {
 		return core.Edge{}, err
 	}
-	return edgeOf(e, clauses), nil
+	return edgeOf(csdf.PlainEdge(e), formula)
 }
 
-// parseOnce gives a check that reads each predicate by parse, keeping what
-// it read, and clauses that give back what check kept, so no predicate is
-// read twice. Edges whose clauses read the same share what was read, so
-// nothing may change a clause in place.
-func parseOnce(parse func(string) (clause.And, error)) (func(csdf.Predicate) error, func(csdf.Predicate) clause.And) {
-	read := map[csdf.Predicate]clause.And{}
-	check := func(p csdf.Predicate) error {
-		if _, ok := read[p]; ok {
-			return nil
-		}
-		f, err := parse(string(p))
-		if err != nil {
-			return err
-		}
-		read[p] = f
-		return nil
+// formulaAt is the formula of c, the clause written on line as the which of
+// that line, true when c is not written. A refusal is tagged with the line.
+func formulaAt(c *csdf.ClauseSyntax, line int, which string, formula formulaOf) (clause.And, error) {
+	if c == nil {
+		return clause.And{}, nil
 	}
-	clauses := func(p csdf.Predicate) clause.And { return read[p] }
-	return check, clauses
+	f, err := formula(c.Syntax)
+	if err != nil {
+		return clause.And{}, csdf.NewParseError(line, 0, fmt.Errorf("line %d, the %s: %q: %w", line, which, c.Text, err))
+	}
+	return f, nil
 }
 
-func edgeOf(e csdf.Edge, clauses func(csdf.Predicate) clause.And) core.Edge {
+// edgeOf lowers e, each clause turned into a formula by formula.
+func edgeOf(e csdf.Edge, formula formulaOf) (core.Edge, error) {
+	guard, err := formulaAt(e.Guard, e.Line, "guard", formula)
+	if err != nil {
+		return core.Edge{}, err
+	}
+	post, err := formulaAt(e.Post, e.Line, "post", formula)
+	if err != nil {
+		return core.Edge{}, err
+	}
 	return core.Edge{
 		Src:   string(e.Src),
 		Dst:   string(e.Dst),
 		Event: eventOf(e.Event),
-		Guard: clauses(e.Guard),
-		Post:  clauses(e.Post),
+		Guard: guard,
+		Post:  post,
 		Line:  e.Line,
-	}
+	}, nil
 }
 
 func eventOf(e csdf.Event) core.Event {

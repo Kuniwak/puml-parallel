@@ -72,21 +72,35 @@ $ csdfparallel diagram1.png diagram2.puml
 $ csdfrepl diagram.png
 ```
 
-`csdfparse` writes one JSON object followed by a newline, `"version": 3`
-of the shape `core.DiagramDoc` (`csdf/core/json.go`): the `states` in order,
+`csdfparse` only parses: it writes the concrete syntax tree of the diagram,
+plain or global, as one JSON object followed by a newline, so that a program
+reads the JSON instead of parsing the source. Nothing of the meaning is read:
+a diagram holding promotion directives is printed as any other, an `!include`
+is not resolved, and a clause is its own syntax tree, not a formula. The tree
+keeps every element in the order written, each with its `line` and `col`
+(1-based, the column counted in code points); whitespace is not kept.
+[SYNTAX.md](./docs/SYNTAX.md#the-syntax-tree-as-json) describes the shape.
+
+```console
+$ csdfparse examples/valid/skip.puml
+{"kind":"csdf-syntax-tree","version":1,"path":"examples/valid/skip.puml","name":"","line":1,"col":1,"body":[{"kind":"state","line":3,"col":1,"id":"s0","label":"SKIP"},{"kind":"start_edge","line":5,"col":1,"dst":"s0","post":null},{"kind":"end_edge","line":6,"col":1,"src":"s0","guard":null}]}
+```
+
+The diagram `csdfbmc` reads is another JSON, `"version": 3`
+of the shape `core.DiagramDoc` (`csdf/core/json.go`), which
+`csdfpromote -format json` writes: the `states` in order,
 their `labels` (only those labelled apart from their ID) and `vars`, each a
 `name` and its declared `type` (docs/SYNTAX.md); the `channels` the channel
 notes declare, each with the types of its fields in order; the
 start state `init`, its post `init_post` and `init_line`; the `edges`, each
 with its `channel`, its `fields` (each a `dir`, `?` or `!`, and a `name`), its
 `guard`, its `post` and its `line`; the end edges `ends`; the assume notes
-`assumes`; and `families`, for a diagram `csdfpromote -format json` writes
-the family of each map: the `map`, its `key` (the ID parameter of the
-promote directive) and `key_type` (the type of the IDs, which keys the map),
-the local `states` in order, the local
+`assumes`; and `families`, the family of each map: the `map`, its `key` (the
+ID parameter of the promote directive) and `key_type` (the type of the IDs,
+which keys the map), the local `states` in order, the local
 start state `init` among them, which is absence, and the `vars` of each local
 state with their types, the fields an instance there holds (empty for a
-diagram `csdfparse` reads, which no promotion made). A type is written as
+diagram no promotion made). A type is written as
 docs/SYNTAX.md writes it (`K ⇸ V` for a map type). Version 2 added `families`
 and version 3 the `key` of each and the declared types; a reader refuses any
 other version, so a JSON written by an older release is written again. A clause is a list of its conjuncts, each a tagged union with a
@@ -100,14 +114,7 @@ in its canonical form: a number with a point or an exponent is a float, any
 other an integer of any size, no value is null, and negative zero is written as zero;
 docs/SYNTAX.md). An edge's `label` and an atom's `text`,
 `primed` and `function` (the name of the environment function it denotes)
-are derived from the rest, for a program that hands atoms to a glue. A
-diagram that still holds promotion directives is refused; run `csdfpromote`
-first.
-
-```console
-$ csdfparse < examples/valid/skip.puml
-{"version":3,"name":"","states":["s0"],"labels":{"s0":"SKIP"},"vars":{"s0":[]},"init":"s0","init_post":[],"init_line":5,"edges":[],"ends":[{"src":"s0","guard":[]}],"assumes":[],"families":[]}
-```
+are derived from the rest, for a program that hands atoms to a glue.
 
 ## Hiding
 
@@ -154,8 +161,8 @@ variable `v` of the instance `x` of the map `m` written into their holes as
 `${m[x].v}`. The maps are taken by name, whatever the order of their
 blocks, so the expansion, the order of its variables and conjuncts included,
 does not change when the blocks are reordered. `-template` glosses the builtins in a line comment above each
-edge. `-format json` writes the expansion as JSON instead, as `csdfparse`
-prints a diagram, its clauses as formulas, with the family of each map (its
+edge. `-format json` writes the expansion as JSON instead, `core.DiagramDoc`,
+its clauses as formulas, with the family of each map (its
 local states and the variables each holds, `families`): the shape `csdfbmc`
 reads.
 
@@ -373,7 +380,7 @@ The output is for drawing only: its labels are no longer clauses.
 columns `file`, `start_line`, `end_line`, `rule`, `severity` and `message`. It
 exits 1 when anything is an `ERROR` and 0 otherwise, so a `WARN` or a `HINT`
 never fails a build. It reads clauses as formulas (`docs/CLAUSE_DESIGN.md`), as
-`csdfparse` does, so the old `@opaque` and `@[from := to]` are reported as
+the other tools do, so the old `@opaque` and `@[from := to]` are reported as
 `syntax-error`.
 
 ```console
@@ -959,8 +966,8 @@ or later); the `csdfbmc` binary of a release carries its sources and runs them
 with the `python3` on the PATH (or the one named by `-python` or
 `$CSDFBMC_PYTHON`), unpacking them once per version under `$CSDFBMC_CACHE` or
 the user cache directory, so nothing has to be checked out. The Go tools own
-the structure: `csdfparse` prints a diagram as JSON with its clauses as
-formulas, and `csdfpromote -format json` prints an expansion the same way.
+the structure: `csdfpromote -format json` prints a diagram as JSON with its
+clauses as formulas.
 The checker owns the values: it evaluates the builtins and `∃` itself, reads
 every atom through a *glue* of the atom's language, and takes the types, the
 functions of the environment and what to check besides from a *checks

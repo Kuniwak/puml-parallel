@@ -32,11 +32,11 @@ func TestReadDiagram(t *testing.T) {
 		},
 		"a tool word of the old vocabulary is refused as coreio refuses it": {
 			source:  "@startuml\nstate \"S\" as s\n[*] --> s\ns --> s : a ; @opaque\n@enduml\n",
-			wantErr: "coreio.ReadBytes: coreio.Read:",
+			wantErr: "unknown tool word @",
 		},
 		"a renaming of the old syntax is refused as coreio refuses it": {
 			source:  "@startuml\nstate \"S\" as s\ns : n ; n\n[*] --> s : @[y := n] y = 0\n@enduml\n",
-			wantErr: "coreio.ReadBytes: coreio.Read:",
+			wantErr: "unknown tool word @",
 		},
 	}
 	for name, tt := range tests {

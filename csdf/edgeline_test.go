@@ -4,18 +4,21 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/v4/csdf/clause"
 	"github.com/google/go-cmp/cmp"
 )
 
 func TestParseEdgeLine(t *testing.T) {
 	// Execute
-	got, err := ParseEdgeLine("a --> b : HALT?why ; g ; p", 7, acceptClauses)
+	got, err := ParseEdgeLine("a --> b : HALT?why ; g ; p", 7)
 
 	// Assert
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Edge{Src: "a", Dst: "b", Event: "HALT?why", Guard: "g", Post: "p", Line: 7}
+	want := &EdgeSyntax{Pos: Pos{7, 1}, Src: "a", Dst: "b", Event: EventSyntax{Pos: Pos{7, 11}, Text: "HALT?why", Channel: "HALT", Fields: []FieldSyntax{{Dir: "?", Name: "why"}}},
+		Guard: &ClauseSyntax{Pos: Pos{7, 22}, Text: "g", Syntax: clause.Syntax{Conjuncts: []clause.SynConjunct{&clause.SynAtom{Parts: []clause.SynPart{&clause.SynText{Text: "g"}}}}}},
+		Post:  &ClauseSyntax{Pos: Pos{7, 26}, Text: "p", Syntax: clause.Syntax{Conjuncts: []clause.SynConjunct{&clause.SynAtom{Parts: []clause.SynPart{&clause.SynText{Text: "p"}}}}}}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ParseEdgeLine (-want +got):\n%s", diff)
 	}
@@ -23,7 +26,7 @@ func TestParseEdgeLine(t *testing.T) {
 
 func TestParseEdgeLineRefusesWithTheLine(t *testing.T) {
 	// Execute
-	_, err := ParseEdgeLine("a --> b : HALT??", 7, acceptClauses)
+	_, err := ParseEdgeLine("a --> b : HALT??", 7)
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), "line 7") {
