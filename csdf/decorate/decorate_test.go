@@ -166,6 +166,20 @@ func TestDecorateShouldSpellTheBuiltinsOrRefuseThoseWithoutAPhrase(t *testing.T)
 	}
 }
 
+func TestConjunctTextShouldRefuseAPhraseOfAnUnknownBuiltin(t *testing.T) {
+	// Setup
+	w := Words{}
+	w.Builtins = map[clause.Op]string{"bogus": "%[1]s is bogus"}
+
+	// Execute
+	_, err := conjunctText(clause.Builtin{Op: "bogus", Args: []clause.Term{free("k", false)}}, w, nil)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "@bogus") {
+		t.Errorf("conjunctText() error = %v, want one naming @bogus", err)
+	}
+}
+
 func free(name string, primed bool) clause.Term { return clause.Free{Name: name, Primed: primed} }
 
 func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {

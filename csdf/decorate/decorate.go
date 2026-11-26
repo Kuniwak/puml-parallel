@@ -305,7 +305,10 @@ func phrased(phrase string, b clause.Builtin, sep string) (string, error) {
 		}
 		printed[i] = s
 	}
-	spec, _ := b.Op.Spec()
+	spec, ok := b.Op.Spec()
+	if !ok {
+		return "", fmt.Errorf("no builtin @%s", b.Op)
+	}
 	var operands []any
 	for _, s := range printed[:min(spec.Terms, len(printed))] {
 		operands = append(operands, s)
