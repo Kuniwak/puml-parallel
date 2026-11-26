@@ -113,18 +113,27 @@ idle --> idle : refund ; @ne(cash, 0) ; @eq(cash', 0)
 @enduml
 `
 
-func decoratedBuiltins(t *testing.T, words Words) []string {
+// lineOf is the line of lines that starts with prefix.
+func lineOf(t *testing.T, lines []string, prefix string) string {
 	t.Helper()
+	for _, l := range lines {
+		if strings.HasPrefix(l, prefix) {
+			return l
+		}
+	}
+	t.Fatalf("Setup: no line starts with %q", prefix)
+	return ""
+}
+
+func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
+	// Setup
 	d, err := coreio.ReadBytes([]byte(builtins))
 	if err != nil {
 		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
 	}
-	return strings.Split(Decorate(builtins, d, words), "\n")
-}
 
-func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
 	// Execute
-	got := decoratedBuiltins(t, English)[4]
+	got := lineOf(t, strings.Split(Decorate(builtins, d, English), "\n"), "idle --> idle : ")
 
 	// Assert
 	if want := `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`; !strings.Contains(got, want) {
@@ -134,73 +143,51 @@ func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
 
 func free(name string, primed bool) clause.Term { return clause.Free{Name: name, Primed: primed} }
 
-func TestConjunctTextShouldSpellEachBuiltin(t *testing.T) {
+func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
 	m, m2, k, v := free("m", false), free("m", true), free("k", false), free("v", false)
-	cases := []struct {
-		words Words
-		b     clause.Builtin
-		want  string
-	}{
-		{English, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k is not v"},
-		{Japanese, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k は v でない"},
-		{English, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k is v"},
-		{Japanese, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k は v"},
-		{English, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m has k"},
-		{Japanese, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m に k がある"},
-		{English, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m has no k"},
-		{Japanese, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m に k がない"},
-		{English, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m is empty"},
-		{Japanese, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m は空"},
-		{English, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' is m with k set to v"},
-		{Japanese, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' は m の k を v にしたもの"},
-		{English, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' is m except at k, v"},
-		{Japanese, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' は k・v のほか m と同じ"},
-		{English, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k is at A, B"},
-		{Japanese, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k は A・B にある"},
-	}
-	for _, c := range cases {
-		if got := conjunctText(c.b, c.words); got != c.want {
-			t.Errorf("conjunctText(%v) = %q, want %q", c.b, got, c.want)
-		}
-	}
-}
-
-func TestConjunctTextShouldWriteAHoleWithoutBraces(t *testing.T) {
-	// Setup
-	a := clause.Atom{Parts: []clause.Part{
-		clause.Hole{Term: clause.Field{Of: clause.Index{Map: free("m", true), Key: free("k", false)}, Name: "x"}},
-		clause.Text(" が 0"),
-	}}
-
-	// Execute
-	got := conjunctText(a, Japanese)
-
-	// Assert
-	if want := "$m'[k].x が 0"; got != want {
-		t.Errorf("conjunctText() = %q, want %q", got, want)
-	}
-}
-
-func TestConjunctTextShouldSpellAnExistsWithItsBodyInWords(t *testing.T) {
-	// Setup: ∃ n : T. n' = n ∧ n ≠ n₀, whose hint n clashes with the free n
-	e := clause.Exists{Hint: "n", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+	// ∃ n : T. n' = n ∧ n ≠ n₀, whose hint n clashes with the free n
+	exists := clause.Exists{Hint: "n", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
 		clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
 		clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Bound{Index: 0}, free("n", false)}},
 	}}}
-
-	for _, c := range []struct {
+	hole := clause.Atom{Parts: []clause.Part{
+		clause.Hole{Term: clause.Field{Of: clause.Index{Map: m2, Key: k}, Name: "x"}},
+		clause.Text(" が 0"),
+	}}
+	tests := map[string]struct {
 		words Words
+		f     clause.Formula
 		want  string
 	}{
-		{English, "for some n2 of T, n' is n2 and n2 is not n"},
-		{Japanese, "ある T の n2 について n' は n2 かつ n2 は n でない"},
-	} {
-		// Execute
-		got := conjunctText(e, c.words)
+		"ne in English":         {English, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k is not v"},
+		"ne in Japanese":        {Japanese, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k は v でない"},
+		"eq in English":         {English, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k is v"},
+		"eq in Japanese":        {Japanese, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k は v"},
+		"in in English":         {English, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m has k"},
+		"in in Japanese":        {Japanese, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m に k がある"},
+		"notin in English":      {English, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m has no k"},
+		"notin in Japanese":     {Japanese, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m に k がない"},
+		"empty in English":      {English, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m is empty"},
+		"empty in Japanese":     {Japanese, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m は空"},
+		"update in English":     {English, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' is m with k set to v"},
+		"update in Japanese":    {Japanese, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' は m の k を v にしたもの"},
+		"frame in English":      {English, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' is m except at k, v"},
+		"frame in Japanese":     {Japanese, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' は k・v のほか m と同じ"},
+		"at in English":         {English, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k is at A, B"},
+		"at in Japanese":        {Japanese, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k は A・B にある"},
+		"exists in English":     {English, exists, "for some n2 of T, n' is n2 and n2 is not n"},
+		"exists in Japanese":    {Japanese, exists, "ある T の n2 について n' は n2 かつ n2 は n でない"},
+		"a hole without braces": {Japanese, hole, "$m'[k].x が 0"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got := conjunctText(tt.f, tt.words)
 
-		// Assert
-		if got != c.want {
-			t.Errorf("conjunctText() = %q, want %q", got, c.want)
-		}
+			// Assert
+			if got != tt.want {
+				t.Errorf("conjunctText() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
