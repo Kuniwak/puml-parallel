@@ -60,31 +60,25 @@ class AtomMeaningTest(unittest.TestCase):
         # Assert
         self.assertEqual(([[(3,)], [(3,)]], [[2]]), (got, client.asked))
 
-    def test_a_guard_is_asked_again_of_an_instance_at_another_state(self):
-        # Setup
-        client = CountingClient()
-        m = meaning(client)
+    def test_a_guard_is_asked_again_of_values_told_apart(self):
         fields = FrozenMap({"cnt": 1})
+        live = Instance(fields, at={"live"}, views={"live", "gone"})
+        gone = Instance(fields, at={"gone"}, views={"live", "gone"})
+        tests = {"an instance at another state": ([FrozenMap(a=Rec("live", fields)), 0], [FrozenMap(a=Rec("gone", fields)), 0],
+                                                  [[FrozenMap(a=live), 0], [FrozenMap(a=gone), 0]]),
+                 "a truth value, not the number it equals": ([1, 0], [True, 0], [[1, 0], [True, 0]])}
+        for name, (first, second, asked) in tests.items():
+            with self.subTest(name):
+                # Setup
+                client = CountingClient()
+                m = meaning(client)
 
-        # Execute
-        m.guard(GREATER, [FrozenMap(a=Rec("live", fields)), 0])
-        m.guard(GREATER, [FrozenMap(a=Rec("gone", fields)), 0])
-        m.guard(GREATER, [FrozenMap(a=Rec("live", fields)), 0])
+                # Execute
+                for args in (first, second, first):
+                    m.guard(GREATER, args)
 
-        # Assert
-        self.assertEqual(2, len(client.asked))
-
-    def test_a_truth_value_is_not_the_number_it_equals(self):
-        # Setup
-        client = CountingClient()
-        m = meaning(client)
-
-        # Execute
-        m.guard(GREATER, [1, 0])
-        m.guard(GREATER, [True, 0])
-
-        # Assert
-        self.assertEqual(2, len(client.asked))
+                # Assert
+                self.assertEqual([[repr(v) for v in vs] for vs in asked], [[repr(v) for v in vs] for vs in client.asked])
 
     def test_a_post_answer_holding_an_instance_holds_the_map_of_its_fields(self):
         # Setup
