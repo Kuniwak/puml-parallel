@@ -27,6 +27,9 @@ type Words struct {
 	// Builtins spell each builtin they have a phrase for, its terms in
 	// order as the phrase's operands; a builtin without one is printed.
 	Builtins map[clause.Op]string
+	// Exists spells an ∃ of its name, its type and its body; And joins the
+	// conjuncts of a body.
+	Exists, And string
 }
 
 // English and Japanese are the words of those languages.
@@ -40,7 +43,7 @@ var (
 		clause.OpUpdate: "%[1]s is %[2]s with %[3]s set to %[4]s",
 		clause.OpFrame:  "%[1]s is %[2]s except at %[3]s",
 		clause.OpAt:     "%[1]s is at %[2]s",
-	}}
+	}, Exists: "for some %[1]s of %[2]s, %[3]s", And: " and "}
 	Japanese = Words{Event: "イベント", Condition: "条件", Change: "変化", Kept: "維持", Emptied: "空にする", Before: "前状態", After: "次状態", Field: "イベント", Separator: "・", Builtins: map[clause.Op]string{
 		clause.OpEq:     "%[1]s は %[2]s",
 		clause.OpNe:     "%[1]s は %[2]s でない",
@@ -50,7 +53,7 @@ var (
 		clause.OpUpdate: "%[1]s は %[2]s の %[3]s を %[4]s にしたもの",
 		clause.OpFrame:  "%[1]s は %[3]s のほか %[2]s と同じ",
 		clause.OpAt:     "%[1]s は %[2]s にある",
-	}}
+	}, Exists: "ある %[2]s の %[1]s について %[3]s", And: " かつ "}
 )
 
 // WordsOf are the words of the language lang names (en, ja), and whether
@@ -179,12 +182,35 @@ func conjunctText(f clause.Formula, w Words) string {
 			}
 		}
 	}
+	if e, ok := f.(clause.Exists); ok {
+		if text, ok := opened(e, w); ok {
+			return text
+		}
+	}
 	if a, ok := f.(clause.Atom); ok {
 		if text, ok := holed(a); ok {
 			return text
 		}
 	}
 	return animation.ClauseText(clause.And{Conjuncts: []clause.Formula{f}})
+}
+
+// opened is e in w's words, its variable named apart from the names free
+// in it, and whether it could be opened.
+func opened(e clause.Exists, w Words) (string, bool) {
+	if w.Exists == "" {
+		return "", false
+	}
+	avoid := map[string]bool{}
+	for _, v := range clause.FreeVars(e) {
+		avoid[v.Name] = true
+	}
+	name := clause.Fresh(avoid, e.Hint)
+	body, err := clause.Open(e, clause.Free{Name: name})
+	if err != nil {
+		return "", false
+	}
+	return fmt.Sprintf(w.Exists, name, e.Type, strings.Join(spelled(body, w), w.And)), true
 }
 
 // holed is a with each hole written $ and its term, without braces or

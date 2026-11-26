@@ -180,3 +180,27 @@ func TestConjunctTextShouldWriteAHoleWithoutBraces(t *testing.T) {
 		t.Errorf("conjunctText() = %q, want %q", got, want)
 	}
 }
+
+func TestConjunctTextShouldSpellAnExistsWithItsBodyInWords(t *testing.T) {
+	// Setup: ∃ n : T. n' = n ∧ n ≠ n₀, whose hint n clashes with the free n
+	e := clause.Exists{Hint: "n", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+		clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
+		clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Bound{Index: 0}, free("n", false)}},
+	}}}
+
+	for _, c := range []struct {
+		words Words
+		want  string
+	}{
+		{English, "for some n2 of T, n' is n2 and n2 is not n"},
+		{Japanese, "ある T の n2 について n' は n2 かつ n2 は n でない"},
+	} {
+		// Execute
+		got := conjunctText(e, c.words)
+
+		// Assert
+		if got != c.want {
+			t.Errorf("conjunctText() = %q, want %q", got, c.want)
+		}
+	}
+}
