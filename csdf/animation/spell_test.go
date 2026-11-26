@@ -68,3 +68,30 @@ func TestSpellConjunctShouldSpellEachConjunct(t *testing.T) {
 		})
 	}
 }
+
+func TestSpellTextShouldJoinTheConjunctsInTheLanguage(t *testing.T) {
+	tests := map[string]struct {
+		c    clause.And
+		want string
+	}{
+		"no conjunct": {clause.And{}, "(none)"},
+		"two conjuncts, one nested": {clause.And{Conjuncts: []clause.Formula{
+			clause.Builtin{Op: clause.OpNe, Args: []clause.Term{free("k", false), free("v", false)}},
+			clause.And{Conjuncts: []clause.Formula{clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{free("m", false)}}}},
+		}}, "k は v でない かつ m は空"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := SpellText(tt.c, Japanese, nil)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("SpellText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

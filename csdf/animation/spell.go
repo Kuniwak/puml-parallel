@@ -57,6 +57,19 @@ func PhrasesOf(lang string) (Phrases, bool) {
 // Languages are the names of the languages there are phrases of, sorted.
 func Languages() []string { return slices.Sorted(maps.Keys(byLanguage)) }
 
+// SpellText is c spelled in w as one text, its conjuncts joined by w's
+// And, or "(none)", as ClauseText writes it, for a clause of no conjunct.
+func SpellText(c clause.And, w Phrases, avoid map[string]bool) (string, error) {
+	parts, err := Spell(c, w, avoid)
+	if err != nil {
+		return "", err
+	}
+	if len(parts) == 0 {
+		return ClauseText(c), nil
+	}
+	return strings.Join(parts, w.And), nil
+}
+
 // Spell is the conjuncts of c, those of nested ∧ in their place, each
 // in w's words; a variable an ∃ binds is named apart from avoid. A
 // conjunct w has no phrase for, or one that cannot be printed, is an
@@ -105,7 +118,8 @@ func spellConjunct(f clause.Formula, w Phrases, avoid map[string]bool) (string, 
 // in it and from avoid, and its body in parentheses when it has more than
 // one conjunct.
 func opened(e clause.Exists, w Phrases, avoid map[string]bool) (string, error) {
-	taken := maps.Clone(avoid)
+	taken := map[string]bool{}
+	maps.Copy(taken, avoid)
 	for _, v := range clause.FreeVars(e) {
 		taken[v.Name] = true
 	}
