@@ -188,9 +188,9 @@ class FieldTest(unittest.TestCase):
         self.assertEqual({0, 1, 2}, {s[1][0] for s in result.states})
 
     def test_a_field_an_equality_of_the_guard_determines_is_computed_not_enumerated(self):
-        # Setup: x has no type, so any value it is bound to is taken (Q5).
+        # Setup: x is of the type any, so any value it is bound to is taken (Q5).
         d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 5")], edges=[
-            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])])
+            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])], channels={"report": ["any"]})
 
         # Execute
         result = fixture.explorer(d).run()
@@ -257,6 +257,17 @@ class FieldTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual([], labels)
+
+    def test_an_equality_binding_a_field_of_a_type_types_lacks_is_refused_as_ranging_it_is(self):
+        # Setup: the type X of x is in no TYPES.
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(5))], edges=[
+            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"report": ["X"]})
+        x = fixture.explorer(d, Checks(types={"N": [5]}))
+
+        # Execute / Assert
+        with self.assertRaisesRegex(PostError, "report.*the field x.*no type 'X' in TYPES"):
+            x.successors(("a", (5,), ()))
 
     def test_a_part_no_equality_determines_ranges_over_the_values_of_the_part(self):
         # Setup

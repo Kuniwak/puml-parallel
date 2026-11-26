@@ -674,13 +674,20 @@ class Explorer:
         """Whether value is one of the type e's channel declares of the
         field f, or, given key, of the part key of that type; an
         on_demand_record tells it by its parts, unlisted (is_value_of).
-        True when the type has no values to tell it by: any, a type TYPES
-        has not, or, for a part, a type that does not say its parts, whose
-        record is told whole once its parts are bound. A part a type of
-        records lacks is never bound (_record_parts)."""
-        values = self.checks.types.get(self.d.field_type(e, f))
-        if values is None:
+        True when the type has no values to tell it by: any, or, for a
+        part, a type that does not say its parts, whose record is told whole
+        once its parts are bound. A part a type of records lacks is never
+        bound (_record_parts). A type TYPES has not is refused, as it is
+        where the field ranges over it."""
+        t = self.d.field_type(e, f)
+        if t == ANY:
             return True
+        if t not in self.checks.types:
+            try:
+                self.checks.carrier(t)
+            except KeyError as err:
+                raise PostError(f"{e.describe()}: an equality of the guard binds the field {f}, of the type {t}: {err.args[0]}") from None
+        values = self.checks.types[t]
         if key is None:
             return is_value_of(values, value)
         parts = record_parts(values)

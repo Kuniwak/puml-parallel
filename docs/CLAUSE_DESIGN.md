@@ -435,8 +435,8 @@ real type is the user's responsibility, as the sample is.
 Q5 is read only from builtins, never from atoms, whose text the tools do not
 interpret. A value computed outside the declared type of the field, or of
 the part, makes the equality false, as the full product over the type has
-no such value; a type with no values to tell it by, `any` or one `TYPES`
-has not, lets every value. The parts of a record are values of their
+no such value; `any` lets every value, and a type `TYPES` has not is
+refused, as it is where the field ranges over it. The parts of a record are values of their
 own: a part an equality determines is computed, and only the parts none
 determines range over their values, which a type built by `record` gives;
 a type that gives no parts is ranged over as a whole unless equalities

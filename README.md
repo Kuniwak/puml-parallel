@@ -1094,8 +1094,8 @@ term that reads an entry its map does not have makes its equality false;
 another error of it stops the check with the error. A bound value outside
 the type of its field, or of its part, makes the guard false, as the full
 product over the type has no such value: a type of records tells a value
-by its parts, an on_demand_record's too, and a field of the type any, or of
-a type `TYPES` has not, takes any value.
+by its parts, an on_demand_record's too, and a field of the type any takes
+any value. A field of a type `TYPES` has not is refused, bound or not.
 
 The checker relies on a precondition: a clause, an atom or environment
 function of a glue, and the arguments of a builtin are pure and raise
