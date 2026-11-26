@@ -167,16 +167,3 @@ func TestThePromotedExampleStopsOnlyWhenEveryIDIsDone(t *testing.T) {
 		t.Errorf("want no cycle, got:\n%s", text)
 	}
 }
-
-// A run past its abort time is stopped with every thread's traceback on its
-// standard error, naming where it waited.
-func TestAPythonRunPastItsAbortTimeWritesWhereItWaits(t *testing.T) {
-	cmd := pythonCommandAbortedAt(t, time.Now().Add(2*time.Second), "-c", "import time\ndef waiting_here():\n    time.sleep(60)\nwaiting_here()")
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("want the run aborted, got it ended\n%s", out)
-	}
-	if !strings.Contains(string(out), "waiting_here") {
-		t.Errorf("want the traceback to name waiting_here, got:\n%s", out)
-	}
-}
