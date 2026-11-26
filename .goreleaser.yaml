@@ -20,7 +20,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfpromote
     main: ./tools/csdfpromote/main.go
@@ -35,7 +35,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfhide
     main: ./tools/csdfhide/main.go
@@ -50,7 +50,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfcomp
     main: ./tools/csdfcomp/main.go
@@ -65,7 +65,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfparse
     main: ./tools/csdfparse/main.go
@@ -80,7 +80,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfinclude
     main: ./tools/csdfinclude/main.go
@@ -95,7 +95,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfevents
     main: ./tools/csdfevents/main.go
@@ -110,7 +110,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfrepl
     main: ./tools/csdfrepl/main.go
@@ -125,7 +125,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfsort
     main: ./tools/csdfsort/main.go
@@ -140,7 +140,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfdecorate
     main: ./tools/csdfdecorate/main.go
@@ -155,7 +155,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfslice
     main: ./tools/csdfslice/main.go
@@ -170,7 +170,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdflint
     main: ./tools/csdflint/main.go
@@ -185,7 +185,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdflivelockfree
     main: ./tools/csdflivelockfree/main.go
@@ -200,7 +200,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdftracechk
     main: ./tools/csdftracechk/main.go
@@ -215,7 +215,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdftranstable
     main: ./tools/csdftranstable/main.go
@@ -230,7 +230,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfrefinement
     main: ./tools/csdfrefinement/main.go
@@ -245,7 +245,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfreplweb
     main: ./tools/csdfreplweb/main.go
@@ -262,7 +262,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfrepld
     main: ./tools/csdfrepld/main.go
@@ -277,7 +277,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfreplcmd
     main: ./tools/csdfreplcmd/main.go
@@ -292,7 +292,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: obligationirc
     main: ./tools/obligationirc/main.go
@@ -307,7 +307,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfhelp
     main: ./tools/csdfhelp/main.go
@@ -322,7 +322,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
   - id: csdfbmc
     main: ./tools/csdfbmc/main.go
@@ -337,7 +337,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/Kuniwak/puml-parallel/v6/version.Version={{ .Version }}
+      - -s -w -X github.com/Kuniwak/puml-parallel/v7/version.Version={{ .Version }}
 
 archives:
   - id: default

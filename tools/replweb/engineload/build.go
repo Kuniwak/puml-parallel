@@ -11,7 +11,7 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v6/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v7/tools/replweb"
 )
 
 // enginePackage is the package of the engine, relative to the module root.

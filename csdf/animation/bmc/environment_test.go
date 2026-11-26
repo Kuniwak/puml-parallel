@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/animation/bmc"
 	"github.com/google/go-cmp/cmp"
 )
 

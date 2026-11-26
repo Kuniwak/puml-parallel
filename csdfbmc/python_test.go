@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"github.com/Kuniwak/puml-parallel/v6/csdfbmc"
+	"github.com/Kuniwak/puml-parallel/v7/csdfbmc"
 	"os"
 	"os/exec"
 	"path/filepath"

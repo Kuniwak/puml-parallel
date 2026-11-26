@@ -3,10 +3,10 @@ package csdfdecoratecmd
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v6/cli"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/decorate"
-	"github.com/Kuniwak/puml-parallel/v6/version"
+	"github.com/Kuniwak/puml-parallel/v7/cli"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/decorate"
+	"github.com/Kuniwak/puml-parallel/v7/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

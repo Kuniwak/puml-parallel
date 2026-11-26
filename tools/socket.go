@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Kuniwak/puml-parallel/v6/cli"
+	"github.com/Kuniwak/puml-parallel/v7/cli"
 )
 
 // SocketEnv is the environment variable that overrides the csdfrepld socket path.

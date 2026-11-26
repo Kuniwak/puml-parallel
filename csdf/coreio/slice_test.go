@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
 )
 
 func TestWriteSliceDrawsTheCutEdgesToPlaceholdersOnlyForThePicture(t *testing.T) {

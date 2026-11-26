@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v6/tools/replweb/engineload"
+	"github.com/Kuniwak/puml-parallel/v7/tools/replweb/engineload"
 )
 
 func main() {

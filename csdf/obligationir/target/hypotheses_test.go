@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v6/csdf/obligationir/target"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir/target"
 	"github.com/google/go-cmp/cmp"
 )
 
