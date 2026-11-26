@@ -54,6 +54,16 @@ func TestParseReadsTheElementsWhereTheyAreWritten(t *testing.T) {
 				&CommentSyntax{Pos: Pos{7, 17}, Text: " why ", Block: true},
 			},
 		},
+		"a line comment inside a note, among its lines": {
+			source: "@startuml\nnote as n\n  ' first\n  assume x\n  ' last\nend note\n@enduml\n",
+			want: []Element{
+				&NoteSyntax{Pos: Pos{2, 1}, ID: "n", Lines: []Element{
+					&CommentSyntax{Pos: Pos{3, 3}, Text: " first"},
+					&AssumeSyntax{Pos: Pos{4, 3}, Text: "x"},
+					&CommentSyntax{Pos: Pos{5, 3}, Text: " last"},
+				}},
+			},
+		},
 		"a column counted in code points": {
 			source: "@startuml\n状態 --> 状態 : E\n@enduml\n",
 			want: []Element{

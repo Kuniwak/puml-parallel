@@ -291,27 +291,28 @@ func (r *promotionReader) includeLine(p *csdf.PragmaSyntax) error {
 // note for the picture.
 func (r *promotionReader) note(n *csdf.NoteSyntax) error {
 	r.noteID = n.ID
-	if len(n.Lines) == 0 {
+	lines := n.Content()
+	if len(lines) == 0 {
 		return nil
 	}
-	switch n.Lines[0].(type) {
+	switch lines[0].(type) {
 	case *csdf.ProseSyntax:
 		return nil // for the picture
 	case *csdf.ChannelSyntax:
 		if r.noteID == "" {
 			return fmt.Errorf("a note of channel declarations must float: the channels are of the whole system")
 		}
-		for _, l := range n.Lines {
+		for _, l := range lines {
 			if err := r.noteLine(l, r.channelLine); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
-	if err := r.noteLine(n.Lines[0], r.directive); err != nil {
+	if err := r.noteLine(lines[0], r.directive); err != nil {
 		return err
 	}
-	for _, l := range n.Lines[1:] {
+	for _, l := range lines[1:] {
 		if _, ok := l.(*csdf.ProseSyntax); !ok {
 			return r.noteLine(l, func(csdf.Element) error {
 				return fmt.Errorf("this note holds a second directive; write one note per directive")
