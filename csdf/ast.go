@@ -4,7 +4,7 @@ import (
 	"cmp"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/types"
 )
 
 type ID string

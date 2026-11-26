@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/obligation"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v6/csdf"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/types"
 )
 
 // The identifiers a formula's symbols become in a prover. Each category has a

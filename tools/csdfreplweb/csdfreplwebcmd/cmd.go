@@ -10,14 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v5/pngsrc"
-	"github.com/Kuniwak/puml-parallel/v5/tools/replweb"
-	"github.com/Kuniwak/puml-parallel/v5/tools/replweb/engineload"
-	"github.com/Kuniwak/puml-parallel/v5/version"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v6/pngsrc"
+	"github.com/Kuniwak/puml-parallel/v6/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v6/tools/replweb/engineload"
+	"github.com/Kuniwak/puml-parallel/v6/version"
 )
 
 // RenderSVG runs argv in dir with source on its standard input and returns

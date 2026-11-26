@@ -7,7 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/core"
 )
 
 // Suggestion is one set of values a checker says the pending post admits:

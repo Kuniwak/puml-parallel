@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/pumlline"
-	"github.com/Kuniwak/puml-parallel/v5/usererr"
+	"github.com/Kuniwak/puml-parallel/v6/csdf"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/pumlline"
+	"github.com/Kuniwak/puml-parallel/v6/usererr"
 )
 
 // ResolveIncludes is tree with each !include resolved: the pragma, its

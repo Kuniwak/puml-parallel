@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v6/cli"
 )
 
 func TestValidateArgsAsFileInputs(t *testing.T) {

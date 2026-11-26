@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Kuniwak/puml-parallel/v5/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v6/csdf/ident"
 )
 
 // AnyName is the type that constrains nothing (docs/CLAUSE_DESIGN.md,
