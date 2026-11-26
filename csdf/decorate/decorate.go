@@ -8,6 +8,7 @@ package decorate
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -142,8 +143,15 @@ func block(w Words, ev *core.Event, src, dst string, vars map[string][]string, g
 		sb.WriteString("</b>")
 	}
 	emptied, unchanged, rest := animation.SplitFrame(post)
-	section(&sb, w.Condition, spelled(guard, w), w, n)
-	section(&sb, w.Change, spelled(rest, w), w, n)
+	avoid := map[string]bool{}
+	for nm := range n.vars {
+		avoid[nm] = true
+	}
+	for nm := range n.fields {
+		avoid[nm] = true
+	}
+	section(&sb, w.Condition, spelled(guard, w, avoid), w, n)
+	section(&sb, w.Change, spelled(rest, w, avoid), w, n)
 	listed(&sb, w.Emptied, emptied, w)
 	listed(&sb, w.Kept, unchanged, w)
 	return sb.String()
@@ -161,20 +169,21 @@ func coloured(name string) string {
 }
 
 // spelled are the conjuncts of c, those of nested ∧ in their place, each
-// a builtin in w's words where w has a phrase for it, else as printed.
-func spelled(c clause.And, w Words) []string {
+// a builtin in w's words where w has a phrase for it, else as printed; a
+// variable an ∃ binds is named apart from avoid.
+func spelled(c clause.And, w Words, avoid map[string]bool) []string {
 	var out []string
 	for _, f := range c.Conjuncts {
 		if inner, ok := f.(clause.And); ok {
-			out = append(out, spelled(inner, w)...)
+			out = append(out, spelled(inner, w, avoid)...)
 			continue
 		}
-		out = append(out, conjunctText(f, w))
+		out = append(out, conjunctText(f, w, avoid))
 	}
 	return out
 }
 
-func conjunctText(f clause.Formula, w Words) string {
+func conjunctText(f clause.Formula, w Words, avoid map[string]bool) string {
 	if b, ok := f.(clause.Builtin); ok {
 		if b.Op == clause.OpFrame && len(b.Args) == 2 {
 			// A frame of no key keeps the whole map: m' = m.
@@ -187,7 +196,7 @@ func conjunctText(f clause.Formula, w Words) string {
 		}
 	}
 	if e, ok := f.(clause.Exists); ok {
-		if text, ok := opened(e, w); ok {
+		if text, ok := opened(e, w, avoid); ok {
 			return text
 		}
 	}
@@ -200,22 +209,23 @@ func conjunctText(f clause.Formula, w Words) string {
 }
 
 // opened is e in w's words, its variable named apart from the names free
-// in it and its body in parentheses when it has more than one conjunct,
+// in it and from avoid, and its body in parentheses when it has more than one conjunct,
 // and whether it could be opened.
-func opened(e clause.Exists, w Words) (string, bool) {
+func opened(e clause.Exists, w Words, avoid map[string]bool) (string, bool) {
 	if w.Exists == "" {
 		return "", false
 	}
-	avoid := map[string]bool{}
+	taken := maps.Clone(avoid)
 	for _, v := range clause.FreeVars(e) {
-		avoid[v.Name] = true
+		taken[v.Name] = true
 	}
-	name := clause.Fresh(avoid, e.Hint)
+	name := clause.Fresh(taken, e.Hint)
+	taken[name] = true
 	body, err := clause.Open(e, clause.Free{Name: name})
 	if err != nil {
 		return "", false
 	}
-	parts := spelled(body, w)
+	parts := spelled(body, w, taken)
 	text := strings.Join(parts, w.And)
 	if len(parts) > 1 {
 		// The body in parentheses, so that a conjunct after the ∃ is not

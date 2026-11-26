@@ -159,6 +159,9 @@ func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
 		f     clause.Formula
 		want  string
 	}{
+		"exists named apart from a variable of the diagram": {English, clause.Exists{Hint: "cash", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+			clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
+		}}}, "for some cash2 of T, n' is cash2"},
 		"ne in English":               {English, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k is not v"},
 		"ne in Japanese":              {Japanese, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k は v でない"},
 		"eq in English":               {English, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k is v"},
@@ -188,7 +191,7 @@ func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got := conjunctText(tt.f, tt.words)
+			got := conjunctText(tt.f, tt.words, map[string]bool{"cash": true})
 
 			// Assert
 			if got != tt.want {
