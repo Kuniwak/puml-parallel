@@ -76,7 +76,7 @@ import subprocess
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
-from csdfbmc.values import FrozenMap, FrozenSet, Instance, kind_key, unsigned_zero, views_key
+from csdfbmc.values import FrozenMap, FrozenSet, Instance, unsigned_zero
 
 _TAGS = ("tuple", "set", "map")
 
@@ -472,45 +472,6 @@ class Validating:
         self.inner.close()
 
 
-class Memoising:
-    """A Client that asks about an atom once per list of values, which a
-    pure atom allows, and asks about the lists of one batch it was not asked
-    about yet in one request."""
-
-    def __init__(self, inner: ClientLike):
-        self.inner = inner
-        self.language = inner.language
-        self.supports = inner.supports
-        self._answers: dict[tuple, object] = {}
-
-    def _ask(self, op: str, atom: dict, values: list[list]) -> list:
-        shape = json.dumps(atom, sort_keys=True, ensure_ascii=False)
-        keys = [(op, shape, kind_key(tuple(vs)), views_key(tuple(vs))) for vs in values]
-        asked: dict[tuple, list] = {}
-        for key, vs in zip(keys, values):
-            if key not in self._answers:
-                asked.setdefault(key, vs)
-        if asked:
-            ask = self.inner.guard if op == "guard" else self.inner.post
-            for key, result in zip(asked, ask(atom, list(asked.values()))):
-                self._answers[key] = result
-        return [self._answers[key] for key in keys]
-
-    def guard(self, atom: dict, values: list[list]) -> list[bool]:
-        return self._ask("guard", atom, values)
-
-    def post(self, atom: dict, values: list[list]) -> list[list[list]]:
-        return self._ask("post", atom, values)
-
-    def symmetric(self, atom: dict, params: list[int], maps: list[int], groups: list[list[str]]) -> str | None:
-        # Not kept: the symmetry check asks of each atom once, before a walk.
-        return self.inner.symmetric(atom, params, maps, groups)
-
-    def close(self) -> None:
-        self.inner.close()
-
-
 def checked(client: ClientLike) -> ClientLike:
-    """client as a walk asks it: each answer checked, and each atom asked
-    once per list of values."""
-    return Memoising(Validating(client))
+    """client as a walk asks it: each answer checked."""
+    return Validating(client)
