@@ -108,7 +108,7 @@ func (s *Service) Handle(req Request) Response {
 }
 
 func (s *Service) handleSessionNew(req Request) Response {
-	diagram, warnings, err := animation.ReadDiagram(req.Content, coreio.SourcesIncluder(req.Includes))
+	diagram, warnings, err := animation.ReadDiagram(req.Content, "", coreio.SourcesIncluder(req.Includes))
 	if err != nil {
 		return s.errorFromErr(err)
 	}

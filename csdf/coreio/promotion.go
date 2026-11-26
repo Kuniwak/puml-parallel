@@ -15,13 +15,18 @@ import (
 )
 
 // ReadPromotion reads a global diagram (docs/PROMOTION.md): its syntax tree
-// (csdf.Parse), read by ReadPromotionTree.
-func ReadPromotion(source string, include Include) (core.Promotion, error) {
-	tree, err := csdf.Parse("", source)
+// (csdf.Parse), each !include resolved by include reading against base
+// (ResolveIncludes), read by ReadPromotionTree.
+func ReadPromotion(source, base string, include Include) (core.Promotion, error) {
+	parsed, err := csdf.Parse("", source)
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
-	p, err := ReadPromotionTree(tree, include)
+	tree, err := ResolveIncludes(parsed, base, include)
+	if err != nil {
+		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
+	}
+	p, err := ReadPromotionTree(tree)
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotion: %w", err)
 	}
@@ -32,8 +37,9 @@ func ReadPromotion(source string, include Include) (core.Promotion, error) {
 // (docs/PROMOTION.md): its states, the modes, each holding the maps it
 // declares or has a <<promote>> block for; a block titled "<map> : (<ID> :
 // <Key>) ⇸ <Type>" says that the family moves in that mode, and exactly one
-// block of a map includes its local diagram, which include reads by the
-// path written, the others being bodyless; a mode holding a map without a
+// block of a map includes its local diagram, the tree its resolved
+// !include holds (ResolveIncludes), the others being bodyless; an
+// unresolved !include is refused (UnresolvedInclude); a mode holding a map without a
 // block for it has the family frozen there. Then the start edge into a
 // mode, hand-written edges between modes, floating assume notes, and notes,
 // floating or anchored, whose first line is a sync or constrain directive,
@@ -41,21 +47,18 @@ func ReadPromotion(source string, include Include) (core.Promotion, error) {
 // channel declarations, of the hand-written edges. Every variable a mode
 // declares has a type, a map the type its block gives it. Clauses are read
 // as authored.
-func ReadPromotionTree(tree *csdf.SyntaxTree, include Include) (core.Promotion, error) {
-	if include == nil {
-		return core.Promotion{}, errors.New("coreio.ReadPromotionTree: no Include to read the local diagrams by")
-	}
-	r, err := readPromotion(tree, include)
+func ReadPromotionTree(tree *csdf.SyntaxTree) (core.Promotion, error) {
+	r, err := readPromotion(tree, lowerIncluded)
 	if err != nil {
 		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionTree: %w", err)
 	}
 	return r.p, nil
 }
 
-// readPromotion reads tree as ReadPromotionTree does, each !include read by
-// include unless it is nil, the reader kept for what it saw as written.
-func readPromotion(tree *csdf.SyntaxTree, include Include) (*promotionReader, error) {
-	r := &promotionReader{include: include, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}, types: map[string]types.Type{}, aliases: map[string]map[string]string{}, includes: map[string]string{}, includeIn: map[string]string{}}
+// readPromotion reads tree as ReadPromotionTree does, each local diagram
+// read by local, the reader kept for what it saw as written.
+func readPromotion(tree *csdf.SyntaxTree, local localDiagram) (*promotionReader, error) {
+	r := &promotionReader{local: local, holds: map[string]map[string]bool{}, moves: map[string]map[string]bool{}, declared: map[string][]string{}, types: map[string]types.Type{}, aliases: map[string]map[string]string{}, includes: map[string]string{}, includeIn: map[string]string{}}
 	r.p.Name = tree.Name
 	if err := r.body(tree.Body); err != nil {
 		return nil, err
@@ -66,11 +69,31 @@ func readPromotion(tree *csdf.SyntaxTree, include Include) (*promotionReader, er
 	return r, nil
 }
 
+// localDiagram is the local diagram the !include p of a <<promote>> block
+// names, nil when it is not read.
+type localDiagram func(p *csdf.PragmaSyntax) (*core.Diagram, error)
+
+// lowerIncluded is the local diagram of the tree p's resolved !include
+// holds, read as authored; an unresolved !include is refused.
+func lowerIncluded(p *csdf.PragmaSyntax) (*core.Diagram, error) {
+	if p.Tree == nil {
+		return nil, UnresolvedInclude(pumlline.Unquote(p.Arg))
+	}
+	d, err := LowerAuthored(p.Tree)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", p.Arg, err)
+	}
+	return d, nil
+}
+
+// leaveUnread reads no local diagram, for a promotion read as written.
+func leaveUnread(*csdf.PragmaSyntax) (*core.Diagram, error) { return nil, nil }
+
 // Include is the source of the file an !include names, by the path written.
 type Include func(path string) (string, error)
 
 type promotionReader struct {
-	include  Include
+	local    localDiagram
 	p        core.Promotion
 	start    string
 	family   *core.Family               // the <<promote>> block being read
@@ -162,7 +185,7 @@ func elementName(e csdf.Element) string {
 func (r *promotionReader) pragma(p *csdf.PragmaSyntax) error {
 	switch {
 	case p.Name == "include":
-		return r.includeLine(p.Arg)
+		return r.includeLine(p)
 	case strings.HasPrefix(p.Name, "include"):
 		return fmt.Errorf("!%s is not read: a <<promote>> block includes its local diagram with !include", p.Name)
 	}
@@ -248,22 +271,15 @@ func (r *promotionReader) declare(mode, v, typ string) error {
 	return core.DeclareType(r.types, v, t)
 }
 
-func (r *promotionReader) includeLine(arg string) error {
+func (r *promotionReader) includeLine(p *csdf.PragmaSyntax) error {
 	if r.depth != 2 || r.includes[r.family.Map] != "" {
 		return fmt.Errorf("an !include belongs in a <<promote>> block, once")
 	}
-	path := pumlline.Unquote(arg)
+	path := pumlline.Unquote(p.Arg)
 	r.includes[r.family.Map], r.includeIn[r.family.Map] = path, r.mode()
-	if r.include == nil {
-		return nil
-	}
-	src, err := r.include(path)
+	local, err := r.local(p)
 	if err != nil {
 		return err
-	}
-	local, err := ReadAuthored(src)
-	if err != nil {
-		return fmt.Errorf("%s: %w", arg, err)
 	}
 	r.family.Local = local
 	return nil

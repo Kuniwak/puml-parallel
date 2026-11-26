@@ -33,7 +33,7 @@ func runREPL(file string, inout *cli.ProcInout, interrupts <-chan os.Signal, run
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the file: %w: %q", err, file)
 	}
-	diagram, warnings, err := animation.ReadDiagram(bs, coreio.FileIncluder(filepath.Dir(file)))
+	diagram, warnings, err := animation.ReadDiagram(bs, filepath.Dir(file), coreio.FileIncluder(filepath.Dir(file)))
 	if err != nil {
 		return fmt.Errorf("csdfreplcmd.runREPL: cannot read the diagram: %w: %q", err, file)
 	}

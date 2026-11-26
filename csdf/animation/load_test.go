@@ -42,7 +42,7 @@ func TestReadDiagram(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			d, _, err := ReadDiagram([]byte(tt.source), coreio.FileIncluder("../../examples/promote"))
+			d, _, err := ReadDiagram([]byte(tt.source), "../../examples/promote", coreio.FileIncluder("../../examples/promote"))
 
 			// Assert
 			if tt.wantErr != "" {

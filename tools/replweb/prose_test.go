@@ -49,7 +49,7 @@ end note
 
 func readTestDiagram(t *testing.T, source string) *core.Diagram {
 	t.Helper()
-	d, _, err := animation.ReadDiagram([]byte(source), func(path string) (string, error) { t.Fatalf("no include expected: %s", path); return "", nil })
+	d, _, err := animation.ReadDiagram([]byte(source), "", func(path string) (string, error) { t.Fatalf("no include expected: %s", path); return "", nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestProseOfTakesTheExpansionOfAPromotion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, _, err := animation.ReadDiagram(source, coreio.FileIncluder("../../examples/promote"))
+		d, _, err := animation.ReadDiagram(source, "../../examples/promote", coreio.FileIncluder("../../examples/promote"))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -130,7 +130,7 @@ func readDiagram(file string) (string, map[string]string, *core.Diagram, error) 
 		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: %q: %w", file, err)
 	}
 	includes := map[string]string{}
-	d, _, err := animation.ReadDiagram([]byte(source), coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(file)), includes))
+	d, _, err := animation.ReadDiagram([]byte(source), filepath.Dir(file), coreio.RecordingIncluder(coreio.FileIncluder(filepath.Dir(file)), includes))
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("csdfreplwebcmd: %q: %w", file, err)
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Kuniwak/puml-parallel/v5/cli"
 	"github.com/Kuniwak/puml-parallel/v5/csdf"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v5/tools"
 	"github.com/Kuniwak/puml-parallel/v5/version"
 	"github.com/google/go-cmp/cmp"
@@ -66,6 +67,24 @@ func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
 	}
 }
 
+// resolvedTreeOf is the JSON csdfinclude prints for the diagram at path.
+func resolvedTreeOf(t *testing.T, path string) string {
+	t.Helper()
+	tree, err := csdf.UnmarshalSyntaxTree([]byte(syntaxTreeOf(t, path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := coreio.ResolveIncludes(tree, filepath.Dir(path), coreio.FileIncluder(filepath.Dir(path)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs, err := csdf.MarshalSyntaxTree(resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(bs)
+}
+
 // syntaxTreeOf is the JSON csdfparse prints for the diagram at path.
 func syntaxTreeOf(t *testing.T, path string) string {
 	t.Helper()
@@ -91,6 +110,7 @@ func TestNewMainFunc(t *testing.T) {
 		args            []string
 		stdin           string
 		stdinTreeOf     string // the path whose syntax tree is the standard input
+		stdinResolvedOf string // the path whose resolved syntax tree is the standard input
 		wantExit        int
 		wantStdoutEmpty bool
 		wantStdout      []string
@@ -209,6 +229,11 @@ end note
 			wantStdoutEmpty: true,
 			wantStderr:      "csdfinclude",
 		},
+		"a syntax tree with its !include resolved is expanded": {
+			args:            []string{"-format", "json"},
+			stdinResolvedOf: membersPath,
+			wantStdout:      []string{`"version":3`, `"kind":"builtin","op":"notin"`},
+		},
 		"an unterminated CSDF-IGNORE region is refused": {
 			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n' CSDF-IGNORE-BEGIN\nskinparam x y\n@enduml\n",
 			wantExit:        1,
@@ -228,6 +253,9 @@ end note
 			stdin := c.stdin
 			if c.stdinTreeOf != "" {
 				stdin = syntaxTreeOf(t, c.stdinTreeOf)
+			}
+			if c.stdinResolvedOf != "" {
+				stdin = resolvedTreeOf(t, c.stdinResolvedOf)
 			}
 			spy.Stdin = strings.NewReader(stdin)
 

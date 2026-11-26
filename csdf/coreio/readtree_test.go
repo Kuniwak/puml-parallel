@@ -30,7 +30,7 @@ func TestReadTreeBytesTellsJSONByItsOpeningBrace(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got, _, err := ReadTreeBytes([]byte(c.raw), nil)
+			got, err := ReadTreeBytes([]byte(c.raw), "", nil)
 
 			// Assert
 			if c.wantErr != "" {

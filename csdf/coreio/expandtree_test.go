@@ -12,6 +12,7 @@ func TestExpandTree(t *testing.T) {
 	cases := map[string]struct {
 		source     string
 		keep       []string
+		unresolved bool // the tree is not given to ResolveIncludes
 		wantStates []string
 		wantErr    string
 	}{
@@ -23,6 +24,11 @@ func TestExpandTree(t *testing.T) {
 			source:     promoting("[*] --> running\n"),
 			wantStates: []string{"running"},
 		},
+		"an unresolved !include is refused, naming csdfinclude": {
+			source:     promoting("[*] --> running\n"),
+			unresolved: true,
+			wantErr:    "!include S.puml is unresolved in the syntax tree; resolve it by csdfinclude",
+		},
 		"-only on a plain diagram is refused": {
 			source:  "@startuml\nstate \"S\" as s0\n[*] --> s0\n@enduml\n",
 			keep:    []string{"orders", "items"},
@@ -32,13 +38,20 @@ func TestExpandTree(t *testing.T) {
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			// Setup
-			tree, err := csdf.Parse("", c.source)
+			parsed, err := csdf.Parse("", c.source)
 			if err != nil {
 				t.Fatal(err)
 			}
+			tree := parsed
+			if !c.unresolved {
+				tree, err = ResolveIncludes(parsed, "", files(map[string]string{"S.puml": shipment}))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			// Execute
-			d, _, err := ExpandTree(tree, files(map[string]string{"S.puml": shipment}), c.keep)
+			d, _, err := ExpandTree(tree, c.keep)
 
 			// Assert
 			if c.wantErr != "" {
