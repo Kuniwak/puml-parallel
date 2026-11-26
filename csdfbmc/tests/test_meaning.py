@@ -3,7 +3,7 @@ import unittest
 from csdfbmc.environment import Environment
 from csdfbmc.meaning import AtomMeaning
 from csdfbmc.model import Atom, Seen
-from csdfbmc.values import FrozenMap, Rec
+from csdfbmc.values import FrozenMap, Instance, Rec
 
 GREATER = Atom(text=("", " > ", ""), holes=(0, 1), primed=(False, False), function="gt", args=())
 NEXT = Atom(text=("", " == ", " + 1"), holes=(0, 1), primed=(True, False), function="next", args=())
@@ -85,6 +85,20 @@ class AtomMeaningTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(2, len(client.asked))
+
+    def test_a_post_answer_holding_an_instance_holds_the_map_of_its_fields(self):
+        # Setup
+        live = Instance(FrozenMap({"cnt": 1}), at={"live"}, views={"live", "gone"})
+        class Answering(CountingClient):
+            def post(self, atom, values):
+                return [[[FrozenMap(a=live)]] for _ in values]
+        m = meaning(Answering())
+
+        # Execute
+        (after,), = m.post(NEXT, [2], [])
+
+        # Assert
+        self.assertIs(FrozenMap, type(after["a"]))
 
 
 if __name__ == "__main__":

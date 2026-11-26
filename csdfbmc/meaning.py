@@ -16,7 +16,7 @@ from typing import Callable
 from csdfbmc.environment import Environment
 from csdfbmc.model import Atom
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import freeze, kind_key, same_value, visible
+from csdfbmc.values import forget_views, freeze, kind_key, same_value, visible
 
 
 def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tuple], object]:
@@ -28,7 +28,7 @@ def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tu
         g = given.get(fn)
         if not callable(g):
             raise ValueError(f"no environment function {fn}, which a term applies, is given in ENVIRONMENT")
-        return freeze(g(*(visible(a, seen) for a in args)))
+        return forget_views(freeze(g(*(visible(a, seen) for a in args))))
     return apply
 
 
@@ -83,7 +83,7 @@ class AtomMeaning:
         an atom allows from the values before it of the others. names name
         the primed arguments' types, over which the environment chooses."""
         if not self.of_environment(atom):
-            return [tuple(freeze(v) for v in after) for after in self._ask(self.client.post, atom, before)]
+            return [tuple(forget_views(freeze(v)) for v in after) for after in self._ask(self.client.post, atom, before)]
         out = []
         for after in itertools.product(*(self.carrier(t) for t in types)):
             if self._decide(atom, tuple(self._visible(a) for a in self.merge(atom, before, list(after)))):

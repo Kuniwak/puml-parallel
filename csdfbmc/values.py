@@ -342,6 +342,19 @@ def freeze(value):
     return value
 
 
+def forget_views(value):
+    """value with each instance in it as the map of its fields: a state
+    holds an instance's fields, its views being what a clause sees of where
+    it is (visible), and two states equal by kind_key behave alike."""
+    if isinstance(value, Mapping):
+        return FrozenMap((forget_views(k), forget_views(v)) for k, v in value.items())
+    if isinstance(value, tuple):
+        return tuple(forget_views(v) for v in value)
+    if isinstance(value, AbstractSet):
+        return FrozenSet(forget_views(v) for v in value)
+    return value
+
+
 def encode(value):
     """value as JSON would carry it: FrozenMaps as objects, tuples and
     sets as arrays (sorted when they can be), an instance as
