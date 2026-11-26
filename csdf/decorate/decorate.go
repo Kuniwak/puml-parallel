@@ -115,9 +115,9 @@ func block(w Words, ev *core.Event, src, dst string, vars map[string][]string, g
 		}
 		sb.WriteString("</b>")
 	}
-	frame := animation.FrameOf(post)
+	frame, rest := animation.SplitFrame(post)
 	section(&sb, w.Condition, conjuncts(animation.ClauseText(guard)), w, n)
-	section(&sb, w.Change, conjuncts(frame.Rest), w, n)
+	section(&sb, w.Change, conjuncts(animation.ClauseText(rest)), w, n)
 	listed(&sb, w.Emptied, frame.Emptied, w)
 	listed(&sb, w.Kept, frame.Unchanged, w)
 	return sb.String()

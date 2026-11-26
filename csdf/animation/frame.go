@@ -13,6 +13,14 @@ type Frame struct {
 
 // FrameOf is post split into its Frame, conjuncts of nested ∧ included.
 func FrameOf(post clause.And) Frame {
+	f, rest := SplitFrame(post)
+	f.Rest = ClauseText(rest)
+	return f
+}
+
+// SplitFrame is post split as FrameOf splits it, with the rest of its
+// conjuncts left a clause and the Frame's Rest empty.
+func SplitFrame(post clause.And) (Frame, clause.And) {
 	var f Frame
 	var rest clause.And
 	for _, c := range conjuncts(post) {
@@ -26,8 +34,7 @@ func FrameOf(post clause.And) Frame {
 			rest.Conjuncts = append(rest.Conjuncts, c)
 		}
 	}
-	f.Rest = ClauseText(rest)
-	return f
+	return f, rest
 }
 
 // conjuncts are the conjuncts of c, those of nested ∧ in their place.
