@@ -89,6 +89,60 @@ func TestResolveIncludes(t *testing.T) {
 	}
 }
 
+func TestResolveFileIncludes(t *testing.T) {
+	const global = "@startuml G\n!include local/MEMBER.puml\n@enduml\n"
+	const dir = "../../examples/promote"
+	cases := map[string]struct {
+		treePath string
+		base     string
+		wantPath string
+		wantErr  string
+	}{
+		"against the directory of the tree's path": {
+			treePath: dir + "/G.puml",
+			wantPath: dir + "/local/MEMBER.puml",
+		},
+		"against base, over the tree's path": {
+			treePath: "elsewhere/G.puml",
+			base:     dir,
+			wantPath: dir + "/local/MEMBER.puml",
+		},
+		"against base, for a tree with no path": {
+			base:     dir,
+			wantPath: dir + "/local/MEMBER.puml",
+		},
+		"refused for a tree with no path and no base": {
+			wantErr: "line 2: !include local/MEMBER.puml: the syntax tree has no path to resolve it against",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			tree, err := csdf.Parse(c.treePath, global)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Execute
+			got, err := ResolveFileIncludes(tree, c.base)
+
+			// Assert
+			if c.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+					t.Fatalf("got %v, want an error containing %q", err, c.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if p := includeAt(t, got.Body, 0); p.Tree == nil || p.Tree.Path != c.wantPath {
+				t.Errorf("got %+v, want the tree of %s", p.Tree, c.wantPath)
+			}
+		})
+	}
+}
+
 func TestResolveIncludesLeavesTheTreeGivenAsItIs(t *testing.T) {
 	// Setup
 	tree, err := csdf.Parse("", "@startuml G\n!include A.puml\n@enduml\n")
