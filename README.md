@@ -381,7 +381,9 @@ $ git diff -U0 origin/master -- examples/valid/vending_machine.puml \
 `csdfdecorate` prints a diagram with the label of each edge, the start edge
 and each end edge written for people in PlantUML's Creole: a line each for
 the event, the condition, the change and the variables kept (`@eq(x', x)`)
-or emptied (`@empty(x')`), one conjunct to a line. Each variable and event
+or emptied (`@empty(x')`), one conjunct to a line. Every other builtin
+and `@exists` is spelled in words (`@at(m[k], A)` as `m[k] is at A`), and
+a hole is written `$` and its term, without braces. Each variable and event
 field is in colour, followed, small and grey, by where it comes from when
 its notation tells: after the step for `x'`, the event for a field of the
 event, before the step for `$x`. `-lang` picks the words, `en` (the
