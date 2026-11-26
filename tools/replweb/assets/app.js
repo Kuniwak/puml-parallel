@@ -507,11 +507,10 @@
   const CLAUSE_LABELS = { guard: "controls.when", post: "controls.then" };
 
   // shownProse is the prose version written in the page's language, else
-  // the one of no language, else the English one, else any; null when
-  // there is none.
+  // the English one, else any; null when there is none.
   function shownProse() {
     const any = Object.values(proses)[0];
-    return proses[language] || proses[""] || proses.en || any || null;
+    return proses[language] || proses.en || any || null;
   }
 
   // proseOfEdge is the clauses the prose version writes of the index-th
