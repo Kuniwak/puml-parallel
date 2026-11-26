@@ -87,8 +87,17 @@ class Evaluator:
 
     # -- formulas ----------------------------------------------------------------
 
-    def holds(self, clause: tuple, before: Mapping, after: Mapping = FrozenMap(), bound: tuple = ()) -> bool:
-        return all(self._holds(c, before, after, bound) for c in clause)
+    def holds(self, clause: tuple, before: Mapping, after: Mapping = FrozenMap(), bound: tuple = (),
+              tally: "GuardTally | None" = None) -> bool:
+        """Whether every conjunct of clause holds, evaluated in order until
+        one does not; tally, when given, counts those evaluated."""
+        if tally is None:
+            return all(self._holds(c, before, after, bound) for c in clause)
+        for c in clause:
+            tally.evaluated += 1
+            if not self._holds(c, before, after, bound):
+                return False
+        return True
 
     def _holds(self, f, before, after, bound) -> bool:
         if isinstance(f, Exists):
@@ -160,6 +169,13 @@ class Tally:
     which ranged over its type, as a message names it."""
     checked: int = 0
     ranged: set[str] = field(default_factory=set)
+
+
+@dataclass
+class GuardTally:
+    """What evaluating guards took (csdfbmc --stats): the conjuncts
+    evaluated."""
+    evaluated: int = 0
 
 
 class PostError(ValueError):

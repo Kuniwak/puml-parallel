@@ -455,13 +455,24 @@ class PruningTest(unittest.TestCase):
         self.assertEqual(([FrozenMap(key="p", lo=3)], (1, 0)),
                          ([t[4]["r"] for t in transitions], (x.stats[0].tried, x.stats[0].pruned)))
 
+    def test_the_conjuncts_evaluated_on_values_a_prefix_prunes_are_counted(self):
+        # Setup: m is empty; @notin(id, m) holds of both ids, and @in(r.k, m)
+        # is asked of one value of r.k after each, which it rejects.
+        x = fixture.explorer(self.PART, Checks(types=self.PART_TYPES), stats=True)
+
+        # Execute
+        x.transitions(("q", (FrozenMap(),), ()))
+
+        # Assert
+        self.assertEqual((24, 4), (x.stats[0].pruned, x.stats[0].guard_evaluated))
+
     def test_a_part_a_membership_decides_is_drawn_from_the_keys_of_the_map(self):
         # Setup: m has key 1 only, so @in(r.k, m) is asked of r.k = 1 only,
         # for the id 2 @notin lets through.
         x = fixture.explorer(self.PART, Checks(types=self.PART_TYPES), stats=True)
         asked = []
         holds = x.ev.holds
-        x.ev.holds = lambda clause, before, *rest: asked.extend(c.op for c in clause) or holds(clause, before, *rest)
+        x.ev.holds = lambda clause, before, *rest, **kw: asked.extend(c.op for c in clause) or holds(clause, before, *rest, **kw)
 
         # Execute
         transitions = x.transitions(("q", (FrozenMap({1: 0}),), ()))
@@ -490,7 +501,7 @@ class PruningTest(unittest.TestCase):
                 x = fixture.explorer(self.ENTRY, Checks(types=dict(self.ENTRY_TYPES, R=r)))
                 asked = []
                 holds = x.ev.holds
-                x.ev.holds = lambda clause, before, *rest: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest)
+                x.ev.holds = lambda clause, before, *rest, **kw: asked.extend(c for c in clause if hasattr(c, "body")) or holds(clause, before, *rest, **kw)
 
                 # Execute
                 transitions = x.transitions(("q", (m,), ()))
@@ -546,7 +557,7 @@ class PruningTest(unittest.TestCase):
                 x = fixture.explorer(self.KEYED, Checks(types={"R": r}))
                 asked = []
                 holds = x.ev.holds
-                x.ev.holds = lambda clause, before, *rest: asked.extend(clause) or holds(clause, before, *rest)
+                x.ev.holds = lambda clause, before, *rest, **kw: asked.extend(clause) or holds(clause, before, *rest, **kw)
 
                 # Execute
                 transitions = x.transitions(("q", (m,), ()))
@@ -691,7 +702,7 @@ class PruningTest(unittest.TestCase):
         x = fixture.explorer(self.FAMILY, Checks(types=self.FAMILY_TYPES))
         calls = []
         holds = x.ev.holds
-        x.ev.holds = lambda clause, before, *rest: calls.append(len(clause)) or holds(clause, before, *rest)
+        x.ev.holds = lambda clause, before, *rest, **kw: calls.append(len(clause)) or holds(clause, before, *rest, **kw)
 
         # Execute
         x.transitions(("q", (FrozenMap(),), ()))
