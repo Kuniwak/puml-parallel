@@ -164,3 +164,19 @@ func TestConjunctTextShouldSpellEachBuiltin(t *testing.T) {
 		}
 	}
 }
+
+func TestConjunctTextShouldWriteAHoleWithoutBraces(t *testing.T) {
+	// Setup
+	a := clause.Atom{Parts: []clause.Part{
+		clause.Hole{Term: clause.Field{Of: clause.Index{Map: free("m", true), Key: free("k", false)}, Name: "x"}},
+		clause.Text(" が 0"),
+	}}
+
+	// Execute
+	got := conjunctText(a, Japanese)
+
+	// Assert
+	if want := "$m'[k].x が 0"; got != want {
+		t.Errorf("conjunctText() = %q, want %q", got, want)
+	}
+}

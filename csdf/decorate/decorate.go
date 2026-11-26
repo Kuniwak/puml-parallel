@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Kuniwak/puml-parallel/v6/csdf/animation"
 	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
@@ -177,7 +179,43 @@ func conjunctText(f clause.Formula, w Words) string {
 			}
 		}
 	}
+	if a, ok := f.(clause.Atom); ok {
+		if text, ok := holed(a); ok {
+			return text
+		}
+	}
 	return animation.ClauseText(clause.And{Conjuncts: []clause.Formula{f}})
+}
+
+// holed is a with each hole written $ and its term, without braces or
+// escapes, a space after a hole that text could otherwise continue; and
+// whether every hole could be printed.
+func holed(a clause.Atom) (string, bool) {
+	var sb strings.Builder
+	afterHole := false
+	for _, p := range a.Parts {
+		switch p := p.(type) {
+		case clause.Text:
+			if afterHole && continuesName(string(p)) {
+				sb.WriteString(" ")
+			}
+			sb.WriteString(string(p))
+			afterHole = false
+		case clause.Hole:
+			s, err := clause.PrintTerm(p.Term)
+			if err != nil {
+				return "", false
+			}
+			sb.WriteString("$" + s)
+			afterHole = true
+		}
+	}
+	return sb.String(), true
+}
+
+func continuesName(text string) bool {
+	r, _ := utf8.DecodeRuneInString(text)
+	return r == '_' || r == '\'' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 // phrased is b in phrase, and whether every term of b could be printed:
