@@ -129,39 +129,40 @@ func lineOf(t *testing.T, lines []string, prefix string) string {
 	return ""
 }
 
-func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
-	// Setup
-	d, err := coreio.ReadBytes([]byte(builtins))
-	if err != nil {
-		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
+func TestDecorateShouldSpellTheBuiltinsOrRefuseThoseWithoutAPhrase(t *testing.T) {
+	tests := map[string]struct {
+		words    Words
+		wantLine string
+		wantErr  string
+	}{
+		"in words":        {words: English, wantLine: `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`},
+		"without phrases": {words: Words{}, wantErr: "@eq"},
 	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			d, err := coreio.ReadBytes([]byte(builtins))
+			if err != nil {
+				t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
+			}
 
-	// Execute
-	out, err := Decorate(builtins, d, English)
+			// Execute
+			out, err := Decorate(builtins, d, tt.words)
 
-	// Assert
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := lineOf(t, strings.Split(out, "\n"), "idle --> idle : ")
-	if want := `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`; !strings.Contains(got, want) {
-		t.Errorf("Decorate() line = %q, want it to hold %q", got, want)
-	}
-}
-
-func TestDecorateShouldRefuseABuiltinItHasNoPhraseFor(t *testing.T) {
-	// Setup
-	d, err := coreio.ReadBytes([]byte(builtins))
-	if err != nil {
-		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
-	}
-
-	// Execute
-	_, err = Decorate(builtins, d, Words{})
-
-	// Assert
-	if err == nil || !strings.Contains(err.Error(), "@eq") {
-		t.Errorf("Decorate() error = %v, want one naming @eq", err)
+			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("Decorate() error = %v, want one naming %s", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := lineOf(t, strings.Split(out, "\n"), "idle --> idle : "); !strings.Contains(got, tt.wantLine) {
+				t.Errorf("Decorate() line = %q, want it to hold %q", got, tt.wantLine)
+			}
+		})
 	}
 }
 
