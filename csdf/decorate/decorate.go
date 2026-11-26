@@ -176,6 +176,10 @@ func spelled(c clause.And, w Words) []string {
 
 func conjunctText(f clause.Formula, w Words) string {
 	if b, ok := f.(clause.Builtin); ok {
+		if b.Op == clause.OpFrame && len(b.Args) == 2 {
+			// A frame of no key keeps the whole map: m' = m.
+			b.Op = clause.OpEq
+		}
 		if phrase, ok := w.Builtins[b.Op]; ok {
 			if text, ok := phrased(phrase, b, w.Separator); ok {
 				return text
