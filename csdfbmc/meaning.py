@@ -16,7 +16,7 @@ from typing import Callable
 from csdfbmc.environment import Environment
 from csdfbmc.model import Atom
 from csdfbmc.protocol import ClientLike
-from csdfbmc.values import freeze, same_value, visible
+from csdfbmc.values import freeze, kind_key, same_value, visible
 
 
 def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tuple], object]:
@@ -37,7 +37,12 @@ class AtomMeaning:
     glue behind client (as csdfbmc.protocol.checked gives it) the others.
     carrier gives the values of a type, for the values after the
     step of a post atom the environment decides, and seen the fields
-    observed at each local state (csdfbmc.model.observed_by_state)."""
+    observed at each local state (csdfbmc.model.observed_by_state).
+
+    The glue is asked about an atom once per list of values, which a pure
+    atom allows. The values are keyed as the walk holds them, before they
+    are made visible: what the glue sees of them is a function of them and
+    seen, and their kind_key tells apart an instance's states and fields."""
 
     def __init__(self, client: ClientLike, environment: Environment, carrier: Callable[[str], list], seen: Mapping):
         self.client = client
@@ -45,9 +50,16 @@ class AtomMeaning:
         self.carrier = carrier
         self.seen = seen
         self.decided: dict[str, None] = {}
+        self._answers: dict[tuple, object] = {}
 
     def _visible(self, value):
         return visible(value, self.seen)
+
+    def _ask(self, ask: Callable, atom: Atom, args: list):
+        key = (ask.__name__, atom, kind_key(tuple(args)))
+        if key not in self._answers:
+            self._answers[key] = ask(atom.wire, [[self._visible(a) for a in args]])[0]
+        return self._answers[key]
 
     def of_environment(self, atom: Atom) -> bool:
         return atom.function in self.environment.declared
@@ -64,14 +76,14 @@ class AtomMeaning:
         values of its arguments."""
         if self.of_environment(atom):
             return self._decide(atom, tuple(self._visible(a) for a in args))
-        return self.client.guard(atom.wire, [[self._visible(a) for a in args]])[0]
+        return self._ask(self.client.guard, atom, args)
 
     def post(self, atom: Atom, before: list, types: list[str]) -> list[tuple]:
         """The values after the step of the primed arguments, in order, that
         an atom allows from the values before it of the others. names name
         the primed arguments' types, over which the environment chooses."""
         if not self.of_environment(atom):
-            return [tuple(freeze(v) for v in after) for after in self.client.post(atom.wire, [[self._visible(a) for a in before]])[0]]
+            return [tuple(freeze(v) for v in after) for after in self._ask(self.client.post, atom, before)]
         out = []
         for after in itertools.product(*(self.carrier(t) for t in types)):
             if self._decide(atom, tuple(self._visible(a) for a in self.merge(atom, before, list(after)))):
