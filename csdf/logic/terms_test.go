@@ -3,7 +3,7 @@ package logic_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
 	"github.com/google/go-cmp/cmp"
 )
 

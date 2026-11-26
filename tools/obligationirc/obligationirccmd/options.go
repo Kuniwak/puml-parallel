@@ -5,9 +5,9 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v4/cli"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir/target"
-	"github.com/Kuniwak/puml-parallel/v4/tools"
+	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir/target"
+	"github.com/Kuniwak/puml-parallel/v5/tools"
 )
 
 type Options struct {

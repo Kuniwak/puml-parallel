@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/lts"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/types"
 )
 
 // oneState is a diagram of one state holding vars, each of the type Bit,

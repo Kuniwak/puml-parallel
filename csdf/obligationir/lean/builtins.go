@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/obligationir"
 )
 
 // ValPrelude declares Val, the type of every value, as the Isabelle back end

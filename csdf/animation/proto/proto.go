@@ -7,7 +7,7 @@ package proto
 import (
 	"encoding/json"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/animation"
 )
 
 // Command names carried by Request.Command.

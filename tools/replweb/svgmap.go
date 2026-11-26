@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/core"
 )
 
 // Highlights tells the page which element of the SVG draws what: States,

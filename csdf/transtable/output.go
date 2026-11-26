@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/logic"
 )
 
 // Output says what a table is written as. The zero Output names nothing.

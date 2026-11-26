@@ -3,7 +3,7 @@ package obligationir
 import (
 	"strconv"
 
-	"github.com/Kuniwak/puml-parallel/v4/csdf"
+	"github.com/Kuniwak/puml-parallel/v5/csdf"
 )
 
 // Side names one diagram inside an obligation theory. Everything derived from a

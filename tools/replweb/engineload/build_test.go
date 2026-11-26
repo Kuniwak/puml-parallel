@@ -201,7 +201,7 @@ func TestBuilderBuildsTheEngineOfThisWorkTree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b := Builder{Go: ExecGo{}, Module: Module{Path: "github.com/Kuniwak/puml-parallel/v4", Version: "(devel)"}, WorkDir: wd}
+	b := Builder{Go: ExecGo{}, Module: Module{Path: "github.com/Kuniwak/puml-parallel/v5", Version: "(devel)"}, WorkDir: wd}
 
 	// Execute
 	engine, err := b.Source()()
