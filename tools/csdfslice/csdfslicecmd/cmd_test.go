@@ -121,7 +121,7 @@ func TestNewMainFuncRefuses(t *testing.T) {
 		},
 		"a global diagram": {
 			Args:       []string{"-states", "s0", "../../../examples/promote/RECEIPTS.puml"},
-			WantStderr: "run csdfpromote on it first",
+			WantStderr: "expand it first: csdfparse x.puml | csdfinclude | csdfpromote",
 		},
 	}
 

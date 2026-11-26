@@ -33,7 +33,7 @@ func UserFacingError(err error, debug bool) string {
 func withPromotionAdvice(message string, err error) string {
 	var hinted *csdf.PromotionHintError
 	if errors.As(err, &hinted) {
-		return fmt.Sprintf("%s; run csdfpromote on it first", message)
+		return fmt.Sprintf("%s; expand it first: csdfparse x.puml | csdfinclude | csdfpromote", message)
 	}
 	return message
 }

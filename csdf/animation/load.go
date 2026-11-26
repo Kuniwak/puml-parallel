@@ -9,7 +9,7 @@ import (
 
 // ReadDiagram reads the diagram a session explores, source, a .puml text
 // or a .png, as coreio.ReadExpandedBytes reads it: a promotion is explored as its expansion, families included,
-// each !include read by include, and the warnings of the promotion are
+// each !include resolved by include, and the warnings of the promotion are
 // returned. A clause of the old syntax is refused with coreio's error.
 func ReadDiagram(source []byte, include coreio.Include) (*core.Diagram, []core.Warning, error) {
 	d, warnings, err := coreio.ReadExpandedBytes(source, include)

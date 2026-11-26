@@ -137,3 +137,10 @@ func BaseDirOf(treePath string) string {
 	}
 	return filepath.Dir(treePath)
 }
+
+// BaseDirOfTree returns the directory the relative paths of the !include
+// lines of tree are resolved against, by BaseDirOf's rule: the directory of
+// the file it was parsed from, the current directory when it has no path.
+func BaseDirOfTree(tree *SyntaxTree) string {
+	return BaseDirOf(tree.Path)
+}

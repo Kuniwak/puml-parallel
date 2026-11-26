@@ -29,10 +29,11 @@ independent maps, which says almost nothing.
 `csdfpromote` reads this syntax with clauses that are formulas
 (docs/CLAUSE_DESIGN.md), through `csdf/coreio`, and prints the expansion
 `csdf/core` gives, as PlantUML or, with `-format json`, as the diagram JSON
-`csdfbmc` reads. It reads the syntax as PlantUML, or as the syntax tree
-`csdfparse` prints, whose `!include` it refuses as `csdfinclude`'s to
-resolve. A diagram with no directive it prints as it is, its end edges
-included, so `csdfparse x.puml | csdfpromote -format json` is the diagram
+`csdfbmc` reads. It reads the syntax tree `csdfparse` prints, its
+`!include` lines resolved by `csdfinclude`, which puts the tree of each
+local diagram in its `!include`; an `!include` left unresolved is refused.
+A diagram with no directive it prints as it is, its end edges included, so
+`csdfparse x.puml | csdfinclude | csdfpromote -format json` is the diagram
 JSON of any diagram. The diagram JSON of an expansion (version 3) writes
 the family of each map as well (`families`): its `key`, the ID parameter of
 the promote directive (`<map> : (<ID> : <Key>) ⇸ <Type>`), and its
@@ -545,4 +546,5 @@ Info:
 | An `!include` outside a `<<promote>>` block                              | It names no local diagram and is dropped.                                         |
 
 Every other tool refuses a diagram that still holds directives: the core grammar
-has no rule for them, and the parse error says to run `csdfpromote` first.
+has no rule for them, and the parse error says to expand it first
+(`csdfparse x.puml | csdfinclude | csdfpromote`).

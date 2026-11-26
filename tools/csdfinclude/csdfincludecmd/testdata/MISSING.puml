@@ -1,0 +1,3 @@
+@startuml M
+!include absent.puml
+@enduml

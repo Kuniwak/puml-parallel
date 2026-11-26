@@ -38,12 +38,12 @@ waiting --> done : SHIP
 
 // files is an include that reads from a map of paths to sources.
 func files(m map[string]string) Include {
-	return func(path string) (string, error) {
+	return func(path string) (string, string, error) {
 		s, ok := m[path]
 		if !ok {
-			return "", fmt.Errorf("no file %s", path)
+			return "", "", fmt.Errorf("no file %s", path)
 		}
-		return s, nil
+		return s, path, nil
 	}
 }
 

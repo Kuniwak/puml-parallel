@@ -7,7 +7,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/v5/csdf"
 )
 
-func TestReadTreeBytesTellsJSONByItsOpeningBrace(t *testing.T) {
+func TestReadTreeJSONTellsJSONByItsOpeningBrace(t *testing.T) {
 	// Setup
 	tree, err := csdf.Parse("", "@startuml\nstate \"S\" as s0\n[*] --> s0\n@enduml\n")
 	if err != nil {
@@ -24,13 +24,13 @@ func TestReadTreeBytesTellsJSONByItsOpeningBrace(t *testing.T) {
 		"JSON":                       {raw: string(bs)},
 		"JSON after whitespace":      {raw: " \n\t" + string(bs)},
 		"JSON after a UTF-8 BOM":     {raw: "\xef\xbb\xbf" + string(bs)},
-		"PlantUML after a UTF-8 BOM": {raw: "\xef\xbb\xbf@startuml\nstate \"S\" as s0\n[*] --> s0\n@enduml\n"},
+		"PlantUML after a UTF-8 BOM": {raw: "\xef\xbb\xbf@startuml\nstate \"S\" as s0\n[*] --> s0\n@enduml\n", wantErr: "not PlantUML; run csdfparse on the diagram first"},
 		"JSON of another kind":       {raw: `{"version":3,"name":""}`, wantErr: `want kind "csdf-syntax-tree" version 1, got kind "" version 3`},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {
 			// Execute
-			got, _, err := ReadTreeBytes([]byte(c.raw), nil)
+			got, err := ReadTreeJSON([]byte(c.raw))
 
 			// Assert
 			if c.wantErr != "" {

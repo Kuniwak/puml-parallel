@@ -536,7 +536,8 @@ The Syntax Tree as JSON
 `csdfparse` prints the concrete syntax tree of a diagram, plain or global
 (`csdf.Parse`, `csdf.SyntaxTree`), as one JSON object. It says what is
 written and nothing of what it means: no directive is expanded, no
-`!include` resolved, and no clause turned into a formula. Every element of
+`!include` resolved (`csdfinclude` resolves them, and prints such a tree
+again), and no clause turned into a formula. Every element of
 the source is kept in the order written; whitespace is not. Each node has a
 `line` and a `col`, 1-based, the column counted in Unicode code points,
 where it starts, and a body lists its elements in that order: a comment
@@ -550,7 +551,7 @@ is the list of elements. Each element has a `kind`:
 | `kind`       | Fields                                   | Source                                                                                                  |
 |:-------------|:-----------------------------------------|:--------------------------------------------------------------------------------------------------------|
 | `comment`    | `text`, `block`                          | `' text`, or `/' text '/` when `block` is true.                                                         |
-| `pragma`     | `name`, `arg`                            | `!name arg`, such as `!include local/A.puml` (`arg` is the path as written) or `!define PROMOTED`.      |
+| `pragma`     | `name`, `arg`, `tree`                    | `!name arg`, such as `!include local/A.puml` (`arg` is the path as written) or `!define PROMOTED`. `tree` is left out until `csdfinclude` resolves the `!include`: then it is the syntax tree of the file named, an object of this same shape whose `path` is the file read. |
 | `ignore`     | `lines`                                  | A CSDF-IGNORE region: the lines between its markers, as written.                                        |
 | `observe`    | `name`, `view`, `states`                 | A CSDF-OBSERVE line: a view of `states` when `view` is true, else a state variable.                      |
 | `state`      | `id`, `label`, `stereotype`, `body`      | `state "label" as id`, with `<<stereotype>>` if written, and `body`, the elements of its `{ … }` block, if it has one. |

@@ -1,5 +1,5 @@
 """The checks module of examples/bmc/attempts/ATTEMPTS.puml, for its expansion
-(csdfpromote -format json examples/bmc/attempts/ATTEMPTS.puml).
+(csdfparse examples/bmc/attempts/ATTEMPTS.puml | csdfinclude | csdfpromote -format json).
 
 The map `attempts` holds, per 試行ID, an instance: its local state, which
 only the builtin @at reads, and its local variables, which are all an atom,

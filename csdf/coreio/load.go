@@ -2,6 +2,7 @@ package coreio
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -72,37 +73,41 @@ func LoadPromotion(path string) (core.Promotion, error) {
 // sources, which maps each such path to its source; a path it does not hold
 // is refused.
 func SourcesIncluder(sources map[string]string) Include {
-	return func(p string) (string, error) {
+	return func(p string) (string, string, error) {
 		src, ok := sources[p]
 		if !ok {
-			return "", fmt.Errorf("coreio.SourcesIncluder: %s is not among the included files given", p)
+			return "", "", fmt.Errorf("coreio.SourcesIncluder: %s is not among the included files given", p)
 		}
-		return src, nil
+		return src, p, nil
 	}
 }
 
 // RecordingIncluder is include, recording in sources what it includes by
 // the path written.
 func RecordingIncluder(include Include, sources map[string]string) Include {
-	return func(p string) (string, error) {
-		src, err := include(p)
+	return func(p string) (string, string, error) {
+		src, read, err := include(p)
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 		sources[p] = src
-		return src, nil
+		return src, read, nil
 	}
 }
 
 // FileIncluder includes a file by the path an !include writes, relative to
 // dir unless it is absolute: a .puml file, or a .png with its source
-// embedded.
+// embedded. The path read is dir joined to the path written.
 func FileIncluder(dir string) Include {
-	return func(p string) (string, error) {
+	return func(p string) (string, string, error) {
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(dir, p)
 		}
-		return pngsrc.ReadFile(p)
+		src, err := pngsrc.ReadFile(p)
+		if err != nil {
+			return "", "", err
+		}
+		return src, p, nil
 	}
 }
 
@@ -123,19 +128,23 @@ func ReadBytes(raw []byte) (*core.Diagram, error) {
 // ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
 // ReadBytes does, unless it holds promotion directives
 // (csdf.HoldsDirectives): then it is the expansion csdfpromote
-// prints for it (Expand), each !include read by include, with the warnings
-// of the promotion. A diagram without promotion directives reads as
-// ReadBytes reads it, with no warnings.
+// prints for it (Expand), each !include resolved by include
+// (ResolveIncludes), with the warnings of the promotion. A diagram without
+// promotion directives reads as ReadBytes reads it, with no warnings.
 func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warning, error) {
 	src, err := pngsrc.Extract(raw)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: reading PlantUML source: %w", err)
 	}
-	tree, err := csdf.Parse("", src)
+	parsed, err := csdf.Parse("", src)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
-	d, warnings, err := ExpandTree(tree, include, nil)
+	tree, err := ResolveIncludes(parsed, include)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	d, warnings, err := ExpandTree(tree, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
@@ -145,9 +154,9 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 // ExpandTree is the diagram tree says, as the tools evaluate it: Lower's
 // when it holds no promotion directive (csdf.HoldsDirectives), with no
 // warnings, keep then naming no map; otherwise the expansion of the global diagram it is
-// (ReadPromotionTree, each !include read by include, then Expand with
-// keep), with the warnings of the promotion.
-func ExpandTree(tree *csdf.SyntaxTree, include Include, keep []string) (*core.Diagram, []core.Warning, error) {
+// (ReadPromotionTree, its !include lines resolved, then Expand with keep),
+// with the warnings of the promotion.
+func ExpandTree(tree *csdf.SyntaxTree, keep []string) (*core.Diagram, []core.Warning, error) {
 	if !csdf.HoldsDirectives(tree.Body) {
 		if len(keep) > 0 {
 			return nil, nil, fmt.Errorf("coreio.ExpandTree: %s is no promoted map: the diagram holds no promotion directive", strings.Join(keep, ", "))
@@ -158,7 +167,7 @@ func ExpandTree(tree *csdf.SyntaxTree, include Include, keep []string) (*core.Di
 		}
 		return d, nil, nil
 	}
-	prom, err := ReadPromotionTree(tree, include)
+	prom, err := ReadPromotionTree(tree)
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 	}
@@ -187,42 +196,28 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 	return canonical, warnings, nil
 }
 
-// ReadTreeBytes reads the syntax tree of the diagram in raw, and what its
-// !include lines are to be read by: the JSON csdfparse prints
-// (isSyntaxTreeJSON), whose !include UnresolvedInclude refuses, or a .puml
-// text or a .png, parsed, whose !include files reads.
-func ReadTreeBytes(raw []byte, files Include) (*csdf.SyntaxTree, Include, error) {
+// ReadTreeJSON reads the syntax tree csdfparse prints (JSON), after a
+// UTF-8 byte order mark if any; other input, such as PlantUML, is refused,
+// naming csdfparse.
+func ReadTreeJSON(raw []byte) (*csdf.SyntaxTree, error) {
 	raw = bytes.TrimPrefix(raw, utf8BOM)
-	if isSyntaxTreeJSON(raw) {
-		tree, err := csdf.UnmarshalSyntaxTree(raw)
-		if err != nil {
-			return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
-		}
-		return tree, UnresolvedInclude, nil
+	// After whitespace, if any, JSON opens with "{", which no PlantUML
+	// source or PNG does.
+	if !bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{")) {
+		return nil, errors.New("coreio.ReadTreeJSON: want the syntax tree csdfparse prints (JSON), not PlantUML; run csdfparse on the diagram first")
 	}
-	src, err := pngsrc.Extract(raw)
+	tree, err := csdf.UnmarshalSyntaxTree(raw)
 	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: reading PlantUML source: %w", err)
+		return nil, fmt.Errorf("coreio.ReadTreeJSON: %w", err)
 	}
-	tree, err := csdf.Parse("", src)
-	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
-	}
-	return tree, files, nil
-}
-
-// isSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: after
-// a UTF-8 byte order mark and whitespace, if any, it opens with "{", which
-// no PlantUML source or PNG does.
-func isSyntaxTreeJSON(raw []byte) bool {
-	return bytes.HasPrefix(bytes.TrimSpace(bytes.TrimPrefix(raw, utf8BOM)), []byte("{"))
+	return tree, nil
 }
 
 // utf8BOM is the byte order mark an editor may write before UTF-8 text.
 var utf8BOM = []byte("\xef\xbb\xbf")
 
-// UnresolvedInclude refuses every !include: that of a syntax tree, which
-// csdfinclude resolves.
-func UnresolvedInclude(path string) (string, error) {
-	return "", fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote), or give csdfpromote the .puml", path)
+// UnresolvedInclude is the refusal of the !include of path left unresolved
+// in a syntax tree, which csdfinclude resolves.
+func UnresolvedInclude(path string) error {
+	return fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote)", path)
 }

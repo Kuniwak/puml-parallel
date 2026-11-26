@@ -36,7 +36,7 @@ func ReadPromotionAsWritten(source string) (WrittenPromotion, error) {
 	if err != nil {
 		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)
 	}
-	r, err := readPromotion(tree, nil)
+	r, err := readPromotion(tree, leaveUnread)
 	if err != nil {
 		return WrittenPromotion{}, fmt.Errorf("coreio.ReadPromotionAsWritten: %w", err)
 	}

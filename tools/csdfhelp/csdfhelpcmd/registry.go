@@ -7,6 +7,7 @@ import (
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdfdecorate/csdfdecoratecmd"
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdfevents/csdfeventscmd"
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdfhide/csdfhidecmd"
+	"github.com/Kuniwak/puml-parallel/v5/tools/csdfinclude/csdfincludecmd"
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdflint/csdflintcmd"
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdflivelockfree/csdflivelockfreecmd"
 	"github.com/Kuniwak/puml-parallel/v5/tools/csdfparallel/csdfparallelcmd"
@@ -38,6 +39,11 @@ func Registry() []toolsdoc.Entry {
 			Run:     tools.NewCommandFunc(csdfparsecmd.NewParseOptionsFunc(), csdfparsecmd.NewMainFunc()),
 		},
 		{
+			Name:    "csdfinclude",
+			Summary: "Resolves the !include lines of the syntax tree csdfparse prints, putting the tree of each file included in its !include.",
+			Run:     tools.NewCommandFunc(csdfincludecmd.NewParseOptionsFunc(), csdfincludecmd.NewMainFunc()),
+		},
+		{
 			Name:    "csdfevents",
 			Summary: "Prints the channels used across one or more Composable State Diagrams.",
 			Run:     tools.NewCommandFunc(csdfeventscmd.NewParseOptionsFunc(), csdfeventscmd.NewMainFunc()),
@@ -54,7 +60,7 @@ func Registry() []toolsdoc.Entry {
 		},
 		{
 			Name:    "csdfpromote",
-			Summary: "Expands the promotion directives of a Composable State Diagram, read as PlantUML or as its syntax tree, into plain PlantUML or the JSON csdfbmc reads.",
+			Summary: "Expands the promotion directives of a Composable State Diagram, read as its syntax tree with the !include lines resolved, into plain PlantUML or the JSON csdfbmc reads.",
 			Run:     tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc()),
 		},
 		{
