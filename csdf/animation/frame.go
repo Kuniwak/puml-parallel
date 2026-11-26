@@ -13,28 +13,25 @@ type Frame struct {
 
 // FrameOf is post split into its Frame, conjuncts of nested ∧ included.
 func FrameOf(post clause.And) Frame {
-	f, rest := SplitFrame(post)
-	f.Rest = ClauseText(rest)
-	return f
+	emptied, unchanged, rest := SplitFrame(post)
+	return Frame{Rest: ClauseText(rest), Emptied: emptied, Unchanged: unchanged}
 }
 
-// SplitFrame is post split as FrameOf splits it, with the rest of its
-// conjuncts left a clause and the Frame's Rest empty.
-func SplitFrame(post clause.And) (Frame, clause.And) {
-	var f Frame
-	var rest clause.And
+// SplitFrame is post split as FrameOf splits it: the variables emptied, the
+// variables kept, and the rest of its conjuncts as a clause.
+func SplitFrame(post clause.And) (emptied, unchanged []string, rest clause.And) {
 	for _, c := range conjuncts(post) {
 		b, ok := c.(clause.Builtin)
 		switch {
 		case ok && b.Op == clause.OpEmpty && isPrimed(b.Args[0]):
-			f.Emptied = append(f.Emptied, b.Args[0].(clause.Free).Name)
+			emptied = append(emptied, b.Args[0].(clause.Free).Name)
 		case ok && b.Op == clause.OpEq && keeps(b.Args[0], b.Args[1]):
-			f.Unchanged = append(f.Unchanged, b.Args[0].(clause.Free).Name)
+			unchanged = append(unchanged, b.Args[0].(clause.Free).Name)
 		default:
 			rest.Conjuncts = append(rest.Conjuncts, c)
 		}
 	}
-	return f, rest
+	return emptied, unchanged, rest
 }
 
 // conjuncts are the conjuncts of c, those of nested ∧ in their place.
