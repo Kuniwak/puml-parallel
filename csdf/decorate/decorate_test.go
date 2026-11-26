@@ -103,3 +103,30 @@ func TestDecorateShouldEscapeCreole(t *testing.T) {
 		t.Errorf("escape() = %q, want %q", got, want)
 	}
 }
+
+const builtins = `@startuml
+state "idle" as idle
+idle : cash ; Nat
+[*] --> idle : @eq(cash', 0)
+idle --> idle : refund ; @ne(cash, 0) ; @eq(cash', 0)
+@enduml
+`
+
+func decoratedBuiltins(t *testing.T, words Words) []string {
+	t.Helper()
+	d, err := coreio.ReadBytes([]byte(builtins))
+	if err != nil {
+		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
+	}
+	return strings.Split(Decorate(builtins, d, words), "\n")
+}
+
+func TestDecorateShouldSpellABuiltinInWords(t *testing.T) {
+	// Execute
+	got := decoratedBuiltins(t, English)[4]
+
+	// Assert
+	if want := `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`; !strings.Contains(got, want) {
+		t.Errorf("Decorate() line = %q, want it to hold %q", got, want)
+	}
+}

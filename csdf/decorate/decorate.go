@@ -22,11 +22,16 @@ type Words struct {
 	Event, Condition, Change, Kept, Emptied string
 	Before, After, Field                    string
 	Separator                               string
+	// Builtins spell each builtin they have a phrase for, its terms in
+	// order as the phrase's operands; a builtin without one is printed.
+	Builtins map[clause.Op]string
 }
 
 // English and Japanese are the words of those languages.
 var (
-	English  = Words{Event: "Event", Condition: "Condition", Change: "Change", Kept: "Kept", Emptied: "Emptied", Before: "before", After: "after", Field: "event", Separator: ", "}
+	English = Words{Event: "Event", Condition: "Condition", Change: "Change", Kept: "Kept", Emptied: "Emptied", Before: "before", After: "after", Field: "event", Separator: ", ", Builtins: map[clause.Op]string{
+		clause.OpNe: "%[1]s is not %[2]s",
+	}}
 	Japanese = Words{Event: "イベント", Condition: "条件", Change: "変化", Kept: "維持", Emptied: "空にする", Before: "前状態", After: "次状態", Field: "イベント", Separator: "・"}
 )
 
@@ -116,8 +121,8 @@ func block(w Words, ev *core.Event, src, dst string, vars map[string][]string, g
 		sb.WriteString("</b>")
 	}
 	frame, rest := animation.SplitFrame(post)
-	section(&sb, w.Condition, conjuncts(animation.ClauseText(guard)), w, n)
-	section(&sb, w.Change, conjuncts(animation.ClauseText(rest)), w, n)
+	section(&sb, w.Condition, spelled(guard, w), w, n)
+	section(&sb, w.Change, spelled(rest, w), w, n)
 	listed(&sb, w.Emptied, frame.Emptied, w)
 	listed(&sb, w.Kept, frame.Unchanged, w)
 	return sb.String()
@@ -134,11 +139,42 @@ func coloured(name string) string {
 	return fmt.Sprintf("<color:%s>%s</color>", varColour, escape(name))
 }
 
-func conjuncts(text string) []string {
-	if text == "(none)" || text == "" {
-		return nil
+// spelled are the conjuncts of c, those of nested ∧ in their place, each
+// a builtin in w's words where w has a phrase for it, else as printed.
+func spelled(c clause.And, w Words) []string {
+	var out []string
+	for _, f := range c.Conjuncts {
+		if inner, ok := f.(clause.And); ok {
+			out = append(out, spelled(inner, w)...)
+			continue
+		}
+		out = append(out, conjunctText(f, w))
 	}
-	return strings.Split(text, " ∧ ")
+	return out
+}
+
+func conjunctText(f clause.Formula, w Words) string {
+	if b, ok := f.(clause.Builtin); ok {
+		if phrase, ok := w.Builtins[b.Op]; ok {
+			if text, ok := phrased(phrase, b); ok {
+				return text
+			}
+		}
+	}
+	return animation.ClauseText(clause.And{Conjuncts: []clause.Formula{f}})
+}
+
+// phrased is b in phrase, and whether every term of b could be printed.
+func phrased(phrase string, b clause.Builtin) (string, bool) {
+	operands := make([]any, len(b.Args))
+	for i, t := range b.Args {
+		s, err := clause.PrintTerm(t)
+		if err != nil {
+			return "", false
+		}
+		operands[i] = s
+	}
+	return fmt.Sprintf(phrase, operands...), true
 }
 
 // section writes a line headed word for the first of parts and an
