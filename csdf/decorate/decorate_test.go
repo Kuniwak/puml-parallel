@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Kuniwak/puml-parallel/v6/csdf/clause"
 	"github.com/Kuniwak/puml-parallel/v6/csdf/coreio"
 )
 
@@ -29,7 +30,11 @@ func decorated(t *testing.T, words Words) []string {
 	if err != nil {
 		t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
 	}
-	return strings.Split(Decorate(machine, d, words), "\n")
+	out, err := Decorate(machine, d, words)
+	if err != nil {
+		t.Fatalf("Decorate() error = %v", err)
+	}
+	return strings.Split(out, "\n")
 }
 
 func TestDecorateShouldKeepEveryLineInItsPlace(t *testing.T) {
@@ -101,5 +106,139 @@ func TestDecorateShouldEscapeCreole(t *testing.T) {
 	// Assert
 	if want := "a ~// b ~< c ~-- d"; got != want {
 		t.Errorf("escape() = %q, want %q", got, want)
+	}
+}
+
+const builtins = `@startuml
+state "idle" as idle
+idle : cash ; Nat
+[*] --> idle : @eq(cash', 0)
+idle --> idle : refund ; @ne(cash, 0) ; @eq(cash', 0)
+@enduml
+`
+
+// lineOf is the line of lines that starts with prefix.
+func lineOf(t *testing.T, lines []string, prefix string) string {
+	t.Helper()
+	for _, l := range lines {
+		if strings.HasPrefix(l, prefix) {
+			return l
+		}
+	}
+	t.Fatalf("Setup: no line starts with %q", prefix)
+	return ""
+}
+
+func TestDecorateShouldSpellTheBuiltinsOrRefuseThoseWithoutAPhrase(t *testing.T) {
+	tests := map[string]struct {
+		words    Words
+		wantLine string
+		wantErr  string
+	}{
+		"in words":        {words: English, wantLine: `<color:#888>Condition:</color> <color:#0b57d0>cash</color> is not 0\l`},
+		"without phrases": {words: Words{}, wantErr: "@eq"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			d, err := coreio.ReadBytes([]byte(builtins))
+			if err != nil {
+				t.Fatalf("Setup: coreio.ReadBytes error = %v", err)
+			}
+
+			// Execute
+			out, err := Decorate(builtins, d, tt.words)
+
+			// Assert
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("Decorate() error = %v, want one naming %s", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := lineOf(t, strings.Split(out, "\n"), "idle --> idle : "); !strings.Contains(got, tt.wantLine) {
+				t.Errorf("Decorate() line = %q, want it to hold %q", got, tt.wantLine)
+			}
+		})
+	}
+}
+
+func TestConjunctTextShouldRefuseAPhraseOfAnUnknownBuiltin(t *testing.T) {
+	// Setup
+	w := Words{}
+	w.Builtins = map[clause.Op]string{"bogus": "%[1]s is bogus"}
+
+	// Execute
+	_, err := conjunctText(clause.Builtin{Op: "bogus", Args: []clause.Term{free("k", false)}}, w, nil)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "@bogus") {
+		t.Errorf("conjunctText() error = %v, want one naming @bogus", err)
+	}
+}
+
+func free(name string, primed bool) clause.Term { return clause.Free{Name: name, Primed: primed} }
+
+func TestConjunctTextShouldSpellEachConjunct(t *testing.T) {
+	m, m2, k, v := free("m", false), free("m", true), free("k", false), free("v", false)
+	// ∃ n : T. n' = n ∧ n ≠ n₀, whose hint n clashes with the free n
+	exists := clause.Exists{Hint: "n", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+		clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
+		clause.Builtin{Op: clause.OpNe, Args: []clause.Term{clause.Bound{Index: 0}, free("n", false)}},
+	}}}
+	hole := clause.Atom{Parts: []clause.Part{
+		clause.Hole{Term: clause.Field{Of: clause.Index{Map: m2, Key: k}, Name: "x"}},
+		clause.Text(" が 0"),
+	}}
+	tests := map[string]struct {
+		words Words
+		f     clause.Formula
+		want  string
+	}{
+		"exists named apart from a variable of the diagram": {English, clause.Exists{Hint: "cash", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+			clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
+		}}}, "for some cash2 of T, n' is cash2"},
+		"ne in English":               {English, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k is not v"},
+		"ne in Japanese":              {Japanese, clause.Builtin{Op: clause.OpNe, Args: []clause.Term{k, v}}, "k は v でない"},
+		"eq in English":               {English, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k is v"},
+		"eq in Japanese":              {Japanese, clause.Builtin{Op: clause.OpEq, Args: []clause.Term{k, v}}, "k は v"},
+		"in in English":               {English, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m has k"},
+		"in in Japanese":              {Japanese, clause.Builtin{Op: clause.OpIn, Args: []clause.Term{k, m}}, "m に k がある"},
+		"notin in English":            {English, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m has no k"},
+		"notin in Japanese":           {Japanese, clause.Builtin{Op: clause.OpNotIn, Args: []clause.Term{k, m}}, "m に k がない"},
+		"empty in English":            {English, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m is empty"},
+		"empty in Japanese":           {Japanese, clause.Builtin{Op: clause.OpEmpty, Args: []clause.Term{m}}, "m は空"},
+		"update in English":           {English, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' is m with k set to v"},
+		"update in Japanese":          {Japanese, clause.Builtin{Op: clause.OpUpdate, Args: []clause.Term{m2, m, k, v}}, "m' は m の k を v にしたもの"},
+		"frame in English":            {English, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' is m except at k, v"},
+		"frame in Japanese":           {Japanese, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m, k, v}}, "m' は k・v のほか m と同じ"},
+		"frame of no key in English":  {English, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m}}, "m' is m"},
+		"frame of no key in Japanese": {Japanese, clause.Builtin{Op: clause.OpFrame, Args: []clause.Term{m2, m}}, "m' は m"},
+		"at in English":               {English, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k is at A, B"},
+		"at in Japanese":              {Japanese, clause.Builtin{Op: clause.OpAt, Args: []clause.Term{k}, States: []string{"A", "B"}}, "k は A・B にある"},
+		"exists in English":           {English, exists, "for some n2 of T, (n' is n2 and n2 is not n)"},
+		"exists in Japanese":          {Japanese, exists, "ある T の n2 について (n' は n2 かつ n2 は n でない)"},
+		"exists of one conjunct": {English, clause.Exists{Hint: "x", Type: "T", Body: clause.And{Conjuncts: []clause.Formula{
+			clause.Builtin{Op: clause.OpEq, Args: []clause.Term{free("n", true), clause.Bound{Index: 0}}},
+		}}}, "for some x of T, n' is x"},
+		"a hole without braces":                          {Japanese, hole, "$m'[k].x が 0"},
+		"a hole before text that would read as its path": {English, clause.Atom{Parts: []clause.Part{clause.Hole{Term: m}, clause.Text(".x and [k]")}}, "$m .x and [k]"},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			got, err := conjunctText(tt.f, tt.words, map[string]bool{"cash": true})
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Errorf("conjunctText() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
