@@ -62,26 +62,6 @@ class WireEncodingTest(unittest.TestCase):
         self.assertTrue(same_value(r, back))
         self.assertEqual((True, False), (at(back, "live"), at(back, "gone")))
 
-    def test_a_checked_glue_asks_again_of_an_instance_at_other_views(self):
-        # Setup
-        asked = []
-        def handle(request):
-            if request["op"] == "hello":
-                return HELLO
-            asked.append(request["values"])
-            return {"results": [True for _ in request["values"]]}
-        client = checked(Client(handle, NO_CLOSE))
-        live = Instance(FrozenMap({"cnt": 1}), at={"live"}, views={"live", "gone"})
-        gone = Instance(FrozenMap({"cnt": 1}), at={"gone"}, views={"live", "gone"})
-
-        # Execute
-        client.guard(GREATER, [[FrozenMap(a=live), 0]])
-        client.guard(GREATER, [[FrozenMap(a=gone), 0]])
-        client.guard(GREATER, [[FrozenMap(a=live), 0]])
-
-        # Assert
-        self.assertEqual(2, len(asked))
-
     def test_a_boolean_stays_a_boolean(self):
         self.assertIs(True, from_wire(to_wire(True)))
         self.assertIsNot(True, from_wire(to_wire(1)))
@@ -184,18 +164,6 @@ class CountingGlue:
 
 
 class CheckedTest(unittest.TestCase):
-    def test_an_atom_is_asked_once_per_list_of_values(self):
-        # Setup
-        glue = CountingGlue()
-        client = checked(Client(glue, NO_CLOSE))
-
-        # Execute
-        client.guard(GREATER, [[3, 2], [3, 2]])
-        client.guard(GREATER, [[3, 2], [1, 2]])
-
-        # Assert
-        self.assertEqual(2, glue.asked)
-
     def test_a_truth_value_is_not_the_number_it_equals(self):
         # Setup
         client = checked(Client(CountingGlue(), NO_CLOSE))

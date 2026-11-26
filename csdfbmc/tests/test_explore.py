@@ -1138,6 +1138,16 @@ class SampleTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((9, deadlocks, reached), (len(result.states), result.deadlocks, result.bound_reached))
 
+    def test_the_walk_over_other_values_keeps_the_answers_of_the_glue(self):
+        # Setup
+        x = fixture.explorer(dict(OPENING, edges=OPENING["edges"][:2]), Checks(types={"k": ["a", "b"]}))
+
+        # Execute
+        wider = x.with_types({"k": ["a", "b", "c"]})
+
+        # Assert
+        self.assertIs(x.meaning.answers, wider.meaning.answers)
+
 
 class ReplayTest(unittest.TestCase):
     def test_a_deadlock_carries_its_replay(self):

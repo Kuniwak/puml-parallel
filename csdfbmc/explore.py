@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from csdfbmc.checks import ANY, Checks, apply
 from csdfbmc.environment import Environment
 from csdfbmc.formula import Evaluator, Missing, PostError, Tally, solve
-from csdfbmc.meaning import AtomMeaning, apply_given
+from csdfbmc.meaning import Answers, AtomMeaning, apply_given
 from csdfbmc.model import Bound, Builtin, Diagram, Edge, Free, Index, Lit, conjuncts, free_names, observed_by_state, show
 from csdfbmc.determine import Keyed, Witness, blocked, decides_early, determine, draws, keyed, part_reads, place, witness
 from csdfbmc.product import entry_levels, keys_among, pruned_product
@@ -343,12 +343,15 @@ class Explorer:
     canonical gives the state a state is stored by: one representative of
     its renamings of the symmetric IDs (csdfbmc.symmetry.Symmetry.canonical),
     which may refuse it, or as_met, the state itself.
+
+    answers keeps the glue's answers (csdfbmc.meaning.Answers): a walk of
+    the same diagram over other values shares them.
     """
 
     def __init__(self, diagram: Diagram, checks: Checks, client: ClientLike, *, environment: Environment,
                  max_states: int = 100_000, avoid: str | None = None, within: list[str] | None = None,
                  first: bool = False, left_out: tuple[str, ...],
-                 ample: Ample, canonical: Canonical, stats: bool = False):
+                 ample: Ample, canonical: Canonical, stats: bool = False, answers: Answers | None = None):
         # Every keyword option as given, so that with_types passes each on,
         # one added later too.
         self._options = {k: v for k, v in locals().items() if k not in ("self", "diagram", "checks", "client")}
@@ -356,7 +359,7 @@ class Explorer:
         self.checks = checks
         self.environment = environment
         seen = observed_by_state(diagram.families)
-        self.meaning = AtomMeaning(client, environment, checks.carrier, seen)
+        self.meaning = AtomMeaning(client, environment, checks.carrier, seen, answers)
         self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given, seen))
         self.max_states = max_states
         self.avoid = avoid
@@ -861,7 +864,8 @@ class Explorer:
     def with_types(self, types: dict, **options) -> "Explorer":
         """This walk with the types ranging over other values: the same
         diagram, glue, environment and options, but those given."""
-        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client, **{**self._options, **options})
+        return Explorer(self.d, dataclasses.replace(self.checks, types=types), self.meaning.client,
+                        **{**self._options, "answers": self.meaning.answers, **options})
 
     @functools.cached_property
     def _wider(self) -> "Explorer":

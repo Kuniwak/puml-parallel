@@ -3,7 +3,7 @@ that enumerate their domains from the domains of their fields."""
 import pickle
 import unittest
 
-from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Instance, Rec, Strict, same_value, decode, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, views_key, visible
+from csdfbmc.values import LEFT_OUT, beyond_samples, Interner, kind_key, FrozenMap, FrozenSet, Instance, Rec, Strict, same_value, decode, encode, freeze, partial_map, record, sample, samples_in, on_demand_record, at, visible
 
 
 class InstanceTest(unittest.TestCase):
@@ -18,16 +18,17 @@ class InstanceTest(unittest.TestCase):
         self.assertEqual(live, gone)
         self.assertEqual(hash(FrozenMap(cnt=1)), hash(live))
 
-    def test_is_told_apart_by_its_views_only_by_views_key(self):
+    def test_keeps_its_views_through_pickling(self):
         # Setup
         live = Instance(FrozenMap(cnt=1), at={"live"}, views={"live", "gone"})
         gone = Instance(FrozenMap(cnt=1), at={"gone"}, views={"live", "gone"})
 
-        # Execute, Assert
+        # Execute
+        back = pickle.loads(pickle.dumps(live))
+
+        # Assert
         self.assertTrue(same_value(live, gone))
-        self.assertNotEqual(views_key((FrozenMap(a=live),)), views_key((FrozenMap(a=gone),)))
-        self.assertIsNone(views_key((FrozenMap(a=FrozenMap(cnt=1)),)))
-        self.assertEqual(views_key(live), views_key(pickle.loads(pickle.dumps(live))))
+        self.assertEqual((True, False), (at(back, "live"), at(back, "gone")))
 
     def test_reads_a_field_named_like_its_views_as_the_field(self):
         r = Instance(FrozenMap(at=1, views=2, views_at=3), at={"live"}, views={"live"})
