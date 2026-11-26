@@ -200,7 +200,8 @@ class FieldTest(unittest.TestCase):
     def test_the_parts_of_a_record_field_equalities_of_the_guard_determine_are_computed(self):
         # Setup: the count the state holds, 8, lies outside the record's part.
         to, count = eq(idx("w", lit("to")), "t"), eq(idx("w", lit("count")), "n")
-        guards = {"together": [to, count], "apart by a conjunct over the state": [to, atom("$n > 0"), count]}
+        guards = {"together": [to, count], "apart by a conjunct over the state": [to, atom("$n > 0"), count],
+                  "written as fields": [eq(fld("w", "to"), "t"), eq(fld("w", "count"), "n")]}
         types = {
             "a record": record(to=["p", "q"], count=[0, 1, 2, 3]),
             "a list of records": [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(4)],

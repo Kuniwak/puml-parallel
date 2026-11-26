@@ -99,6 +99,8 @@ def _bind(c, order: dict[str, int], known: set[str], bindable) -> Bind | None:
             f, key = x.name, None
         elif isinstance(x, Index) and isinstance(x.map, Free) and not x.map.primed and isinstance(x.key, Lit):
             f, key = x.map.name, x.key.value
+        elif isinstance(x, Field) and isinstance(x.of, Free) and not x.of.primed:
+            f, key = x.of.name, x.name
         else:
             continue
         reads = _literal_reads(y, primed=False)
