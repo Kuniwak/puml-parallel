@@ -65,10 +65,9 @@ func TestNewMainFunc(t *testing.T) {
 			stdin:      syntaxTreeOf(t, "", "@startuml\nstate \"S\" as s0\n[*] --> s0\n@enduml\n"),
 			wantStdout: `"body":[{"kind":"state"`,
 		},
-		"a tree with no path has its !include refused": {
-			stdin:      syntaxTreeOf(t, "", global),
-			wantExit:   1,
-			wantStderr: "line 3: !include local/MEMBER.puml: the syntax tree has no path to resolve it against",
+		"a tree with no path has its !include resolved against the current directory": {
+			stdin:      syntaxTreeOf(t, "", "@startuml G\n!include testdata/LEAF.puml\n@enduml\n"),
+			wantStdout: `"arg":"testdata/LEAF.puml","tree":{"kind":"csdf-syntax-tree","version":1,"path":"testdata/LEAF.puml"`,
 		},
 		"a missing file is refused": {
 			stdin:      fileTreeOf(t, "testdata/MISSING.puml"),

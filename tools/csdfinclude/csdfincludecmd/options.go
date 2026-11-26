@@ -6,15 +6,17 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/v5/cli"
+	"github.com/Kuniwak/puml-parallel/v5/csdf"
+	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v5/tools"
 )
 
 type Options struct {
 	Common *tools.CommonOptions
-	// Base is the directory the !include paths of the outermost tree are
-	// resolved against, "" for the directory of the tree's path.
-	Base  string
-	Bytes []byte
+	// Base is the directory the relative paths of !include lines are
+	// resolved against.
+	Base string
+	Tree *csdf.SyntaxTree
 }
 
 // CommonOptions returns the parsed common options.
@@ -38,8 +40,8 @@ of !include are refused with the line of the !include.
 A file argument, a "-" argument, and standard input are all equivalent.
 
 Relative paths of !include lines are resolved against the directory of the
-tree's "path", the file csdfparse read. A tree with no path, which
-csdfparse prints for standard input, has its !include refused. Use -base to
+tree's "path", the file csdfparse read, or against the current directory when
+the tree has no path, as csdfparse prints for standard input. Use -base to
 override.
 
 Options:
@@ -55,7 +57,7 @@ Examples:
 
 		var commonRawOpts tools.CommonRawOptions
 		tools.DeclareCommonOptions(flags, &commonRawOpts)
-		base := flags.String("base", "", `directory the paths of !include lines are resolved against (default: the directory of the tree's path; none for a tree with no path)`)
+		base := flags.String("base", "", `directory the paths of !include lines are resolved against (default: the directory of the tree's path, or "." for a tree with no path)`)
 
 		if err := flags.Parse(args); err != nil {
 			if errors.Is(err, flag.ErrHelp) {
@@ -76,6 +78,14 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdfincludecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		return &Options{Common: commonOpts, Base: *base, Bytes: bs}, nil
+		tree, err := coreio.ReadTreeJSON(bs)
+		if err != nil {
+			return nil, fmt.Errorf("csdfincludecmd.NewParseOptionsFunc: %w", err)
+		}
+		baseDir := *base
+		if baseDir == "" {
+			baseDir = csdf.BaseDirOfTree(tree)
+		}
+		return &Options{Common: commonOpts, Base: baseDir, Tree: tree}, nil
 	}
 }

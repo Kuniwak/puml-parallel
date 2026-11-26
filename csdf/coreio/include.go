@@ -101,19 +101,13 @@ func (r *includeResolver) pragma(p *csdf.PragmaSyntax, dir string) (*csdf.Pragma
 }
 
 // ResolveFileIncludes is ResolveIncludes reading files (FileIncluder)
-// against base, or, when base is "", against the directory of tree.Path;
-// a tree with neither has its !include refused.
+// against base, such as csdf.BaseDirOfTree(tree); an empty base is
+// refused.
 func ResolveFileIncludes(tree *csdf.SyntaxTree, base string) (*csdf.SyntaxTree, error) {
-	if base == "" && tree.Path != "" {
-		base = filepath.Dir(tree.Path)
-	}
-	include := FileIncluder(base)
 	if base == "" {
-		include = func(string) (string, string, error) {
-			return "", "", errors.New("the syntax tree has no path to resolve it against, as csdfparse read standard input; give csdfparse the file, or a base directory")
-		}
+		return nil, errors.New("coreio.ResolveFileIncludes: no base directory")
 	}
-	return ResolveIncludes(tree, include)
+	return ResolveIncludes(tree, FileIncluder(base))
 }
 
 // IncludeError is the refusal of the !include of Arg written on Line: its

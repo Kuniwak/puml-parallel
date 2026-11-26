@@ -86,7 +86,7 @@ func resolvedTreeOfSource(t *testing.T, path, source string) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := coreio.ResolveFileIncludes(tree, "")
+	resolved, err := coreio.ResolveFileIncludes(tree, csdf.BaseDirOfTree(tree))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -251,3 +251,21 @@ func TestHoldsDirectivesReadsTheSyntaxTree(t *testing.T) {
 		})
 	}
 }
+
+func TestBaseDirOfTree(t *testing.T) {
+	testCases := map[string]struct {
+		Path     string
+		Expected string
+	}{
+		"a tree parsed from a file":                {Path: "path/to/G.puml", Expected: "path/to"},
+		"a file in the current directory":          {Path: "G.puml", Expected: "."},
+		"no path, e.g. parsed from standard input": {Path: "", Expected: "."},
+	}
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			if got := BaseDirOfTree(&SyntaxTree{Path: testCase.Path}); got != testCase.Expected {
+				t.Errorf("want %q, got %q", testCase.Expected, got)
+			}
+		})
+	}
+}

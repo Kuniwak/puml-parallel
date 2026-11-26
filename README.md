@@ -91,8 +91,8 @@ again: each `!include` keeps the path as written and gains `tree`, the syntax
 tree of the file it names, parsed as `csdfparse` parses it, its own
 `!include` lines resolved in turn, each relative to the file it is written
 in; the `path` of an included tree is the file read. Relative paths are
-resolved against the directory of the tree's `path`; a tree with no path,
-which `csdfparse` prints for standard input, has its `!include` refused.
+resolved against the directory of the tree's `path`, or against the current
+directory for a tree with no path, as `csdfparse` prints for standard input.
 `-base` overrides. A missing file, a file that does not parse and a cycle
 of `!include` are refused with the line of the `!include`.
 

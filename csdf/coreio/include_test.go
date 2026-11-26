@@ -107,11 +107,7 @@ func TestResolveFileIncludes(t *testing.T) {
 		wantPath string
 		wantErr  string
 	}{
-		"against the directory of the tree's path": {
-			treePath: dir + "/G.puml",
-			wantPath: dir + "/local/MEMBER.puml",
-		},
-		"against base, over the tree's path": {
+		"against base, whatever the tree's path": {
 			treePath: "elsewhere/G.puml",
 			base:     dir,
 			wantPath: dir + "/local/MEMBER.puml",
@@ -120,8 +116,9 @@ func TestResolveFileIncludes(t *testing.T) {
 			base:     dir,
 			wantPath: dir + "/local/MEMBER.puml",
 		},
-		"refused for a tree with no path and no base": {
-			wantErr: "line 2: !include local/MEMBER.puml: the syntax tree has no path to resolve it against",
+		"refused with no base": {
+			treePath: dir + "/G.puml",
+			wantErr:  "coreio.ResolveFileIncludes: no base directory",
 		},
 	}
 	for name, c := range cases {
