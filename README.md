@@ -1083,11 +1083,13 @@ environment functions (`@in(j, candidates(m1, m2))`), takes for the fields or pa
 its equalities bind only the values the entries of `m` give, when those
 are next to each other in the event, wherever the `∃` is in the guard;
 the same condition as an atom is opaque and tries every value. Nothing is evaluated when a later
-field has no value. An equality that binds computes its term where evaluating
-the guard in order reaches it, so only for values the conjuncts before it
-hold of: `@at(m[k], s) ∧ @eq(v, m[k].y)` reads no `y` of an instance not
-at `s`. A term that reads an entry its map does not have makes its
-equality false; another error of it is an error there. A bound value is
+field has no value. No order of evaluation is guaranteed: an equality
+that binds may compute its term for values a conjunct written before it
+is false of, so the term, like every clause, must be pure and raise
+nothing; `@at(m[k], s) ∧ @eq(v, m[k].y)` may read `y` of an instance not
+at `s`, which a function of the term must then take without raising. A
+term that reads an entry its map does not have makes its equality false;
+another error of it stops the check with the error. A bound value is
 taken whatever its field's type holds, where the full product over the
 type would have none.
 
