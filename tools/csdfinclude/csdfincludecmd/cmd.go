@@ -19,7 +19,15 @@ func NewMainFunc() cli.MainFunc[*Options] {
 			return nil
 		}
 
-		resolved, err := coreio.ResolveFileIncludes(opts.Tree, opts.Base)
+		tree, err := coreio.ReadTreeJSON(opts.Bytes)
+		if err != nil {
+			return fmt.Errorf("csdfincludecmd.NewMainFunc: %w", err)
+		}
+		base := opts.Base
+		if base == "" {
+			base = csdf.BaseDirOfTree(tree)
+		}
+		resolved, err := coreio.ResolveFileIncludes(tree, base)
 		if err != nil {
 			return fmt.Errorf("csdfincludecmd.NewMainFunc: %w", err)
 		}

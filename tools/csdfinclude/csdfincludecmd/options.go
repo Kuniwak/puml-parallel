@@ -6,17 +6,15 @@ import (
 	"fmt"
 
 	"github.com/Kuniwak/puml-parallel/v5/cli"
-	"github.com/Kuniwak/puml-parallel/v5/csdf"
-	"github.com/Kuniwak/puml-parallel/v5/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v5/tools"
 )
 
 type Options struct {
 	Common *tools.CommonOptions
 	// Base is the directory the relative paths of !include lines are
-	// resolved against.
-	Base string
-	Tree *csdf.SyntaxTree
+	// resolved against, "" for the default, csdf.BaseDirOfTree.
+	Base  string
+	Bytes []byte
 }
 
 // CommonOptions returns the parsed common options.
@@ -78,14 +76,6 @@ Examples:
 		if err != nil {
 			return nil, fmt.Errorf("csdfincludecmd.NewParseOptionsFunc: validate arguments failed: %w", err)
 		}
-		tree, err := coreio.ReadTreeJSON(bs)
-		if err != nil {
-			return nil, fmt.Errorf("csdfincludecmd.NewParseOptionsFunc: %w", err)
-		}
-		baseDir := *base
-		if baseDir == "" {
-			baseDir = csdf.BaseDirOfTree(tree)
-		}
-		return &Options{Common: commonOpts, Base: baseDir, Tree: tree}, nil
+		return &Options{Common: commonOpts, Base: *base, Bytes: bs}, nil
 	}
 }
