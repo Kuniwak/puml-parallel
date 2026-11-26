@@ -2,10 +2,13 @@ package csdfbmc_test
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 )
 
 // python finds the interpreter. The commands run with -E -s so that neither
@@ -21,10 +24,33 @@ func python(t *testing.T) string {
 	return path
 }
 
-// pythonCommand runs the interpreter with -E -s -B and args.
+// pythonCommand runs the interpreter with -E -s -B and args. A run still
+// going a minute before the test binary's deadline is sent SIGABRT, on which
+// the interpreter writes every thread's traceback to its standard error: a
+// hang names where it waits instead of being killed silently.
 func pythonCommand(t *testing.T, args ...string) *exec.Cmd {
 	t.Helper()
-	return exec.Command(python(t), append([]string{"-E", "-s", "-B"}, args...)...)
+	deadline, ok := t.Deadline()
+	if !ok {
+		return pythonCommandAbortedAt(t, time.Time{}, args...)
+	}
+	return pythonCommandAbortedAt(t, deadline.Add(-time.Minute), args...)
+}
+
+// pythonCommandAbortedAt is pythonCommand, sending SIGABRT at abort unless it
+// is zero.
+func pythonCommandAbortedAt(t *testing.T, abort time.Time, args ...string) *exec.Cmd {
+	t.Helper()
+	ctx := context.Background()
+	if !abort.IsZero() {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, abort)
+		t.Cleanup(cancel)
+	}
+	cmd := exec.CommandContext(ctx, python(t), append([]string{"-E", "-s", "-B", "-X", "faulthandler"}, args...)...)
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGABRT) }
+	cmd.WaitDelay = 10 * time.Second
+	return cmd
 }
 
 // runGlue runs the reference glue as a command, writes each request to it as
@@ -44,7 +70,11 @@ func runGlue(t *testing.T, requests ...map[string]any) []map[string]any {
 	cmd.Stdin = strings.NewReader(in.String())
 	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("the glue failed: %v", err)
+		var stderr []byte
+		if exit, ok := err.(*exec.ExitError); ok {
+			stderr = exit.Stderr
+		}
+		t.Fatalf("the glue failed: %v\n%s", err, stderr)
 	}
 	var answers []map[string]any
 	sc := bufio.NewScanner(strings.NewReader(string(out)))
@@ -135,5 +165,18 @@ func TestThePromotedExampleStopsOnlyWhenEveryIDIsDone(t *testing.T) {
 	}
 	if strings.Contains(text, "cycle") {
 		t.Errorf("want no cycle, got:\n%s", text)
+	}
+}
+
+// A run past its abort time is stopped with every thread's traceback on its
+// standard error, naming where it waited.
+func TestAPythonRunPastItsAbortTimeWritesWhereItWaits(t *testing.T) {
+	cmd := pythonCommandAbortedAt(t, time.Now().Add(2*time.Second), "-c", "import time\ndef waiting_here():\n    time.sleep(60)\nwaiting_here()")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("want the run aborted, got it ended\n%s", out)
+	}
+	if !strings.Contains(string(out), "waiting_here") {
+		t.Errorf("want the traceback to name waiting_here, got:\n%s", out)
 	}
 }
