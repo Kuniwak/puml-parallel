@@ -88,7 +88,9 @@ $ csdfparse examples/valid/skip.puml
 
 The diagram `csdfbmc` reads is another JSON, `"version": 3`
 of the shape `core.DiagramDoc` (`csdf/core/json.go`), which
-`csdfpromote -format json` writes: the `states` in order,
+`csdfpromote -format json` writes of a diagram, plain or global, read from
+its PlantUML or from the syntax tree `csdfparse` prints
+(`csdfparse x.puml | csdfpromote -format json`): the `states` in order,
 their `labels` (only those labelled apart from their ID) and `vars`, each a
 `name` and its declared `type` (docs/SYNTAX.md); the `channels` the channel
 notes declare, each with the types of its fields in order; the
@@ -165,6 +167,13 @@ edge. `-format json` writes the expansion as JSON instead, `core.DiagramDoc`,
 its clauses as formulas, with the family of each map (its
 local states and the variables each holds, `families`): the shape `csdfbmc`
 reads.
+
+A diagram with no directive is printed as it is, its end edges included.
+`csdfpromote` reads the syntax tree `csdfparse` prints as well as PlantUML,
+telling them by content: an input that opens with `{`, after a UTF-8 byte
+order mark and whitespace if any, is the tree, any other PlantUML;
+a tree's `!include` is not resolved but refused, pointing at `csdfinclude`,
+while from PlantUML `csdfpromote` reads the files an `!include` names itself.
 
 The PUML expansion is read by `csdflivelockfree`, `csdfrefinement`,
 `csdftracechk` and `csdftranstable`.
@@ -974,7 +983,7 @@ functions of the environment and what to check besides from a *checks
 module*.
 
 ```console
-$ csdfparse examples/bmc/printer_formal.puml > printer_formal.json
+$ csdfparse examples/bmc/printer_formal.puml | csdfpromote -format json > printer_formal.json
 $ csdfbmc printer_formal.json examples/bmc/printer_formal_defs.py \
     --evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"
 states: 22
@@ -1270,7 +1279,7 @@ its trace; the comments in `printer_retry_formal_checks.py` say what to change t
 make every check pass.
 
 ```console
-$ csdfparse examples/bmc/printer_retry_formal.puml > printer_retry_formal.json
+$ csdfparse examples/bmc/printer_retry_formal.puml | csdfpromote -format json > printer_retry_formal.json
 $ csdfbmc printer_retry_formal.json examples/bmc/printer_retry_formal_checks.py \
     --evaluator-module "csdfbmc.python_glue examples/bmc/printer_retry_formal_checks.py" \
     --avoid 完了 --within printing
@@ -1667,7 +1676,7 @@ state it is at, picked, and the fields it holds there. The "{}" beside a
 value opens it as JSON text, read and written both ways.
 
 ```console
-$ csdfparse examples/bmc/printer_formal.puml > printer.json
+$ csdfparse examples/bmc/printer_formal.puml | csdfpromote -format json > printer.json
 $ csdfbmc shapes printer.json > shapes.json
 $ csdfreplweb -shapes shapes.json examples/bmc/printer_formal.puml > printer.html
 ```

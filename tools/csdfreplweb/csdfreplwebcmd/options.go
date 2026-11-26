@@ -120,7 +120,7 @@ Examples:
   $ csdfreplweb -checks examples/bmc/printer_formal_defs.py \
       -evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py" \
       examples/bmc/printer_formal.puml > printer.html
-  $ csdfparse diagram.puml > diagram.json && csdfbmc shapes diagram.json > shapes.json
+  $ csdfparse diagram.puml | csdfpromote -format json > diagram.json && csdfbmc shapes diagram.json > shapes.json
   $ csdfreplweb -shapes shapes.json diagram.puml > diagram.html
   $ csdfreplweb -prose diagram_en.puml -prose diagram_ja.puml diagram_formal.puml > diagram.html
 `)

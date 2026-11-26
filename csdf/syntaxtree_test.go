@@ -77,6 +77,83 @@ func TestParseReadsTheElementsWhereTheyAreWritten(t *testing.T) {
 	}
 }
 
+// The JSON of the syntax tree of every example reads back into a tree whose
+// JSON is the same.
+func TestUnmarshalSyntaxTreeReadsBackEveryExample(t *testing.T) {
+	err := filepath.WalkDir("../examples", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && d.Name() == "invalid" {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || filepath.Ext(path) != ".puml" {
+			return nil
+		}
+		t.Run(path, func(t *testing.T) {
+			// Arrange
+			src, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tree, err := Parse(path, string(src))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want, err := MarshalSyntaxTree(tree)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Act
+			back, err := UnmarshalSyntaxTree(want)
+
+			// Assert
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := MarshalSyntaxTree(back)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if diff := cmp.Diff(string(want), string(got)); diff != "" {
+				t.Error(diff)
+			}
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUnmarshalSyntaxTreeNamesTheElementItRefuses(t *testing.T) {
+	cases := map[string]struct{ body, want string }{
+		"a malformed clause in an edge": {
+			body: `{"kind":"edge","line":7,"col":1,"src":"a","dst":"b","event":{"line":7,"col":7,"text":"E","channel":"E","fields":[]},"guard":{"line":7,"col":11,"text":"@ne(x)"},"post":null}`,
+			want: `the edge at line 7: the clause "@ne(x)": `,
+		},
+		"an element of unknown kind": {
+			body: `{"kind":"bogus","line":3,"col":1}`,
+			want: "the bogus at line 3: an element of unknown kind",
+		},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Arrange
+			raw := `{"kind":"csdf-syntax-tree","version":1,"name":"","line":1,"col":1,"body":[` + c.body + `]}`
+
+			// Act
+			_, err := UnmarshalSyntaxTree([]byte(raw))
+
+			// Assert
+			if err == nil || !strings.Contains(err.Error(), c.want) {
+				t.Errorf("got %v, want an error containing %q", err, c.want)
+			}
+		})
+	}
+}
+
 func TestPlainRefusesAGlobalDiagramWithTheHint(t *testing.T) {
 	// Arrange
 	tree, err := Parse("", "@startuml\n!include x.puml\n@enduml\n")

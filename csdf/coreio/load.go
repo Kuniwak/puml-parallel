@@ -1,8 +1,10 @@
 package coreio
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v4/csdf"
 	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
@@ -118,20 +120,6 @@ func ReadBytes(raw []byte) (*core.Diagram, error) {
 	return d, nil
 }
 
-// ReadPromotionBytes reads the global diagram in raw, a .puml text or a
-// .png, as ReadPromotion does.
-func ReadPromotionBytes(raw []byte, include Include) (core.Promotion, error) {
-	src, err := pngsrc.Extract(raw)
-	if err != nil {
-		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: reading PlantUML source: %w", err)
-	}
-	prom, err := ReadPromotion(src, include)
-	if err != nil {
-		return core.Promotion{}, fmt.Errorf("coreio.ReadPromotionBytes: %w", err)
-	}
-	return prom, nil
-}
-
 // ReadExpandedBytes reads the diagram in raw, a .puml text or a .png, as
 // ReadBytes does, unless it holds promotion directives
 // (csdf.HoldsDirectives): then it is the expansion csdfpromote
@@ -147,20 +135,36 @@ func ReadExpandedBytes(raw []byte, include Include) (*core.Diagram, []core.Warni
 	if err != nil {
 		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
 	}
+	d, warnings, err := ExpandTree(tree, include, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+	}
+	return d, warnings, nil
+}
+
+// ExpandTree is the diagram tree says, as the tools evaluate it: Lower's
+// when it holds no promotion directive (csdf.HoldsDirectives), with no
+// warnings, keep then naming no map; otherwise the expansion of the global diagram it is
+// (ReadPromotionTree, each !include read by include, then Expand with
+// keep), with the warnings of the promotion.
+func ExpandTree(tree *csdf.SyntaxTree, include Include, keep []string) (*core.Diagram, []core.Warning, error) {
 	if !csdf.HoldsDirectives(tree.Body) {
+		if len(keep) > 0 {
+			return nil, nil, fmt.Errorf("coreio.ExpandTree: %s is no promoted map: the diagram holds no promotion directive", strings.Join(keep, ", "))
+		}
 		d, err := Lower(tree)
 		if err != nil {
-			return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+			return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 		}
 		return d, nil, nil
 	}
-	prom, err := ReadPromotion(src, include)
+	prom, err := ReadPromotionTree(tree, include)
 	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 	}
-	expanded, warnings, err := Expand(prom, nil)
+	expanded, warnings, err := Expand(prom, keep)
 	if err != nil {
-		return nil, nil, fmt.Errorf("coreio.ReadExpandedBytes: %w", err)
+		return nil, nil, fmt.Errorf("coreio.ExpandTree: %w", err)
 	}
 	return expanded, warnings, nil
 }
@@ -181,4 +185,44 @@ func Expand(prom core.Promotion, keep []string) (*core.Diagram, []core.Warning, 
 		return nil, nil, fmt.Errorf("coreio.Expand: %w", err)
 	}
 	return canonical, warnings, nil
+}
+
+// ReadTreeBytes reads the syntax tree of the diagram in raw, and what its
+// !include lines are to be read by: the JSON csdfparse prints
+// (isSyntaxTreeJSON), whose !include UnresolvedInclude refuses, or a .puml
+// text or a .png, parsed, whose !include files reads.
+func ReadTreeBytes(raw []byte, files Include) (*csdf.SyntaxTree, Include, error) {
+	raw = bytes.TrimPrefix(raw, utf8BOM)
+	if isSyntaxTreeJSON(raw) {
+		tree, err := csdf.UnmarshalSyntaxTree(raw)
+		if err != nil {
+			return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
+		}
+		return tree, UnresolvedInclude, nil
+	}
+	src, err := pngsrc.Extract(raw)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: reading PlantUML source: %w", err)
+	}
+	tree, err := csdf.Parse("", src)
+	if err != nil {
+		return nil, nil, fmt.Errorf("coreio.ReadTreeBytes: %w", err)
+	}
+	return tree, files, nil
+}
+
+// isSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: after
+// a UTF-8 byte order mark and whitespace, if any, it opens with "{", which
+// no PlantUML source or PNG does.
+func isSyntaxTreeJSON(raw []byte) bool {
+	return bytes.HasPrefix(bytes.TrimSpace(bytes.TrimPrefix(raw, utf8BOM)), []byte("{"))
+}
+
+// utf8BOM is the byte order mark an editor may write before UTF-8 text.
+var utf8BOM = []byte("\xef\xbb\xbf")
+
+// UnresolvedInclude refuses every !include: that of a syntax tree, which
+// csdfinclude resolves.
+func UnresolvedInclude(path string) (string, error) {
+	return "", fmt.Errorf("!include %s is unresolved in the syntax tree; resolve it by csdfinclude (csdfparse x.puml | csdfinclude | csdfpromote), or give csdfpromote the .puml", path)
 }

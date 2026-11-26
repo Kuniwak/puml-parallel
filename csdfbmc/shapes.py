@@ -40,8 +40,8 @@ def declared(values) -> dict:
 
 
 def shapes(doc: dict, given: dict | None = None) -> dict:
-    """What the clauses of doc, a diagram as csdfparse or csdfpromote
-    -format json prints it, reveal: {"types": {type: node}, "vars": {variable:
+    """What the clauses of doc, a diagram as csdfpromote -format json
+    prints it, reveal: {"types": {type: node}, "vars": {variable:
     type}}. A node is {"kind": "record", "fields": {attribute: node}},
     {"kind": "collection", "items": node} or {"kind": "scalar"}, the last
     with "examples", the constants it is compared with, and "numeric": true
@@ -212,7 +212,7 @@ def _node(n):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="csdfbmc shapes", description=__doc__.split("\n\n")[1])
-    ap.add_argument("diagram", help="the diagram as JSON (csdfparse's output, or csdfpromote -format json's), its clauses in Python")
+    ap.add_argument("diagram", help="the diagram as JSON (csdfpromote -format json's output), its clauses in Python")
     ap.add_argument("checks", nargs="?", help="the checks module, whose TYPES give the shapes of the types it lists in place of what the clauses reveal")
     a = ap.parse_args(argv)
     try:

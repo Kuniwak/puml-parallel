@@ -1,4 +1,4 @@
-"""The diagram as csdfparse prints it: states, edges with their events, and
+"""The diagram as csdfpromote -format json prints it: states, edges with their events, and
 clauses as formulas."""
 import json
 import re
@@ -169,9 +169,9 @@ class DiagramTest(unittest.TestCase):
 
 
 class FixtureTest(unittest.TestCase):
-    """The diagrams the tests write by hand are those csdfparse prints."""
+    """The diagrams the tests write by hand are those csdfpromote -format json prints."""
 
-    def test_an_atom_is_written_as_csdfparse_writes_it(self):
+    def test_an_atom_is_written_as_csdfpromote_writes_it(self):
         # Setup
         atoms = []
         for name in ("printer_formal.json", "printer_retry_formal.json"):

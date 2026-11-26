@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v4/cli"
+	"github.com/Kuniwak/puml-parallel/v4/csdf"
 	"github.com/Kuniwak/puml-parallel/v4/tools"
 	"github.com/Kuniwak/puml-parallel/v4/version"
 	"github.com/google/go-cmp/cmp"
@@ -65,12 +66,31 @@ func TestNewMainFuncExpandsTheRecordedExamples(t *testing.T) {
 	}
 }
 
+// syntaxTreeOf is the JSON csdfparse prints for the diagram at path.
+func syntaxTreeOf(t *testing.T, path string) string {
+	t.Helper()
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := csdf.Parse(path, string(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs, err := csdf.MarshalSyntaxTree(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(bs)
+}
+
 // The command's other runs differ only in what they print, so they are one
 // table: the arguments, the exit status, and what standard output has to say.
 func TestNewMainFunc(t *testing.T) {
 	cases := map[string]struct {
 		args            []string
 		stdin           string
+		stdinTreeOf     string // the path whose syntax tree is the standard input
 		wantExit        int
 		wantStdoutEmpty bool
 		wantStdout      []string
@@ -97,6 +117,14 @@ func TestNewMainFunc(t *testing.T) {
 			args:         []string{"-format", "json", membersPath},
 			wantStdout:   []string{`"version":3`, `"kind":"builtin","op":"notin"`},
 			wantNoStdout: []string{"@startuml", `"origin"`},
+		},
+		"-format json prints a diagram with no directive as it is, its end edge included": {
+			args:       []string{"-format", "json", "../../../examples/valid/skip.puml"},
+			wantStdout: []string{`"version":3`, `"ends":[{"src":"s0","guard":[]}]`},
+		},
+		"a diagram with no directive is printed as it is": {
+			args:       []string{"../../../examples/valid/skip.puml"},
+			wantStdout: []string{"s0 --> [*]"},
 		},
 		"an unknown -format is refused": {
 			args:            []string{"-format", "tsv", membersPath},
@@ -138,6 +166,12 @@ func TestNewMainFunc(t *testing.T) {
 			wantStdoutEmpty: true,
 			wantStderr:      "shipments is no promoted map",
 		},
+		"-only is refused for a diagram with no directive": {
+			args:            []string{"-only", "receipts", "../../../examples/valid/skip.puml"},
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "receipts is no promoted map",
+		},
 		"-v prints the version": {
 			args:       []string{"-v"},
 			wantStdout: []string{version.Version + "\n"},
@@ -161,6 +195,26 @@ end note
 			wantStdoutEmpty: true,
 			wantStderr:      "reviews",
 		},
+		"the syntax tree csdfparse prints is read": {
+			args:        []string{"-format", "json"},
+			stdinTreeOf: "../../../examples/valid/skip.puml",
+			wantStdout:  []string{`"ends":[{"src":"s0","guard":[]}]`},
+		},
+		// The file the !include names is there, but a tree is read as
+		// csdfparse printed it.
+		"the !include of a syntax tree is refused": {
+			args:            []string{"-base", "../../../examples/promote", "-format", "json"},
+			stdinTreeOf:     membersPath,
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "csdfinclude",
+		},
+		"an unterminated CSDF-IGNORE region is refused": {
+			stdin:           "@startuml\nstate \"S\" as s0\n[*] --> s0\n' CSDF-IGNORE-BEGIN\nskinparam x y\n@enduml\n",
+			wantExit:        1,
+			wantStdoutEmpty: true,
+			wantStderr:      "Error: csdf.Parser.skipIgnoreRegion: unterminated CSDF-IGNORE region at line 4, col 1",
+		},
 		"a warning is printed at its level": {
 			args:       []string{"../../../examples/promote/MODES.puml"},
 			wantStderr: "info: reviews: frozen in degraded",
@@ -171,7 +225,11 @@ end note
 		t.Run(name, func(t *testing.T) {
 			cmdFunc := tools.NewCommandFunc(NewParseOptionsFunc(), NewMainFunc())
 			spy := cli.SpyProcInout()
-			spy.Stdin = strings.NewReader(c.stdin)
+			stdin := c.stdin
+			if c.stdinTreeOf != "" {
+				stdin = syntaxTreeOf(t, c.stdinTreeOf)
+			}
+			spy.Stdin = strings.NewReader(stdin)
 
 			exitStatus := cmdFunc(c.args, spy.New())
 

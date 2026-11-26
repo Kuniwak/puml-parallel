@@ -22,9 +22,8 @@ func (o *Options) CommonOptions() *tools.CommonOptions { return o.Common }
 
 const usage = `Usage: csdfbmc [launcher options] <diagram.json> <checks.py> (--evaluator CMD | --evaluator-module MODULE) [checker options]
 
-Runs csdfbmc, the bounded model checker, on a diagram as csdfparse prints it
-(or an expansion as csdfpromote -format json prints it), its clauses as
-formulas: the checker evaluates the builtins and ∃, the atoms the checks
+Runs csdfbmc, the bounded model checker, on a diagram as csdfpromote -format
+json prints it, plain or expanded, its clauses as formulas: the checker evaluates the builtins and ∃, the atoms the checks
 module declares are functions of the environment, and every other atom is
 read through a glue of the evaluator protocol. The checker is Python
 (standard library only, 3.11 or later); this binary carries its sources and
@@ -110,7 +109,7 @@ inputs could not be read. The sources are unpacked once per version under
 $CSDFBMC_CACHE, or the user cache directory.
 
 Examples:
-  $ csdfparse examples/bmc/printer_formal.puml > printer.json
+  $ csdfparse examples/bmc/printer_formal.puml | csdfpromote -format json > printer.json
   $ csdfbmc printer.json examples/bmc/printer_formal_defs.py \
       --evaluator-module "csdfbmc.python_glue examples/bmc/printer_formal_defs.py"
   $ csdfbmc printer_retry.json checks.py --evaluator-module "csdfbmc.python_glue checks.py" --avoid 完了 --within printing --json

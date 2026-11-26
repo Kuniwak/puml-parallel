@@ -1,14 +1,12 @@
 package csdfbmc_test
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"testing"
 
 	"github.com/Kuniwak/puml-parallel/v4/cli"
 	"github.com/Kuniwak/puml-parallel/v4/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v4/csdf/coreio"
 	"github.com/Kuniwak/puml-parallel/v4/tools"
 	"github.com/Kuniwak/puml-parallel/v4/tools/csdfpromote/csdfpromotecmd"
 	"github.com/google/go-cmp/cmp"
@@ -17,18 +15,12 @@ import (
 // The JSON of each worked example is what the tools print of its diagram
 // today, so the examples csdfbmc walks are the diagrams beside them.
 func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
-	tests := map[string]struct {
-		json string
-		run  func(args []string, inout *cli.ProcInout) int
-		args []string
-	}{
-		"printer": {json: "../examples/bmc/printer_formal.json", run: lowered,
-			args: []string{"../examples/bmc/printer_formal.puml"}},
-		"printer_retry": {json: "../examples/bmc/printer_retry_formal.json", run: lowered,
-			args: []string{"../examples/bmc/printer_retry_formal.puml"}},
-		"attempts": {json: "../examples/bmc/attempts/attempts.json", run: tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc()),
-			args: []string{"-format", "json", "../examples/bmc/attempts/ATTEMPTS.puml"}},
+	tests := map[string]struct{ json, puml string }{
+		"printer":       {json: "../examples/bmc/printer_formal.json", puml: "../examples/bmc/printer_formal.puml"},
+		"printer_retry": {json: "../examples/bmc/printer_retry_formal.json", puml: "../examples/bmc/printer_retry_formal.puml"},
+		"attempts":      {json: "../examples/bmc/attempts/attempts.json", puml: "../examples/bmc/attempts/ATTEMPTS.puml"},
 	}
+	run := tools.NewCommandFunc(csdfpromotecmd.NewParseOptionsFunc(), csdfpromotecmd.NewMainFunc())
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			// Setup
@@ -40,7 +32,7 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 			spy.Stdin = strings.NewReader("")
 
 			// Execute
-			exit := tt.run(tt.args, spy.New())
+			exit := run([]string{"-format", "json", tt.puml}, spy.New())
 
 			// Assert
 			if exit != 0 {
@@ -61,21 +53,4 @@ func TestTheExamplesJSONIsWhatTheToolsPrint(t *testing.T) {
 			}
 		})
 	}
-}
-
-// lowered prints the plain diagram at args[0] as core.DiagramDoc, lowered
-// by the Go reader (coreio.Load): what csdfbmc reads of it.
-func lowered(args []string, inout *cli.ProcInout) int {
-	d, err := coreio.Load(args[0])
-	if err != nil {
-		fmt.Fprintln(inout.Stderr, err)
-		return 1
-	}
-	raw, err := core.MarshalDiagram(d)
-	if err != nil {
-		fmt.Fprintln(inout.Stderr, err)
-		return 1
-	}
-	fmt.Fprintln(inout.Stdout, string(raw))
-	return 0
 }
