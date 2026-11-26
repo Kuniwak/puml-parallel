@@ -48,3 +48,36 @@ func TestReadTreeBytesTellsJSONByItsOpeningBrace(t *testing.T) {
 		})
 	}
 }
+
+func TestReadTreeJSON(t *testing.T) {
+	// Setup
+	tree, err := csdf.Parse("", "@startuml\nstate \"S\" as s0\n@enduml\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bs, err := csdf.MarshalSyntaxTree(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := map[string]struct {
+		raw     string
+		wantErr string
+	}{
+		"JSON after a UTF-8 BOM and whitespace": {raw: "\xef\xbb\xbf \n" + string(bs)},
+		"PlantUML, naming csdfparse":            {raw: "\xef\xbb\xbf@startuml\n@enduml\n", wantErr: "not PlantUML; run csdfparse on the diagram first"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Execute
+			_, err := ReadTreeJSON([]byte(c.raw))
+
+			// Assert
+			if c.wantErr == "" && err != nil {
+				t.Fatal(err)
+			}
+			if c.wantErr != "" && (err == nil || !strings.Contains(err.Error(), c.wantErr)) {
+				t.Errorf("got %v, want an error containing %q", err, c.wantErr)
+			}
+		})
+	}
+}

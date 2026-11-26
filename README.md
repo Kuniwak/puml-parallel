@@ -86,6 +86,21 @@ $ csdfparse examples/valid/skip.puml
 {"kind":"csdf-syntax-tree","version":1,"path":"examples/valid/skip.puml","name":"","line":1,"col":1,"body":[{"kind":"state","line":3,"col":1,"id":"s0","label":"SKIP"},{"kind":"start_edge","line":5,"col":1,"dst":"s0","post":null},{"kind":"end_edge","line":6,"col":1,"src":"s0","guard":null}]}
 ```
 
+`csdfinclude` resolves the `!include` lines of that tree and prints the tree
+again: each `!include` keeps the path as written and gains `tree`, the syntax
+tree of the file it names, parsed as `csdfparse` parses it, its own
+`!include` lines resolved in turn, each relative to the file it is written
+in; the `path` of an included tree is the file read. Relative paths are
+resolved against the directory of the tree's `path`; a tree with no path,
+which `csdfparse` prints for standard input, has its `!include` refused.
+`-base` overrides. A missing file, a file that does not parse and a cycle
+of `!include` are refused with the line of the `!include`.
+
+```console
+$ csdfparse examples/promote/RECEIPTS.puml | csdfinclude
+$ csdfparse < examples/promote/RECEIPTS.puml | csdfinclude -base examples/promote
+```
+
 The diagram `csdfbmc` reads is another JSON, `"version": 3`
 of the shape `core.DiagramDoc` (`csdf/core/json.go`), which
 `csdfpromote -format json` writes of a diagram, plain or global, read from

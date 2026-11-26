@@ -2,6 +2,7 @@ package coreio
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -221,11 +222,26 @@ func ReadTreeBytes(raw []byte, base string, files Include) (*csdf.SyntaxTree, er
 	return tree, nil
 }
 
-// isSyntaxTreeJSON reports whether raw is JSON rather than PlantUML: after
-// a UTF-8 byte order mark and whitespace, if any, it opens with "{", which
-// no PlantUML source or PNG does.
+// ReadTreeJSON reads the syntax tree csdfparse prints (JSON), after a
+// UTF-8 byte order mark if any; other input, such as PlantUML, is refused,
+// naming csdfparse.
+func ReadTreeJSON(raw []byte) (*csdf.SyntaxTree, error) {
+	raw = bytes.TrimPrefix(raw, utf8BOM)
+	if !isSyntaxTreeJSON(raw) {
+		return nil, errors.New("coreio.ReadTreeJSON: want the syntax tree csdfparse prints (JSON), not PlantUML; run csdfparse on the diagram first")
+	}
+	tree, err := csdf.UnmarshalSyntaxTree(raw)
+	if err != nil {
+		return nil, fmt.Errorf("coreio.ReadTreeJSON: %w", err)
+	}
+	return tree, nil
+}
+
+// isSyntaxTreeJSON reports whether raw, its byte order mark stripped, is
+// JSON rather than PlantUML: after whitespace, if any, it opens with "{",
+// which no PlantUML source or PNG does.
 func isSyntaxTreeJSON(raw []byte) bool {
-	return bytes.HasPrefix(bytes.TrimSpace(bytes.TrimPrefix(raw, utf8BOM)), []byte("{"))
+	return bytes.HasPrefix(bytes.TrimSpace(raw), []byte("{"))
 }
 
 // utf8BOM is the byte order mark an editor may write before UTF-8 text.

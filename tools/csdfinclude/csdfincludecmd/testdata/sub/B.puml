@@ -1,0 +1,3 @@
+@startuml B
+!include ../A.puml
+@enduml
