@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Kuniwak/puml-parallel/v6/cli"
@@ -138,19 +140,14 @@ func readDiagram(file string) (string, map[string]string, *core.Diagram, error) 
 }
 
 // proseOf is the clauses of the files -prose names, other versions of d,
-// by the language each file name says; nil when none is.
+// by the language -prose gives each in; nil when none is.
 func proseOf(opts *Options, d *core.Diagram) (map[string]*replweb.Prose, error) {
 	if len(opts.Prose) == 0 {
 		return nil, nil
 	}
 	out := map[string]*replweb.Prose{}
-	files := map[string]string{}
-	for _, file := range opts.Prose {
-		lang := replweb.LanguageOf(file)
-		if seen, ok := files[lang]; ok {
-			return nil, proseError{file: file, err: fmt.Errorf("%s is already the prose of this language; name the language each is written in by a suffix such as _ja.puml", seen)}
-		}
-		files[lang] = file
+	for _, lang := range slices.Sorted(maps.Keys(opts.Prose)) {
+		file := opts.Prose[lang]
 		_, _, prose, err := readDiagram(file)
 		if err != nil {
 			return nil, err

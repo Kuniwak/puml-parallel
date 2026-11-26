@@ -26,10 +26,11 @@ shapes() {
 
 # checked PAGE DIAGRAM CHECKS [PROSE] writes PAGE.html of the promoted
 # DIAGRAM, whose clauses are in Python, suggesting values with the checks
-# CHECKS, and showing PROSE's clauses for people over the formal ones.
+# CHECKS, and showing PROSE's clauses for people, written in Japanese, over
+# the formal ones.
 checked() {
   shapes "$3" "$2"
-  "$bin/csdfreplweb" ${4:+-prose "$4"} -shapes "$bin/shapes.json" -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
+  "$bin/csdfreplweb" ${4:+-prose "ja=$4"} -shapes "$bin/shapes.json" -checks "$3" -evaluator-module "csdfbmc.python_glue $3" "$2" > "$site/$1.html"
 }
 
 checked ATTEMPTS examples/bmc/attempts/ATTEMPTS.puml examples/bmc/attempts/checks.py examples/promote/ATTEMPTS.puml
@@ -45,7 +46,7 @@ checked OPENCLOSE examples/promote/OPENCLOSE.puml examples/bmc/openclose_checks.
 twin() {
   "$bin/csdfdecorate" -lang "$2" "$3" | plantuml -pipe -tsvg > "$bin/drawing.svg"
   shapes "$5" "$4"
-  "$bin/csdfreplweb" -puml-exec "cat $bin/drawing.svg" -prose "$3" \
+  "$bin/csdfreplweb" -puml-exec "cat $bin/drawing.svg" -prose "$2=$3" \
     -shapes "$bin/shapes.json" -checks "$5" -evaluator-module "csdfbmc.python_glue $5" \
     "$4" > "$site/$1.html"
 }
