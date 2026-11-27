@@ -394,6 +394,15 @@ class Family:
         views = tuple((s, (s,)) for s in self.states if s != self.init)
         return views + tuple((v, None) for v in self.types)
 
+    def observed_at(self, state: str) -> frozenset:
+        """The fields a clause may read of an instance at state: the
+        variables of state the observation declares, every one when the
+        local diagram declares nothing."""
+        if self.observes is None:
+            return frozenset(self.vars[state])
+        declared = {name for name, states in self.observes if states is None}
+        return frozenset(v for v in self.vars[state] if v in declared)
+
 
 @dataclass(frozen=True)
 class Seen:
@@ -418,9 +427,8 @@ def observed_by_state(families) -> FrozenMap:
     for fam in families.values():
         observation = fam.observation()
         views = frozenset(name for name, states in observation if states is not None)
-        declared = None if fam.observes is None else {name for name, states in observation if states is None}
         for s in fam.states:
-            fields = None if declared is None else frozenset(v for v in fam.vars[s] if v in declared)
+            fields = None if fam.observes is None else fam.observed_at(s)
             at = frozenset(name for name, states in observation if states is not None and s in states)
             out[s] = Seen(fields, at, views)
     return FrozenMap(out)
