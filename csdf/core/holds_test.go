@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -28,7 +29,7 @@ func TestHoldsReadsPartialMaps(t *testing.T) {
 			f := mustParse(t, c.clause)
 
 			// Execute
-			got, err := Holds(f, Env{Atoms: map[string]func([]Value) bool{"#0 = 1": func(a []Value) bool { return a[0] == 1 }}}, c.before, c.after)
+			got, err := Holds(f, Env{Atoms: map[string]func([]Value) bool{"#0 = 1": func(a []Value) bool { return a[0] == 1 }}}, nil, c.before, c.after)
 
 			// Assert
 			if err != nil {
@@ -65,7 +66,7 @@ func TestHoldsComparesLiteralsAsValuesOfTheirKind(t *testing.T) {
 			f := mustParse(t, c.clause)
 
 			// Execute
-			got, err := Holds(f, Env{}, map[string]Value{"x": c.x}, nil)
+			got, err := Holds(f, Env{}, nil, map[string]Value{"x": c.x}, nil)
 
 			// Assert
 			if err != nil {
@@ -73,6 +74,50 @@ func TestHoldsComparesLiteralsAsValuesOfTheirKind(t *testing.T) {
 			}
 			if got != c.want {
 				t.Errorf("Holds(%q) of %#v = %v, want %v", c.clause, c.x, got, c.want)
+			}
+		})
+	}
+}
+
+func TestHoldsReadsAFieldAnInstanceDoesNotObserveAtItsStateAsMissing(t *testing.T) {
+	// m's instances observe x and y; y is held at b alone, and h, held at
+	// every state, is observed at none.
+	families := []FamilyStates{{Map: "m", Key: "k", Init: "none", States: []string{"none", "a", "b"},
+		Vars:     map[string][]string{"none": nil, "a": {"x", "h"}, "b": {"x", "y", "h"}},
+		Observes: &Observation{Observables: []Observable{{Name: "x"}, {Name: "y"}}}}}
+	atA := Map{Key(1): Rec{State: "a", Fields: map[string]Value{"x": 0, "h": 0}}}
+	atB := Map{Key(1): Rec{State: "b", Fields: map[string]Value{"x": 0, "y": 1, "h": 0}}}
+	cases := map[string]struct {
+		clause string
+		m      Map
+		want   bool
+		err    string
+	}{
+		"a field the state does not observe is false":         {clause: "@eq(v, m[k].y) ∧ @at(m[k], b)", m: atA, want: false},
+		"a field the state observes is read":                  {clause: "@eq(v, m[k].y) ∧ @at(m[k], b)", m: atB, want: true},
+		"a field no state observes, though held, is an error": {clause: "@eq(v, m[k].h)", m: atB, err: "has no field h"},
+		"a field no state has is an error":                    {clause: "@eq(v, m[k].z)", m: atB, err: "has no field z"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			// Setup
+			f := mustParse(t, c.clause)
+
+			// Execute
+			got, err := Holds(f, Env{}, families, map[string]Value{"k": 1, "v": 1, "m": c.m}, nil)
+
+			// Assert
+			if c.err != "" {
+				if err == nil || !strings.Contains(err.Error(), c.err) {
+					t.Fatalf("Holds(%q) = %v, %v, want an error saying %q", c.clause, got, err, c.err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != c.want {
+				t.Errorf("Holds(%q) = %v, want %v", c.clause, got, c.want)
 			}
 		})
 	}

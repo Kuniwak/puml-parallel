@@ -46,12 +46,16 @@ class Atoms(Protocol):
 class Evaluator:
     """Evaluates clauses: atoms says what an atom means; carrier gives the
     values of a type, which an ∃ ranges over; apply gives the value of an
-    environment function of a term (App) applied to values."""
+    environment function of a term (App) applied to values; family_of_state gives
+    the family of each local state (csdfbmc.model.family_of_state), which
+    says what fields an instance there may have."""
 
-    def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object]):
+    def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object],
+                 family_of_state: Mapping):
         self.atoms = atoms
         self.carrier = carrier
         self.apply = apply
+        self.family_of_state = family_of_state
 
     # -- terms -------------------------------------------------------------------
 
@@ -74,16 +78,28 @@ class Evaluator:
                 raise Missing()
             return m[k]
         if isinstance(t, Field):
-            r = self.value(t.of, before, after, bound)
-            fields = r.fields if isinstance(r, Rec) else r
-            if not isinstance(fields, Mapping) or t.name not in fields:
-                raise ValueError(f"{r!r} has no field {t.name}")
-            return fields[t.name]
+            return self._field(self.value(t.of, before, after, bound), t.name)
         if isinstance(t, App):
             return self.apply(t.fn, tuple(self.value(a, before, after, bound) for a in t.args))
         if isinstance(t, Lit):
             return t.value
         raise ValueError(f"unknown term {t!r}")
+
+    def _field(self, r, name: str):
+        """The field name of the record or instance r. A field an instance
+        does not observe at its state, which another state of its family
+        observes, reads as an entry a map has not (Missing); one no state
+        of its family observes is an error."""
+        fields = r.fields if isinstance(r, Rec) else r
+        if isinstance(r, Rec) and r.state in self.family_of_state:
+            fam = self.family_of_state[r.state]
+            if name not in fam.observed_at(r.state):
+                if any(name in fam.observed_at(s) for s in fam.states):
+                    raise Missing()
+                raise ValueError(f"{r!r} has no field {name}: no state of its family observes it")
+        if not isinstance(fields, Mapping) or name not in fields:
+            raise ValueError(f"{r!r} has no field {name}")
+        return fields[name]
 
     # -- formulas ----------------------------------------------------------------
 

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v8/pngsrc"
+	"github.com/Kuniwak/puml-parallel/v9/csdf"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v9/pngsrc"
 )
 
 // LoadAuthored reads the diagram an author wrote at path, a .puml file or a

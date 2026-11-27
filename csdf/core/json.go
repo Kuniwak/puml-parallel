@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 )
 
 // DiagramJSONVersion is the version of the shape DiagramDoc writes; a

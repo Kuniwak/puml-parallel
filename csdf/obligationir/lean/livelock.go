@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v9/csdf"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/obligationir"
 )
 
 // Notation spells the formulas of an obligation in Lean 4, every value of

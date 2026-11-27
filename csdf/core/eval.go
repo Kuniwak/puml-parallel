@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 )
 
 // Env is what a diagram takes from outside to be expanded: the values of
@@ -56,19 +56,36 @@ type valuation struct {
 }
 
 // Holds says whether f holds when its free variables have the values before
-// the step in before and, primed, the values after it in after.
-func Holds(f clause.Formula, env Env, before, after map[string]Value) (bool, error) {
-	return evaluator{env: env, val: valuation{before: before, after: after}}.holds(f, nil)
+// the step in before and, primed, the values after it in after. families
+// are the families of the maps f reads (Diagram.Families).
+func Holds(f clause.Formula, env Env, families []FamilyStates, before, after map[string]Value) (bool, error) {
+	return evaluator{env: env, families: familyOfState(families), val: valuation{before: before, after: after}}.holds(f, nil)
 }
 
-// errMissing is a term that reads an entry its map does not have: an
-// instance that does not exist. A clause reading one is false
+// familyOfState is the family of each local state of families. Local
+// states are unique across the families of a diagram, so a state names
+// its family.
+func familyOfState(families []FamilyStates) map[string]FamilyStates {
+	out := map[string]FamilyStates{}
+	for _, f := range families {
+		for _, s := range f.States {
+			out[s] = f
+		}
+	}
+	return out
+}
+
+// errMissing is a term that reads an entry its map does not have, an
+// instance that does not exist, or a field an instance does not observe at
+// its state (evaluator.field). A clause reading one is false
 // (docs/CLAUSE_DESIGN.md).
 var errMissing = errors.New("an entry the map does not have")
 
 type evaluator struct {
 	env Env
-	val valuation
+	// families is the family of each local state (familyOfState).
+	families map[string]FamilyStates
+	val      valuation
 }
 
 func (ev evaluator) holds(f clause.Formula, bound []Value) (bool, error) {
@@ -245,11 +262,7 @@ func (ev evaluator) term(t clause.Term, bound []Value) (Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("core: %s is not an instance", Key(r))
 		}
-		v, ok := rr.Fields[t.Name]
-		if !ok {
-			return nil, fmt.Errorf("core: %s has no field %s", Key(r), t.Name)
-		}
-		return v, nil
+		return ev.field(rr, t.Name)
 	case clause.Lit:
 		v, err := t.Decode()
 		if err != nil {
@@ -275,4 +288,22 @@ func name(v clause.Free) string {
 		return v.Name + "'"
 	}
 	return v.Name
+}
+
+// field is the field name of the instance r. A field r does not observe
+// at its state, which another state of its family observes, reads as an
+// entry a map has not (errMissing); one no state of its family observes
+// is an error.
+func (ev evaluator) field(r Rec, name string) (Value, error) {
+	if f, ok := ev.families[r.State]; ok && !f.observesAt(r.State, name) {
+		if slices.ContainsFunc(f.States, func(s string) bool { return f.observesAt(s, name) }) {
+			return nil, fmt.Errorf("core: %s does not observe %s at its state: %w", Key(r), name, errMissing)
+		}
+		return nil, fmt.Errorf("core: %s has no field %s: no state of its family observes it", Key(r), name)
+	}
+	v, ok := r.Fields[name]
+	if !ok {
+		return nil, fmt.Errorf("core: %s has no field %s", Key(r), name)
+	}
+	return v, nil
 }

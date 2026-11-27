@@ -3,9 +3,9 @@ package transtable
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/obligation"
 )
 
 // The variables a condition speaks of:

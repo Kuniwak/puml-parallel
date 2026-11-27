@@ -3,7 +3,7 @@ package animation
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
 	"github.com/google/go-cmp/cmp"
 )
 

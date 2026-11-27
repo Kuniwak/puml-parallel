@@ -9,10 +9,10 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/Kuniwak/puml-parallel/v8/cli"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/animation/proto"
-	"github.com/Kuniwak/puml-parallel/v8/tools"
-	"github.com/Kuniwak/puml-parallel/v8/version"
+	"github.com/Kuniwak/puml-parallel/v9/cli"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/animation/proto"
+	"github.com/Kuniwak/puml-parallel/v9/tools"
+	"github.com/Kuniwak/puml-parallel/v9/version"
 )
 
 // clientFlags are the connection/output flags shared by the subcommands.

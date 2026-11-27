@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/core"
 )
 
 // AdmitByBuiltins refuses values entered for p's target when a builtin
@@ -32,7 +32,7 @@ func AdmitByBuiltins(d *core.Diagram, p Pending, values []Value) error {
 		clause clause.And
 	}{{"guard", p.Guard}, {"post", p.Post}} {
 		for _, b := range builtins(c.clause) {
-			ok, err := core.Holds(b, core.Env{}, before, after)
+			ok, err := core.Holds(b, core.Env{}, d.Families, before, after)
 			if err != nil || ok {
 				continue // undecided without a glue, or true
 			}

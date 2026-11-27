@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/animation/bmc"
 	"github.com/google/go-cmp/cmp"
 )
 

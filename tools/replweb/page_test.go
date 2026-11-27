@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v8/csdfbmc"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v9/csdfbmc"
 	"github.com/google/go-cmp/cmp"
 )
 

@@ -8,10 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/cli"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/animation/bmc"
-	"github.com/Kuniwak/puml-parallel/v8/tools"
+	"github.com/Kuniwak/puml-parallel/v9/cli"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v9/tools"
 )
 
 // DefaultPumlExec is the PlantUML command -puml-exec runs unless told

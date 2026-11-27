@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
 )
 
 // Hide is d with the channels hidden (docs/CLAUSE_DESIGN.md, a

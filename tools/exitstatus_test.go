@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v9/cli"
 )
 
 type exitOptions struct{ common *CommonOptions }

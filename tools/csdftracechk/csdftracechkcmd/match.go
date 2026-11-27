@@ -3,7 +3,7 @@ package csdftracechkcmd
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/tracechk"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/tracechk"
 )
 
 // MatchName is the -match spelling of a tracechk.Match. The spelling is a

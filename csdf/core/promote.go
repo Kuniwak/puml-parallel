@@ -6,8 +6,8 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 )
 
 // Family is a promoted family: its instances live in the map Map, an

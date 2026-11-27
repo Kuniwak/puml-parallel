@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v8/pngsrc"
+	"github.com/Kuniwak/puml-parallel/v9/csdf"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v9/pngsrc"
 )
 
 // Canonical is d with its states ordered by ID and its edges by source,

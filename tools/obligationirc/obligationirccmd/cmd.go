@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v8/cli"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir/target"
-	"github.com/Kuniwak/puml-parallel/v8/version"
+	"github.com/Kuniwak/puml-parallel/v9/cli"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/obligationir/target"
+	"github.com/Kuniwak/puml-parallel/v9/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

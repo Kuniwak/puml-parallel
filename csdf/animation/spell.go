@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
 )
 
 // Phrases are the words a clause is spelled in for people.

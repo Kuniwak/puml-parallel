@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/lint"
 )
 
 func TestSyntaxErrorRule(t *testing.T) {

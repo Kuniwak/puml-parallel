@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 )
 
 // FormulaOf is the formula the clause s says: each name resolved against the

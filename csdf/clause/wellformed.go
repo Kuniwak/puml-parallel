@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/ident"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 )
 
 // WellFormed reports, as an error, what keeps f from being a clause the

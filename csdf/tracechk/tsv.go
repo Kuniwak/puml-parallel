@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v8/usererr"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v9/usererr"
 )
 
 // TSVHeader is the only column of a trace TSV.

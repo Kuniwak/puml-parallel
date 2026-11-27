@@ -3,9 +3,9 @@ package tracechk_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/tracechk"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/tracechk"
 	"github.com/google/go-cmp/cmp"
 )
 

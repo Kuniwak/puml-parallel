@@ -9,10 +9,10 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/obligation"
 )
 
 // Table is the state transition table of a diagram.
