@@ -3,9 +3,9 @@ package csdfsortcmd
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v7/version"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v8/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

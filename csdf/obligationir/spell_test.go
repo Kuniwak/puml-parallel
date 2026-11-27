@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligation"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
 	"github.com/google/go-cmp/cmp"
 )
 

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf"
+	"github.com/Kuniwak/puml-parallel/v8/csdf"
 )
 
 func TestReadTreeJSONTellsJSONByItsOpeningBrace(t *testing.T) {

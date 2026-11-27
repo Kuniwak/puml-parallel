@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/tools"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/tools"
 )
 
 // Entry is one documented CLI.

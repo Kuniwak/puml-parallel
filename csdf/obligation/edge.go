@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
 )
 
 // Step is the relation an edge of d states between the values of the state

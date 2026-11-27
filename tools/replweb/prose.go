@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
 )
 
 // Prose is the clauses of another version of a diagram, written for people,

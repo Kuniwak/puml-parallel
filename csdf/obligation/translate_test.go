@@ -3,9 +3,9 @@ package obligation_test
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligation"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligation"
 )
 
 var symbols = func() logic.Notation {

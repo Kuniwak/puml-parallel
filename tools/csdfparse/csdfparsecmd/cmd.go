@@ -3,10 +3,10 @@ package csdfparsecmd
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf"
-	"github.com/Kuniwak/puml-parallel/v7/pngsrc"
-	"github.com/Kuniwak/puml-parallel/v7/version"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf"
+	"github.com/Kuniwak/puml-parallel/v8/pngsrc"
+	"github.com/Kuniwak/puml-parallel/v8/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

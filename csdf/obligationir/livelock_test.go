@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
 	"github.com/google/go-cmp/cmp"
 )
 

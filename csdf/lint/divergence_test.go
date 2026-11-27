@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/lint"
 	"github.com/google/go-cmp/cmp"
 )
 

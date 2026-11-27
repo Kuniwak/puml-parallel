@@ -400,7 +400,7 @@ result:
 | Q2 | Whether a clause is invariant under permutation of IDs | symmetry reduction (O10) |
 | Q3 | The maps a clause depends on | restriction (O9), O17 |
 | Q4 | Narrowed types for values | approximating the environment and bounded checking (O7) |
-| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t`, or `f[k] = t` or `f.k = t` where f is a field of the event, k a literal key and t a term over the state and the other fields, wherever a conjunct that reads f is; t is computed before a conjunct reads f, which agrees with evaluating the guard over the full product of the fields' types when the value computed lies in f's type and the clauses are pure and raise nothing (below) | computing f, or its part k, instead of enumerating it (O7) |
+| Q5 | The fields, and the parts of a record field, an equality builtin determines: `f = t`, or `f[k] = t` or `f.k = t` where f is a field of the event, k a literal key and t a term over the state and the other fields, wherever a conjunct that reads f is; t is computed before a conjunct reads f, and a value outside f's type, or the part's, makes the equality false, which agrees with evaluating the guard over the full product of the fields' types when the clauses are pure and raise nothing (below) | computing f, or its part k, instead of enumerating it (O7) |
 
 Q1 and Q3 follow from P2 without asking a glue.
 
@@ -433,10 +433,10 @@ reachable only through such values is not found; that is the bound. That the val
 real type is the user's responsibility, as the sample is.
 
 Q5 is read only from builtins, never from atoms, whose text the tools do not
-interpret. It is more than speed: a field computed from its equality does
-not depend on its type, so bounded checking no longer misses a step because
-the value the state requires lies outside the declared type (an error of
-the Q4 approximation, not of the meaning). The parts of a record are values of their
+interpret. A value computed outside the declared type of the field, or of
+the part, makes the equality false, as the full product over the type has
+no such value; `any` lets every value, and a type `TYPES` has not is
+refused, as it is where the field ranges over it. The parts of a record are values of their
 own: a part an equality determines is computed, and only the parts none
 determines range over their values, which a type built by `record` gives;
 a type that gives no parts is ranged over as a whole unless equalities

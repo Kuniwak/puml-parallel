@@ -3,8 +3,8 @@ package lint
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
 )
 
 // PostLeavesVariableFreeRule reports a post that never names a state

@@ -188,9 +188,9 @@ class FieldTest(unittest.TestCase):
         self.assertEqual({0, 1, 2}, {s[1][0] for s in result.states})
 
     def test_a_field_an_equality_of_the_guard_determines_is_computed_not_enumerated(self):
-        # Setup: x has no type, and 5 would lie outside one anyway (Q5).
+        # Setup: x is of the type any, so any value it is bound to is taken (Q5).
         d = diagram({"a": ["n"]}, "a", init_post=[atom("$n' == 5")], edges=[
-            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])])
+            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])], channels={"report": ["any"]})
 
         # Execute
         result = fixture.explorer(d).run()
@@ -199,7 +199,7 @@ class FieldTest(unittest.TestCase):
         self.assertEqual(["report(x=5)"], [label for _, label, _, _ in fixture.explorer(d).successors(result.states[0])])
 
     def test_the_parts_of_a_record_field_equalities_of_the_guard_determine_are_computed(self):
-        # Setup: the count the state holds, 8, lies outside the record's part.
+        # Setup
         to, count = eq(idx("w", lit("to")), "t"), eq(idx("w", lit("count")), "n")
         guards = {"together": [to, count], "apart by a conjunct over the state": [to, atom("$n > 0"), count],
                   "written as fields": [eq(fld("w", "to"), "t"), eq(fld("w", "count"), "n")]}
@@ -209,16 +209,16 @@ class FieldTest(unittest.TestCase):
         }
         for (gname, guard), (tname, w) in itertools.product(guards.items(), types.items()):
             with self.subTest(guard=gname, type=tname):
-                d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(8))], edges=[
+                d = diagram({"a": ["t", "n"]}, "a", init_post=[eq("t'", lit("p")), eq("n'", lit(3))], edges=[
                     edge("a", "a", "warn?w", guard=guard, post=[eq("t'", "t"), eq("n'", "n")])],
                     types={"t": "T", "n": "N"}, channels={"warn": ["W"]})
                 checks = Checks(types={"T": ["p", "q"], "N": list(range(9)), "W": w})
 
                 # Execute
-                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", ("p", 8), ()))]
+                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", ("p", 3), ()))]
 
                 # Assert
-                self.assertEqual(["warn(w={'to': 'p', 'count': 8})"], labels)
+                self.assertEqual(["warn(w={'to': 'p', 'count': 3})"], labels)
 
     def test_an_equality_determines_its_field_after_a_conjunct_over_a_later_field(self):
         # Setup
@@ -234,18 +234,53 @@ class FieldTest(unittest.TestCase):
         self.assertEqual(["c(v=5, w=1)", "c(v=5, w=2)"], labels)
         self.assertEqual((3, ["?w"]), (x.stats[0].tried, sorted(x.stats[0].ranged)))
 
+    def test_an_equality_binding_a_field_or_a_part_to_a_value_outside_its_type_takes_no_step(self):
+        # Setup: n holds 8, which neither V nor the part count of W has, so
+        # no value of the full product holds.
+        part = [eq(idx("w", lit("to")), lit("p")), eq(idx("w", lit("count")), "n")]
+        tests = {
+            "a field, the equality alone": ([eq("w", "n")], [4, 5]),
+            "a field, a conjunct reading it before the equality": ([builtin("notin", "w", "s"), eq("w", "n")], [4, 5]),
+            "a part of a record": (part, record(to=["p", "q"], count=[0, 1])),
+            "a part of an on_demand_record": (part, on_demand_record(to=["p", "q"], count=[0, 1])),
+            "a part of a list of records": (part, [FrozenMap({"to": x, "count": c}) for x in ("p", "q") for c in range(2)]),
+        }
+        for name, (guard, w) in tests.items():
+            with self.subTest(name):
+                d = diagram({"a": ["n", "s"]}, "a", init_post=[eq("n'", lit(8)), eq("s'", lit([]))], edges=[
+                    edge("a", "a", "c?w", guard=guard, post=[eq("n'", "n"), eq("s'", "s")])],
+                    types={"n": "N", "s": "S"}, channels={"c": ["W"]})
+                checks = Checks(types={"N": list(range(9)), "S": [()], "W": w})
+
+                # Execute
+                labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8, ()), ()))]
+
+                # Assert
+                self.assertEqual([], labels)
+
+    def test_an_equality_binding_a_field_of_a_type_types_lacks_is_refused_as_ranging_it_is(self):
+        # Setup: the type X of x is in no TYPES.
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(5))], edges=[
+            edge("a", "a", "report?x", guard=[eq("x", "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"report": ["X"]})
+        x = fixture.explorer(d, Checks(types={"N": [5]}))
+
+        # Execute / Assert
+        with self.assertRaisesRegex(PostError, "report.*the field x.*no type 'X' in TYPES"):
+            x.successors(("a", (5,), ()))
+
     def test_a_part_no_equality_determines_ranges_over_the_values_of_the_part(self):
         # Setup
-        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(8))], edges=[
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit(1))], edges=[
             edge("a", "a", "warn?w", guard=[eq(idx("w", lit("count")), "n")], post=[eq("n'", "n")])],
             types={"n": "N"}, channels={"warn": ["W"]})
         checks = Checks(types={"N": list(range(9)), "W": record(to=["p", "q"], count=[0, 1])})
 
         # Execute
-        labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (8,), ()))]
+        labels = [label for _, label, _, _ in fixture.explorer(d, checks).successors(("a", (1,), ()))]
 
         # Assert
-        self.assertEqual(["warn(w={'to': 'p', 'count': 8})", "warn(w={'to': 'q', 'count': 8})"], labels)
+        self.assertEqual(["warn(w={'to': 'p', 'count': 1})", "warn(w={'to': 'q', 'count': 1})"], labels)
 
     def test_a_list_of_records_some_part_of_which_no_equality_determines_is_enumerated(self):
         # Setup
@@ -828,7 +863,7 @@ class PruningTest(unittest.TestCase):
     def test_a_term_an_equality_determines_is_computed_only_where_the_conjuncts_before_it_hold(self):
         tests = {
             "the instance elsewhere, so the conjunct before is false": (inst("a", x=0), []),
-            "the instance there": (inst("b", x=0, y=7), ["c(id=1, v=7)"]),
+            "the instance there": (inst("b", x=0, y=1), ["c(id=1, v=1)"]),
         }
         for name, (instance, labels) in tests.items():
             with self.subTest(name):
@@ -1193,6 +1228,20 @@ class SampleTest(unittest.TestCase):
 
                 # Assert
                 self.assertEqual((deadlocks, reached), (result.deadlocks, result.bound_reached))
+
+    def test_a_field_bound_to_a_value_beyond_the_sample_is_the_bound_reached(self):
+        # Setup: n holds b, beyond the sample of K, so binding k to it takes
+        # no step in the walk, and does once the values beyond are tried.
+        d = diagram({"a": ["n"]}, "a", init_post=[eq("n'", lit("b"))], edges=[
+            edge("a", "a", "c?k", guard=[eq("k", "n")], post=[eq("n'", "n")])],
+            types={"n": "N"}, channels={"c": ["K"]})
+        checks = Checks(types={"N": ["b"], "K": sample(["a"], beyond=["b"])})
+
+        # Execute
+        result = fixture.explorer(d, checks).run()
+
+        # Assert
+        self.assertEqual(([], [(("a", ("b",), ()), "c(k=b)")]), (result.deadlocks, result.bound_reached))
 
     def test_an_end_edge_the_values_beyond_enable_is_the_witness(self):
         # Setup

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
 )
 
 // Format says how WriteTSV spells a table.

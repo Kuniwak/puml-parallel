@@ -13,7 +13,7 @@ Download binaries from [Releases](https://github.com/Kuniwak/puml-parallel/relea
 Or build a tool with Go, for example:
 
 ```console
-$ go install github.com/Kuniwak/puml-parallel/v7/tools/csdfparallel@latest
+$ go install github.com/Kuniwak/puml-parallel/v8/tools/csdfparallel@latest
 ```
 
 The module path ends in `/v3` since 3.0.0, as Go requires of a major version 2 or later.
@@ -1050,8 +1050,8 @@ disagree admit no successor. A clause that reads an entry its map does not
 have (`m[k]` with `k` not in `m`) is false, never a default value. A field
 an event receives ranges over its type, except one an equality of the guard
 binds (`@eq(x, n)`) to a term over the state and the fields, wherever a
-conjunct that reads the field is: it is computed, whatever its type holds,
-before a conjunct reads it. So are the parts of a record field equalities of
+conjunct that reads the field is: it is computed before a conjunct reads
+it, and a value outside its type makes the guard false. So are the parts of a record field equalities of
 the guard bind (`@eq(w.count, n)` or `@eq(w["count"], n)`, a literal key):
 the term may read other parts of the same field
 (`@eq(r["parent"], m[r.src].parent)`), and a part the term of an equality
@@ -1091,9 +1091,11 @@ is false of, so the term, like every clause, must be pure and raise
 nothing; `@at(m[k], s) ∧ @eq(v, m[k].y)` may read `y` of an instance not
 at `s`, which a function of the term must then take without raising. A
 term that reads an entry its map does not have makes its equality false;
-another error of it stops the check with the error. A bound value is
-taken whatever its field's type holds, where the full product over the
-type would have none.
+another error of it stops the check with the error. A bound value outside
+the type of its field, or of its part, makes the guard false, as the full
+product over the type has no such value: a type of records tells a value
+by its parts, an on_demand_record's too, and a field of the type any takes
+any value. A field of a type `TYPES` has not is refused, bound or not.
 
 The checker relies on a precondition: a clause, an atom or environment
 function of a glue, and the arguments of a builtin are pure and raise
@@ -1223,7 +1225,11 @@ the state count is the same.
 Only the values listed in `beyond` are tried, no other value outside the
 sample: with `sample([0, 1, 2, 3], beyond=[4])`, a state whose way out
 needs 8, say a count a post has taken past the sample, is still reported as
-a deadlock. List such a value in `beyond`, or widen the sample.
+a deadlock. List such a value in `beyond`, or widen the sample. A field an
+equality of the guard binds is narrowed by the sample as one that ranges
+is: a value it is bound to beyond the sample takes no step in the walk, and
+the state it leaves with no way out is the bound reached when the value is
+listed in `beyond`.
 
 Under the first deadlock of each shape, a `stuck:` line per edge out of it
 says why the edge takes no step: `guard false on the state: C`, C the

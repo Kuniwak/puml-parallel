@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
 )
 
 // PredicateTODO marks a declaration standing for a predicate nobody has

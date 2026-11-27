@@ -10,10 +10,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/ident"
 )
 
 // Tau is the channel of an internal event.

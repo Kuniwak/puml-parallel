@@ -476,8 +476,7 @@ class OnDemandRecord:
         return math.prod(size_of(vs) for vs in self.parts.values())
 
     def __contains__(self, value) -> bool:
-        return (isinstance(value, Mapping) and set(value) == set(self.parts)
-                and all(is_value_of(vs, value[k]) for k, vs in self.parts.items()))
+        return is_value_of(self, value)
 
 
 def decode(value, values=None):
@@ -509,9 +508,11 @@ def _unencoded(value):
 
 def is_value_of(values, value) -> bool:
     """Whether value is one of the values of a type, told apart by kind
-    (same_value); an on_demand_record tells it by its parts, unlisted."""
-    if isinstance(values, OnDemandRecord):
-        return value in values
+    (same_value); a type of records built by record or on_demand_record
+    tells it by its parts, unlisted."""
+    parts = record_parts(values)
+    if parts is not None:
+        return isinstance(value, Mapping) and set(value) == set(parts) and all(is_value_of(vs, value[k]) for k, vs in parts.items())
     return any(same_value(value, freeze(v)) for v in values)
 
 

@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/lts"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/lts"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
 )
 
 // plainDoor: NEW creates it shut, and GONE deletes it.

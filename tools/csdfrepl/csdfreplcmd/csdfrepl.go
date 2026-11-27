@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
 	"golang.org/x/term"
 )
 

@@ -6,12 +6,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/ident"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/pumlline"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v8/csdf"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/pumlline"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
 )
 
 // ReadPromotion reads a global diagram (docs/PROMOTION.md): its syntax tree
