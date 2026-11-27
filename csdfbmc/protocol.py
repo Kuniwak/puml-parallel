@@ -73,6 +73,7 @@ import importlib
 import json
 import math
 import subprocess
+import weakref
 from collections.abc import Mapping, Set as AbstractSet
 from typing import Callable, Protocol
 
@@ -248,6 +249,16 @@ def serve(handle: Handle, stdin, stdout) -> None:
         stdout.flush()
 
 
+# The glue commands of this process, for kill_commands.
+_commands: weakref.WeakSet[CommandTransport] = weakref.WeakSet()
+
+
+def kill_commands() -> None:
+    """Kills every glue command this process runs, without waiting."""
+    for command in list(_commands):
+        command.kill()
+
+
 class CommandTransport:
     """The Handle of a glue run as a command, speaking JSON lines on its
     standard input and output."""
@@ -265,6 +276,13 @@ class CommandTransport:
         self._argv = argv
         # What cut a request in two, after which the glue is killed.
         self._cut: str | None = None
+        _commands.add(self)
+
+    def kill(self) -> None:
+        """Kills the glue, without waiting for it: what ends a process at
+        once (csdfbmc.parallel._ended) leaves no glue behind."""
+        if self._proc.poll() is None:
+            self._proc.kill()
 
     def __call__(self, request: dict) -> dict:
         op = request.get("op")
