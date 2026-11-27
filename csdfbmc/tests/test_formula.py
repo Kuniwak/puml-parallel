@@ -72,16 +72,6 @@ class GuardTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((holds, evaluated), (got, tally.evaluated))
 
-    def test_a_field_an_instance_has_not_at_its_state_makes_the_conjunct_false(self):
-        # Setup
-        clause = formula_of([eq("x", fld(idx("w", lit("a")), "cnt"))])
-
-        # Execute
-        got = evaluator(families=FAMILIES).holds(clause, {"x": 0, "w": FrozenMap({"a": inst("shut")})})
-
-        # Assert
-        self.assertFalse(got)
-
     def test_a_field_an_instance_cannot_have_is_an_error(self):
         tests = {
             "no state of the family has it": ("tag", inst("open", cnt=0, p=0)),
@@ -133,11 +123,13 @@ class GuardTest(unittest.TestCase):
             "a literal object is a map": ([eq("x", lit({"b": 2, "a": 1}))], {"x": FrozenMap(a=1, b=2)}, True),
             "a literal key": ([builtin("in", lit("a"), "m")], {"m": M}, True),
             "a literal in an atom": ([atom("${} > $x", lit(2))], {"x": 1}, True),
+            "a field an instance has not at its state is false": ([eq("x", fld(idx("w", lit("a")), "cnt"))],
+                                                                   {"x": 0, "w": FrozenMap({"a": inst("shut")})}, False),
         }
         for name, (clause, before, want) in tests.items():
             with self.subTest(name):
                 # Execute
-                got = evaluator().holds(formula_of(clause), before)
+                got = evaluator(families=FAMILIES).holds(formula_of(clause), before)
 
                 # Assert
                 self.assertEqual(want, got)
