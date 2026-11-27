@@ -413,10 +413,11 @@ it, a conjunction holds of the same values whatever order its conjuncts
 are asked in, so a checker may evaluate them in any order, or not at all
 where another conjunct is false; it states no order. An expression it
 evaluates that raises all the same stops it with the error. Reading an
-entry a map does not have, or a field an instance has not at its local
-state that another state of its family has, is no error but false
-(Missing), so a clause that does so stays false whatever the order; a
-field no state of the family has is an error.
+entry a map does not have, or a field an instance does not observe at
+its local state that another state of its family observes
+(docs/PROMOTION.md, Observations), is no error but false (Missing), so a
+clause that does so stays false whatever the order; a field no state of
+the family observes is an error.
 
 Bounded checking tells the bound from the diagram without Q2. A type given
 as a sample has more values than the walk ranges over, and the checks

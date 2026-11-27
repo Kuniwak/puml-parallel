@@ -73,18 +73,21 @@ class GuardTest(unittest.TestCase):
                 self.assertEqual((holds, evaluated), (got, tally.evaluated))
 
     def test_a_field_an_instance_cannot_have_is_an_error(self):
+        # w observing p alone, at open.
+        observing_p = dict(FAMILIES, w=dataclasses.replace(FAMILIES["w"], observes=(("p", None),)))
         tests = {
-            "no state of the family has it": ("tag", inst("open", cnt=0, p=0)),
-            "the state has it, the instance not": ("cnt", inst("open", p=0)),
+            "no state of the family has it": ("tag", inst("open", cnt=0, p=0), FAMILIES),
+            "the state has it, the instance not": ("cnt", inst("open", p=0), FAMILIES),
+            "a state has it, none observes it": ("cnt", inst("open", cnt=0, p=0), observing_p),
         }
-        for name, (field_name, instance) in tests.items():
+        for name, (field_name, instance, families) in tests.items():
             with self.subTest(name):
                 # Setup
                 clause = formula_of([eq("x", fld(idx("w", lit("a")), field_name))])
 
                 # Execute / Assert
                 with self.assertRaisesRegex(ValueError, f"has no field {field_name}"):
-                    evaluator(families=FAMILIES).holds(clause, {"x": 0, "w": FrozenMap({"a": instance})})
+                    evaluator(families=families).holds(clause, {"x": 0, "w": FrozenMap({"a": instance})})
 
     def test_a_clause_holds_or_not(self):
         tests = {

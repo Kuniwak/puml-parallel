@@ -86,15 +86,17 @@ class Evaluator:
         raise ValueError(f"unknown term {t!r}")
 
     def _field(self, r, name: str):
-        """The field name of the record or instance r. An instance without
-        it at its state, which another state of its family has, reads as
-        an entry a map has not (Missing); a field no state of its family
-        has is an error."""
+        """The field name of the record or instance r. A field an instance
+        does not observe at its state, which another state of its family
+        observes, reads as an entry a map has not (Missing); one no state
+        of its family observes is an error."""
         fields = r.fields if isinstance(r, Rec) else r
-        if isinstance(r, Rec) and name not in fields and r.state in self.family_of_state:
+        if isinstance(r, Rec) and r.state in self.family_of_state:
             fam = self.family_of_state[r.state]
-            if name not in fam.vars[r.state] and any(name in vs for vs in fam.vars.values()):
-                raise Missing()
+            if name not in fam.observed_at(r.state):
+                if any(name in fam.observed_at(s) for s in fam.states):
+                    raise Missing()
+                raise ValueError(f"{r!r} has no field {name}: no state of its family observes it")
         if not isinstance(fields, Mapping) or name not in fields:
             raise ValueError(f"{r!r} has no field {name}")
         return fields[name]

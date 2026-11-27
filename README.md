@@ -1048,9 +1048,10 @@ post determines ranges over its type in `TYPES`, and is refused without one;
 every valuation is then checked against the whole post, so two clauses that
 disagree admit no successor. A clause that reads an entry its map does not
 have (`m[k]` with `k` not in `m`) is false, never a default value, and so
-is one that reads a field an instance has not at its state (`m[k].y` with
-`m[k]` at a state without `y`); a field no state of its family has is an
-error. A field
+is one that reads a field an instance does not observe at its state
+(`m[k].y` with `m[k]` at a state whose local diagram does not observe
+`y` there, docs/PROMOTION.md, Observations); a field no state of its
+family observes is an error. A field
 an event receives ranges over its type, except one an equality of the guard
 binds (`@eq(x, n)`) to a term over the state and the fields, wherever a
 conjunct that reads the field is: it is computed before a conjunct reads
@@ -1092,10 +1093,10 @@ field has no value. No order of evaluation is guaranteed: an equality
 that binds may compute its term for values a conjunct written before it
 is false of, so the term, like every clause, must be pure and raise
 nothing; `@at(m[k], s) ∧ @eq(v, m[k].y)` may read `y` of an instance not
-at `s`, which makes the equality false when that state has no `y`, and
-which a function of the term must take without raising when it has. A
-term that reads an entry its map does not have, or a field its instance
-has not at its state, makes its equality false;
+at `s`, which makes the equality false when the instance does not observe `y`
+there, and which a function of the term must take without raising when
+it does. A term that reads an entry its map does not have, or a field
+its instance does not observe at its state, makes its equality false;
 another error of it stops the check with the error. A bound value outside
 the type of its field, or of its part, makes the guard false, as the full
 product over the type has no such value: a type of records tells a value
@@ -1110,8 +1111,8 @@ which conjuncts and terms are evaluated, and in what order, is not
 guaranteed: a membership or an `∃` may draw values before a conjunct
 written ahead of it is asked. When an expression csdfbmc evaluates raises
 all the same, it stops with the error. Reading an entry a map does not
-have, or a field an instance has not at its state that another state of
-its family has, is no error: it makes the clause false (Missing), as
+have, or a field an instance does not observe at its state that another
+state of its family observes, is no error: it makes the clause false (Missing), as
 above. A sent field (`c!y`) sends
 the value `y` has at the step. A field hidden by `csdfhide` is bound by
 `∃` in the guard and the post, and ranges over the type the `∃` names.
