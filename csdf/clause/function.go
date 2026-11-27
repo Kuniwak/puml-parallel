@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/ident"
 )
 
 // HoleMark is how the name of an environment function writes a hole,

@@ -3,7 +3,7 @@ package transtable
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/logic"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/logic"
 )
 
 // The names of the notations a table can be spelled in.

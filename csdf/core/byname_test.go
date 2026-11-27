@@ -5,7 +5,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/types"
 )
 
 // The tests of promotion write their diagrams without types, and type

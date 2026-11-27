@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v8/csdf/glue"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v9/csdf/glue"
 	"github.com/google/go-cmp/cmp"
 )
 
