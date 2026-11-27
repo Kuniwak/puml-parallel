@@ -31,7 +31,7 @@ class Answers:
         self.applied: dict[tuple, object] = {}
 
 
-def apply_given(given: Mapping[str, object], seen: Mapping, answers: Answers | None = None) -> Callable[[str, tuple], object]:
+def apply_given(given: Mapping[str, object], seen: Mapping, answers: Answers) -> Callable[[str, tuple], object]:
     """The apply of an Evaluator: the environment function of a term (App)
     named fn, as the checks module's ENVIRONMENT gives it, applied to the
     values of its arguments as a glue sees them, seen giving the fields
@@ -40,7 +40,7 @@ def apply_given(given: Mapping[str, object], seen: Mapping, answers: Answers | N
     A function is applied once per list of values, which a pure function
     allows, keyed as AtomMeaning keys an atom's; answers keeps the values
     it gives."""
-    applied = (Answers() if answers is None else answers).applied
+    applied = answers.applied
 
     def apply(fn: str, args: tuple):
         key = (fn, kind_key(args))

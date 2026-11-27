@@ -95,10 +95,6 @@ class AtomMeaningTest(unittest.TestCase):
         self.assertIs(FrozenMap, type(after["a"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class ApplyGivenTest(unittest.TestCase):
     def test_an_environment_function_is_applied_once_per_list_of_values(self):
         # Setup
@@ -114,3 +110,7 @@ class ApplyGivenTest(unittest.TestCase):
 
         # Assert
         self.assertEqual(([2, 2, 3, 2, 2], [1, 2, True]), (got, calls))
+
+
+if __name__ == "__main__":
+    unittest.main()
