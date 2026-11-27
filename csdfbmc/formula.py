@@ -46,12 +46,16 @@ class Atoms(Protocol):
 class Evaluator:
     """Evaluates clauses: atoms says what an atom means; carrier gives the
     values of a type, which an ∃ ranges over; apply gives the value of an
-    environment function of a term (App) applied to values."""
+    environment function of a term (App) applied to values; families gives
+    the family of each local state (csdfbmc.model.family_by_state), which
+    says what fields an instance there may have."""
 
-    def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object]):
+    def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object],
+                 families: Mapping):
         self.atoms = atoms
         self.carrier = carrier
         self.apply = apply
+        self.families = families
 
     # -- terms -------------------------------------------------------------------
 
@@ -74,16 +78,19 @@ class Evaluator:
                 raise Missing()
             return m[k]
         if isinstance(t, Field):
-            r = self.value(t.of, before, after, bound)
-            fields = r.fields if isinstance(r, Rec) else r
-            if not isinstance(fields, Mapping) or t.name not in fields:
-                raise ValueError(f"{r!r} has no field {t.name}")
-            return fields[t.name]
+            return self._field(self.value(t.of, before, after, bound), t.name)
         if isinstance(t, App):
             return self.apply(t.fn, tuple(self.value(a, before, after, bound) for a in t.args))
         if isinstance(t, Lit):
             return t.value
         raise ValueError(f"unknown term {t!r}")
+
+    def _field(self, r, name: str):
+        """The field name of the record or instance r."""
+        fields = r.fields if isinstance(r, Rec) else r
+        if not isinstance(fields, Mapping) or name not in fields:
+            raise ValueError(f"{r!r} has no field {name}")
+        return fields[name]
 
     # -- formulas ----------------------------------------------------------------
 

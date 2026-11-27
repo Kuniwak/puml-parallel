@@ -8,7 +8,7 @@ from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.formula import Evaluator, GuardTally, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Family, formula_of, observed_by_state
+from csdfbmc.model import Family, family_by_state, formula_of, observed_by_state
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx, lit
 from csdfbmc.values import LEFT_OUT, FrozenMap, Rec, same_value
@@ -43,7 +43,8 @@ class ByName(dict):
 
 def evaluator(env=environment.NONE, given=None, families=None):
     seen = observed_by_state(families or {})
-    return Evaluator(AtomMeaning(fixture.glue(), env, CARRIER, seen), CARRIER, apply_given(given or {}, seen))
+    return Evaluator(AtomMeaning(fixture.glue(), env, CARRIER, seen), CARRIER, apply_given(given or {}, seen),
+                     family_by_state(families or {}))
 
 
 def inst(state, **fields):
@@ -244,7 +245,7 @@ class SolveTest(unittest.TestCase):
     def test_a_variable_left_out_of_an_empty_type_or_none_is_as_without_the_cone(self):
         tests = {"an empty type": ({"q": "none_of"}, []), "no type": ({"q": "q"}, None)}
         empty = Checks(types=dict(TYPES, none_of=[])).carrier
-        ev = Evaluator(AtomMeaning(fixture.glue(), environment.NONE, empty, FrozenMap()), empty, apply_given({}, FrozenMap()))
+        ev = Evaluator(AtomMeaning(fixture.glue(), environment.NONE, empty, FrozenMap()), empty, apply_given({}, FrozenMap()), FrozenMap())
         for name, (types, want) in tests.items():
             with self.subTest(name):
                 def run():
