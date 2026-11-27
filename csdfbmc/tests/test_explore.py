@@ -876,6 +876,37 @@ class PruningTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(labels, got)
 
+    def test_a_field_an_instance_has_not_at_its_state_is_false_before_the_conjunct_that_guards_it(self):
+        d = diagram({"q": ["m"]}, "q", init_post=[builtin("empty", "m'")], edges=[
+            edge("q", "q", "c?id?v", guard=[eq("v", fld(idx("m", "id"), "y")), builtin("at", idx("m", "id"), state="b")],
+                 post=[builtin("frame", "m'", "m")])],
+            families=[family("m", "none", {"none": [], "a": ["x"], "b": ["x", "y"]}, key="id")], channels={"c": ["id", "V"]})
+        tests = {
+            "the instance at a, which has no y": (inst("a", x=0), []),
+            "the instance at b": (inst("b", x=0, y=1), ["c(id=1, v=1)"]),
+        }
+        for name, (instance, labels) in tests.items():
+            with self.subTest(name):
+                # Setup
+                x = fixture.explorer(d, Checks(types=self.DETERMINED_TYPES))
+
+                # Execute
+                got = [label for _, label, _, _ in x.successors(("q", (FrozenMap({1: instance}),), ()))]
+
+                # Assert
+                self.assertEqual(labels, got)
+
+    def test_a_field_no_state_of_the_family_has_is_an_error(self):
+        # Setup
+        d = diagram({"q": ["m"]}, "q", init_post=[builtin("empty", "m'")], edges=[
+            edge("q", "q", "c?id?v", guard=[eq("v", fld(idx("m", "id"), "z"))], post=[builtin("frame", "m'", "m")])],
+            families=[family("m", "none", {"none": [], "a": ["x"], "b": ["x", "y"]}, key="id")], channels={"c": ["id", "V"]})
+        x = fixture.explorer(d, Checks(types=self.DETERMINED_TYPES))
+
+        # Execute / Assert
+        with self.assertRaisesRegex(ValueError, "has no field z"):
+            x.transitions(("q", (FrozenMap({1: inst("a", x=0)}),), ()))
+
     def test_a_term_that_fails_where_the_guard_reaches_it_is_an_error(self):
         # Setup: the instance is at b without y.
         x = fixture.explorer(self.DETERMINED, Checks(types=self.DETERMINED_TYPES))

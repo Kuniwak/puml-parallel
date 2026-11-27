@@ -72,6 +72,30 @@ class GuardTest(unittest.TestCase):
                 # Assert
                 self.assertEqual((holds, evaluated), (got, tally.evaluated))
 
+    def test_a_field_an_instance_has_not_at_its_state_makes_the_conjunct_false(self):
+        # Setup
+        clause = formula_of([eq("x", fld(idx("w", lit("a")), "cnt"))])
+
+        # Execute
+        got = evaluator(families=FAMILIES).holds(clause, {"x": 0, "w": FrozenMap({"a": inst("shut")})})
+
+        # Assert
+        self.assertFalse(got)
+
+    def test_a_field_an_instance_cannot_have_is_an_error(self):
+        tests = {
+            "no state of the family has it": ("tag", inst("open", cnt=0, p=0)),
+            "the state has it, the instance not": ("cnt", inst("open", p=0)),
+        }
+        for name, (field_name, instance) in tests.items():
+            with self.subTest(name):
+                # Setup
+                clause = formula_of([eq("x", fld(idx("w", lit("a")), field_name))])
+
+                # Execute / Assert
+                with self.assertRaisesRegex(ValueError, f"has no field {field_name}"):
+                    evaluator(families=FAMILIES).holds(clause, {"x": 0, "w": FrozenMap({"a": instance})})
+
     def test_a_clause_holds_or_not(self):
         tests = {
             "eq of equal values": ([eq("x", "y")], {"x": 1, "y": 1}, True),
