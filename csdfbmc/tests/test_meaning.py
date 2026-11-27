@@ -1,7 +1,7 @@
 import unittest
 
 from csdfbmc.environment import Environment
-from csdfbmc.meaning import AtomMeaning
+from csdfbmc.meaning import Answers, AtomMeaning, apply_given
 from csdfbmc.model import Atom, Seen
 from csdfbmc.values import FrozenMap, Instance, Rec
 
@@ -93,6 +93,23 @@ class AtomMeaningTest(unittest.TestCase):
 
         # Assert
         self.assertIs(FrozenMap, type(after["a"]))
+
+
+class ApplyGivenTest(unittest.TestCase):
+    def test_an_environment_function_is_applied_once_per_list_of_values(self):
+        # Setup
+        calls = []
+
+        def succ(n):
+            calls.append(n)
+            return n + 1
+        apply = apply_given({"succ": succ}, SEEN, Answers())
+
+        # Execute
+        got = [apply("succ", (n,)) for n in (1, 1, 2, True, 1)]
+
+        # Assert
+        self.assertEqual(([2, 2, 3, 2, 2], [1, 2, True]), (got, calls))
 
 
 if __name__ == "__main__":

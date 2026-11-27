@@ -19,27 +19,38 @@ from csdfbmc.protocol import ClientLike
 from csdfbmc.values import forget_views, freeze, kind_key, same_value, visible
 
 
-def apply_given(given: Mapping[str, object], seen: Mapping) -> Callable[[str, tuple], object]:
-    """The apply of an Evaluator: the environment function of a term (App)
-    named fn, as the checks module's ENVIRONMENT gives it, applied to the
-    values of its arguments as a glue sees them, seen giving the fields
-    observed at each local state (csdfbmc.model.observed_by_state)."""
-    def apply(fn: str, args: tuple):
-        g = given.get(fn)
-        if not callable(g):
-            raise ValueError(f"no environment function {fn}, which a term applies, is given in ENVIRONMENT")
-        return forget_views(freeze(g(*(visible(a, seen) for a in args))))
-    return apply
-
-
 class Answers:
     """The glue's answers about the atoms, by atom and the values of its
     arguments as the walk holds them (kind_key): guards whether it holds,
-    posts the values after the step."""
+    posts the values after the step; and about the environment functions,
+    by function and the values of its arguments (applied)."""
 
     def __init__(self):
         self.guards: dict[tuple, bool] = {}
         self.posts: dict[tuple, list] = {}
+        self.applied: dict[tuple, object] = {}
+
+
+def apply_given(given: Mapping[str, object], seen: Mapping, answers: Answers) -> Callable[[str, tuple], object]:
+    """The apply of an Evaluator: the environment function of a term (App)
+    named fn, as the checks module's ENVIRONMENT gives it, applied to the
+    values of its arguments as a glue sees them, seen giving the fields
+    observed at each local state (csdfbmc.model.observed_by_state).
+
+    A function is applied once per list of values, which a pure function
+    allows, keyed as AtomMeaning keys an atom's; answers keeps the values
+    it gives."""
+    applied = answers.applied
+
+    def apply(fn: str, args: tuple):
+        key = (fn, kind_key(args))
+        if key not in applied:
+            g = given.get(fn)
+            if not callable(g):
+                raise ValueError(f"no environment function {fn}, which a term applies, is given in ENVIRONMENT")
+            applied[key] = forget_views(freeze(g(*(visible(a, seen) for a in args))))
+        return applied[key]
+    return apply
 
 
 class AtomMeaning:

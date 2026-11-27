@@ -364,7 +364,7 @@ class Explorer:
         self.environment = environment
         seen = observed_by_state(diagram.families)
         self.meaning = AtomMeaning(client, environment, checks.carrier, seen, answers)
-        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given, seen),
+        self.ev = Evaluator(self.meaning, checks.carrier, apply_given(environment.given, seen, self.meaning.answers),
                             family_of_state(diagram.families))
         self.max_states = max_states
         self.avoid = avoid
