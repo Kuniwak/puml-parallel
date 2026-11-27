@@ -56,9 +56,23 @@ type valuation struct {
 }
 
 // Holds says whether f holds when its free variables have the values before
-// the step in before and, primed, the values after it in after.
-func Holds(f clause.Formula, env Env, before, after map[string]Value) (bool, error) {
-	return evaluator{env: env, val: valuation{before: before, after: after}}.holds(f, nil)
+// the step in before and, primed, the values after it in after. families
+// are the families of the maps f reads (Diagram.Families).
+func Holds(f clause.Formula, env Env, families []FamilyStates, before, after map[string]Value) (bool, error) {
+	return evaluator{env: env, families: familyOfState(families), val: valuation{before: before, after: after}}.holds(f, nil)
+}
+
+// familyOfState is the family of each local state of families. Local
+// states are unique across the families of a diagram, so a state names
+// its family.
+func familyOfState(families []FamilyStates) map[string]FamilyStates {
+	out := map[string]FamilyStates{}
+	for _, f := range families {
+		for _, s := range f.States {
+			out[s] = f
+		}
+	}
+	return out
 }
 
 // errMissing is a term that reads an entry its map does not have: an
@@ -68,7 +82,9 @@ var errMissing = errors.New("an entry the map does not have")
 
 type evaluator struct {
 	env Env
-	val valuation
+	// families is the family of each local state (familyOfState).
+	families map[string]FamilyStates
+	val      valuation
 }
 
 func (ev evaluator) holds(f clause.Formula, bound []Value) (bool, error) {

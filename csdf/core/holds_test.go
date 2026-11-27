@@ -28,7 +28,7 @@ func TestHoldsReadsPartialMaps(t *testing.T) {
 			f := mustParse(t, c.clause)
 
 			// Execute
-			got, err := Holds(f, Env{Atoms: map[string]func([]Value) bool{"#0 = 1": func(a []Value) bool { return a[0] == 1 }}}, c.before, c.after)
+			got, err := Holds(f, Env{Atoms: map[string]func([]Value) bool{"#0 = 1": func(a []Value) bool { return a[0] == 1 }}}, nil, c.before, c.after)
 
 			// Assert
 			if err != nil {
@@ -65,7 +65,7 @@ func TestHoldsComparesLiteralsAsValuesOfTheirKind(t *testing.T) {
 			f := mustParse(t, c.clause)
 
 			// Execute
-			got, err := Holds(f, Env{}, map[string]Value{"x": c.x}, nil)
+			got, err := Holds(f, Env{}, nil, map[string]Value{"x": c.x}, nil)
 
 			// Assert
 			if err != nil {

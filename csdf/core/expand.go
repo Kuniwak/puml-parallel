@@ -18,7 +18,7 @@ func Expand(d *Diagram, env Env) (*lts.LTS, error) {
 	if len(d.Ends) > 0 {
 		return nil, fmt.Errorf("core.Expand: the diagram has end edges, and termination is not expanded yet")
 	}
-	x := &expander{d: d, env: env, ids: map[string]lts.State{}}
+	x := &expander{d: d, env: env, families: familyOfState(d.Families), ids: map[string]lts.State{}}
 	inits, err := x.posts(d.Init, valuation{before: map[string]Value{}}, d.InitPost)
 	if err != nil {
 		return nil, fmt.Errorf("core.Expand: the start edge: %w", err)
@@ -47,12 +47,13 @@ type node struct {
 }
 
 type expander struct {
-	d     *Diagram
-	env   Env
-	ids   map[string]lts.State
-	nodes []node
-	queue []lts.State
-	next  int
+	d        *Diagram
+	env      Env
+	families map[string]FamilyStates
+	ids      map[string]lts.State
+	nodes    []node
+	queue    []lts.State
+	next     int
 }
 
 func (x *expander) fresh() lts.State {
@@ -96,7 +97,7 @@ func (x *expander) step(out *lts.LTS, cur lts.State) error {
 			if err != nil {
 				return err
 			}
-			ev := evaluator{env: x.env, val: valuation{before: before}}
+			ev := evaluator{env: x.env, families: x.families, val: valuation{before: before}}
 			ok, err := ev.holds(e.Guard, nil)
 			if err != nil {
 				return fmt.Errorf("%s --> %s : %s: the guard: %w", e.Src, e.Dst, e.Event.Channel, err)
@@ -201,7 +202,7 @@ func (x *expander) posts(dst string, before valuation, post clause.And) ([]map[s
 	}
 	var out []map[string]Value
 	for _, c := range cands {
-		ev := evaluator{env: x.env, val: valuation{before: before.before, after: c}}
+		ev := evaluator{env: x.env, families: x.families, val: valuation{before: before.before, after: c}}
 		ok, err := ev.holds(post, nil)
 		if err != nil {
 			return nil, err
