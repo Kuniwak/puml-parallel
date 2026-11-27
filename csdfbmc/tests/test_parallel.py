@@ -90,3 +90,29 @@ class StreamTest(unittest.TestCase):
         # Assert
         self.assertEqual(expected, actual)
         self.assertEqual([0], calls)
+
+
+# A worker that the pool's SIGTERM finds in its own exit: atexit cleanup
+# swallows what a handler raises there, and the pool would wait for it.
+_TERMINATED_IN_EXIT = """
+import atexit, os, signal, time
+from csdfbmc import parallel
+signal.signal(signal.SIGTERM, parallel._ended)
+atexit.register(lambda: (os.kill(os.getpid(), signal.SIGTERM), time.sleep(5)))
+"""
+
+
+class EndedTest(unittest.TestCase):
+    def test_a_worker_ends_on_sigterm_even_in_its_own_exit(self):
+        # Setup
+        import subprocess
+        import sys
+        repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+        # Execute
+        done = subprocess.run([sys.executable, "-E", "-s", "-B", "-c", _TERMINATED_IN_EXIT], cwd=repo,
+                              capture_output=True, text=True, timeout=30)
+
+        # Assert
+        self.assertEqual(128 + 15, done.returncode, done.stderr)
+        self.assertNotIn("Exception ignored", done.stderr)
