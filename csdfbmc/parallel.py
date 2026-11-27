@@ -39,7 +39,15 @@ CHUNK = 8
 AHEAD = 4
 
 def _ended(signum, _frame):
-    raise SystemExit(128 + signum)
+    """Ends the worker wherever the signal lands. An exception raised here
+    could land in the worker's own exit, whose cleanup swallows it, and
+    leave the pool waiting for the worker forever; so its glue is closed,
+    a glue command killed if cut in the middle of a request, and the
+    process ends without running any more of its code."""
+    try:
+        _stack.close()
+    finally:
+        os._exit(128 + signum)
 
 
 def _start(a: argparse.Namespace) -> None:
@@ -52,9 +60,8 @@ def _start(a: argparse.Namespace) -> None:
     # it (csdfbmc.stopping), and leaving it stops the workers. One killed
     # before this holds no lock: it takes one only for its first task.
     os.setsid()
-    # The pool stops a worker with SIGTERM: it ends as a signal ends the
-    # walk, so that a glue command cut in the middle of a request is
-    # killed with it (csdfbmc.protocol.CommandTransport).
+    # The pool stops a worker with SIGTERM: it closes its glue and ends
+    # (_ended), so that no glue command outlives it.
     signal.signal(signal.SIGTERM, _ended)
     try:
         _explorer = cli.explorer(a, *_stack.enter_context(cli.opened(a)))
