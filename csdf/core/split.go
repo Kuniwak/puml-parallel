@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/ident"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/ident"
 )
 
 // EventField is a field of an event as SplitEvent takes it apart: sent (!)

@@ -3,8 +3,8 @@ package csdfrepldcmd
 import (
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/animation/bmc"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/animation/bmc"
 	"github.com/google/go-cmp/cmp"
 )
 

@@ -3,11 +3,11 @@ package csdfparallelcmd
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v7/tools"
-	"github.com/Kuniwak/puml-parallel/v7/version"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v8/tools"
+	"github.com/Kuniwak/puml-parallel/v8/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

@@ -1,4 +1,4 @@
-module github.com/Kuniwak/puml-parallel/v7
+module github.com/Kuniwak/puml-parallel/v8
 
 go 1.27.3
 

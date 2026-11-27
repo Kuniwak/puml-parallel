@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
 )
 
 // WriteSlice writes s as WriteCanonical writes its diagram, but for the

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
-	"github.com/Kuniwak/puml-parallel/v7/tools"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v8/tools"
 )
 
 // entry is one live session with its origin label.

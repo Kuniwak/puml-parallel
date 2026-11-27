@@ -6,7 +6,7 @@ import (
 	stdjson "encoding/json"
 	"io"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
 )
 
 // WriteLivelockFree writes ir to w as newline-terminated JSON. HTML escaping is

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/glue"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/lint"
-	"github.com/Kuniwak/puml-parallel/v7/csdfbmc"
-	"github.com/Kuniwak/puml-parallel/v7/tools"
-	"github.com/Kuniwak/puml-parallel/v7/version"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/glue"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/lint"
+	"github.com/Kuniwak/puml-parallel/v8/csdfbmc"
+	"github.com/Kuniwak/puml-parallel/v8/tools"
+	"github.com/Kuniwak/puml-parallel/v8/version"
 )
 
 func NewMainFunc() cli.MainFunc[*Options] {

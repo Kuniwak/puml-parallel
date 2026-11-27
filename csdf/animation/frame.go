@@ -1,6 +1,6 @@
 package animation
 
-import "github.com/Kuniwak/puml-parallel/v7/csdf/clause"
+import "github.com/Kuniwak/puml-parallel/v8/csdf/clause"
 
 // Frame is a post split for people: the variables its conjuncts @empty(x')
 // empty, those its conjuncts @eq(x', x), either way round, keep, and the

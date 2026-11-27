@@ -5,10 +5,10 @@ package coreio
 import (
 	"fmt"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/clause"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/core"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/types"
+	"github.com/Kuniwak/puml-parallel/v8/csdf"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/clause"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/core"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/types"
 )
 
 // ReadAuthored reads a diagram an author wrote: its syntax tree

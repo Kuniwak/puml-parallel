@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v8/tools/replweb"
 )
 
 func sourceOf(name string) Source {

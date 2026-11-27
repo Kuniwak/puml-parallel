@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/csdf/animation"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/coreio"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/animation"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/coreio"
 	"github.com/google/go-cmp/cmp"
 )
 

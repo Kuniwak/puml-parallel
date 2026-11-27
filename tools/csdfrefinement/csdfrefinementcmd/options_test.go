@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Kuniwak/puml-parallel/v7/cli"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir/isabelle"
-	"github.com/Kuniwak/puml-parallel/v7/csdf/obligationir/target"
-	"github.com/Kuniwak/puml-parallel/v7/tools"
+	"github.com/Kuniwak/puml-parallel/v8/cli"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir/isabelle"
+	"github.com/Kuniwak/puml-parallel/v8/csdf/obligationir/target"
+	"github.com/Kuniwak/puml-parallel/v8/tools"
 	"github.com/google/go-cmp/cmp"
 )
 

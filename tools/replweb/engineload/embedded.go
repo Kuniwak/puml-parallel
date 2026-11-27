@@ -5,7 +5,7 @@ package engineload
 import (
 	_ "embed"
 
-	"github.com/Kuniwak/puml-parallel/v7/tools/replweb"
+	"github.com/Kuniwak/puml-parallel/v8/tools/replweb"
 )
 
 // The files internal/buildengine writes; a release writes them before
