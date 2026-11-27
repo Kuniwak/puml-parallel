@@ -10,8 +10,8 @@ import sys
 import unittest
 import warnings
 
-from csdfbmc.protocol import (NO_CLOSE, NO_LINT, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire, serve,
-                              start_command, start_module, to_wire)
+from csdfbmc.protocol import (NO_CLOSE, NO_LINT, NO_SYMMETRIC, Client, EvaluatorError, atom_handler, checked, from_wire,
+                              kill_commands, serve, start_command, start_module, to_wire)
 from csdfbmc.python_glue import evaluator
 from csdfbmc.values import FrozenMap, Instance, at, same_value
 
@@ -286,6 +286,21 @@ class ServeTest(unittest.TestCase):
 
 # The repository root, from which "python -m csdfbmc.python_glue" finds the package.
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+class KillCommandsTest(unittest.TestCase):
+    def test_kills_every_glue_command_running_without_waiting(self):
+        # Setup
+        command = start_command([sys.executable, "-E", "-s", "-B", "-m", "csdfbmc.python_glue"], cwd=ROOT)
+        self.addCleanup(command.close)
+
+        # Execute
+        kill_commands()
+
+        # Assert
+        two = {"text": ["len(", ") == 2"], "holes": [0], "primed": [False]}
+        with self.assertRaises(EvaluatorError):
+            command.guard(two, [[frozenset({1, 2})]])
 
 
 class TransportTest(unittest.TestCase):
