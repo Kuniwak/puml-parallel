@@ -34,7 +34,13 @@ func python(t *testing.T) string {
 // names where it waits instead of being killed silently.
 func pythonCommand(t *testing.T, args []string) *exec.Cmd {
 	t.Helper()
-	return exec.Command(python(t), watched(secondsLeft(t), args)...)
+	cmd := exec.Command(python(t), watched(secondsLeft(t), args)...)
+	// A process python3 leaves behind holding its output, such as a pool
+	// worker in a session of its own, would keep the output open, and
+	// hide the watchdog's tracebacks with it, until the test binary's
+	// deadline.
+	cmd.WaitDelay = 10 * time.Second
+	return cmd
 }
 
 // secondsLeft is how long a run may take: until a minute before the test
