@@ -896,6 +896,39 @@ class PruningTest(unittest.TestCase):
                 # Assert
                 self.assertEqual(labels, got)
 
+    def test_every_read_of_a_field_an_instance_has_not_at_its_state_is_false(self):
+        # m[1] at a has no y; at b it has y = 1, or y = {1: 0} where y is read as a map.
+        fam = family("m", "none", {"none": [], "a": ["x"], "b": ["x", "y"]}, key="id")
+        at_a, at_b = FrozenMap({1: inst("a", x=0)}), FrozenMap({1: inst("a", x=0), 2: inst("b", x=0, y=1)})
+        y_of_1 = fld(idx("m", lit(1)), "y")
+        tests = {
+            "a witness term": (
+                {"q": ["m"]}, [builtin("empty", "m'")],
+                edge("q", "q", "c?v", guard=[exists("id", builtin("in", bound(0), "m"), eq("v", fld(idx("m", bound(0)), "y")))],
+                     post=[builtin("frame", "m'", "m")]),
+                {"c": ["V"]}, (at_a,), (at_b,), ["c(v=1)"]),
+            "a map a membership draws from": (
+                {"q": ["m"]}, [builtin("empty", "m'")],
+                edge("q", "q", "c?v", guard=[builtin("in", "v", y_of_1)], post=[builtin("frame", "m'", "m")]),
+                {"c": ["V"]}, (at_a,), (FrozenMap({1: inst("b", x=0, y=FrozenMap({1: 0}))}),), ["c(v=1)"]),
+            "a post": (
+                {"q": ["m", "n"]}, [builtin("empty", "m'"), eq("n'", lit(0))],
+                edge("q", "q", "c", post=[builtin("frame", "m'", "m"), eq("n'", y_of_1)]),
+                {"c": []}, (at_a, 0), (FrozenMap({1: inst("b", x=0, y=1)}), 0), ["c"]),
+        }
+        for name, (states, init_post, e, channels, without, with_y, labels) in tests.items():
+            for which, values, want in (("without y", without, []), ("with y", with_y, labels)):
+                with self.subTest(name, instance=which):
+                    # Setup
+                    d = diagram(states, "q", init_post=init_post, edges=[e], families=[fam], channels=channels)
+                    x = fixture.explorer(d, Checks(types={"id": [1, 2], "V": [0, 1], "n": [0, 1], "x": [0], "y": [1, FrozenMap({1: 0})]}))
+
+                    # Execute
+                    got = [label for _, label, _, _ in x.successors(("q", values, ()))]
+
+                    # Assert
+                    self.assertEqual(want, got)
+
     def test_a_field_no_state_of_the_family_observes_is_an_error(self):
         fam = family("m", "none", {"none": [], "a": ["x"], "b": ["x", "y"]}, key="id")
         tests = {
