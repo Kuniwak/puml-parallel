@@ -288,6 +288,13 @@ func (f FamilyStates) clone() FamilyStates {
 	return FamilyStates{Map: f.Map, Key: f.Key, Init: f.Init, States: slices.Clone(f.States), Vars: vars, KeyType: f.KeyType, Types: maps.Clone(f.Types), Blocks: maps.Clone(f.Blocks), Observes: f.Observes}
 }
 
+// observesAt says whether an instance of f at the state s observes the
+// variable v: s holds v and the observation declares it, every variable
+// when it declares nothing.
+func (f FamilyStates) observesAt(s, v string) bool {
+	return slices.Contains(f.Vars[s], v) && (f.Observes == nil || f.Observes.Observes(v))
+}
+
 // cloneFamilies are fs, each cloned.
 func cloneFamilies(fs []FamilyStates) []FamilyStates {
 	var out []FamilyStates

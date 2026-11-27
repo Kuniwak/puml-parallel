@@ -75,8 +75,9 @@ func familyOfState(families []FamilyStates) map[string]FamilyStates {
 	return out
 }
 
-// errMissing is a term that reads an entry its map does not have: an
-// instance that does not exist. A clause reading one is false
+// errMissing is a term that reads an entry its map does not have, an
+// instance that does not exist, or a field an instance does not observe at
+// its state (evaluator.field). A clause reading one is false
 // (docs/CLAUSE_DESIGN.md).
 var errMissing = errors.New("an entry the map does not have")
 
@@ -261,11 +262,7 @@ func (ev evaluator) term(t clause.Term, bound []Value) (Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("core: %s is not an instance", Key(r))
 		}
-		v, ok := rr.Fields[t.Name]
-		if !ok {
-			return nil, fmt.Errorf("core: %s has no field %s", Key(r), t.Name)
-		}
-		return v, nil
+		return ev.field(rr, t.Name)
 	case clause.Lit:
 		v, err := t.Decode()
 		if err != nil {
@@ -291,4 +288,22 @@ func name(v clause.Free) string {
 		return v.Name + "'"
 	}
 	return v.Name
+}
+
+// field is the field name of the instance r. A field r does not observe
+// at its state, which another state of its family observes, reads as an
+// entry a map has not (errMissing); one no state of its family observes
+// is an error.
+func (ev evaluator) field(r Rec, name string) (Value, error) {
+	if f, ok := ev.families[r.State]; ok && !f.observesAt(r.State, name) {
+		if slices.ContainsFunc(f.States, func(s string) bool { return f.observesAt(s, name) }) {
+			return nil, fmt.Errorf("core: %s does not observe %s at its state: %w", Key(r), name, errMissing)
+		}
+		return nil, fmt.Errorf("core: %s has no field %s: no state of its family observes it", Key(r), name)
+	}
+	v, ok := r.Fields[name]
+	if !ok {
+		return nil, fmt.Errorf("core: %s has no field %s", Key(r), name)
+	}
+	return v, nil
 }
