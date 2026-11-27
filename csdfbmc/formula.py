@@ -46,16 +46,16 @@ class Atoms(Protocol):
 class Evaluator:
     """Evaluates clauses: atoms says what an atom means; carrier gives the
     values of a type, which an ∃ ranges over; apply gives the value of an
-    environment function of a term (App) applied to values; families gives
-    the family of each local state (csdfbmc.model.family_by_state), which
+    environment function of a term (App) applied to values; family_of_state gives
+    the family of each local state (csdfbmc.model.family_of_state), which
     says what fields an instance there may have."""
 
     def __init__(self, atoms: Atoms, carrier: Callable[[str], list], apply: Callable[[str, tuple], object],
-                 families: Mapping):
+                 family_of_state: Mapping):
         self.atoms = atoms
         self.carrier = carrier
         self.apply = apply
-        self.families = families
+        self.family_of_state = family_of_state
 
     # -- terms -------------------------------------------------------------------
 
@@ -91,8 +91,8 @@ class Evaluator:
         an entry a map has not (Missing); a field no state of its family
         has is an error."""
         fields = r.fields if isinstance(r, Rec) else r
-        if isinstance(r, Rec) and name not in fields and r.state in self.families:
-            fam = self.families[r.state]
+        if isinstance(r, Rec) and name not in fields and r.state in self.family_of_state:
+            fam = self.family_of_state[r.state]
             if name not in fam.vars[r.state] and any(name in vs for vs in fam.vars.values()):
                 raise Missing()
         if not isinstance(fields, Mapping) or name not in fields:

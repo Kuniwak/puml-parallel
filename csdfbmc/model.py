@@ -404,7 +404,7 @@ class Seen:
     views: frozenset
 
 
-def family_by_state(families) -> FrozenMap:
+def family_of_state(families) -> FrozenMap:
     """The family of each local state of the families. Local states are
     unique across the families of a diagram, so a state names its family."""
     return FrozenMap((s, fam) for fam in families.values() for s in fam.states)

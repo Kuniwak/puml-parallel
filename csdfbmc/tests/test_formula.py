@@ -8,7 +8,7 @@ from csdfbmc import environment
 from csdfbmc.checks import Checks
 from csdfbmc.formula import Evaluator, GuardTally, PostError, solve
 from csdfbmc.meaning import AtomMeaning, apply_given
-from csdfbmc.model import Family, family_by_state, formula_of, observed_by_state
+from csdfbmc.model import Family, family_of_state, formula_of, observed_by_state
 from csdfbmc.tests import fixture
 from csdfbmc.tests.fixture import atom, builtin, eq, exists, fld, idx, lit
 from csdfbmc.values import LEFT_OUT, FrozenMap, Rec, same_value
@@ -44,7 +44,7 @@ class ByName(dict):
 def evaluator(env=environment.NONE, given=None, families=None):
     seen = observed_by_state(families or {})
     return Evaluator(AtomMeaning(fixture.glue(), env, CARRIER, seen), CARRIER, apply_given(given or {}, seen),
-                     family_by_state(families or {}))
+                     family_of_state(families or {}))
 
 
 def inst(state, **fields):
